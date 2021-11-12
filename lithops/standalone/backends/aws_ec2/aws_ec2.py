@@ -28,7 +28,7 @@ from lithops.util.ssh_client import SSHClient
 from lithops.constants import COMPUTE_CLI_MSG, CACHE_DIR
 from lithops.config import load_yaml_config, dump_yaml_config
 from lithops.standalone.utils import CLOUD_CONFIG_WORKER
-from lithops.version import __version__
+
 
 logger = logging.getLogger(__name__)
 
@@ -81,10 +81,10 @@ class AWSEC2Backend:
         logger.debug(f'Initializing AWS EC2 backend ({self.mode} mode)')
 
         if self.mode == 'consume':
-            instance_id = self.config['instance_id']
+            ins_id = self.config['instance_id']
 
-            if self.mode != cahced_mode or instance_id != cahced_instance_id:
-                instances = self.ec2_client.describe_instances(InstanceIds=[instance_id])
+            if self.mode != cahced_mode or ins_id != cahced_instance_id:
+                instances = self.ec2_client.describe_instances(InstanceIds=[ins_id])
                 instance_data = instances['Reservations'][0]['Instances'][0]
                 name = 'lithops-consume'
                 for tag in instance_data['Tags']:
@@ -92,17 +92,15 @@ class AWSEC2Backend:
                         name = tag['Value']
                 private_ip = instance_data['PrivateIpAddress']
                 self.ec2_data = {'mode': self.mode,
-                                 'instance_id': instance_id,
+                                 'instance_id': ins_id,
                                  'instance_name': name,
                                  'private_ip': private_ip}
                 dump_yaml_config(ec2_data_filename, self.ec2_data)
 
-            instance_data = self._get_instance_data(self.ec2_data['instance_name'])
-            instance_data['instance_id'] = instance_id
-            instance_data['private_ip'] = self.ec2_data['private_ip']
-            instance_data['delete_on_dismantle'] = False
-
-            self.master = EC2Instance(**instance_data)
+            self.master = EC2Instance(self.ec2_data['instance_name'], self.config, self.ec2_client)
+            self.master.instance_id = ins_id
+            self.master.private_ip = self.ec2_data['private_ip']
+            self.master.delete_on_dismantle = False
 
         elif self.mode in ['create', 'reuse']:
             if self.mode != cahced_mode:
@@ -111,9 +109,9 @@ class AWSEC2Backend:
 
             self.vpc_key = self.config['vpc_id'][-4:]
             master_name = 'lithops-master-{}'.format(self.vpc_key)
-            instance_data = self._get_instance_data(master_name)
-            instance_data['delete_on_dismantle'] = False
-            self.master = EC2Instance(**instance_data)
+            self.master = EC2Instance(master_name, self.config, self.ec2_client)
+            self.master.instance_type = self.config['master_instance_type']
+            self.master.delete_on_dismantle = False
 
             instance_data = self.master.get_instance_data()
             if instance_data and 'InstanceId' in instance_data:
@@ -123,8 +121,6 @@ class AWSEC2Backend:
             if instance_data and instance_data['State']['Name'] == 'running' and \
                'PublicIpAddress' in instance_data:
                 self.master.public_ip = instance_data['PublicIpAddress']
-
-            self.ec2_data['instance_id'] = self.master.instance_id or str(uuid.uuid4())[:4]
 
             if self.config['request_spot_instances']:
                 wit = self.config["worker_instance_type"]
@@ -189,117 +185,68 @@ class AWSEC2Backend:
             # in consume mode master VM is a worker
             self.master.stop()
 
-    def _get_instance_data(self, name, public=True):
-        """
-        Creates the instance data
-        """
-        instance_data = {
-            'name': name,
-            'ec2_client': self.ec2_client,
-            'vpc_id': self.config['vpc_id'],
-            'iam_role': self.config['iam_role'],
-            'key_name': self.config['key_name'],
-            'target_ami': self.config['target_ami'],
-            'security_group_ids': [self.config['security_group_id']],
-            'ssh_credentials': {
-                'username': self.config['ssh_username'],
-                'password': self.config['ssh_password'],
-                'key_filename':  self.config.get('ssh_keyfile', None)},
-            'delete_on_dismantle': self.config['delete_on_dismantle'],
-            'instance_type': self.config['master_instance_type'] if public else self.config['worker_instance_type'],
-            'region_name': self.config['region_name'],
-            'request_spot_instance': self.config['request_spot_instances'],
-            'spot_price': self.config.get('spot_price', 0),
-            'public': public
-        }
-        return instance_data
-
-    def get_instance(self, name, **kargs):
+    def get_instance(self, name, **kwargs):
         """
         Returns a VM class instance.
         Does not creates nor starts a VM instance
         """
-        instance_data = self._get_instance_data(name)
+        instance = EC2Instance(name, self.config, self.ec2_client)
 
-        for key in kargs:
-            instance_data[key] = kargs[key]
+        for key in kwargs:
+            if hasattr(instance, key):
+                setattr(instance, key, kwargs[key])
 
-        return EC2Instance(**instance_data)
+        return instance
 
     def create_worker(self, name):
         """
         Creates a new worker VM instance
         """
-        instance_data = self._get_instance_data(name)
-
         user = self.config['ssh_username']
         token = self.config['ssh_password']
         user_data = CLOUD_CONFIG_WORKER.format(user, token)
 
-        worker = EC2Instance(**instance_data)
+        worker = EC2Instance(name, self.config, self.ec2_client, public=False)
         worker.create(user_data=user_data)
         worker.ssh_credentials.pop('key_filename', None)
         self.workers.append(worker)
 
     def get_runtime_key(self, runtime_name):
         name = runtime_name.replace('/', '-').replace(':', '-')
-        runtime_key = '/'.join([self.name, self.ec2_data['instance_id'], name])
+        runtime_key = '/'.join([self.name, self.vpc_key, name])
         return runtime_key
 
 
 class EC2Instance:
 
-    def __init__(
-            self,
-            name,
-            region_name,
-            instance_type,
-            target_ami,
-            security_group_ids,
-            iam_role,
-            key_name,
-            vpc_id=None,
-            delete_on_dismantle=False,
-            request_spot_instance=False,
-            spot_price=0,
-            instance_id=None,
-            private_ip=None,
-            public_ip='0.0.0.0',
-            access_key_id=None,
-            secret_access_key=None,
-            ssh_credentials=None,
-            fast_io=False,
-            ec2_client=None,
-            public=False,
-            **kwargs
-       ):
+    def __init__(self, name, ec2_config, ec2_client=None, public=True):
         """
         Initialize a EC2Instance instance
+        VMs can have master role, this means they will have a public IP address
         """
         self.name = name.lower()
+        self.config = ec2_config
 
-        self.access_key_id = access_key_id,
-        self.secret_access_key = secret_access_key,
-        self.vpc_id = vpc_id
-        self.delete_on_dismantle = delete_on_dismantle
-        self.instance_type = instance_type
-        self.region = region_name
-        self.request_spot_instance = request_spot_instance
-        self.fast_io = fast_io
-        self.instance_id = instance_id
-        self.private_ip = private_ip
-        self.public_ip = public_ip
-        self.target_ami = target_ami
-        self.security_group_ids = security_group_ids
-        self.iam_role = iam_role
-        self.key_name = key_name
+        self.delete_on_dismantle = self.config['delete_on_dismantle']
+        self.instance_type = self.config['worker_instance_type']
+        self.region = self.config['region_name']
+        self.spot_instance = self.config['request_spot_instances']
+
         self.ec2_client = ec2_client or self._create_ec2_client()
         self.public = public
-        self.spot_price = spot_price
-        self.ssh_credentials = ssh_credentials
 
-        self.instance_data = None
         self.ssh_client = None
+        self.instance_id = None
+        self.instance_data = None
+        self.private_ip = None
+        self.public_ip = '0.0.0.0'
+        self.fast_io = self.config.get('fast_io', False)
+
+        self.ssh_credentials = {
+            'username': self.config['ssh_username'],
+            'password': self.config['ssh_password'],
+            'key_filename': self.config.get('ssh_key_filename', '~/.ssh/id_rsa')
+        }
 
     def __str__(self):
         ip = self.public_ip if self.public else self.private_ip
@@ -314,19 +261,19 @@ class EC2Instance:
         Creates an EC2 boto3 instance
         """
         client_config = botocore.client.Config(
-            user_agent_extra=f'lithops/{__version__}'
+            user_agent_extra=self.config['user_agent']
         )
 
         ec2_client = boto3.client(
-            'ec2', aws_access_key_id=self.access_key_id,
-            aws_secret_access_key=self.secret_access_key,
+            'ec2', aws_access_key_id=self.ec2_config['access_key_id'],
+            aws_secret_access_key=self.ec2_config['secret_access_key'],
             config=client_config,
             region_name=self.region
         )
 
         return ec2_client
 
-    def get_ssh_client(self):
+    def get_ssh_client(self, unbinded=False):
         """
         Creates an ssh client against the VM only if the Instance is the master
         """
@@ -399,20 +346,20 @@ class EC2Instance:
             BlockDeviceMappings = None
 
         LaunchSpecification = {
-            "ImageId": self.target_ami,
+            "ImageId": self.config['target_ami'],
             "InstanceType": self.instance_type,
-            "SecurityGroupIds": self.security_group_ids,
+            "SecurityGroupIds": [self.config['security_group_id']],
             "EbsOptimized": False,
-            "IamInstanceProfile": {'Name': self.iam_role},
+            "IamInstanceProfile": {'Name': self.config['iam_role']},
             "Monitoring": {'Enabled': False}
         }
 
         if BlockDeviceMappings is not None:
             LaunchSpecification['BlockDeviceMappings'] = BlockDeviceMappings
-        if self.key_name:
-            LaunchSpecification['KeyName'] = self.key_name
+        if 'key_name' in self.config:
+            LaunchSpecification['KeyName'] = self.config['key_name']
 
-        if self.request_spot_instance:
+        if self.spot_instance and not self.public:
 
             logger.debug("Creating new VM instance {} (Spot)".format(self.name))
 
@@ -421,7 +368,7 @@ class EC2Instance:
                 LaunchSpecification['UserData'] = b64s(user_data)
 
             spot_requests = self.ec2_client.request_spot_instances(
-                SpotPrice=str(self.spot_price),
+                SpotPrice=str(self.config['spot_price']),
                 InstanceCount=1,
                 LaunchSpecification=LaunchSpecification)['SpotInstanceRequests']
 
@@ -463,10 +410,11 @@ class EC2Instance:
             LaunchSpecification["TagSpecifications"] = [{"ResourceType": "instance", "Tags": [{'Key': 'Name', 'Value': self.name}]}]
             LaunchSpecification["InstanceInitiatedShutdownBehavior"] = 'terminate' if self.delete_on_dismantle else 'stop'
 
-            if not self.public:
-                # Allow master VM to access workers trough ssh password
+            if user_data:
                 LaunchSpecification['UserData'] = user_data
-                # LaunchSpecification['NetworkInterfaces'] = [{'AssociatePublicIpAddress': False, 'DeviceIndex': 0}]
+
+            # if not self.public:
+            #  LaunchSpecification['NetworkInterfaces'] = [{'AssociatePublicIpAddress': False, 'DeviceIndex': 0}]
 
             resp = self.ec2_client.run_instances(**LaunchSpecification)
 

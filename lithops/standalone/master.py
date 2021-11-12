@@ -64,11 +64,11 @@ localhos_handler = None
 last_job_key = None
 
 
-def is_worker_free(vm):
+def is_worker_free(worker):
     """
     Checks if the Lithops service is ready and free in the worker VM instance
     """
-    url = f"http://{vm.private_ip}:{SA_SERVICE_PORT}/ping"
+    url = f"http://{worker.private_ip}:{SA_SERVICE_PORT}/ping"
     r = requests.get(url, timeout=0.5)
     if r.status_code == 200:
         if r.json()['status'] == 'free':
@@ -252,18 +252,18 @@ def get_workers():
     # update last_usage_time to prevent race condition when keeper stops the vm
     budget_keeper.last_usage_time = time.time()
 
-    current_workers = [(vm.name, vm.private_ip) for vm in workers.values()]
+    current_workers = [(worker.name, worker.private_ip) for worker in workers.values()]
     logger.debug(f'Current workers: {current_workers}')
 
     free_workers = []
 
-    def check_worker(vm):
-        if is_worker_free(vm):
+    def check_worker(worker):
+        if is_worker_free(worker):
             free_workers.append((
-                vm.name,
-                vm.private_ip,
-                vm.instance_id,
-                vm.ssh_credentials)
+                worker.name,
+                worker.private_ip,
+                worker.instance_id,
+                worker.ssh_credentials)
             )
 
     if workers:
