@@ -219,7 +219,7 @@ class StandaloneHandler:
             while(time.time() - start < self.start_timeout * 2):
                 try:
                     cmd = (f'curl -X GET http://127.0.0.1:{SA_SERVICE_PORT}/workers-state '
-                        '-H \'Content-Type: application/json\'')
+                           '-H \'Content-Type: application/json\'')
                     resp = self.backend.master.get_ssh_client().run_remote_command(cmd)
                     prev = workers_state_on_master
 
@@ -257,7 +257,7 @@ class StandaloneHandler:
                 time.sleep(10)
 
             raise Exception('Lithops workers service readiness probe expired on {}'
-                        .format(self.backend.master))
+                            .format(self.backend.master))
 
         worker_instances = []
 
@@ -267,10 +267,10 @@ class StandaloneHandler:
         elif self.exec_mode == 'create':
             new_workers = create_workers(total_required_workers)
             total_workers = len(new_workers)
-            worker_instances = [(inst.name,
-                                 inst.private_ip,
-                                 inst.instance_id,
-                                 inst.ssh_credentials)
+            worker_instances = [{'name': inst.name,
+                                 'private_ip': inst.private_ip,
+                                 'instance_id': inst.instance_id,
+                                 'ssh_credentials': inst.ssh_credentials}
                                 for inst in new_workers]
 
         elif self.exec_mode == 'reuse':
@@ -284,10 +284,10 @@ class StandaloneHandler:
                 logger.debug(f'Going to create {workers_to_create} new workers')
                 new_workers = create_workers(workers_to_create)
                 total_workers = len(new_workers) + total_started_workers
-                worker_instances = [(inst.name,
-                                     inst.private_ip,
-                                     inst.instance_id,
-                                     inst.ssh_credentials)
+                worker_instances = [{'name': inst.name,
+                                     'private_ip': inst.private_ip,
+                                     'instance_id': inst.instance_id,
+                                     'ssh_credentials': inst.ssh_credentials}
                                     for inst in new_workers]
             else:
                 total_workers = total_started_workers
@@ -329,7 +329,6 @@ class StandaloneHandler:
         # in case of 'consume' mode there no new workers created
         if self.exec_mode != 'consume' and self.workers_policy == 'strict':
             threading.Thread(target=wait_workers_ready, args=(new_workers,), daemon=True).start()
-
 
     def create_runtime(self, runtime_name, *args):
         """
@@ -424,9 +423,10 @@ class StandaloneHandler:
         ssh_client.upload_local_file(LOCAL_FH_ZIP_LOCATION, '/tmp/lithops_standalone.zip')
         os.remove(LOCAL_FH_ZIP_LOCATION)
 
-        vm_data = {'instance_name': self.backend.master.name,
+        vm_data = {'name': self.backend.master.name,
                    'instance_id': self.backend.master.instance_id,
                    'private_ip': self.backend.master.private_ip,
+                   'delete_on_dismantle': self.backend.master.delete_on_dismantle,
                    'lithops_version': lithops_version}
 
         logger.debug('Executing lithops installation process on {}'.format(self.backend.master))

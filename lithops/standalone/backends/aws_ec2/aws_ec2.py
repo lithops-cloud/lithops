@@ -15,7 +15,6 @@
 #
 
 import os
-import uuid
 import time
 import logging
 import boto3
@@ -97,7 +96,7 @@ class AWSEC2Backend:
                                  'private_ip': private_ip}
                 dump_yaml_config(ec2_data_filename, self.ec2_data)
 
-            self.master = EC2Instance(self.ec2_data['instance_name'], self.config, self.ec2_client, public=True)
+            self.master = EC2Instance(self.ec2_data['instance_name'], self.config, self.ec2_client)
             self.master.instance_id = ins_id
             self.master.private_ip = self.ec2_data['private_ip']
             self.master.delete_on_dismantle = False
@@ -109,7 +108,7 @@ class AWSEC2Backend:
 
             self.vpc_key = self.config['vpc_id'][-4:]
             master_name = 'lithops-master-{}'.format(self.vpc_key)
-            self.master = EC2Instance(master_name, self.config, self.ec2_client, public=True)
+            self.master = EC2Instance(master_name, self.config, self.ec2_client)
             self.master.instance_type = self.config['master_instance_type']
             self.master.delete_on_dismantle = False
 
@@ -122,7 +121,7 @@ class AWSEC2Backend:
                'PublicIpAddress' in instance_data:
                 self.master.public_ip = instance_data['PublicIpAddress']
 
-            self.ec2_data['instance_id'] = self.master.instance_id or str(uuid.uuid4())[:4]
+            self.ec2_data['instance_id'] = '0af1'
 
             if self.config['request_spot_instances']:
                 wit = self.config["worker_instance_type"]
@@ -187,19 +186,29 @@ class AWSEC2Backend:
             # in consume mode master VM is a worker
             self.master.stop()
 
-    def get_vm(self, name):
+    def get_instance(self, name, **kwargs):
         """
         Returns a VM class instance.
         Does not creates nor starts a VM instance
         """
-        return EC2Instance(name, self.config, self.ec2_client)
+        instance = EC2Instance(name, self.config, self.ec2_client)
+
+        for key in kwargs:
+            if hasattr(instance, key):
+                setattr(instance, key, kwargs[key])
+
+        return instance
 
     def create_worker(self, name):
         """
         Creates a new worker VM instance
         """
-        worker = EC2Instance(name, self.config, self.ec2_client)
-        worker.create()
+        user = self.config['ssh_username']
+        token = self.config['ssh_password']
+        user_data = CLOUD_CONFIG_WORKER.format(user, token)
+
+        worker = EC2Instance(name, self.config, self.ec2_client, public=False)
+        worker.create(user_data=user_data)
         worker.ssh_credentials.pop('key_filename', None)
         self.workers.append(worker)
 
@@ -211,7 +220,7 @@ class AWSEC2Backend:
 
 class EC2Instance:
 
-    def __init__(self, name, ec2_config, ec2_client=None, public=False):
+    def __init__(self, name, ec2_config, ec2_client=None, public=True):
         """
         Initialize a EC2Instance instance
         VMs can have master role, this means they will have a public IP address
@@ -265,7 +274,7 @@ class EC2Instance:
 
         return ec2_client
 
-    def get_ssh_client(self, unbinded=False):
+    def get_ssh_client(self):
         """
         Creates an ssh client against the VM only if the Instance is the master
         """
@@ -318,7 +327,7 @@ class EC2Instance:
 
         raise TimeoutError(f'Readiness probe expired on {self}')
 
-    def _create_instance(self):
+    def _create_instance(self, user_data=None):
         """
         Creates a new VM instance
         """
@@ -351,15 +360,11 @@ class EC2Instance:
         if 'key_name' in self.config:
             LaunchSpecification['KeyName'] = self.config['key_name']
 
-        user = self.config['ssh_username']
-        token = self.config['ssh_password']
-        user_data = CLOUD_CONFIG_WORKER.format(user, token)
-
         if self.spot_instance and not self.public:
 
             logger.debug("Creating new VM instance {} (Spot)".format(self.name))
 
-            if not self.public:
+            if user_data:
                 # Allow master VM to access workers trough ssh password
                 LaunchSpecification['UserData'] = b64s(user_data)
 
@@ -406,10 +411,11 @@ class EC2Instance:
             LaunchSpecification["TagSpecifications"] = [{"ResourceType": "instance", "Tags": [{'Key': 'Name', 'Value': self.name}]}]
             LaunchSpecification["InstanceInitiatedShutdownBehavior"] = 'terminate' if self.delete_on_dismantle else 'stop'
 
-            if not self.public:
-                # Allow master VM to access workers trough ssh password
+            if user_data:
                 LaunchSpecification['UserData'] = user_data
-                # LaunchSpecification['NetworkInterfaces'] = [{'AssociatePublicIpAddress': False, 'DeviceIndex': 0}]
+
+            # if not self.public:
+            #  LaunchSpecification['NetworkInterfaces'] = [{'AssociatePublicIpAddress': False, 'DeviceIndex': 0}]
 
             resp = self.ec2_client.run_instances(**LaunchSpecification)
 
@@ -474,7 +480,7 @@ class EC2Instance:
                 time.sleep(1)
         return self.public_ip
 
-    def create(self, check_if_exists=False):
+    def create(self, check_if_exists=False, user_data=None):
         """
         Creates a new VM instance
         """
@@ -490,7 +496,7 @@ class EC2Instance:
                 self.private_ip = instance_data['PrivateIpAddress']
 
         if not vsi_exists:
-            instance_data = self._create_instance()
+            instance_data = self._create_instance(user_data=user_data)
             self.instance_id = instance_data['InstanceId']
             self.private_ip = instance_data['PrivateIpAddress']
             self.public_ip = self.get_public_ip()

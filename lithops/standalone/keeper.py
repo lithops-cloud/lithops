@@ -27,21 +27,15 @@ class BudgetKeeper(threading.Thread):
         self.jobs = {}
 
         with open(SA_DATA_FILE, 'r') as ad:
-            vm_data = json.load(ad)
-
-        self.instance_name = vm_data['instance_name']
-        self.private_ip = vm_data['private_ip']
-        self.instance_id = vm_data['instance_id']
-
-        logger.debug("Starting BudgetKeeper for {} ({}), instance ID: {}"
-                     .format(self.instance_name, self.private_ip, self.instance_id))
+            instance_data = json.load(ad)
 
         self.sh = StandaloneHandler(self.standalone_config)
-        self.vm = self.sh.backend.get_vm(self.instance_name)
-        self.vm.private_ip = self.private_ip
-        self.vm.instance_id = self.instance_id
-        self.vm.delete_on_dismantle = False if 'master' in self.instance_name or \
-            self.exec_mode == 'consume' else True
+        self.instance = self.sh.backend.get_instance(**instance_data)
+
+        logger.debug("Starting BudgetKeeper for {} ({}), instance ID: {}"
+                     .format(self.instance.name, self.instance.private_ip,
+                             self.instance.instance_id))
+        logger.debug(f"Delete {self.instance.name} on dismantle: {self.instance.delete_on_dismantle}")
 
     def update_config(self, config):
         self.standalone_config.update(config)
@@ -100,7 +94,7 @@ class BudgetKeeper(threading.Thread):
             else:
                 logger.debug("Dismantling setup")
                 try:
-                    self.vm.stop()
+                    self.instance.stop()
                     runing = False
                 except Exception as e:
                     logger.debug(f"Dismantle error {e}")

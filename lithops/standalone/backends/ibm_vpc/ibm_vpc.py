@@ -288,10 +288,15 @@ class IBMVPCBackend:
             self.master.profile_name = self.config['master_profile_name']
             self.master.delete_on_dismantle = False
 
+            instance_data = self.master.get_instance_data()
+            if instance_data:
+                self.master.private_ip = instance_data['primary_network_interface']['primary_ipv4_address']
+                self.master.instance_id = instance_data['id']
+
             self.vpc_data = {
                 'mode': 'consume',
-                'instance_id': '0af1',
                 'instance_name': self.master.name,
+                'instance_id': '0af1',
                 'vpc_id': self.config['vpc_id'],
                 'subnet_id': self.config['subnet_id'],
                 'security_group_id': self.config['security_group_id'],
@@ -457,19 +462,29 @@ class IBMVPCBackend:
             # in consume mode master VM is a worker
             self.master.stop()
 
-    def get_vm(self, name):
+    def get_instance(self, name, **kwargs):
         """
         Returns a VM class instance.
         Does not creates nor starts a VM instance
         """
-        return IBMVPCInstance(name, self.config, self.ibm_vpc_client)
+        instance = IBMVPCInstance(name, self.config, self.ibm_vpc_client)
+
+        for key in kwargs:
+            if hasattr(instance, key):
+                setattr(instance, key, kwargs[key])
+
+        return instance
 
     def create_worker(self, name):
         """
-        Creates a new worker VM instance in VPC
+        Creates a new worker VM instance
         """
+        user = self.config['ssh_username']
+        token = self.config['ssh_password']
+        user_data = CLOUD_CONFIG_WORKER.format(user, token)
+
         worker = IBMVPCInstance(name, self.config, self.ibm_vpc_client)
-        worker.create()
+        worker.create(user_data=user_data)
         worker.ssh_credentials.pop('key_filename', None)
         self.workers.append(worker)
 
@@ -530,16 +545,6 @@ class IBMVPCInstance:
         """
         Creates an ssh client against the VM only if the Instance is the master
         """
-        if self.private_ip or self.public_ip:
-            if None in (self.private_ip, self.instance_id):
-                logger.debug(f'Requesting master configuration: private_ip and instance_id')
-                instance_data = self.get_instance_data()
-                self.private_ip = instance_data['primary_network_interface']['primary_ipv4_address']
-                self.instance_id = instance_data['id']
-
-            if not self.ssh_client:
-                self.ssh_client = SSHClient(self.public_ip or self.private_ip, self.ssh_credentials)
-
         if not self.validated and self.public:
             # validate that private ssh key in ssh_credentials is a pair of public key on instance
             key_filename = self.ssh_credentials['key_filename']
@@ -559,6 +564,10 @@ class IBMVPCInstance:
                     f"{key_name} on master {self} are not a pair")
 
             self.validated = True
+
+        if self.private_ip or self.public_ip:
+            if not self.ssh_client:
+                self.ssh_client = SSHClient(self.public_ip or self.private_ip, self.ssh_credentials)
 
         return self.ssh_client
 
@@ -602,7 +611,7 @@ class IBMVPCInstance:
 
         raise TimeoutError(f'Readiness probe expired on {self}')
 
-    def _create_instance(self):
+    def _create_instance(self, user_data):
         """
         Creates a new VM instance
         """
@@ -639,11 +648,8 @@ class IBMVPCInstance:
         instance_prototype['boot_volume_attachment'] = boot_volume_attachment
         instance_prototype['primary_network_interface'] = primary_network_interface
 
-        if not self.public:
-            # Allow master VM to access workers trough ssh passwrod
-            user = self.config['ssh_username']
-            token = self.config['ssh_password']
-            instance_prototype['user_data'] = CLOUD_CONFIG_WORKER.format(user, token)
+        if user_data:
+            instance_prototype['user_data'] = user_data
 
         try:
             resp = self.ibm_vpc_client.create_instance(instance_prototype)
@@ -724,7 +730,7 @@ class IBMVPCInstance:
 
         return None
 
-    def create(self, check_if_exists=False):
+    def create(self, check_if_exists=False, user_data=None):
         """
         Creates a new VM instance
         """
@@ -740,7 +746,7 @@ class IBMVPCInstance:
                 self.instance_id = instances_data['id']
 
         if not vsi_exists:
-            instance = self._create_instance()
+            instance = self._create_instance(user_data=user_data)
             self.instance_id = instance['id']
             self.private_ip = self.get_private_ip()
         else:
@@ -820,7 +826,33 @@ class IBMVPCInstance:
                 raise LithopsValidationError(f'Not using single CPU socket as specified, using {len(sockets)} sockets instead')
 
 
-RETRIABLE = ['list_vpcs', 'create_vpc', 'get_security_group', 'create_security_group_rule', 'list_public_gateways', 'create_public_gateway', 'list_subnets', 'create_subnet', 'set_subnet_public_gateway', 'list_floating_ips', 'create_floating_ip', 'get_instance', 'delete_instance', 'list_instances', 'list_instance_network_interface_floating_ips', 'delete_floating_ip', 'delete_subnet', 'delete_public_gateway', 'delete_vpc', 'get_instance_initialization', 'get_key', 'create_instance', 'add_instance_network_interface_floating_ip', 'get_instance', 'create_instance_action', 'delete_instance']
+RETRIABLE = ['list_vpcs',
+             'create_vpc',
+             'get_security_group',
+             'create_security_group_rule',
+             'list_public_gateways',
+             'create_public_gateway',
+             'list_subnets',
+             'create_subnet',
+             'set_subnet_public_gateway',
+             'list_floating_ips',
+             'create_floating_ip',
+             'get_instance',
+             'delete_instance',
+             'list_instances',
+             'list_instance_network_interface_floating_ips',
+             'delete_floating_ip',
+             'delete_subnet',
+             'delete_public_gateway',
+             'delete_vpc',
+             'get_instance_initialization',
+             'get_key',
+             'create_instance',
+             'add_instance_network_interface_floating_ip',
+             'get_instance',
+             'create_instance_action',
+             'delete_instance']
+
 
 def decorate_instance(instance, decorator):
     for name, func in inspect.getmembers(instance, inspect.ismethod):
