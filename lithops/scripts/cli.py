@@ -200,7 +200,7 @@ def attach(config, backend, start, debug):
 
     master_ip = compute_handler.backend.master.get_public_ip()
     user = compute_handler.backend.master.ssh_credentials['username']
-    key_file = compute_handler.backend.master.ssh_credentials['key_filename']
+    key_file = compute_handler.backend.master.ssh_credentials['key_filename'] or '~/.ssh/id_rsa'
     key_file = os.path.abspath(os.path.expanduser(key_file))
 
     if not os.path.exists(key_file):

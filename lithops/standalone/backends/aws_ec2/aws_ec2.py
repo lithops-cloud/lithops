@@ -201,9 +201,10 @@ class AWSEC2Backend:
             'key_name': self.config['key_name'],
             'target_ami': self.config['target_ami'],
             'security_group_ids': [self.config['security_group_id']],
-            'ssh_user': self.config['ssh_username'],
-            'ssh_password': self.config['ssh_password'],
-            'ssh_keyfile': self.config.get('ssh_keyfile', None),
+            'ssh_credentials': {
+                'username': self.config['ssh_username'],
+                'password': self.config['ssh_password'],
+                'key_filename':  self.config.get('ssh_keyfile', None)},
             'delete_on_dismantle': self.config['delete_on_dismantle'],
             'instance_type': self.config['master_instance_type'] if public else self.config['worker_instance_type'],
             'region_name': self.config['region_name'],
@@ -218,7 +219,7 @@ class AWSEC2Backend:
         Returns a VM class instance.
         Does not creates nor starts a VM instance
         """
-        instance_data = self._get_instance_data(name, public=False)
+        instance_data = self._get_instance_data(name)
 
         for key in kargs:
             instance_data[key] = kargs[key]
@@ -266,16 +267,14 @@ class EC2Instance:
             public_ip='0.0.0.0',
             access_key_id=None,
             secret_access_key=None,
-            ssh_user=None,
-            ssh_password=None,
-            ssh_keyfile=None,
+            ssh_credentials=None,
             fast_io=False,
             ec2_client=None,
-            public=False
+            public=False,
+            **kwargs
        ):
         """
         Initialize a EC2Instance instance
-        VMs can have master role, this means they will have a public IP address
         """
         self.name = name.lower()
 
@@ -297,15 +296,10 @@ class EC2Instance:
         self.ec2_client = ec2_client or self._create_ec2_client()
         self.public = public
         self.spot_price = spot_price
+        self.ssh_credentials = ssh_credentials
 
         self.instance_data = None
         self.ssh_client = None
-
-        self.ssh_credentials = {
-            'username': ssh_user,
-            'password': ssh_password,
-            'key_filename': ssh_keyfile
-        }
 
     def __str__(self):
         ip = self.public_ip if self.public else self.private_ip

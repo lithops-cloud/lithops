@@ -84,17 +84,8 @@ def setup_worker(worker_info, work_queue_name):
     """
     global workers, workers_state
 
-    instance_name, private_ip, instance_id, ssh_credentials = worker_info
-    logger.debug(f'Starting setup for VM instance {instance_name} ({private_ip})')
-
-    instance_data = {
-        'name': instance_name,
-        'private_ip': private_ip,
-        'instance_id': instance_id,
-        'ssh_user': ssh_credentials['username'],
-        'ssh_password': ssh_credentials['password']
-    }
-    worker = standalone_handler.backend.get_instance(**instance_data)
+    worker = standalone_handler.backend.get_instance(**worker_info, public=False)
+    logger.debug(f'Starting setup for VM instance {worker.name} ({worker.private_ip})')
 
     def wait_worker_ready(worker):
         workers_state[worker.name] = {'state': 'starting'}
@@ -144,7 +135,7 @@ def setup_worker(worker_info, work_queue_name):
     )
     logger.debug(f'Executing lithops installation process on {worker}')
 
-    vm_data = {'instance_name': worker.name,
+    vm_data = {'name': worker.name,
                'private_ip': worker.private_ip,
                'instance_id': worker.instance_id,
                'ssh_credentials': worker.ssh_credentials,
