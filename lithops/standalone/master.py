@@ -87,10 +87,14 @@ def setup_worker(worker_info, work_queue_name):
     instance_name, private_ip, instance_id, ssh_credentials = worker_info
     logger.debug(f'Starting setup for VM instance {instance_name} ({private_ip})')
 
-    worker = standalone_handler.backend.get_vm(instance_name)
-    worker.private_ip = private_ip
-    worker.instance_id = instance_id
-    worker.ssh_credentials = ssh_credentials
+    instance_data = {
+        'name': instance_name,
+        'private_ip': private_ip,
+        'instance_id': instance_id,
+        'ssh_user': ssh_credentials['username'],
+        'ssh_password': ssh_credentials['password']
+    }
+    worker = standalone_handler.backend.get_instance(**instance_data)
 
     def wait_worker_ready(worker):
         workers_state[worker.name] = {'state': 'starting'}

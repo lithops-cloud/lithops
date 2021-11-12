@@ -37,11 +37,14 @@ class BudgetKeeper(threading.Thread):
                      .format(self.instance_name, self.private_ip, self.instance_id))
 
         self.sh = StandaloneHandler(self.standalone_config)
-        self.vm = self.sh.backend.get_vm(self.instance_name)
-        self.vm.private_ip = self.private_ip
-        self.vm.instance_id = self.instance_id
-        self.vm.delete_on_dismantle = False if 'master' in self.instance_name or \
-            self.exec_mode == 'consume' else True
+
+        instance_data = {
+            'name': self.instance_name,
+            'private_ip': self.private_ip,
+            'instance_id': self.instance_id,
+            'delete_on_dismantle': False if 'master' in self.instance_name or self.exec_mode == 'consume' else True
+        }
+        self.instance = self.sh.backend.get_instance(**instance_data)
 
     def update_config(self, config):
         self.standalone_config.update(config)
@@ -100,7 +103,7 @@ class BudgetKeeper(threading.Thread):
             else:
                 logger.debug("Dismantling setup")
                 try:
-                    self.vm.stop()
+                    self.instance.stop()
                     runing = False
                 except Exception as e:
                     logger.debug(f"Dismantle error {e}")
