@@ -15,7 +15,6 @@
 #
 
 import os
-import uuid
 import time
 import logging
 import boto3
@@ -122,6 +121,8 @@ class AWSEC2Backend:
                'PublicIpAddress' in instance_data:
                 self.master.public_ip = instance_data['PublicIpAddress']
 
+            self.ec2_data['instance_id'] = '0af1'
+
             if self.config['request_spot_instances']:
                 wit = self.config["worker_instance_type"]
                 logger.debug(f'Requesting current spot price for worker VMs of type {wit}')
@@ -213,7 +214,7 @@ class AWSEC2Backend:
 
     def get_runtime_key(self, runtime_name):
         name = runtime_name.replace('/', '-').replace(':', '-')
-        runtime_key = '/'.join([self.name, self.vpc_key, name])
+        runtime_key = '/'.join([self.name, self.ec2_data['instance_id'], name])
         return runtime_key
 
 
@@ -273,7 +274,7 @@ class EC2Instance:
 
         return ec2_client
 
-    def get_ssh_client(self, unbinded=False):
+    def get_ssh_client(self):
         """
         Creates an ssh client against the VM only if the Instance is the master
         """

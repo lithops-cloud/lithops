@@ -296,6 +296,7 @@ class IBMVPCBackend:
             self.vpc_data = {
                 'mode': 'consume',
                 'instance_name': self.master.name,
+                'instance_id': '0af1',
                 'vpc_id': self.config['vpc_id'],
                 'subnet_id': self.config['subnet_id'],
                 'security_group_id': self.config['security_group_id'],
@@ -489,7 +490,7 @@ class IBMVPCBackend:
 
     def get_runtime_key(self, runtime_name):
         name = runtime_name.replace('/', '-').replace(':', '-')
-        runtime_key = '/'.join([self.name, self.vpc_key, name])
+        runtime_key = '/'.join([self.name, self.vpc_data['instance_id'], name])
         return runtime_key
 
 
@@ -544,10 +545,6 @@ class IBMVPCInstance:
         """
         Creates an ssh client against the VM only if the Instance is the master
         """
-        if self.private_ip or self.public_ip:
-            if not self.ssh_client:
-                self.ssh_client = SSHClient(self.public_ip or self.private_ip, self.ssh_credentials)
-
         if not self.validated and self.public:
             # validate that private ssh key in ssh_credentials is a pair of public key on instance
             key_filename = self.ssh_credentials['key_filename']
@@ -567,6 +564,10 @@ class IBMVPCInstance:
                     f"{key_name} on master {self} are not a pair")
 
             self.validated = True
+
+        if self.private_ip or self.public_ip:
+            if not self.ssh_client:
+                self.ssh_client = SSHClient(self.public_ip or self.private_ip, self.ssh_credentials)
 
         return self.ssh_client
 
