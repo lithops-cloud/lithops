@@ -64,9 +64,25 @@ class SSHClient():
 
         return out
 
+    def download_remote_file(self, remote_src, local_dst):
+        """
+        Downloads a remote file to a local destination
+        param: local_src: local file path source
+        param: remote_dst: remote file path destination
+        """
+        if self.ssh_client is None:
+            self.ssh_client = self.create_client()
+
+        if not os.path.exists(os.path.dirname(local_dst)):
+            os.makedirs(os.path.dirname(local_dst))
+
+        ftp_client = self.ssh_client.open_sftp()
+        ftp_client.get(remote_src, local_dst)
+        ftp_client.close()
+
     def upload_local_file(self, local_src, remote_dst):
         """
-        Upload local file to a rempote destination
+        Upload a local file to a rempote destination
         param: local_src: local file path source
         param: remote_dst: remote file path destination
         """

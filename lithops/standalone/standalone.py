@@ -25,7 +25,7 @@ import shlex
 import concurrent.futures as cf
 
 from lithops.utils import is_lithops_worker, create_handler_zip
-from lithops.constants import SA_SERVICE_PORT, SA_INSTALL_DIR
+from lithops.constants import SA_SERVICE_PORT, SA_INSTALL_DIR, CACHE_DIR
 from lithops.standalone.utils import get_master_setup_script
 from lithops.version import __version__ as lithops_version
 
@@ -171,6 +171,61 @@ class StandaloneHandler:
             pass
         return workers_on_master
 
+    def _wait_workers_ready(self, new_workers):
+        """
+        Wait a given set of workers to become ready
+        """
+        w_names = [w.name for w in new_workers]
+        logger.info(f'Waiting following workers to become ready: {w_names}')
+
+        start = time.time()
+        workers_state_on_master = {}
+        while(time.time() - start < self.start_timeout * 2):
+            try:
+                cmd = (f'curl -X GET http://127.0.0.1:{SA_SERVICE_PORT}/workers-state '
+                       '-H \'Content-Type: application/json\'')
+                resp = self.backend.master.get_ssh_client().run_remote_command(cmd)
+                prev = workers_state_on_master
+
+                workers_state_on_master = json.loads(resp)
+
+                running = 0
+                if prev != workers_state_on_master:
+
+                    msg = 'All workers states: '
+                    for w in workers_state_on_master:
+                        w_state = workers_state_on_master[w]["state"]
+                        msg += f'({w} - {w_state})'
+                        if w in w_names and w_state == 'running':
+                            if workers_state_on_master[w].get('err'):
+                                logger.warning(f'Worker may operate not in desired '
+                                               f'configuration, worker {w} error: '
+                                               f'{workers_state_on_master[w].get("err")}')
+                            running += 1
+
+                    logger.info(msg)
+
+                if running == len(w_names):
+                    logger.info(f'All workers are ready: {w_names}')
+
+                    # on backend, in case workers failed to get optimal workers setup, they may run
+                    # but in order to notify user they will have running state, but 'err' containing error
+                    for w in workers_state_on_master:
+                        if w in w_names and workers_state_on_master[w]["state"] == 'running' \
+                           and workers_state_on_master[w].get('err'):
+                            logger.warning(f'Workers may operate not in desired configuration, '
+                                           f'worker {w} error: {workers_state_on_master[w].get("err")}')
+                    return
+
+            except LithopsValidationError as e:
+                raise e
+            except Exception as e:
+                pass
+
+            time.sleep(10)
+
+        raise Exception(f'Lithops workers service readiness probe expired on {self.backend.master}')
+
     def invoke(self, job_payload):
         """
         Run the job description against the selected environment
@@ -210,56 +265,7 @@ class StandaloneHandler:
 
             return list(new_workers)
 
-        def wait_workers_ready(new_workers):
-            w_names = [w.name for w in new_workers]
-            logger.info(f'Waiting following workers to become ready: {w_names}')
-
-            start = time.time()
-            workers_state_on_master = {}
-            while(time.time() - start < self.start_timeout * 2):
-                try:
-                    cmd = (f'curl -X GET http://127.0.0.1:{SA_SERVICE_PORT}/workers-state '
-                           '-H \'Content-Type: application/json\'')
-                    resp = self.backend.master.get_ssh_client().run_remote_command(cmd)
-                    prev = workers_state_on_master
-
-                    workers_state_on_master = json.loads(resp)
-
-                    running = 0
-                    if prev != workers_state_on_master:
-
-                        msg = 'All workers states: '
-                        for w in workers_state_on_master:
-                            w_state = workers_state_on_master[w]["state"]
-                            msg += f'({w} - {w_state})'
-                            if w in w_names and w_state == 'running':
-                                if workers_state_on_master[w].get('err'):
-                                    logger.warning(f'Worker may operate not in desired configuration, worker {w} error: {workers_state_on_master[w].get("err")}')
-                                running += 1
-
-                        logger.info(msg)
-
-                    if running == len(w_names):
-                        logger.info(f'All workers are ready: {w_names}')
-
-                        # on backend, in case workers failed to get optimal workers setup, they may run
-                        # but in order to notify user they will have running state, but 'err' containing error
-                        for w in workers_state_on_master:
-                            if w in w_names and workers_state_on_master[w]["state"] == 'running' and  workers_state_on_master[w].get('err'):
-                                logger.warning(f'Workers may operate not in desired configuration, worker {w} error: {workers_state_on_master[w].get("err")}')
-                        return
-
-                except LithopsValidationError as e:
-                    raise e
-                except Exception as e:
-                    pass
-
-                time.sleep(10)
-
-            raise Exception('Lithops workers service readiness probe expired on {}'
-                            .format(self.backend.master))
-
-        worker_instances = []
+        new_workers = []
 
         if self.exec_mode == 'consume':
             total_workers = total_required_workers
@@ -267,37 +273,24 @@ class StandaloneHandler:
         elif self.exec_mode == 'create':
             new_workers = create_workers(total_required_workers)
             total_workers = len(new_workers)
-            worker_instances = [{'name': inst.name,
-                                 'private_ip': inst.private_ip,
-                                 'instance_id': inst.instance_id,
-                                 'ssh_credentials': inst.ssh_credentials}
-                                for inst in new_workers]
 
         elif self.exec_mode == 'reuse':
             workers = self._get_workers_on_master()
-            total_started_workers = len(workers)
-            logger.debug(f"Found {total_started_workers} free workers "
+            total_workers = len(workers)
+            logger.debug(f"Found {total_workers} free workers "
                          f"connected to master {self.backend.master}")
-            if total_started_workers < total_required_workers:
+            if total_workers < total_required_workers:
                 # create missing delta of workers
-                workers_to_create = total_required_workers - total_started_workers
+                workers_to_create = total_required_workers - total_workers
                 logger.debug(f'Going to create {workers_to_create} new workers')
                 new_workers = create_workers(workers_to_create)
-                total_workers = len(new_workers) + total_started_workers
-                worker_instances = [{'name': inst.name,
-                                     'private_ip': inst.private_ip,
-                                     'instance_id': inst.instance_id,
-                                     'ssh_credentials': inst.ssh_credentials}
-                                    for inst in new_workers]
-            else:
-                total_workers = total_started_workers
+                total_workers += len(new_workers)
 
         if total_workers == 0:
             raise Exception('It was not possible to create any worker')
 
-        logger.debug('ExecutorID {} | JobID {} - Going to run {} activations '
-                     'in {} workers'.format(executor_id, job_id, total_calls,
-                                            min(total_workers, total_required_workers)))
+        logger.debug(f'ExecutorID {executor_id} | JobID {job_id} - Going to run {total_calls} '
+                     f'activations in {min(total_workers, total_required_workers)} workers')
 
         logger.debug(f"Checking if {self.backend.master} is ready")
         if not self._is_master_service_ready():
@@ -305,7 +298,13 @@ class StandaloneHandler:
             self.backend.master.wait_ready()
             self._wait_master_service_ready()
 
-        job_payload['worker_instances'] = worker_instances
+        job_payload['worker_instances'] = [
+            {'name': inst.name,
+             'private_ip': inst.private_ip,
+             'instance_id': inst.instance_id,
+             'ssh_credentials': inst.ssh_credentials}
+            for inst in new_workers
+        ]
 
         # delete ssh key
         backend = job_payload['config']['lithops']['backend']
@@ -328,7 +327,7 @@ class StandaloneHandler:
         # in case workers policy is strict, track all required workers create
         # in case of 'consume' mode there no new workers created
         if self.exec_mode != 'consume' and self.workers_policy == 'strict':
-            threading.Thread(target=wait_workers_ready, args=(new_workers,), daemon=True).start()
+            threading.Thread(target=self._wait_workers_ready, args=(new_workers,), daemon=True).start()
 
     def create_runtime(self, runtime_name, *args):
         """
@@ -412,7 +411,7 @@ class StandaloneHandler:
         """
         Setup lithops necessary packages and files in master VM instance
         """
-        logger.info('Installing Lithops in {}'.format(self.backend.master))
+        logger.info(f'Installing Lithops in {self.backend.master}')
         ssh_client = self.backend.master.get_ssh_client()
 
         worker_path = os.path.join(os.path.dirname(__file__), 'worker.py')
@@ -436,3 +435,12 @@ class StandaloneHandler:
         script = get_master_setup_script(self.config, vm_data)
         ssh_client.upload_data_to_file(script, remote_script)
         ssh_client.run_remote_command(f"chmod 777 {remote_script}; sudo {remote_script};")
+
+        try:
+            # Download the master VM public key generated with the installation script
+            # This public key will be used to create to worker
+            ssh_client.download_remote_file(
+                f'{self.backend.master.home_dir}/.ssh/id_rsa.pub',
+                f'{self.backend.cache_dir}/{self.backend.master.name}-id_rsa.pub')
+        except FileNotFoundError:
+            pass

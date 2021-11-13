@@ -4,14 +4,14 @@
 
 ### Added
 - [AWS Batch] Added AWS Batch backend
-
-### Changed
--
+- [Standalone] Allow to start workers using a public key instead of using a password
+- [Standalone] Added diferetn levels of worker verification
 
 ### Fixed
 - [Core] Fixed map_reduce jobs
 - [Standalone] Fixed internal executions in standalone
 - [IBM VPC] Fixed issue that prevented creating workers on create|reuse modes
+- [IBM VPC] Fixed issue with ip_address in consume mode
 
 
 ## [v2.5.6]
