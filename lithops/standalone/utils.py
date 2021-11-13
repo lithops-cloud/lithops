@@ -4,8 +4,7 @@ from lithops.constants import (
     SA_INSTALL_DIR,
     SA_LOG_FILE,
     SA_CONFIG_FILE,
-    SA_DATA_FILE,
-    LITHOPS_TEMP_DIR
+    SA_DATA_FILE
 )
 
 MASTER_SERVICE_NAME = 'lithops-master.service'
@@ -34,6 +33,14 @@ Restart=always
 
 [Install]
 WantedBy=multi-user.target
+"""
+
+CLOUD_CONFIG_WORKER_PK = """
+#cloud-config
+users:
+    - name: {0}
+      ssh_authorized_keys:
+        - {1}
 """
 
 CLOUD_CONFIG_WORKER = """
@@ -110,10 +117,11 @@ def get_master_setup_script(config, vm_data):
     Returns master VM installation script
     """
     script = f"""#!/bin/bash
-    setup_host(){{
     rm -R {SA_INSTALL_DIR};
     mkdir -p {SA_INSTALL_DIR};
-    mkdir -p {LITHOPS_TEMP_DIR};
+    mkdir -p /tmp/lithops;
+
+    setup_host(){{
     cp /tmp/lithops_standalone.zip {SA_INSTALL_DIR};
     echo '{json.dumps(vm_data)}' > {SA_DATA_FILE};
     echo '{json.dumps(config)}' > {SA_CONFIG_FILE};
@@ -133,11 +141,16 @@ def get_master_setup_script(config, vm_data):
     setup_service >> {SA_LOG_FILE} 2>&1;
 
     USER_HOME=$(eval echo ~${{SUDO_USER}});
-    test -f $USER_HOME/.ssh/id_rsa || echo '    StrictHostKeyChecking no
+
+    generate_ssh_key(){{
+    echo '    StrictHostKeyChecking no
     UserKnownHostsFile=/dev/null' >> /etc/ssh/ssh_config;
-    test -f $USER_HOME/.ssh/id_rsa || ssh-keygen -f $USER_HOME/.ssh/id_rsa -t rsa -N '';
+    ssh-keygen -f $USER_HOME/.ssh/id_rsa -t rsa -N '';
     chown ${{SUDO_USER}}:${{SUDO_USER}} $USER_HOME/.ssh/id_rsa*;
-    test -f $USER_HOME/.ssh/id_rsa || echo '127.0.0.1 lithops-master' >> /etc/hosts;
+    cp $USER_HOME/.ssh/* /root/.ssh;
+    echo '127.0.0.1 lithops-master' >> /etc/hosts;
+    }}
+    test -f $USER_HOME/.ssh/id_rsa || generate_ssh_key >> {SA_LOG_FILE} 2>&1;
     """
 
     return script
@@ -158,7 +171,7 @@ def get_worker_setup_script(config, vm_data):
     script = f"""#!/bin/bash
     rm -R {SA_INSTALL_DIR};
     mkdir -p {SA_INSTALL_DIR};
-    mkdir -p {LITHOPS_TEMP_DIR};
+    mkdir -p /tmp/lithops;
     """
     script += get_host_setup_script()
     script += f"""

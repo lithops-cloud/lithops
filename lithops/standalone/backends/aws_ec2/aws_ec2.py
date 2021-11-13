@@ -26,7 +26,7 @@ from concurrent.futures import ThreadPoolExecutor
 from lithops.util.ssh_client import SSHClient
 from lithops.constants import COMPUTE_CLI_MSG, CACHE_DIR
 from lithops.config import load_yaml_config, dump_yaml_config
-from lithops.standalone.utils import CLOUD_CONFIG_WORKER
+from lithops.standalone.utils import CLOUD_CONFIG_WORKER, CLOUD_CONFIG_WORKER_PK
 
 
 logger = logging.getLogger(__name__)
@@ -49,6 +49,7 @@ class AWSEC2Backend:
         self.config = ec2_config
         self.mode = mode
         self.region = self.config['region_name']
+        self.cache_dir = os.path.join(CACHE_DIR, self.name)
 
         client_config = botocore.client.Config(
             user_agent_extra=self.config['user_agent']
@@ -71,7 +72,7 @@ class AWSEC2Backend:
         """
         Initialize the backend by defining the Master VM
         """
-        ec2_data_filename = os.path.join(CACHE_DIR, self.name, 'data')
+        ec2_data_filename = os.path.join(self.cache_dir, 'data')
         self.ec2_data = load_yaml_config(ec2_data_filename)
 
         cahced_mode = self.ec2_data.get('mode')
@@ -96,7 +97,8 @@ class AWSEC2Backend:
                                  'private_ip': private_ip}
                 dump_yaml_config(ec2_data_filename, self.ec2_data)
 
-            self.master = EC2Instance(self.ec2_data['instance_name'], self.config, self.ec2_client)
+            self.master = EC2Instance(self.ec2_data['instance_name'], self.config,
+                                      self.ec2_client, public=True)
             self.master.instance_id = ins_id
             self.master.private_ip = self.ec2_data['private_ip']
             self.master.delete_on_dismantle = False
@@ -108,7 +110,7 @@ class AWSEC2Backend:
 
             self.vpc_key = self.config['vpc_id'][-4:]
             master_name = 'lithops-master-{}'.format(self.vpc_key)
-            self.master = EC2Instance(master_name, self.config, self.ec2_client)
+            self.master = EC2Instance(master_name, self.config, self.ec2_client, public=True)
             self.master.instance_type = self.config['master_instance_type']
             self.master.delete_on_dismantle = False
 
@@ -203,13 +205,22 @@ class AWSEC2Backend:
         """
         Creates a new worker VM instance
         """
-        user = self.config['ssh_username']
-        token = self.config['ssh_password']
-        user_data = CLOUD_CONFIG_WORKER.format(user, token)
-
         worker = EC2Instance(name, self.config, self.ec2_client, public=False)
-        worker.create(user_data=user_data)
         worker.ssh_credentials.pop('key_filename', None)
+
+        user = worker.ssh_credentials['username']
+
+        pub_key = f'{self.cache_dir}/{self.master.name}-id_rsa.pub'
+        if os.path.isfile(pub_key):
+            with open(pub_key, 'r') as pk:
+                pk_data = pk.read().strip()
+            user_data = CLOUD_CONFIG_WORKER_PK.format(user, pk_data)
+            worker.ssh_credentials.pop('password', None)
+        else:
+            token = worker.ssh_credentials['passsword']
+            user_data = CLOUD_CONFIG_WORKER.format(user, token)
+
+        worker.create(user_data=user_data)
         self.workers.append(worker)
 
     def get_runtime_key(self, runtime_name):
@@ -220,7 +231,7 @@ class AWSEC2Backend:
 
 class EC2Instance:
 
-    def __init__(self, name, ec2_config, ec2_client=None, public=True):
+    def __init__(self, name, ec2_config, ec2_client=None, public=False):
         """
         Initialize a EC2Instance instance
         VMs can have master role, this means they will have a public IP address
@@ -242,6 +253,7 @@ class EC2Instance:
         self.private_ip = None
         self.public_ip = '0.0.0.0'
         self.fast_io = self.config.get('fast_io', False)
+        self.home_dir = '/home/ubuntu'
 
         self.ssh_credentials = {
             'username': self.config['ssh_username'],
@@ -302,11 +314,12 @@ class EC2Instance:
         """
         Checks if the VM instance is ready to receive ssh connections
         """
+        login_type = 'password' if 'password' in self.ssh_credentials else 'publickey'
         try:
             self.get_ssh_client().run_remote_command('id')
         except Exception as e:
             if verbose:
-                logger.debug(f'ssh to {self.private_ip} failed: {e}')
+                logger.debug(f'SSH to {self.private_ip} failed ({login_type}): {e}')
             self.del_ssh_client()
             return False
         return True

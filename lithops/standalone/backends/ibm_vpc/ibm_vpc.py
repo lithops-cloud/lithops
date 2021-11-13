@@ -30,13 +30,14 @@ from concurrent.futures import ThreadPoolExecutor
 from lithops.util.ssh_client import SSHClient
 from lithops.constants import COMPUTE_CLI_MSG, CACHE_DIR
 from lithops.config import load_yaml_config, dump_yaml_config
-from lithops.standalone.utils import CLOUD_CONFIG_WORKER
+from lithops.standalone.utils import CLOUD_CONFIG_WORKER, CLOUD_CONFIG_WORKER_PK
 from lithops.standalone.standalone import LithopsValidationError
 
 
 logger = logging.getLogger(__name__)
 
 INSTANCE_START_TIMEOUT = 180
+VPC_API_VERSION = '2021-09-21'
 
 
 class IBMVPCBackend:
@@ -50,6 +51,7 @@ class IBMVPCBackend:
         self.endpoint = self.config['endpoint']
         self.region = self.endpoint.split('//')[1].split('.')[0]
         self.vpc_name = self.config.get('vpc_name')
+        self.cache_dir = os.path.join(CACHE_DIR, self.name)
 
         logger.debug('Setting VPC endpoint to: {}'.format(self.endpoint))
 
@@ -60,7 +62,7 @@ class IBMVPCBackend:
         self.custom_image = self.config.get('custom_lithops_image')
 
         authenticator = IAMAuthenticator(iam_api_key)
-        self.ibm_vpc_client = VpcV1('2021-08-31', authenticator=authenticator)
+        self.ibm_vpc_client = VpcV1(VPC_API_VERSION, authenticator=authenticator)
         self.ibm_vpc_client.set_service_url(self.config['endpoint'] + '/v1')
 
         user_agent_string = 'ibm_vpc_{}'.format(self.config['user_agent'])
@@ -241,7 +243,7 @@ class IBMVPCBackend:
         """
         Initialize the VPC
         """
-        vpc_data_filename = os.path.join(CACHE_DIR, self.name, 'data')
+        vpc_data_filename = os.path.join(self.cache_dir, 'data')
         self.vpc_data = load_yaml_config(vpc_data_filename)
 
         cahced_mode = self.vpc_data.get('mode')
@@ -433,7 +435,7 @@ class IBMVPCBackend:
         The gateway public IP and the floating IP are never deleted
         """
         logger.debug('Cleaning IBM VPC resources')
-        # vpc_data_filename = os.path.join(CACHE_DIR, self.name, 'data')
+        # vpc_data_filename = os.path.join(self.cache_dir, 'data')
         # vpc_data = load_yaml_config(vpc_data_filename)
 
         self._delete_vm_instances(delete_master=delete_master, force=force)
@@ -479,13 +481,22 @@ class IBMVPCBackend:
         """
         Creates a new worker VM instance
         """
-        user = self.config['ssh_username']
-        token = self.config['ssh_password']
-        user_data = CLOUD_CONFIG_WORKER.format(user, token)
-
-        worker = IBMVPCInstance(name, self.config, self.ibm_vpc_client)
-        worker.create(user_data=user_data)
+        worker = IBMVPCInstance(name, self.config, self.ibm_vpc_client, public=False)
         worker.ssh_credentials.pop('key_filename', None)
+
+        user = worker.ssh_credentials['username']
+
+        pub_key = f'{self.cache_dir}/{self.master.name}-id_rsa.pub'
+        if os.path.isfile(pub_key):
+            with open(pub_key, 'r') as pk:
+                pk_data = pk.read().strip()
+            user_data = CLOUD_CONFIG_WORKER_PK.format(user, pk_data)
+            worker.ssh_credentials.pop('password', None)
+        else:
+            token = worker.ssh_credentials['passsword']
+            user_data = CLOUD_CONFIG_WORKER.format(user, token)
+
+        worker.create(user_data=user_data)
         self.workers.append(worker)
 
     def get_runtime_key(self, runtime_name):
@@ -515,6 +526,7 @@ class IBMVPCInstance:
         self.instance_data = None
         self.private_ip = None
         self.public_ip = None
+        self.home_dir = '/root'
 
         self.ssh_credentials = {
             'username': self.config['ssh_username'],
@@ -525,15 +537,14 @@ class IBMVPCInstance:
         self.validated = False
 
     def __str__(self):
-        return f'VM instance {self.name} ({self.public_ip} {self.private_ip})' \
-            if self.public_ip else f'VM instance {self.name} ({self.private_ip})'
+        return f'VM instance {self.name} ({self.public_ip or self.private_ip})'
 
     def _create_vpc_client(self):
         """
         Creates an IBM VPC python-sdk instance
         """
         authenticator = IAMAuthenticator(self.iam_api_key)
-        ibm_vpc_client = VpcV1('2021-08-31', authenticator=authenticator)
+        ibm_vpc_client = VpcV1(VPC_API_VERSION, authenticator=authenticator)
         ibm_vpc_client.set_service_url(self.config['endpoint'] + '/v1')
 
         # decorate instance public methods with except/retry logic
@@ -545,7 +556,7 @@ class IBMVPCInstance:
         """
         Creates an ssh client against the VM only if the Instance is the master
         """
-        if not self.validated and self.public:
+        if not self.validated and self.public and self.instance_id:
             # validate that private ssh key in ssh_credentials is a pair of public key on instance
             key_filename = self.ssh_credentials['key_filename']
             if not os.path.exists(os.path.abspath(os.path.expanduser(key_filename))):
@@ -586,11 +597,12 @@ class IBMVPCInstance:
         """
         Checks if the VM instance is ready to receive ssh connections
         """
+        login_type = 'password' if 'password' in self.ssh_credentials else 'publickey'
         try:
             self.get_ssh_client().run_remote_command('id')
         except Exception as e:
             if verbose:
-                logger.debug(f'ssh to {self.private_ip} failed: {e}')
+                logger.debug(f'SSH to {self.private_ip} failed ({login_type}): {e}')
             self.del_ssh_client()
             return False
         return True

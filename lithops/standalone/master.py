@@ -131,8 +131,8 @@ def setup_worker(worker_info, work_queue_name):
     logger.debug(f'Uploading lithops files to {worker}')
     worker.get_ssh_client().upload_local_file(
         '/opt/lithops/lithops_standalone.zip',
-        '/tmp/lithops_standalone.zip'
-    )
+        '/tmp/lithops_standalone.zip')
+
     logger.debug(f'Executing lithops installation process on {worker}')
 
     vm_data = {'name': worker.name,
