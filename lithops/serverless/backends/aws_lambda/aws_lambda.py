@@ -57,7 +57,7 @@ class AWSLambdaBackend:
         self.user_agent = aws_lambda_config['user_agent']
 
         self.user_key = aws_lambda_config['access_key_id'][-4:]
-        self.package = 'lithops_v{}_{}'.format(lithops.__version__, self.user_key)
+        self.package = 'lithops_v{}_{}'.format(lithops.__version__, self.user_key.lower())
         self.region_name = aws_lambda_config['region_name']
         self.role_arn = aws_lambda_config['execution_role']
 
@@ -93,14 +93,17 @@ class AWSLambdaBackend:
 
     def _format_function_name(self, runtime_name, runtime_memory):
         if '/' in runtime_name:
-            runtime_name = runtime_name.rsplit('/')[-1]
+            runtime_name = runtime_name.replace(':', '--')
+            runtime_name = runtime_name.replace('/', '_')
+            return '{}_{}MB'.format(runtime_name, runtime_memory)
+
         runtime_name = self.package.replace('.', '-') + '_' + runtime_name.replace(':', '--')
         return '{}_{}MB'.format(runtime_name, runtime_memory)
 
     @staticmethod
     def _unformat_function_name(action_name):
         splits = action_name.split('_')
-        runtime_name = '_'.join(splits[3:-1]).replace('--', ':')
+        runtime_name = f"{'_'.join(splits[:3])}/{'_'.join(splits[3:-1]).replace('--', ':')}"
         runtime_memory = int(splits[-1].replace('MB', ''))
         return runtime_name, runtime_memory
 
@@ -164,7 +167,7 @@ class AWSLambdaBackend:
             build_layer_file = os.path.join(current_location, 'build_layer.py')
             build_layer_zip.write(build_layer_file, 'build_layer.py', zipfile.ZIP_DEFLATED)
 
-        func_name = '_'.join([self.package, 'layer_builder']).replace('.', '-')
+        func_name = '_'.join([self.package, 'layer_builder_512MB']).replace('.', '-')
 
         with open(BUILD_LAYER_FUNCTION_ZIP, 'rb') as build_layer_zip:
             build_layer_zip_bin = build_layer_zip.read()
@@ -299,12 +302,10 @@ class AWSLambdaBackend:
         @param runtime_name: name of the runtime to be built
         @param runtime_file: path of a Dockerfile for a container runtime
         """
-        assert os.path.isfile(runtime_file), 'Dockerfile provided is not a file'.format(runtime_file)
+        logger.info(f'Going to create runtime {runtime_name} for AWS Lambda')
 
-        logger.info('Going to create runtime {} ({}) for AWS Lambda...'.format(runtime_name, runtime_file))
-
-        self._create_handler_bin(remove=False)
         if runtime_file:
+            assert os.path.isfile(runtime_file), f'Cannot locate "{runtime_file}"'
             cmd = '{} build -t {} -f {} . '.format(lambda_config.DOCKER_PATH,
                                                    runtime_name,
                                                    runtime_file)
@@ -312,6 +313,8 @@ class AWSLambdaBackend:
             cmd = '{} build -t {} . '.format(lambda_config.DOCKER_PATH, runtime_name)
 
         cmd = cmd+' '.join(extra_args)
+
+        self._create_handler_bin(remove=False)
 
         subprocess.check_call(cmd.split())
         os.remove(LITHOPS_FUNCTION_ZIP)
@@ -334,7 +337,7 @@ class AWSLambdaBackend:
 
         try:
             self.ecr_client.create_repository(repositoryName=repo_name)
-        except self.ecr_client.exceptions.RepositoryAlreadyExistsException as e:
+        except self.ecr_client.exceptions.RepositoryAlreadyExistsException:
             logger.info('Repository {} already exists'.format(repo_name))
 
         cmd = '{} tag {} {}/{}:{}'.format(lambda_config.DOCKER_PATH, runtime_name, registry, repo_name, tag)
@@ -464,16 +467,19 @@ class AWSLambdaBackend:
         logger.info(f'Deleting lambda runtime: {runtime_name} - {runtime_memory}MB')
 
         func_name = self._format_function_name(runtime_name, runtime_memory)
+
         self._delete_function(func_name)
 
         # Check if layer/container image has to also be deleted
         if not self.list_runtimes(runtime_name):
+            runtime_name = runtime_name.split('/')[1] if '/' in runtime_name else runtime_name
             if self._is_container_runtime(runtime_name):
                 if ':' in runtime_name:
                     image, tag = runtime_name.split(':')
                 else:
                     image, tag = runtime_name, 'latest'
-                repo_name = self._format_repo_name(image)
+                package = '_'.join(func_name.split('_')[:3])
+                repo_name = f"{package}/{image}"
                 logger.info('Going to delete ECR repository {} tag {}'.format(repo_name, tag))
                 self.ecr_client.batch_delete_image(repositoryName=repo_name, imageIds=[{'imageTag': tag}])
                 images = self.ecr_client.list_images(repositoryName=repo_name, filter={'tagStatus': 'TAGGED'})
@@ -522,9 +528,11 @@ class AWSLambdaBackend:
                     runtimes.append((rt_name, rt_memory))
 
         if runtime_name != 'all':
+            if '/' in runtime_name:
+                runtime_name = runtime_name.split('/')[1]
             if self._is_container_runtime(runtime_name) and ':' not in runtime_name:
                 runtime_name = runtime_name + ':latest'
-            runtimes = [tup for tup in runtimes if tup[0] in runtime_name]
+            runtimes = [tup for tup in runtimes if runtime_name in tup[0]]
 
         logger.debug('Listed {} functions'.format(len(runtimes)))
         return runtimes
