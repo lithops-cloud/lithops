@@ -12,6 +12,7 @@
 - [Standalone] Fixed internal executions in standalone
 - [IBM VPC] Fixed issue that prevented creating workers on create|reuse modes
 - [IBM VPC] Fixed issue with ip_address in consume mode
+- [AWS Lambda] Allow to delete functions from other lithops versions through 'lithops runtime delete'
 
 
 ## [v2.5.6]
