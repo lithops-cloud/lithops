@@ -22,6 +22,8 @@ import logging
 import shutil
 import shlex
 import subprocess as sp
+from itertools import cycle
+from concurrent.futures import ThreadPoolExecutor
 
 import lithops
 from lithops import Storage
@@ -37,6 +39,7 @@ from lithops.serverless import ServerlessHandler
 from lithops.storage.utils import clean_bucket
 from lithops.standalone.standalone import StandaloneHandler
 from lithops.localhost.localhost import LocalhostHandler
+
 
 logger = logging.getLogger(__name__)
 
@@ -238,9 +241,19 @@ def put_object(filename, bucket, backend, debug):
     log_level = logging.INFO if not debug else logging.DEBUG
     setup_lithops_logger(log_level)
     storage = Storage(backend=backend)
-    logger.info('Uploading file {} to bucket {}'.format(filename, bucket))
-    with open(filename, 'rb') as in_file:
-        storage.put_object(bucket, filename, in_file)
+
+    def upload_file():
+        logger.info('Uploading file {} to bucket {}'.format(filename, bucket))
+        with open(filename, 'rb') as in_file:
+            storage.put_object(bucket, filename, in_file)
+
+    with ThreadPoolExecutor() as ex:
+        future = ex.submit(upload_file)
+        cy = cycle(r"-\|/")
+        while not future.done():
+            print("Uploading data " + next(cy), end="\r")
+            time.sleep(0.1)
+        future.result()
     logger.info('File uploaded successfully')
 
 
@@ -253,10 +266,20 @@ def get_object(bucket, key, backend, debug):
     log_level = logging.INFO if not debug else logging.DEBUG
     setup_lithops_logger(log_level)
     storage = Storage(backend=backend)
-    logger.info('Downloading object {} from bucket {}'.format(key, bucket))
-    data_stream = storage.get_object(bucket, key, stream=True)
-    with open(key, 'wb') as out:
-        shutil.copyfileobj(data_stream, out)
+
+    def download_file():
+        logger.info('Downloading object {} from bucket {}'.format(key, bucket))
+        data_stream = storage.get_object(bucket, key, stream=True)
+        with open(key, 'wb') as out:
+            shutil.copyfileobj(data_stream, out)
+
+    with ThreadPoolExecutor() as ex:
+        future = ex.submit(download_file)
+        cy = cycle(r"-\|/")
+        while not future.done():
+            print("Downloading data " + next(cy), end="\r")
+            time.sleep(0.1)
+        future.result()
     logger.info('Object downloaded successfully')
 
 
