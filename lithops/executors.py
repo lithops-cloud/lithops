@@ -488,7 +488,7 @@ class FunctionExecutor:
         return result
 
     def plot(self,
-             fs: Optional[Union[ResponseFuture, List[ResponseFuture]]] = None,
+             fs: Optional[Union[ResponseFuture, List[ResponseFuture], FuturesList]] = None,
              dst: Optional[str] = None):
         """
         Creates timeline and histogram of the current execution in dst_dir.
@@ -498,7 +498,7 @@ class FunctionExecutor:
         """
         ftrs = self.futures if not fs else fs
 
-        if type(ftrs) != list:
+        if isinstance(ftrs, ResponseFuture):
             ftrs = [ftrs]
 
         ftrs_to_plot = [f for f in ftrs if (f.success or f.done) and not f.error]
