@@ -1,11 +1,21 @@
 # Changelog
 
-## [v2.5.7.dev0]
+## [v2.5.8.dev0]
+
+### Added
+-
+
+### Fixed
+- 
+
+
+## [v2.5.7]
 
 ### Added
 - [AWS Batch] Added AWS Batch backend
 - [Standalone] Allow to start workers using a public key instead of using a password
-- [Standalone] Added diferetn levels of worker verification
+- [Standalone] Added diferent levels of worker verification
+- [Infinispan] Added new Infinispan Hot Rod storage backend
 
 ### Fixed
 - [Core] Fixed map_reduce jobs
@@ -13,6 +23,8 @@
 - [IBM VPC] Fixed issue that prevented creating workers on create|reuse modes
 - [IBM VPC] Fixed issue with ip_address in consume mode
 - [AWS Lambda] Allow to delete functions from other lithops versions through 'lithops runtime delete'
+- [Core] Fixed FunctionExecutor.plot() when a list of futures is passed to the method
+- [Infinispan] Fixes in Infinispan storage backend
 
 
 ## [v2.5.6]
