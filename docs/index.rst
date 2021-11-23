@@ -82,6 +82,7 @@ Blogs and Talks
 
 Papers
 ------
+* `Outsourcing Data Processing Jobs with Lithops <https://ieeexplore.ieee.org/document/9619947>`_ - IEEE Transactions on Cloud Computing 2022
 * `Towards Multicloud Access Transparency in Serverless Computing <https://www.computer.org/csdl/magazine/so/5555/01/09218932/1nMMkpZ8Ko8>`_ - IEEE Software 2021
 * `Primula: a Practical Shuffle/Sort Operator for Serverless Computing <https://dl.acm.org/doi/10.1145/3429357.3430522>`_ - ACM/IFIP International Middleware Conference 2020. `See Primula presentation here <https://www.youtube.com/watch?v=v698iu5YfWM>`_
 * `Bringing scaling transparency to Proteomics applications with serverless computing <https://dl.acm.org/doi/abs/10.1145/3429880.3430101>`_ - 6th International Workshop on Serverless Computing (WoSC6) 2020. `See Workshop presentation here <https://www.serverlesscomputing.org/wosc6/#p10>`_

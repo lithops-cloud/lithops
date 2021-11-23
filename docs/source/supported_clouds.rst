@@ -32,6 +32,8 @@ Currently, Lithops for AWS supports these backends:
      - Storage
    * - `AWS Lambda <https://docs.aws.amazon.com/lambda/>`_
      - `AWS S3 <https://docs.aws.amazon.com/s3/>`_
+   * - `AWS Batch <https://docs.aws.amazon.com/batch/>`_
+     -
    * - `AWS Elastic Cloud Compute (EC2) <https://docs.aws.amazon.com/ec2/>`_
      -
 

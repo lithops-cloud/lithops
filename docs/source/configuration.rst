@@ -22,15 +22,17 @@ Choose your compute and storage engines from the table below:
 || `IBM Cloud Functions <compute_config/ibm_cf.html>`_               || `AWS S3 <storage_config/aws_s3.html>`_                            |
 || `IBM Code Engine <compute_config/code_engine.html>`_              || `Google Cloud Storage <storage_config/gcp_storage.html>`_         |
 || `AWS Lambda <compute_config/aws_lambda.html>`_                    || `Azure Blob Storage <storage_config/azure_blob.html>`_            |
-|| `Google Cloud Functions <compute_config/gcp_functions.html>`_     || `Aliyun Object Storage Service <storage_config/aliyun_oss.html>`_ |
-|| `Google Cloud Run <compute_config/gcp_cloudrun.html>`_            || `Infinispan <storage_config/infinispan.html>`_                    |
-|| `Azure Functions <compute_config/azure_functions.html>`_          || `Ceph <storage_config/ceph.html>`_                                |
-|| `Aliyun Function Compute <compute_config/aliyun_functions.html>`_ || `MinIO <storage_config/minio.html>`_                              |
-|| `Kubernetes Jobs <compute_config/k8s_job.html>`_                  || `Redis <storage_config/redis.html>`_                              |
-|| `Knative <compute_config/knative.html>`_                          || `OpenStack Swift <storage_config/swift.html>`_                    |
+|| `AWS Batch <compute_config/aws_batch.html>`_                      || `Aliyun Object Storage Service <storage_config/aliyun_oss.html>`_ |
+|| `Google Cloud Functions <compute_config/gcp_functions.html>`_     || `Infinispan <storage_config/infinispan.html>`_                    |
+|| `Google Cloud Run <compute_config/gcp_cloudrun.html>`_            || `Ceph <storage_config/ceph.html>`_                                |
+|| `Azure Functions <compute_config/azure_functions.html>`_          || `MinIO <storage_config/minio.html>`_                              |
+|| `Aliyun Function Compute <compute_config/aliyun_functions.html>`_ || `Redis <storage_config/redis.html>`_                              |
+|| `Kubernetes Jobs <compute_config/k8s_job.html>`_                  || `OpenStack Swift <storage_config/swift.html>`_                    |
+|| `Knative <compute_config/knative.html>`_                          ||                                                                   |
 || `OpenWhisk <compute_config/openwhisk.html>`_                      ||                                                                   |
 || `Remote Host / Virtual Machine <compute_config/vm.html>`_         ||                                                                   |
 || `IBM Virtual Private Cloud <compute_config/ibm_vpc.html>`_        ||                                                                   |
+|| `AWS Elastic Compute Cloud (EC2) <compute_config/aws_ec2.html>`_  ||                                                                   |
 +--------------------------------------------------------------------+--------------------------------------------------------------------+
 
 Configuration File
