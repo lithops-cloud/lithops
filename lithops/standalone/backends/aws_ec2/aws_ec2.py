@@ -264,8 +264,6 @@ class EC2Instance:
             'key_filename': self.config.get('ssh_key_filename', '~/.ssh/id_rsa')
         }
 
-        self.validated = False
-
     def __str__(self):
         ip = self.public_ip if self.public else self.private_ip
 
@@ -295,13 +293,6 @@ class EC2Instance:
         """
         Creates an ssh client against the VM only if the Instance is the master
         """
-        if self.public and not self.validated:
-            key_filename = self.ssh_credentials['key_filename']
-            if not os.path.exists(os.path.abspath(os.path.expanduser(key_filename))):
-                raise LithopsValidationError(f"Private key file {key_filename} doesn't exist")
-
-            self.validated = True
-
         if self.public:
             if not self.ssh_client or self.ssh_client.ip_address != self.public_ip:
                 self.ssh_client = SSHClient(self.public_ip, self.ssh_credentials)

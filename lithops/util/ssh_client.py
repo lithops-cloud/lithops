@@ -1,6 +1,7 @@
 import paramiko
 import logging
 import os
+from lithops.standalone.standalone import LithopsValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -12,10 +13,10 @@ class SSHClient():
         self.ssh_credentials = ssh_credentials
         self.ssh_client = None
 
-        if 'key_filename' in self.ssh_credentials and \
-           self.ssh_credentials['key_filename'] and \
-           '~' in self.ssh_credentials['key_filename']:
-            fpath = os.path.expanduser(self.ssh_credentials['key_filename'])
+        if 'key_filename' in self.ssh_credentials:
+            fpath = os.path.abspath(os.path.expanduser(self.ssh_credentials['key_filename']))
+            if not os.path.exists(fpath):
+                raise LithopsValidationError(f"Private key file {fpath} doesn't exist")
             self.ssh_credentials['key_filename'] = fpath
 
     def close(self):
@@ -29,13 +30,19 @@ class SSHClient():
         """
         Crate the SSH client connection
         """
-        self.ssh_client = paramiko.SSHClient()
-        self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        self.ssh_client.connect(self.ip_address, **self.ssh_credentials,
-                                timeout=timeout, banner_timeout=200,
-                                allow_agent=False)
+        try:
+            self.ssh_client = paramiko.SSHClient()
+            self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            self.ssh_client.connect(self.ip_address, **self.ssh_credentials,
+                                    timeout=timeout, banner_timeout=200,
+                                    allow_agent=False)
 
-        logger.debug("{} ssh client created".format(self.ip_address))
+            logger.debug("{} ssh client created".format(self.ip_address))
+        except Exception as e:
+            pk = self.ssh_credentials.get('key_filename')
+            if pk and str(e) == 'Authentication failed.':
+                raise LithopsValidationError(f'Private key {pk} is not valid')
+            raise e
 
         return self.ssh_client
 
