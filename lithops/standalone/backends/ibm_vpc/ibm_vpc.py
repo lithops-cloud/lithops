@@ -594,7 +594,7 @@ class IBMVPCInstance:
         Checks if the VM instance is ready to receive ssh connections
         """
         login_type = 'password' if 'password' in self.ssh_credentials and \
-            'key_filename' not in self.ssh_credentials else 'publickey'
+            not self.public else 'publickey'
         try:
             self.get_ssh_client().run_remote_command('id')
         except Exception as e:
