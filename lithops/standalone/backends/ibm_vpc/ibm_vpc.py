@@ -606,6 +606,8 @@ class IBMVPCInstance:
             not self.public else 'publickey'
         try:
             self.get_ssh_client().run_remote_command('id')
+        except LithopsValidationError as e:
+            raise e
         except Exception as e:
             if verbose:
                 logger.debug(f'SSH to {self.private_ip} failed ({login_type}): {e}')
