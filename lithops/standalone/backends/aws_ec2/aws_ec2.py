@@ -103,6 +103,7 @@ class AWSEC2Backend:
             self.master.instance_id = ins_id
             self.master.private_ip = self.ec2_data['private_ip']
             self.master.delete_on_dismantle = False
+            self.master.ssh_credentials.pop('password')
 
         elif self.mode in ['create', 'reuse']:
             if self.mode != cahced_mode:
@@ -114,6 +115,7 @@ class AWSEC2Backend:
             self.master = EC2Instance(master_name, self.config, self.ec2_client, public=True)
             self.master.instance_type = self.config['master_instance_type']
             self.master.delete_on_dismantle = False
+            self.master.ssh_credentials.pop('password')
 
             instance_data = self.master.get_instance_data()
             if instance_data and 'InstanceId' in instance_data:
@@ -294,7 +296,7 @@ class EC2Instance:
         Creates an ssh client against the VM only if the Instance is the master
         """
         if self.public and not self.validated:
-            key_filename = self.ssh_credentials.get('key_filename', '~/.ssh/id_rsa')
+            key_filename = self.ssh_credentials['key_filename']
             if not os.path.exists(os.path.abspath(os.path.expanduser(key_filename))):
                 raise LithopsValidationError(f"Private key file {key_filename} doesn't exist")
 
@@ -328,11 +330,11 @@ class EC2Instance:
             not self.public else 'publickey'
         try:
             self.get_ssh_client().run_remote_command('id')
+        except LithopsValidationError as e:
+            raise e
         except Exception as e:
             if verbose:
                 logger.debug(f'SSH to {self.private_ip} failed ({login_type}): {e}')
-            if isinstance(e, LithopsValidationError):
-                raise e
             self.del_ssh_client()
             return False
         return True

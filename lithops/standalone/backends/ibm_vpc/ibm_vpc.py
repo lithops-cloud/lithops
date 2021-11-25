@@ -265,6 +265,7 @@ class IBMVPCBackend:
             self.master.instance_id = self.config['instance_id']
             self.master.public_ip = self.config['ip_address']
             self.master.delete_on_dismantle = False
+            self.master.ssh_credentials.pop('password')
 
         elif self.mode in ['create', 'reuse']:
             if self.mode != cahced_mode:
@@ -288,6 +289,7 @@ class IBMVPCBackend:
             self.master.public_ip = self.config['floating_ip']
             self.master.profile_name = self.config['master_profile_name']
             self.master.delete_on_dismantle = False
+            self.master.ssh_credentials.pop('password')
 
             instance_data = self.master.get_instance_data()
             if instance_data:
@@ -557,7 +559,7 @@ class IBMVPCInstance:
         """
 
         if self.public and not self.validated:
-            key_filename = self.ssh_credentials.get('key_filename', '~/.ssh/id_rsa')
+            key_filename = self.ssh_credentials['key_filename']
             if not os.path.exists(os.path.abspath(os.path.expanduser(key_filename))):
                 raise LithopsValidationError(f"Private key file {key_filename} doesn't exist")
 

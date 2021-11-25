@@ -32,7 +32,8 @@ class SSHClient():
         self.ssh_client = paramiko.SSHClient()
         self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         self.ssh_client.connect(self.ip_address, **self.ssh_credentials,
-                                timeout=timeout, banner_timeout=200)
+                                timeout=timeout, banner_timeout=200,
+                                allow_agent=False)
 
         logger.debug("{} ssh client created".format(self.ip_address))
 
