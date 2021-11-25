@@ -6,7 +6,7 @@
 -
 
 ### Fixed
-- 
+- [IBM VPC] Deactiavated logic that checks if ssh keys are correct because it fails even when they are correct
 
 
 ## [v2.5.7]

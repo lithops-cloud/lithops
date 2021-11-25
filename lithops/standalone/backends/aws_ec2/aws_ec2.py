@@ -217,7 +217,7 @@ class AWSEC2Backend:
             user_data = CLOUD_CONFIG_WORKER_PK.format(user, pk_data)
             worker.ssh_credentials.pop('password', None)
         else:
-            token = worker.ssh_credentials['passsword']
+            token = worker.ssh_credentials['password']
             user_data = CLOUD_CONFIG_WORKER.format(user, token)
 
         worker.create(user_data=user_data)
@@ -314,7 +314,8 @@ class EC2Instance:
         """
         Checks if the VM instance is ready to receive ssh connections
         """
-        login_type = 'password' if 'password' in self.ssh_credentials else 'publickey'
+        login_type = 'password' if 'password' in self.ssh_credentials and \
+            'key_filename' not in self.ssh_credentials else 'publickey'
         try:
             self.get_ssh_client().run_remote_command('id')
         except Exception as e:
