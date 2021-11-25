@@ -25,7 +25,7 @@ import shlex
 import concurrent.futures as cf
 
 from lithops.utils import is_lithops_worker, create_handler_zip
-from lithops.constants import SA_SERVICE_PORT, SA_INSTALL_DIR, CACHE_DIR
+from lithops.constants import SA_SERVICE_PORT, SA_INSTALL_DIR
 from lithops.standalone.utils import get_master_setup_script
 from lithops.version import __version__ as lithops_version
 
@@ -48,7 +48,7 @@ class StandaloneHandler:
         self.backend_name = self.config['backend']
         self.start_timeout = self.config['start_timeout']
         self.exec_mode = self.config['exec_mode']
-        self.workers_policy = self.config.get('workers_policy', 'permissive') # by default not forcing the creation of all workers
+        self.workers_policy = self.config.get('workers_policy', 'permissive')  # by default not forcing the creation of all workers
         self.is_lithops_worker = is_lithops_worker()
 
         module_location = f'lithops.standalone.backends.{self.backend_name}'
@@ -335,7 +335,7 @@ class StandaloneHandler:
         preinstalled modules
         """
         logger.debug(f'Checking if {self.backend.master} is ready')
-        if not self.backend.master.is_ready():
+        if not self.backend.master.is_ready(verbose=True):
             self.backend.master.create(check_if_exists=True)
             self.backend.master.wait_ready()
 

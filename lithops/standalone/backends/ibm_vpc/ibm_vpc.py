@@ -18,7 +18,6 @@ import functools
 import inspect
 import re
 import os
-import subprocess
 import time
 import logging
 import uuid
@@ -493,7 +492,7 @@ class IBMVPCBackend:
             user_data = CLOUD_CONFIG_WORKER_PK.format(user, pk_data)
             worker.ssh_credentials.pop('password', None)
         else:
-            token = worker.ssh_credentials['passsword']
+            token = worker.ssh_credentials['password']
             user_data = CLOUD_CONFIG_WORKER.format(user, token)
 
         worker.create(user_data=user_data)
@@ -556,25 +555,29 @@ class IBMVPCInstance:
         """
         Creates an ssh client against the VM only if the Instance is the master
         """
-        if not self.validated and self.public and self.instance_id:
-            # validate that private ssh key in ssh_credentials is a pair of public key on instance
-            key_filename = self.ssh_credentials['key_filename']
+
+        if self.public and not self.validated:
+            key_filename = self.ssh_credentials.get('key_filename', '~/.ssh/id_rsa')
             if not os.path.exists(os.path.abspath(os.path.expanduser(key_filename))):
-                raise LithopsValidationError(
-                    f"Specified private key file {key_filename} doesn't exist")
-
-            initialization_data = self.ibm_vpc_client.get_instance_initialization(self.instance_id).get_result()
-            key_id = initialization_data['keys'][0]['id']
-            key_name = initialization_data['keys'][0]['name']
-            public_res = self.ibm_vpc_client.get_key(key_id).get_result()['public_key'].split(' ')[1]
-            private_res = subprocess.getoutput([f"ssh-keygen -y -f {key_filename} | cut -d' ' -f 2"])
-
-            if not public_res == private_res:
-                raise LithopsValidationError(
-                    f"Private ssh key {key_filename} and public key "
-                    f"{key_name} on master {self} are not a pair")
+                raise LithopsValidationError(f"Private key file {key_filename} doesn't exist")
 
             self.validated = True
+
+        # Deactivating this for now as it produces exceptions even when the ssh keys are correct
+#         if not self.validated and self.public and self.instance_id:
+#             # validate that private ssh key in ssh_credentials is a pair of public key on instance#
+#             initialization_data = self.ibm_vpc_client.get_instance_initialization(self.instance_id).get_result()
+#             key_id = initialization_data['keys'][0]['id']
+#             key_name = initialization_data['keys'][0]['name']
+#             public_res = self.ibm_vpc_client.get_key(key_id).get_result()['public_key'].split(' ')[1]
+#             private_res = subprocess.getoutput([f"ssh-keygen -y -f {key_filename} | cut -d' ' -f 2"])
+#
+#             if not public_res == private_res:
+#                 raise LithopsValidationError(
+#                     f"Private ssh key {key_filename} and public key "
+#                     f"{key_name} on master {self} are not a pair")
+#
+#             self.validated = True
 
         if self.private_ip or self.public_ip:
             if not self.ssh_client:
@@ -597,12 +600,15 @@ class IBMVPCInstance:
         """
         Checks if the VM instance is ready to receive ssh connections
         """
-        login_type = 'password' if 'password' in self.ssh_credentials else 'publickey'
+        login_type = 'password' if 'password' in self.ssh_credentials and \
+            not self.public else 'publickey'
         try:
             self.get_ssh_client().run_remote_command('id')
         except Exception as e:
             if verbose:
                 logger.debug(f'SSH to {self.private_ip} failed ({login_type}): {e}')
+            if isinstance(e, LithopsValidationError):
+                raise e
             self.del_ssh_client()
             return False
         return True

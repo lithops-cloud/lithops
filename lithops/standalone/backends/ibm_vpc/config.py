@@ -15,6 +15,7 @@
 #
 
 import uuid
+import os
 
 MANDATORY_PARAMETERS_1 = ('endpoint',
                           'vpc_name',
@@ -46,6 +47,7 @@ DEFAULT_CONFIG_KEYS = {
     'boot_volume_profile': 'general-purpose',
     'ssh_username': 'root',
     'ssh_password': str(uuid.uuid4()),
+    'ssh_key_filename': '~/.ssh/id_rsa',
     'delete_on_dismantle': True,
     'max_workers': 100,
     'worker_processes': 2

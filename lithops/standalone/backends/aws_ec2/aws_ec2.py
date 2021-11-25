@@ -27,6 +27,7 @@ from lithops.util.ssh_client import SSHClient
 from lithops.constants import COMPUTE_CLI_MSG, CACHE_DIR
 from lithops.config import load_yaml_config, dump_yaml_config
 from lithops.standalone.utils import CLOUD_CONFIG_WORKER, CLOUD_CONFIG_WORKER_PK
+from lithops.standalone.standalone import LithopsValidationError
 
 
 logger = logging.getLogger(__name__)
@@ -217,7 +218,7 @@ class AWSEC2Backend:
             user_data = CLOUD_CONFIG_WORKER_PK.format(user, pk_data)
             worker.ssh_credentials.pop('password', None)
         else:
-            token = worker.ssh_credentials['passsword']
+            token = worker.ssh_credentials['password']
             user_data = CLOUD_CONFIG_WORKER.format(user, token)
 
         worker.create(user_data=user_data)
@@ -261,6 +262,8 @@ class EC2Instance:
             'key_filename': self.config.get('ssh_key_filename', '~/.ssh/id_rsa')
         }
 
+        self.validated = False
+
     def __str__(self):
         ip = self.public_ip if self.public else self.private_ip
 
@@ -290,6 +293,13 @@ class EC2Instance:
         """
         Creates an ssh client against the VM only if the Instance is the master
         """
+        if self.public and not self.validated:
+            key_filename = self.ssh_credentials.get('key_filename', '~/.ssh/id_rsa')
+            if not os.path.exists(os.path.abspath(os.path.expanduser(key_filename))):
+                raise LithopsValidationError(f"Private key file {key_filename} doesn't exist")
+
+            self.validated = True
+
         if self.public:
             if not self.ssh_client or self.ssh_client.ip_address != self.public_ip:
                 self.ssh_client = SSHClient(self.public_ip, self.ssh_credentials)
@@ -314,12 +324,15 @@ class EC2Instance:
         """
         Checks if the VM instance is ready to receive ssh connections
         """
-        login_type = 'password' if 'password' in self.ssh_credentials else 'publickey'
+        login_type = 'password' if 'password' in self.ssh_credentials and \
+            not self.public else 'publickey'
         try:
             self.get_ssh_client().run_remote_command('id')
         except Exception as e:
             if verbose:
                 logger.debug(f'SSH to {self.private_ip} failed ({login_type}): {e}')
+            if isinstance(e, LithopsValidationError):
+                raise e
             self.del_ssh_client()
             return False
         return True
