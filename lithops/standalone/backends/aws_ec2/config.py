@@ -59,8 +59,4 @@ def load_config(config_data):
         if key not in config_data['aws_ec2']:
             config_data['aws_ec2'][key] = DEFAULT_CONFIG_KEYS[key]
 
-    key_filename = config_data['aws_ec2']['ssh_key_filename']
-    if not os.path.exists(os.path.abspath(os.path.expanduser(key_filename))):
-        raise Exception(f"Private key file {key_filename} doesn't exist")
-
     config_data['aws_ec2'].update(config_data['aws'])

@@ -86,7 +86,3 @@ def load_config(config_data):
     region = config_data['ibm_vpc']['endpoint'].split('//')[1].split('.')[0]
     if 'zone_name' not in config_data['ibm_vpc']:
         config_data['ibm_vpc']['zone_name'] = '{}-2'.format(region)
-
-    key_filename = config_data['ibm_vpc']['ssh_key_filename']
-    if not os.path.exists(os.path.abspath(os.path.expanduser(key_filename))):
-        raise Exception(f"Private key file {key_filename} doesn't exist")

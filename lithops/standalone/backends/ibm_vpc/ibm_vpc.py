@@ -555,8 +555,15 @@ class IBMVPCInstance:
         """
         Creates an ssh client against the VM only if the Instance is the master
         """
-        # Deactivating this for now as it produces exceptions even when the ssh keys are correct
 
+        if self.public and not self.validated:
+            key_filename = self.ssh_credentials.get('key_filename', '~/.ssh/id_rsa')
+            if not os.path.exists(os.path.abspath(os.path.expanduser(key_filename))):
+                raise LithopsValidationError(f"Private key file {key_filename} doesn't exist")
+
+            self.validated = True
+
+        # Deactivating this for now as it produces exceptions even when the ssh keys are correct
 #         if not self.validated and self.public and self.instance_id:
 #             # validate that private ssh key in ssh_credentials is a pair of public key on instance#
 #             initialization_data = self.ibm_vpc_client.get_instance_initialization(self.instance_id).get_result()
@@ -600,6 +607,8 @@ class IBMVPCInstance:
         except Exception as e:
             if verbose:
                 logger.debug(f'SSH to {self.private_ip} failed ({login_type}): {e}')
+            if isinstance(e, LithopsValidationError):
+                raise e
             self.del_ssh_client()
             return False
         return True
