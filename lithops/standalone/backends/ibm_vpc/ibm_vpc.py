@@ -21,6 +21,7 @@ import os
 import time
 import logging
 import uuid
+import subprocess
 from ibm_vpc import VpcV1
 from ibm_cloud_sdk_core.authenticators import IAMAuthenticator
 from ibm_cloud_sdk_core import ApiException
@@ -535,6 +536,7 @@ class IBMVPCInstance:
             'password': self.config['ssh_password'],
             'key_filename': self.config.get('ssh_key_filename', '~/.ssh/id_rsa')
         }
+        self.validated = False
 
     def __str__(self):
         return f'VM instance {self.name} ({self.public_ip or self.private_ip})'
@@ -556,6 +558,23 @@ class IBMVPCInstance:
         """
         Creates an ssh client against the VM only if the Instance is the master
         """
+
+        if not self.validated and self.public and self.instance_id:
+            # validate that private ssh key in ssh_credentials is a pair of public key on instance
+            key_filename = self.ssh_credentials['key_filename']
+            initialization_data = self.ibm_vpc_client.get_instance_initialization(self.instance_id).get_result()
+            key_id = initialization_data['keys'][0]['id']
+            key_name = initialization_data['keys'][0]['name']
+            public_res = self.ibm_vpc_client.get_key(key_id).get_result()['public_key'].split(' ')[1]
+            private_res = subprocess.getoutput([f"ssh-keygen -y -f {key_filename} | cut -d' ' -f 2"])
+
+            if not public_res == private_res:
+                raise LithopsValidationError(
+                    f"Private ssh key {key_filename} and public key "
+                    f"{key_name} on master {self} are not a pair")
+
+            self.validated = True
+
         if self.private_ip or self.public_ip:
             if not self.ssh_client:
                 self.ssh_client = SSHClient(self.public_ip or self.private_ip, self.ssh_credentials)
