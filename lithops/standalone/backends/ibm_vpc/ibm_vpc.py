@@ -483,7 +483,6 @@ class IBMVPCBackend:
         Creates a new worker VM instance
         """
         worker = IBMVPCInstance(name, self.config, self.ibm_vpc_client, public=False)
-        worker.ssh_credentials.pop('key_filename', None)
 
         user = worker.ssh_credentials['username']
 
@@ -492,8 +491,10 @@ class IBMVPCBackend:
             with open(pub_key, 'r') as pk:
                 pk_data = pk.read().strip()
             user_data = CLOUD_CONFIG_WORKER_PK.format(user, pk_data)
-            worker.ssh_credentials.pop('password', None)
+            worker.ssh_credentials['key_filename'] = '~/.ssh/id_rsa'
+            worker.ssh_credentials.pop('password')
         else:
+            worker.ssh_credentials.pop('key_filename')
             token = worker.ssh_credentials['password']
             user_data = CLOUD_CONFIG_WORKER.format(user, token)
 
@@ -534,8 +535,6 @@ class IBMVPCInstance:
             'password': self.config['ssh_password'],
             'key_filename': self.config.get('ssh_key_filename', '~/.ssh/id_rsa')
         }
-
-        self.validated = False
 
     def __str__(self):
         return f'VM instance {self.name} ({self.public_ip or self.private_ip})'
@@ -587,8 +586,6 @@ class IBMVPCInstance:
         except Exception as e:
             if verbose:
                 logger.debug(f'SSH to {self.private_ip} failed ({login_type}): {e}')
-            if isinstance(e, LithopsValidationError):
-                raise e
             self.del_ssh_client()
             return False
         return True

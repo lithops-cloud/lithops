@@ -209,7 +209,6 @@ class AWSEC2Backend:
         Creates a new worker VM instance
         """
         worker = EC2Instance(name, self.config, self.ec2_client, public=False)
-        worker.ssh_credentials.pop('key_filename', None)
 
         user = worker.ssh_credentials['username']
 
@@ -218,8 +217,10 @@ class AWSEC2Backend:
             with open(pub_key, 'r') as pk:
                 pk_data = pk.read().strip()
             user_data = CLOUD_CONFIG_WORKER_PK.format(user, pk_data)
-            worker.ssh_credentials.pop('password', None)
+            worker.ssh_credentials['key_filename'] = '~/.ssh/id_rsa'
+            worker.ssh_credentials.pop('password')
         else:
+            worker.ssh_credentials.pop('key_filename')
             token = worker.ssh_credentials['password']
             user_data = CLOUD_CONFIG_WORKER.format(user, token)
 

@@ -15,7 +15,6 @@
 #
 
 import uuid
-import os
 
 MANDATORY_PARAMETERS_1 = ('endpoint',
                           'vpc_name',

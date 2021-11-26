@@ -3,6 +3,7 @@ import time
 
 from lithops.constants import COMPUTE_CLI_MSG
 from lithops.util.ssh_client import SSHClient
+from lithops.standalone.standalone import LithopsValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +56,7 @@ class VMInstance:
         self.ssh_credentials = {
             'username': self.config.get('ssh_user', 'root'),
             'password': self.config.get('ssh_password', None),
-            'key_filename': self.config.get('ssh_key_filename', None)
+            'key_filename': self.config.get('ssh_key_filename', '~/.ssh/id_rsa')
         }
         logger.debug('{} created'.format(self))
 
@@ -88,6 +89,8 @@ class VMInstance:
         """
         try:
             self.get_ssh_client().run_remote_command('id')
+        except LithopsValidationError as e:
+            raise e
         except Exception as e:
             if verbose:
                 logger.debug(f'ssh to {self.private_ip} failed: {e}')

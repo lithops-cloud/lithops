@@ -15,7 +15,6 @@
 #
 
 import uuid
-import os
 
 DEFAULT_CONFIG_KEYS = {
     'master_instance_type': 't2.micro',

@@ -3,10 +3,11 @@
 ## [v2.5.8.dev0]
 
 ### Added
--
+- [Standalone] Raise an exception when the ssh key is not found
+- [Standalone] Raise an exception when the ssh key is not valid for login to the mater VM
 
 ### Fixed
-- [IBM VPC] Deactiavated logic that checks if ssh keys are correct because it fails even when they are correct
+- [IBM VPC] Fixed get_ssh_client() method that in certain circumstances was not working properly
 
 
 ## [v2.5.7]
