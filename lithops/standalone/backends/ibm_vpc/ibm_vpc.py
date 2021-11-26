@@ -21,6 +21,7 @@ import os
 import time
 import logging
 import uuid
+import subprocess
 from ibm_vpc import VpcV1
 from ibm_cloud_sdk_core.authenticators import IAMAuthenticator
 from ibm_cloud_sdk_core import ApiException
@@ -483,7 +484,6 @@ class IBMVPCBackend:
         Creates a new worker VM instance
         """
         worker = IBMVPCInstance(name, self.config, self.ibm_vpc_client, public=False)
-        worker.ssh_credentials.pop('key_filename', None)
 
         user = worker.ssh_credentials['username']
 
@@ -492,8 +492,10 @@ class IBMVPCBackend:
             with open(pub_key, 'r') as pk:
                 pk_data = pk.read().strip()
             user_data = CLOUD_CONFIG_WORKER_PK.format(user, pk_data)
-            worker.ssh_credentials.pop('password', None)
+            worker.ssh_credentials['key_filename'] = '~/.ssh/id_rsa'
+            worker.ssh_credentials.pop('password')
         else:
+            worker.ssh_credentials.pop('key_filename')
             token = worker.ssh_credentials['password']
             user_data = CLOUD_CONFIG_WORKER.format(user, token)
 
@@ -534,7 +536,6 @@ class IBMVPCInstance:
             'password': self.config['ssh_password'],
             'key_filename': self.config.get('ssh_key_filename', '~/.ssh/id_rsa')
         }
-
         self.validated = False
 
     def __str__(self):
@@ -558,28 +559,21 @@ class IBMVPCInstance:
         Creates an ssh client against the VM only if the Instance is the master
         """
 
-        if self.public and not self.validated:
+        if not self.validated and self.public and self.instance_id:
+            # validate that private ssh key in ssh_credentials is a pair of public key on instance
             key_filename = self.ssh_credentials['key_filename']
-            if not os.path.exists(os.path.abspath(os.path.expanduser(key_filename))):
-                raise LithopsValidationError(f"Private key file {key_filename} doesn't exist")
+            initialization_data = self.ibm_vpc_client.get_instance_initialization(self.instance_id).get_result()
+            key_id = initialization_data['keys'][0]['id']
+            key_name = initialization_data['keys'][0]['name']
+            public_res = self.ibm_vpc_client.get_key(key_id).get_result()['public_key'].split(' ')[1]
+            private_res = subprocess.getoutput([f"ssh-keygen -y -f {key_filename} | cut -d' ' -f 2"])
+
+            if not public_res == private_res:
+                raise LithopsValidationError(
+                    f"Private ssh key {key_filename} and public key "
+                    f"{key_name} on master {self} are not a pair")
 
             self.validated = True
-
-        # Deactivating this for now as it produces exceptions even when the ssh keys are correct
-#         if not self.validated and self.public and self.instance_id:
-#             # validate that private ssh key in ssh_credentials is a pair of public key on instance#
-#             initialization_data = self.ibm_vpc_client.get_instance_initialization(self.instance_id).get_result()
-#             key_id = initialization_data['keys'][0]['id']
-#             key_name = initialization_data['keys'][0]['name']
-#             public_res = self.ibm_vpc_client.get_key(key_id).get_result()['public_key'].split(' ')[1]
-#             private_res = subprocess.getoutput([f"ssh-keygen -y -f {key_filename} | cut -d' ' -f 2"])
-#
-#             if not public_res == private_res:
-#                 raise LithopsValidationError(
-#                     f"Private ssh key {key_filename} and public key "
-#                     f"{key_name} on master {self} are not a pair")
-#
-#             self.validated = True
 
         if self.private_ip or self.public_ip:
             if not self.ssh_client:
@@ -611,8 +605,6 @@ class IBMVPCInstance:
         except Exception as e:
             if verbose:
                 logger.debug(f'SSH to {self.private_ip} failed ({login_type}): {e}')
-            if isinstance(e, LithopsValidationError):
-                raise e
             self.del_ssh_client()
             return False
         return True

@@ -209,7 +209,6 @@ class AWSEC2Backend:
         Creates a new worker VM instance
         """
         worker = EC2Instance(name, self.config, self.ec2_client, public=False)
-        worker.ssh_credentials.pop('key_filename', None)
 
         user = worker.ssh_credentials['username']
 
@@ -218,8 +217,10 @@ class AWSEC2Backend:
             with open(pub_key, 'r') as pk:
                 pk_data = pk.read().strip()
             user_data = CLOUD_CONFIG_WORKER_PK.format(user, pk_data)
-            worker.ssh_credentials.pop('password', None)
+            worker.ssh_credentials['key_filename'] = '~/.ssh/id_rsa'
+            worker.ssh_credentials.pop('password')
         else:
+            worker.ssh_credentials.pop('key_filename')
             token = worker.ssh_credentials['password']
             user_data = CLOUD_CONFIG_WORKER.format(user, token)
 
@@ -264,8 +265,6 @@ class EC2Instance:
             'key_filename': self.config.get('ssh_key_filename', '~/.ssh/id_rsa')
         }
 
-        self.validated = False
-
     def __str__(self):
         ip = self.public_ip if self.public else self.private_ip
 
@@ -295,13 +294,6 @@ class EC2Instance:
         """
         Creates an ssh client against the VM only if the Instance is the master
         """
-        if self.public and not self.validated:
-            key_filename = self.ssh_credentials['key_filename']
-            if not os.path.exists(os.path.abspath(os.path.expanduser(key_filename))):
-                raise LithopsValidationError(f"Private key file {key_filename} doesn't exist")
-
-            self.validated = True
-
         if self.public:
             if not self.ssh_client or self.ssh_client.ip_address != self.public_ip:
                 self.ssh_client = SSHClient(self.public_ip, self.ssh_credentials)
