@@ -18,6 +18,7 @@ import functools
 import inspect
 import re
 import os
+import paramiko
 import time
 import logging
 import uuid
@@ -566,7 +567,7 @@ class IBMVPCInstance:
             key_id = initialization_data['keys'][0]['id']
             key_name = initialization_data['keys'][0]['name']
             public_res = self.ibm_vpc_client.get_key(key_id).get_result()['public_key'].split(' ')[1]
-            private_res = subprocess.getoutput([f"ssh-keygen -y -f {key_filename} | cut -d' ' -f 2"])
+            private_res = paramiko.RSAKey(filename=key_filename).get_base64()
 
             if not public_res == private_res:
                 raise LithopsValidationError(
