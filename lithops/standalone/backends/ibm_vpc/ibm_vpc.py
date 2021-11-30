@@ -562,7 +562,6 @@ class IBMVPCInstance:
 
         if not self.validated and self.public and self.instance_id:
             # validate that private ssh key in ssh_credentials is a pair of public key on instance
-            breakpoint()
             key_filename = self.ssh_credentials['key_filename']
             key_filename = os.path.abspath(os.path.expanduser(key_filename))
 
