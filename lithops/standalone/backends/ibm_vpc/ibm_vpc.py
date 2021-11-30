@@ -569,15 +569,21 @@ class IBMVPCInstance:
                 raise LithopsValidationError(f"Private key file {key_filename} doesn't exist")
 
             initialization_data = self.ibm_vpc_client.get_instance_initialization(self.instance_id).get_result()
-            key_id = initialization_data['keys'][0]['id']
-            key_name = initialization_data['keys'][0]['name']
-            public_res = self.ibm_vpc_client.get_key(key_id).get_result()['public_key'].split(' ')[1]
+            for k in initialization_data['keys']:
+                if k['id'] == self.config['key_id']:
+                    key = k
+
+            if not key:
+                 raise LithopsValidationError(
+                    f"Public key id {self.config['key_id']} sepcified in config is missing on master {self}")
+
+            public_res = self.ibm_vpc_client.get_key(key['id']).get_result()['public_key'].split(' ')[1]
             private_res = paramiko.RSAKey(filename=key_filename).get_base64()
 
             if not public_res == private_res:
                 raise LithopsValidationError(
                     f"Private ssh key {key_filename} and public key "
-                    f"{key_name} on master {self} are not a pair")
+                    f"{key['name']} on master {self} are not a pair")
 
             self.validated = True
 
