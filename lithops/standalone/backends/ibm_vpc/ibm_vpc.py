@@ -563,6 +563,11 @@ class IBMVPCInstance:
         if not self.validated and self.public and self.instance_id:
             # validate that private ssh key in ssh_credentials is a pair of public key on instance
             key_filename = self.ssh_credentials['key_filename']
+            key_filename = os.path.abspath(os.path.expanduser(key_filename))
+
+            if not os.path.exists(key_filename):
+                raise LithopsValidationError(f"Private key file {key_filename} doesn't exist")
+
             initialization_data = self.ibm_vpc_client.get_instance_initialization(self.instance_id).get_result()
             key_id = initialization_data['keys'][0]['id']
             key_name = initialization_data['keys'][0]['name']
