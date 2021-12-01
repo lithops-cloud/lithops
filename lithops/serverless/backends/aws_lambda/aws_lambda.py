@@ -480,10 +480,11 @@ class AWSLambdaBackend:
                     image, tag = runtime_name, 'latest'
                 package = '_'.join(func_name.split('_')[:3])
                 repo_name = f"{package}/{image}"
-                logger.info('Going to delete ECR repository {} tag {}'.format(repo_name, tag))
+                logger.info(f'Going to delete ECR repository {repo_name} tag {tag}')
                 self.ecr_client.batch_delete_image(repositoryName=repo_name, imageIds=[{'imageTag': tag}])
                 images = self.ecr_client.list_images(repositoryName=repo_name, filter={'tagStatus': 'TAGGED'})
                 if not images['imageIds']:
+                    logger.debug(f'Going to delete ECR repository {repo_name}')
                     self.ecr_client.delete_repository(repositoryName=repo_name, force=True)
             else:
                 layer = self._format_layer_name(runtime_name)
@@ -511,8 +512,6 @@ class AWSLambdaBackend:
         @param runtime_name: name of the runtime to list, 'all' to list all runtimes
         @return: list of tuples (runtime name, memory)
         """
-        logger.debug('Listing all functions deployed...')
-
         runtimes = []
         response = self.lambda_client.list_functions(FunctionVersion='ALL')
         for function in response['Functions']:
@@ -528,13 +527,10 @@ class AWSLambdaBackend:
                     runtimes.append((rt_name, rt_memory))
 
         if runtime_name != 'all':
-            if '/' in runtime_name:
-                runtime_name = runtime_name.split('/')[1]
             if self._is_container_runtime(runtime_name) and ':' not in runtime_name:
                 runtime_name = runtime_name + ':latest'
             runtimes = [tup for tup in runtimes if runtime_name in tup[0]]
 
-        logger.debug('Listed {} functions'.format(len(runtimes)))
         return runtimes
 
     def invoke(self, runtime_name, runtime_memory, payload):
