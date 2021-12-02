@@ -378,26 +378,32 @@ class AWSLambdaBackend:
             image_uri = '{}.dkr.ecr.{}.amazonaws.com/{}@{}'.format(self.account_id, self.region_name,
                                                                    repo_name, image_digest)
 
-            response = self.lambda_client.create_function(
-                FunctionName=function_name,
-                Role=self.role_arn,
-                Code={
-                    'ImageUri': image_uri
-                },
-                PackageType='Image',
-                Description=self.package,
-                Timeout=timeout,
-                MemorySize=memory,
-                VpcConfig={
-                    'SubnetIds': self.aws_lambda_config['vpc']['subnets'],
-                    'SecurityGroupIds': self.aws_lambda_config['vpc']['security_groups']
-                },
-                FileSystemConfigs=[
-                    {'Arn': efs_conf['access_point'],
-                     'LocalMountPath': efs_conf['mount_path']}
-                    for efs_conf in self.aws_lambda_config['efs']
-                ]
-            )
+            try:
+                response = self.lambda_client.create_function(
+                    FunctionName=function_name,
+                    Role=self.role_arn,
+                    Code={
+                        'ImageUri': image_uri
+                    },
+                    PackageType='Image',
+                    Description=self.package,
+                    Timeout=timeout,
+                    MemorySize=memory,
+                    VpcConfig={
+                        'SubnetIds': self.aws_lambda_config['vpc']['subnets'],
+                        'SecurityGroupIds': self.aws_lambda_config['vpc']['security_groups']
+                    },
+                    FileSystemConfigs=[
+                        {'Arn': efs_conf['access_point'],
+                         'LocalMountPath': efs_conf['mount_path']}
+                        for efs_conf in self.aws_lambda_config['efs']
+                    ]
+                )
+            except Exception as e:
+                if 'ResourceConflictException' in str(e):
+                    pass
+                else:
+                    raise e
         else:
             assert runtime_name in lambda_config.AVAILABLE_RUNTIMES, \
                 'Runtime {} is not available, try one of {}'.format(runtime_name, lambda_config.AVAILABLE_RUNTIMES)
@@ -407,6 +413,7 @@ class AWSLambdaBackend:
                 layer_arn = self._create_layer(runtime_name)
 
             code = self._create_handler_bin()
+
             response = self.lambda_client.create_function(
                 FunctionName=function_name,
                 Runtime=lambda_config.LAMBDA_PYTHON_VER_KEY,
