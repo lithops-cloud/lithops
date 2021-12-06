@@ -1,6 +1,15 @@
 # Changelog
 
-## [v2.5.8.dev0]
+## [v2.5.9.dev0]
+
+### Added
+- 
+
+### Fixed
+- 
+
+
+## [v2.5.8]
 
 ### Added
 - [Standalone] Raise an exception when the ssh key is not found
