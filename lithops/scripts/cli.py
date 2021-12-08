@@ -235,52 +235,57 @@ def storage(ctx):
 @storage.command('put')
 @click.argument('filename', type=click.Path(exists=True))
 @click.argument('bucket')
+@click.option('--key', '-k', default=None, help='object key')
 @click.option('--backend', '-b', default=None, help='storage backend')
 @click.option('--debug', '-d', is_flag=True, help='debug mode')
-def put_object(filename, bucket, backend, debug):
+def upload_file(filename, bucket, key, backend, debug):
     log_level = logging.INFO if not debug else logging.DEBUG
     setup_lithops_logger(log_level)
     storage = Storage(backend=backend)
 
     def upload_file():
-        logger.info('Uploading file {} to bucket {}'.format(filename, bucket))
-        with open(filename, 'rb') as in_file:
-            storage.put_object(bucket, filename, in_file)
+        logger.info(f'Uploading file {filename} to {storage.backend}://{bucket}/{key or filename}')
+        if storage.upload_file(filename, bucket, key):
+            file_size = os.path.getsize(filename)
+            logger.info(f'Upload File {filename} - Size: {sizeof_fmt(file_size)} - Ok')
+        else:
+            logger.error(f'Upload File {filename} - Error')
 
     with ThreadPoolExecutor() as ex:
         future = ex.submit(upload_file)
         cy = cycle(r"-\|/")
         while not future.done():
-            print("Uploading data " + next(cy), end="\r")
+            print("Uploading file " + next(cy), end="\r")
             time.sleep(0.1)
         future.result()
-    logger.info('File uploaded successfully')
 
 
 @storage.command('get')
 @click.argument('bucket')
 @click.argument('key')
+@click.option('--out', '-o', default=None, help='output filename')
 @click.option('--backend', '-b', default=None, help='storage backend')
 @click.option('--debug', '-d', is_flag=True, help='debug mode')
-def get_object(bucket, key, backend, debug):
+def download_file(bucket, key, out, backend, debug):
     log_level = logging.INFO if not debug else logging.DEBUG
     setup_lithops_logger(log_level)
     storage = Storage(backend=backend)
 
     def download_file():
-        logger.info('Downloading object {} from bucket {}'.format(key, bucket))
-        data_stream = storage.get_object(bucket, key, stream=True)
-        with open(key, 'wb') as out:
-            shutil.copyfileobj(data_stream, out)
+        logger.info(f'Downloading file {storage.backend}://{bucket}/{key} to {out or key}')
+        if storage.download_file(bucket, key, out):
+            file_size = os.path.getsize(out or key)
+            logger.info(f'Download File {key} - Size: {sizeof_fmt(file_size)} - Ok')
+        else:
+            logger.error(f'Download File {key} - Error')
 
     with ThreadPoolExecutor() as ex:
         future = ex.submit(download_file)
         cy = cycle(r"-\|/")
         while not future.done():
-            print("Downloading data " + next(cy), end="\r")
+            print("Downloading file " + next(cy), end="\r")
             time.sleep(0.1)
         future.result()
-    logger.info('Object downloaded successfully')
 
 
 @storage.command('delete')

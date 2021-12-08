@@ -81,8 +81,9 @@ class SSHClient():
         if self.ssh_client is None:
             self.ssh_client = self.create_client()
 
-        if not os.path.exists(os.path.dirname(local_dst)):
-            os.makedirs(os.path.dirname(local_dst))
+        dirname = os.path.dirname(local_dst)
+        if dirname and not os.path.exists(dirname):
+            os.makedirs(dirname)
 
         ftp_client = self.ssh_client.open_sftp()
         ftp_client.get(remote_src, local_dst)

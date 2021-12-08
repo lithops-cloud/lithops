@@ -1,5 +1,6 @@
 #
 # (C) Copyright IBM Corp. 2019
+# (C) Copyright RedHat Inc. 2021
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,6 +15,8 @@
 # limitations under the License.
 #
 
+import os
+import shutil
 import logging
 import requests
 import json
@@ -42,7 +45,7 @@ class InfinispanBackend:
         self.infinispan_client = requests.session()
 
         self.__is_server_version_supported()
-        self.caches={}
+        self.caches = {}
         for cache_name in self.cache_names:
             self.__create_cache(cache_name, self.cache_type)
 
@@ -59,7 +62,7 @@ class InfinispanBackend:
         if res.status_code == 404:
             logger.debug('going to create new Infinispan cache {}'.format(cache_name))
             url = self.endpoint+'/rest/v2/caches/'+cache_name+'?template='+cache_type
-            res = self.infinispan_client.post(url,auth=self.basicAuth)
+            res = self.infinispan_client.post(url, auth=self.basicAuth)
             logger.debug('New Infinispan cache {} created with '
                          'status {}'.format(cache_name, res.status_code))
 
@@ -108,15 +111,61 @@ class InfinispanBackend:
         url = self.__key_url(bucket_name, key)
         res = self.infinispan_client.get(url, headers=self.headers, auth=self.basicAuth)
         data = res.content
-        if data is None or len(data)==0:
+        if data is None or len(data) == 0:
             raise StorageNoSuchKeyError(bucket_name, key)
         if 'Range' in extra_get_args:
             byte_range = extra_get_args['Range'].replace('bytes=', '')
             first_byte, last_byte = map(int, byte_range.split('-'))
-            data=data[first_byte:last_byte+1]
+            data = data[first_byte:last_byte+1]
         if stream:
             return io.BytesIO(data)
         return data
+
+    def upload_file(self, file_name, bucket, key=None, extra_args={}):
+        """Upload a file
+
+        :param file_name: File to upload
+        :param bucket: Bucket to upload to
+        :param key: S3 object name. If not specified then file_name is used
+        :return: True if file was uploaded, else False
+        """
+        # If S3 key was not specified, use file_name
+        if key is None:
+            key = os.path.basename(file_name)
+
+        # Upload the file
+        try:
+            with open(file_name, 'rb') as in_file:
+                self.put_object(bucket, key, in_file)
+        except Exception as e:
+            logging.error(e)
+            return False
+        return True
+
+    def download_file(self, bucket, key, file_name=None, extra_args={}):
+        """Download a file
+
+        :param bucket: Bucket to download from
+        :param key: S3 object name. If not specified then file_name is used
+        :param file_name: File to upload
+        :return: True if file was downloaded, else False
+        """
+        # If file_name was not specified, use S3 key
+        if file_name is None:
+            file_name = key
+
+        # Download the file
+        try:
+            dirname = os.path.dirname(file_name)
+            if dirname and not os.path.exists(dirname):
+                os.makedirs(dirname)
+            with open(file_name, 'wb') as out:
+                data_stream = self.get_object(bucket, key, stream=True)
+                shutil.copyfileobj(data_stream, out)
+        except Exception as e:
+            logging.error(e)
+            return False
+        return True
 
     def head_object(self, bucket_name, key):
         """
@@ -175,7 +224,7 @@ class InfinispanBackend:
         j = json.loads(data)
         result = []
         if prefix is None:
-            pref=""
+            pref = ""
         else:
             pref = prefix
         for k in j:
@@ -203,7 +252,7 @@ class InfinispanBackend:
         j = json.loads(data)
         result = []
         if prefix is None:
-            pref=""
+            pref = ""
         else:
             pref = prefix
         for k in j:

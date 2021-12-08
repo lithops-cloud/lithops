@@ -14,7 +14,9 @@
 # limitations under the License.
 #
 
+import os
 import json
+import shutil
 import logging
 import requests
 from lithops.storage.utils import StorageNoSuchKeyError
@@ -135,6 +137,52 @@ class StorageBackend:
         except Exception as e:
             print(e)
             raise StorageNoSuchKeyError(container_name, key)
+
+    def upload_file(self, file_name, bucket, key=None, extra_args={}):
+        """Upload a file
+
+        :param file_name: File to upload
+        :param bucket: Bucket to upload to
+        :param key: S3 object name. If not specified then file_name is used
+        :return: True if file was uploaded, else False
+        """
+        # If S3 key was not specified, use file_name
+        if key is None:
+            key = os.path.basename(file_name)
+
+        # Upload the file
+        try:
+            with open(file_name, 'rb') as in_file:
+                self.put_object(bucket, key, in_file)
+        except Exception as e:
+            logging.error(e)
+            return False
+        return True
+
+    def download_file(self, bucket, key, file_name=None, extra_args={}):
+        """Download a file
+
+        :param bucket: Bucket to download from
+        :param key: S3 object name. If not specified then file_name is used
+        :param file_name: File to upload
+        :return: True if file was downloaded, else False
+        """
+        # If file_name was not specified, use S3 key
+        if file_name is None:
+            file_name = key
+
+        # Download the file
+        try:
+            dirname = os.path.dirname(file_name)
+            if dirname and not os.path.exists(dirname):
+                os.makedirs(dirname)
+            with open(file_name, 'wb') as out:
+                data_stream = self.get_object(bucket, key, stream=True)
+                shutil.copyfileobj(data_stream, out)
+        except Exception as e:
+            logging.error(e)
+            return False
+        return True
 
     def head_object(self, container_name, key):
         """
