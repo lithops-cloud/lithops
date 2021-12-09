@@ -14,6 +14,7 @@
 # limitations under the License.
 #
 
+import os
 import logging
 import ibm_boto3
 import ibm_botocore
@@ -160,6 +161,46 @@ class IBMCloudObjectStorageBackend:
                 logger.debug('GET Object timeout. Retrying request')
                 retries += 1
         return data
+
+    def upload_file(self, file_name, bucket, key=None, extra_args={}):
+        """Upload a file to an S3 bucket
+
+        :param file_name: File to upload
+        :param bucket: Bucket to upload to
+        :param key: S3 object name. If not specified then file_name is used
+        :return: True if file was uploaded, else False
+        """
+        # If S3 key was not specified, use file_name
+        if key is None:
+            key = os.path.basename(file_name)
+
+        # Upload the file
+        try:
+            self.cos_client.upload_file(file_name, bucket, key, ExtraArgs=extra_args)
+        except ibm_botocore.exceptions.ClientError as e:
+            logging.error(e)
+            return False
+        return True
+
+    def download_file(self, bucket, key, file_name=None, extra_args={}):
+        """Download a file from an S3 bucket
+
+        :param bucket: Bucket to download from
+        :param key: S3 object name. If not specified then file_name is used
+        :param file_name: File to upload
+        :return: True if file was downloaded, else False
+        """
+        # If file_name was not specified, use S3 key
+        if file_name is None:
+            file_name = key
+
+        # Download the file
+        try:
+            self.cos_client.download_file(bucket, key, file_name, ExtraArgs=extra_args)
+        except ibm_botocore.exceptions.ClientError as e:
+            logging.error(e)
+            return False
+        return True
 
     def head_object(self, bucket_name, key):
         """

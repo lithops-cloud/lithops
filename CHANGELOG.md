@@ -3,7 +3,7 @@
 ## [v2.5.9.dev0]
 
 ### Added
-- 
+- [Storage] Added `download_file()` and `upload_file()` methods to Storage API to enable multipart upload/download
 
 ### Fixed
 - 

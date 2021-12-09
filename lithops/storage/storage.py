@@ -110,6 +110,32 @@ class Storage:
         """
         return self.storage_handler.get_object(bucket, key, stream, extra_get_args)
 
+    def upload_file(self, file_name: str, bucket: str, key: Optional[str] = None,
+                    extra_args: Optional[Dict] = {}) -> Union[str, bytes, TextIO, BinaryIO]:
+        """
+        Upload a file to a bucket of the storage backend. (Multipart upload)
+
+        :param bucket: Name of the bucket
+        :param key: Key of the object
+        :param body: Object data
+        :param extra_args: Extra get arguments to be passed to the underlying backend implementation (dict).
+        """
+        return self.storage_handler.upload_file(file_name, bucket, key, extra_args)
+
+    def download_file(self, bucket: str, key: str, file_name: Optional[str] = None,
+                      extra_args: Optional[Dict] = {}) -> Union[str, bytes, TextIO, BinaryIO]:
+        """
+        Download a file from the storage backend. (Multipart download)
+
+        :param bucket: Name of the bucket
+        :param key: Key of the object
+        :param stream: Get the object data or a file-like object
+        :param extra_args: Extra get arguments to be passed to the underlying backend implementation (dict).
+
+        :return: Object, as a binary array or as a file-like stream if parameter `stream` is enabled
+        """
+        return self.storage_handler.download_file(bucket, key, file_name, extra_args)
+
     def head_object(self, bucket: str, key: str) -> Dict:
         """
         The HEAD operation retrieves metadata from an object without returning the object itself. This operation is
