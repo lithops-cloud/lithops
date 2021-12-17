@@ -172,10 +172,10 @@ class AWSLambdaBackend:
         with open(BUILD_LAYER_FUNCTION_ZIP, 'rb') as build_layer_zip:
             build_layer_zip_bin = build_layer_zip.read()
 
-        logger.debug('Creating layer builder function')
+        logger.debug('Creating "layer builder" function')
 
         try:
-            self.lambda_client.create_function(
+            resp = self.lambda_client.create_function(
                 FunctionName=func_name,
                 Runtime=lambda_config.LAMBDA_PYTHON_VER_KEY,
                 Role=self.role_arn,
@@ -187,6 +187,31 @@ class AWSLambdaBackend:
                 MemorySize=512
             )
 
+            # wait until the function is created
+            if resp['ResponseMetadata']['HTTPStatusCode'] in [200, 201]:
+                logger.debug('OK --> Created "layer builder" function {}'.format(runtime_name))
+                retries, sleep_seconds = (15, 25) if 'vpc' in self.aws_lambda_config else (30, 5)
+
+                while retries > 0:
+                    response = self.lambda_client.get_function(
+                        FunctionName=func_name
+                    )
+                    state = response['Configuration']['State']
+                    if state == 'Pending':
+                        time.sleep(sleep_seconds)
+                        logger.info('"layer builder" function is being deployed... '
+                                    '(status: {})'.format(response['Configuration']['State']))
+                        retries -= 1
+                        if retries == 0:
+                            raise Exception('"layer builder" function not deployed: {}'.format(response))
+                    elif state == 'Active':
+                        break
+
+                logger.debug('Ok --> "layer builder" function active')
+            else:
+                msg = 'An error occurred creating/updating action {}: {}'.format(runtime_name, response)
+                raise Exception(msg)
+
             dependencies = [dependency.strip().replace(' ', '') for dependency in lambda_config.DEFAULT_REQUIREMENTS]
             layer_name = self._format_layer_name(runtime_name)
             payload = {
@@ -195,7 +220,7 @@ class AWSLambdaBackend:
                 'key': layer_name
             }
 
-            logger.debug('Invoking layer builder function')
+            logger.debug('Invoking "layer builder" function')
 
             response = self.lambda_client.invoke(
                 FunctionName=func_name,
@@ -207,7 +232,7 @@ class AWSLambdaBackend:
                 msg = 'An error occurred creating layer {}: {}'.format(layer_name, response)
                 raise Exception(msg)
         finally:
-            logger.debug('Deleting layer builder function')
+            logger.debug('Deleting "layer builder" function')
             self.lambda_client.delete_function(
                 FunctionName=func_name
             )
