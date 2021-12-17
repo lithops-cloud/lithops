@@ -6,7 +6,7 @@
 - [Storage] Added `download_file()` and `upload_file()` methods to Storage API to enable multipart upload/download
 
 ### Fixed
-- 
+- [AWS Lambda] Fixed "layer builder" function creation necessary to deploy the default runtime
 
 
 ## [v2.5.8]
