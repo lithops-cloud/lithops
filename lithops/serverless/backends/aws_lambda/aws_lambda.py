@@ -557,7 +557,6 @@ class AWSLambdaBackend:
         runtimes = []
         response = self.lambda_client.list_functions(FunctionVersion='ALL')
         for function in response['Functions']:
-            print(function)
             if 'lithops' in function['FunctionName']:
                 rt_name, rt_memory = self._unformat_function_name(function['FunctionName'])
                 runtimes.append((rt_name, rt_memory))
@@ -565,7 +564,6 @@ class AWSLambdaBackend:
         while 'NextMarker' in response:
             response = self.lambda_client.list_functions(Marker=response['NextMarker'])
             for function in response['Functions']:
-                print(function)
                 if 'lithops' in function['FunctionName']:
                     rt_name, rt_memory = self._unformat_function_name(function['FunctionName'])
                     runtimes.append((rt_name, rt_memory))
