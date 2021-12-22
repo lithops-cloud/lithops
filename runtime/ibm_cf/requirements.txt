@@ -24,7 +24,7 @@ PyJWT
 
 # packages for numerics
 numpy
-scikit-learn
+#scikit-learn
 scipy
 pandas
 
