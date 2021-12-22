@@ -7,6 +7,7 @@
 
 ### Fixed
 - [AWS Lambda] Fixed "layer builder" function creation necessary to deploy the default runtime
+- [AWS Lambda] Allow to create container runtimes whose names contain '.', '/' and '_'.
 
 
 ## [v2.5.8]

@@ -207,7 +207,7 @@ def attach(config, backend, start, debug):
     key_file = os.path.abspath(os.path.expanduser(key_file))
 
     if not os.path.exists(key_file):
-        raise Exception('Private key file {key_file} does not exists')
+        raise Exception(f'Private key file {key_file} does not exists')
 
     print(f'Got master VM public IP address: {master_ip}')
     print(f'Loading ssh private key from: {key_file}')
@@ -238,10 +238,14 @@ def storage(ctx):
 @click.option('--key', '-k', default=None, help='object key')
 @click.option('--backend', '-b', default=None, help='storage backend')
 @click.option('--debug', '-d', is_flag=True, help='debug mode')
-def upload_file(filename, bucket, key, backend, debug):
+@click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
+def upload_file(filename, bucket, key, backend, debug, config):
+    if config:
+        config = load_yaml_config(config)
+
     log_level = logging.INFO if not debug else logging.DEBUG
     setup_lithops_logger(log_level)
-    storage = Storage(backend=backend)
+    storage = Storage(config=config, backend=backend)
 
     def upload_file():
         logger.info(f'Uploading file {filename} to {storage.backend}://{bucket}/{key or filename}')
@@ -266,10 +270,14 @@ def upload_file(filename, bucket, key, backend, debug):
 @click.option('--out', '-o', default=None, help='output filename')
 @click.option('--backend', '-b', default=None, help='storage backend')
 @click.option('--debug', '-d', is_flag=True, help='debug mode')
-def download_file(bucket, key, out, backend, debug):
+@click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
+def download_file(bucket, key, out, backend, debug, config):
+    if config:
+        config = load_yaml_config(config)
+
     log_level = logging.INFO if not debug else logging.DEBUG
     setup_lithops_logger(log_level)
-    storage = Storage(backend=backend)
+    storage = Storage(config=config, backend=backend)
 
     def download_file():
         logger.info(f'Downloading file {storage.backend}://{bucket}/{key} to {out or key}')
@@ -294,10 +302,13 @@ def download_file(bucket, key, out, backend, debug):
 @click.option('--prefix', '-p', default=None, help='key prefix')
 @click.option('--backend', '-b', default=None, help='storage backend')
 @click.option('--debug', '-d', is_flag=True, help='debug mode')
-def delete_object(bucket, key, prefix, backend, debug):
+@click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
+def delete_object(bucket, key, prefix, backend, debug, config):
+    if config:
+        config = load_yaml_config(config)
     log_level = logging.INFO if not debug else logging.DEBUG
     setup_lithops_logger(log_level)
-    storage = Storage(backend=backend)
+    storage = Storage(config=config, backend=backend)
 
     if key:
         logger.info('Deleting object "{}" from bucket "{}"'.format(key, bucket))
@@ -315,10 +326,13 @@ def delete_object(bucket, key, prefix, backend, debug):
 @click.option('--prefix', '-p', default=None, help='key prefix')
 @click.option('--backend', '-b', default=None, help='storage backend')
 @click.option('--debug', '-d', is_flag=True, help='debug mode')
-def list_bucket(prefix, bucket, backend, debug):
+@click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
+def list_bucket(prefix, bucket, backend, debug, config):
+    if config:
+        config = load_yaml_config(config)
     log_level = logging.INFO if not debug else logging.DEBUG
     setup_lithops_logger(log_level)
-    storage = Storage(backend=backend)
+    storage = Storage(config=config, backend=backend)
     logger.info('Listing objects in bucket {}'.format(bucket))
     objects = storage.list_objects(bucket, prefix=prefix)
 

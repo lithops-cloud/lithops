@@ -270,19 +270,21 @@ with the same set of commands.
 
 Uploads a local file to a bucket.
 
-+-----------------+----------------------------------+
-| Parameter       | Description                      |
-+=================+==================================+
-| filename        | Path of your local file          |
-+-----------------+----------------------------------+
-| bucket          | Name of the destination bucket   |
-+-----------------+----------------------------------+
-| --config, -c    | Path to your config file         |
-+-----------------+----------------------------------+
-| --backend, -b   | Storage backend name             |
-+-----------------+----------------------------------+
-| --debug, -d     | Activate debug logs (Flag)       |
-+-----------------+----------------------------------+
++-----------------+--------------------------------------+
+| Parameter       | Description                          |
++=================+======================================+
+| filename        | Path of your local file              |
++-----------------+--------------------------------------+
+| bucket          | Name of the destination bucket       |
++-----------------+--------------------------------------+
+| --key, -k       | Object name. filename if not present |
++-----------------+--------------------------------------+
+| --backend, -b   | Storage backend name                 |
++-----------------+--------------------------------------+
+| --debug, -d     | Activate debug logs (Flag)           |
++-----------------+--------------------------------------+
+| --config, -c    | Path to your config file             |
++-----------------+--------------------------------------+
 
 -  **Usage example**:
    ``lithops storage put -b ibm_cos test.txt cloudbucket``
@@ -292,19 +294,21 @@ Uploads a local file to a bucket.
 
 Downloads a remote object stored in a bucket to a local file.
 
-+-----------------+------------------------------+
-| Parameter       | Description                  |
-+=================+==============================+
-| bucket          | Name of the source bucket    |
-+-----------------+------------------------------+
-| key             | Key of the object            |
-+-----------------+------------------------------+
-| --config, -c    | Path to your config file     |
-+-----------------+------------------------------+
-| --backend, -b   | Storage backend name         |
-+-----------------+------------------------------+
-| --debug, -d     | Activate debug logs (Flag)   |
-+-----------------+------------------------------+
++-----------------+------------------------------------+
+| Parameter       | Description                        |
++=================+====================================+
+| bucket          | Name of the source bucket          |
++-----------------+------------------------------------+
+| key             | Key of the object                  |
++-----------------+------------------------------------+
+| --out, -o       | local filename. key if not present |
++-----------------+------------------------------------+
+| --backend, -b   | Storage backend name               |
++-----------------+------------------------------------+
+| --debug, -d     | Activate debug logs (Flag)         |
++-----------------+------------------------------------+
+| --config, -c    | Path to your config file           |
++-----------------+------------------------------------+
 
 -  **Usage example**:
    ``lithops storage get -b ibm_cos cloudbucket test.txt``
@@ -323,11 +327,11 @@ Deletes objects from a given bucket.
 +-----------------+------------------------------------+
 | --prefix, -p    | Prefix of the objects to delete    |
 +-----------------+------------------------------------+
-| --config, -c    | Path to your config file           |
-+-----------------+------------------------------------+
 | --backend, -b   | Storage backend name               |
 +-----------------+------------------------------------+
 | --debug, -d     | Activate debug logs (Flag)         |
++-----------------+------------------------------------+
+| --config, -c    | Path to your config file           |
 +-----------------+------------------------------------+
 
 -  **Usage example**:
@@ -352,11 +356,11 @@ Deletes objects from a given bucket.
 +-----------------+---------------------------------+
 | --prefix, -p    | Prefix of the objects to list   |
 +-----------------+---------------------------------+
-| --config, -c    | Path to your config file        |
-+-----------------+---------------------------------+
 | --backend, -b   | Storage backend name            |
 +-----------------+---------------------------------+
 | --debug, -d     | Activate debug logs (Flag)      |
++-----------------+---------------------------------+
+| --config, -c    | Path to your config file        |
 +-----------------+---------------------------------+
 
 -  **Usage example**:

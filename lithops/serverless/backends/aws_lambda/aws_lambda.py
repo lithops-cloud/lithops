@@ -92,27 +92,29 @@ class AWSLambdaBackend:
         logger.info("{} - Region: {}".format(msg, self.region_name))
 
     def _format_function_name(self, runtime_name, runtime_memory):
-        if '/' in runtime_name:
-            runtime_name = runtime_name.replace(':', '--')
-            runtime_name = runtime_name.replace('/', '_')
-            return '{}_{}MB'.format(runtime_name, runtime_memory)
+        runtime_name = runtime_name.replace('/', '__')
+        runtime_name = runtime_name.replace('.', '')
+        runtime_name = runtime_name.replace(':', '--')
 
-        runtime_name = self.package.replace('.', '-') + '_' + runtime_name.replace(':', '--')
+        if not runtime_name.startswith('lithops_v'):
+            runtime_name = self.package.replace('.', '-') + '__' + runtime_name
+
         return '{}_{}MB'.format(runtime_name, runtime_memory)
 
     @staticmethod
-    def _unformat_function_name(action_name):
-        splits = action_name.split('_')
-        runtime_name = f"{'_'.join(splits[:3])}/{'_'.join(splits[3:-1]).replace('--', ':')}"
-        runtime_memory = int(splits[-1].replace('MB', ''))
-        return runtime_name, runtime_memory
+    def _unformat_function_name(function_name):
+        action_name = function_name.replace('__', '/')
+        action_name = action_name.replace('--', ':')
+        runtime_name, runtime_memory = action_name.rsplit('_', 1)
+        return runtime_name, runtime_memory.replace('MB', '')
 
     def _format_layer_name(self, runtime_name):
         return '_'.join([self.package, runtime_name, 'layer']).replace('.', '-')
 
     @staticmethod
     def _is_container_runtime(runtime_name):
-        return runtime_name not in lambda_config.AVAILABLE_RUNTIMES
+        name = runtime_name.split('/', 1)[-1]
+        return name not in lambda_config.AVAILABLE_RUNTIMES
 
     def _format_repo_name(self, runtime_name):
         if ':' in runtime_name:
@@ -382,7 +384,7 @@ class AWSLambdaBackend:
         @return: runtime metadata
         """
         function_name = self._format_function_name(runtime_name, memory)
-        logger.debug('Creating new Lithops lambda function: {}'.format(function_name))
+        logger.debug(f'Creating new Lithops lambda function {function_name}')
 
         if self._is_container_runtime(runtime_name):
             # Container image runtime
@@ -395,7 +397,10 @@ class AWSLambdaBackend:
                 repo_name = self._format_repo_name(image)
                 response = self.ecr_client.describe_images(repositoryName=repo_name)
                 images = response['imageDetails']
-                image = list(filter(lambda image: tag in image['imageTags'], images)).pop()
+                if not images:
+                    raise Exception(f'Runtime {runtime_name} is not present in ECR.'
+                                    'Consider running "lithops runtime build -b aws_lambda ..."')
+                image = list(filter(lambda image: 'imageTags' in image and tag in image['imageTags'], images)).pop()
                 image_digest = image['imageDigest']
             except botocore.exceptions.ClientError:
                 raise Exception('Runtime {} is not deployed to ECR'.format(runtime_name))
@@ -463,7 +468,7 @@ class AWSLambdaBackend:
             )
 
         if response['ResponseMetadata']['HTTPStatusCode'] in [200, 201]:
-            logger.debug('OK --> Created lambda function {}'.format(runtime_name))
+            logger.debug('OK --> Created lambda function {}'.format(function_name))
 
             retries, sleep_seconds = (15, 25) if 'vpc' in self.aws_lambda_config else (30, 5)
             while retries > 0:
@@ -497,14 +502,13 @@ class AWSLambdaBackend:
         @param runtime_memory: memory of the runtime to be deleted in MB
         """
         logger.info(f'Deleting lambda runtime: {runtime_name} - {runtime_memory}MB')
-
         func_name = self._format_function_name(runtime_name, runtime_memory)
 
         self._delete_function(func_name)
 
         # Check if layer/container image has to also be deleted
         if not self.list_runtimes(runtime_name):
-            runtime_name = runtime_name.split('/')[1] if '/' in runtime_name else runtime_name
+            runtime_name = runtime_name.split('/', 1)[1] if '/' in runtime_name else runtime_name
             if self._is_container_runtime(runtime_name):
                 if ':' in runtime_name:
                     image, tag = runtime_name.split(':')

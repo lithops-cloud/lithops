@@ -68,10 +68,17 @@ Update the [template Dockerfile](Dockerfile.python38) that better fits to your r
 You can add a container layer (`RUN ...`) to install additional Python modules using `pip` or system libraries using `apt`, or even change Python version to a older/newer one.
 
 Then, to build the custom runtime, use `lithops runtime build` CLI specifying the modified `Dockerfile` file and a runtime name.
-Note that you only need to specify the container name: `my_container_runtime_name`:
+
+Note that you only need to specify the container name: `my-container-runtime-name`. As far as possible, avoid using 'points' ('.') in the runtime name.
 
 ```
-$ lithops runtime build -f MyDockerfile -b aws_lambda my_container_runtime_name
+$ lithops runtime build -f MyDockerfile -b aws_lambda my-container-runtime-name
+```
+
+For example:
+
+```
+$ lithops runtime build -f MyDockerfile -b aws_lambda lithops-ndvi-v39:01
 ```
 
 Finally, we can specify this new runtime when creating a Lithops Function Executor:
