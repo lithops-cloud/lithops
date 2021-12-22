@@ -3,6 +3,7 @@
 ## [v2.5.9.dev0]
 
 ### Added
+- [Core] Add support for Python 3.10
 - [Storage] Added `download_file()` and `upload_file()` methods to Storage API to enable multipart upload/download
 
 ### Fixed

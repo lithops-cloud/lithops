@@ -67,9 +67,9 @@ To build your own runtime, first install [Docker CE](https://docs.docker.com/get
 Update the [template Dockerfile](Dockerfile.python38) that better fits to your requirements with your required system packages and Python modules.
 You can add a container layer (`RUN ...`) to install additional Python modules using `pip` or system libraries using `apt`, or even change Python version to a older/newer one.
 
-Then, to build the custom runtime, use `lithops runtime build` CLI specifying the modified `Dockerfile` file and a runtime name.
-
-Note that you only need to specify the container name: `my-container-runtime-name`. As far as possible, avoid using 'points' ('.') in the runtime name.
+Then, to build the custom runtime, use `lithops runtime build` CLI specifying the modified `Dockerfile` file and a runtime name. 
+Note that you only need to specify the container name: `my-container-runtime-name`. 
+As far as possible, avoid using 'points' ('.') in the runtime name.
 
 ```
 $ lithops runtime build -f MyDockerfile -b aws_lambda my-container-runtime-name
@@ -89,7 +89,7 @@ import lithops
 def test():
     return 'hello'
 
-lith = lithops.FunctionExecutor(runtime='my_container_runtime_name')
+lith = lithops.FunctionExecutor(runtime='lithops-ndvi-v39:01')
 lith.call_async(test, data=())
 res = lith.get_result()
 print(res)  # Prints 'hello'

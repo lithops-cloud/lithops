@@ -57,7 +57,7 @@ class AWSLambdaBackend:
         self.user_agent = aws_lambda_config['user_agent']
 
         self.user_key = aws_lambda_config['access_key_id'][-4:]
-        self.package = 'lithops_v{}_{}'.format(lithops.__version__, self.user_key.lower())
+        self.package = 'lithops_v{}_{}'.format(lithops.__version__, self.user_key.lower()).replace('.', '-')
         self.region_name = aws_lambda_config['region_name']
         self.role_arn = aws_lambda_config['execution_role']
 
@@ -97,7 +97,7 @@ class AWSLambdaBackend:
         runtime_name = runtime_name.replace(':', '--')
 
         if not runtime_name.startswith('lithops_v'):
-            runtime_name = self.package.replace('.', '-') + '__' + runtime_name
+            runtime_name = self.package + '__' + runtime_name
 
         return '{}_{}MB'.format(runtime_name, runtime_memory)
 
@@ -109,7 +109,7 @@ class AWSLambdaBackend:
         return runtime_name, runtime_memory.replace('MB', '')
 
     def _format_layer_name(self, runtime_name):
-        return '_'.join([self.package, runtime_name, 'layer']).replace('.', '-')
+        return '_'.join([self.package, runtime_name, 'layer'])
 
     @staticmethod
     def _is_container_runtime(runtime_name):
@@ -121,7 +121,7 @@ class AWSLambdaBackend:
             base_image = runtime_name.split(':')[0]
         else:
             base_image = runtime_name
-        return '/'.join([self.package, base_image]).replace('.', '-').lower()
+        return '/'.join([self.package, base_image]).lower()
 
     @staticmethod
     def _create_handler_bin(remove=True):
@@ -169,7 +169,7 @@ class AWSLambdaBackend:
             build_layer_file = os.path.join(current_location, 'build_layer.py')
             build_layer_zip.write(build_layer_file, 'build_layer.py', zipfile.ZIP_DEFLATED)
 
-        func_name = '_'.join([self.package, 'layer_builder_512MB']).replace('.', '-')
+        func_name = '_'.join([self.package, 'layer_builder_512MB'])
 
         with open(BUILD_LAYER_FUNCTION_ZIP, 'rb') as build_layer_zip:
             build_layer_zip_bin = build_layer_zip.read()
@@ -244,7 +244,7 @@ class AWSLambdaBackend:
         logger.debug('Creating layer {} ...'.format(layer_name))
         response = self.lambda_client.publish_layer_version(
             LayerName=layer_name,
-            Description=self.package,
+            Description='Lithops Function for '+self.package,
             Content={
                 'S3Bucket': self.internal_storage.bucket,
                 'S3Key': layer_name
@@ -416,7 +416,7 @@ class AWSLambdaBackend:
                         'ImageUri': image_uri
                     },
                     PackageType='Image',
-                    Description=self.package,
+                    Description='Lithops Worker for '+self.package,
                     Timeout=timeout,
                     MemorySize=memory,
                     VpcConfig={
@@ -427,7 +427,10 @@ class AWSLambdaBackend:
                         {'Arn': efs_conf['access_point'],
                          'LocalMountPath': efs_conf['mount_path']}
                         for efs_conf in self.aws_lambda_config['efs']
-                    ]
+                    ],
+                    Tags={
+                        'runtime_name': self.package+'/'+runtime_name
+                    },
                 )
             except Exception as e:
                 if 'ResourceConflictException' in str(e):
@@ -452,7 +455,7 @@ class AWSLambdaBackend:
                 Code={
                     'ZipFile': code
                 },
-                Description=self.package,
+                Description='Lithops Worker for '+self.package,
                 Timeout=timeout,
                 MemorySize=memory,
                 Layers=[layer_arn],
@@ -464,7 +467,10 @@ class AWSLambdaBackend:
                     {'Arn': efs_conf['access_point'],
                      'LocalMountPath': efs_conf['mount_path']}
                     for efs_conf in self.aws_lambda_config['efs']
-                ]
+                ],
+                Tags={
+                    'runtime_name': runtime_name
+                },
             )
 
         if response['ResponseMetadata']['HTTPStatusCode'] in [200, 201]:
@@ -551,6 +557,7 @@ class AWSLambdaBackend:
         runtimes = []
         response = self.lambda_client.list_functions(FunctionVersion='ALL')
         for function in response['Functions']:
+            print(function)
             if 'lithops' in function['FunctionName']:
                 rt_name, rt_memory = self._unformat_function_name(function['FunctionName'])
                 runtimes.append((rt_name, rt_memory))
@@ -558,6 +565,7 @@ class AWSLambdaBackend:
         while 'NextMarker' in response:
             response = self.lambda_client.list_functions(Marker=response['NextMarker'])
             for function in response['Functions']:
+                print(function)
                 if 'lithops' in function['FunctionName']:
                     rt_name, rt_memory = self._unformat_function_name(function['FunctionName'])
                     runtimes.append((rt_name, rt_memory))
