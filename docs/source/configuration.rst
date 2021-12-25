@@ -66,7 +66,7 @@ Here is an example of providing configuration keys for IBM Cloud Functions and I
 
     import lithops
 
-    config = {'lithops': {'backend': 'ibm_cf', storage: 'ibm_cos'},
+    config = {'lithops': {'backend': 'ibm_cf', 'storage': 'ibm_cos'},
               'ibm_cf':  {'endpoint': 'ENDPOINT',
                           'namespace': 'NAMESPACE',
                           'api_key': 'API_KEY'},
