@@ -229,7 +229,7 @@ Sometimes, functions have common parameters for all the invocations. In this cas
     
     iterdata = [0, 1, 2]
     fexec = lithops.FunctionExecutor()
-    fexec.map(sum_list_mult, iterdata)
+    fexec.map(sum_x_y, iterdata)
     print(fexec.get_result())
     ```
 
