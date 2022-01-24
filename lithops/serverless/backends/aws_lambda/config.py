@@ -46,6 +46,7 @@ DEFAULT_CONFIG_KEYS = {
     'max_workers': 1000,
     'worker_processes': 1,
     'invoke_pool_threads': 64,
+    'architecture': 'x86_64'
 }
 
 RUNTIME_TIMEOUT_MAX = 900  # Max. timeout: 900 s == 15 min

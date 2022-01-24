@@ -431,6 +431,7 @@ class AWSLambdaBackend:
                     Tags={
                         'runtime_name': self.package+'/'+runtime_name
                     },
+                    Architectures=[self.aws_lambda_config['architecture']]
                 )
             except Exception as e:
                 if 'ResourceConflictException' in str(e):

@@ -67,6 +67,8 @@ To build your own runtime, first install [Docker CE](https://docs.docker.com/get
 Update the [template Dockerfile](Dockerfile.python38) that better fits to your requirements with your required system packages and Python modules.
 You can add a container layer (`RUN ...`) to install additional Python modules using `pip` or system libraries using `apt`, or even change Python version to a older/newer one.
 
+If you plan to use the **ARM64** architecture, you should consider creating a new dockerfile with an arm image from [https://gallery.ecr.aws/lambda/python](https://gallery.ecr.aws/lambda/python), in the tab "image tags". For example, you should start the dockerfile with the line `FROM public.ecr.aws/lambda/python:3.9.2022.01.10.19`	
+
 Then, to build the custom runtime, use `lithops runtime build` CLI specifying the modified `Dockerfile` file and a runtime name. 
 Note that you only need to specify the container name: `my-container-runtime-name`. 
 As far as possible, avoid using 'points' ('.') in the runtime name.
