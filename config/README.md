@@ -114,7 +114,7 @@ Example of providing configuration keys for IBM Cloud Functions and IBM Cloud Ob
 ```python
 import lithops
 
-config = {'lithops': {'backend': 'ibm_cf', storage: 'ibm_cos'},
+config = {'lithops': {'backend': 'ibm_cf', 'storage': 'ibm_cos'},
 
           'ibm_cf':  {'endpoint': 'ENDPOINT',
                       'namespace': 'NAMESPACE',

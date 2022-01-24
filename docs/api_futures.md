@@ -297,8 +297,8 @@ Creates 2 detailed execution plots: A timeline plot and a histogram plot.
 * **Example**:
 
 <p align="center">
-  <img width="48%" src="images/timeline.png"></img>
-  <img width="48%" src="images/histogram.png"></img>
+  <img width="48%" src="source/images/timeline.png"></img>
+  <img width="48%" src="source/images/histogram.png"></img>
 </p>
 
 ## Executor.clean()

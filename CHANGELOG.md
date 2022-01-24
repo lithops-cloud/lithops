@@ -5,6 +5,7 @@
 ### Added
 - [Core] Add support for Python 3.10
 - [Storage] Added `download_file()` and `upload_file()` methods to Storage API to enable multipart upload/download
+- [AWS Lambda] Added 'architecture' option in config to allow deploy arm64 runtimes
 
 ### Fixed
 - [AWS Lambda] Fixed "layer builder" function creation necessary to deploy the default runtime
