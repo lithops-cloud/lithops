@@ -9,7 +9,7 @@ If you don't have an already built runtime, the default runtime is built the fir
 Alternatively, you can create the default runtime by running the following command:
 
 ```bash
-$ lithops runtime create default -b code_engine
+$ lithops runtime deploy default -b code_engine
 ```
 
 To run a function with the default runtime you don't need to specify anything in the code, since everything is managed internally by Lithops:
@@ -86,11 +86,11 @@ code_enigne:
 
     Alternatively, you can create a Lithops runtime based on already built Docker image by executing the following command, which will deploy all the necessary information to use the runtime with your Lithops.
 
-        $ lithops runtime create -b code_engine docker_username/runtimename:tag
+        $ lithops runtime deploy -b code_engine docker_username/runtimename:tag
 
     For example, you can use an already created runtime based on Python 3.9 and with the *matplotlib* and *nltk* libraries by running:
 
-        $ lithops runtime create -b code_engine lithopscloud/ce-matplotlib-v39:01
+        $ lithops runtime deploy -b code_engine lithopscloud/ce-matplotlib-v39:01
 
     Once finished, you can use the runtime in your Lithops code:
 

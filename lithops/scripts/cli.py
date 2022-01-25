@@ -418,46 +418,6 @@ def runtime(ctx):
     pass
 
 
-@runtime.command('create')
-@click.argument('name', required=False)
-@click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
-@click.option('--backend', '-b', default=None, help='compute backend')
-@click.option('--storage', '-s', default=None, help='storage backend')
-@click.option('--memory', default=None, help='memory used by the runtime', type=int)
-@click.option('--timeout', default=None, help='runtime timeout', type=int)
-@click.option('--debug', '-d', is_flag=True, help='debug mode')
-def create(name, storage, backend, memory, timeout, config, debug):
-    """ Create a serverless runtime """
-    setup_lithops_logger(logging.DEBUG)
-
-    verify_runtime_name(name)
-
-    if config:
-        config = load_yaml_config(config)
-
-    config_ow = set_config_ow(backend, storage, runtime_name=name)
-    config = default_config(config, config_ow)
-
-    if config['lithops']['mode'] != SERVERLESS:
-        raise Exception('"lithops runtime create" command is only valid for serverless backends')
-
-    logger.info('Creating new lithops runtime: {}'.format(name))
-    storage_config = extract_storage_config(config)
-    internal_storage = InternalStorage(storage_config)
-
-    compute_config = extract_serverless_config(config)
-    compute_handler = ServerlessHandler(compute_config, internal_storage)
-    mem = memory if memory else compute_config['runtime_memory']
-    to = timeout if timeout else compute_config['runtime_timeout']
-    runtime_key = compute_handler.get_runtime_key(name, mem)
-    runtime_meta = compute_handler.create_runtime(name, mem, timeout=to)
-
-    try:
-        internal_storage.put_runtime_meta(runtime_key, runtime_meta)
-    except Exception:
-        raise ("Unable to upload 'preinstalled-modules' file into {}".format(internal_storage.backend))
-
-
 @runtime.command('build', context_settings=dict(ignore_unknown_options=True, allow_extra_args=True))
 @click.argument('name', required=False)
 @click.option('--file', '-f', default=None, help='file needed to build the runtime')
@@ -482,6 +442,42 @@ def build(ctx, name, file, config, backend):
     compute_config = extract_serverless_config(config)
     compute_handler = ServerlessHandler(compute_config, None)
     compute_handler.build_runtime(name, file, ctx.args)
+
+
+@runtime.command('deploy')
+@click.argument('name', required=False)
+@click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
+@click.option('--backend', '-b', default=None, help='compute backend')
+@click.option('--storage', '-s', default=None, help='storage backend')
+@click.option('--memory', default=None, help='memory used by the runtime', type=int)
+@click.option('--timeout', default=None, help='runtime timeout', type=int)
+@click.option('--debug', '-d', is_flag=True, help='debug mode')
+def deploy(name, storage, backend, memory, timeout, config, debug):
+    """ deploy a serverless runtime """
+    setup_lithops_logger(logging.DEBUG)
+
+    verify_runtime_name(name)
+
+    if config:
+        config = load_yaml_config(config)
+
+    config_ow = set_config_ow(backend, storage, runtime_name=name)
+    config = default_config(config, config_ow)
+
+    if config['lithops']['mode'] != SERVERLESS:
+        raise Exception('"lithops runtime create" command is only valid for serverless backends')
+
+    logger.info('Creating new lithops runtime: {}'.format(name))
+    storage_config = extract_storage_config(config)
+    internal_storage = InternalStorage(storage_config)
+
+    compute_config = extract_serverless_config(config)
+    compute_handler = ServerlessHandler(compute_config, internal_storage)
+    mem = memory if memory else compute_config['runtime_memory']
+    to = timeout if timeout else compute_config['runtime_timeout']
+    runtime_key = compute_handler.get_runtime_key(name, mem)
+    runtime_meta = compute_handler.create_runtime(name, mem, timeout=to)
+    internal_storage.put_runtime_meta(runtime_key, runtime_meta)
 
 
 @runtime.command('list')
@@ -558,11 +554,7 @@ def update(name, config, backend, storage, debug):
     for runtime in runtimes:
         runtime_key = compute_handler.get_runtime_key(runtime[0], runtime[1])
         runtime_meta = compute_handler.create_runtime(runtime[0], runtime[1], timeout)
-
-        try:
-            internal_storage.put_runtime_meta(runtime_key, runtime_meta)
-        except Exception:
-            raise ("Unable to upload 'preinstalled-modules' file into {}".format(internal_storage.backend))
+        internal_storage.put_runtime_meta(runtime_key, runtime_meta)
 
 
 @runtime.command('delete')

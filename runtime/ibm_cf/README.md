@@ -16,7 +16,7 @@ The default runtime is created the first time you execute a function. Lithops au
 Alternatively, you can create the default runtime by running the following command:
 
 ```bash
-$ lithops runtime create default
+$ lithops runtime deploy default
 ```
 
 To run a function with the default runtime you don't need to specify anything in the code, since everything is managed internally by Lithops:
@@ -94,11 +94,11 @@ pw = lithops.FunctionExecutor(runtime_memory=512)
 
     Alternatively, you can create a Lithops runtime based on already built Docker image by executing the following command, which will deploy all the necessary information to use the runtime with your Lithops.
 
-        $ lithops runtime create docker_username/runtimename:tag
+        $ lithops runtime deploy docker_username/runtimename:tag
 
-    For example, you can use an already created runtime based on Python 3.8 and with the *matplotlib* and *nltk* libraries by running:
+    For example, you can use an already built runtime based on Python 3.8 and with the *matplotlib* and *nltk* libraries by running:
 
-        $ lithops runtime create jsampe/lithops-matplotlib-3.8:0.1
+        $ lithops runtime deploy jsampe/lithops-matplotlib-3.8:0.1
 
     Once finished, you can use the runtime in your Lithops code:
 
@@ -111,7 +111,7 @@ pw = lithops.FunctionExecutor(runtime_memory=512)
 
 1. **Update an existing runtime**
 
-    If you are a developer, and modified the PyWeen source code, you need to deploy the changes before executing Lithops.
+    If you are a developer, and modified the Lithops source code, you need to deploy the changes before executing Lithops.
 
     You can update default runtime by:
 

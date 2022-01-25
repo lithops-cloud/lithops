@@ -7,6 +7,9 @@
 - [Storage] Added `download_file()` and `upload_file()` methods to Storage API to enable multipart upload/download
 - [AWS Lambda] Added 'architecture' option in config to allow deploy arm64 runtimes
 
+### Changed
+- [CLI] Changed "lithops runtime create" command to "lithops runtime deploy"
+
 ### Fixed
 - [AWS Lambda] Fixed "layer builder" function creation necessary to deploy the default runtime
 - [AWS Lambda] Allow to create container runtimes whose names contain '.', '/' and '_'.

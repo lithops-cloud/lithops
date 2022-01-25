@@ -67,11 +67,11 @@ k8s:
 
     Alternatively, you can create a Lithops runtime based on already built Docker image by executing the following command, which will deploy all the necessary information to use the runtime with your Lithops.
 
-        $ lithops runtime create -b k8s docker_username/runtimename:tag
+        $ lithops runtime deploy -b k8s docker_username/runtimename:tag
 
-    For example, you can use an already created runtime based on Python 3.9 and with the *matplotlib* and *nltk* libraries by running:
+    For example, you can use an already buit runtime based on Python 3.9 and with the *matplotlib* and *nltk* libraries by running:
 
-        $ lithops runtime create -b k8s lithopscloud/lithops-k8s-matplotlib-v39:01
+        $ lithops runtime deploy -b k8s lithopscloud/lithops-k8s-matplotlib-v39:01
 
     Once finished, you can use the runtime in your Lithops code:
 
