@@ -11,7 +11,7 @@ If you don't have an already built runtime, the default runtime is built the fir
 Alternatively, you can create the default runtime by running the following command:
 
 ```bash
-$ lithops runtime create default -b gcp_cloudrun
+$ lithops runtime deploy default -b gcp_cloudrun
 ```
 
 To run a function with the default runtime you don't need to specify anything in the code, since everything is managed internally by Lithops:
