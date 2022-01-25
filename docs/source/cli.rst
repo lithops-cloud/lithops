@@ -136,12 +136,13 @@ the runtime to the compute backend.
 -  **Usage example**:
    ``lithops runtime build -f Dockefile.pythonv39 -b ibm_cf lithopscloud/my-runtime-name-v39:01``
 
-``lithops runtime create <runtime-name>``
+``lithops runtime deploy <runtime-name>``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Creates/deploy a new Lithops runtime based on a image built with the
-previous command. When you build a runtime, for example from a
-Dockerfile, the runtime is uploaded to a docker registry, however it is
+Deploys a new Lithops runtime to the compute backend 
+based on an image built with the previous command.
+When you build a runtime, for example from a Dockerfile,
+the runtime is uploaded to a docker registry, however it is
 not deployed to the compute backend. To do so run this command. Note
 that the runtime is automatically created/deployed in the compute
 backend the first time you run a function with it, so in most of the
@@ -166,12 +167,12 @@ cases you can avoid using this command.
 +-----------------+------------------------------------------------+
 
 -  **Usage example**:
-   ``lithops runtime create -b ibm_cf lithopscloud/my-runtime-name-v39:01 -m 1024 -t 300``
+   ``lithops runtime deploy -b ibm_cf lithopscloud/my-runtime-name-v39:01 -m 1024 -t 300``
 
 ``lithops runtime update <runtime-name>``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Updates an already created/deployed runtime with the local lithops code.
+Updates an already deployed runtime with the local lithops code.
 This command is useful when developers change the local python Lithops
 code and want to update the deployed runtimes with it. As an
 alternative, you can run ``lithops clean -b <backend-name>`` and then
