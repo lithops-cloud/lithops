@@ -245,7 +245,7 @@ class GCPFunctionsBackend:
         logger.info('Ok - Created runtime {}'.format(runtime_name))
         logger.info('Available runtimes: {}'.format(self._list_runtimes(default_runtimes=True)))
 
-    def create_runtime(self, runtime_name, memory, timeout=60):
+    def deploy_runtime(self, runtime_name, memory, timeout=60):
         logger.debug(f"Deploying runtime: {runtime_name} - Memory: {memory} Timeout: {timeout}")
 
         # Create topic

@@ -1,4 +1,3 @@
-#
 # (C) Copyright IBM Corp. 2020
 # (C) Copyright Cloudlab URV 2020
 #
@@ -117,8 +116,8 @@ class Invoker:
         if not runtime_meta:
             msg = 'Runtime {}'.format(self.runtime_name)
             msg = msg+' with {}MB'.format(runtime_memory) if runtime_memory else msg
-            logger.info(msg+' is not yet installed')
-            runtime_meta = self.compute_handler.create_runtime(self.runtime_name, runtime_memory, runtime_timeout)
+            logger.info(msg+' is not yet deployed')
+            runtime_meta = self.compute_handler.deploy_runtime(self.runtime_name, runtime_memory, runtime_timeout)
             runtime_meta['runtime_timeout'] = runtime_timeout
             self.internal_storage.put_runtime_meta(runtime_key, runtime_meta)
 
@@ -514,7 +513,7 @@ def extend_runtime(job, compute_handler, internal_storage):
         os.chdir(cwd)
         shutil.rmtree(job.local_tmp_dir, ignore_errors=True)
 
-        runtime_meta = compute_handler.create_runtime(ext_runtime_name, job.runtime_memory, job.runtime_timeout)
+        runtime_meta = compute_handler.deploy_runtime(ext_runtime_name, job.runtime_memory, job.runtime_timeout)
         runtime_meta['runtime_timeout'] = job.runtime_timeout
         internal_storage.put_runtime_meta(runtime_key, runtime_meta)
 

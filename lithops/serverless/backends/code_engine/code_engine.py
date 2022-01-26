@@ -191,7 +191,7 @@ class CodeEngineBackend:
             raise Exception('docker command not found. Install docker or use '
                             'an already built runtime')
 
-    def create_runtime(self, docker_image_name, memory, timeout):
+    def deploy_runtime(self, docker_image_name, memory, timeout):
         """
         Deploys a new runtime from an already built Docker image
         """

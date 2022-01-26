@@ -20,7 +20,7 @@ if __name__ == "__main__":
     fexec.clean()
 
     # Activate RabbitMQ as a monitoring system
-    fexec = lithops.FunctionExecutor(runtime_memory=256, rabbitmq_monitor=True)
+    fexec = lithops.FunctionExecutor(runtime_memory=256, monitoring='rabbitmq')
     fexec.map(my_function, range(total))
     fexec.wait()  # blocks current execution until all function activations finish
     fexec.clean()

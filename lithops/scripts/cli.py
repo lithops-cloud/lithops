@@ -476,7 +476,7 @@ def deploy(name, storage, backend, memory, timeout, config, debug):
     mem = memory if memory else compute_config['runtime_memory']
     to = timeout if timeout else compute_config['runtime_timeout']
     runtime_key = compute_handler.get_runtime_key(name, mem)
-    runtime_meta = compute_handler.create_runtime(name, mem, timeout=to)
+    runtime_meta = compute_handler.deploy_runtime(name, mem, timeout=to)
     internal_storage.put_runtime_meta(runtime_key, runtime_meta)
 
 
@@ -553,7 +553,7 @@ def update(name, config, backend, storage, debug):
 
     for runtime in runtimes:
         runtime_key = compute_handler.get_runtime_key(runtime[0], runtime[1])
-        runtime_meta = compute_handler.create_runtime(runtime[0], runtime[1], timeout)
+        runtime_meta = compute_handler.deploy_runtime(runtime[0], runtime[1], timeout)
         internal_storage.put_runtime_meta(runtime_key, runtime_meta)
 
 

@@ -392,7 +392,7 @@ class AWSBatchBackend:
         subprocess.check_call(cmd.split())
         logger.debug('Runtime {} built successfully'.format(runtime_name))
 
-    def create_runtime(self, runtime_name, memory, timeout=900):
+    def deploy_runtime(self, runtime_name, memory, timeout=900):
         default_runtime_img_name = self._get_default_runtime_image_name()
         if runtime_name in ['default', default_runtime_img_name]:
             self._build_default_runtime(default_runtime_img_name)

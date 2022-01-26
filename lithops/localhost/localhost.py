@@ -111,7 +111,7 @@ class LocalhostHandler:
 
         return self.env[runtime_name]
 
-    def create_runtime(self, runtime_name, *args):
+    def deploy_runtime(self, runtime_name, *args):
         """
         Extract the runtime metadata and preinstalled modules
         """
