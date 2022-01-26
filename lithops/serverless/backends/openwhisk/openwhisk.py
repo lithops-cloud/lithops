@@ -64,11 +64,11 @@ class OpenWhiskBackend:
         msg = COMPUTE_CLI_MSG.format('OpenWhisk')
         logger.info("{} - Namespace: {}".format(msg, self.namespace))
 
-    def _format_action_name(self, runtime_name, runtime_memory):
+    def _format_function_name(self, runtime_name, runtime_memory):
         runtime_name = runtime_name.replace('/', '_').replace(':', '_')
         return '{}_{}MB'.format(runtime_name, runtime_memory)
 
-    def _unformat_action_name(self, action_name):
+    def _unformat_function_name(self, action_name):
         runtime_name, memory = action_name.rsplit('_', 1)
         image_name = runtime_name.replace('_', '/', 1)
         image_name = image_name.replace('_', ':', -1)
@@ -115,10 +115,10 @@ class OpenWhiskBackend:
         if docker_image_name == 'default':
             docker_image_name = self._get_default_runtime_image_name()
 
-        logger.info('Creating new Lithops runtime based on Docker image {}'.format(docker_image_name))
+        logger.debug(f"Deploying runtime: {docker_image_name} - Memory: {memory} Timeout: {timeout}")
 
         self.cf_client.create_package(self.package)
-        action_name = self._format_action_name(docker_image_name, memory)
+        action_name = self._format_function_name(docker_image_name, memory)
 
         entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
         create_handler_zip(ow_config.FH_ZIP_LOCATION, entry_point, '__main__.py')
@@ -138,7 +138,7 @@ class OpenWhiskBackend:
         """
         if docker_image_name == 'default':
             docker_image_name = self._get_default_runtime_image_name()
-        action_name = self._format_action_name(docker_image_name, memory)
+        action_name = self._format_function_name(docker_image_name, memory)
         self.cf_client.delete_action(self.package, action_name)
 
     def clean(self):
@@ -166,7 +166,7 @@ class OpenWhiskBackend:
         actions = self.cf_client.list_actions(self.package)
 
         for action in actions:
-            action_image_name, memory = self._unformat_action_name(action['name'])
+            action_image_name, memory = self._unformat_function_name(action['name'])
             if docker_image_name == action_image_name or docker_image_name == 'all':
                 runtimes.append((action_image_name, memory))
         return runtimes
@@ -175,7 +175,7 @@ class OpenWhiskBackend:
         """
         Invoke -- return information about this invocation
         """
-        action_name = self._format_action_name(docker_image_name, runtime_memory)
+        action_name = self._format_function_name(docker_image_name, runtime_memory)
 
         activation_id = self.cf_client.invoke(self.package, action_name,
                                               payload, self.is_lithops_worker)
@@ -188,7 +188,7 @@ class OpenWhiskBackend:
         Runtime keys are used to uniquely identify runtimes within the storage,
         in order to know which runtimes are installed and which not.
         """
-        action_name = self._format_action_name(docker_image_name, runtime_memory)
+        action_name = self._format_function_name(docker_image_name, runtime_memory)
         runtime_key = os.path.join(self.name, self.namespace, action_name)
 
         return runtime_key
@@ -198,7 +198,7 @@ class OpenWhiskBackend:
         Extract installed Python modules from the docker image
         """
         logger.debug("Extracting Python modules list from: {}".format(docker_image_name))
-        action_name = self._format_action_name(docker_image_name, memory)
+        action_name = self._format_function_name(docker_image_name, memory)
         payload = {'log_level': logger.getEffectiveLevel(), 'get_preinstalls': True}
         try:
             retry_invoke = True

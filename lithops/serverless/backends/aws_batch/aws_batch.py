@@ -392,16 +392,17 @@ class AWSBatchBackend:
         subprocess.check_call(cmd.split())
         logger.debug('Runtime {} built successfully'.format(runtime_name))
 
-    def create_runtime(self, runtime_name, runtime_memory, timeout=900):
+    def create_runtime(self, runtime_name, memory, timeout=900):
         default_runtime_img_name = self._get_default_runtime_image_name()
         if runtime_name in ['default', default_runtime_img_name]:
             self._build_default_runtime(default_runtime_img_name)
 
+        logger.debug(f"Deploying runtime: {runtime_name} - Memory: {memory} Timeout: {timeout}")
         self._create_compute_env()
         self._create_queue()
-        self._create_job_def(runtime_name, runtime_memory)
+        self._create_job_def(runtime_name, memory)
 
-        runtime_meta = self._generate_runtime_meta(runtime_name, runtime_memory)
+        runtime_meta = self._generate_runtime_meta(runtime_name, memory)
         return runtime_meta
 
     def delete_runtime(self, runtime_name, runtime_memory):

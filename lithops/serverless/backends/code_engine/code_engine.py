@@ -193,7 +193,7 @@ class CodeEngineBackend:
 
     def create_runtime(self, docker_image_name, memory, timeout):
         """
-        Creates a new runtime from an already built Docker image
+        Deploys a new runtime from an already built Docker image
         """
         default_runtime_img_name = self._get_default_runtime_image_name()
         if docker_image_name in ['default', default_runtime_img_name]:
@@ -202,8 +202,7 @@ class CodeEngineBackend:
             docker_image_name = default_runtime_img_name
             self._build_default_runtime(default_runtime_img_name)
 
-        logger.debug('Creating new Lithops runtime based on '
-                     'Docker image: {}'.format(docker_image_name))
+        logger.debug(f"Deploying runtime: {docker_image_name} - Memory: {memory} Timeout: {timeout}")
         self._create_job_definition(docker_image_name, memory, timeout)
 
         runtime_meta = self._generate_runtime_meta(docker_image_name, memory)

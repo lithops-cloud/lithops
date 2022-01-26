@@ -517,7 +517,7 @@ class KnativeServingBackend:
 
     def create_runtime(self, docker_image_name, memory, timeout):
         """
-        Creates a new runtime into the knative default namespace from an already built Docker image.
+        Deploys a new runtime into the knative default namespace from an already built Docker image.
         As knative does not have a default image already published in a docker registry, lithops
         has to build it in the docker hub account provided by the user. So when the runtime docker
         image name is not provided by the user in the config, lithops will build the default from git.
@@ -529,6 +529,7 @@ class KnativeServingBackend:
             docker_image_name = default_runtime_img_name
             self._build_default_runtime(default_runtime_img_name)
 
+        logger.debug(f"Deploying runtime: {docker_image_name} - Memory: {memory} Timeout: {timeout}")
         self._create_container_registry_secret()
         self._create_service(docker_image_name, memory, timeout)
         runtime_meta = self._generate_runtime_meta(docker_image_name, memory)

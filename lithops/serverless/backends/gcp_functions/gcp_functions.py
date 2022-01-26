@@ -83,7 +83,7 @@ class GCPFunctionsBackend:
     def _format_topic_name(self, runtime_name, runtime_memory):
         return self._format_function_name(runtime_name, runtime_memory) + '_topic'
 
-    def _unformat_action_name(self, action_name):
+    def _unformat_function_name(self, action_name):
         split = action_name.split('_')
         runtime_name = split[2].replace('-', '.')
         runtime_memory = int(split[3].replace('MB', ''))
@@ -246,7 +246,7 @@ class GCPFunctionsBackend:
         logger.info('Available runtimes: {}'.format(self._list_runtimes(default_runtimes=True)))
 
     def create_runtime(self, runtime_name, memory, timeout=60):
-        logger.debug("Creating runtime {} - Memory: {} Timeout: {}".format(runtime_name, memory, timeout))
+        logger.debug(f"Deploying runtime: {runtime_name} - Memory: {memory} Timeout: {timeout}")
 
         # Create topic
         topic_name = self._format_topic_name(runtime_name, memory)
@@ -320,7 +320,7 @@ class GCPFunctionsBackend:
         runtimes = self.list_runtimes()
         for runtime in runtimes:
             if 'lithops_v' in runtime:
-                runtime_name, runtime_memory = self._unformat_action_name(runtime)
+                runtime_name, runtime_memory = self._unformat_function_name(runtime)
                 self.delete_runtime(runtime_name, runtime_memory)
 
     def list_runtimes(self, docker_image_name='all'):
