@@ -60,7 +60,7 @@ class AzureFunctionAppBackend:
         msg = COMPUTE_CLI_MSG.format('Azure Functions')
         logger.info("{} - Location: {}".format(msg, self.location))
 
-    def _format_action_name(self, runtime_name, runtime_memory=None):
+    def _format_function_name(self, runtime_name, runtime_memory=None):
         runtime_name = runtime_name.replace('/', '--').replace(':', '--')
         return runtime_name
 
@@ -75,20 +75,21 @@ class AzureFunctionAppBackend:
                                                 py_version, revision, self.invocation_type)
         return runtime_name
 
-    def create_runtime(self, docker_image_name, memory, timeout):
+    def create_runtime(self, runtime_name, memory, timeout):
         """
-        Creates a new runtime into Azure Function Apps
+        Deploys a new runtime into Azure Function Apps
         from the provided Linux image for consumption plan
         """
         default_runtime_img_name = self._get_default_runtime_image_name()
-        if docker_image_name in ['default', default_runtime_img_name]:
+        if runtime_name in ['default', default_runtime_img_name]:
             # We only build the default image. rest of images must already exist
             # in the docker registry.
-            docker_image_name = default_runtime_img_name
+            runtime_name = default_runtime_img_name
             self._build_default_runtime(default_runtime_img_name)
 
-        self._create_function(docker_image_name, memory, timeout)
-        metadata = self._generate_runtime_meta(docker_image_name, memory)
+        logger.debug(f"Deploying runtime: {runtime_name} - Memory: {memory} Timeout: {timeout}")
+        self._create_function(runtime_name, memory, timeout)
+        metadata = self._generate_runtime_meta(runtime_name, memory)
 
         return metadata
 
@@ -117,7 +118,7 @@ class AzureFunctionAppBackend:
         except Exception:
             pass
 
-        action_name = self._format_action_name(runtime_name)
+        action_name = self._format_function_name(runtime_name)
 
         build_dir = os.path.join(az_config.BUILD_DIR, action_name)
         os.makedirs(build_dir, exist_ok=True)
@@ -170,11 +171,11 @@ class AzureFunctionAppBackend:
             os.remove(mod_dir+'/__init__.py')
             os.remove(az_config.FH_ZIP_LOCATION)
 
-    def _create_function(self, docker_image_name, memory, timeout):
+    def _create_function(self, runtime_name, memory, timeout):
         """
         Create and publish an Azure Functions
         """
-        action_name = self._format_action_name(docker_image_name, memory)
+        action_name = self._format_function_name(runtime_name, memory)
         logger.info('Creating new Lithops runtime for Azure Function: {}'.format(action_name))
 
         if self.invocation_type == 'event':
@@ -225,7 +226,7 @@ class AzureFunctionAppBackend:
         """
         Deletes a runtime
         """
-        action_name = self._format_action_name(runtime_name, memory)
+        action_name = self._format_function_name(runtime_name, memory)
         logger.debug('Deleting function app: {}'.format(action_name))
         cmd = ('az functionapp delete --name {} --resource-group {}'
                .format(action_name, self.resource_group))
@@ -248,7 +249,7 @@ class AzureFunctionAppBackend:
         """
         Invoke function
         """
-        action_name = self._format_action_name(docker_image_name, memory)
+        action_name = self._format_function_name(docker_image_name, memory)
         if self.invocation_type == 'event':
 
             in_q_name = self._format_queue_name(action_name, az_config.IN_QUEUE)
@@ -298,7 +299,7 @@ class AzureFunctionAppBackend:
         Runtime keys are used to uniquely identify runtimes within the storage,
         in order to know which runtimes are installed and which not.
         """
-        action_name = self._format_action_name(docker_image_name, runtime_memory)
+        action_name = self._format_function_name(docker_image_name, runtime_memory)
         runtime_key = os.path.join(self.name, action_name)
 
         return runtime_key

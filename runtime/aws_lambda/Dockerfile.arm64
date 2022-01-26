@@ -8,7 +8,6 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && apt-cache search linux-headers-generic
 
-COPY requirements.txt requirements.txt
 RUN pip install --upgrade pip six && \
     pip install --no-cache-dir \
         awslambdaric \

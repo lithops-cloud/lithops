@@ -208,6 +208,7 @@ class KubernetesBackend:
             docker_image_name = default_runtime_img_name
             self._build_default_runtime(default_runtime_img_name)
 
+        logger.debug(f"Deploying runtime: {docker_image_name} - Memory: {memory} Timeout: {timeout}")
         self._create_container_registry_secret()
         runtime_meta = self._generate_runtime_meta(docker_image_name)
 

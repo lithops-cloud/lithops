@@ -74,11 +74,10 @@ class AliyunFunctionComputeBackend:
 
     def create_runtime(self, runtime_name, memory, timeout):
         """
-        Creates a new runtime into Aliyun Function Compute
+        Deploys a new runtime into Aliyun Function Compute
         with the custom modules for lithops
         """
-
-        logger.info('Creating new Lithops runtime for Aliyun Function Compute')
+        logger.debug(f"Deploying runtime: {runtime_name} - Memory: {memory} Timeout: {timeout}")
 
         if self.service_name == self.default_service_name:
             services = self.fc_client.list_services(prefix=self.service_name).data['services']
@@ -88,7 +87,7 @@ class AliyunFunctionComputeBackend:
                     service = serv
                     break
             if not service:
-                logger.info("creating service {}".format(self.service_name))
+                logger.debug("creating service {}".format(self.service_name))
                 self.fc_client.create_service(self.service_name, role=self.role_arn)
 
         if runtime_name == 'default':

@@ -211,7 +211,7 @@ class AWSLambdaBackend:
 
                 logger.debug('Ok --> "layer builder" function active')
             else:
-                msg = 'An error occurred creating/updating action {}: {}'.format(runtime_name, response)
+                msg = 'An error occurred creating/updating action {}: {}'.format(runtime_name, resp)
                 raise Exception(msg)
 
             dependencies = [dependency.strip().replace(' ', '') for dependency in lambda_config.DEFAULT_REQUIREMENTS]
@@ -377,14 +377,14 @@ class AWSLambdaBackend:
 
     def create_runtime(self, runtime_name, memory=3008, timeout=900):
         """
-        Create a Lambda function with Lithops handler
+        Deploys a Lambda function with the Lithops handler
         @param runtime_name: name of the runtime
         @param memory: runtime memory in MB
         @param timeout: runtime timeout in seconds
         @return: runtime metadata
         """
         function_name = self._format_function_name(runtime_name, memory)
-        logger.debug(f'Creating new Lithops lambda function {function_name}')
+        logger.debug(f"Deploying runtime: {runtime_name} - Memory: {memory} Timeout: {timeout}")
 
         if self._is_container_runtime(runtime_name):
             # Container image runtime
