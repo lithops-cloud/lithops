@@ -329,7 +329,7 @@ class StandaloneHandler:
         if self.exec_mode != 'consume' and self.workers_policy == 'strict':
             threading.Thread(target=self._wait_workers_ready, args=(new_workers,), daemon=True).start()
 
-    def create_runtime(self, runtime_name, *args):
+    def deploy_runtime(self, runtime_name, *args):
         """
         Installs the proxy and extracts the runtime metadata and
         preinstalled modules

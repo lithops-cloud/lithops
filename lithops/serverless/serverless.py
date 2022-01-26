@@ -65,12 +65,12 @@ class ServerlessHandler:
         """
         self.backend.build_runtime(runtime_name, file, extra_args)
 
-    def create_runtime(self, runtime_name, memory, timeout):
+    def deploy_runtime(self, runtime_name, memory, timeout):
         """
-        Wrapper method to create a runtime in the compute backend.
+        Wrapper method to deploy a runtime in the compute backend.
         return: the name of the runtime
         """
-        return self.backend.create_runtime(runtime_name, memory, timeout=timeout)
+        return self.backend.deploy_runtime(runtime_name, memory, timeout=timeout)
 
     def delete_runtime(self, runtime_name, memory):
         """

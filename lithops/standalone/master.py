@@ -448,7 +448,7 @@ def preinstalls():
 
     pull_runtime = standalone_config.get('pull_runtime', False)
     lh = LocalhostHandler({'runtime': runtime, 'pull_runtime': pull_runtime})
-    runtime_meta = lh.create_runtime(runtime)
+    runtime_meta = lh.deploy_runtime(runtime)
 
     if 'lithops_version' in runtime_meta:
         logger.debug("Runtime metdata extracted correctly: Lithops "

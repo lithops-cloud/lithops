@@ -197,9 +197,9 @@ class KubernetesBackend:
             if e.status != 409:
                 raise e
 
-    def create_runtime(self, docker_image_name, memory, timeout):
+    def deploy_runtime(self, docker_image_name, memory, timeout):
         """
-        Creates a new runtime from an already built Docker image
+        Deploys a new runtime from an already built Docker image
         """
         default_runtime_img_name = self._get_default_runtime_image_name()
         if docker_image_name in ['default', default_runtime_img_name]:

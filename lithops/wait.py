@@ -16,15 +16,20 @@
 
 import signal
 import logging
+import math
 import time
 import concurrent.futures as cf
 from functools import partial
+from types import SimpleNamespace
+from itertools import chain
+from typing import Optional, List, Union, Tuple, Any
+
 from lithops.utils import is_unix_system, timeout_handler, \
     is_notebook, is_lithops_worker, FuturesList
 from lithops.storage import InternalStorage
+from lithops.future import ResponseFuture
 from lithops.monitor import JobMonitor
-from types import SimpleNamespace
-from itertools import chain
+
 
 ALWAYS = 0
 ANY_COMPLETED = -1
@@ -36,9 +41,15 @@ WAIT_DUR_SEC = 1
 logger = logging.getLogger(__name__)
 
 
-def wait(fs, internal_storage=None, throw_except=True, timeout=None,
-         return_when=ALL_COMPLETED, download_results=False, job_monitor=None,
-         threadpool_size=THREADPOOL_SIZE, wait_dur_sec=WAIT_DUR_SEC):
+def wait(fs: Union[ResponseFuture, FuturesList, List[ResponseFuture]],
+         internal_storage: Optional[InternalStorage] = None,
+         job_monitor: Optional[JobMonitor] = None,
+         throw_except: Optional[bool] = True,
+         return_when: Optional[Any] = ALL_COMPLETED,
+         download_results: Optional[bool] = False,
+         timeout: Optional[int] = None,
+         threadpool_size: Optional[int] = THREADPOOL_SIZE,
+         wait_dur_sec: Optional[int] = WAIT_DUR_SEC) -> Tuple[FuturesList, FuturesList]:
     """
     Wait for the Future instances (possibly created by different Executor instances)
     given by fs to complete. Returns a named 2-tuple of sets. The first set, named done,
@@ -67,12 +78,15 @@ def wait(fs, internal_storage=None, throw_except=True, timeout=None,
         fs = [fs]
 
     if download_results:
-        msg = 'ExecutorID {} - Getting results from functions'.format(fs[0].executor_id)
+        fs_to_wait = len(fs)
+        msg = (f'ExecutorID {fs[0].executor_id} - Getting results from {len(fs)} function activations')
         fs_done = [f for f in fs if f.done]
         fs_not_done = [f for f in fs if not f.done]
 
     else:
-        msg = 'ExecutorID {} - Waiting for {}% of functions to complete'.format(fs[0].executor_id, return_when)
+        fs_to_wait = math.ceil(return_when * len(fs) / 100)
+        msg = (f'ExecutorID {fs[0].executor_id} - Waiting for {return_when}% of '
+               f'{len(fs)} function activations to complete')
         fs_done = [f for f in fs if f.success or f.done]
         fs_not_done = [f for f in fs if not (f.success or f.done)]
 
@@ -82,8 +96,8 @@ def wait(fs, internal_storage=None, throw_except=True, timeout=None,
         return fs_done, fs_not_done
 
     if is_unix_system() and timeout is not None:
-        logger.debug('Setting waiting timeout to {} seconds'.format(timeout))
-        error_msg = 'Timeout of {} seconds exceeded waiting for function activations to finish'.format(timeout)
+        logger.debug(f'Setting waiting timeout to {timeout} seconds')
+        error_msg = 'Timeout of {timeout} seconds exceeded waiting for function activations to finish'
         signal.signal(signal.SIGALRM, partial(timeout_handler, error_msg))
         signal.alarm(timeout)
 
@@ -94,8 +108,8 @@ def wait(fs, internal_storage=None, throw_except=True, timeout=None,
         if not is_notebook():
             print()
         pbar = tqdm(bar_format='  {l_bar}{bar}| {n_fmt}/{total_fmt}  ',
-                    total=len(fs), disable=None)
-        pbar.update(len(fs_done))
+                    total=fs_to_wait, disable=None)
+        pbar.update(min(len(fs_done), fs_to_wait))
 
     try:
         executors_data = _create_executors_data_from_futures(fs, internal_storage)
@@ -157,10 +171,12 @@ def wait(fs, internal_storage=None, throw_except=True, timeout=None,
     return fs_done, fs_notdone
 
 
-def get_result(fs, throw_except=True, timeout=None,
-               threadpool_size=THREADPOOL_SIZE,
-               wait_dur_sec=WAIT_DUR_SEC,
-               internal_storage=None):
+def get_result(fs: Optional[Union[ResponseFuture, FuturesList, List[ResponseFuture]]] = None,
+               internal_storage: Optional[InternalStorage] = None,
+               throw_except: Optional[bool] = True,
+               timeout: Optional[int] = None,
+               threadpool_size: Optional[int] = THREADPOOL_SIZE,
+               wait_dur_sec: Optional[int] = WAIT_DUR_SEC):
     """
     For getting the results from all function activations
 
@@ -265,7 +281,8 @@ def _get_executor_data(fs, exec_data, download_results, throw_except, threadpool
         for f in fs_to_wait_on:
             if (download_results and f.done) or \
                (not download_results and (f.success or f.done)):
-                pbar.update(1)
+                if pbar.n < pbar.total:
+                    pbar.update(1)
         pbar.refresh()
 
     # Check for new futures

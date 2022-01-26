@@ -75,7 +75,7 @@ class AzureFunctionAppBackend:
                                                 py_version, revision, self.invocation_type)
         return runtime_name
 
-    def create_runtime(self, runtime_name, memory, timeout):
+    def deploy_runtime(self, runtime_name, memory, timeout):
         """
         Deploys a new runtime into Azure Function Apps
         from the provided Linux image for consumption plan

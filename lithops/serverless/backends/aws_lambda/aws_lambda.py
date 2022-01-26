@@ -375,7 +375,7 @@ class AWSLambdaBackend:
 
         logger.info('Ok - Created runtime {}'.format(runtime_name))
 
-    def create_runtime(self, runtime_name, memory=3008, timeout=900):
+    def deploy_runtime(self, runtime_name, memory=3008, timeout=900):
         """
         Deploys a Lambda function with the Lithops handler
         @param runtime_name: name of the runtime

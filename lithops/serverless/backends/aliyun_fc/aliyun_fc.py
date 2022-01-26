@@ -72,7 +72,7 @@ class AliyunFunctionComputeBackend:
     def build_runtime(self, runtime_name, requirements_file, extra_args=[]):
         pass
 
-    def create_runtime(self, runtime_name, memory, timeout):
+    def deploy_runtime(self, runtime_name, memory, timeout):
         """
         Deploys a new runtime into Aliyun Function Compute
         with the custom modules for lithops

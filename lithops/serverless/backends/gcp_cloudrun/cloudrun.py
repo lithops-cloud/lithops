@@ -236,7 +236,7 @@ class GCPCloudRunBackend:
         if res != 0:
             raise Exception('There was an error pushing the runtime to the container registry')
 
-    def create_runtime(self, runtime_name, memory, timeout):
+    def deploy_runtime(self, runtime_name, memory, timeout):
         if runtime_name == cr_config.DEFAULT_RUNTIME_NAME:
             self._build_default_runtime()
 

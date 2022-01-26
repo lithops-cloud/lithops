@@ -108,9 +108,9 @@ class OpenWhiskBackend:
             raise Exception('There was an error pushing the runtime to the container registry')
         logger.info('Building done!')
 
-    def create_runtime(self, docker_image_name, memory, timeout):
+    def deploy_runtime(self, docker_image_name, memory, timeout):
         """
-        Creates a new runtime into IBM CF namespace from an already built Docker image
+        Deploys a new runtime into IBM CF namespace from an already built Docker image
         """
         if docker_image_name == 'default':
             docker_image_name = self._get_default_runtime_image_name()

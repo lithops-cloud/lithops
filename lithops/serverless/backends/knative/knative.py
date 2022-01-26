@@ -515,7 +515,7 @@ class KnativeServingBackend:
 
         return runtime_meta
 
-    def create_runtime(self, docker_image_name, memory, timeout):
+    def deploy_runtime(self, docker_image_name, memory, timeout):
         """
         Deploys a new runtime into the knative default namespace from an already built Docker image.
         As knative does not have a default image already published in a docker registry, lithops
