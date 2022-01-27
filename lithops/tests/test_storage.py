@@ -22,8 +22,8 @@ from lithops.storage.utils import CloudObject, StorageNoSuchKeyError
 import lithops
 from lithops.tests import main_util
 from lithops.tests.util_func.map_reduce_util import my_reduce_function
-from lithops.tests.util_func.storage_util import my_map_function_storage, my_cloudobject_put, my_cloudobject_get, \
-    list_dataset_keys, extract_key_value
+from lithops.tests.util_func.storage_util import my_map_function_storage, \
+     my_cloudobject_put, my_cloudobject_get, list_dataset_keys, extract_keys
 
 logger = logging.getLogger(__name__)
 
@@ -149,7 +149,7 @@ class TestStorage(unittest.TestCase):
             STORAGE.head_object(bucket, PREFIX + '/doesnt_exist')
 
         self.assertRaises(StorageNoSuchKeyError, get_nonexistent_object)
-    
+
     def test_storage_list_objects(self):
         logger.info('Testing Storage.list_objects')
         bucket = STORAGE_CONFIG['bucket']
@@ -171,26 +171,26 @@ class TestStorage(unittest.TestCase):
         bar_objects = STORAGE.list_objects(bucket, PREFIX + '/bar')
         non_existent_objects = STORAGE.list_objects(bucket, PREFIX + '/doesnt_exist')
 
-        self.assertTrue(set(extract_key_value('Key', all_bucket_objects)).issuperset(test_keys))
-        self.assertTrue(set(extract_key_value('Key', prefix_objects)).issuperset(test_keys))
-        self.assertTrue(all(key.startswith(PREFIX) for key in extract_key_value('Key', prefix_objects)))
-        self.assertEqual(extract_key_value('Key', foo_objects), sorted([
+        self.assertTrue(set(extract_keys(all_bucket_objects)).issuperset(test_keys))
+        self.assertTrue(set(extract_keys(prefix_objects)).issuperset(test_keys))
+        self.assertTrue(all(key.startswith(PREFIX) for key in extract_keys(prefix_objects)))
+        self.assertEqual(extract_keys(foo_objects), sorted([
             PREFIX + '/foo/baz',
             PREFIX + '/foo/bar/baz',
             PREFIX + '/foo_bar/baz',
             PREFIX + '/foo_baz',
         ]))
-        self.assertEqual(extract_key_value('Key', foo_slash_objects), sorted([
+        self.assertEqual(extract_keys(foo_slash_objects), sorted([
             PREFIX + '/foo/baz',
             PREFIX + '/foo/bar/baz',
         ]))
-        self.assertEqual(sorted(extract_key_value('Key', bar_objects)), sorted([
+        self.assertEqual(sorted(extract_keys(bar_objects)), sorted([
             PREFIX + '/bar',
             PREFIX + '/bar_baz',
         ]))
 
         self.assertEqual(non_existent_objects, [])
-    
+
     def test_storage_list_objects_size(self):
         logger.info('Testing Storage.list_objects_size')
         bucket = STORAGE_CONFIG['bucket']
@@ -214,7 +214,7 @@ class TestStorage(unittest.TestCase):
                 if obj['Key'] == key and obj['Size'] != len(key.encode()):
                     isEqual = False
         self.assertTrue(isEqual)
-    
+
     def test_delete_object(self):
         logger.info('Testing Storage.delete_object')
         bucket = STORAGE_CONFIG['bucket']
@@ -227,11 +227,11 @@ class TestStorage(unittest.TestCase):
         ])
         for key in test_keys:
             STORAGE.put_object(bucket, key, key.encode())
-        
+
         STORAGE.delete_object(bucket, PREFIX + '/to_be_deleted')
         all_bucket_keys = STORAGE.list_keys(bucket)
         self.assertFalse(PREFIX + '/to_be_deleted' in all_bucket_keys)
-    
+
     def test_delete_objects(self):
         logger.info('Testing Storage.delete_objects')
         bucket = STORAGE_CONFIG['bucket']
@@ -251,21 +251,16 @@ class TestStorage(unittest.TestCase):
         ]
         for key in test_keys:
             STORAGE.put_object(bucket, key, key.encode())
-        
+
         STORAGE.delete_objects(bucket, keys_to_delete)
         all_bucket_keys = STORAGE.list_keys(bucket)
-        self.assertTrue(all(not key in all_bucket_keys for key in keys_to_delete))
+        self.assertTrue(all(key not in all_bucket_keys for key in keys_to_delete))
 
     def test_head_bucket(self):
         logger.info('Testing Storage.head_bucket')
         bucket = STORAGE_CONFIG['bucket']
         result = STORAGE.head_bucket(bucket)
         self.assertEqual(result['ResponseMetadata']['HTTPStatusCode'], 200)
-        
-    # getting key not found error in IBM Cos backend. Needs to be handled. Gets the error before assertRaises catches the error in STORAGE.head_bucket
-    # def test_head_bucket_not_found(self):
-    #     logger.info('Testing Storage.head_bucket_not_found') 
-    #     self.assertRaises(, STORAGE.head_bucket('false_bucket'))
 
     def test_delete_cloudobject(self):
         logger.info('Testing Storage.delete_cloudobject')
@@ -280,7 +275,7 @@ class TestStorage(unittest.TestCase):
         ])
         for key in test_keys:
             STORAGE.put_object(bucket, key, key.encode())
-        cloudobject = CloudObject(sb,bucket,PREFIX + '/to_be_deleted')
+        cloudobject = CloudObject(sb, bucket, PREFIX + '/to_be_deleted')
         STORAGE.delete_cloudobject(cloudobject)
         all_bucket_keys = STORAGE.list_keys(bucket)
         self.assertFalse(PREFIX + '/to_be_deleted' in all_bucket_keys)
@@ -309,7 +304,7 @@ class TestStorage(unittest.TestCase):
             cloudobjects.append(cobject)
         for key in test_keys:
             STORAGE.put_object(bucket, key, key.encode())
-        
+
         STORAGE.delete_cloudobjects(cloudobjects)
         all_bucket_keys = STORAGE.list_keys(bucket)
-        self.assertTrue(all(not key in all_bucket_keys for key in keys_to_delete))
+        self.assertTrue(all(key not in all_bucket_keys for key in keys_to_delete))
