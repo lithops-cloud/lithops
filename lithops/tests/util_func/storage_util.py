@@ -58,8 +58,9 @@ def get_dataset_key_size(storage, storage_config, key_prefix=DATASET_PREFIX):
         sizes.append(float(storage.head_object(bucket_name, key)['content-length']))
     return sizes
 
+
 def extract_keys(bucket_objects):
     keys = []
     for obj in bucket_objects:
-        keys.append(obj['Key']);
+        keys.append(obj['Key'])
     return keys
