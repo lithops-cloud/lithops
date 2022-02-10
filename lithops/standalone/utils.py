@@ -135,6 +135,8 @@ def get_master_setup_script(config, vm_data):
     setup_host >> {SA_LOG_FILE} 2>&1;
     """
     script += get_host_setup_script()
+    
+    script += docker_login(config)
     script += f"""
     setup_service(){{
     echo '{MASTER_SERVICE_FILE}' > /etc/systemd/system/{MASTER_SERVICE_NAME};
@@ -159,8 +161,6 @@ def get_master_setup_script(config, vm_data):
     test -f $USER_HOME/.ssh/id_rsa || generate_ssh_key >> {SA_LOG_FILE} 2>&1;
     """
 
-    script += docker_login(config)
-
     return script
 
 def get_worker_setup_script(config, vm_data):
@@ -181,6 +181,9 @@ def get_worker_setup_script(config, vm_data):
     mkdir -p /tmp/lithops;
     """
     script += get_host_setup_script()
+    
+    script += docker_login(config)
+
     script += f"""
     echo '{json.dumps(config)}' > {SA_CONFIG_FILE};
     echo '{json.dumps(vm_data)}' > {SA_DATA_FILE};
@@ -199,7 +202,5 @@ def get_worker_setup_script(config, vm_data):
     echo '{master_pub_key}' >> $USER_HOME/.ssh/authorized_keys;
     echo '{vm_data['master_ip']} lithops-master' >> /etc/hosts
     """
-
-    script += docker_login(config)
 
     return script
