@@ -111,6 +111,12 @@ def get_host_setup_script(docker=True):
     rm /tmp/lithops_standalone.zip
     """.format(SA_INSTALL_DIR, SA_LOG_FILE, str(docker).lower())
 
+def docker_login(config):
+    if all (k in config for k in ("docker_server","docker_user", "docker_password")):
+        return f"""
+    docker login -u {config['docker_user']} -p {config['docker_password']} {config['docker_server']} 2>&1;
+        """
+    return ""
 
 def get_master_setup_script(config, vm_data):
     """
@@ -153,8 +159,9 @@ def get_master_setup_script(config, vm_data):
     test -f $USER_HOME/.ssh/id_rsa || generate_ssh_key >> {SA_LOG_FILE} 2>&1;
     """
 
-    return script
+    script += docker_login(config)
 
+    return script
 
 def get_worker_setup_script(config, vm_data):
     """
@@ -192,5 +199,7 @@ def get_worker_setup_script(config, vm_data):
     echo '{master_pub_key}' >> $USER_HOME/.ssh/authorized_keys;
     echo '{vm_data['master_ip']} lithops-master' >> /etc/hosts
     """
+
+    script += docker_login(config)
 
     return script
