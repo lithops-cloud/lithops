@@ -112,9 +112,12 @@ def get_host_setup_script(docker=True):
     """.format(SA_INSTALL_DIR, SA_LOG_FILE, str(docker).lower())
 
 def docker_login(config):
+    print("in docker_login")
     if all (k in config for k in ("docker_server","docker_user", "docker_password")):
         return f"""
+    echo "--> Docker registry login"
     docker login -u {config['docker_user']} -p {config['docker_password']} {config['docker_server']} 2>&1;
+    echo "--> Docker registry login finished"
         """
     return ""
 
