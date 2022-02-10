@@ -187,8 +187,7 @@ def get_worker_setup_script(config, vm_data):
     
     # script += docker_login(config)
 
-    script += f"""
-    echo "--> Docker registry login"
+    script += f"""echo "--> Docker registry login"
     sleep 10
     docker login -u {config['docker_user']} -p {config['docker_password']} {config['docker_server']} 2>&1;
     echo "--> Docker registry login finished"
