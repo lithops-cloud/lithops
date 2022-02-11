@@ -112,13 +112,9 @@ def get_host_setup_script(docker=True):
     """.format(SA_INSTALL_DIR, SA_LOG_FILE, str(docker).lower())
 
 def docker_login(config):
-    print("in docker_login")
     if all (k in config for k in ("docker_server","docker_user", "docker_password")):
-        return f"""
-    echo "--> Docker registry login"
-    docker login -u {config['docker_user']} -p {config['docker_password']} {config['docker_server']} 2>&1;
-    echo "--> Docker registry login finished"
-        """
+        return f"""docker login -u {config['docker_user']} -p {config['docker_password']} {config['docker_server']} >> /tmp/kuku 2>&1
+    """
     return ""
 
 def get_master_setup_script(config, vm_data):
@@ -138,7 +134,7 @@ def get_master_setup_script(config, vm_data):
     setup_host >> {SA_LOG_FILE} 2>&1;
     """
     script += get_host_setup_script()
-    
+
     script += docker_login(config)
     script += f"""
     setup_service(){{
@@ -184,13 +180,9 @@ def get_worker_setup_script(config, vm_data):
     mkdir -p /tmp/lithops;
     """
     script += get_host_setup_script()
-    
-    # script += docker_login(config)
 
-    script += f"""echo "--> Docker registry login"
-    sleep 10
-    docker login -u {config['docker_user']} -p {config['docker_password']} {config['docker_server']} 2>&1;
-    echo "--> Docker registry login finished"
+    script += docker_login(config)
+    script += f"""
     echo '{json.dumps(config)}' > {SA_CONFIG_FILE};
     echo '{json.dumps(vm_data)}' > {SA_DATA_FILE};
 

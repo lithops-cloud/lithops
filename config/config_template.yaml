@@ -62,6 +62,9 @@
     #hard_dismantle_timeout: 3600
     #soft_dismantle_timeout: 300
     #workers_policy: <Workers create policy> # Optional, strict/permissive. Default is 'permissive'
+    #docker_server: <registry server url>
+    #docker_user: <registry username>
+    #docker_password: <registry password>
 
 #ibm_vpc:
     #endpoint: <REGION_ENDPOINT>
