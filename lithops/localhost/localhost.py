@@ -298,7 +298,10 @@ class DockerEnv(BaseEnv):
             self.setup()
 
         tmp_path = Path(TEMP).as_posix()
-        cmd = f'docker run --name lithops_{job_key} '
+        if job_payload['config'].get('standalone', {}).get('gpu', False):
+            cmd = f'docker run --gpus all --name lithops_{job_key} '
+        else:
+            cmd = f'docker run --name lithops_{job_key} '
         cmd += f'--user {self.uid}:{self.gid} ' if is_unix_system() else ''
         cmd += f'--rm -v {tmp_path}:/tmp --entrypoint "python3" {self.runtime} /tmp/lithops/runner.py run {job_filename}'
 
