@@ -13,7 +13,7 @@ Note that IBM VPC is a **standalone backend**, and as such, you can configure ex
 |standalone | exec_mode | consume | no | One of: **consume**, **create** or **reuse**. If set to  **create**, Lithops will automatically create new VMs for each map() call based on the number of elements in iterdata. If set to **reuse** will try to reuse running workers if exist |
 |standalone | pull_runtime | False | no | If set to True, Lithops will execute the command `docker pull <runtime_name>` in each VSI before executing the a job (in case of using a docker runtime)|
 |standalone | workers_policy | permissive | no | One of: **permissive**, **strict**. If set to **strict** will force creation of required workers number |
-
+|standalone | gpu | False | no | If True docker started with gpu support. Requires host to have neccessary hardware and software preconfigured and docker image runtime with gpu support specified |
 
 ### Configure Docker hub
 To configure Lithops to access a private docker repository, you need to add the following keys to **standalone** config:
