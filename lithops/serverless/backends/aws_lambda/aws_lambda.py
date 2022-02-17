@@ -142,6 +142,30 @@ class AWSLambdaBackend:
 
         return action_bin
 
+    def _wait_for_function_deployed(self, func_name):
+        """
+        Helper function which waits for the lambda to be deployed (state is 'Active').
+        Raises exception if waiting times out or if state is 'Failed' or 'Inactive'
+        """
+        retries, sleep_seconds = (15, 25) if 'vpc' in self.aws_lambda_config else (30, 5)
+
+        while retries > 0:
+            res = self.lambda_client.get_function(FunctionName=func_name)
+            state = res['Configuration']['State']
+            if state == 'Pending':
+                time.sleep(sleep_seconds)
+                logger.info('"{}" function is being deployed... '
+                            '(status: {})'.format(func_name, res['Configuration']['State']))
+                retries -= 1
+                if retries == 0:
+                    raise Exception('"{}" function not deployed (timed out): {}'.format(func_name, res))
+            elif state == 'Failed' or state == 'Inactive':
+                raise Exception('"{}" function not deployed (state is "{}"): {}'.format(func_name, state, res))
+            elif state == 'Active':
+                break
+
+        logger.debug('Ok --> function "{}" is active'.format(func_name))
+
     def _get_layer(self, runtime_name):
         """
         Get layer ARN for a specific runtime
@@ -190,29 +214,12 @@ class AWSLambdaBackend:
             )
 
             # wait until the function is created
-            if resp['ResponseMetadata']['HTTPStatusCode'] in [200, 201]:
-                logger.debug('OK --> Created "layer builder" function {}'.format(runtime_name))
-                retries, sleep_seconds = (15, 25) if 'vpc' in self.aws_lambda_config else (30, 5)
-
-                while retries > 0:
-                    response = self.lambda_client.get_function(
-                        FunctionName=func_name
-                    )
-                    state = response['Configuration']['State']
-                    if state == 'Pending':
-                        time.sleep(sleep_seconds)
-                        logger.info('"layer builder" function is being deployed... '
-                                    '(status: {})'.format(response['Configuration']['State']))
-                        retries -= 1
-                        if retries == 0:
-                            raise Exception('"layer builder" function not deployed: {}'.format(response))
-                    elif state == 'Active':
-                        break
-
-                logger.debug('Ok --> "layer builder" function active')
-            else:
+            if resp['ResponseMetadata']['HTTPStatusCode'] not in (200, 201):
                 msg = 'An error occurred creating/updating action {}: {}'.format(runtime_name, resp)
                 raise Exception(msg)
+
+            self._wait_for_function_deployed(func_name)
+            logger.debug('OK --> Created "layer builder" function {}'.format(runtime_name))
 
             dependencies = [dependency.strip().replace(' ', '') for dependency in lambda_config.DEFAULT_REQUIREMENTS]
             layer_name = self._format_layer_name(runtime_name)
@@ -223,22 +230,20 @@ class AWSLambdaBackend:
             }
 
             logger.debug('Invoking "layer builder" function')
-
-            response = self.lambda_client.invoke(
-                FunctionName=func_name,
-                Payload=json.dumps(payload)
-            )
+            response = self.lambda_client.invoke(FunctionName=func_name, Payload=json.dumps(payload))
             if response['ResponseMetadata']['HTTPStatusCode'] == 200:
                 logger.debug('OK --> Layer {} built'.format(layer_name))
             else:
                 msg = 'An error occurred creating layer {}: {}'.format(layer_name, response)
                 raise Exception(msg)
         finally:
-            logger.debug('Deleting "layer builder" function')
-            self.lambda_client.delete_function(
-                FunctionName=func_name
-            )
             os.remove(BUILD_LAYER_FUNCTION_ZIP)
+            logger.debug('Trying to delete "layer builder" function')
+            try:
+                self.lambda_client.delete_function(FunctionName=func_name)
+            except botocore.exceptions.ClientError as err:
+                if err.response['Error']['Code'] != 'ResourceNotFoundException':
+                    raise
 
         # Publish layer from S3
         logger.debug('Creating layer {} ...'.format(layer_name))
@@ -474,29 +479,12 @@ class AWSLambdaBackend:
                 },
             )
 
-        if response['ResponseMetadata']['HTTPStatusCode'] in [200, 201]:
-            logger.debug('OK --> Created lambda function {}'.format(function_name))
-
-            retries, sleep_seconds = (15, 25) if 'vpc' in self.aws_lambda_config else (30, 5)
-            while retries > 0:
-                response = self.lambda_client.get_function(
-                    FunctionName=function_name
-                )
-                state = response['Configuration']['State']
-                if state == 'Pending':
-                    time.sleep(sleep_seconds)
-                    logger.info('Function is being deployed... '
-                                '(status: {})'.format(response['Configuration']['State']))
-                    retries -= 1
-                    if retries == 0:
-                        raise Exception('Function not deployed: {}'.format(response))
-                elif state == 'Active':
-                    break
-
-            logger.debug('Ok --> Function active')
-        else:
+        if response['ResponseMetadata']['HTTPStatusCode'] not in (200, 201):
             msg = 'An error occurred creating/updating action {}: {}'.format(runtime_name, response)
             raise Exception(msg)
+
+        self._wait_for_function_deployed(function_name)
+        logger.debug('OK --> Created lambda function {}'.format(function_name))
 
         runtime_meta = self._generate_runtime_meta(runtime_name, memory)
 
