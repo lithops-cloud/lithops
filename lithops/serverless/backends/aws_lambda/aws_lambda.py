@@ -145,7 +145,7 @@ class AWSLambdaBackend:
     def _wait_for_function_deployed(self, func_name):
         """
         Helper function which waits for the lambda to be deployed (state is 'Active').
-        Raises exception if waiting times out or if state is 'Error'
+        Raises exception if waiting times out or if state is 'Failed' or 'Inactive'
         """
         retries, sleep_seconds = (15, 25) if 'vpc' in self.aws_lambda_config else (30, 5)
 
