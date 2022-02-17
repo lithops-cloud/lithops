@@ -223,22 +223,20 @@ class AWSLambdaBackend:
             }
 
             logger.debug('Invoking "layer builder" function')
-
-            response = self.lambda_client.invoke(
-                FunctionName=func_name,
-                Payload=json.dumps(payload)
-            )
+            response = self.lambda_client.invoke(FunctionName=func_name, Payload=json.dumps(payload))
             if response['ResponseMetadata']['HTTPStatusCode'] == 200:
                 logger.debug('OK --> Layer {} built'.format(layer_name))
             else:
                 msg = 'An error occurred creating layer {}: {}'.format(layer_name, response)
                 raise Exception(msg)
         finally:
-            logger.debug('Deleting "layer builder" function')
-            self.lambda_client.delete_function(
-                FunctionName=func_name
-            )
             os.remove(BUILD_LAYER_FUNCTION_ZIP)
+            logger.debug('Trying to delete "layer builder" function')
+            try:
+                self.lambda_client.delete_function(FunctionName=func_name)
+            except botocore.exceptions.ClientError as err:
+                if err.response['Error']['Code'] != 'ResourceNotFoundException':
+                    raise
 
         # Publish layer from S3
         logger.debug('Creating layer {} ...'.format(layer_name))
