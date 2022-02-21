@@ -29,7 +29,6 @@ from lithops.config import load_yaml_config, dump_yaml_config
 from lithops.standalone.utils import CLOUD_CONFIG_WORKER, CLOUD_CONFIG_WORKER_PK
 from lithops.standalone.standalone import LithopsValidationError
 
-
 logger = logging.getLogger(__name__)
 
 INSTANCE_START_TIMEOUT = 180
@@ -39,7 +38,7 @@ def b64s(string):
     """
     Base-64 encode a string and return a string
     """
-    return base64.b64encode(string.encode('utf-8')).decode('ascii')
+    return base64.b64encode(string.encode('utf-8')).decode('utf-8')
 
 
 class AWSEC2Backend:
@@ -118,15 +117,15 @@ class AWSEC2Backend:
             self.master.ssh_credentials.pop('password')
 
             instance_data = self.master.get_instance_data()
-            if instance_data and 'InstanceId' in instance_data:
-                self.master.instance_id = instance_data['InstanceId']
-            if instance_data and 'PrivateIpAddress' in instance_data:
-                self.master.private_ip = instance_data['PrivateIpAddress']
-            if instance_data and instance_data['State']['Name'] == 'running' and \
-               'PublicIpAddress' in instance_data:
-                self.master.public_ip = instance_data['PublicIpAddress']
+            if instance_data and 'State' in instance_data and instance_data['State']['Name'] != 'terminated':
+                if 'InstanceId' in instance_data:
+                    self.master.instance_id = instance_data['InstanceId']
+                if 'PrivateIpAddress' in instance_data:
+                    self.master.private_ip = instance_data['PrivateIpAddress']
+                if instance_data['State']['Name'] == 'running' and 'PublicIpAddress' in instance_data:
+                    self.master.public_ip = instance_data['PublicIpAddress']
 
-            self.ec2_data['instance_id'] = '0af1'
+            self.ec2_data['instance_id'] = self.vpc_key
 
             if self.config['request_spot_instances']:
                 wit = self.config["worker_instance_type"]
@@ -136,10 +135,10 @@ class AWSEC2Backend:
                     ProductDescriptions=['Linux/UNIX (Amazon VPC)'],
                     StartTime=datetime.today()
                 )
-                for az in response['SpotPriceHistory']:
-                    spot_price = az['SpotPrice']
-                self.config["spot_price"] = spot_price
-                logger.debug(f'Current spot instance price for {wit} is ${spot_price}')
+                spot_prices = [float(az['SpotPrice']) for az in response['SpotPriceHistory']]
+                min_price, max_price = min(spot_prices), max(spot_prices)
+                self.config["spot_price"] = sum(spot_prices) / len(spot_prices)
+                logger.debug(f'Current spot instance price for {wit} is between ${min_price}-${max_price}')
 
     def _delete_worker_vm_instances(self):
         """
@@ -160,7 +159,7 @@ class AWSEC2Backend:
         if ins_to_delete:
             self.ec2_client.terminate_instances(InstanceIds=ins_to_delete)
 
-    def clean(self, delete_master=False, force=False):
+    def clean(self, delete_master=True, force=False):
         """
         Clean all the backend resources
         The gateway public IP and the floating IP are never deleted
@@ -319,14 +318,14 @@ class EC2Instance:
         Checks if the VM instance is ready to receive ssh connections
         """
         login_type = 'password' if 'password' in self.ssh_credentials and \
-            not self.public else 'publickey'
+                                   not self.public else 'publickey'
         try:
             self.get_ssh_client().run_remote_command('id')
         except LithopsValidationError as e:
             raise e
         except Exception as e:
             if verbose:
-                logger.debug(f'SSH to {self.private_ip} failed ({login_type}): {e}')
+                logger.debug(f'SSH to {self.public_ip} failed ({login_type}): {e}')
             self.del_ssh_client()
             return False
         return True
@@ -338,9 +337,9 @@ class EC2Instance:
         logger.debug(f'Waiting {self} to become ready')
 
         start = time.time()
-        while(time.time() - start < INSTANCE_START_TIMEOUT):
+        while (time.time() - start < INSTANCE_START_TIMEOUT):
             if self.is_ready(verbose=verbose):
-                start_time = round(time.time()-start, 2)
+                start_time = round(time.time() - start, 2)
                 logger.debug(f'{self} ready in {start_time} seconds')
                 return True
             time.sleep(5)
@@ -366,12 +365,14 @@ class EC2Instance:
         else:
             BlockDeviceMappings = None
 
+        iam_profile = {'Arn': self.config['iam_role']} if 'arn:aws:iam:' in self.config['iam_role'] \
+            else {'Name': self.config['iam_role']}
         LaunchSpecification = {
             "ImageId": self.config['target_ami'],
             "InstanceType": self.instance_type,
             "SecurityGroupIds": [self.config['security_group_id']],
             "EbsOptimized": False,
-            "IamInstanceProfile": {'Name': self.config['iam_role']},
+            "IamInstanceProfile": iam_profile,
             "Monitoring": {'Enabled': False}
         }
 
@@ -407,7 +408,7 @@ class EC2Instance:
                     logger.debug(failure_reasons)
                     raise Exception(
                         "The spot request failed for the following reason{s}: {reasons}"
-                        .format(
+                            .format(
                             s='' if len(failure_reasons) == 1 else 's',
                             reasons=', '.join(failure_reasons)))
 
@@ -428,8 +429,10 @@ class EC2Instance:
 
             LaunchSpecification['MinCount'] = 1
             LaunchSpecification['MaxCount'] = 1
-            LaunchSpecification["TagSpecifications"] = [{"ResourceType": "instance", "Tags": [{'Key': 'Name', 'Value': self.name}]}]
-            LaunchSpecification["InstanceInitiatedShutdownBehavior"] = 'terminate' if self.delete_on_dismantle else 'stop'
+            LaunchSpecification["TagSpecifications"] = [
+                {"ResourceType": "instance", "Tags": [{'Key': 'Name', 'Value': self.name}]}]
+            LaunchSpecification[
+                "InstanceInitiatedShutdownBehavior"] = 'terminate' if self.delete_on_dismantle else 'stop'
 
             if user_data:
                 LaunchSpecification['UserData'] = user_data
@@ -509,7 +512,7 @@ class EC2Instance:
         if check_if_exists and not vsi_exists:
             logger.debug('Checking if VM instance {} already exists'.format(self.name))
             instance_data = self.get_instance_data()
-            if instance_data:
+            if instance_data and 'State' in instance_data and instance_data['State']['Name'] != 'terminated':
                 logger.debug('VM instance {} already exists'.format(self.name))
                 vsi_exists = True
                 self.instance_id = instance_data['InstanceId']

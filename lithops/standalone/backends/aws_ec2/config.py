@@ -22,7 +22,6 @@ DEFAULT_CONFIG_KEYS = {
     'ssh_username': 'ubuntu',
     'ssh_password': str(uuid.uuid4()),
     'ssh_key_filename': '~/.ssh/id_rsa',
-    'target_ami': 'ami-0a8e758f5e873d1c1',  # ubuntu 20.04
     'request_spot_instances': True,
     'delete_on_dismantle': True,
     'max_workers': 100,
@@ -31,7 +30,7 @@ DEFAULT_CONFIG_KEYS = {
 
 
 REQ_PARAMS_1 = ('instance_id', 'region_name')
-REQ_PARAMS_2 = ('region_name', 'vpc_id', 'iam_role', 'key_name', 'security_group_id')
+REQ_PARAMS_2 = ('target_ami', 'region_name', 'vpc_id', 'iam_role', 'key_name', 'security_group_id')
 
 
 def load_config(config_data):
