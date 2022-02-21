@@ -85,7 +85,7 @@
     #singlesocket: <True/False> # Optional, default is False
 
 #aws_ec2:
-    #region: <REGION_NAME>
+    #region_name: <REGION_NAME>
     #vpc_id: <VPC_ID>
     #iam_role: <IAM_ROLE>
     #key_name: <SSH_KEY_NAME>
