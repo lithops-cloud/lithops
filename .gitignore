@@ -34,3 +34,6 @@ venv/
 
 # Doc built HTML files
 docs/_build
+
+# Lithops local config file
+.lithops_config
