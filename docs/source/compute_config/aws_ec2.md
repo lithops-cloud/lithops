@@ -92,17 +92,17 @@ aws_ec2:
 ### Summary of the configuration keys for the create mode
 
 |Group|Key|Default|Mandatory|Additional info|
-|---|---|---|---|---|
+|---|---|--|---|---|
 |aws_ec2 | region_name | |yes | Region name, for example: `eu-west-1` |
 |aws_ec2 | vpc_id | | yes | VPC id |
 |aws_ec2 | iam_role | | yes | IAM role name |
 |aws_ec2 | key_name | | yes | SSH Key name |
 |aws_ec2 | security_group_id | | yes | Security group ID |
+|aws_ec2 | target_ami |  | yes | Virtual machine image id. **Must be an Ubuntu 20.04 AMI.** |
 |aws_ec2 | ssh_username | ubuntu |no | Username to access the VM |
-|aws_ec2 | ssh_password |  |no | Password for accessing the worker VMs. If not provided, it is created randomly|
+|aws_ec2 | ssh_password | |no | Password for accessing the worker VMs. If not provided, it is created randomly|
 |aws_ec2 | ssh_key_filename | | no | Path to the ssh key file provided to access the VPC. It will use the default path if not provided |
 |aws_ec2 | request_spot_instances | True | no | Request spot instance for worker VMs|
-|aws_ec2 | target_ami | ami-0a8e758f5e873d1c1 | no | Virtual machine image id. Default is Ubuntu 20.04 |
 |aws_ec2 | master_instance_type | t2.micro | no | Profile name for the master VM |
 |aws_ec2 | worker_instance_type | t2.medium | no | Profile name for the worker VMs |
 |aws_ec2 | delete_on_dismantle | True | no | Delete the woreker VMs when they are stopped. Master VM is never deleted when stopped |
