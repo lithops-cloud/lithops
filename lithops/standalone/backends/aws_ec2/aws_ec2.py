@@ -159,7 +159,7 @@ class AWSEC2Backend:
         if ins_to_delete:
             self.ec2_client.terminate_instances(InstanceIds=ins_to_delete)
 
-    def clean(self, delete_master=True, force=False):
+    def clean(self, delete_master=False, force=False):
         """
         Clean all the backend resources
         The gateway public IP and the floating IP are never deleted
