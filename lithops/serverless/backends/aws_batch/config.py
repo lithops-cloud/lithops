@@ -132,6 +132,8 @@ def load_config(config_data):
 
     if not {'execution_role', 'region_name'}.issubset(set(config_data['aws_batch'])):
         raise Exception("'execution_role' and 'region_name' are mandatory under 'aws_batch' section")
+    if 'service_role' not in config_data['aws_batch']:
+        config_data['aws_batch']['service_role'] = None
 
     # VPC config
     if 'subnets' not in config_data['aws_batch']:
