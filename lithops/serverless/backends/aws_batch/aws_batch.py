@@ -132,11 +132,19 @@ class AWSBatchBackend:
                 compute_resources_spec['minvCpus'] = 0
                 compute_resources_spec['instanceTypes'] = ['optimal']
 
-            res = self.batch_client.create_compute_environment(
-                computeEnvironmentName=self._compute_env_name,
-                type='MANAGED',
-                computeResources=compute_resources_spec,
-            )
+            if self.aws_batch_config['service_role']:
+                res = self.batch_client.create_compute_environment(
+                    computeEnvironmentName=self._compute_env_name,
+                    type='MANAGED',
+                    computeResources=compute_resources_spec,
+                    serviceRole=self.aws_batch_config['service_role']
+                )
+            else:
+                res = self.batch_client.create_compute_environment(
+                    computeEnvironmentName=self._compute_env_name,
+                    type='MANAGED',
+                    computeResources=compute_resources_spec,
+                )
 
             if res['ResponseMetadata']['HTTPStatusCode'] != 200:
                 raise Exception(res)
