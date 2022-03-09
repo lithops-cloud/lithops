@@ -79,7 +79,7 @@ aws:
 aws_ec2:
     region_name: <REGION_NAME>
     vpc_id: <VPC_ID>
-    iam_role: <IAM_ROLE>
+    execution_role: <ARN_ROLE>
     key_name: <SSH_KEY_NAME>
     security_group_id: <SECURITY_GROUP_ID>
 ```
@@ -94,10 +94,10 @@ aws_ec2:
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |aws_ec2 | region_name | |yes | Region name, for example: `eu-west-1` |
-|aws_ec2 | vpc_id | | yes | VPC id |
-|aws_ec2 | iam_role | | yes | IAM role name |
-|aws_ec2 | key_name | | yes | SSH Key name |
-|aws_ec2 | security_group_id | | yes | Security group ID |
+|aws_ec2 | vpc_id | | yes | VPC id. You can find all the available VPCs in the [VPC Console page](https://console.aws.amazon.com/vpc/home) (left menu) > Virtual Private Cloud > Your VPCs |
+|aws_ec2 | iam_role | | yes | IAM EC2 role name. You can find it in the [IAM Console page](https://console.aws.amazon.com/iamv2/home#/roles) > Access Management > Roles (e.g. `lithops-ec2-execution-role`. Create a new EC2 role if it does not exist|
+|aws_ec2 | key_name | | yes | SSH Key name. You can find the available keys in the [EC2 console page](https://console.aws.amazon.com/ec2/v2/home) (left menu) > Network & Security > Key pairs. Create a new one or upload your own key if it does not exist|
+|aws_ec2 | security_group_id | | yes | Security group ID. You can find the available security groups in the [EC2 console page](https://console.aws.amazon.com/ec2/v2/home) (left menu) > Network & Security > Security Groups |
 |aws_ec2 | ssh_username | ubuntu |no | Username to access the VM |
 |aws_ec2 | ssh_password |  |no | Password for accessing the worker VMs. If not provided, it is created randomly|
 |aws_ec2 | ssh_key_filename | | no | Path to the ssh key file provided to access the VPC. It will use the default path if not provided |

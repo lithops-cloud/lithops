@@ -74,7 +74,7 @@ aws_lambda:
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |aws_lambda| region_name | |yes | Region where the S3 bucket is located and where Lambda functions will be invoked (e.g. `us-east-1`) |
-|aws_lambda| execution_role | |yes | ARN of the execution role created at step 3. You can find it in the Role page at the *Roles* list in the *IAM* section (e.g. `arn:aws:iam::1234567890:role/lithops-role` |
+|aws_lambda| execution_role | |yes | ARN of the execution role created at step 3. You can find it in the Role page at the *Roles* list in the *IAM* section (e.g. `arn:aws:iam::1234567890:role/lithops-execution-role` |
 |aws_lambda | max_workers | 1000 | no | Max number of workers per `FunctionExecutor()`|
 |aws_lambda | worker_processes | 1 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker |
 |aws_lambda | runtime |  |no | Docker image name|
