@@ -6,6 +6,9 @@
 - [Core] Add support for Python 3.10
 - [Storage] Added `download_file()` and `upload_file()` methods to Storage API to enable multipart upload/download
 - [AWS Lambda] Added 'architecture' option in config to allow deploy arm64 runtimes
+- [AWS Batch] Added 'service_role' config parameter
+- [IBM VPC] add gpu support for ibm_vpc backend
+- [Standalone] Added docker login to standalone setup script
 
 ### Changed
 - [CLI] Changed "lithops runtime create" command to "lithops runtime deploy"
@@ -13,6 +16,7 @@
 ### Fixed
 - [AWS Lambda] Fixed "layer builder" function creation necessary to deploy the default runtime
 - [AWS Lambda] Allow to create container runtimes whose names contain '.', '/' and '_'.
+- [AWS Lambda] List only the user-defined functions of the current user
 
 
 ## [v2.5.8]
