@@ -94,7 +94,7 @@ def setup_worker(worker_info, work_queue_name):
 
         while not worker_ready and retry <= MAX_INSTANCE_CREATE_RETRIES:
             try:
-                worker.wait_ready(verbose=True)
+                worker.wait_ready()
                 worker_ready = True
             except TimeoutError as e:  # VM not started in time
                 if retry == MAX_INSTANCE_CREATE_RETRIES:

@@ -59,6 +59,8 @@ def wait(fs: Union[ResponseFuture, FuturesList, List[ResponseFuture]],
     seconds to wait before returning.
 
     :param fs: Futures list. Default None
+    :param internal_storage: InternalStorage instance. Default None.
+    :param job_monitor: JobMonitor instance. Default None.
     :param throw_except: Re-raise exception if call raised. Default True.
     :param return_when: Percentage of done futures
     :param download_results: Download results. Default false (Only get statuses)
@@ -181,11 +183,11 @@ def get_result(fs: Optional[Union[ResponseFuture, FuturesList, List[ResponseFutu
     For getting the results from all function activations
 
     :param fs: Futures list. Default None
+    :param internal_storage: InternalStorage instance. Default None.
     :param throw_except: Reraise exception if call raised. Default True.
-    :param verbose: Shows some information prints. Default False
     :param timeout: Timeout for waiting for results.
-    :param THREADPOOL_SIZE: Number of threads to use. Default 128
-    :param WAIT_DUR_SEC: Time interval between each check.
+    :param threadpool_size: Number of threads to use. Default 128
+    :param wait_dur_sec: Time interval between each check.
     :return: The result of the future/s
     """
     if type(fs) != list and type(fs) != FuturesList:

@@ -335,9 +335,9 @@ class StandaloneHandler:
         preinstalled modules
         """
         logger.debug(f'Checking if {self.backend.master} is ready')
-        if not self.backend.master.is_ready(verbose=True):
+        if not self.backend.master.is_ready():
             self.backend.master.create(check_if_exists=True)
-            self.backend.master.wait_ready(verbose=True)
+            self.backend.master.wait_ready()
 
         self._setup_master_service()
         self._wait_master_service_ready()

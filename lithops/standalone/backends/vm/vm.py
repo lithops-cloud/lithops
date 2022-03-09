@@ -83,7 +83,7 @@ class VMInstance:
                 pass
             self.ssh_client = None
 
-    def is_ready(self, verbose=False):
+    def is_ready(self):
         """
         Checks if the VM is ready to receive ssh connections
         """
@@ -92,13 +92,12 @@ class VMInstance:
         except LithopsValidationError as e:
             raise e
         except Exception as e:
-            if verbose:
-                logger.debug(f'ssh to {self.private_ip} failed: {e}')
+            logger.debug(f'ssh to {self.public_ip} failed: {e}')
             self.del_ssh_client()
             return False
         return True
 
-    def wait_ready(self, verbose=False):
+    def wait_ready(self):
         """
         Waits until the VM is ready to receive ssh connections
         """
@@ -106,7 +105,7 @@ class VMInstance:
 
         start = time.time()
         while(time.time() - start < INSTANCE_START_TIMEOUT):
-            if self.is_ready(verbose=verbose):
+            if self.is_ready():
                 start_time = round(time.time()-start, 2)
                 logger.debug(f'{self} ready in {start_time} seconds')
                 return True
