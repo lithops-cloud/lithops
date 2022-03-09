@@ -314,7 +314,7 @@ class EC2Instance:
                 pass
             self.ssh_client = None
 
-    def is_ready(self, verbose=False):
+    def is_ready(self):
         """
         Checks if the VM instance is ready to receive ssh connections
         """
@@ -325,13 +325,12 @@ class EC2Instance:
         except LithopsValidationError as e:
             raise e
         except Exception as e:
-            if verbose:
-                logger.debug(f'SSH to {self.private_ip} failed ({login_type}): {e}')
+            logger.debug(f'SSH to {self.public_ip if self.public else self.private_ip} failed ({login_type}): {e}')
             self.del_ssh_client()
             return False
         return True
 
-    def wait_ready(self, verbose=False):
+    def wait_ready(self):
         """
         Waits until the VM instance is ready to receive ssh connections
         """
@@ -339,7 +338,7 @@ class EC2Instance:
 
         start = time.time()
         while(time.time() - start < INSTANCE_START_TIMEOUT):
-            if self.is_ready(verbose=verbose):
+            if self.is_ready():
                 start_time = round(time.time()-start, 2)
                 logger.debug(f'{self} ready in {start_time} seconds')
                 return True
