@@ -87,45 +87,44 @@ def setup_worker(worker_info, work_queue_name):
     worker = standalone_handler.backend.get_instance(**worker_info, public=False)
     logger.debug(f'Starting setup for VM instance {worker.name} ({worker.private_ip})')
 
-    def wait_worker_ready(worker):
-        workers_state[worker.name] = {'state': 'starting'}
-        worker_ready = False
-        retry = 1
+    max_instance_create_retries = standalone_config.get('worker_create_retries', MAX_INSTANCE_CREATE_RETRIES)
 
-        while not worker_ready and retry <= MAX_INSTANCE_CREATE_RETRIES:
+    def wait_worker_ready(worker):
+        instance_ready_retries = 1
+
+        while instance_ready_retries <= max_instance_create_retries:
             try:
+                workers_state[worker.name] = {'state': 'starting'}
                 worker.wait_ready()
-                worker_ready = True
+                break
             except TimeoutError as e:  # VM not started in time
-                if retry == MAX_INSTANCE_CREATE_RETRIES:
+                workers_state[worker.name] = {'state': 'error', 'err': str(e)}
+                if instance_ready_retries == max_instance_create_retries:
                     raise e
-                logger.debug(f'Timeout Error. Recreating VM instance {worker.name}')
-                retry += 1
+                logger.warning(f'Timeout Error. Recreating VM instance {worker.name}')
                 worker.delete()
                 worker.create()
+                instance_ready_retries += 1
 
     wait_worker_ready(worker)
 
-    instance_create_retries = 0
-    max_instance_create_retries = standalone_config.get('worker_create_retries', MAX_INSTANCE_CREATE_RETRIES)
-    while instance_create_retries < max_instance_create_retries:
+    instance_validate_retries = 1
+    while instance_validate_retries <= max_instance_create_retries:
         try:
             logger.debug(f'Validating {worker.name}')
             worker.validate_capabilities()
             break
         except LithopsValidationError as e:
-            logger.debug(f'{worker.name} validation error {e}')
+            logger.debug(f'{worker.name} validation error: {e}')
             workers_state[worker.name] = {'state': 'error', 'err': str(e)}
-            if instance_create_retries + 1 < max_instance_create_retries:
-                # Continue retrying
-                logger.warning(f'Worker {worker.name} setup failed with error {e} after {instance_create_retries} retries')
-                worker.delete()
-                worker.create()
-                instance_create_retries += 1
-                wait_worker_ready(worker)
-            else:
-                workers_state[worker.name] = {'state': 'setup', 'err': workers_state[worker.name].get('err')}
+            if instance_validate_retries == max_instance_create_retries:
+                workers_state[worker.name] = {'state': 'setup', 'err': str(e)}
                 break
+            logger.warning(f'Worker {worker.name} setup failed with error {e} after {instance_validate_retries} retries')
+            worker.delete()
+            worker.create()
+            instance_validate_retries += 1
+            wait_worker_ready(worker)
 
     # upload zip lithops package
     logger.debug(f'Uploading lithops files to {worker}')
@@ -174,7 +173,7 @@ def start_workers(job_payload, work_queue_name):
             future.result()
         except Exception as e:
             # TODO consider to update worker state
-            logger.error(f"Worker setup produced an exception {e}")
+            logger.error(e)
 
     logger.debug(f'All workers set up for work queue "{work_queue_name}"')
 

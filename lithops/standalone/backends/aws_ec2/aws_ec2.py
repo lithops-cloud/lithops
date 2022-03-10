@@ -330,14 +330,14 @@ class EC2Instance:
             return False
         return True
 
-    def wait_ready(self):
+    def wait_ready(self, timeout=INSTANCE_START_TIMEOUT):
         """
         Waits until the VM instance is ready to receive ssh connections
         """
         logger.debug(f'Waiting {self} to become ready')
 
         start = time.time()
-        while(time.time() - start < INSTANCE_START_TIMEOUT):
+        while(time.time() - start < timeout):
             if self.is_ready():
                 start_time = round(time.time()-start, 2)
                 logger.debug(f'{self} ready in {start_time} seconds')
