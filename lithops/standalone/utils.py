@@ -41,6 +41,9 @@ users:
     - name: {0}
       ssh_authorized_keys:
         - {1}
+      sudo: ALL=(ALL) NOPASSWD:ALL
+      groups: sudo
+      shell: /bin/bash
 """
 
 CLOUD_CONFIG_WORKER = """

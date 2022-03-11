@@ -94,15 +94,15 @@ aws_ec2:
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |aws_ec2 | region_name | |yes | Region name, for example: `eu-west-1` |
-|aws_ec2 | vpc_id | | yes | VPC id. You can find all the available VPCs in the [VPC Console page](https://console.aws.amazon.com/vpc/home) (left menu) > Virtual Private Cloud > Your VPCs |
-|aws_ec2 | iam_role | | yes | IAM EC2 role name. You can find it in the [IAM Console page](https://console.aws.amazon.com/iamv2/home#/roles) > Access Management > Roles (e.g. `lithops-ec2-execution-role`. Create a new EC2 role if it does not exist|
-|aws_ec2 | key_name | | yes | SSH Key name. You can find the available keys in the [EC2 console page](https://console.aws.amazon.com/ec2/v2/home#KeyPairs:) (left menu) > Network & Security > Key pairs. Create a new one or upload your own key if it does not exist|
-|aws_ec2 | security_group_id | | yes | Security group ID. You can find the available security groups in the [EC2 console page](https://console.aws.amazon.com/ec2/v2/home#SecurityGroups:) (left menu) > Network & Security > Security Groups |
+|aws_ec2 | vpc_id | | yes | VPC id. You can find all the available VPCs in the [VPC Console page](https://console.aws.amazon.com/vpc/home) |
+|aws_ec2 | iam_role | | yes | IAM EC2 role name. You can find it in the [IAM Console page](https://console.aws.amazon.com/iamv2/home#/roles). Create a new EC2 role if it does not exist|
+|aws_ec2 | key_name | | yes | SSH Key name. You can find the available keys in the [EC2 console page](https://console.aws.amazon.com/ec2/v2/home#KeyPairs:). Create a new one or upload your own key if it does not exist|
+|aws_ec2 | security_group_id | | yes | Security group ID. You can find the available security groups in the [EC2 console page](https://console.aws.amazon.com/ec2/v2/home#SecurityGroups:). The security group must have ports 22 and 8080 open |
 |aws_ec2 | ssh_username | ubuntu |no | Username to access the VM |
 |aws_ec2 | ssh_password |  |no | Password for accessing the worker VMs. If not provided, it is created randomly|
 |aws_ec2 | ssh_key_filename | | no | Path to the ssh key file provided to access the VPC. It will use the default path if not provided |
 |aws_ec2 | request_spot_instances | True | no | Request spot instance for worker VMs|
-|aws_ec2 | target_ami | ami-0a8e758f5e873d1c1 | no | Virtual machine image id. Default is Ubuntu 20.04 |
+|aws_ec2 | target_ami | | no | Virtual machine image id. Default is Ubuntu Server 20.04 |
 |aws_ec2 | master_instance_type | t2.micro | no | Profile name for the master VM |
 |aws_ec2 | worker_instance_type | t2.medium | no | Profile name for the worker VMs |
 |aws_ec2 | delete_on_dismantle | True | no | Delete the worker VMs when they are stopped. Master VM is never deleted when stopped |
