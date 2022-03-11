@@ -22,7 +22,6 @@ DEFAULT_CONFIG_KEYS = {
     'ssh_username': 'ubuntu',
     'ssh_password': str(uuid.uuid4()),
     'ssh_key_filename': '~/.ssh/id_rsa',
-    'target_ami': 'ami-0a8e758f5e873d1c1',  # ubuntu 20.04
     'request_spot_instances': True,
     'delete_on_dismantle': True,
     'max_workers': 100,

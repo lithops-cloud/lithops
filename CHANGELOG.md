@@ -9,6 +9,7 @@
 - [AWS Batch] Added 'service_role' config parameter
 - [IBM VPC] add gpu support for ibm_vpc backend
 - [Standalone] Added docker login to standalone setup script
+- [AWS EC2] Automatically get the default Ubuntu 20.04 AMI when not present in config
 
 ### Changed
 - [CLI] Changed "lithops runtime create" command to "lithops runtime deploy"
@@ -17,7 +18,7 @@
 - [AWS Lambda] Fixed "layer builder" function creation necessary to deploy the default runtime
 - [AWS Lambda] Allow to create container runtimes whose names contain '.', '/' and '_'.
 - [AWS Lambda] List only the user-defined functions of the current user
-
+- [Standalone] Fix cloudinit initialization script
 
 ## [v2.5.8]
 

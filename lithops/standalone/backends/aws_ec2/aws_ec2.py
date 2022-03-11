@@ -33,6 +33,7 @@ from lithops.standalone.standalone import LithopsValidationError
 logger = logging.getLogger(__name__)
 
 INSTANCE_START_TIMEOUT = 180
+DEFAULT_UBUNTU_IMAGE = 'ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-202111*'
 
 
 def b64s(string):
@@ -109,6 +110,15 @@ class AWSEC2Backend:
             if self.mode != cahced_mode:
                 # invalidate cached data
                 self.ec2_data = {}
+
+            if 'target_ami' not in self.config:
+                response = self.ec2_client.describe_images(Filters=[
+                    {
+                        'Name': 'name',
+                        'Values': [DEFAULT_UBUNTU_IMAGE]
+                    }], Owners=['099720109477'])
+
+                self.config['target_ami'] = response['Images'][0]['ImageId']
 
             self.vpc_key = self.config['vpc_id'][-4:]
             master_name = 'lithops-master-{}'.format(self.vpc_key)
@@ -384,7 +394,7 @@ class EC2Instance:
             logger.debug("Creating new VM instance {} (Spot)".format(self.name))
 
             if user_data:
-                # Allow master VM to access workers trough ssh password
+                # Allow master VM to access workers trough ssh key or password
                 LaunchSpecification['UserData'] = b64s(user_data)
 
             spot_requests = self.ec2_client.request_spot_instances(
