@@ -169,6 +169,7 @@ code_engine:
 |code_engine | runtime_cpu | 0.125 |no | CPU limit. Default 0.125vCPU. See [valid combinations](https://cloud.ibm.com/docs/codeengine?topic=codeengine-mem-cpu-combo) |
 |code_engine | runtime_memory | 256 |no | Memory limit in MB. Default 256Mi. See [valid combinations](https://cloud.ibm.com/docs/codeengine?topic=codeengine-mem-cpu-combo) |
 |code_engine | runtime_timeout | 600 |no | Runtime timeout in seconds. Default 600 seconds |
+|code_engine | connection_retries | |no | If specified, number of job invoke retries in case of connection failure with error code 500 |
 
 
 ## Lithops using Knative API of Code Engine
