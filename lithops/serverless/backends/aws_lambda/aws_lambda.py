@@ -453,31 +453,37 @@ class AWSLambdaBackend:
 
             code = self._create_handler_bin()
 
-            response = self.lambda_client.create_function(
-                FunctionName=function_name,
-                Runtime=lambda_config.LAMBDA_PYTHON_VER_KEY,
-                Role=self.role_arn,
-                Handler='entry_point.lambda_handler',
-                Code={
-                    'ZipFile': code
-                },
-                Description='Lithops Worker for '+self.package,
-                Timeout=timeout,
-                MemorySize=memory,
-                Layers=[layer_arn],
-                VpcConfig={
-                    'SubnetIds': self.aws_lambda_config['vpc']['subnets'],
-                    'SecurityGroupIds': self.aws_lambda_config['vpc']['security_groups']
-                },
-                FileSystemConfigs=[
-                    {'Arn': efs_conf['access_point'],
-                     'LocalMountPath': efs_conf['mount_path']}
-                    for efs_conf in self.aws_lambda_config['efs']
-                ],
-                Tags={
-                    'runtime_name': runtime_name
-                },
-            )
+            try:
+                response = self.lambda_client.create_function(
+                    FunctionName=function_name,
+                    Runtime=lambda_config.LAMBDA_PYTHON_VER_KEY,
+                    Role=self.role_arn,
+                    Handler='entry_point.lambda_handler',
+                    Code={
+                        'ZipFile': code
+                    },
+                    Description='Lithops Worker for '+self.package,
+                    Timeout=timeout,
+                    MemorySize=memory,
+                    Layers=[layer_arn],
+                    VpcConfig={
+                        'SubnetIds': self.aws_lambda_config['vpc']['subnets'],
+                        'SecurityGroupIds': self.aws_lambda_config['vpc']['security_groups']
+                    },
+                    FileSystemConfigs=[
+                        {'Arn': efs_conf['access_point'],
+                         'LocalMountPath': efs_conf['mount_path']}
+                        for efs_conf in self.aws_lambda_config['efs']
+                    ],
+                    Tags={
+                        'runtime_name': runtime_name
+                    },
+                )
+            except Exception as e:
+                if 'ResourceConflictException' in str(e):
+                    pass
+                else:
+                    raise e
 
         if response['ResponseMetadata']['HTTPStatusCode'] not in (200, 201):
             msg = 'An error occurred creating/updating action {}: {}'.format(runtime_name, response)
