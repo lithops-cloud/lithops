@@ -71,26 +71,26 @@ The user can obtain these statistics through the future object:
 
     {'chunksize': 1,
      'data_size_bytes': 21,
-     'func_module_size_bytes': 611,
+     'func_module_size_bytes': 556,
      'func_result_size': 26.0,
      'host_data_upload_time': 0,
-     'host_func_upload_time': 0.577034,
-     'host_job_create_tstamp': 1647258748.0148692,
-     'host_job_created_time': 0.578538,
-     'host_job_serialize_time': 0.000978,
-     'host_result_done_tstamp': 1647258757.7331307,
+     'host_func_upload_time': 0.610441,
+     'host_job_create_tstamp': 1647526900.752052,
+     'host_job_created_time': 0.61281,
+     'host_job_serialize_time': 0.001555,
+     'host_result_done_tstamp': 1647526904.5000103,
      'host_result_query_count': 1,
-     'host_status_done_tstamp': 1647258757.6010494,
-     'host_status_query_count': 0,
-     'host_submit_tstamp': 1647258748.5960276,
-     'warm_container': False,
-     'worker_end_tstamp': 1647258755.0033026,
-     'worker_exec_time': 3.26375866,
-     'worker_func_end_tstamp': 1647258754.9280388,
-     'worker_func_exec_time': 3.00374055,
-     'worker_func_start_tstamp': 1647258751.9242983,
-     'worker_result_upload_time': 0.05767894,
-     'worker_start_tstamp': 1647258751.739544}
+     'host_status_done_tstamp': 1647526903.6858306,
+     'host_status_query_count': 2,
+     'host_submit_tstamp': 1647526901.3674674,
+     'warm_container': True,
+     'worker_end_tstamp': 1647526902.397567,
+     'worker_exec_time': 0.23604679,
+     'worker_func_end_tstamp': 1647526902.2985177,
+     'worker_func_exec_time': 1.91e-06,
+     'worker_func_start_tstamp': 1647526902.2985158,
+     'worker_result_upload_time': 0.07001352,
+     'worker_start_tstamp': 1647526902.1615202}
 
 
 .. list-table::
@@ -120,11 +120,11 @@ The user can obtain these statistics through the future object:
    * - :code:`host_result_done_tstamp`
      - Timestamp of when host received the function result from cloud object storage.
    * - :code:`host_result_query_count`
-     -
+     - Number of list query to the object storage to get the status object (synchronize the completion of the function)
    * - :code:`host_status_done_tstamp`
      - Timestamp of when the host received the signal that the function has finished its execution.
    * - :code:`host_status_query_count`
-     -
+     - Number of list query to the object storage to get the result object
    * - :code:`host_submit_tstamp`
      - Timestamp of function invocation.
    * - :code:`warm_container`
