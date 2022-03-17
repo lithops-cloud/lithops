@@ -301,6 +301,7 @@ class StorageMonitor(Monitor):
 
         def get_status(f):
             cs = self.internal_storage.get_call_status(f.executor_id, f.job_id, f.call_id)
+            f._status_query_count += 1
             if cs:
                 if not self._check_new_futures(cs, f):
                     f._set_ready(cs)

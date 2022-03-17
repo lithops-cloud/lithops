@@ -17,8 +17,10 @@
 ### Fixed
 - [AWS Lambda] Fixed "layer builder" function creation necessary to deploy the default runtime
 - [AWS Lambda] Allow to create container runtimes whose names contain '.', '/' and '_'.
-- [AWS Lambda] List only the user-defined functions of the current user
+- [AWS Lambda] List only the runtimes deployed by the current user
+- [AWS Lambda] Do not raise an exception if the runtime is already deployed
 - [Standalone] Fix cloudinit initialization script
+- [Future] Fix host_status_query_count stat
 
 ## [v2.5.8]
 

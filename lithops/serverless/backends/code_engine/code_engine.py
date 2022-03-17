@@ -19,6 +19,7 @@ import os
 import sys
 import base64
 import json
+import time
 import logging
 import urllib3
 import copy
@@ -100,6 +101,31 @@ class CodeEngineBackend:
 
         msg = COMPUTE_CLI_MSG.format('IBM Code Engine')
         logger.info("{} - Region: {}".format(msg, self.region))
+
+    # Decorator to wrap a function to reinit clients and retry on except.
+    def retry_on_except(func):
+        def decorated_func(*args, **kwargs):
+            _self = args[0]
+            connection_retries = _self.code_engine_config.get('connection_retries')
+            if not connection_retries:
+                return func(*args, **kwargs)
+            else:
+                ex = None
+                for retry in range(connection_retries):
+                    try:
+                        return func(*args, **kwargs)
+                    except ApiException as e:
+                        breakpoint()
+                        if e.status == 500:
+                            ex = e
+                            logger.exception((f'Got exception {e}, retrying for the {retry} time, left retries {connection_retries - 1 - retry}'))
+                            time.sleep(10)
+                        else:
+                            logger.debug((f'Got exception {e} when trying to invoke {func.__name__}, raising'))
+                            raise e
+                # we got run out of retries, now raising
+                raise ex
+        return decorated_func
 
     def _get_iam_token(self):
         """ Requests an IBM IAM token """
@@ -322,6 +348,7 @@ class CodeEngineBackend:
             except ValueError:
                 pass
 
+    @retry_on_except
     def invoke(self, docker_image_name, runtime_memory, job_payload):
         """
         Invoke -- return information about this invocation
