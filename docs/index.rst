@@ -124,6 +124,7 @@ Papers
    source/api_futures.rst
    source/functions.md
    source/notebooks/function_chaining.ipynb
+   source/api_stats.rst
 
 .. toctree::
    :hidden:

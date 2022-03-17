@@ -15,7 +15,7 @@ Note that IBM VPC is a **standalone backend**, and as such, you can configure ex
 |standalone | workers_policy | permissive | no | One of: **permissive**, **strict**. If set to **strict** will force creation of required workers number |
 |standalone | gpu | False | no | If True docker started with gpu support. Requires host to have neccessary hardware and software preconfigured and docker image runtime with gpu support specified |
 
-### Configure Docker hub
+## Configure Docker hub
 To configure Lithops to access a private docker repository, you need to add the following keys to **standalone** config:
 
 ```yaml
@@ -26,7 +26,7 @@ standalone:
     docker_password  : <Docker registry access token>
 ```
 
-#### Configure IBM Container Registry
+### Configure IBM Container Registry
 To configure Lithops to access to a private docker repository in your IBM Container Registry, you need to extend the **standalone** config and add the following keys:
 
 ```yaml
