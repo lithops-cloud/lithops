@@ -120,11 +120,11 @@ The user can obtain these statistics through the future object:
    * - :code:`host_result_done_tstamp`
      - Timestamp of when host received the function result from cloud object storage.
    * - :code:`host_result_query_count`
-     - Number of list query to the object storage to get the status object (synchronize the completion of the function)
+     - Number of queries to the object storage to get the status object (synchronize the completion of the function)
    * - :code:`host_status_done_tstamp`
      - Timestamp of when the host received the signal that the function has finished its execution.
    * - :code:`host_status_query_count`
-     - Number of list query to the object storage to get the result object
+     - Number of queries to the object storage to get the result object
    * - :code:`host_submit_tstamp`
      - Timestamp of function invocation.
    * - :code:`worker_cold_start`
