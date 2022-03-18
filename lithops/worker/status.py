@@ -46,9 +46,9 @@ class CallStatus:
         }
 
         if strtobool(os.environ.get('WARM_CONTAINER', 'False')):
-            self.status['warm_container'] = True
+            self.status['worker_cold_start'] = False
         else:
-            self.status['warm_container'] = False
+            self.status['worker_cold_start'] = True
             os.environ['WARM_CONTAINER'] = 'True'
 
     def add(self, key, value):

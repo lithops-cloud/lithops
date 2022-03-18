@@ -83,7 +83,7 @@ The user can obtain these statistics through the future object:
      'host_status_done_tstamp': 1647526903.6858306,
      'host_status_query_count': 2,
      'host_submit_tstamp': 1647526901.3674674,
-     'warm_container': True,
+     'worker_cold_start': True,
      'worker_end_tstamp': 1647526902.397567,
      'worker_exec_time': 0.23604679,
      'worker_func_end_tstamp': 1647526902.2985177,
@@ -127,7 +127,7 @@ The user can obtain these statistics through the future object:
      - Number of list query to the object storage to get the result object
    * - :code:`host_submit_tstamp`
      - Timestamp of function invocation.
-   * - :code:`warm_container`
+   * - :code:`worker_cold_start`
      - Indicates whether it was a "warm" invocation (the container was already running) or "cold" (the container had to be deployed).
    * - :code:`worker_end_tstamp`
      - Timestamp in which the worker function had finished its execution.
