@@ -126,6 +126,6 @@ def load_config(config_data):
                                                           AVAILABLE_RUNTIME_CPUS))
     if config_data['gcp_cloudrun']['runtime_cpu'] == 4 and config_data['gcp_cloudrun']['runtime_memory'] < 4096:
         raise Exception('For {} vCPUs, runtime memory must be at least 4096 MiB'
-                        .format(config_data['gcp_cloudrun']['runtime_cpus']))
+                        .format(config_data['gcp_cloudrun']['runtime_cpu']))
 
     config_data['gcp_cloudrun'].update(config_data['gcp'])
