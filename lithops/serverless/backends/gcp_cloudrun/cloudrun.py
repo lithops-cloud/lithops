@@ -270,7 +270,7 @@ class GCPCloudRunBackend:
                                 "resources": {
                                     "limits": {
                                         "memory": "{}Mi".format(memory),
-                                        "cpu": str(self.runtime_cpus)
+                                        "cpu": str(self.runtime_cpu)
                                     },
                                 },
                             }
