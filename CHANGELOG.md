@@ -1,6 +1,14 @@
 # Changelog
 
-## [v2.5.9.dev0]
+## [v2.5.10.dev0]
+
+### Added
+
+### Changed
+
+### Fixed
+
+## [v2.5.9]
 
 ### Added
 - [Core] Add support for Python 3.10
@@ -10,9 +18,10 @@
 - [IBM VPC] add gpu support for ibm_vpc backend
 - [Standalone] Added docker login to standalone setup script
 - [AWS EC2] Automatically get the default Ubuntu 20.04 AMI when not present in config
+- [Code Engine] Added retry logic on connection exception
 
 ### Changed
-- [CLI] Changed "lithops runtime create" command to "lithops runtime deploy"
+- [CLI] Renamed "lithops runtime create" command to "lithops runtime deploy"
 
 ### Fixed
 - [AWS Lambda] Fixed "layer builder" function creation necessary to deploy the default runtime
@@ -21,6 +30,8 @@
 - [AWS Lambda] Do not raise an exception if the runtime is already deployed
 - [Standalone] Fix cloudinit initialization script
 - [Future] Fix host_status_query_count stat
+- [Google Cloud Run] Fixed wrong variable name 'runtime_cpus'
+- [Google Cloud] Changed docs for Google cloud backend refering to id instead of name
 
 ## [v2.5.8]
 
