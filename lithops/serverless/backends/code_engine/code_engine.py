@@ -39,6 +39,31 @@ urllib3.disable_warnings()
 
 logger = logging.getLogger(__name__)
 
+# Decorator to wrap a function to reinit clients and retry on except.
+def retry_on_except(func):
+    def decorated_func(*args, **kwargs):
+        _self = args[0]
+        connection_retries = _self.code_engine_config.get('connection_retries')
+        if not connection_retries:
+            return func(*args, **kwargs)
+        else:
+            ex = None
+            for retry in range(connection_retries):
+                try:
+                    return func(*args, **kwargs)
+                except ApiException as e:
+                    breakpoint()
+                    if e.status == 500 or e.status == 409:
+                        ex = e
+                        logger.exception((f'Got exception {e}, retrying for the {retry} time, left retries {connection_retries - 1 - retry}'))
+                        time.sleep(5)
+                    else:
+                        logger.debug((f'Got exception {e} when trying to invoke {func.__name__}, raising'))
+                        raise e
+            # we got run out of retries, now raising
+            raise ex
+    return decorated_func
+
 
 class CodeEngineBackend:
     """
@@ -101,31 +126,6 @@ class CodeEngineBackend:
 
         msg = COMPUTE_CLI_MSG.format('IBM Code Engine')
         logger.info("{} - Region: {}".format(msg, self.region))
-
-    # Decorator to wrap a function to reinit clients and retry on except.
-    def retry_on_except(func):
-        def decorated_func(*args, **kwargs):
-            _self = args[0]
-            connection_retries = _self.code_engine_config.get('connection_retries')
-            if not connection_retries:
-                return func(*args, **kwargs)
-            else:
-                ex = None
-                for retry in range(connection_retries):
-                    try:
-                        return func(*args, **kwargs)
-                    except ApiException as e:
-                        breakpoint()
-                        if e.status == 500:
-                            ex = e
-                            logger.exception((f'Got exception {e}, retrying for the {retry} time, left retries {connection_retries - 1 - retry}'))
-                            time.sleep(10)
-                        else:
-                            logger.debug((f'Got exception {e} when trying to invoke {func.__name__}, raising'))
-                            raise e
-                # we got run out of retries, now raising
-                raise ex
-        return decorated_func
 
     def _get_iam_token(self):
         """ Requests an IBM IAM token """
