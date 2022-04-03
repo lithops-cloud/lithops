@@ -118,6 +118,7 @@ Alternative to using region, you can configure the public and private endpoints 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |ibm | iam_api_key | |no | IBM Cloud IAM API key to authenticate against IBM COS and IBM Cloud Functions. Obtain the key [here](https://cloud.ibm.com/iam/apikeys) |
+|ibm | iam_endpoint | https://iam.cloud.ibm.com |no | IAM Identity Services API global endpoint URL.
 
 
 ### IBM Cloud Object Storage:
@@ -131,3 +132,4 @@ Alternative to using region, you can configure the public and private endpoints 
 |ibm_cos | api_key | |no | API Key to your COS account. **Mandatory** if no access_key and secret_key. Not needed if using IAM API Key|
 |ibm_cos | access_key | |no | HMAC Credentials. **Mandatory** if no api_key. Not needed if using IAM API Key|
 |ibm_cos | secret_key | |no | HMAC Credentials. **Mandatory** if no api_key. Not needed if using IAM API Key|
+|ibm_cos | iam_api_key | |no | IBM Cloud IAM API key to authenticate against IBM COS. **Used** in case separate authorization for storage and compute required|

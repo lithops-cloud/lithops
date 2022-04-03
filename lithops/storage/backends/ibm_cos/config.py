@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import copy
 
 PUBLIC_ENDPOINT = 'https://s3.{}.cloud-object-storage.appdomain.cloud'
 PRIVATE_ENDPOINT = 'https://s3.private.{}.cloud-object-storage.appdomain.cloud'
@@ -72,7 +73,10 @@ def load_config(config_data):
     required_keys_3 = ('endpoint', 'ibm:iam_api_key')
 
     if 'ibm' in config_data and config_data['ibm'] is not None:
+        # in order to support sepparate api keys for cos and for compute
+        temp = copy.deepcopy(config_data['ibm_cos'])
         config_data['ibm_cos'].update(config_data['ibm'])
+        config_data['ibm_cos'].update(temp)
 
     if not set(required_keys_1) <= set(config_data['ibm_cos']) and \
        not set(required_keys_2) <= set(config_data['ibm_cos']) and \
