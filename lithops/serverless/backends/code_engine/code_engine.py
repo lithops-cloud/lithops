@@ -52,14 +52,18 @@ def retry_on_except(func):
                 try:
                     return func(*args, **kwargs)
                 except ApiException as e:
-                    breakpoint()
-                    if e.status == 500 or e.status == 409:
+                    if e.status == 409:
+                        body = json.loads(e.body)
+                        if body.get('reason') == 'AlreadyExists' or 'already exists' in body.get('message'):
+                            logger.debug("Encountered conflict error {}, ignoring".format(body.get('message')))
+                            return
+                    if e.status == 500:
                         ex = e
                         logger.exception((f'Got exception {e}, retrying for the {retry} time, left retries {connection_retries - 1 - retry}'))
-                        time.sleep(5)
                     else:
                         logger.debug((f'Got exception {e} when trying to invoke {func.__name__}, raising'))
                         raise e
+                    time.sleep(5)
             # we got run out of retries, now raising
             raise ex
     return decorated_func
@@ -127,6 +131,7 @@ class CodeEngineBackend:
         msg = COMPUTE_CLI_MSG.format('IBM Code Engine')
         logger.info("{} - Region: {}".format(msg, self.region))
 
+    @retry_on_except
     def _get_iam_token(self):
         """ Requests an IBM IAM token """
         configuration = client.Configuration.get_default_copy()
@@ -348,7 +353,6 @@ class CodeEngineBackend:
             except ValueError:
                 pass
 
-    @retry_on_except
     def invoke(self, docker_image_name, runtime_memory, job_payload):
         """
         Invoke -- return information about this invocation
@@ -399,20 +403,21 @@ class CodeEngineBackend:
         logger.debug('ExecutorID {} | JobID {} - Going to run {} activations '
                      '{} workers'.format(executor_id, job_id, total_calls, total_workers))
 
-        try:
-            self.custom_api.create_namespaced_custom_object(
-                group=ce_config.DEFAULT_GROUP,
-                version=ce_config.DEFAULT_VERSION,
-                namespace=self.namespace,
-                plural="jobruns",
-                body=jobrun_res,
-            )
-        except Exception as e:
-            raise e
+        self._run_job(jobrun_res)
 
         # logger.debug("response - {}".format(res))
 
         return activation_id
+
+    @retry_on_except
+    def _run_job(self, jobrun_res):
+        self.custom_api.create_namespaced_custom_object(
+            group=ce_config.DEFAULT_GROUP,
+            version=ce_config.DEFAULT_VERSION,
+            namespace=self.namespace,
+            plural="jobruns",
+            body=jobrun_res,
+        )
 
     def _create_container_registry_secret(self):
         """
@@ -461,6 +466,7 @@ class CodeEngineBackend:
             if e.status != 409:
                 raise e
 
+    @retry_on_except
     def _create_job_definition(self, image_name, runtime_memory, timeout):
         """
         Creates a Job definition
@@ -515,6 +521,7 @@ class CodeEngineBackend:
 
         return runtime_key
 
+    @retry_on_except
     def _job_def_exists(self, jobdef_name):
         logger.debug("Check if job_definition {} exists".format(jobdef_name))
         try:
@@ -625,6 +632,7 @@ class CodeEngineBackend:
 
         return runtime_meta
 
+    @retry_on_except
     def _create_config_map(self, config_map_name, payload):
         """
         Creates a configmap
@@ -635,19 +643,11 @@ class CodeEngineBackend:
         cmap.data["lithops.payload"] = dict_to_b64str(payload)
 
         logger.debug("Creating ConfigMap {}".format(config_map_name))
-        try:
-            self.core_api.create_namespaced_config_map(
-                namespace=self.namespace,
-                body=cmap,
-                field_manager='lithops'
-            )
-        except ApiException as e:
-            if (e.status != 409):
-                logger.debug("Creating a configmap failed with {} {}"
-                             .format(e.status, e.reason))
-                raise Exception('Failed to create ConfigMap')
-            else:
-                logger.debug("ConfigMap {} already exists".format(config_map_name))
+        self.core_api.create_namespaced_config_map(
+            namespace=self.namespace,
+            body=cmap,
+            field_manager='lithops'
+        )
 
         return config_map_name
 
