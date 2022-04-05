@@ -27,6 +27,7 @@
 
 #ibm:
     #iam_api_key: <IAM KEY>
+    #iam_endpoint: <IAM URL>
 
 #ibm_cf:
     #endpoint : <REGION_ENDPOINT>
@@ -132,6 +133,7 @@
     #api_key     : <API_KEY>
     #access_key : <ACCESS_KEY>  # Optional
     #secret_key : <SECRET_KEY>  # Optional
+    #iam_api_key : <IAM KEY>
 
 #swift:
     #storage_bucket: <BUCKET_NAME>

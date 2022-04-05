@@ -61,7 +61,7 @@ class IBMVPCBackend:
         iam_api_key = self.config.get('iam_api_key')
         self.custom_image = self.config.get('custom_lithops_image')
 
-        authenticator = IAMAuthenticator(iam_api_key)
+        authenticator = IAMAuthenticator(iam_api_key, url=self.config.get('iam_endpoint'))
         self.ibm_vpc_client = VpcV1(VPC_API_VERSION, authenticator=authenticator)
         self.ibm_vpc_client.set_service_url(self.config['endpoint'] + '/v1')
 
@@ -545,7 +545,7 @@ class IBMVPCInstance:
         """
         Creates an IBM VPC python-sdk instance
         """
-        authenticator = IAMAuthenticator(self.iam_api_key)
+        authenticator = IAMAuthenticator(self.iam_api_key, url=self.config.get('iam_endpoint'))
         ibm_vpc_client = VpcV1(VPC_API_VERSION, authenticator=authenticator)
         ibm_vpc_client.set_service_url(self.config['endpoint'] + '/v1')
 
