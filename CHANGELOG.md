@@ -1,12 +1,20 @@
 # Changelog
 
-## [v2.5.10.dev0]
+## [v2.6.1.dev0]
 
 ### Added
 
 ### Changed
 
 ### Fixed
+
+
+## [v2.6.0]
+
+### Added
+- [Code Engine] Improved except-retry logic
+- [IBM COS] Enables separate IAM authorization for COS and Compute backends
+
 
 ## [v2.5.9]
 
