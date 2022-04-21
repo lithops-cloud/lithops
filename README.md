@@ -170,25 +170,27 @@ Lithops is shipped with 3 different modes of execution. The execution mode allow
 <tr>
 <th align="center">
 <img width="441" height="1px">
-<p> 
+<p>
 <small>
-Localhost Mode
+<a href="docs/source/execution_modes.rst#localhost-mode">Localhost Mode</a>
 </small>
 </p>
 </th>
 <th align="center">
 <img width="441" height="1px">
-<p> 
+<p>
 <small>
-Serverless Mode
+<a href="docs/source/execution_modes.rst#serverless-mode">Serverless Mode</a>
+</small>
+<small>
 </small>
 </p>
 </th>
 <th align="center">
 <img width="441" height="1px">
-<p> 
+<p>
 <small>
-Standalone Mode
+<a href="docs/source/execution_modes.rst#standalone-mode">Standalone Mode</a>
 </small>
 </p>
 </th>
