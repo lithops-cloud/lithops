@@ -172,7 +172,7 @@ Lithops is shipped with 3 different modes of execution. The execution mode allow
 <img width="441" height="1px">
 <p>
 <small>
-<a href="docs/source/excution_modes.rst#localhost-mode">Localhost Mode]</a>
+<a href="docs/source/execution_modes.rst#localhost-mode">Localhost Mode</a>
 </small>
 </p>
 </th>
@@ -180,7 +180,7 @@ Lithops is shipped with 3 different modes of execution. The execution mode allow
 <img width="441" height="1px">
 <p>
 <small>
-<a href="docs/source/excution_modes.rst#serverless-mode">Serverless Mode]</a>
+<a href="docs/source/execution_modes.rst#serverless-mode">Serverless Mode</a>
 </small>
 <small>
 </small>
@@ -190,7 +190,7 @@ Lithops is shipped with 3 different modes of execution. The execution mode allow
 <img width="441" height="1px">
 <p>
 <small>
-<a href="docs/source/excution_modes.rst#standalone-mode">Standalone Mode]</a>
+<a href="docs/source/execution_modes.rst#standalone-mode">Standalone Mode</a>
 </small>
 </p>
 </th>
