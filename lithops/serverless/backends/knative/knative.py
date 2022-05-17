@@ -410,12 +410,12 @@ class KnativeServingBackend:
         )
 
         try:
-            self.coreV1Api.delete_namespaced_secret("lithops-regcred", self.namespace)
+            self.core_api.delete_namespaced_secret("lithops-regcred", self.namespace)
         except ApiException as e:
             pass
 
         try:
-            self.coreV1Api.create_namespaced_secret(self.namespace, secret)
+            self.core_api.create_namespaced_secret(self.namespace, secret)
         except ApiException as e:
             if e.status != 409:
                 raise e
