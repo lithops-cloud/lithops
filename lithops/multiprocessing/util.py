@@ -198,7 +198,6 @@ class RemoteLogIOBuffer:
         self._buff = io.StringIO()
         self._redis = get_redis_client()
         self._stream = stream
-        self._offset = 0
 
     def write(self, log):
         self._buff.write(log)
@@ -206,14 +205,9 @@ class RemoteLogIOBuffer:
         self._old_stdout.write(log)
 
     def flush(self):
-        self._buff.seek(self._offset)
-        log = self._buff.read()
-        logger.debug('Flush remote logging stream (len %i)', len(log))
+        log = self._buff.getvalue()
         self._redis.publish(self._stream, log)
-        self._offset = self._buff.tell()
-        # self._buff = io.StringIO()
-        # FIXME flush() does not empty the buffer?
-        self._buff.flush()
+        self._buff = io.StringIO()
 
     def start(self):
         import sys
