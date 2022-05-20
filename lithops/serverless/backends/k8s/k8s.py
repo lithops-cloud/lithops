@@ -88,11 +88,15 @@ class KubernetesBackend:
         return '{}--{}mb'.format(runtime_name, runtime_memory)
 
     def _get_default_runtime_image_name(self):
+        if 'runtime' in self.k8s_config:
+            return '{}-v{}:{}'.format(k8s_config.RUNTIME_NAME, python_version, revision)
+
         if 'docker_user' not in self.k8s_config:
             self.k8s_config['docker_user'] = get_docker_username()
         if not self.k8s_config['docker_user']:
             raise Exception('You must execute "docker login" or provide "docker_user" '
                             'param in config under "k8s" section')
+
         docker_user = self.k8s_config['docker_user']
         python_version = version_str(sys.version_info).replace('.', '')
         revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')

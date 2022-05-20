@@ -104,6 +104,7 @@ class KnativeServingBackend:
                 if ip and http_port:
                     self.istio_endpoint = 'http://{}:{}'.format(ip, http_port)
                     self.knative_config['istio_endpoint'] = self.istio_endpoint
+                    logger.debug(f"Istio endpoint set to {self.istio_endpoint}")
             except Exception as e:
                 pass
 
@@ -116,15 +117,9 @@ class KnativeServingBackend:
                 self.knative_config['service_host_suffix'] = self.service_host_suffix
         else:
             self.service_host_suffix = self.knative_config['service_host_suffix']
-
         logger.debug('Loaded service host suffix: {}'.format(self.service_host_suffix))
 
-        msg = COMPUTE_CLI_MSG.format('Knative')
-        if self.istio_endpoint:
-            msg += ' - Istio Endpoint: {}'.format(self.istio_endpoint)
-        elif self.cluster:
-            msg += ' - Cluster: {}'.format(self.cluster)
-        logger.info("{}".format(msg))
+        logger.info(f'{COMPUTE_CLI_MSG.format("Knative")} - Cluster: {self.cluster}')
 
     def _format_service_name(self, runtime_name, runtime_memory):
         runtime_name = runtime_name.replace('/', '--').replace(':', '--')
@@ -137,11 +132,15 @@ class KnativeServingBackend:
         return image_name, int(memory.replace('mb', ''))
 
     def _get_default_runtime_image_name(self):
+        if 'runtime' in self.knative_config:
+            return '{}-v{}:{}'.format(kconfig.RUNTIME_NAME, python_version, revision)
+    
         if 'docker_user' not in self.knative_config:
             self.knative_config['docker_user'] = get_docker_username()
         if not self.knative_config['docker_user']:
             raise Exception('You must execute "docker login" or provide "docker_user" '
                             'param in config under "knative" section')
+
         docker_user = self.knative_config['docker_user']
         python_version = version_str(sys.version_info).replace('.', '')
         revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
