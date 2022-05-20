@@ -201,10 +201,10 @@ spec:
           resources:
             limits:
               memory: "256Mi"
-              cpu: "1"
+              cpu: "0.5"
             requests:
               memory: "256Mi"
-              cpu: "1"
+              cpu: "0.5"
       imagePullSecrets:
         - name: lithops-regcred
 """

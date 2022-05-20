@@ -379,8 +379,11 @@ class KnativeServingBackend:
         with open(dockerfile, 'w') as f:
             f.write("FROM python:{}-slim-buster\n".format(python_version))
             f.write(kconfig.DEFAULT_DOCKERFILE)
-        self.build_runtime(default_runtime_img_name, dockerfile)
-        os.remove(dockerfile)
+        try:
+            self.build_runtime(default_runtime_img_name, dockerfile)
+        finally:
+            os.remove(dockerfile)
+
         # self._build_default_runtime_from_git(default_runtime_img_name)
 
     def _create_container_registry_secret(self):
@@ -585,10 +588,9 @@ class KnativeServingBackend:
             cmd = cmd + " >{} 2>&1".format(os.devnull)
 
         res = os.system(cmd)
+        self._delete_function_handler_zip()
         if res != 0:
             raise Exception('There was an error building the runtime')
-
-        self._delete_function_handler_zip()
 
         cmd = '{} push {}'.format(kconfig.DOCKER_PATH, docker_image_name)
         if logger.getEffectiveLevel() != logging.DEBUG:

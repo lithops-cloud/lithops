@@ -132,10 +132,9 @@ class KubernetesBackend:
             cmd = cmd + " >{} 2>&1".format(os.devnull)
 
         res = os.system(cmd)
+        self._delete_function_handler_zip()
         if res != 0:
             raise Exception('There was an error building the runtime')
-
-        self._delete_function_handler_zip()
 
         cmd = '{} push {}'.format(k8s_config.DOCKER_PATH, docker_image_name)
         if logger.getEffectiveLevel() != logging.DEBUG:
@@ -155,8 +154,10 @@ class KubernetesBackend:
         with open(dockerfile, 'w') as f:
             f.write("FROM python:{}-slim-buster\n".format(python_version))
             f.write(k8s_config.DOCKERFILE_DEFAULT)
-        self.build_runtime(default_runtime_img_name, dockerfile)
-        os.remove(dockerfile)
+        try:
+            self.build_runtime(default_runtime_img_name, dockerfile)
+        finally:
+            os.remove(dockerfile)
 
     def _create_container_registry_secret(self):
         """

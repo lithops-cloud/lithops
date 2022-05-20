@@ -50,7 +50,7 @@ RUN apt-get update && apt-get install -y \
         && rm -rf /var/lib/apt/lists/*
 
 RUN pip install --upgrade --ignore-installed setuptools six pip \
-    && pip install --no-cache-dir \
+    && pip install --upgrade --no-cache-dir --ignore-installed \
         gunicorn \
         pika \
         flask \
