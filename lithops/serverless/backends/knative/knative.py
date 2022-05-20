@@ -546,7 +546,6 @@ class KnativeServingBackend:
         self._create_container_registry_secret()
         self._create_service(docker_image_name, memory, timeout)
         runtime_meta = self._generate_runtime_meta(docker_image_name, memory)
-        print(runtime_meta)
 
         return runtime_meta
 
