@@ -81,22 +81,30 @@ class KnativeServingBackend:
 
         if self.istio_endpoint is None:
             try:
+                ip = None
                 ingress = self.core_api.read_namespaced_service('istio-ingressgateway', 'istio-system')
                 http_port = list(filter(lambda port: port.port == 80, ingress.spec.ports))[0].node_port
                 # https_port = list(filter(lambda port: port.port == 443, ingress.spec.ports))[0].node_port
-
                 if ingress.status.load_balancer.ingress is not None:
                     # get loadbalancer ip
                     ip = ingress.status.load_balancer.ingress[0].ip
                 else:
-                    # for minikube or a baremetal cluster that has no external load balancer
+                    # for a single node deployment
                     node = self.core_api.list_node()
-                    ip = node.items[0].status.addresses[0].address
-
+                    if not ip:
+                        for addr in node.items[0].status.addresses:
+                            if addr.type == "ExternalIP":
+                                ip = addr.address
+                    if not ip:
+                        for addr in node.items[0].status.addresses:
+                            if addr.type == "InternalIP":
+                                ip = addr.address
+                    if not ip:
+                        ip = node.items[0].status.addresses[0].address
                 if ip and http_port:
                     self.istio_endpoint = 'http://{}:{}'.format(ip, http_port)
                     self.knative_config['istio_endpoint'] = self.istio_endpoint
-            except Exception:
+            except Exception as e:
                 pass
 
         if 'service_host_suffix' not in self.knative_config:
