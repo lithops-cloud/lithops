@@ -539,11 +539,11 @@ class CodeEngineBackend:
             self.code_engine_config['runtime'] = self._get_default_runtime_image_name()
         
         runime_info = {
-            'runtime_name': self.k8s_config['runtime_name'],
-            'runtime_cpu': self.k8s_config['runtime_cpu'],
-            'runtime_memory': self.k8s_config['runtime_memory'],
-            'runtime_timeout': self.k8s_config['runtime_timeout'],
-            'max_workers': self.k8s_config['max_workers'],
+            'runtime_name': self.code_engine_config['runtime_name'],
+            'runtime_cpu': self.code_engine_config['runtime_cpu'],
+            'runtime_memory': self.code_engine_config['runtime_memory'],
+            'runtime_timeout': self.code_engine_config['runtime_timeout'],
+            'max_workers': self.code_engine_config['max_workers'],
         }
 
         return runime_info

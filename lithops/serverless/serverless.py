@@ -96,7 +96,7 @@ class ServerlessHandler:
         Wrapper method to list deployed runtime in the compute backend
         """
         return self.backend.list_runtimes(runtime_name)
-        
+
     def get_runtime_key(self, runtime_name, memory):
         """
         Wrapper method that returns a formated string that represents the runtime key.

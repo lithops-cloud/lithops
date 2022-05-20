@@ -98,10 +98,8 @@ class Invoker:
         """
         Return the runtime metadata
         """
-        if self.mode == SERVERLESS:
-            runtime_memory = runtime_memory or self.runtime_info['runtime_memory']
-        else:
-            runtime_memory = self.runtime_info['runtime_memory']
+        runtime_memory = runtime_memory or self.runtime_info['runtime_memory'] \
+            if self.mode == SERVERLESS else self.runtime_info['runtime_memory']
         runtime_timeout = self.runtime_info['runtime_timeout']
 
         msg = ('ExecutorID {} | JobID {} - Selected Runtime: {} '
