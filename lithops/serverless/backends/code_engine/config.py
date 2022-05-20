@@ -156,21 +156,6 @@ def load_config(config_data):
         if key not in config_data['code_engine']:
             config_data['code_engine'][key] = DEFAULT_CONFIG_KEYS[key]
 
-    if 'runtime' not in config_data['code_engine']:
-        if not DOCKER_PATH:
-            raise Exception('docker command not found. Install docker or use '
-                            'an already built runtime')
-        if 'docker_user' not in config_data['code_engine']:
-            config_data['code_engine']['docker_user'] = get_docker_username()
-        if not config_data['code_engine']['docker_user']:
-            raise Exception('You must execute "docker login" or provide "docker_user" '
-                            'param in config under "code_engine" section')
-        docker_user = config_data['code_engine']['docker_user']
-        python_version = version_str(sys.version_info).replace('.', '')
-        revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
-        runtime_name = '{}/{}-v{}:{}'.format(docker_user, RUNTIME_NAME, python_version, revision)
-        config_data['code_engine']['runtime'] = runtime_name
-
     runtime_cpu = config_data['code_engine']['runtime_cpu']
     if runtime_cpu not in VALID_CPU_VALUES:
         raise Exception('{} is an invalid runtime cpu value. Set one of: '

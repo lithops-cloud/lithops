@@ -27,7 +27,7 @@ from concurrent.futures import ThreadPoolExecutor
 from lithops.future import ResponseFuture
 from lithops.config import extract_storage_config
 from lithops.version import __version__ as lithops_version
-from lithops.utils import version_str, is_lithops_worker, iterchunks
+from lithops.utils import verify_runtime_name, version_str, is_lithops_worker, iterchunks
 from lithops.constants import LOGGER_LEVEL, LOGS_DIR,\
     LOCALHOST, SERVERLESS, STANDALONE
 from lithops.util.metrics import PrometheusExporter
@@ -85,8 +85,11 @@ class Invoker:
         self.backend = self.config['lithops']['backend']
         self.customized_runtime = self.config['lithops'].get('customized_runtime', False)
 
-        self.runtime_name = self.config[self.backend]['runtime']
-        self.max_workers = self.config[self.backend].get('max_workers')
+        self.runtime_info = self.compute_handler.get_runtime_info()
+        self.runtime_name = self.runtime_info['runtime_name']
+        self.max_workers = self.runtime_info['max_workers']
+
+        verify_runtime_name(self.runtime_name)
 
         logger.debug(f'ExecutorID {self.executor_id} - Invoker initialized.'
                      f' Max workers: {self.max_workers}')
@@ -95,15 +98,9 @@ class Invoker:
         """
         Return the runtime metadata
         """
-        if self.mode == SERVERLESS:
-            runtime_memory = runtime_memory or self.config[self.backend].get('runtime_memory')
-            runtime_timeout = self.config[self.backend].get('runtime_timeout')
-        elif self.mode == STANDALONE:
-            runtime_memory = None
-            runtime_timeout = self.config[STANDALONE]['hard_dismantle_timeout']
-        elif self.mode == LOCALHOST:
-            runtime_memory = None
-            runtime_timeout = None
+        runtime_memory = runtime_memory or self.runtime_info['runtime_memory'] \
+            if self.mode == SERVERLESS else self.runtime_info['runtime_memory']
+        runtime_timeout = self.runtime_info['runtime_timeout']
 
         msg = ('ExecutorID {} | JobID {} - Selected Runtime: {} '
                .format(self.executor_id, job_id, self.runtime_name))

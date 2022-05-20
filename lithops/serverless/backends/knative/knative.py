@@ -30,7 +30,7 @@ from urllib.parse import urlparse
 from kubernetes import client, config, watch
 from kubernetes.client.rest import ApiException
 
-from lithops.utils import version_str
+from lithops.utils import version_str, get_docker_username
 from lithops.version import __version__
 from lithops.config import load_yaml_config, dump_yaml_config
 from lithops.constants import CACHE_DIR
@@ -104,6 +104,7 @@ class KnativeServingBackend:
                 if ip and http_port:
                     self.istio_endpoint = 'http://{}:{}'.format(ip, http_port)
                     self.knative_config['istio_endpoint'] = self.istio_endpoint
+                    logger.debug(f"Istio endpoint set to {self.istio_endpoint}")
             except Exception as e:
                 pass
 
@@ -116,15 +117,9 @@ class KnativeServingBackend:
                 self.knative_config['service_host_suffix'] = self.service_host_suffix
         else:
             self.service_host_suffix = self.knative_config['service_host_suffix']
-
         logger.debug('Loaded service host suffix: {}'.format(self.service_host_suffix))
 
-        msg = COMPUTE_CLI_MSG.format('Knative')
-        if self.istio_endpoint:
-            msg += ' - Istio Endpoint: {}'.format(self.istio_endpoint)
-        elif self.cluster:
-            msg += ' - Cluster: {}'.format(self.cluster)
-        logger.info("{}".format(msg))
+        logger.info(f'{COMPUTE_CLI_MSG.format("Knative")} - Cluster: {self.cluster}')
 
     def _format_service_name(self, runtime_name, runtime_memory):
         runtime_name = runtime_name.replace('/', '--').replace(':', '--')
@@ -137,10 +132,20 @@ class KnativeServingBackend:
         return image_name, int(memory.replace('mb', ''))
 
     def _get_default_runtime_image_name(self):
-        docker_user = self.knative_config.get('docker_user')
         python_version = version_str(sys.version_info).replace('.', '')
         revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
-        return '{}/{}-v{}:{}'.format(docker_user, kconfig.RUNTIME_NAME, python_version, revision)
+        img = '{}-v{}:{}'.format(kconfig.RUNTIME_NAME, python_version, revision)
+
+        if 'runtime' in self.knative_config:
+            return img
+    
+        if 'docker_user' not in self.knative_config:
+            self.knative_config['docker_user'] = get_docker_username()
+        if not self.knative_config['docker_user']:
+            raise Exception('You must execute "docker login" or provide "docker_user" '
+                            'param in config under "knative" section')
+
+        return f'{self.knative_config["docker_user"]}/{img}'
 
     def _get_service_host(self, service_name):
         """
@@ -279,7 +284,7 @@ class KnativeServingBackend:
                              'Skipping build process.'.format(docker_image_name, revision))
                 return
 
-        logger.debug("Building default Lithops runtime from git with Tekton")
+        logger.info("Building default Lithops runtime from git with Tekton")
 
         if not all(key in self.knative_config for key in ["docker_user", "docker_password"]):
             raise Exception("You must provide 'docker_user' and 'docker_password'"
@@ -368,18 +373,15 @@ class KnativeServingBackend:
         """
         Builds the default runtime
         """
-        if os.system('{} --version >{} 2>&1'.format(kconfig.DOCKER_PATH, os.devnull)) == 0:
-            # Build default runtime using local dokcer
-            python_version = version_str(sys.version_info)
-            dockerfile = "Dockefile.default-knative-runtime"
-            with open(dockerfile, 'w') as f:
-                f.write("FROM python:{}-slim-buster\n".format(python_version))
-                f.write(kconfig.DEFAULT_DOCKERFILE)
-            self.build_runtime(default_runtime_img_name, dockerfile)
-            os.remove(dockerfile)
-        else:
-            # Build default runtime using Tekton
-            self._build_default_runtime_from_git(default_runtime_img_name)
+        # Build default runtime using local dokcer
+        python_version = version_str(sys.version_info)
+        dockerfile = "Dockefile.default-knative-runtime"
+        with open(dockerfile, 'w') as f:
+            f.write("FROM python:{}-slim-buster\n".format(python_version))
+            f.write(kconfig.DEFAULT_DOCKERFILE)
+        self.build_runtime(default_runtime_img_name, dockerfile)
+        os.remove(dockerfile)
+        # self._build_default_runtime_from_git(default_runtime_img_name)
 
     def _create_container_registry_secret(self):
         """
@@ -551,8 +553,11 @@ class KnativeServingBackend:
         """
         Builds a new runtime from a Docker file and pushes it to the Docker hub
         """
-        logger.debug('Building a new docker image from Dockerfile')
-        logger.debug('Docker image name: {}'.format(docker_image_name))
+        logger.info(f'Building new docker image: {docker_image_name}')
+
+        if not kconfig.DOCKER_PATH:
+            raise Exception('"docker" command not found. Install docker or use '
+                            'an already built runtime')
 
         expression = '^([a-z0-9]+)/([-a-z0-9]+)(:[a-z0-9]+)?'
         result = re.match(expression, docker_image_name)
@@ -715,3 +720,21 @@ class KnativeServingBackend:
         runtime_key = os.path.join(self.name, cluster, self.namespace, service_name)
 
         return runtime_key
+
+    def get_runtime_info(self):
+        """
+        Method that returns all the relevant information about the runtime set
+        in config
+        """
+        if 'runtime' not in self.knative_config:
+            self.knative_config['runtime'] = self._get_default_runtime_image_name()
+        
+        runime_info = {
+            'runtime_name': self.knative_config['runtime'],
+            'runtime_cpu': self.knative_config['runtime_cpu'],
+            'runtime_memory': self.knative_config['runtime_memory'],
+            'runtime_timeout': self.knative_config['runtime_timeout'],
+            'max_workers': self.knative_config['max_workers'],
+        }
+
+        return runime_info

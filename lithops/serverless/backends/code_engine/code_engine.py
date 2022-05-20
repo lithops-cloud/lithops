@@ -27,7 +27,7 @@ import yaml
 from kubernetes import client, config, watch
 from kubernetes.client.rest import ApiException
 
-from lithops.utils import version_str, dict_to_b64str, is_lithops_worker
+from lithops.utils import get_docker_username, version_str, dict_to_b64str, is_lithops_worker
 from lithops.version import __version__
 from lithops.utils import create_handler_zip
 from lithops.constants import COMPUTE_CLI_MSG, JOBS_PREFIX
@@ -160,10 +160,20 @@ class CodeEngineBackend:
         return '{}--{}mb'.format(runtime_name, runtime_memory)
 
     def _get_default_runtime_image_name(self):
-        docker_user = self.code_engine_config.get('docker_user')
         python_version = version_str(sys.version_info).replace('.', '')
         revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
-        return '{}/{}-v{}:{}'.format(docker_user, ce_config.RUNTIME_NAME, python_version, revision)
+        img = '{}-v{}:{}'.format(ce_config.RUNTIME_NAME, python_version, revision)
+        
+        if 'runtime' in self.code_engine_config:
+            return img
+
+        if 'docker_user' not in self.code_engine_config:
+            self.code_engine_config['docker_user'] = get_docker_username()
+        if not self.code_engine_config['docker_user']:
+            raise Exception('You must execute "docker login" or provide "docker_user" '
+                            'param in config under "code_engine" section')
+
+        return f'{self.code_engine_config["docker_user"]}/{img}'
 
     def _delete_function_handler_zip(self):
         os.remove(ce_config.FH_ZIP_LOCATION)
@@ -172,8 +182,11 @@ class CodeEngineBackend:
         """
         Builds a new runtime from a Docker file and pushes it to the Docker hub
         """
-        logger.debug('Building new docker image from Dockerfile')
-        logger.debug('Docker image name: {}'.format(docker_image_name))
+        logger.info(f'Building new docker image: {docker_image_name}')
+
+        if not ce_config.DOCKER_PATH:
+            raise Exception('"docker" command not found. Install docker or use '
+                            'an already built runtime')
 
         entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
         create_handler_zip(ce_config.FH_ZIP_LOCATION, entry_point, 'lithopsentry.py')
@@ -209,18 +222,14 @@ class CodeEngineBackend:
         """
         Builds the default runtime
         """
-        if os.system('{} --version >{} 2>&1'.format(ce_config.DOCKER_PATH, os.devnull)) == 0:
-            # Build default runtime using local dokcer
-            python_version = version_str(sys.version_info)
-            dockerfile = "Dockefile.default-codeengine-runtime"
-            with open(dockerfile, 'w') as f:
-                f.write("FROM python:{}-slim-buster\n".format(python_version))
-                f.write(ce_config.DOCKERFILE_DEFAULT)
-            self.build_runtime(default_runtime_img_name, dockerfile)
-            os.remove(dockerfile)
-        else:
-            raise Exception('docker command not found. Install docker or use '
-                            'an already built runtime')
+        # Build default runtime using local dokcer
+        python_version = version_str(sys.version_info)
+        dockerfile = "Dockefile.default-codeengine-runtime"
+        with open(dockerfile, 'w') as f:
+            f.write("FROM python:{}-slim-buster\n".format(python_version))
+            f.write(ce_config.DOCKERFILE_DEFAULT)
+        self.build_runtime(default_runtime_img_name, dockerfile)
+        os.remove(dockerfile)
 
     def deploy_runtime(self, docker_image_name, memory, timeout):
         """
@@ -520,6 +529,24 @@ class CodeEngineBackend:
         runtime_key = os.path.join(self.name, self.region, self.namespace, jobdef_name)
 
         return runtime_key
+    
+    def get_runtime_info(self):
+        """
+        Method that returns all the relevant information about the runtime set
+        in config
+        """
+        if 'runtime' not in self.code_engine_config:
+            self.code_engine_config['runtime'] = self._get_default_runtime_image_name()
+        
+        runime_info = {
+            'runtime_name': self.code_engine_config['runtime'],
+            'runtime_cpu': self.code_engine_config['runtime_cpu'],
+            'runtime_memory': self.code_engine_config['runtime_memory'],
+            'runtime_timeout': self.code_engine_config['runtime_timeout'],
+            'max_workers': self.code_engine_config['max_workers'],
+        }
+
+        return runime_info
 
     @retry_on_except
     def _job_def_exists(self, jobdef_name):

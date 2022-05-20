@@ -350,10 +350,16 @@ def b64str_to_bytes(str_data):
 
 def get_docker_username():
     user = None
-    cmd = "{} info".format(shutil.which('docker'))
-    docker_user_info = sp.check_output(cmd, shell=True,
-                                       encoding='UTF-8',
-                                       stderr=sp.STDOUT)
+    docker_path = shutil.which('docker')
+    
+    if not docker_path:
+        return None
+    
+    docker_user_info = sp.check_output(
+        f"{docker_path} info", shell=True,
+        encoding='UTF-8', stderr=sp.STDOUT
+    )
+
     for line in docker_user_info.splitlines():
         if 'Username' in line:
             _, useranme = line.strip().split(':')

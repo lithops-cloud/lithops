@@ -146,6 +146,20 @@ class LocalhostHandler:
         runtime_key = os.path.join('localhost', env_type, runtime_name.strip("/"))
 
         return runtime_key
+    
+    def get_runtime_info(self):
+        """
+        Method that returns a dictionary with all the relevant runtime information
+        set in config
+        """
+        runtime_info = {
+            'runtime_name': self.config['runtime'],
+            'runtime_memory': None,
+            'runtime_timeout': None,
+            'max_workers': self.config['max_workers'],
+        }
+
+        return runtime_info
 
     def get_backend_type(self):
         """

@@ -16,10 +16,8 @@
 #
 
 import os
-import sys
 import shutil
 from lithops.version import __version__
-from lithops.utils import version_str, get_docker_username
 
 RUNTIME_NAME = 'lithops-knative'
 
@@ -224,18 +222,3 @@ def load_config(config_data):
     if 'git_rev' not in config_data['knative']:
         revision = 'master' if 'dev' in __version__ else __version__
         config_data['knative']['git_rev'] = revision
-
-    if 'runtime' not in config_data['knative']:
-        if not DOCKER_PATH:
-            raise Exception('docker command not found. Install docker or use '
-                            'an already built runtime')
-        if 'docker_user' not in config_data['knative']:
-            config_data['knative']['docker_user'] = get_docker_username()
-        if not config_data['knative']['docker_user']:
-            raise Exception('You must provide "docker_user" param in config '
-                            'or execute "docker login"')
-        docker_user = config_data['knative']['docker_user']
-        python_version = version_str(sys.version_info).replace('.', '')
-        revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
-        runtime_name = '{}/{}-v{}:{}'.format(docker_user, RUNTIME_NAME, python_version, revision)
-        config_data['knative']['runtime'] = runtime_name
