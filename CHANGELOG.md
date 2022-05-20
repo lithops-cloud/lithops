@@ -5,9 +5,11 @@
 ### Added
 
 ### Changed
+- [Core] Load runtime data only on invocation
+- [Multiprocessing] Imporved remote logging
 
 ### Fixed
-
+- [knative] AttributeError: 'KnativeServingBackend' object has no attribute 'coreV1Api'
 
 ## [v2.6.0]
 

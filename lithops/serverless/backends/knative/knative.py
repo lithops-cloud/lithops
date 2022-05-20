@@ -30,7 +30,7 @@ from urllib.parse import urlparse
 from kubernetes import client, config, watch
 from kubernetes.client.rest import ApiException
 
-from lithops.utils import version_str
+from lithops.utils import version_str, get_docker_username
 from lithops.version import __version__
 from lithops.config import load_yaml_config, dump_yaml_config
 from lithops.constants import CACHE_DIR
@@ -715,3 +715,30 @@ class KnativeServingBackend:
         runtime_key = os.path.join(self.name, cluster, self.namespace, service_name)
 
         return runtime_key
+
+    def get_runtime_info(self):
+        """
+        Method that returns all the relevant information about the runtime set
+        in config
+        """
+        if 'runtime' not in self.knative_config:
+            if not kconfig.DOCKER_PATH:
+                raise Exception('docker command not found. Install docker or use '
+                                'an already built runtime')
+            if 'docker_user' not in self.knative_config:
+                self.knative_config['docker_user'] = get_docker_username()
+            if not self.knative_config['docker_user']:
+                raise Exception('You must execute "docker login" or provide "docker_user" '
+                                'param in config under "knative" section')
+
+            self.knative_config['runtime'] = self._get_default_runtime_image_name()
+        
+        runime_info = {
+            'runtime_name': self.knative_config['runtime_name'],
+            'runtime_cpu': self.knative_config['runtime_cpu'],
+            'runtime_memory': self.knative_config['runtime_memory'],
+            'runtime_timeout': self.knative_config['runtime_timeout'],
+            'max_workers': self.knative_config['max_workers'],
+        }
+
+        return runime_info

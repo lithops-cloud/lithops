@@ -400,6 +400,18 @@ class StandaloneHandler:
         store modules preinstalls into the storage
         """
         return self.backend.get_runtime_key(runtime_name)
+    
+    def get_runtime_info(self):
+        """
+        Method that returns a dictionary with all the runtime information
+        set in config
+        """
+        runtime_info = {
+            'runtime_name': self.config['runtime'],
+            'runtime_memory': None,
+            'runtime_timeout': self.config['hard_dismantle_timeout'],
+            'max_workers': self.config[self.backend_name]['max_workers'],
+        }
 
     def get_backend_type(self):
         """

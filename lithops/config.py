@@ -179,14 +179,10 @@ def default_config(config_data=None, config_overwrite={}, load_storage_config=Tr
         if 'runtime' not in config_data[c.LOCALHOST]:
             config_data[backend]['runtime'] = c.LOCALHOST_RUNTIME_DEFAULT
 
-        verify_runtime_name(config_data[backend]['runtime'])
-
     elif mode == c.SERVERLESS:
         logger.debug("Loading Serverless backend module: {}".format(backend))
         cb_config = importlib.import_module('lithops.serverless.backends.{}.config'.format(backend))
         cb_config.load_config(config_data)
-
-        verify_runtime_name(config_data[backend]['runtime'])
 
     elif mode == c.STANDALONE:
         if c.STANDALONE not in config_data or \
@@ -215,8 +211,6 @@ def default_config(config_data=None, config_overwrite={}, load_storage_config=Tr
 
         if 'runtime' not in config_data[c.STANDALONE]:
             config_data[c.STANDALONE]['runtime'] = c.SA_RUNTIME
-
-        verify_runtime_name(config_data[c.STANDALONE]['runtime'])
 
     if 'monitoring' not in config_data['lithops']:
         config_data['lithops']['monitoring'] = c.MONITORING_DEFAULT

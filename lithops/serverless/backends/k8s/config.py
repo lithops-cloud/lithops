@@ -120,18 +120,3 @@ def load_config(config_data):
     for key in DEFAULT_CONFIG_KEYS:
         if key not in config_data['k8s']:
             config_data['k8s'][key] = DEFAULT_CONFIG_KEYS[key]
-
-    if 'runtime' not in config_data['k8s']:
-        if not DOCKER_PATH:
-            raise Exception('docker command not found. Install docker or use '
-                            'an already built runtime')
-        if 'docker_user' not in config_data['k8s']:
-            config_data['k8s']['docker_user'] = get_docker_username()
-        if not config_data['k8s']['docker_user']:
-            raise Exception('You must execute "docker login" or provide "docker_user" '
-                            'param in config under "k8s" section')
-        docker_user = config_data['k8s']['docker_user']
-        python_version = version_str(sys.version_info).replace('.', '')
-        revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
-        runtime_name = '{}/{}-v{}:{}'.format(docker_user, RUNTIME_NAME, python_version, revision)
-        config_data['k8s']['runtime'] = runtime_name
