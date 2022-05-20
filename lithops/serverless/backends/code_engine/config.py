@@ -49,7 +49,7 @@ RUN apt-get update && apt-get install -y \
         zip \
         && rm -rf /var/lib/apt/lists/*
 
-RUN pip install --upgrade setuptools six pip \
+RUN pip install --upgrade --ignore-installed setuptools six pip \
     && pip install --no-cache-dir \
         gunicorn \
         pika \
