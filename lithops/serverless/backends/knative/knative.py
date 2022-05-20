@@ -131,13 +131,13 @@ class KnativeServingBackend:
         image_name = image_name.replace('--', ':', -1)
         return image_name, int(memory.replace('mb', ''))
 
-    def _get_default_runtime_image_name(self):
+    def _get_default_runtime_name(self):
         python_version = version_str(sys.version_info).replace('.', '')
         revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
         img = '{}-v{}:{}'.format(kconfig.RUNTIME_NAME, python_version, revision)
 
         if 'runtime' in self.knative_config:
-            return img
+            return f'{self.knative_config.get("docker_user")}/{img}'
     
         if 'docker_user' not in self.knative_config:
             self.knative_config['docker_user'] = get_docker_username()
@@ -145,7 +145,7 @@ class KnativeServingBackend:
             raise Exception('You must execute "docker login" or provide "docker_user" '
                             'param in config under "knative" section')
 
-        return f'{self.knative_config["docker_user"]}/{img}'
+        return f'{self.knative_config.get("docker_user")}/{img}'
 
     def _get_service_host(self, service_name):
         """
@@ -456,6 +456,9 @@ class KnativeServingBackend:
         container['resources']['requests']['memory'] = '{}Mi'.format(runtime_memory)
         container['resources']['requests']['cpu'] = str(self.knative_config['runtime_cpu'])
 
+        if not all(key in self.knative_config for key in ["docker_user", "docker_password"]):
+            del svc_res['spec']['template']['spec']['imagePullSecrets']
+
         try:
             # delete the service resource if exists
             self.custom_api.delete_namespaced_custom_object(
@@ -532,7 +535,7 @@ class KnativeServingBackend:
         has to build it in the docker hub account provided by the user. So when the runtime docker
         image name is not provided by the user in the config, lithops will build the default from git.
         """
-        default_runtime_img_name = self._get_default_runtime_image_name()
+        default_runtime_img_name = self._get_default_runtime_name()
         if docker_image_name in ['default', default_runtime_img_name]:
             # We only build the default image. rest of images must already exist
             # in the docker registry.
@@ -543,6 +546,7 @@ class KnativeServingBackend:
         self._create_container_registry_secret()
         self._create_service(docker_image_name, memory, timeout)
         runtime_meta = self._generate_runtime_meta(docker_image_name, memory)
+        print(runtime_meta)
 
         return runtime_meta
 
@@ -578,7 +582,6 @@ class KnativeServingBackend:
 
         cmd = cmd+' '.join(extra_args)
 
-        logger.info('Building default runtime')
         if logger.getEffectiveLevel() != logging.DEBUG:
             cmd = cmd + " >{} 2>&1".format(os.devnull)
 
@@ -727,7 +730,7 @@ class KnativeServingBackend:
         in config
         """
         if 'runtime' not in self.knative_config:
-            self.knative_config['runtime'] = self._get_default_runtime_image_name()
+            self.knative_config['runtime'] = self._get_default_runtime_name()
         
         runime_info = {
             'runtime_name': self.knative_config['runtime'],

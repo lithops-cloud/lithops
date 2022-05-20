@@ -366,12 +366,11 @@ def get_docker_username():
             user = useranme.strip()
 
     if user is None:
-        cmd = ("docker-credential-desktop list | jq -r 'to_entries[].key' | while "
-               "read; do docker-credential-desktop get <<<$REPLY; break; done")
-        docker_user_info = sp.check_output(cmd, shell=True,
-                                           encoding='UTF-8',
-                                           stderr=sp.STDOUT)
         try:
+            cmd = ("docker-credential-desktop list | jq -r 'to_entries[].key' | while "
+                   "read; do docker-credential-desktop get <<<$REPLY; break; done")
+            docker_user_info = sp.check_output(cmd,
+                shell=True, encoding='UTF-8', stderr=sp.STDOUT)
             docker_data = json.loads(docker_user_info)
             user = docker_data['Username']
         except Exception:

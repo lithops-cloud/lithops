@@ -87,13 +87,13 @@ class KubernetesBackend:
         runtime_name = runtime_name.replace('_', '-')
         return '{}--{}mb'.format(runtime_name, runtime_memory)
 
-    def _get_default_runtime_image_name(self):
+    def _get_default_runtime_name(self):
         python_version = version_str(sys.version_info).replace('.', '')
         revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
         img = '{}-v{}:{}'.format(k8s_config.RUNTIME_NAME, python_version, revision)
 
         if 'runtime' in self.k8s_config:
-            return img
+            return f'{self.k8s_config.get("docker_user")}/{img}'
 
         if 'docker_user' not in self.k8s_config:
             self.k8s_config['docker_user'] = get_docker_username()
@@ -101,7 +101,7 @@ class KubernetesBackend:
             raise Exception('You must execute "docker login" or provide "docker_user" '
                             'param in config under "k8s" section')
 
-        return f'{self.k8s_config["docker_user"]}/{img}'
+        return f'{self.k8s_config.get("docker_user")}/{img}'
 
     def _delete_function_handler_zip(self):
         os.remove(k8s_config.FH_ZIP_LOCATION)
@@ -131,7 +131,6 @@ class KubernetesBackend:
         if logger.getEffectiveLevel() != logging.DEBUG:
             cmd = cmd + " >{} 2>&1".format(os.devnull)
 
-        logger.info('Building runtime')
         res = os.system(cmd)
         if res != 0:
             raise Exception('There was an error building the runtime')
@@ -210,7 +209,7 @@ class KubernetesBackend:
         """
         Deploys a new runtime from an already built Docker image
         """
-        default_runtime_img_name = self._get_default_runtime_image_name()
+        default_runtime_img_name = self._get_default_runtime_name()
         if docker_image_name in ['default', default_runtime_img_name]:
             # We only build the default image. rest of images must already exist
             # in the docker registry.
@@ -465,7 +464,7 @@ class KubernetesBackend:
         in config
         """
         if 'runtime' not in self.k8s_config:
-            self.k8s_config['runtime'] = self._get_default_runtime_image_name()
+            self.k8s_config['runtime'] = self._get_default_runtime_name()
         
         runime_info = {
             'runtime_name': self.k8s_config['runtime'],
