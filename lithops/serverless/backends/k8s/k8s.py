@@ -88,8 +88,12 @@ class KubernetesBackend:
         return '{}--{}mb'.format(runtime_name, runtime_memory)
 
     def _get_default_runtime_image_name(self):
+        python_version = version_str(sys.version_info).replace('.', '')
+        revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
+        img = '{}-v{}:{}'.format(k8s_config.RUNTIME_NAME, python_version, revision)
+
         if 'runtime' in self.k8s_config:
-            return '{}-v{}:{}'.format(k8s_config.RUNTIME_NAME, python_version, revision)
+            return img
 
         if 'docker_user' not in self.k8s_config:
             self.k8s_config['docker_user'] = get_docker_username()
@@ -97,10 +101,7 @@ class KubernetesBackend:
             raise Exception('You must execute "docker login" or provide "docker_user" '
                             'param in config under "k8s" section')
 
-        docker_user = self.k8s_config['docker_user']
-        python_version = version_str(sys.version_info).replace('.', '')
-        revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
-        return '{}/{}-v{}:{}'.format(docker_user, k8s_config.RUNTIME_NAME, python_version, revision)
+        return f'{self.k8s_config["docker_user"]}/{img}'
 
     def _delete_function_handler_zip(self):
         os.remove(k8s_config.FH_ZIP_LOCATION)
