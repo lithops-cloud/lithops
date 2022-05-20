@@ -88,7 +88,12 @@ class KubernetesBackend:
         return '{}--{}mb'.format(runtime_name, runtime_memory)
 
     def _get_default_runtime_image_name(self):
-        docker_user = self.k8s_config.get('docker_user')
+        if 'docker_user' not in self.k8s_config:
+            self.k8s_config['docker_user'] = get_docker_username()
+        if not self.k8s_config['docker_user']:
+            raise Exception('You must execute "docker login" or provide "docker_user" '
+                            'param in config under "k8s" section')
+        docker_user = self.k8s_config['docker_user']
         python_version = version_str(sys.version_info).replace('.', '')
         revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
         return '{}/{}-v{}:{}'.format(docker_user, k8s_config.RUNTIME_NAME, python_version, revision)
@@ -100,8 +105,11 @@ class KubernetesBackend:
         """
         Builds a new runtime from a Docker file and pushes it to the Docker hub
         """
-        logger.debug('Building new docker image from Dockerfile')
-        logger.debug('Docker image name: {}'.format(docker_image_name))
+        logger.info(f'Building new docker image: {docker_image_name}')
+
+        if not k8s_config.DOCKER_PATH:
+            raise Exception('"docker" command not found. Install docker or use '
+                            'an already built runtime')
 
         entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
         create_handler_zip(k8s_config.FH_ZIP_LOCATION, entry_point, 'lithopsentry.py')
@@ -137,18 +145,14 @@ class KubernetesBackend:
         """
         Builds the default runtime
         """
-        if os.system('{} --version >{} 2>&1'.format(k8s_config.DOCKER_PATH, os.devnull)) == 0:
-            # Build default runtime using local dokcer
-            python_version = version_str(sys.version_info)
-            dockerfile = "Dockefile.default-k8s-runtime"
-            with open(dockerfile, 'w') as f:
-                f.write("FROM python:{}-slim-buster\n".format(python_version))
-                f.write(k8s_config.DOCKERFILE_DEFAULT)
-            self.build_runtime(default_runtime_img_name, dockerfile)
-            os.remove(dockerfile)
-        else:
-            raise Exception('docker command not found. Install docker or use '
-                            'an already built runtime')
+        # Build default runtime using local dokcer
+        python_version = version_str(sys.version_info)
+        dockerfile = "Dockefile.default-k8s-runtime"
+        with open(dockerfile, 'w') as f:
+            f.write("FROM python:{}-slim-buster\n".format(python_version))
+            f.write(k8s_config.DOCKERFILE_DEFAULT)
+        self.build_runtime(default_runtime_img_name, dockerfile)
+        os.remove(dockerfile)
 
     def _create_container_registry_secret(self):
         """
@@ -456,19 +460,10 @@ class KubernetesBackend:
         in config
         """
         if 'runtime' not in self.k8s_config:
-            if not k8s_config.DOCKER_PATH:
-                raise Exception('docker command not found. Install docker or use '
-                                'an already built runtime')
-            if 'docker_user' not in self.k8s_config:
-                self.k8s_config['docker_user'] = get_docker_username()
-            if not self.k8s_config['docker_user']:
-                raise Exception('You must execute "docker login" or provide "docker_user" '
-                                'param in config under "k8s" section')
-
             self.k8s_config['runtime'] = self._get_default_runtime_image_name()
         
         runime_info = {
-            'runtime_name': self.k8s_config['runtime_name'],
+            'runtime_name': self.k8s_config['runtime'],
             'runtime_cpu': self.k8s_config['runtime_cpu'],
             'runtime_memory': self.k8s_config['runtime_memory'],
             'runtime_timeout': self.k8s_config['runtime_timeout'],

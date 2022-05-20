@@ -15,7 +15,7 @@ def my_map_function(id, x):
 
 if __name__ == "__main__":
     iterdata = [1, 2, 3, 4]
-    fexec = lithops.FunctionExecutor()
+    fexec = lithops.FunctionExecutor(backend='knative')
     fexec.map(my_map_function, iterdata)
     print(fexec.get_result())
     fexec.clean()

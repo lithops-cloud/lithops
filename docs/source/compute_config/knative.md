@@ -23,12 +23,16 @@ Note that Lithops automatically builds the default runtime the first time you ru
 
 6. [Follow this instructions to install knative serving.](https://knative.dev/docs/install/yaml-install/serving/install-serving-with-yaml/)
 
+7. Install a networking layer. Currently lithops supports **Istio**. [Follow these instructions to install Istio.](https://knative.dev/docs/install/yaml-install/serving/install-serving-with-yaml/#install-a-networking-layer)
+
 
 ### Option 2 (IBM IKS or any other Kubernetes Cluster):
 
 4. Install Kubernetes >= v1.16 and make sure the *kubectl* client is running.
 
 6. [Follow this instructions to install knative serving.](https://knative.dev/docs/install/yaml-install/serving/install-serving-with-yaml/)
+
+7. Install a networking layer. Currently Lithops supports **Istio**. [Follow these instructions to install Istio.](https://knative.dev/docs/install/yaml-install/serving/install-serving-with-yaml/#install-a-networking-layer)
 
 
 ## Configuration
