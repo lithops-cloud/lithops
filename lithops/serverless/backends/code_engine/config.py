@@ -15,15 +15,9 @@
 #
 
 import os
-import sys
-import shutil
-
-from lithops.utils import version_str, get_docker_username
 from lithops.version import __version__
 
 RUNTIME_NAME = 'lithops-codeengine'
-
-DOCKER_PATH = shutil.which('docker')
 
 DEFAULT_CONFIG_KEYS = {
     'runtime_timeout': 600,  # Default: 10 minutes

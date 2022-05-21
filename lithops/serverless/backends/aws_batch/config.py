@@ -24,7 +24,6 @@ from lithops.constants import WORKER_PROCESSES_DEFAULT
 
 logger = logging.getLogger(__name__)
 
-DOCKER_PATH = shutil.which('docker')
 DEFAULT_RUNTIME_NAME = 'default_runtime'
 
 ENV_TYPES = {'EC2', 'SPOT', 'FARGATE', 'FARGATE_SPOT'}

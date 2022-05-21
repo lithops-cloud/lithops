@@ -18,7 +18,7 @@ import os
 import sys
 import logging
 
-from lithops.utils import version_str
+from lithops.utils import get_docker_path, version_str
 from lithops.version import __version__
 from lithops.utils import is_lithops_worker
 from lithops.libs.openwhisk.client import OpenWhiskClient
@@ -85,13 +85,14 @@ class OpenWhiskBackend:
         """
         Builds a new runtime from a Docker file and pushes it to the Docker hub
         """
-        logger.info('Building a new docker image from Dockerfile')
-        logger.info('Docker image name: {}'.format(docker_image_name))
+        logger.info(f'Building new runtime {docker_image_name} from {dockerfile}')
 
+        docker_path = get_docker_path()
         if dockerfile:
-            cmd = '{} build -t {} -f {} . '.format(ow_config.DOCKER_PATH, docker_image_name, dockerfile)
+            assert os.path.isfile(dockerfile), f'Cannot locate "{dockerfile}"'
+            cmd = f'{docker_path} build -t {docker_image_name} -f {dockerfile} . '
         else:
-            cmd = '{} build -t {} . '.format(ow_config.DOCKER_PATH, docker_image_name)
+            cmd = f'{docker_path} build -t {docker_image_name} . '
 
         cmd = cmd+' '.join(extra_args)
 
@@ -102,7 +103,7 @@ class OpenWhiskBackend:
         if res != 0:
             raise Exception('There was an error building the runtime')
 
-        cmd = 'docker push {}'.format(docker_image_name)
+        cmd = f'{docker_path} push {docker_image_name}'
         res = os.system(cmd)
         if res != 0:
             raise Exception('There was an error pushing the runtime to the container registry')
@@ -110,12 +111,12 @@ class OpenWhiskBackend:
 
     def deploy_runtime(self, docker_image_name, memory, timeout):
         """
-        Deploys a new runtime into IBM CF namespace from an already built Docker image
+        Deploys a new runtime into Openwhisk namespace from an already built Docker image
         """
         if docker_image_name == 'default':
             docker_image_name = self._get_default_runtime_image_name()
 
-        logger.debug(f"Deploying runtime: {docker_image_name} - Memory: {memory} Timeout: {timeout}")
+        logger.info(f"Deploying runtime: {docker_image_name} - Memory: {memory} Timeout: {timeout}")
 
         self.cf_client.create_package(self.package)
         action_name = self._format_function_name(docker_image_name, memory)
@@ -123,12 +124,14 @@ class OpenWhiskBackend:
         entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
         create_handler_zip(ow_config.FH_ZIP_LOCATION, entry_point, '__main__.py')
 
-        with open(ow_config.FH_ZIP_LOCATION, "rb") as action_zip:
-            action_bin = action_zip.read()
-        self.cf_client.create_action(self.package, action_name, docker_image_name, code=action_bin,
-                                     memory=memory, is_binary=True, timeout=timeout*1000)
-
-        self._delete_function_handler_zip()
+        try:
+            with open(ow_config.FH_ZIP_LOCATION, "rb") as action_zip:
+                action_bin = action_zip.read()
+            self.cf_client.create_action(self.package, action_name, 
+                docker_image_name, code=action_bin, memory=memory,
+                is_binary=True, timeout=timeout*1000)
+        finally:
+            self._delete_function_handler_zip()
 
         return self._generate_runtime_meta(docker_image_name, memory)
 

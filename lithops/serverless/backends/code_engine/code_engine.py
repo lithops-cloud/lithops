@@ -27,7 +27,7 @@ import yaml
 from kubernetes import client, config, watch
 from kubernetes.client.rest import ApiException
 
-from lithops.utils import get_docker_username, version_str, dict_to_b64str, is_lithops_worker
+from lithops.utils import get_docker_path, get_docker_username, version_str, dict_to_b64str, is_lithops_worker
 from lithops.version import __version__
 from lithops.utils import create_handler_zip
 from lithops.constants import COMPUTE_CLI_MSG, JOBS_PREFIX
@@ -182,21 +182,18 @@ class CodeEngineBackend:
         """
         Builds a new runtime from a Docker file and pushes it to the Docker hub
         """
-        logger.info(f'Building new docker image: {docker_image_name}')
+        logger.info(f'Building new runtime {docker_image_name} from {dockerfile}')
 
-        if not ce_config.DOCKER_PATH:
-            raise Exception('"docker" command not found. Install docker or use '
-                            'an already built runtime')
+        docker_path = get_docker_path()
 
         entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
         create_handler_zip(ce_config.FH_ZIP_LOCATION, entry_point, 'lithopsentry.py')
 
         if dockerfile:
-            cmd = '{} build -t {} -f {} . '.format(ce_config.DOCKER_PATH,
-                                                   docker_image_name,
-                                                   dockerfile)
+            assert os.path.isfile(dockerfile), f'Cannot locate "{dockerfile}"'
+            cmd = f'{docker_path} build -t {docker_image_name} -f {dockerfile} . '
         else:
-            cmd = '{} build -t {} . '.format(ce_config.DOCKER_PATH, docker_image_name)
+            cmd = f'{docker_path} build -t {docker_image_name} . '
 
         cmd = cmd+' '.join(extra_args)
 
@@ -208,7 +205,7 @@ class CodeEngineBackend:
         if res != 0:
             raise Exception('There was an error building the runtime')
 
-        cmd = '{} push {}'.format(ce_config.DOCKER_PATH, docker_image_name)
+        cmd = f'{docker_path} push {docker_image_name}'
         if logger.getEffectiveLevel() != logging.DEBUG:
             cmd = cmd + " >{} 2>&1".format(os.devnull)
         res = os.system(cmd)

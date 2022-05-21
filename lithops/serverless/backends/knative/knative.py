@@ -30,7 +30,7 @@ from urllib.parse import urlparse
 from kubernetes import client, config, watch
 from kubernetes.client.rest import ApiException
 
-from lithops.utils import version_str, get_docker_username
+from lithops.utils import get_docker_path, version_str, get_docker_username
 from lithops.version import __version__
 from lithops.config import load_yaml_config, dump_yaml_config
 from lithops.constants import CACHE_DIR
@@ -545,7 +545,7 @@ class KnativeServingBackend:
             docker_image_name = default_runtime_img_name
             self._build_default_runtime(default_runtime_img_name)
 
-        logger.debug(f"Deploying runtime: {docker_image_name} - Memory: {memory} Timeout: {timeout}")
+        logger.info(f"Deploying runtime: {docker_image_name} - Memory: {memory} Timeout: {timeout}")
         self._create_container_registry_secret()
         self._create_service(docker_image_name, memory, timeout)
         runtime_meta = self._generate_runtime_meta(docker_image_name, memory)
@@ -559,11 +559,9 @@ class KnativeServingBackend:
         """
         Builds a new runtime from a Docker file and pushes it to the Docker hub
         """
-        logger.info(f'Building new docker image: {docker_image_name}')
+        logger.info(f'Building new runtime {docker_image_name} from {dockerfile}')
 
-        if not kconfig.DOCKER_PATH:
-            raise Exception('"docker" command not found. Install docker or use '
-                            'an already built runtime')
+        docker_path = get_docker_path()
 
         expression = '^([a-z0-9]+)/([-a-z0-9]+)(:[a-z0-9]+)?'
         result = re.match(expression, docker_image_name)
@@ -576,11 +574,10 @@ class KnativeServingBackend:
         create_handler_zip(kconfig.FH_ZIP_LOCATION, entry_point, 'lithopsproxy.py')
 
         if dockerfile:
-            cmd = '{} build -t {} -f {} . '.format(kconfig.DOCKER_PATH,
-                                                   docker_image_name,
-                                                   dockerfile)
+            assert os.path.isfile(dockerfile), f'Cannot locate "{dockerfile}"'
+            cmd = f'{docker_path} build -t {docker_image_name} -f {dockerfile} . '
         else:
-            cmd = '{} build -t {} .' .format(kconfig.DOCKER_PATH, docker_image_name)
+            cmd = f'{docker_path} build -t {docker_image_name} . '
 
         cmd = cmd+' '.join(extra_args)
 
@@ -592,7 +589,7 @@ class KnativeServingBackend:
         if res != 0:
             raise Exception('There was an error building the runtime')
 
-        cmd = '{} push {}'.format(kconfig.DOCKER_PATH, docker_image_name)
+        cmd = f'{docker_path} push {docker_image_name}'
         if logger.getEffectiveLevel() != logging.DEBUG:
             cmd = cmd + " >{} 2>&1".format(os.devnull)
         res = os.system(cmd)

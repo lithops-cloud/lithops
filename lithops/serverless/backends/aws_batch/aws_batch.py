@@ -25,6 +25,7 @@ import time
 import boto3
 
 import lithops
+from lithops import utils
 
 from . import config as batch_config
 from lithops.constants import COMPUTE_CLI_MSG
@@ -99,18 +100,16 @@ class AWSBatchBackend:
         return runtime_name + ':' + tag, memory
 
     def _build_default_runtime(self, default_runtime_img_name):
-        if os.system('{} --version >{} 2>&1'.format(batch_config.DOCKER_PATH, os.devnull)) == 0:
-            # Build default runtime using local docker
-            python_version = version_str(sys.version_info)
-            dockerfile = "Dockerfile.default-batch-runtime"
-            with open(dockerfile, 'w') as f:
-                f.write("FROM python:{}-slim-buster\n".format(python_version))
-                f.write(batch_config.DOCKERFILE_DEFAULT)
+        # Build default runtime using local docker
+        python_version = version_str(sys.version_info)
+        dockerfile = "Dockerfile.default-batch-runtime"
+        with open(dockerfile, 'w') as f:
+            f.write("FROM python:{}-slim-buster\n".format(python_version))
+            f.write(batch_config.DOCKERFILE_DEFAULT)
+        try:
             self.build_runtime(default_runtime_img_name, dockerfile)
+        finally:
             os.remove(dockerfile)
-        else:
-            raise Exception('docker command not found. Install docker or use '
-                            'an already built runtime')
 
     def _create_compute_env(self):
         compute_env = self._get_compute_env(self._compute_env_name)
@@ -359,8 +358,7 @@ class AWSBatchBackend:
         raise Exception('Could not get metadata')
 
     def build_runtime(self, runtime_name, runtime_file, extra_args=[]):
-        logger.debug('Building new docker image from Dockerfile')
-        logger.debug('Docker image name: {}'.format(runtime_name))
+        logger.info(f'Building new runtime {runtime_name} from {runtime_file}')
 
         expression = '^([a-zA-Z0-9_-]+)(:[a-zA-Z0-9_-]+)+$'
         result = re.match(expression, runtime_name)
@@ -379,15 +377,17 @@ class AWSBatchBackend:
         ecr_token = base64.b64decode(auth_data['authorizationToken']).split(b':')[1]
 
         full_image_name, registry, repo_name = self._get_full_image_name(runtime_name)
+        docker_path = utils.get_docker_path()
         if runtime_file:
-            cmd = '{} build -t {} -f {} .'.format(batch_config.DOCKER_PATH, full_image_name, runtime_file)
+            assert os.path.isfile(runtime_file), f'Cannot locate "{runtime_file}"'
+            cmd = f'{docker_path} build -t {full_image_name} -f {runtime_file} . '
         else:
-            cmd = '{} build -t {} .'.format(batch_config.DOCKER_PATH, full_image_name)
+            cmd = f'{docker_path} build -t {full_image_name} . '
 
         subprocess.check_call(cmd.split())
         os.remove(RUNTIME_ZIP)
 
-        cmd = '{} login --username AWS --password-stdin {}'.format(batch_config.DOCKER_PATH, registry)
+        cmd = f'{docker_path} login --username AWS --password-stdin {registry}'
         subprocess.check_output(cmd.split(), input=ecr_token)
 
         try:
@@ -396,7 +396,7 @@ class AWSBatchBackend:
         except self.ecr_client.exceptions.RepositoryAlreadyExistsException as e:
             logger.info('Repository {} already exists'.format(repo_name))
 
-        cmd = '{} push {}'.format(batch_config.DOCKER_PATH, full_image_name)
+        cmd = f'{docker_path} push {full_image_name}'
         subprocess.check_call(cmd.split())
         logger.debug('Runtime {} built successfully'.format(runtime_name))
 
@@ -405,7 +405,7 @@ class AWSBatchBackend:
         if runtime_name in ['default', default_runtime_img_name]:
             self._build_default_runtime(default_runtime_img_name)
 
-        logger.debug(f"Deploying runtime: {runtime_name} - Memory: {memory} Timeout: {timeout}")
+        logger.info(f"Deploying runtime: {runtime_name} - Memory: {memory} Timeout: {timeout}")
         self._create_compute_env()
         self._create_queue()
         self._create_job_def(runtime_name, memory)

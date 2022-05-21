@@ -334,15 +334,14 @@ class AWSLambdaBackend:
         @param runtime_name: name of the runtime to be built
         @param runtime_file: path of a Dockerfile for a container runtime
         """
-        logger.info(f'Going to create runtime {runtime_name} for AWS Lambda')
+        logger.info(f'Building new runtime {runtime_name} from {runtime_file}')
 
+        docker_path = utils.get_docker_path()
         if runtime_file:
             assert os.path.isfile(runtime_file), f'Cannot locate "{runtime_file}"'
-            cmd = '{} build -t {} -f {} . '.format(lambda_config.DOCKER_PATH,
-                                                   runtime_name,
-                                                   runtime_file)
+            cmd = f'{docker_path} build -t {runtime_name} -f {runtime_file} . '
         else:
-            cmd = '{} build -t {} . '.format(lambda_config.DOCKER_PATH, runtime_name)
+            cmd = f'{docker_path} build -t {runtime_name} . '
 
         cmd = cmd+' '.join(extra_args)
 
@@ -360,7 +359,7 @@ class AWSLambdaBackend:
         auth_data = res['authorizationData'].pop()
         ecr_token = base64.b64decode(auth_data['authorizationToken']).split(b':')[1]
 
-        cmd = '{} login --username AWS --password-stdin {}'.format(lambda_config.DOCKER_PATH, registry)
+        cmd = '{} login --username AWS --password-stdin {}'.format(docker_path, registry)
         subprocess.check_output(cmd.split(), input=ecr_token)
 
         repo_name = self._format_repo_name(runtime_name)
@@ -372,10 +371,10 @@ class AWSLambdaBackend:
         except self.ecr_client.exceptions.RepositoryAlreadyExistsException:
             logger.info('Repository {} already exists'.format(repo_name))
 
-        cmd = '{} tag {} {}/{}:{}'.format(lambda_config.DOCKER_PATH, runtime_name, registry, repo_name, tag)
+        cmd = '{} tag {} {}/{}:{}'.format(docker_path, runtime_name, registry, repo_name, tag)
         subprocess.check_call(cmd.split())
 
-        cmd = '{} push {}/{}:{}'.format(lambda_config.DOCKER_PATH, registry, repo_name, tag)
+        cmd = '{} push {}/{}:{}'.format(docker_path, registry, repo_name, tag)
         subprocess.check_call(cmd.split())
 
         logger.info('Ok - Created runtime {}'.format(runtime_name))
@@ -389,7 +388,7 @@ class AWSLambdaBackend:
         @return: runtime metadata
         """
         function_name = self._format_function_name(runtime_name, memory)
-        logger.debug(f"Deploying runtime: {runtime_name} - Memory: {memory} Timeout: {timeout}")
+        logger.info(f"Deploying runtime: {runtime_name} - Memory: {memory} Timeout: {timeout}")
 
         if self._is_container_runtime(runtime_name):
             # Container image runtime

@@ -32,8 +32,6 @@ DEFAULT_REQUIREMENTS = [
     'tblib'
 ]
 
-DOCKER_PATH = shutil.which('docker')
-
 LAMBDA_PYTHON_VER_KEY = 'python{}'.format(version_str(sys.version_info))
 DEFAULT_RUNTIME = LAMBDA_PYTHON_VER_KEY.replace('.', '')
 AVAILABLE_RUNTIMES = ['python36', 'python37', 'python38', 'python39']

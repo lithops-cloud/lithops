@@ -348,13 +348,22 @@ def b64str_to_bytes(str_data):
     return byte_data
 
 
+def get_docker_path():
+    docker_path = shutil.which('docker')
+    if not docker_path:
+        raise Exception('"docker" command not found. '
+         'Install docker or use an already built runtime')
+    return docker_path
+
+
 def get_docker_username():
     user = None
-    docker_path = shutil.which('docker')
-    
-    if not docker_path:
+
+    try:
+        docker_path = get_docker_path()
+    except:
         return None
-    
+
     docker_user_info = sp.check_output(
         f"{docker_path} info", shell=True,
         encoding='UTF-8', stderr=sp.STDOUT

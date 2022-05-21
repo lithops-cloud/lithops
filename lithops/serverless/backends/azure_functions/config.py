@@ -16,7 +16,6 @@
 
 import sys
 import os
-import shutil
 from lithops.utils import version_str
 from lithops import __version__
 from lithops.constants import TEMP
@@ -26,7 +25,6 @@ ACTION_DIR = 'lithops_handler'
 ACTION_MODULES_DIR = os.path.join('.python_packages', 'lib', 'site-packages')
 
 FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_azure.zip')
-DOCKER_PATH = shutil.which('docker')
 
 RUNTIME_NAME = 'lithops-runtime'
 FUNCTIONS_VERSION = 3

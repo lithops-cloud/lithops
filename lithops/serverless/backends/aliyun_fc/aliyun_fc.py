@@ -77,7 +77,7 @@ class AliyunFunctionComputeBackend:
         Deploys a new runtime into Aliyun Function Compute
         with the custom modules for lithops
         """
-        logger.debug(f"Deploying runtime: {runtime_name} - Memory: {memory} Timeout: {timeout}")
+        logger.info(f"Deploying runtime: {runtime_name} - Memory: {memory} Timeout: {timeout}")
 
         if self.service_name == self.default_service_name:
             services = self.fc_client.list_services(prefix=self.service_name).data['services']

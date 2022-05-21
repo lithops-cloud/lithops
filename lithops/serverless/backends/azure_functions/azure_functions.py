@@ -68,7 +68,7 @@ class AzureFunctionAppBackend:
         runtime_name = action_name.replace('--', '-')
         return runtime_name+'-'+q_type
 
-    def _get_default_runtime_image_name(self):
+    def _get_default_runtime_name(self):
         py_version = version_str(sys.version_info).replace('.', '')
         revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
         runtime_name = '{}-{}-v{}-{}-{}'.format(self.storage_account_name, az_config.RUNTIME_NAME,
@@ -80,39 +80,45 @@ class AzureFunctionAppBackend:
         Deploys a new runtime into Azure Function Apps
         from the provided Linux image for consumption plan
         """
-        default_runtime_img_name = self._get_default_runtime_image_name()
+        default_runtime_img_name = self._get_default_runtime_name()
         if runtime_name in ['default', default_runtime_img_name]:
             # We only build the default image. rest of images must already exist
             # in the docker registry.
             runtime_name = default_runtime_img_name
             self._build_default_runtime(default_runtime_img_name)
 
-        logger.debug(f"Deploying runtime: {runtime_name} - Memory: {memory} Timeout: {timeout}")
+        logger.info(f"Deploying runtime: {runtime_name} - Memory: {memory} Timeout: {timeout}")
         self._create_function(runtime_name, memory, timeout)
         metadata = self._generate_runtime_meta(runtime_name, memory)
 
         return metadata
 
-    def _build_default_runtime(self, default_runtime_img_name):
+    def _build_default_runtime(self, default_runtime_name):
         """
         Builds the default runtime
         """
-        return self.build_runtime(default_runtime_img_name)
+        requirements_file = 'az_default_requirements.txt'
+        with open(requirements_file, 'w') as reqf:
+            reqf.write(az_config.REQUIREMENTS_FILE)
+        try:
+            self.build_runtime(default_runtime_name, requirements_file)
+        finally:
+            os.remove(requirements_file)
 
-        if os.system('{} --version >{} 2>&1'.format(az_config.DOCKER_PATH, os.devnull)) == 0:
-            # Build default runtime using local dokcer
-            python_version = version_str(sys.version_info)
-            dockerfile = "Dockefile.default-azure-runtime"
-            with open(dockerfile, 'w') as f:
-                f.write("FROM mcr.microsoft.com/azure-functions/python:3.0-python{}\n".format(python_version))
-                f.write(az_config.DEFAULT_DOCKERFILE)
-            self.build_runtime_docker(default_runtime_img_name, dockerfile)
-            os.remove(dockerfile)
-        else:
-            raise Exception('docker command not found. Install docker or use '
-                            'an already built runtime')
+        # # Build default runtime using local dokcer
+        # python_version = version_str(sys.version_info)
+        # dockerfile = "Dockefile.default-azure-runtime"
+        # with open(dockerfile, 'w') as f:
+        #     f.write("FROM mcr.microsoft.com/azure-functions/python:3.0-python{}\n".format(python_version))
+        #     f.write(az_config.DEFAULT_DOCKERFILE)
+        # try:
+        #     self._build_runtime(default_runtime_name, dockerfile)
+        # finally:
+        #     os.remove(dockerfile)
 
-    def build_runtime(self, runtime_name, requirements_file=None, extra_args=[]):
+    def build_runtime(self, runtime_name, requirements_file, extra_args=[]):
+        logger.info(f'Building new runtime {runtime_name} from {requirements_file}')
+
         try:
             shutil.rmtree(az_config.BUILD_DIR)
         except Exception:
@@ -123,14 +129,17 @@ class AzureFunctionAppBackend:
         build_dir = os.path.join(az_config.BUILD_DIR, action_name)
         os.makedirs(build_dir, exist_ok=True)
 
-        logger.info('Building default runtime in {}'.format(build_dir))
-
         action_dir = os.path.join(build_dir, az_config.ACTION_DIR)
         os.makedirs(action_dir, exist_ok=True)
 
+        logger.debug('Building runtime in {}'.format(build_dir))
+
+        with open(requirements_file, 'r') as req_file:
+            req_data = req_file.read()
+
         req_file = os.path.join(build_dir, 'requirements.txt')
         with open(req_file, 'w') as reqf:
-            reqf.write(az_config.REQUIREMENTS_FILE)
+            reqf.write(req_data)
             if not is_unix_system():
                 if 'dev' in lithops.__version__:
                     reqf.write('git+https://github.com/lithops-cloud/lithops')

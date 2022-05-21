@@ -16,7 +16,6 @@
 #
 
 import os
-import shutil
 from lithops.version import __version__
 
 RUNTIME_NAME = 'lithops-knative'
@@ -25,7 +24,6 @@ DEFAULT_GROUP = "serving.knative.dev"
 DEFAULT_VERSION = "v1"
 
 BUILD_GIT_URL = 'https://github.com/lithops-cloud/lithops'
-DOCKER_PATH = shutil.which('docker')
 
 DEFAULT_CONFIG_KEYS = {
     'runtime_timeout': 600,  # Default: 600 seconds => 10 minutes
