@@ -24,7 +24,8 @@ DEFAULT_CONFIG_KEYS = {
     'runtime_memory': 256,  # Default memory: 256 MB
     'runtime_cpu': 0.125,  # 0.125 vCPU
     'max_workers': 1000,
-    'worker_processes': 1
+    'worker_processes': 1,
+    'docker_server': 'docker.io'
 }
 
 DEFAULT_GROUP = "codeengine.cloud.ibm.com"
@@ -164,3 +165,9 @@ def load_config(config_data):
     if region and region not in VALID_REGIONS:
         raise Exception('{} is an invalid region name. Set one of: '
                         '{}'.format(region, VALID_REGIONS))
+
+    if 'runtime' in config_data['code_engine']:
+        runtime = config_data['code_engine']['runtime']
+        registry = config_data['code_engine']['docker_server']
+        if runtime.count('/') == 1 and registry not in runtime:
+            config_data['code_engine']['runtime'] = f'{registry}/{runtime}'

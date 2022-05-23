@@ -32,6 +32,7 @@ DEFAULT_CONFIG_KEYS = {
     'max_workers': 250,
     'worker_processes': 1,
     'invoke_pool_threads': 250,
+    'docker_server': 'docker.io'
 }
 
 FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_knative.zip')
@@ -220,3 +221,9 @@ def load_config(config_data):
     if 'git_rev' not in config_data['knative']:
         revision = 'master' if 'dev' in __version__ else __version__
         config_data['knative']['git_rev'] = revision
+
+    if 'runtime' in config_data['knative']:
+        runtime = config_data['knative']['runtime']
+        registry = config_data['knative']['docker_server']
+        if runtime.count('/') == 1 and registry not in runtime:
+            config_data['knative']['runtime'] = f'{registry}/{runtime}'

@@ -54,7 +54,7 @@ $ python3 -m pip install lithops[aliyun]
 |aliyun_fc | service | |no | Service name |
 |aliyun_fc | max_workers | 300 | no | Max number of workers per `FunctionExecutor()`|
 |aliyun_fc | worker_processes | 1 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker |
-|aliyun_fc | runtime |  |no | Docker image name.|
+|aliyun_fc | runtime |  |no | One of `python3` or `python3.9`|
 |aliyun_fc | runtime_memory | 256 |no | Memory limit in MB. Default 256MB |
 |aliyun_fc | runtime_timeout | 300 |no | Runtime timeout in seconds. Default 5 minutes |
 |aliyun_fc | invoke_pool_threads | 300 |no | Number of concurrent threads used for invocation |

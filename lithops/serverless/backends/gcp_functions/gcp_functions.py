@@ -230,7 +230,7 @@ class GCPFunctionsBackend:
         self.internal_storage.storage.delete_object(self.internal_storage.bucket, bin_name)
 
     def build_runtime(self, runtime_name, requirements_file, extra_args=[]):
-        logger.info(f'Building new runtime {runtime_name} from {requirements_file}')
+        logger.info(f'Building runtime {runtime_name} from {requirements_file}')
 
         if requirements_file is None:
             raise Exception('Please provide a `requirements.txt` file with the necessary modules')

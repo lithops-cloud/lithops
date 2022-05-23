@@ -15,7 +15,6 @@
 #
 
 import sys
-import shutil
 import logging
 
 from lithops.utils import version_str
@@ -75,12 +74,6 @@ def load_config(config_data):
         logger.warning("Timeout set to {} - {} exceeds the "
                        "maximum amount".format(RUNTIME_TIMEOUT_MAX, config_data['aws_lambda']['runtime_timeout']))
         config_data['aws_lambda']['runtime_timeout'] = RUNTIME_TIMEOUT_MAX
-
-    if 'runtime' not in config_data['aws_lambda']:
-        if DEFAULT_RUNTIME not in AVAILABLE_RUNTIMES:
-            raise Exception('Python version "{}" is not available for AWS Lambda, '
-                            'please use one of {}'.format(LAMBDA_PYTHON_VER_KEY, AVAILABLE_RUNTIMES))
-        config_data['aws_lambda']['runtime'] = DEFAULT_RUNTIME
 
     # Auth, role and region config
     if not {'access_key_id', 'secret_access_key'}.issubset(set(config_data['aws'])):

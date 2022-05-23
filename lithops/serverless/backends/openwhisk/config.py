@@ -15,8 +15,6 @@
 #
 
 import os
-import sys
-from lithops.utils import version_str
 
 RUNTIME_DEFAULT = {
     '3.5': 'lithopscloud/ibmcf-python-v35',
@@ -50,10 +48,3 @@ def load_config(config_data):
     for key in DEFAULT_CONFIG_KEYS:
         if key not in config_data['openwhisk']:
             config_data['openwhisk'][key] = DEFAULT_CONFIG_KEYS[key]
-
-    if 'runtime' not in config_data['openwhisk']:
-        python_version = version_str(sys.version_info)
-        try:
-            config_data['openwhisk']['runtime'] = RUNTIME_DEFAULT[python_version]
-        except KeyError:
-            raise Exception('Unsupported Python version: {}'.format(python_version))

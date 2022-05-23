@@ -27,10 +27,9 @@ import http.client
 from urllib.parse import urlparse
 from azure.storage.queue import QueueServiceClient
 
+from lithops import utils
 from lithops.version import __version__
 from lithops.constants import COMPUTE_CLI_MSG
-from lithops.utils import create_handler_zip, version_str, dict_to_b64str,\
-    b64str_to_dict, is_unix_system
 from . import config as az_config
 
 logger = logging.getLogger(__name__)
@@ -53,7 +52,7 @@ class AzureFunctionAppBackend:
         self.location = self.azure_config['location']
         self.functions_version = self.azure_config['functions_version']
 
-        self.queue_service_url = 'https://{}.queue.core.windows.net'.format(self.storage_account_name)
+        self.queue_service_url = f'https://{self.storage_account_name}.queue.core.windows.net'
         self.queue_service = QueueServiceClient(account_url=self.queue_service_url,
                                                 credential=self.storage_account_key)
 
@@ -69,10 +68,12 @@ class AzureFunctionAppBackend:
         return runtime_name+'-'+q_type
 
     def _get_default_runtime_name(self):
-        py_version = version_str(sys.version_info).replace('.', '')
+        """
+        Generates the default runtime name
+        """
+        py_version = utils.version_str(sys.version_info).replace('.', '')
         revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
-        runtime_name = '{}-{}-v{}-{}-{}'.format(self.storage_account_name, az_config.RUNTIME_NAME,
-                                                py_version, revision, self.invocation_type)
+        runtime_name = f'{self.storage_account_name}-{az_config.RUNTIME_NAME}-v{py_version}-{revision}-{self.invocation_type}'
         return runtime_name
 
     def deploy_runtime(self, runtime_name, memory, timeout):
@@ -80,12 +81,8 @@ class AzureFunctionAppBackend:
         Deploys a new runtime into Azure Function Apps
         from the provided Linux image for consumption plan
         """
-        default_runtime_img_name = self._get_default_runtime_name()
-        if runtime_name in ['default', default_runtime_img_name]:
-            # We only build the default image. rest of images must already exist
-            # in the docker registry.
-            runtime_name = default_runtime_img_name
-            self._build_default_runtime(default_runtime_img_name)
+        if runtime_name == self._get_default_runtime_name():
+            self._build_default_runtime(runtime_name)
 
         logger.info(f"Deploying runtime: {runtime_name} - Memory: {memory} Timeout: {timeout}")
         self._create_function(runtime_name, memory, timeout)
@@ -93,7 +90,7 @@ class AzureFunctionAppBackend:
 
         return metadata
 
-    def _build_default_runtime(self, default_runtime_name):
+    def _build_default_runtime(self, runtime_name):
         """
         Builds the default runtime
         """
@@ -101,7 +98,7 @@ class AzureFunctionAppBackend:
         with open(requirements_file, 'w') as reqf:
             reqf.write(az_config.REQUIREMENTS_FILE)
         try:
-            self.build_runtime(default_runtime_name, requirements_file)
+            self.build_runtime(runtime_name, requirements_file)
         finally:
             os.remove(requirements_file)
 
@@ -117,7 +114,7 @@ class AzureFunctionAppBackend:
         #     os.remove(dockerfile)
 
     def build_runtime(self, runtime_name, requirements_file, extra_args=[]):
-        logger.info(f'Building new runtime {runtime_name} from {requirements_file}')
+        logger.info(f'Building runtime {runtime_name} from {requirements_file}')
 
         try:
             shutil.rmtree(az_config.BUILD_DIR)
@@ -140,7 +137,7 @@ class AzureFunctionAppBackend:
         req_file = os.path.join(build_dir, 'requirements.txt')
         with open(req_file, 'w') as reqf:
             reqf.write(req_data)
-            if not is_unix_system():
+            if not utils.is_unix_system():
                 if 'dev' in lithops.__version__:
                     reqf.write('git+https://github.com/lithops-cloud/lithops')
                 else:
@@ -167,14 +164,12 @@ class AzureFunctionAppBackend:
         main_file = os.path.join(action_dir, '__init__.py')
         shutil.copy(entry_point, main_file)
 
-        if is_unix_system():
+        if utils.is_unix_system():
             mod_dir = os.path.join(build_dir, az_config.ACTION_MODULES_DIR)
             os.chdir(build_dir)
-            cmd = '{} -m pip install -U -t {} -r requirements.txt'.format(sys.executable, mod_dir)
-            if logger.getEffectiveLevel() != logging.DEBUG:
-                cmd = cmd + " >{} 2>&1".format(os.devnull)
-            os.system(cmd)
-            create_handler_zip(az_config.FH_ZIP_LOCATION, entry_point, '__init__.py')
+            cmd = f'{sys.executable} -m pip install -U -t {mod_dir} -r requirements.txt'
+            utils.run_command(cmd)
+            utils.create_handler_zip(az_config.FH_ZIP_LOCATION, entry_point, '__init__.py')
             archive = zipfile.ZipFile(az_config.FH_ZIP_LOCATION)
             archive.extractall(path=mod_dir)
             os.remove(mod_dir+'/__init__.py')
@@ -185,49 +180,45 @@ class AzureFunctionAppBackend:
         Create and publish an Azure Functions
         """
         action_name = self._format_function_name(runtime_name, memory)
-        logger.info('Creating new Lithops runtime for Azure Function: {}'.format(action_name))
+        logger.info(f'Creating new Lithops runtime for Azure Function: {action_name}')
 
         if self.invocation_type == 'event':
             try:
                 in_q_name = self._format_queue_name(action_name, az_config.IN_QUEUE)
-                logger.debug('Creating queue {}'.format(in_q_name))
+                logger.debug(f'Creating queue {in_q_name}')
                 self.queue_service.create_queue(in_q_name)
             except Exception:
                 in_queue = self.queue_service.get_queue_client(in_q_name)
                 in_queue.clear_messages()
             try:
                 out_q_name = self._format_queue_name(action_name, az_config.OUT_QUEUE)
-                logger.debug('Creating queue {}'.format(out_q_name))
+                logger.debug(f'Creating queue {out_q_name}')
                 self.queue_service.create_queue(out_q_name)
             except Exception:
                 out_queue = self.queue_service.get_queue_client(out_q_name)
                 out_queue.clear_messages()
 
-        python_version = version_str(sys.version_info)
-        cmd = ('az functionapp create --name {} --storage-account {} '
-               '--resource-group {} --os-type Linux  --runtime python '
-               '--runtime-version {} --functions-version {} --consumption-plan-location {}'
-               .format(action_name, self.storage_account_name, self.resource_group,
-                       python_version, self.functions_version, self.location))
-        if logger.getEffectiveLevel() != logging.DEBUG:
-            cmd = cmd + " >{} 2>&1".format(os.devnull)
-        res = os.system(cmd)
-        if res != 0:
-            raise Exception('There was an error creating the function in Azure. cmd: {}'.format(cmd))
+        python_version = utils.version_str(sys.version_info)
+        cmd = (f'az functionapp create --name {action_name} '
+               f'--storage-account {self.storage_account_name} '
+               f'--resource-group {self.resource_group} '
+               '--os-type Linux  --runtime python '
+               f'--runtime-version {python_version} '
+               f'--functions-version {self.functions_version} '
+               f'--consumption-plan-location {self.location}')
+        utils.run_command(cmd)
 
-        logger.debug('Publishing function: {}'.format(action_name))
+        logger.debug(f'Publishing function: {action_name}')
         build_dir = os.path.join(az_config.BUILD_DIR, action_name)
         os.chdir(build_dir)
         res = 1
         while res != 0:
             time.sleep(5)
-            if is_unix_system():
-                cmd = 'func azure functionapp publish {} --python --no-build'.format(action_name)
+            if utils.is_unix_system():
+                cmd = f'func azure functionapp publish {action_name} --python --no-build'
             else:
-                cmd = 'func azure functionapp publish {} --python'.format(action_name)
-            if logger.getEffectiveLevel() != logging.DEBUG:
-                cmd = cmd + " >{} 2>&1".format(os.devnull)
-            res = os.system(cmd)
+                cmd = f'func azure functionapp publish {action_name} --python'
+            utils.run_command(cmd)
 
         time.sleep(10)
 
@@ -236,12 +227,9 @@ class AzureFunctionAppBackend:
         Deletes a runtime
         """
         action_name = self._format_function_name(runtime_name, memory)
-        logger.debug('Deleting function app: {}'.format(action_name))
-        cmd = ('az functionapp delete --name {} --resource-group {}'
-               .format(action_name, self.resource_group))
-        if logger.getEffectiveLevel() != logging.DEBUG:
-            cmd = cmd + " >{} 2>&1".format(os.devnull)
-        os.system(cmd)
+        logger.debug(f'Deleting function app: {action_name}')
+        cmd = (f'az functionapp delete --name {action_name} --resource-group {self.resource_group}')
+        utils.run_command(cmd)
 
         try:
             in_q_name = self._format_queue_name(action_name, az_config.IN_QUEUE)
@@ -263,7 +251,7 @@ class AzureFunctionAppBackend:
 
             in_q_name = self._format_queue_name(action_name, az_config.IN_QUEUE)
             in_queue = self.queue_service.get_queue_client(in_q_name)
-            msg = in_queue.send_message(dict_to_b64str(payload))
+            msg = in_queue.send_message(utils.dict_to_b64str(payload))
             activation_id = msg.id
 
             if return_result:
@@ -274,10 +262,10 @@ class AzureFunctionAppBackend:
                     time.sleep(1)
                     msg = out_queue.receive_message()
                 out_queue.clear_messages()
-                return b64str_to_dict(msg.content)
+                return utils.b64str_to_dict(msg.content)
 
         elif self.invocation_type == 'http':
-            endpoint = "https://{}.azurewebsites.net".format(action_name)
+            endpoint = f"https://{action_name}.azurewebsites.net"
             parsed_url = urlparse(endpoint)
             ctx = ssl._create_unverified_context()
             conn = http.client.HTTPSConnection(parsed_url.netloc, context=ctx)
@@ -327,9 +315,9 @@ class AzureFunctionAppBackend:
 
     def _generate_runtime_meta(self, docker_image_name, memory):
         """
-        Extract installed Python modules from Azure runtime
+        Extract metadata from Azure runtime
         """
-        logger.info("Extracting Python modules from: {}".format(docker_image_name))
+        logger.info(f"Extracting metadata from: {docker_image_name}")
         payload = {'log_level': logger.getEffectiveLevel(), 'get_preinstalls': True}
 
         try:
@@ -362,3 +350,20 @@ class AzureFunctionAppBackend:
 
         logger.debug('Listed {} functions'.format(len(functions)))
         return functions
+
+    def get_runtime_info(self):
+        """
+        Method that returns all the relevant information about the runtime set
+        in config
+        """
+        if 'runtime' not in self.azure_config or self.azure_config['runtime'] == 'default':
+            self.azure_config['runtime'] = self._get_default_runtime_name()
+        
+        runime_info = {
+            'runtime_name': self.azure_config['runtime'],
+            'runtime_memory': self.azure_config['runtime_memory'],
+            'runtime_timeout': self.azure_config['runtime_timeout'],
+            'max_workers': self.azure_config['max_workers'],
+        }
+
+        return runime_info

@@ -4,11 +4,14 @@
 
 ### Added
 - [Azure Functions] Allow to build a runtime from a custom requirements.txt file
+- [K8s] Append 'docker_server' as a prefix of the runtime
+- [Code Engine] Append 'docker_server' as a prefix of the runtime
+- [Knative] Append 'docker_server' as a prefix of the runtime
 
 ### Changed
+- [Core] Load docker command only when needed instead of loading it always
 - [Core] Load runtime data only on invocation
 - [Multiprocessing] Improved remote logging
-- [Core] Load docker command only when needed instead of loading it always
 
 ### Fixed
 - [Core] Make sure all temp files generated during build_runtime() are cleaned
