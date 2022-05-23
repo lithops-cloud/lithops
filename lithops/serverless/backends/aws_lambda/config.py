@@ -31,9 +31,11 @@ DEFAULT_REQUIREMENTS = [
     'tblib'
 ]
 
-LAMBDA_PYTHON_VER_KEY = 'python{}'.format(version_str(sys.version_info))
+PYTHON_VERSION = version_str(sys.version_info)
+SUPPORTED_PYTHON = ['3.6', '3.7', '3.8', '3.9']
+LAMBDA_PYTHON_VER_KEY = f'python{PYTHON_VERSION}'
 DEFAULT_RUNTIME = LAMBDA_PYTHON_VER_KEY.replace('.', '')
-AVAILABLE_RUNTIMES = ['python36', 'python37', 'python38', 'python39']
+DEFAULT_RUNTIMES = ['python36', 'python37', 'python38', 'python39']
 
 USER_RUNTIME_PREFIX = 'lithops.user_runtimes'
 

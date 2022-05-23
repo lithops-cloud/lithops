@@ -261,6 +261,9 @@ class AliyunFunctionComputeBackend:
         Method that returns all the relevant information about the runtime set
         in config
         """
+        if aliyunfc_config.PYTHON_VERSION not in aliyunfc_config.RUNTIME_DEFAULT.keys():
+            raise Exception(f'Python {aliyunfc_config.PYTHON_VERSION} is not supported')
+        
         if 'runtime' not in self.config or self.config['runtime'] == 'default':
             self.config['runtime'] = self._get_default_runtime_name()
         

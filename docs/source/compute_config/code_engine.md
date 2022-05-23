@@ -138,7 +138,7 @@ To configure Lithops to access a private repository in your docker hub account, 
 ```yaml
 code_engine:
     ....
-    docker_server  : docker.io
+    docker_server    : docker.io
     docker_user      : <Docker hub username>
     docker_password  : <DOcker hub access TOEKN>
 ```

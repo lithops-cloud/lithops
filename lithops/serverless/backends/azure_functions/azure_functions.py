@@ -198,12 +198,11 @@ class AzureFunctionAppBackend:
                 out_queue = self.queue_service.get_queue_client(out_q_name)
                 out_queue.clear_messages()
 
-        python_version = utils.version_str(sys.version_info)
         cmd = (f'az functionapp create --name {action_name} '
                f'--storage-account {self.storage_account_name} '
                f'--resource-group {self.resource_group} '
                '--os-type Linux  --runtime python '
-               f'--runtime-version {python_version} '
+               f'--runtime-version {az_config.PYTHON_VERSION} '
                f'--functions-version {self.functions_version} '
                f'--consumption-plan-location {self.location}')
         utils.run_command(cmd)
@@ -356,6 +355,9 @@ class AzureFunctionAppBackend:
         Method that returns all the relevant information about the runtime set
         in config
         """
+        if az_config.PYTHON_VERSION not in az_config.SUPPORTED_PYTHON:
+            raise Exception(f'Python {az_config.PYTHON_VERSION} is not supported')
+
         if 'runtime' not in self.azure_config or self.azure_config['runtime'] == 'default':
             self.azure_config['runtime'] = self._get_default_runtime_name()
         

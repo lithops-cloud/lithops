@@ -38,6 +38,7 @@ DEFAULT_CONFIG_KEYS = {
     'invocation_type': 'http'
 }
 
+PYTHON_VERSION = version_str(sys.version_info)
 SUPPORTED_PYTHON = ['3.6', '3.7', '3.8', '3.9']
 
 REQUIRED_AZURE_STORAGE_PARAMS = ['storage_account_name', 'storage_account_key']
@@ -164,11 +165,6 @@ RUN mkdir -p /home/site/wwwroo \
 
 
 def load_config(config_data):
-
-    python_version = version_str(sys.version_info)
-    if python_version not in SUPPORTED_PYTHON:
-        raise Exception('Python {} is not supported'.format(python_version))
-
     if 'azure_storage' not in config_data:
         raise Exception("azure_storage section is mandatory in the configuration")
 

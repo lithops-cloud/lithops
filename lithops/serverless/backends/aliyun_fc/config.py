@@ -15,6 +15,9 @@
 #
 
 import os
+import sys
+
+from lithops.utils import version_str
 
 
 DEFAULT_CONFIG_KEYS = {
@@ -29,6 +32,8 @@ CONNECTION_POOL_SIZE = 300
 
 SERVICE_NAME = 'lithops'
 HANDLER_FOLDER_LOCATION = os.path.join(os.getcwd(), 'lithops_handler_aliyun')
+
+PYTHON_VERSION = version_str(sys.version_info)
 
 RUNTIME_DEFAULT = {
     '3.6': 'python3',

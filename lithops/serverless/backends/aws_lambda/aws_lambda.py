@@ -109,19 +109,13 @@ class AWSLambdaBackend:
         runtime_name, runtime_memory = action_name.rsplit('_', 1)
         return runtime_name, runtime_memory.replace('MB', '')
 
-    def _get_default_runtime_name(self):
-        if lambda_config.DEFAULT_RUNTIME not in lambda_config.AVAILABLE_RUNTIMES:
-            raise Exception(f'Python version "{lambda_config.LAMBDA_PYTHON_VER_KEY}" '
-                f'is not available for AWS Lambda, please use one of {lambda_config.AVAILABLE_RUNTIMES}')
-        return lambda_config.DEFAULT_RUNTIME
-
     def _format_layer_name(self, runtime_name):
         return '_'.join([self.package, runtime_name, 'layer'])
 
     @staticmethod
     def _is_container_runtime(runtime_name):
         name = runtime_name.split('/', 1)[-1]
-        return name not in lambda_config.AVAILABLE_RUNTIMES
+        return name not in lambda_config.DEFAULT_RUNTIMES
 
     def _format_repo_name(self, runtime_name):
         if ':' in runtime_name:
@@ -511,12 +505,7 @@ class AWSLambdaBackend:
         @param timeout: runtime timeout in seconds
         @return: runtime metadata
         """
-        try:
-            default_runtime_name = self._get_default_runtime_name()
-        except:
-            default_runtime_name = None
-
-        if runtime_name == default_runtime_name:
+        if runtime_name in lambda_config.DEFAULT_RUNTIMES:
             self._deploy_default_runtime(runtime_name, memory, timeout)
         else:
             self._deploy_container_runtime(runtime_name, memory, timeout)
@@ -668,8 +657,12 @@ class AWSLambdaBackend:
         Method that returns all the relevant information about the runtime set
         in config
         """
+        if lambda_config.PYTHON_VERSION not in lambda_config.SUPPORTED_PYTHON:
+            raise Exception(f'Python version "{lambda_config.PYTHON_VERSION}" '
+                f'is not available for AWS Lambda, please use one of {lambda_config.SUPPORTED_PYTHON}')
+        
         if 'runtime' not in self.aws_lambda_config or self.aws_lambda_config['runtime'] == 'default':
-            self.aws_lambda_config['runtime'] = self._get_default_runtime_name()
+            self.aws_lambda_config['runtime'] = lambda_config.DEFAULT_RUNTIME
 
         runime_info = {
             'runtime_name': self.aws_lambda_config['runtime'],
