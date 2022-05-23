@@ -19,11 +19,10 @@ import sys
 import base64
 import logging
 from threading import Lock
-from lithops.utils import version_str
+
+from lithops import utils
 from lithops.version import __version__
-from lithops.utils import is_lithops_worker
 from lithops.libs.openwhisk.client import OpenWhiskClient
-from lithops.utils import create_handler_zip
 from lithops.util.ibm_token_manager import IBMTokenManager
 from lithops.constants import COMPUTE_CLI_MSG
 from . import config as ibmcf_config
@@ -42,7 +41,7 @@ class IBMCloudFunctionsBackend:
         self.name = 'ibm_cf'
         self.type = 'faas'
         self.config = ibm_cf_config
-        self.is_lithops_worker = is_lithops_worker()
+        self.is_lithops_worker = utils.is_lithops_worker()
 
         self.user_agent = ibm_cf_config['user_agent']
         self.endpoint = ibm_cf_config['endpoint']
@@ -54,21 +53,23 @@ class IBMCloudFunctionsBackend:
 
         self.invoke_error = None
 
-        logger.debug("Set IBM CF Namespace to {}".format(self.namespace))
-        logger.debug("Set IBM CF Endpoint to {}".format(self.endpoint))
+        logger.debug(f"Set IBM CF Namespace to {self.namespace}")
+        logger.debug(f"Set IBM CF Endpoint to {self.endpoint}")
 
         self.user_key = self.api_key.split(':')[1][:4] if self.api_key else self.iam_api_key[:4]
-        self.package = 'lithops_v{}_{}'.format(__version__, self.user_key)
+        self.package = f'lithops_v{__version__}_{self.user_key}'
 
         if self.api_key:
             enc_api_key = str.encode(self.api_key)
             auth_token = base64.encodebytes(enc_api_key).replace(b'\n', b'')
             auth = 'Basic %s' % auth_token.decode('UTF-8')
 
-            self.cf_client = OpenWhiskClient(endpoint=self.endpoint,
-                                             namespace=self.namespace,
-                                             auth=auth,
-                                             user_agent=self.user_agent)
+            self.cf_client = OpenWhiskClient(
+                endpoint=self.endpoint,
+                namespace=self.namespace,
+                auth=auth,
+                user_agent=self.user_agent
+            )
 
         elif self.iam_api_key:
             api_key_type = 'IAM'
@@ -84,18 +85,19 @@ class IBMCloudFunctionsBackend:
 
             auth = 'Bearer ' + token
 
-            self.cf_client = OpenWhiskClient(endpoint=self.endpoint,
-                                             namespace=self.namespace_id,
-                                             auth=auth,
-                                             user_agent=self.user_agent)
+            self.cf_client = OpenWhiskClient(
+                endpoint=self.endpoint,
+                namespace=self.namespace_id,
+                auth=auth,
+                user_agent=self.user_agent
+            )
 
         msg = COMPUTE_CLI_MSG.format('IBM CF')
-        logger.info("{} - Region: {} - Namespace: {}".format(msg, self.region,
-                                                             self.namespace))
+        logger.info(f"{msg} - Region: {self.region} - Namespace: {self.namespace}")
 
     def _format_function_name(self, runtime_name, runtime_memory):
         runtime_name = runtime_name.replace('/', '_').replace(':', '_')
-        return '{}_{}MB'.format(runtime_name, runtime_memory)
+        return f'{runtime_name}_{runtime_memory}MB'
 
     def _unformat_function_name(self, action_name):
         runtime_name, memory = action_name.rsplit('_', 1)
@@ -104,59 +106,55 @@ class IBMCloudFunctionsBackend:
         return image_name, int(memory.replace('MB', ''))
 
     def _get_default_runtime_image_name(self):
-        python_version = version_str(sys.version_info)
-        return ibmcf_config.RUNTIME_DEFAULT[python_version]
-
-    def _delete_function_handler_zip(self):
-        os.remove(ibmcf_config.FH_ZIP_LOCATION)
+        python_version = utils.version_str(sys.version_info)
+        try:
+           return ibmcf_config.RUNTIME_DEFAULT[python_version]
+        except KeyError:
+            raise Exception(f'Unsupported Python version: {python_version}')
 
     def build_runtime(self, docker_image_name, dockerfile, extra_args=[]):
         """
         Builds a new runtime from a Docker file and pushes it to the Docker hub
         """
-        logger.info('Building a new docker image from Dockerfile')
-        logger.info('Docker image name: {}'.format(docker_image_name))
+        logger.info(f'Building runtime {docker_image_name} from {dockerfile}')
+
+        docker_path = utils.get_docker_path()
 
         if dockerfile:
-            cmd = '{} build -t {} -f {} . '.format(ibmcf_config.DOCKER_PATH, docker_image_name, dockerfile)
+            assert os.path.isfile(dockerfile), f'Cannot locate "{dockerfile}"'
+            cmd = f'{docker_path} build -t {docker_image_name} -f {dockerfile} . '
         else:
-            cmd = '{} build -t {} . '.format(ibmcf_config.DOCKER_PATH, docker_image_name)
+            cmd = f'{docker_path} build -t {docker_image_name} . '
 
         cmd = cmd+' '.join(extra_args)
+        utils.run_command(cmd)
 
-        if logger.getEffectiveLevel() != logging.DEBUG:
-            cmd = cmd + " >{} 2>&1".format(os.devnull)
+        logger.debug(f'Pushing runtime {docker_image_name} to container registry')
+        cmd = f'{docker_path} push {docker_image_name}'
+        utils.run_command(cmd)
 
-        res = os.system(cmd)
-        if res != 0:
-            raise Exception('There was an error building the runtime')
-
-        cmd = 'docker push {}'.format(docker_image_name)
-        res = os.system(cmd)
-        if res != 0:
-            raise Exception('There was an error pushing the runtime to the container registry')
-        logger.info('Building done!')
+        logger.debug('Building done!')
 
     def deploy_runtime(self, docker_image_name, memory, timeout):
         """
         Creates a new runtime into IBM CF namespace from an already built Docker image
         """
-        if docker_image_name == 'default':
-            docker_image_name = self._get_default_runtime_image_name()
-        logger.debug(f"Deploying runtime: {docker_image_name} - Memory: {memory} Timeout: {timeout}")
+        logger.info(f"Deploying runtime: {docker_image_name} - Memory: {memory} Timeout: {timeout}")
 
         self.cf_client.create_package(self.package)
         action_name = self._format_function_name(docker_image_name, memory)
 
         entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
-        create_handler_zip(ibmcf_config.FH_ZIP_LOCATION, entry_point, '__main__.py')
+        utils.create_handler_zip(ibmcf_config.FH_ZIP_LOCATION, entry_point, '__main__.py')
 
-        with open(ibmcf_config.FH_ZIP_LOCATION, "rb") as action_zip:
-            action_bin = action_zip.read()
-        self.cf_client.create_action(self.package, action_name, docker_image_name, code=action_bin,
-                                     memory=memory, is_binary=True, timeout=timeout * 1000)
-
-        self._delete_function_handler_zip()
+        try:
+            with open(ibmcf_config.FH_ZIP_LOCATION, "rb") as action_zip:
+                action_bin = action_zip.read()
+            self.cf_client.create_action(self.package, action_name,
+                docker_image_name, code=action_bin, memory=memory,
+                is_binary=True, timeout=timeout * 1000)
+        finally:
+            os.remove(ibmcf_config.FH_ZIP_LOCATION)
 
         runtime_meta = self._generate_runtime_meta(docker_image_name, memory)
 
@@ -166,8 +164,6 @@ class IBMCloudFunctionsBackend:
         """
         Deletes a runtime
         """
-        if docker_image_name == 'default':
-            docker_image_name = self._get_default_runtime_image_name()
         action_name = self._format_function_name(docker_image_name, memory)
         self.cf_client.delete_action(self.package, action_name)
 
@@ -191,8 +187,6 @@ class IBMCloudFunctionsBackend:
         List all the runtimes deployed in the IBM CF service
         return: list of tuples (docker_image_name, memory)
         """
-        if docker_image_name == 'default':
-            docker_image_name = self._get_default_runtime_image_name()
         runtimes = []
         actions = self.cf_client.list_actions(self.package)
 
@@ -257,6 +251,23 @@ class IBMCloudFunctionsBackend:
         runtime_key = os.path.join(self.name, self.region, self.namespace, action_name)
 
         return runtime_key
+    
+    def get_runtime_info(self):
+        """
+        Method that returns all the relevant information about the runtime set
+        in config
+        """
+        if 'runtime' not in self.config or self.config['runtime'] == 'default':
+            self.config['runtime'] = self._get_default_runtime_image_name()
+
+        runime_info = {
+            'runtime_name': self.config['runtime'],
+            'runtime_memory': self.config['runtime_memory'],
+            'runtime_timeout': self.config['runtime_timeout'],
+            'max_workers': self.config['max_workers'],
+        }
+
+        return runime_info
 
     def _generate_runtime_meta(self, docker_image_name, memory):
         """

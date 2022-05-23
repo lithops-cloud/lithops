@@ -15,23 +15,17 @@
 #
 
 import os
-import sys
-import shutil
-
-from lithops.utils import version_str, get_docker_username
 from lithops.version import __version__
 
 RUNTIME_NAME = 'lithops-k8sjob'
-
-DOCKER_PATH = shutil.which('docker')
-
 
 DEFAULT_CONFIG_KEYS = {
     'runtime_timeout': 600,  # Default: 10 minutes
     'runtime_memory': 256,  # Default memory: 256 MB
     'runtime_cpu': 0.5,  # 0.5 vCPU
     'max_workers': 200,
-    'worker_processes': 1
+    'worker_processes': 1,
+    'docker_server': 'docker.io'
 }
 
 DEFAULT_GROUP = "batch"
@@ -120,3 +114,9 @@ def load_config(config_data):
     for key in DEFAULT_CONFIG_KEYS:
         if key not in config_data['k8s']:
             config_data['k8s'][key] = DEFAULT_CONFIG_KEYS[key]
+
+    if 'runtime' in config_data['k8s']:
+        runtime = config_data['k8s']['runtime']
+        registry = config_data['k8s']['docker_server']
+        if runtime.count('/') == 1 and registry not in runtime:
+            config_data['k8s']['runtime'] = f'{registry}/{runtime}'

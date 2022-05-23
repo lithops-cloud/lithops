@@ -34,6 +34,7 @@ To configure Lithops to access a private repository in your docker hub account, 
 ```yaml
 k8s:
     ....
+    docker_server    : docker.io
     docker_user      : <Docker hub Username>
     docker_password  : <DOcker hub access TOEKN>
 ```
@@ -54,7 +55,7 @@ k8s:
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |k8s | kubecfg_path | |no | Path to kubecfg file. Mandatory if config file not in `~/.kube/config` or KUBECONFIG env var not present|
-|k8s | docker_server | https://index.docker.io/v1/ |no | Docker server URL |
+|k8s | docker_server | docker.io |no | Docker server URL |
 |k8s | docker_user | |no | Docker hub username |
 |k8s | docker_password | |no | Login to your docker hub account and generate a new access token [here](https://hub.docker.com/settings/security)|
 |k8s | max_workers | 200 | no | Max number of workers per `FunctionExecutor()`|

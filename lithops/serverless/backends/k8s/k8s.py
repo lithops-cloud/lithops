@@ -26,12 +26,11 @@ import urllib3
 from kubernetes import client, config, watch
 from kubernetes.client.rest import ApiException
 
-from lithops.utils import get_docker_username, version_str, dict_to_b64str
+from lithops import utils
 from lithops.version import __version__
-from lithops.utils import create_handler_zip
 from lithops.constants import COMPUTE_CLI_MSG, JOBS_PREFIX
 
-from . import config as k8s_config
+from . import config as k8sconfig
 
 
 logger = logging.getLogger(__name__)
@@ -69,8 +68,8 @@ class KubernetesBackend:
             self.cluster = self.k8s_config.get('cluster', 'default')
             self.is_incluster = True
 
-        logger.debug("Set namespace to {}".format(self.namespace))
-        logger.debug("Set cluster to {}".format(self.cluster))
+        logger.debug(f"Set namespace to {self.namespace}")
+        logger.debug(f"Set cluster to {self.cluster}")
 
         self.batch_api = client.BatchV1Api()
         self.core_api = client.CoreV1Api()
@@ -78,85 +77,68 @@ class KubernetesBackend:
         self.jobs = []  # list to store executed jobs (job_keys)
 
         msg = COMPUTE_CLI_MSG.format('Kubernetes Job')
-        logger.info("{} - Namespace: {}".format(msg, self.namespace))
+        logger.info(f"{msg} - Namespace: {self.namespace}")
 
     def _format_job_name(self, runtime_name, runtime_memory):
         runtime_name = runtime_name.replace('/', '--')
         runtime_name = runtime_name.replace(':', '--')
         runtime_name = runtime_name.replace('.', '')
         runtime_name = runtime_name.replace('_', '-')
-        return '{}--{}mb'.format(runtime_name, runtime_memory)
+        return f'{runtime_name}--{runtime_memory}mb'
 
-    def _get_default_runtime_name(self):
-        python_version = version_str(sys.version_info).replace('.', '')
+    def _get_default_runtime_image_name(self):
+        """
+        Generates the default runtime image name
+        """
         revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
-        img = '{}-v{}:{}'.format(k8s_config.RUNTIME_NAME, python_version, revision)
-
-        if 'runtime' in self.k8s_config:
-            return f'{self.k8s_config.get("docker_user")}/{img}'
-
-        if 'docker_user' not in self.k8s_config:
-            self.k8s_config['docker_user'] = get_docker_username()
-        if not self.k8s_config['docker_user']:
-            raise Exception('You must execute "docker login" or provide "docker_user" '
-                            'param in config under "k8s" section')
-
-        return f'{self.k8s_config.get("docker_user")}/{img}'
-
-    def _delete_function_handler_zip(self):
-        os.remove(k8s_config.FH_ZIP_LOCATION)
+        return utils.get_default_k8s_image_name(
+            self.name, self.k8s_config,
+            k8sconfig.RUNTIME_NAME,
+            revision
+        )
 
     def build_runtime(self, docker_image_name, dockerfile, extra_args=[]):
         """
         Builds a new runtime from a Docker file and pushes it to the Docker hub
         """
-        logger.info(f'Building new docker image: {docker_image_name}')
+        logger.info(f'Building runtime {docker_image_name} from {dockerfile}')
 
-        if not k8s_config.DOCKER_PATH:
-            raise Exception('"docker" command not found. Install docker or use '
-                            'an already built runtime')
-
-        entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
-        create_handler_zip(k8s_config.FH_ZIP_LOCATION, entry_point, 'lithopsentry.py')
+        docker_path = utils.get_docker_path()
 
         if dockerfile:
-            cmd = '{} build -t {} -f {} . '.format(k8s_config.DOCKER_PATH,
-                                                   docker_image_name,
-                                                   dockerfile)
+            assert os.path.isfile(dockerfile), f'Cannot locate "{dockerfile}"'
+            cmd = f'{docker_path} build -t {docker_image_name} -f {dockerfile} . '
         else:
-            cmd = '{} build -t {} . '.format(k8s_config.DOCKER_PATH, docker_image_name)
-
+            cmd = f'{docker_path} build -t {docker_image_name} . '
         cmd = cmd+' '.join(extra_args)
 
-        if logger.getEffectiveLevel() != logging.DEBUG:
-            cmd = cmd + " >{} 2>&1".format(os.devnull)
+        try:
+            entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
+            utils.create_handler_zip(k8sconfig.FH_ZIP_LOCATION, entry_point, 'lithopsentry.py')
+            utils.run_command(cmd)
+        finally:
+            os.remove(k8sconfig.FH_ZIP_LOCATION)
 
-        res = os.system(cmd)
-        if res != 0:
-            raise Exception('There was an error building the runtime')
+        logger.debug(f'Pushing runtime {docker_image_name} to container registry')
+        cmd = f'{docker_path} push {docker_image_name}'
+        utils.run_command(cmd)
 
-        self._delete_function_handler_zip()
-
-        cmd = '{} push {}'.format(k8s_config.DOCKER_PATH, docker_image_name)
-        if logger.getEffectiveLevel() != logging.DEBUG:
-            cmd = cmd + " >{} 2>&1".format(os.devnull)
-        res = os.system(cmd)
-        if res != 0:
-            raise Exception('There was an error pushing the runtime to the container registry')
         logger.debug('Building done!')
 
-    def _build_default_runtime(self, default_runtime_img_name):
+    def _build_default_runtime(self, docker_image_name):
         """
         Builds the default runtime
         """
         # Build default runtime using local dokcer
-        python_version = version_str(sys.version_info)
+        python_version = utils.version_str(sys.version_info)
         dockerfile = "Dockefile.default-k8s-runtime"
         with open(dockerfile, 'w') as f:
-            f.write("FROM python:{}-slim-buster\n".format(python_version))
-            f.write(k8s_config.DOCKERFILE_DEFAULT)
-        self.build_runtime(default_runtime_img_name, dockerfile)
-        os.remove(dockerfile)
+            f.write(f"FROM python:{python_version}-slim-buster\n")
+            f.write(k8sconfig.DOCKERFILE_DEFAULT)
+        try:
+            self.build_runtime(docker_image_name, dockerfile)
+        finally:
+            os.remove(dockerfile)
 
     def _create_container_registry_secret(self):
         """
@@ -167,9 +149,9 @@ class KubernetesBackend:
             return
 
         logger.debug('Creating container registry secret')
-        docker_server = self.k8s_config.get('docker_server', 'https://index.docker.io/v1/')
-        docker_user = self.k8s_config.get('docker_user')
-        docker_password = self.k8s_config.get('docker_password')
+        docker_server = self.k8s_config['docker_server']
+        docker_user = self.k8s_config['docker_user']
+        docker_password = self.k8s_config['docker_password']
 
         cred_payload = {
             "auths": {
@@ -207,16 +189,16 @@ class KubernetesBackend:
 
     def deploy_runtime(self, docker_image_name, memory, timeout):
         """
-        Deploys a new runtime from an already built Docker image
+        Deploys a new runtime
         """
-        default_runtime_img_name = self._get_default_runtime_name()
-        if docker_image_name in ['default', default_runtime_img_name]:
-            # We only build the default image. rest of images must already exist
-            # in the docker registry.
-            docker_image_name = default_runtime_img_name
-            self._build_default_runtime(default_runtime_img_name)
+        try:
+            default_image_name = self._get_default_runtime_image_name()
+        except:
+            default_image_name = None
+        if docker_image_name == default_image_name:
+            self._build_default_runtime(docker_image_name)
 
-        logger.debug(f"Deploying runtime: {docker_image_name} - Memory: {memory} Timeout: {timeout}")
+        logger.info(f"Deploying runtime: {docker_image_name} - Memory: {memory} Timeout: {timeout}")
         self._create_container_registry_secret()
         runtime_meta = self._generate_runtime_meta(docker_image_name)
 
@@ -240,11 +222,13 @@ class KubernetesBackend:
                 if job.metadata.labels['type'] == 'lithops-runtime'\
                    and (job.status.completion_time is not None or force):
                     job_name = job.metadata.name
-                    logger.debug('Deleting job {}'.format(job_name))
+                    logger.debug(f'Deleting job {job_name}')
                     try:
-                        self.batch_api.delete_namespaced_job(name=job_name,
-                                                             namespace=self.namespace,
-                                                             propagation_policy='Background')
+                        self.batch_api.delete_namespaced_job(
+                            name=job_name,
+                            namespace=self.namespace,
+                            propagation_policy='Background'
+                        )
                     except Exception:
                         pass
         except ApiException:
@@ -257,8 +241,8 @@ class KubernetesBackend:
         jobs_to_delete = job_keys or self.jobs
 
         for job_key in jobs_to_delete:
-            job_name = 'lithops-{}'.format(job_key.lower())
-            logger.debug('Deleting job {}'.format(job_name))
+            job_name = f'lithops-{job_key.lower()}'
+            logger.debug(f'Deleting job {job_name}')
             try:
                 self.batch_api.delete_namespaced_job(
                     name=job_name,
@@ -286,22 +270,25 @@ class KubernetesBackend:
         job_name = 'lithops-master'
 
         master_pods = self.core_api.list_namespaced_pod(
-            namespace=self.namespace, label_selector="job-name={}".format(job_name)
-            )
+            namespace=self.namespace,
+            label_selector=f"job-name={job_name}"
+        )
 
         if len(master_pods.items) > 0:
             return master_pods.items[0].status.pod_ip
 
         logger.debug('Starting Lithops master Pod')
         try:
-            self.batch_api.delete_namespaced_job(name=job_name,
-                                                 namespace=self.namespace,
-                                                 propagation_policy='Background')
+            self.batch_api.delete_namespaced_job(
+                name=job_name,
+                namespace=self.namespace,
+                propagation_policy='Background'
+            )
             time.sleep(2)
         except Exception as e:
             pass
 
-        job_res = yaml.safe_load(k8s_config.JOB_DEFAULT)
+        job_res = yaml.safe_load(k8sconfig.JOB_DEFAULT)
         job_res['metadata']['name'] = job_name
         job_res['metadata']['namespace'] = self.namespace
         container = job_res['spec']['template']['spec']['containers'][0]
@@ -309,14 +296,17 @@ class KubernetesBackend:
         container['env'][0]['value'] = 'master'
 
         try:
-            self.batch_api.create_namespaced_job(namespace=self.namespace,
-                                                 body=job_res)
+            self.batch_api.create_namespaced_job(
+                namespace=self.namespace,
+                body=job_res
+            )
         except Exception as e:
             raise e
 
         w = watch.Watch()
-        for event in w.stream(self.core_api.list_namespaced_pod, namespace=self.namespace,
-                              label_selector="job-name={}".format(job_name)):
+        for event in w.stream(self.core_api.list_namespaced_pod,
+                              namespace=self.namespace,
+                              label_selector=f"job-name={job_name}"):
             if event['object'].status.phase == "Running":
                 return event['object'].status.pod_ip
 
@@ -338,9 +328,9 @@ class KubernetesBackend:
         chunksize = job_payload['chunksize']
         total_workers = min(workers, total_calls // chunksize + (total_calls % chunksize > 0))
 
-        job_res = yaml.safe_load(k8s_config.JOB_DEFAULT)
+        job_res = yaml.safe_load(k8sconfig.JOB_DEFAULT)
 
-        activation_id = 'lithops-{}'.format(job_key.lower())
+        activation_id = f'lithops-{job_key.lower()}'
 
         job_res['metadata']['name'] = activation_id
         job_res['metadata']['namespace'] = self.namespace
@@ -354,12 +344,12 @@ class KubernetesBackend:
             container['imagePullPolicy'] = 'IfNotPresent'
 
         container['env'][0]['value'] = 'run'
-        container['env'][1]['value'] = dict_to_b64str(job_payload)
+        container['env'][1]['value'] = utils.dict_to_b64str(job_payload)
         container['env'][2]['value'] = master_ip
 
-        container['resources']['requests']['memory'] = '{}Mi'.format(runtime_memory)
+        container['resources']['requests']['memory'] = f'{runtime_memory}Mi'
         container['resources']['requests']['cpu'] = str(self.k8s_config['runtime_cpu'])
-        container['resources']['limits']['memory'] = '{}Mi'.format(runtime_memory)
+        container['resources']['limits']['memory'] = f'{runtime_memory}Mi'
         container['resources']['limits']['cpu'] = str(self.k8s_config['runtime_cpu'])
 
         logger.debug('ExecutorID {} | JobID {} - Going '
@@ -376,36 +366,43 @@ class KubernetesBackend:
 
     def _generate_runtime_meta(self, docker_image_name):
         runtime_name = self._format_job_name(docker_image_name, 128)
-        modules_job_name = '{}-modules'.format(runtime_name)
+        meta_job_name = f'{runtime_name}-meta'
 
-        logger.info("Extracting Python modules from: {}".format(docker_image_name))
+        logger.info(f"Extracting metadata from: {docker_image_name}")
 
         payload = copy.deepcopy(self.internal_storage.storage.storage_config)
         payload['runtime_name'] = runtime_name
         payload['log_level'] = logger.getEffectiveLevel()
 
-        job_res = yaml.safe_load(k8s_config.JOB_DEFAULT)
-        job_res['metadata']['name'] = modules_job_name
+        job_res = yaml.safe_load(k8sconfig.JOB_DEFAULT)
+        job_res['metadata']['name'] = meta_job_name
         job_res['metadata']['namespace'] = self.namespace
 
         container = job_res['spec']['template']['spec']['containers'][0]
         container['image'] = docker_image_name
         container['env'][0]['value'] = 'preinstalls'
-        container['env'][1]['value'] = dict_to_b64str(payload)
+        container['env'][1]['value'] = utils.dict_to_b64str(payload)
+
+        if not all(key in self.k8s_config for key in ["docker_user", "docker_password"]):
+            del job_res['spec']['template']['spec']['imagePullSecrets']
 
         try:
-            self.batch_api.delete_namespaced_job(namespace=self.namespace,
-                                                 name=modules_job_name,
-                                                 propagation_policy='Background')
+            self.batch_api.delete_namespaced_job(
+                namespace=self.namespace,
+                name=meta_job_name,
+                propagation_policy='Background'
+            )
         except Exception as e:
             pass
 
         try:
-            self.batch_api.create_namespaced_job(namespace=self.namespace,
-                                                 body=job_res)
+            self.batch_api.create_namespaced_job(
+                namespace=self.namespace,
+                body=job_res
+            )
         except Exception as e:
             raise e
-            pass
+
 
         logger.debug("Waiting for runtime metadata")
 
@@ -417,7 +414,7 @@ class KubernetesBackend:
                 w = watch.Watch()
                 for event in w.stream(self.batch_api.list_namespaced_job,
                                       namespace=self.namespace,
-                                      field_selector="metadata.name={0}".format(modules_job_name),
+                                      field_selector=f"metadata.name={meta_job_name}",
                                       timeout_seconds=10):
                     failed = event['object'].status.failed
                     done = event['object'].status.succeeded
@@ -431,19 +428,24 @@ class KubernetesBackend:
             logger.debug("Runtime metadata generated successfully")
 
         try:
-            self.batch_api.delete_namespaced_job(namespace=self.namespace,
-                                                 name=modules_job_name,
-                                                 propagation_policy='Background')
+            self.batch_api.delete_namespaced_job(
+                namespace=self.namespace,
+                name=meta_job_name,
+                propagation_policy='Background'
+            )
         except Exception as e:
             pass
 
         if failed:
-            raise Exception("Unable to extract Python preinstalled modules from the runtime")
+            raise Exception("Unable to extract metadata from the runtime")
 
         data_key = '/'.join([JOBS_PREFIX, runtime_name+'.meta'])
         json_str = self.internal_storage.get_data(key=data_key)
         runtime_meta = json.loads(json_str.decode("ascii"))
         self.internal_storage.del_data(key=data_key)
+
+        if not runtime_meta or 'preinstalls' not in runtime_meta:
+            raise Exception(f'Failed getting runtime metadata: {runtime_meta}')
 
         return runtime_meta
 
@@ -463,8 +465,8 @@ class KubernetesBackend:
         Method that returns all the relevant information about the runtime set
         in config
         """
-        if 'runtime' not in self.k8s_config:
-            self.k8s_config['runtime'] = self._get_default_runtime_name()
+        if 'runtime' not in self.k8s_config or self.k8s_config['runtime'] == 'default':
+            self.k8s_config['runtime'] = self._get_default_runtime_image_name()
         
         runime_info = {
             'runtime_name': self.k8s_config['runtime'],

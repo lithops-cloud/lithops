@@ -612,7 +612,7 @@ class FunctionExecutor:
             if self.log_path:  # retrieve cloud_objects_n from last log file
                 cloud_objects_n += get_object_num()
             else:
-                self.log_path = os.path.join(constants.LOGS_DIR, datetime.now().strftime("%Y-%m-%d_%H-%M-%S.csv"))
+                self.log_path = os.path.join(constants.LOGS_DIR, datetime.now().strftime("%Y-%m-%d_%H:%M:%S.csv"))
             # override current logfile
             init()
 

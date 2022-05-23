@@ -16,7 +16,6 @@
 
 import sys
 import os
-import shutil
 from lithops.utils import version_str
 from lithops import __version__
 from lithops.constants import TEMP
@@ -26,10 +25,8 @@ ACTION_DIR = 'lithops_handler'
 ACTION_MODULES_DIR = os.path.join('.python_packages', 'lib', 'site-packages')
 
 FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_azure.zip')
-DOCKER_PATH = shutil.which('docker')
 
 RUNTIME_NAME = 'lithops-runtime'
-FUNCTIONS_VERSION = 3
 
 DEFAULT_CONFIG_KEYS = {
     'runtime_timeout': 300,  # Default: 600 seconds => 10 minutes
@@ -37,14 +34,14 @@ DEFAULT_CONFIG_KEYS = {
     'max_workers': 200,
     'worker_processes': 1,
     'invoke_pool_threads': 100,
+    'functions_version': 3,
+    'invocation_type': 'http'
 }
 
 SUPPORTED_PYTHON = ['3.6', '3.7', '3.8', '3.9']
 
 REQUIRED_AZURE_STORAGE_PARAMS = ['storage_account_name', 'storage_account_key']
 REQUIRED_azure_functions_PARAMS = ['resource_group', 'location']
-
-INVOCATION_TYPE_DEFAULT = 'http'
 
 IN_QUEUE = "in-trigger"
 OUT_QUEUE = "out-result"
@@ -191,15 +188,3 @@ def load_config(config_data):
             raise Exception('{} key is mandatory in azure section of the configuration'.format(key))
 
     config_data['azure_functions'].update(config_data['azure_storage'])
-
-    if 'invocation_type' not in config_data['azure_functions']:
-        config_data['azure_functions']['invocation_type'] = INVOCATION_TYPE_DEFAULT
-
-    if 'runtime' not in config_data['azure_functions']:
-        config_data['azure_functions']['functions_version'] = FUNCTIONS_VERSION
-        storage_account_name = config_data['azure_functions']['storage_account_name']
-        py_version = python_version.replace('.', '')
-        revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
-        inv_type = config_data['azure_functions']['invocation_type']
-        runtime_name = '{}-{}-v{}-{}-{}'.format(storage_account_name, RUNTIME_NAME, py_version, revision, inv_type)
-        config_data['azure_functions']['runtime'] = runtime_name
