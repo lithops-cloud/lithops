@@ -33,9 +33,8 @@ DEFAULT_REQUIREMENTS = [
 
 PYTHON_VERSION = version_str(sys.version_info)
 SUPPORTED_PYTHON = ['3.6', '3.7', '3.8', '3.9']
-LAMBDA_PYTHON_VER_KEY = f'python{PYTHON_VERSION}'
-DEFAULT_RUNTIME = LAMBDA_PYTHON_VER_KEY.replace('.', '')
-DEFAULT_RUNTIMES = ['python36', 'python37', 'python38', 'python39']
+CURRENT_RUNTIME = f'python{PYTHON_VERSION}'
+DEFAULT_RUNTIME_NAMES = ['python36', 'python37', 'python38', 'python39']
 
 USER_RUNTIME_PREFIX = 'lithops.user_runtimes'
 

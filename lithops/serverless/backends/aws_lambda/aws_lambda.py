@@ -112,10 +112,17 @@ class AWSLambdaBackend:
     def _format_layer_name(self, runtime_name):
         return '_'.join([self.package, runtime_name, 'layer'])
 
+    def _get_default_runtime_name(self):
+        if lambda_config.PYTHON_VERSION not in lambda_config.SUPPORTED_PYTHON:
+            raise Exception(f'Python {lambda_config.PYTHON_VERSION} is not available '
+                f' for AWS Lambda, please use one of {lambda_config.SUPPORTED_PYTHON}')
+
+        return lambda_config.CURRENT_RUNTIME.replace('.', '')
+
     @staticmethod
     def _is_container_runtime(runtime_name):
         name = runtime_name.split('/', 1)[-1]
-        return name not in lambda_config.DEFAULT_RUNTIMES
+        return name not in lambda_config.DEFAULT_RUNTIME_NAMES
 
     def _format_repo_name(self, runtime_name):
         if ':' in runtime_name:
@@ -204,7 +211,7 @@ class AWSLambdaBackend:
         try:
             resp = self.lambda_client.create_function(
                 FunctionName=func_name,
-                Runtime=lambda_config.LAMBDA_PYTHON_VER_KEY,
+                Runtime=lambda_config.CURRENT_RUNTIME,
                 Role=self.role_arn,
                 Handler='build_layer.lambda_handler',
                 Code={
@@ -255,7 +262,7 @@ class AWSLambdaBackend:
                 'S3Bucket': self.internal_storage.bucket,
                 'S3Key': layer_name
             },
-            CompatibleRuntimes=[lambda_config.LAMBDA_PYTHON_VER_KEY]
+            CompatibleRuntimes=[lambda_config.CURRENT_RUNTIME]
         )
 
         try:
@@ -387,6 +394,8 @@ class AWSLambdaBackend:
         logger.info(f"Deploying runtime: {runtime_name} - Memory: {memory} Timeout: {timeout}")
         function_name = self._format_function_name(runtime_name, memory)
 
+        runtime_name = runtime_name.replace('.', '')
+
         layer_arn = self._get_layer(runtime_name)
         if not layer_arn:
             layer_arn = self._create_layer(runtime_name)
@@ -396,7 +405,7 @@ class AWSLambdaBackend:
         try:
             response = self.lambda_client.create_function(
                 FunctionName=function_name,
-                Runtime=lambda_config.LAMBDA_PYTHON_VER_KEY,
+                Runtime=lambda_config.CURRENT_RUNTIME,
                 Role=self.role_arn,
                 Handler='entry_point.lambda_handler',
                 Code={
@@ -497,7 +506,7 @@ class AWSLambdaBackend:
         self._wait_for_function_deployed(function_name)
         logger.debug(f'OK --> Created lambda function {function_name}')
 
-    def deploy_runtime(self, runtime_name, memory=3008, timeout=900):
+    def deploy_runtime(self, runtime_name, memory, timeout):
         """
         Deploys a Lambda function with the Lithops handler
         @param runtime_name: name of the runtime
@@ -505,7 +514,7 @@ class AWSLambdaBackend:
         @param timeout: runtime timeout in seconds
         @return: runtime metadata
         """
-        if runtime_name in lambda_config.DEFAULT_RUNTIMES:
+        if runtime_name == self._get_default_runtime_name():
             self._deploy_default_runtime(runtime_name, memory, timeout)
         else:
             self._deploy_container_runtime(runtime_name, memory, timeout)
@@ -657,12 +666,8 @@ class AWSLambdaBackend:
         Method that returns all the relevant information about the runtime set
         in config
         """
-        if lambda_config.PYTHON_VERSION not in lambda_config.SUPPORTED_PYTHON:
-            raise Exception(f'Python version "{lambda_config.PYTHON_VERSION}" '
-                f'is not available for AWS Lambda, please use one of {lambda_config.SUPPORTED_PYTHON}')
-        
         if 'runtime' not in self.aws_lambda_config or self.aws_lambda_config['runtime'] == 'default':
-            self.aws_lambda_config['runtime'] = lambda_config.DEFAULT_RUNTIME
+            self.aws_lambda_config['runtime'] = self._get_default_runtime_name()
 
         runime_info = {
             'runtime_name': self.aws_lambda_config['runtime'],

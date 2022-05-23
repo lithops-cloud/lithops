@@ -42,7 +42,7 @@ PYTHON_VERSION = version_str(sys.version_info)
 SUPPORTED_PYTHON = ['3.6', '3.7', '3.8', '3.9']
 
 REQUIRED_AZURE_STORAGE_PARAMS = ['storage_account_name', 'storage_account_key']
-REQUIRED_azure_functions_PARAMS = ['resource_group', 'location']
+REQUIRED_AZURE_FUNCTIONS_PARAMS = ['resource_group', 'location']
 
 IN_QUEUE = "in-trigger"
 OUT_QUEUE = "out-result"
@@ -179,7 +179,7 @@ def load_config(config_data):
         if key not in config_data['azure_storage']:
             raise Exception('{} key is mandatory in azure section of the configuration'.format(key))
 
-    for key in REQUIRED_azure_functions_PARAMS:
+    for key in REQUIRED_AZURE_FUNCTIONS_PARAMS:
         if key not in config_data['azure_functions']:
             raise Exception('{} key is mandatory in azure section of the configuration'.format(key))
 

@@ -70,11 +70,7 @@ class AliyunFunctionComputeBackend:
         return image_name, int(memory.replace('MB', ''))
 
     def _get_default_runtime_name(self):
-        python_version = utils.version_str(sys.version_info)
-        try:
-           return aliyunfc_config.RUNTIME_DEFAULT[python_version]
-        except KeyError:
-            raise Exception(f'Unsupported Python version: {python_version}')
+        return aliyunfc_config.CURRENT_RUNTIME.replace('.', '')
 
     def build_runtime(self, runtime_name, requirements_file, extra_args=[]):
         pass
@@ -97,7 +93,7 @@ class AliyunFunctionComputeBackend:
                 logger.debug(f"creating service {self.service_name}")
                 self.fc_client.create_service(self.service_name, role=self.role_arn)
 
-        if runtime_name in aliyunfc_config.RUNTIME_DEFAULT.values():
+        if runtime_name == self._get_default_runtime_name():
             handler_path = aliyunfc_config.HANDLER_FOLDER_LOCATION
             is_custom = False
         elif os.path.isdir(runtime_name):
@@ -119,7 +115,7 @@ class AliyunFunctionComputeBackend:
             self.fc_client.create_function(
                 serviceName=self.service_name,
                 functionName=function_name,
-                runtime=runtime_name,
+                runtime=aliyunfc_config.AVAILABLE_RUNTIMES[aliyunfc_config.PYTHON_VERSION],
                 handler='entry_point.main',
                 codeDir=handler_path,
                 memorySize=memory,
@@ -261,8 +257,9 @@ class AliyunFunctionComputeBackend:
         Method that returns all the relevant information about the runtime set
         in config
         """
-        if aliyunfc_config.PYTHON_VERSION not in aliyunfc_config.RUNTIME_DEFAULT.keys():
-            raise Exception(f'Python {aliyunfc_config.PYTHON_VERSION} is not supported')
+        if aliyunfc_config.PYTHON_VERSION not in aliyunfc_config.SUPPORTED_PYTHON:
+            raise Exception(f'Python {aliyunfc_config.PYTHON_VERSION} is not available for'
+             f'Aiyun Functions. Please use one of {aliyunfc_config.SUPPORTED_PYTHON}')
         
         if 'runtime' not in self.config or self.config['runtime'] == 'default':
             self.config['runtime'] = self._get_default_runtime_name()

@@ -213,7 +213,7 @@ class GCPCloudRunBackend:
             os.remove(cr_config.FH_ZIP_LOCATION)
 
         logger.debug('Authorizing Docker client with GCR permissions')
-        cmd = f'cat {self.credentials_path} | docker login -u _json_key --password-stdin https://gcr.io'
+        cmd = f'cat {self.credentials_path} | {docker_path} login -u _json_key --password-stdin https://gcr.io'
         utils.run_command(cmd)
 
         logger.debug(f'Pushing runtime {image_name} to GCP Container Registry')

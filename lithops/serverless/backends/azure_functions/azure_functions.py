@@ -227,7 +227,7 @@ class AzureFunctionAppBackend:
         """
         action_name = self._format_function_name(runtime_name, memory)
         logger.debug(f'Deleting function app: {action_name}')
-        cmd = (f'az functionapp delete --name {action_name} --resource-group {self.resource_group}')
+        cmd = f'az functionapp delete --name {action_name} --resource-group {self.resource_group}'
         utils.run_command(cmd)
 
         try:
@@ -356,7 +356,8 @@ class AzureFunctionAppBackend:
         in config
         """
         if az_config.PYTHON_VERSION not in az_config.SUPPORTED_PYTHON:
-            raise Exception(f'Python {az_config.PYTHON_VERSION} is not supported')
+            raise Exception(f'Python {az_config.PYTHON_VERSION} is not available for'
+                f'Azure Functions. Please use one of {az_config.SUPPORTED_PYTHON}')
 
         if 'runtime' not in self.azure_config or self.azure_config['runtime'] == 'default':
             self.azure_config['runtime'] = self._get_default_runtime_name()

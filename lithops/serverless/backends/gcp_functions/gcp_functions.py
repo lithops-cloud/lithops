@@ -51,7 +51,7 @@ class GCPFunctionsBackend:
     def __init__(self, gcp_functions_config, internal_storage):
         self.name = 'gcp_functions'
         self.type = 'faas'
-        self.gcp_functions_config = gcp_functions_config
+        self.config = gcp_functions_config
         self.package = 'lithops_v' + __version__
 
         self.region = gcp_functions_config['region']
@@ -89,6 +89,9 @@ class GCPFunctionsBackend:
         runtime_memory = int(split[3].replace('MB', ''))
         return runtime_name, runtime_memory
 
+    def _get_default_runtime_name(self):
+        return gcp_config.CURRENT_RUNTIME
+
     def _full_function_location(self, function_name):
         return 'projects/{}/locations/{}/functions/{}'.format(self.project, self.region, function_name)
 
@@ -111,11 +114,8 @@ class GCPFunctionsBackend:
         http = self._get_auth_session()
         return build('cloudfunctions', FUNCTIONS_API_VERSION, http=http, cache_discovery=False)
 
-    def _get_default_runtime_image_name(self):
-        return 'python' + version_str(sys.version_info)
-
     def _get_runtime_requirements(self, runtime_name):
-        if runtime_name in gcp_config.DEFAULT_RUNTIMES:
+        if runtime_name == gcp_config.CURRENT_RUNTIME:
             return gcp_config.DEFAULT_REQUIREMENTS
         else:
             user_runtimes = self._list_runtimes(default_runtimes=False)
@@ -126,13 +126,13 @@ class GCPFunctionsBackend:
             else:
                 raise Exception('Runtime {} does not exist. '
                                 'Available runtimes: {}'.format(runtime_name,
-                                                                gcp_config.DEFAULT_RUNTIMES + user_runtimes))
+                                                                gcp_config.DEFAULT_RUNTIME_NAMES + user_runtimes))
 
     def _list_runtimes(self, default_runtimes=True):
         runtimes = []
 
         if default_runtimes:
-            runtimes.extend(gcp_config.DEFAULT_RUNTIMES)
+            runtimes.extend(gcp_config.DEFAULT_RUNTIME_NAMES)
 
         user_runtimes_keys = self.internal_storage.storage.list_keys(self.internal_storage.bucket,
                                                                      prefix=gcp_config.USER_RUNTIMES_PREFIX)
@@ -181,13 +181,11 @@ class GCPFunctionsBackend:
         bin_name = self._format_function_name(runtime_name, memory) + '_bin.zip'
         self.internal_storage.put_data(bin_name, code)
 
-        python_runtime_ver = 'python{}'.format(version_str(sys.version_info))
-
         cloud_function = {
             'name': function_location,
             'description': self.package,
             'entryPoint': 'main',
-            'runtime': python_runtime_ver.lower().replace('.', ''),
+            'runtime': gcp_config.CURRENT_RUNTIME,
             'timeout': str(timeout) + 's',
             'availableMemoryMb': memory,
             'serviceAccountEmail': self.service_account,
@@ -234,11 +232,6 @@ class GCPFunctionsBackend:
 
         if requirements_file is None:
             raise Exception('Please provide a `requirements.txt` file with the necessary modules')
-
-        runtime_python_ver = 'python{}'.format(version_str(sys.version_info))
-        if runtime_python_ver not in gcp_config.DEFAULT_RUNTIMES:
-            raise Exception('Runtime {} is not available for GCP Functions, '
-                            'please use one of {}'.format(runtime_python_ver, gcp_config.DEFAULT_RUNTIMES))
 
         with open(requirements_file, 'r') as req_file:
             requirements = req_file.read()
@@ -346,14 +339,8 @@ class GCPFunctionsBackend:
 
         return invocation_id
 
-    def get_runtime_key(self, runtime_name, runtime_memory):
-        action_name = self._format_function_name(runtime_name, runtime_memory)
-        runtime_key = os.path.join(self.name, self.region, action_name)
-        logger.debug('Runtime key: {}'.format(runtime_key))
-        return runtime_key
-
     def _generate_runtime_meta(self, runtime_name, memory):
-        logger.debug('Generating runtime meta for {}...'.format(runtime_name))
+        logger.debug('Generating runtime meta for {}'.format(runtime_name))
 
         function_name = self._format_function_name(runtime_name, memory)
         function_location = self._full_function_location(function_name)
@@ -383,3 +370,30 @@ class GCPFunctionsBackend:
             raise Exception(response['error'])
         else:
             raise Exception('Error at retrieving runtime meta: {}'.format(response))
+
+    def get_runtime_key(self, runtime_name, runtime_memory):
+        action_name = self._format_function_name(runtime_name, runtime_memory)
+        runtime_key = os.path.join(self.name, self.region, action_name)
+        logger.debug('Runtime key: {}'.format(runtime_key))
+        return runtime_key
+
+    def get_runtime_info(self):
+        """
+        Method that returns all the relevant information about the runtime set
+        in config
+        """
+        if gcp_config.PYTHON_VERSION not in gcp_config.SUPPORTED_PYTHON:
+            raise Exception(f'Python {gcp_config.PYTHON_VERSION} is not available for Google'
+                f' Cloud Functions. Please use one of {gcp_config.SUPPORTED_PYTHON}')
+
+        if 'runtime' not in self.config or self.config['runtime'] == 'default':
+            self.config['runtime'] = self._get_default_runtime_name()
+        
+        runime_info = {
+            'runtime_name': self.config['runtime'],
+            'runtime_memory': self.config['runtime_memory'],
+            'runtime_timeout': self.config['runtime_timeout'],
+            'max_workers': self.config['max_workers'],
+        }
+
+        return runime_info
