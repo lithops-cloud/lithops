@@ -258,7 +258,7 @@ class AWSLambdaBackend:
         logger.debug('Creating layer {} ...'.format(layer_name))
         response = self.lambda_client.publish_layer_version(
             LayerName=layer_name,
-            Description='Lithops Function for '+self.package,
+            Description='Lithops Function for ' + self.package,
             Content={
                 'S3Bucket': self.internal_storage.bucket,
                 'S3Key': layer_name
@@ -387,7 +387,7 @@ class AWSLambdaBackend:
         utils.run_command(cmd)
 
         logger.debug('Building done!')
-    
+
     def _deploy_default_runtime(self, runtime_name, memory, timeout):
         """
         Deploy the default runtime based on layers
@@ -400,6 +400,7 @@ class AWSLambdaBackend:
             layer_arn = self._create_layer(runtime_name)
 
         code = self._create_handler_bin()
+        env_vars = {t['name']: t['value'] for t in self.lambda_config['env_vars']}
 
         try:
             response = self.lambda_client.create_function(
@@ -426,6 +427,12 @@ class AWSLambdaBackend:
                 Tags={
                     'runtime_name': runtime_name
                 },
+                EphemeralStorage={
+                    'Size': self.lambda_config['ephemeral_storage']
+                },
+                Environment={
+                    'Variables': env_vars
+                }
             )
 
             if response['ResponseMetadata']['HTTPStatusCode'] not in (200, 201):
@@ -436,7 +443,7 @@ class AWSLambdaBackend:
                 pass
             else:
                 raise e
-        
+
         self._wait_for_function_deployed(function_name)
         logger.debug('OK --> Created lambda function {}'.format(function_name))
 
@@ -490,7 +497,13 @@ class AWSLambdaBackend:
                 Tags={
                     'runtime_name': self.package+'/'+runtime_name
                 },
-                Architectures=[self.lambda_config['architecture']]
+                Architectures=[self.lambda_config['architecture']],
+                EphemeralStorage={
+                    'Size': self.lambda_config['ephemeral_storage']
+                },
+                Environment={
+                    'Variables': env_vars
+                }
             )
 
             if response['ResponseMetadata']['HTTPStatusCode'] not in (200, 201):
@@ -582,7 +595,7 @@ class AWSLambdaBackend:
                 if self.package in function['FunctionName']:
                     rt_name, rt_memory = self._unformat_function_name(function['FunctionName'])
                     runtimes.append((rt_name, rt_memory))
-            
+
         response = self.lambda_client.list_functions(FunctionVersion='ALL')
         get_runtimes(response)
         while 'NextMarker' in response:
@@ -593,7 +606,7 @@ class AWSLambdaBackend:
             if self._is_container_runtime(runtime_name) and ':' not in runtime_name:
                 runtime_name = runtime_name + ':latest'
             runtimes = [tup for tup in runtimes if runtime_name in tup[0]]
-    
+
         return runtimes
 
     def invoke(self, runtime_name, runtime_memory, payload):
