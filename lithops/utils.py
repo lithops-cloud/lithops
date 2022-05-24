@@ -18,6 +18,7 @@
 
 import re
 import os
+import sys
 import uuid
 import json
 import shutil
@@ -348,28 +349,69 @@ def b64str_to_bytes(str_data):
     return byte_data
 
 
+def get_docker_path():
+    docker_path = shutil.which('docker')
+    if not docker_path:
+        raise Exception('"docker" command not found. '
+         'Install docker or use an already built runtime')
+    return docker_path
+
+
+def get_default_k8s_image_name(backend, backend_config, runtime_name, revision):
+    """
+    Generates the default runtime image name
+    Used in serverless/kubernetes-based backends
+    """
+    python_version = version_str(sys.version_info).replace('.', '')
+    img = f'{runtime_name}-v{python_version}:{revision}'
+
+    docker_server = backend_config['docker_server']
+
+    if 'docker.io' in docker_server:
+        # Docker hub container registry
+        try:
+            docker_user = backend_config['docker_user']
+        except:
+            raise Exception('You must provide "docker_user"'
+                f' param in config under "{backend}" section')
+        return f'{docker_server}/{docker_user}/{img}'
+
+    elif 'icr.io' in docker_server:
+        # IBM container registry
+        try:
+            docker_namespace = backend_config['docker_namespace']
+        except:
+            raise Exception('You must provide "docker_namespace"'
+                f' param in config under "{backend}" section')
+        return f'{docker_server}/{docker_namespace}/{img}'
+
+    else:
+        return f'{docker_server}/{img}'
+
+
 def get_docker_username():
     user = None
-    cmd = "{} info".format(shutil.which('docker'))
-    docker_user_info = sp.check_output(cmd, shell=True,
-                                       encoding='UTF-8',
-                                       stderr=sp.STDOUT)
+    docker_path = get_docker_path()
+
+    docker_user_info = sp.check_output(
+        f"{docker_path} info", shell=True,
+        encoding='UTF-8', stderr=sp.STDOUT
+    )
     for line in docker_user_info.splitlines():
         if 'Username' in line:
             _, useranme = line.strip().split(':')
             user = useranme.strip()
 
     if user is None:
-        cmd = ("docker-credential-desktop list | jq -r 'to_entries[].key' | while "
-               "read; do docker-credential-desktop get <<<$REPLY; break; done")
-        docker_user_info = sp.check_output(cmd, shell=True,
-                                           encoding='UTF-8',
-                                           stderr=sp.STDOUT)
         try:
+            cmd = ("docker-credential-desktop list | jq -r 'to_entries[].key' | while "
+                   "read; do docker-credential-desktop get <<<$REPLY; break; done")
+            docker_user_info = sp.check_output(cmd,
+                shell=True, encoding='UTF-8', stderr=sp.STDOUT)
             docker_data = json.loads(docker_user_info)
             user = docker_data['Username']
         except Exception:
-            pass
+            raise Exception('Unable to get the Docker registry user')
 
     return user
 
@@ -634,3 +676,9 @@ class WrappedStreamingBodyPartition(WrappedStreamingBody):
             self._eof = True
 
         return retval
+
+def run_command(cmd):
+    if logger.getEffectiveLevel() != logging.DEBUG:
+        sp.check_call(cmd.split(), stdout=sp.DEVNULL, stderr=sp.DEVNULL)
+    else:
+        sp.check_call(cmd.split())

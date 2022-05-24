@@ -14,8 +14,9 @@
 # limitations under the License.
 #
 
-import sys
 import os
+import sys
+
 from lithops.utils import version_str
 
 
@@ -30,8 +31,10 @@ DEFAULT_CONFIG_KEYS = {
 CONNECTION_POOL_SIZE = 300
 
 SERVICE_NAME = 'lithops'
-RUNTIME_DEFAULT = 'python3'
 HANDLER_FOLDER_LOCATION = os.path.join(os.getcwd(), 'lithops_handler_aliyun')
+
+CURRENT_PY_VERSION = version_str(sys.version_info)
+AVAILABLE_PY_RUNTIMES = {'3.6': 'python3', '3.9': 'python3.9'}
 
 REQUIREMENTS_FILE = """
 pika
@@ -62,21 +65,12 @@ def load_config(config_data=None):
             msg = f'"{param}" is mandatory in the "aliyun_fc" section of the configuration'
             raise Exception(msg)
 
-    this_version_str = version_str(sys.version_info)
-    if this_version_str != '3.6':
-        raise Exception('The functions backend Aliyun Function Compute currently'
-                        ' only supports Python version 3.6 and the local Python'
-                        'version is {}'.format(this_version_str))
-
     pe = config_data['aliyun_fc']['public_endpoint'].replace('https://', '')
     config_data['aliyun_fc']['public_endpoint'] = pe
 
     for key in DEFAULT_CONFIG_KEYS:
         if key not in config_data['aliyun_fc']:
             config_data['aliyun_fc'][key] = DEFAULT_CONFIG_KEYS[key]
-
-    if 'runtime' not in config_data['aliyun_fc']:
-        config_data['aliyun_fc']['runtime'] = 'default'
 
     # Put credential keys to 'aliyun_fc' dict entry
     config_data['aliyun_fc'].update(config_data['aliyun'])

@@ -105,6 +105,23 @@ class ServerlessHandler:
         """
         return self.backend.get_runtime_key(runtime_name, memory)
 
+    def get_runtime_info(self):
+        """
+        Wrapper method that returns a dictionary with all the runtime information
+        set in config
+        """
+        if hasattr(self.backend, 'get_runtime_info'):
+            return self.backend.get_runtime_info()
+
+        runtime_info = {
+            'runtime_name': self.config[self.backend_name]['runtime'],
+            'runtime_memory': self.config[self.backend_name]['runtime_memory'],
+            'runtime_timeout': self.config[self.backend_name]['runtime_timeout'],
+            'max_workers': self.config[self.backend_name]['max_workers'],
+        }
+
+        return runtime_info
+
     def get_backend_type(self):
         """
         Wrapper method that returns the type of the backend (Batch or FaaS)

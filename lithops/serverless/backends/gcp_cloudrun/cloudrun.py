@@ -21,15 +21,15 @@ import sys
 import time
 import json
 
+from lithops import utils
+from lithops.version import __version__
+
 from google.oauth2 import service_account
 from google_auth_httplib2 import AuthorizedHttp
 from google.auth.transport.requests import AuthorizedSession
 from googleapiclient.discovery import build
 
-from ..knative import config as kconfig
 from . import config as cr_config
-from ....utils import version_str, create_handler_zip
-from ....version import __version__
 
 logger = logging.getLogger(__name__)
 
@@ -123,24 +123,24 @@ class GCPCloudRunBackend:
         """
         runtime_name = runtime_name.replace('.', '').replace('_', '-')
         revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
-        return 'gcr.io/{}/lithops-cloudrun-{}:{}'.format(self.project_name, runtime_name, revision)
+        return f'gcr.io/{self.project_name}/lithops-cloudrun-{runtime_name}:{revision}'
 
     def _build_default_runtime(self):
         """
         Builds the default runtime
         """
-        logger.debug('Building default {} runtime'.format(cr_config.DEFAULT_RUNTIME_NAME))
-        if os.system('{} --version >{} 2>&1'.format(kconfig.DOCKER_PATH, os.devnull)) == 0:
-            # Build default runtime using local dokcer
-            python_version = version_str(sys.version_info)
-            dockerfile = "Dockefile.default-knative-runtime"
-            with open(dockerfile, 'w') as f:
-                f.write("FROM python:{}-slim-buster\n".format(python_version))
-                f.write(cr_config.DEFAULT_DOCKERFILE)
+        logger.debug(f'Building default {cr_config.DEFAULT_RUNTIME_NAME} runtime')
+        # Build default runtime using local dokcer
+        python_version = utils.version_str(sys.version_info)
+        dockerfile = "Dockefile.default-knative-runtime"
+        with open(dockerfile, 'w') as f:
+            f.write("FROM python:{}-slim-buster\n".format(python_version))
+            f.write(cr_config.DEFAULT_DOCKERFILE)
+        try:
             self.build_runtime(cr_config.DEFAULT_RUNTIME_NAME, dockerfile)
+        finally:
             os.remove(dockerfile)
-        else:
-            raise Exception('Docker CLI not found')
+
 
     def _generate_runtime_meta(self, runtime_name, memory):
         """
@@ -192,49 +192,33 @@ class GCPCloudRunBackend:
             raise Exception(res.text)
 
     def build_runtime(self, runtime_name, dockerfile, extra_args=[]):
-        logger.debug('Building a new docker image from Dockerfile')
+        logger.info(f'Building runtime {runtime_name} from {dockerfile}')
 
         image_name = self._format_image_name(runtime_name)
 
-        logger.debug('Docker image name: {}'.format(image_name))
-
-        entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
-        create_handler_zip(kconfig.FH_ZIP_LOCATION, entry_point, 'lithopsproxy.py')
+        docker_path = utils.get_docker_path()
 
         if dockerfile:
-            cmd = '{} build -t {} -f {} . '.format(kconfig.DOCKER_PATH,
-                                                   image_name,
-                                                   dockerfile)
+            assert os.path.isfile(dockerfile), f'Cannot locate "{dockerfile}"'
+            cmd = f'{docker_path} build -t {image_name} -f {dockerfile} . '
         else:
-            cmd = '{} build -t {} . '.format(kconfig.DOCKER_PATH, image_name)
-
+            cmd = f'{docker_path} build -t {image_name} . '
         cmd = cmd+' '.join(extra_args)
 
-        logger.info('Building Docker image')
-        if logger.getEffectiveLevel() != logging.DEBUG:
-            cmd = cmd + " >{} 2>&1".format(os.devnull)
+        try:
+            entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
+            utils.create_handler_zip(cr_config.FH_ZIP_LOCATION, entry_point, 'lithopsproxy.py')
+            utils.run_command(cmd)
+        finally:
+            os.remove(cr_config.FH_ZIP_LOCATION)
 
-        res = os.system(cmd)
-        if res != 0:
-            raise Exception('There was an error building the runtime')
+        logger.debug('Authorizing Docker client with GCR permissions')
+        cmd = f'cat {self.credentials_path} | {docker_path} login -u _json_key --password-stdin https://gcr.io'
+        utils.run_command(cmd)
 
-        os.remove(kconfig.FH_ZIP_LOCATION)
-
-        logger.debug('Authorizing Docker client with GCR permissions'.format(image_name))
-        cmd = 'cat {} | docker login -u _json_key --password-stdin https://gcr.io'.format(self.credentials_path)
-        if logger.getEffectiveLevel() != logging.DEBUG:
-            cmd = cmd + " >{} 2>&1".format(os.devnull)
-        res = os.system(cmd)
-        if res != 0:
-            raise Exception('There was an error authorizing Docker for push to GCR')
-
-        logger.info('Pushing Docker image {} to GCP Container Registry'.format(image_name))
-        cmd = '{} push {}'.format(kconfig.DOCKER_PATH, image_name)
-        if logger.getEffectiveLevel() != logging.DEBUG:
-            cmd = cmd + " >{} 2>&1".format(os.devnull)
-        res = os.system(cmd)
-        if res != 0:
-            raise Exception('There was an error pushing the runtime to the container registry')
+        logger.debug(f'Pushing runtime {image_name} to GCP Container Registry')
+        cmd = f'{docker_path} push {image_name}'
+        utils.run_command(cmd)
 
     def deploy_runtime(self, runtime_name, memory, timeout):
         if runtime_name == cr_config.DEFAULT_RUNTIME_NAME:

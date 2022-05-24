@@ -15,23 +15,17 @@
 #
 
 import os
-import sys
-import shutil
-
-from lithops.utils import version_str, get_docker_username
 from lithops.version import __version__
 
 RUNTIME_NAME = 'lithops-k8sjob'
-
-DOCKER_PATH = shutil.which('docker')
-
 
 DEFAULT_CONFIG_KEYS = {
     'runtime_timeout': 600,  # Default: 10 minutes
     'runtime_memory': 256,  # Default memory: 256 MB
     'runtime_cpu': 0.5,  # 0.5 vCPU
     'max_workers': 200,
-    'worker_processes': 1
+    'worker_processes': 1,
+    'docker_server': 'docker.io'
 }
 
 DEFAULT_GROUP = "batch"
@@ -45,8 +39,8 @@ RUN apt-get update && apt-get install -y \
         zip \
         && rm -rf /var/lib/apt/lists/*
 
-RUN pip install --upgrade setuptools six pip \
-    && pip install --no-cache-dir \
+RUN pip install --upgrade --ignore-installed setuptools six pip \
+    && pip install --upgrade --no-cache-dir --ignore-installed \
         flask \
         pika \
         ibm-cos-sdk \
@@ -121,17 +115,8 @@ def load_config(config_data):
         if key not in config_data['k8s']:
             config_data['k8s'][key] = DEFAULT_CONFIG_KEYS[key]
 
-    if 'runtime' not in config_data['k8s']:
-        if not DOCKER_PATH:
-            raise Exception('docker command not found. Install docker or use '
-                            'an already built runtime')
-        if 'docker_user' not in config_data['k8s']:
-            config_data['k8s']['docker_user'] = get_docker_username()
-        if not config_data['k8s']['docker_user']:
-            raise Exception('You must execute "docker login" or provide "docker_user" '
-                            'param in config under "k8s" section')
-        docker_user = config_data['k8s']['docker_user']
-        python_version = version_str(sys.version_info).replace('.', '')
-        revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
-        runtime_name = '{}/{}-v{}:{}'.format(docker_user, RUNTIME_NAME, python_version, revision)
-        config_data['k8s']['runtime'] = runtime_name
+    if 'runtime' in config_data['k8s']:
+        runtime = config_data['k8s']['runtime']
+        registry = config_data['k8s']['docker_server']
+        if runtime.count('/') == 1 and registry not in runtime:
+            config_data['k8s']['runtime'] = f'{registry}/{runtime}'

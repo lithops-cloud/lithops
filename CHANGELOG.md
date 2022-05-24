@@ -3,12 +3,21 @@
 ## [v2.6.1.dev0]
 
 ### Added
+- [Azure Functions] Allow to build a runtime from a custom requirements.txt file
+- [K8s] Append 'docker_server' as a prefix of the runtime
+- [Code Engine] Append 'docker_server' as a prefix of the runtime
+- [Knative] Append 'docker_server' as a prefix of the runtime
 
 ### Changed
+- [Core] Load docker command only when needed instead of loading it always
+- [Core] Load runtime data only on invocation
+- [Multiprocessing] Improved remote logging
 - [Monitor] Reduce debug log verbosity, status is printed every 60 s or when a future changes state
 
 ### Fixed
-
+- [Core] Make sure all temp files generated during build_runtime() are cleaned
+- [knative] AttributeError: 'KnativeServingBackend' object has no attribute 'coreV1Api'
+- [knative] Fixed service deployment
 
 ## [v2.6.0]
 

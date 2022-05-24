@@ -138,6 +138,7 @@ To configure Lithops to access a private repository in your docker hub account, 
 ```yaml
 code_engine:
     ....
+    docker_server    : docker.io
     docker_user      : <Docker hub username>
     docker_password  : <DOcker hub access TOEKN>
 ```
@@ -160,7 +161,7 @@ code_engine:
 |code_engine | namespace |  |no | Namespace name|
 |code_engine | region |  | no | Cluster region. One of *us-south*, *jp-tok*, *eu-de*, *eu-gb* |
 |code_engine | kubecfg_path | |no | **Mandatory** if no namepsace and no region. Path to kubecfg file. Only set if config file not in `~/.kube/config` or KUBECONFIG env var not present|
-|code_engine | docker_server | https://index.docker.io/v1/ |no | Docker server URL |
+|code_engine | docker_server | docker.io |no | Docker server URL |
 |code_engine | docker_user | |no | Docker hub username |
 |code_engine | docker_password | |no | Login to your docker hub account and generate a new access token [here](https://hub.docker.com/settings/security)|
 |code_engine | max_workers | 1000 | no | Max number of workers per `FunctionExecutor()`|

@@ -19,8 +19,7 @@ import logging
 import sys
 from os.path import exists, isfile
 
-from ....utils import version_str
-
+from lithops.utils import version_str
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +30,7 @@ REQ_PARAMS = ('project_name', 'service_account', 'credentials_path', 'region')
 DEFAULT_CONFIG_KEYS = {
     'runtime_timeout': 300,  # Default: 600 seconds => 10 minutes
     'runtime_memory': 256,  # Default memory: 256 MB
-    'runtime_cpu': 1,  # 0.125 vCPU
+    'runtime_cpu': 0.25,  # 0.25 vCPU
     'max_workers': 1000,
     'worker_processes': 1,
     'invoke_pool_threads': 100,
@@ -40,7 +39,7 @@ DEFAULT_CONFIG_KEYS = {
 MAX_RUNTIME_MEMORY = 8192  # 8 GiB
 MAX_RUNTIME_TIMEOUT = 3600  # 1 hour
 
-AVAILABLE_RUNTIME_CPUS = {1, 2, 4}
+AVAILABLE_RUNTIME_CPUS = {1, 2, 4, 6, 8}
 
 FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_cloudrun.zip')
 
@@ -49,8 +48,8 @@ RUN apt-get update && apt-get install -y \
         zip \
         && rm -rf /var/lib/apt/lists/*
 
-RUN pip install --upgrade setuptools six pip \
-    && pip install --no-cache-dir \
+RUN pip install --upgrade --ignore-installed setuptools six pip \
+    && pip install --upgrade --no-cache-dir --ignore-installed \
         wheel \
         gunicorn \
         pika \

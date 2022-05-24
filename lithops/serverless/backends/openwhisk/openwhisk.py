@@ -18,11 +18,9 @@ import os
 import sys
 import logging
 
-from lithops.utils import version_str
+from lithops import utils
 from lithops.version import __version__
-from lithops.utils import is_lithops_worker
 from lithops.libs.openwhisk.client import OpenWhiskClient
-from lithops.utils import create_handler_zip
 from lithops.constants import COMPUTE_CLI_MSG
 from . import config as ow_config
 
@@ -39,7 +37,7 @@ class OpenWhiskBackend:
         self.name = 'openwhisk'
         self.type = 'faas'
         self.ow_config = ow_config
-        self.is_lithops_worker = is_lithops_worker()
+        self.is_lithops_worker = utils.is_lithops_worker()
 
         self.user_agent = ow_config['user_agent']
 
@@ -48,25 +46,27 @@ class OpenWhiskBackend:
         self.api_key = ow_config['api_key']
         self.insecure = ow_config.get('insecure', False)
 
-        logger.debug("Set OpenWhisk Endpoint to {}".format(self.endpoint))
-        logger.debug("Set OpenWhisk Namespace to {}".format(self.namespace))
-        logger.debug("Set OpenWhisk Insecure to {}".format(self.insecure))
+        logger.debug(f"Set OpenWhisk Endpoint to {self.endpoint}")
+        logger.debug(f"Set OpenWhisk Namespace to {self.namespace}")
+        logger.debug(f"Set OpenWhisk Insecure to {self.insecure}")
 
         self.user_key = self.api_key[:5]
-        self.package = 'lithops_v{}_{}'.format(__version__, self.user_key)
+        self.package = f'lithops_v{__version__}_{self.user_key}'
 
-        self.cf_client = OpenWhiskClient(endpoint=self.endpoint,
-                                         namespace=self.namespace,
-                                         api_key=self.api_key,
-                                         insecure=self.insecure,
-                                         user_agent=self.user_agent)
+        self.cf_client = OpenWhiskClient(
+            endpoint=self.endpoint,
+            namespace=self.namespace,
+            api_key=self.api_key,
+            insecure=self.insecure,
+            user_agent=self.user_agent
+        )
 
         msg = COMPUTE_CLI_MSG.format('OpenWhisk')
-        logger.info("{} - Namespace: {}".format(msg, self.namespace))
+        logger.info(f"{msg} - Namespace: {self.namespace}")
 
     def _format_function_name(self, runtime_name, runtime_memory):
         runtime_name = runtime_name.replace('/', '_').replace(':', '_')
-        return '{}_{}MB'.format(runtime_name, runtime_memory)
+        return f'{runtime_name}_{runtime_memory}MB'
 
     def _unformat_function_name(self, action_name):
         runtime_name, memory = action_name.rsplit('_', 1)
@@ -75,60 +75,54 @@ class OpenWhiskBackend:
         return image_name, int(memory.replace('MB', ''))
 
     def _get_default_runtime_image_name(self):
-        python_version = version_str(sys.version_info)
-        return ow_config.RUNTIME_DEFAULT[python_version]
-
-    def _delete_function_handler_zip(self):
-        os.remove(ow_config.FH_ZIP_LOCATION)
+        python_version = utils.version_str(sys.version_info)
+        try:
+           return ow_config.RUNTIME_DEFAULT[python_version]
+        except KeyError:
+            raise Exception(f'Unsupported Python version: {python_version}')
 
     def build_runtime(self, docker_image_name, dockerfile, extra_args=[]):
         """
         Builds a new runtime from a Docker file and pushes it to the Docker hub
         """
-        logger.info('Building a new docker image from Dockerfile')
-        logger.info('Docker image name: {}'.format(docker_image_name))
+        logger.info(f'Building runtime {docker_image_name} from {dockerfile}')
+
+        docker_path = utils.get_docker_path()
 
         if dockerfile:
-            cmd = '{} build -t {} -f {} . '.format(ow_config.DOCKER_PATH, docker_image_name, dockerfile)
+            assert os.path.isfile(dockerfile), f'Cannot locate "{dockerfile}"'
+            cmd = f'{docker_path} build -t {docker_image_name} -f {dockerfile} . '
         else:
-            cmd = '{} build -t {} . '.format(ow_config.DOCKER_PATH, docker_image_name)
-
+            cmd = f'{docker_path} build -t {docker_image_name} . '
         cmd = cmd+' '.join(extra_args)
+        utils.run_command(cmd)
 
-        if logger.getEffectiveLevel() != logging.DEBUG:
-            cmd = cmd + " >{} 2>&1".format(os.devnull)
+        logger.debug(f'Pushing runtime {docker_image_name} to container registry')
+        cmd = f'{docker_path} push {docker_image_name}'
+        utils.run_command(cmd)
 
-        res = os.system(cmd)
-        if res != 0:
-            raise Exception('There was an error building the runtime')
-
-        cmd = 'docker push {}'.format(docker_image_name)
-        res = os.system(cmd)
-        if res != 0:
-            raise Exception('There was an error pushing the runtime to the container registry')
-        logger.info('Building done!')
+        logger.debug('Building done!')
 
     def deploy_runtime(self, docker_image_name, memory, timeout):
         """
-        Deploys a new runtime into IBM CF namespace from an already built Docker image
+        Deploys a new runtime into Openwhisk namespace from an already built Docker image
         """
-        if docker_image_name == 'default':
-            docker_image_name = self._get_default_runtime_image_name()
-
-        logger.debug(f"Deploying runtime: {docker_image_name} - Memory: {memory} Timeout: {timeout}")
+        logger.info(f"Deploying runtime: {docker_image_name} - Memory: {memory} Timeout: {timeout}")
 
         self.cf_client.create_package(self.package)
         action_name = self._format_function_name(docker_image_name, memory)
 
         entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
-        create_handler_zip(ow_config.FH_ZIP_LOCATION, entry_point, '__main__.py')
+        utils.create_handler_zip(ow_config.FH_ZIP_LOCATION, entry_point, '__main__.py')
 
-        with open(ow_config.FH_ZIP_LOCATION, "rb") as action_zip:
-            action_bin = action_zip.read()
-        self.cf_client.create_action(self.package, action_name, docker_image_name, code=action_bin,
-                                     memory=memory, is_binary=True, timeout=timeout*1000)
-
-        self._delete_function_handler_zip()
+        try:
+            with open(ow_config.FH_ZIP_LOCATION, "rb") as action_zip:
+                action_bin = action_zip.read()
+            self.cf_client.create_action(self.package, action_name, 
+                docker_image_name, code=action_bin, memory=memory,
+                is_binary=True, timeout=timeout*1000)
+        finally:
+            os.remove(ow_config.FH_ZIP_LOCATION)
 
         return self._generate_runtime_meta(docker_image_name, memory)
 
@@ -136,8 +130,6 @@ class OpenWhiskBackend:
         """
         Deletes a runtime
         """
-        if docker_image_name == 'default':
-            docker_image_name = self._get_default_runtime_image_name()
         action_name = self._format_function_name(docker_image_name, memory)
         self.cf_client.delete_action(self.package, action_name)
 
@@ -160,8 +152,6 @@ class OpenWhiskBackend:
         List all the runtimes deployed in the IBM CF service
         return: list of tuples (docker_image_name, memory)
         """
-        if docker_image_name == 'default':
-            docker_image_name = self._get_default_runtime_image_name()
         runtimes = []
         actions = self.cf_client.list_actions(self.package)
 
@@ -192,6 +182,23 @@ class OpenWhiskBackend:
         runtime_key = os.path.join(self.name, self.namespace, action_name)
 
         return runtime_key
+    
+    def get_runtime_info(self):
+        """
+        Method that returns all the relevant information about the runtime set
+        in config
+        """
+        if 'runtime' not in self.ow_config or self.ow_config['runtime'] == 'default':
+            self.ow_config['runtime'] = self._get_default_runtime_image_name()
+
+        runime_info = {
+            'runtime_name': self.ow_config['runtime'],
+            'runtime_memory': self.ow_config['runtime_memory'],
+            'runtime_timeout': self.ow_config['runtime_timeout'],
+            'max_workers': self.ow_config['max_workers'],
+        }
+
+        return runime_info
 
     def _generate_runtime_meta(self, docker_image_name, memory):
         """

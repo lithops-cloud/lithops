@@ -15,7 +15,6 @@
 #
 
 import sys
-import shutil
 import logging
 
 from lithops.utils import version_str
@@ -32,11 +31,8 @@ DEFAULT_REQUIREMENTS = [
     'tblib'
 ]
 
-DOCKER_PATH = shutil.which('docker')
-
-LAMBDA_PYTHON_VER_KEY = 'python{}'.format(version_str(sys.version_info))
-DEFAULT_RUNTIME = LAMBDA_PYTHON_VER_KEY.replace('.', '')
-AVAILABLE_RUNTIMES = ['python36', 'python37', 'python38', 'python39']
+CURRENT_PY_VERSION = version_str(sys.version_info)
+AVAILABLE_PY_RUNTIMES = {'3.6': 'python3.6', '3.7': 'python3.7' , '3.8': 'python3.8' , '3.9': 'python3.9'}
 
 USER_RUNTIME_PREFIX = 'lithops.user_runtimes'
 
@@ -77,12 +73,6 @@ def load_config(config_data):
         logger.warning("Timeout set to {} - {} exceeds the "
                        "maximum amount".format(RUNTIME_TIMEOUT_MAX, config_data['aws_lambda']['runtime_timeout']))
         config_data['aws_lambda']['runtime_timeout'] = RUNTIME_TIMEOUT_MAX
-
-    if 'runtime' not in config_data['aws_lambda']:
-        if DEFAULT_RUNTIME not in AVAILABLE_RUNTIMES:
-            raise Exception('Python version "{}" is not available for AWS Lambda, '
-                            'please use one of {}'.format(LAMBDA_PYTHON_VER_KEY, AVAILABLE_RUNTIMES))
-        config_data['aws_lambda']['runtime'] = DEFAULT_RUNTIME
 
     # Auth, role and region config
     if not {'access_key_id', 'secret_access_key'}.issubset(set(config_data['aws'])):

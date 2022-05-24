@@ -441,7 +441,9 @@ def build(ctx, name, file, config, backend):
 
     compute_config = extract_serverless_config(config)
     compute_handler = ServerlessHandler(compute_config, None)
-    compute_handler.build_runtime(name, file, ctx.args)
+    runtime_info = compute_handler.get_runtime_info()
+    runtime_name = runtime_info['runtime_name']
+    compute_handler.build_runtime(runtime_name, file, ctx.args)
 
 
 @runtime.command('deploy')
@@ -465,18 +467,20 @@ def deploy(name, storage, backend, memory, timeout, config, debug):
     config = default_config(config, config_ow)
 
     if config['lithops']['mode'] != SERVERLESS:
-        raise Exception('"lithops runtime create" command is only valid for serverless backends')
+        raise Exception('"lithops runtime deploy" command is only valid for serverless backends')
 
-    logger.info('Creating new lithops runtime: {}'.format(name))
     storage_config = extract_storage_config(config)
     internal_storage = InternalStorage(storage_config)
-
     compute_config = extract_serverless_config(config)
     compute_handler = ServerlessHandler(compute_config, internal_storage)
-    mem = memory if memory else compute_config['runtime_memory']
-    to = timeout if timeout else compute_config['runtime_timeout']
-    runtime_key = compute_handler.get_runtime_key(name, mem)
-    runtime_meta = compute_handler.deploy_runtime(name, mem, timeout=to)
+
+    runtime_info = compute_handler.get_runtime_info()
+    runtime_name = runtime_info['runtime_name']
+    runtime_memory = memory or runtime_info['runtime_memory']
+    runtime_timeout = timeout or runtime_info['runtime_timeout']
+
+    runtime_key = compute_handler.get_runtime_key(runtime_name, runtime_memory)
+    runtime_meta = compute_handler.deploy_runtime(runtime_name, runtime_memory, runtime_timeout)
     internal_storage.put_runtime_meta(runtime_key, runtime_meta)
 
 
@@ -546,14 +550,17 @@ def update(name, config, backend, storage, debug):
     compute_config = extract_serverless_config(config)
     compute_handler = ServerlessHandler(compute_config, internal_storage)
 
-    timeout = compute_config['runtime_memory']
-    logger.info('Updating runtime: {}'.format(name))
+    runtime_info = compute_handler.get_runtime_info()
+    runtime_name = runtime_info['runtime_name']
+    runtime_timeout = runtime_info['runtime_memory']
 
-    runtimes = compute_handler.list_runtimes(name)
+    logger.info(f'Updating runtime: {runtime_name}')
+
+    runtimes = compute_handler.list_runtimes(runtime_name)
 
     for runtime in runtimes:
         runtime_key = compute_handler.get_runtime_key(runtime[0], runtime[1])
-        runtime_meta = compute_handler.deploy_runtime(runtime[0], runtime[1], timeout)
+        runtime_meta = compute_handler.deploy_runtime(runtime[0], runtime[1], runtime_timeout)
         internal_storage.put_runtime_meta(runtime_key, runtime_meta)
 
 
@@ -584,8 +591,11 @@ def delete(name, config, backend, storage, debug):
     internal_storage = InternalStorage(storage_config)
     compute_config = extract_serverless_config(config)
     compute_handler = ServerlessHandler(compute_config, internal_storage)
+    
+    runtime_info = compute_handler.get_runtime_info()
+    runtime_name = runtime_info['runtime_name']
 
-    runtimes = compute_handler.list_runtimes(name)
+    runtimes = compute_handler.list_runtimes(runtime_name)
     for runtime in runtimes:
         compute_handler.delete_runtime(runtime[0], runtime[1])
         runtime_key = compute_handler.get_runtime_key(runtime[0], runtime[1])

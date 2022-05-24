@@ -17,7 +17,6 @@ sys.path.insert(0, os.path.abspath('.'))
 sys.path.insert(0, os.path.abspath("../"))
 
 from datetime import datetime
-import lithops
 
 
 # -- Project information -----------------------------------------------------
@@ -79,59 +78,15 @@ html_favicon = '_static/favicon.png'
 
 language = 'en'
 
-# material theme options
-
-# html_theme_options = {
-#     'base_url': 'https://lithops.cloud',
-#     'repo_url': 'https://github.com/lithops-cloud/lithops',
-#     'repo_name': 'Lithops',
-#     'repo_type': 'github',
-#     'html_minify': True,
-#     'css_minify': True,
-#     'nav_title': ' ',
-#     'globaltoc_depth': -1,
-#     'color_primary': 'blue',
-# }
-#
-# html_sidebars = {
-#     "**": ["logo-text.html", "globaltoc.html", "localtoc.html", "searchbox.html"]
-# }
-
-# furo theme options
-
-# html_theme_options = {
-#     "sidebar_hide_name": True,
-#     "light_logo": "lithops_logo_black.png",
-#     "dark_logo": "lithops_logo_white.png",
-#     "light_css_variables": {
-#         "font-stack": "Lato, sans-serif",
-#         "font-stack--monospace": "JetBrains Mono, Courier, monospace",
-#     },
-# }
-
-# book theme options
-
-# html_theme_options = {
-#     'repository_url': 'https://github.com/lithops-cloud/lithops',
-#     'repository_branch': 'master',
-#     'use_issues_button': True,
-#     'use_download_button': True,
-#     'use_fullscreen_button': False,
-#     'use_repository_button': True,
-#     'launch_buttons': False,
-#     'home_page_in_toc': True,
-#     'logo_only': True
-# }
-
 html_theme_options = {
     'repository_url': 'https://github.com/lithops-cloud/lithops',
     'repository_branch': 'master',
-    'google_analytics_id': 'UA-17598552-5',
+    'google_analytics_id': 'G-7YKZHZYDCR',
     'use_issues_button': True,
     'use_download_button': True,
     'use_fullscreen_button': False,
     'use_repository_button': True,
-    'show_navbar_depth': 0,
+    'show_navbar_depth': 0
 }
 
 # html_title = f"Lithops v{lithops.__version__}"
