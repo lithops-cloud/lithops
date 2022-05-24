@@ -15,14 +15,14 @@
 #
 
 import os
-import sys
 import logging
 
 from lithops import utils
 from lithops.version import __version__
 from lithops.libs.openwhisk.client import OpenWhiskClient
 from lithops.constants import COMPUTE_CLI_MSG
-from . import config as ow_config
+
+from . import config
 
 logger = logging.getLogger(__name__)
 
@@ -75,11 +75,10 @@ class OpenWhiskBackend:
         return image_name, int(memory.replace('MB', ''))
 
     def _get_default_runtime_image_name(self):
-        python_version = utils.version_str(sys.version_info)
         try:
-           return ow_config.RUNTIME_DEFAULT[python_version]
+           return config.AVAILABLE_PY_RUNTIMES[utils.CURRENT_PY_VERSION]
         except KeyError:
-            raise Exception(f'Unsupported Python version: {python_version}')
+            raise Exception(f'Unsupported Python version: {utils.CURRENT_PY_VERSION}')
 
     def build_runtime(self, docker_image_name, dockerfile, extra_args=[]):
         """
@@ -113,16 +112,16 @@ class OpenWhiskBackend:
         action_name = self._format_function_name(docker_image_name, memory)
 
         entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
-        utils.create_handler_zip(ow_config.FH_ZIP_LOCATION, entry_point, '__main__.py')
+        utils.create_handler_zip(config.FH_ZIP_LOCATION, entry_point, '__main__.py')
 
         try:
-            with open(ow_config.FH_ZIP_LOCATION, "rb") as action_zip:
+            with open(config.FH_ZIP_LOCATION, "rb") as action_zip:
                 action_bin = action_zip.read()
             self.cf_client.create_action(self.package, action_name, 
                 docker_image_name, code=action_bin, memory=memory,
                 is_binary=True, timeout=timeout*1000)
         finally:
-            os.remove(ow_config.FH_ZIP_LOCATION)
+            os.remove(config.FH_ZIP_LOCATION)
 
         return self._generate_runtime_meta(docker_image_name, memory)
 
@@ -191,14 +190,14 @@ class OpenWhiskBackend:
         if 'runtime' not in self.ow_config or self.ow_config['runtime'] == 'default':
             self.ow_config['runtime'] = self._get_default_runtime_image_name()
 
-        runime_info = {
+        runtime_info = {
             'runtime_name': self.ow_config['runtime'],
             'runtime_memory': self.ow_config['runtime_memory'],
             'runtime_timeout': self.ow_config['runtime_timeout'],
             'max_workers': self.ow_config['max_workers'],
         }
 
-        return runime_info
+        return runtime_info
 
     def _generate_runtime_meta(self, docker_image_name, memory):
         """

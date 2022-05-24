@@ -70,7 +70,7 @@ class AliyunFunctionComputeBackend:
         return image_name, int(memory.replace('MB', ''))
 
     def _get_default_runtime_name(self):
-        py_version = config.CURRENT_PY_VERSION.replace('.', '')
+        py_version = utils.CURRENT_PY_VERSION.replace('.', '')
         return  f'default-runtime-v{py_version}'
 
     def build_runtime(self, runtime_name, requirements_file, extra_args=[]):
@@ -116,7 +116,7 @@ class AliyunFunctionComputeBackend:
             self.fc_client.create_function(
                 serviceName=self.service_name,
                 functionName=function_name,
-                runtime=config.AVAILABLE_RUNTIMES[config.CURRENT_PY_VERSION],
+                runtime=config.AVAILABLE_RUNTIMES[utils.CURRENT_PY_VERSION],
                 handler='entry_point.main',
                 codeDir=handler_path,
                 memorySize=memory,
@@ -258,18 +258,18 @@ class AliyunFunctionComputeBackend:
         Method that returns all the relevant information about the runtime set
         in config
         """
-        if config.CURRENT_PY_VERSION not in config.AVAILABLE_PY_RUNTIMES:
-            raise Exception(f'Python {config.CURRENT_PY_VERSION} is not available for'
+        if utils.CURRENT_PY_VERSION not in config.AVAILABLE_PY_RUNTIMES:
+            raise Exception(f'Python {utils.CURRENT_PY_VERSION} is not available for'
              f'Aliyun Functions. Please use one of {config.AVAILABLE_PY_RUNTIMES.keys()}')
 
         if 'runtime' not in self.config or self.config['runtime'] == 'default':
             self.config['runtime'] = self._get_default_runtime_name()
         
-        runime_info = {
+        runtime_info = {
             'runtime_name': self.config['runtime'],
             'runtime_memory': self.config['runtime_memory'],
             'runtime_timeout': self.config['runtime_timeout'],
             'max_workers': self.config['max_workers'],
         }
 
-        return runime_info
+        return runtime_info

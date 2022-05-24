@@ -16,7 +16,6 @@
 #
 
 import os
-import sys
 import base64
 import json
 import time
@@ -165,7 +164,7 @@ class CodeEngineBackend:
         revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
         return utils.get_default_k8s_image_name(
             self.name, self.ce_config,
-            ceconfig.RUNTIME_NAME,
+            'lithops-default-ce-runtime',
             revision
         )
 
@@ -202,10 +201,9 @@ class CodeEngineBackend:
         Builds the default runtime
         """
         # Build default runtime using local dokcer
-        python_version = utils.version_str(sys.version_info)
-        dockerfile = "Dockefile.default-codeengine-runtime"
+        dockerfile = "Dockefile.default-ce-runtime"
         with open(dockerfile, 'w') as f:
-            f.write(f"FROM python:{python_version}-slim-buster\n")
+            f.write(f"FROM python:{utils.CURRENT_PY_VERSION}-slim-buster\n")
             f.write(ceconfig.DOCKERFILE_DEFAULT)
         try:
             self.build_runtime(default_runtime_img_name, dockerfile)
@@ -329,7 +327,7 @@ class CodeEngineBackend:
 
         jobs_to_delete = job_keys or self.jobs
         for job_key in jobs_to_delete:
-            jobrun_name = 'lithops-{}'.format(job_key.lower())
+            jobrun_name = f'lithops-{job_key.lower()}'
             try:
                 self._job_run_cleanup(jobrun_name)
                 self._delete_config_map(jobrun_name)
@@ -382,7 +380,7 @@ class CodeEngineBackend:
         config_map = self._create_config_map(activation_id, job_payload)
         container['env'][1]['valueFrom']['configMapKeyRef']['name'] = config_map
 
-        container['resources']['requests']['memory'] = '{}G'.format(runtime_memory/1024)
+        container['resources']['requests']['memory'] = f'{runtime_memory/1024}G'
         container['resources']['requests']['cpu'] = str(self.ce_config['runtime_cpu'])
 
         logger.debug('ExecutorID {} | JobID {} - Going to run {} activations '
@@ -516,7 +514,7 @@ class CodeEngineBackend:
         if 'runtime' not in self.ce_config or self.ce_config['runtime'] == 'default':
             self.ce_config['runtime'] = self._get_default_runtime_image_name()
 
-        runime_info = {
+        runtime_info = {
             'runtime_name': self.ce_config['runtime'],
             'runtime_cpu': self.ce_config['runtime_cpu'],
             'runtime_memory': self.ce_config['runtime_memory'],
@@ -524,7 +522,7 @@ class CodeEngineBackend:
             'max_workers': self.ce_config['max_workers'],
         }
 
-        return runime_info
+        return runtime_info
 
     @retry_on_except
     def _job_def_exists(self, jobdef_name):

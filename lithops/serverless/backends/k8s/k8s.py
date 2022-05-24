@@ -15,7 +15,6 @@
 #
 
 import os
-import sys
 import base64
 import json
 import logging
@@ -93,7 +92,7 @@ class KubernetesBackend:
         revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
         return utils.get_default_k8s_image_name(
             self.name, self.k8s_config,
-            k8sconfig.RUNTIME_NAME,
+            'lithops-default-k8s-runtime',
             revision
         )
 
@@ -130,10 +129,9 @@ class KubernetesBackend:
         Builds the default runtime
         """
         # Build default runtime using local dokcer
-        python_version = utils.version_str(sys.version_info)
         dockerfile = "Dockefile.default-k8s-runtime"
         with open(dockerfile, 'w') as f:
-            f.write(f"FROM python:{python_version}-slim-buster\n")
+            f.write(f"FROM python:{utils.CURRENT_PY_VERSION}-slim-buster\n")
             f.write(k8sconfig.DOCKERFILE_DEFAULT)
         try:
             self.build_runtime(docker_image_name, dockerfile)
@@ -468,7 +466,7 @@ class KubernetesBackend:
         if 'runtime' not in self.k8s_config or self.k8s_config['runtime'] == 'default':
             self.k8s_config['runtime'] = self._get_default_runtime_image_name()
         
-        runime_info = {
+        runtime_info = {
             'runtime_name': self.k8s_config['runtime'],
             'runtime_cpu': self.k8s_config['runtime_cpu'],
             'runtime_memory': self.k8s_config['runtime_memory'],
@@ -476,4 +474,4 @@ class KubernetesBackend:
             'max_workers': self.k8s_config['max_workers'],
         }
 
-        return runime_info
+        return runtime_info

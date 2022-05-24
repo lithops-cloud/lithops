@@ -34,7 +34,6 @@ RUNTIME_MEMORY_OPTIONS = {128, 256, 512, 1024, 2048, 4096, 8192}
 RETRIES = 5
 RETRY_SLEEP = 20
 
-CURRENT_PY_VERSION = version_str(sys.version_info)
 AVAILABLE_PY_RUNTIMES = {'3.7': 'python37', '3.8': 'python38', '3.9': 'python39'}
 
 USER_RUNTIMES_PREFIX = 'lithops.user_runtimes'

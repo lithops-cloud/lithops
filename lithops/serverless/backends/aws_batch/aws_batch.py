@@ -75,10 +75,9 @@ class AWSBatchBackend:
         logger.info("{} - Region: {}".format(msg, self.region_name))
 
     def _get_default_runtime_image_name(self):
-        python_version = utils.version_str(sys.version_info).replace('.', '')
+        python_version = utils.CURRENT_PY_VERSION.replace('.', '')
         revision = 'latest' if 'dev' in lithops.__version__ else lithops.__version__.replace('.', '')
-        runtime_name = f'default-runtime-v{python_version}:{revision}'
-        return runtime_name
+        return f'default-batch-runtime-v{python_version}:{revision}'
 
     def _get_full_image_name(self, runtime_name):
         full_image_name = runtime_name if ':' in runtime_name else f'{runtime_name}:latest'
@@ -578,11 +577,11 @@ class AWSBatchBackend:
         if 'runtime' not in self.aws_batch_config or self.aws_batch_config['runtime'] == 'default':
             self.aws_batch_config['runtime'] = self._get_default_runtime_image_name()
         
-        runime_info = {
+        runtime_info = {
             'runtime_name': self.aws_batch_config['runtime'],
             'runtime_memory': self.aws_batch_config['runtime_memory'],
             'runtime_timeout': self.aws_batch_config['runtime_timeout'],
             'max_workers': self.aws_batch_config['max_workers'],
         }
 
-        return runime_info
+        return runtime_info

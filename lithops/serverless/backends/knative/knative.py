@@ -35,7 +35,7 @@ from lithops.config import load_yaml_config, dump_yaml_config
 from lithops.constants import CACHE_DIR
 from lithops.constants import COMPUTE_CLI_MSG
 
-from . import config as kn_config
+from . import config as knconfig
 
 urllib3.disable_warnings()
 
@@ -134,7 +134,7 @@ class KnativeServingBackend:
         revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
         return utils.get_default_k8s_image_name(
             self.name, self.kn_config,
-            kn_config.RUNTIME_NAME,
+            'lithops-default-kn-runtime',
             revision
         )
 
@@ -145,8 +145,8 @@ class KnativeServingBackend:
         logger.debug(f'Getting service host for: {service_name}')
         try:
             svc = self.custom_api.get_namespaced_custom_object(
-                        group=kn_config.DEFAULT_GROUP,
-                        version=kn_config.DEFAULT_VERSION,
+                        group=config.DEFAULT_GROUP,
+                        version=config.DEFAULT_VERSION,
                         name=service_name,
                         namespace=self.namespace,
                         plural="services"
@@ -171,12 +171,12 @@ class KnativeServingBackend:
         logger.debug("Creating Tekton account resources: Secret and ServiceAccount")
         string_data = {'username': self.kn_config['docker_user'],
                        'password': self.kn_config['docker_password']}
-        secret_res = yaml.safe_load(kn_config.secret_res)
+        secret_res = yaml.safe_load(knconfig.secret_res)
         secret_res['stringData'] = string_data
 
         secret_res['metadata']['annotations']['tekton.dev/docker-0'] = "docker.io"
 
-        account_res = yaml.safe_load(kn_config.account_res)
+        account_res = yaml.safe_load(knconfig.account_res)
         secret_res_name = secret_res['metadata']['name']
         account_res_name = account_res['metadata']['name']
 
@@ -197,10 +197,10 @@ class KnativeServingBackend:
 
     def _create_build_resources(self):
         logger.debug("Creating Tekton build resources: PipelineResource and Task")
-        git_res = yaml.safe_load(kn_config.git_res)
+        git_res = yaml.safe_load(knconfig.git_res)
         git_res_name = git_res['metadata']['name']
 
-        task_def = yaml.safe_load(kn_config.task_def)
+        task_def = yaml.safe_load(knconfig.task_def)
         task_name = task_def['metadata']['name']
 
         git_url_param = {'name': 'url', 'value': self.kn_config['git_url']}
@@ -280,9 +280,9 @@ class KnativeServingBackend:
             raise Exception("You must provide 'docker_user' and 'docker_password'"
                             " to build the default runtime")
 
-        task_run = yaml.safe_load(kn_config.task_run)
+        task_run = yaml.safe_load(knconfig.task_run)
         task_run['spec']['inputs']['params'] = []
-        python_version = utils.version_str(sys.version_info).replace('.', '')
+        python_version = utils.CURRENT_PY_VERSION.replace('.', '')
         path_to_dockerfile = {'name': 'pathToDockerFile',
                               'value': 'lithops/compute/backends/knative/tekton/Dockerfile.python{}'.format(python_version)}
         task_run['spec']['inputs']['params'].append(path_to_dockerfile)
@@ -364,11 +364,10 @@ class KnativeServingBackend:
         Builds the default runtime
         """
         # Build default runtime using local dokcer
-        python_version = utils.version_str(sys.version_info)
-        dockerfile = "Dockefile.default-knative-runtime"
+        dockerfile = "Dockefile.default-kn-runtime"
         with open(dockerfile, 'w') as f:
-            f.write(f"FROM python:{python_version}-slim-buster\n")
-            f.write(kn_config.DEFAULT_DOCKERFILE)
+            f.write(f"FROM python:{utils.CURRENT_PY_VERSION}-slim-buster\n")
+            f.write(config.DEFAULT_DOCKERFILE)
         try:
             self.build_runtime(default_runtime_img_name, dockerfile)
         finally:
@@ -428,7 +427,7 @@ class KnativeServingBackend:
         Creates a service in knative based on the docker_image_name and the memory provided
         """
         logger.debug("Creating Lithops runtime service in Knative")
-        svc_res = yaml.safe_load(kn_config.service_res)
+        svc_res = yaml.safe_load(knconfig.service_res)
 
         service_name = self._format_service_name(docker_image_name, runtime_memory)
         svc_res['metadata']['name'] = service_name
@@ -439,6 +438,8 @@ class KnativeServingBackend:
 
         svc_res['spec']['template']['spec']['timeoutSeconds'] = timeout
         svc_res['spec']['template']['spec']['containerConcurrency'] = 1
+        svc_res['spec']['template']['metadata']['annotations']['autoscaling.knative.dev/maxScale'] = str(self.kn_config['max_workers'])
+
 
         container = svc_res['spec']['template']['spec']['containers'][0]
         container['image'] = docker_image_name
@@ -455,8 +456,8 @@ class KnativeServingBackend:
         try:
             # delete the service resource if exists
             self.custom_api.delete_namespaced_custom_object(
-                    group=kn_config.DEFAULT_GROUP,
-                    version=kn_config.DEFAULT_VERSION,
+                    group=knconfig.DEFAULT_GROUP,
+                    version=knconfig.DEFAULT_VERSION,
                     name=service_name,
                     namespace=self.namespace,
                     plural="services",
@@ -468,8 +469,8 @@ class KnativeServingBackend:
 
         # create the service resource
         self.custom_api.create_namespaced_custom_object(
-                group=kn_config.DEFAULT_GROUP,
-                version=kn_config.DEFAULT_VERSION,
+                group=knconfig.DEFAULT_GROUP,
+                version=knconfig.DEFAULT_VERSION,
                 namespace=self.namespace,
                 plural="services",
                 body=svc_res
@@ -477,8 +478,8 @@ class KnativeServingBackend:
 
         w = watch.Watch()
         for event in w.stream(self.custom_api.list_namespaced_custom_object,
-                              namespace=self.namespace, group=kn_config.DEFAULT_GROUP,
-                              version=kn_config.DEFAULT_VERSION, plural="services",
+                              namespace=self.namespace, group=knconfig.DEFAULT_GROUP,
+                              version=knconfig.DEFAULT_VERSION, plural="services",
                               field_selector=f"metadata.name={service_name}",
                               timeout_seconds=300):
             if event['object'].get('status'):
@@ -559,10 +560,10 @@ class KnativeServingBackend:
 
         try:
             entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
-            utils.create_handler_zip(kn_config.FH_ZIP_LOCATION, entry_point, 'lithopsproxy.py')
+            utils.create_handler_zip(knconfig.FH_ZIP_LOCATION, entry_point, 'lithopsproxy.py')
             utils.run_command(cmd)
         finally:
-            os.remove(kn_config.FH_ZIP_LOCATION)
+            os.remove(knconfig.FH_ZIP_LOCATION)
 
         logger.debug(f'Pushing runtime {docker_image_name} to container registry')
         cmd = f'{docker_path} push {docker_image_name}'
@@ -575,8 +576,8 @@ class KnativeServingBackend:
         logger.info(f'Deleting runtime: {service_name}')
         try:
             self.custom_api.delete_namespaced_custom_object(
-                    group=kn_config.DEFAULT_GROUP,
-                    version=kn_config.DEFAULT_VERSION,
+                    group=knconfig.DEFAULT_GROUP,
+                    version=knconfig.DEFAULT_VERSION,
                     name=service_name,
                     namespace=self.namespace,
                     plural="services",
@@ -599,8 +600,8 @@ class KnativeServingBackend:
         return: list of tuples [docker_image_name, memory]
         """
         knative_services = self.custom_api.list_namespaced_custom_object(
-                                group=kn_config.DEFAULT_GROUP,
-                                version=kn_config.DEFAULT_VERSION,
+                                group=knconfig.DEFAULT_GROUP,
+                                version=knconfig.DEFAULT_VERSION,
                                 namespace=self.namespace,
                                 plural="services"
                             )
@@ -706,7 +707,7 @@ class KnativeServingBackend:
         if 'runtime' not in self.kn_config or self.kn_config['runtime'] == 'default':
             self.kn_config['runtime'] = self._get_default_runtime_image_name()
 
-        runime_info = {
+        runtime_info = {
             'runtime_name': self.kn_config['runtime'],
             'runtime_cpu': self.kn_config['runtime_cpu'],
             'runtime_memory': self.kn_config['runtime_memory'],
@@ -714,4 +715,4 @@ class KnativeServingBackend:
             'max_workers': self.kn_config['max_workers'],
         }
 
-        return runime_info
+        return runtime_info

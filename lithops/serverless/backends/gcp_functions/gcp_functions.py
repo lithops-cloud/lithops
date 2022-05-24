@@ -25,13 +25,13 @@ import time
 
 import lithops
 from google.cloud import pubsub_v1
-from google.api_core.retry import Retry
 from google.oauth2 import service_account
 from google_auth_httplib2 import AuthorizedHttp
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from google.auth import jwt
 
+from lithops import utils
 from lithops.version import __version__
 from lithops.constants import COMPUTE_CLI_MSG, JOBS_PREFIX
 from lithops.constants import TEMP as TEMP_PATH
@@ -93,7 +93,7 @@ class GCPFunctionsBackend:
         return runtime_name, runtime_memory
 
     def _get_default_runtime_name(self):
-        py_version = config.CURRENT_PY_VERSION.replace('.', '')
+        py_version = utils.CURRENT_PY_VERSION.replace('.', '')
         return  f'default-runtime-v{py_version}'
 
     def _full_function_location(self, function_name):
@@ -404,18 +404,18 @@ class GCPFunctionsBackend:
         Method that returns all the relevant information about the runtime set
         in config
         """
-        if config.CURRENT_PY_VERSION not in config.AVAILABLE_PY_RUNTIMES:
-            raise Exception(f'Python {config.CURRENT_PY_VERSION} is not available for Google '
+        if utils.CURRENT_PY_VERSION not in config.AVAILABLE_PY_RUNTIMES:
+            raise Exception(f'Python {utils.CURRENT_PY_VERSION} is not available for Google '
              f'Cloud Functions. Please use one of {config.AVAILABLE_PY_RUNTIMES.keys()}')
 
         if 'runtime' not in self.gcf_config or self.gcf_config['runtime'] == 'default':
             self.gcf_config['runtime'] = self._get_default_runtime_name()
         
-        runime_info = {
+        runtime_info = {
             'runtime_name': self.gcf_config['runtime'],
             'runtime_memory': self.gcf_config['runtime_memory'],
             'runtime_timeout': self.gcf_config['runtime_timeout'],
             'max_workers': self.gcf_config['max_workers'],
         }
 
-        return runime_info
+        return runtime_info

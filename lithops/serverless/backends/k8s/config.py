@@ -17,8 +17,6 @@
 import os
 from lithops.version import __version__
 
-RUNTIME_NAME = 'lithops-k8sjob'
-
 DEFAULT_CONFIG_KEYS = {
     'runtime_timeout': 600,  # Default: 10 minutes
     'runtime_memory': 256,  # Default memory: 256 MB

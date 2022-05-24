@@ -36,7 +36,6 @@ DEFAULT_CONFIG_KEYS = {
     'invocation_type': 'http'
 }
 
-CURRENT_PY_VERSION = version_str(sys.version_info)
 AVAILABLE_PY_RUNTIMES = ['3.6', '3.7', '3.8', '3.9']
 
 REQUIRED_AZURE_STORAGE_PARAMS = ['storage_account_name', 'storage_account_key']

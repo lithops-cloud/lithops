@@ -33,8 +33,10 @@ CONNECTION_POOL_SIZE = 300
 SERVICE_NAME = 'lithops'
 HANDLER_FOLDER_LOCATION = os.path.join(os.getcwd(), 'lithops_handler_aliyun')
 
-CURRENT_PY_VERSION = version_str(sys.version_info)
-AVAILABLE_PY_RUNTIMES = {'3.6': 'python3', '3.9': 'python3.9'}
+AVAILABLE_PY_RUNTIMES = {
+    '3.6': 'python3',
+    '3.9': 'python3.9'
+}
 
 REQUIREMENTS_FILE = """
 pika
