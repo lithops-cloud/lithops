@@ -42,16 +42,20 @@ DEFAULT_CONFIG_KEYS = {
     'max_workers': 1000,
     'worker_processes': 1,
     'invoke_pool_threads': 64,
-    'architecture': 'x86_64'
+    'architecture': 'x86_64',
+    'ephemeral_storage': 512,
+    'env_vars': {}
 }
 
 RUNTIME_TIMEOUT_MAX = 900  # Max. timeout: 900 s == 15 min
 RUNTIME_MEMORY_MIN = 128  # Max. memory: 128 MB
 RUNTIME_MEMORY_MAX = 10240  # Max. memory: 10240 MB
 
+RUNTIME_TMP_SZ_MIN = 512
+RUNTIME_TMP_SZ_MAX = 10240
+
 
 def load_config(config_data):
-
     if 'aws' not in config_data:
         raise Exception("'aws' section are mandatory in the configuration")
 
@@ -97,7 +101,8 @@ def load_config(config_data):
 
     if not isinstance(config_data['aws_lambda']['vpc']['security_groups'], list):
         raise Exception("Unknown type {} for 'aws_lambda/"
-                        "vpc/security_groups' section".format(type(config_data['aws_lambda']['vpc']['security_groups'])))
+                        "vpc/security_groups' section".format(
+            type(config_data['aws_lambda']['vpc']['security_groups'])))
 
     # EFS config
     if 'efs' not in config_data['aws_lambda']:
@@ -107,11 +112,22 @@ def load_config(config_data):
         raise Exception("Unknown type {} for "
                         "'aws_lambda/efs' section".format(type(config_data['aws_lambda']['vpc']['security_groups'])))
 
-    if not all(['access_point' in efs_conf and 'mount_path' in efs_conf for efs_conf in config_data['aws_lambda']['efs']]):
+    if not all(
+            ['access_point' in efs_conf and 'mount_path' in efs_conf for efs_conf in config_data['aws_lambda']['efs']]):
         raise Exception("List of 'access_point' and 'mount_path' mandatory in 'aws_lambda/efs section'")
 
     if not all([efs_conf['mount_path'].startswith('/mnt') for efs_conf in config_data['aws_lambda']['efs']]):
         raise Exception("All mount paths must start with '/mnt' on 'aws_lambda/efs/*/mount_path' section")
+
+    # Lambda runtime config
+    if 'ephemeral_storage' not in config_data['aws_lambda']:
+        config_data['aws_lambda']['ephemeral_storage'] = DEFAULT_CONFIG_KEYS['ephemeral_storage']
+    if config_data['aws_lambda']['ephemeral_storage'] < RUNTIME_TMP_SZ_MIN \
+            or config_data['aws_lambda']['ephemeral_storage'] > RUNTIME_TMP_SZ_MAX:
+        raise Exception(f'Ephemeral storage value must be between {RUNTIME_TMP_SZ_MIN} and {RUNTIME_TMP_SZ_MAX}')
+
+    if 'env_vars' not in config_data['aws_lambda']:
+        config_data['aws_lambda']['env_vars'] = DEFAULT_CONFIG_KEYS['env_vars']
 
     # Put credential keys to 'aws_lambda' dict entry
     config_data['aws_lambda'].update(config_data['aws'])
