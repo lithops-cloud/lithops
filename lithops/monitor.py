@@ -116,15 +116,16 @@ class Monitor(threading.Thread):
                                'activation_id': fut.activation_id}
                 fut._set_ready(call_status)
 
-    def _print_status_log(self, previous_log=None):
+    def _print_status_log(self, previous_log=None, log_time=None):
         """prints a debug log showing the status of the job"""
         callids_pending = len([f for f in self.futures if f.invoked])
         callids_running = len([f for f in self.futures if f.running])
         callids_done = len([f for f in self.futures if f.ready or f.success or f.done])
-        if (callids_pending, callids_running, callids_done) != previous_log:
+        if (callids_pending, callids_running, callids_done) != previous_log or log_time > 60:
             logger.debug(f'ExecutorID {self.executor_id} - Pending: {callids_pending} '
                          f'- Running: {callids_running} - Done: {callids_done}')
-        return (callids_pending, callids_running, callids_done)
+            log_time = 0
+        return (callids_pending, callids_running, callids_done), log_time
 
 
 class RabbitmqMonitor(Monitor):
@@ -375,10 +376,12 @@ class StorageMonitor(Monitor):
 
         WAIT_DUR_SEC = self.monitoring_interval
         prevoius_log = None
+        log_time = 0
 
         while not self._all_ready() or not self.futures:
             time.sleep(WAIT_DUR_SEC)
             WAIT_DUR_SEC = self.monitoring_interval
+            log_time += WAIT_DUR_SEC
 
             if not self.should_run:
                 break
@@ -395,7 +398,7 @@ class StorageMonitor(Monitor):
             self._generate_tokens(callids_running, callids_done)
             self._tag_future_as_running(callids_running)
             self._tag_future_as_ready(callids_done)
-            prevoius_log = self._print_status_log(prevoius_log)
+            prevoius_log, log_time = self._print_status_log(prevoius_log, log_time)
 
         logger.debug(f'ExecutorID {self.executor_id} - Storage job monitor finished')
 
