@@ -188,14 +188,14 @@ class OpenWhiskBackend:
         Method that returns all the relevant information about the runtime set
         in config
         """
-        if 'runtime' not in self.config or self.config['runtime'] == 'default':
-            self.config['runtime'] = self._get_default_runtime_image_name()
+        if 'runtime' not in self.ow_config or self.ow_config['runtime'] == 'default':
+            self.ow_config['runtime'] = self._get_default_runtime_image_name()
 
         runime_info = {
-            'runtime_name': self.config['runtime'],
-            'runtime_memory': self.config['runtime_memory'],
-            'runtime_timeout': self.config['runtime_timeout'],
-            'max_workers': self.config['max_workers'],
+            'runtime_name': self.ow_config['runtime'],
+            'runtime_memory': self.ow_config['runtime_memory'],
+            'runtime_timeout': self.ow_config['runtime_timeout'],
+            'max_workers': self.ow_config['max_workers'],
         }
 
         return runime_info

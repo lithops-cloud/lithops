@@ -71,9 +71,9 @@ class AzureFunctionAppBackend:
         """
         Generates the default runtime name
         """
-        py_version = utils.version_str(sys.version_info).replace('.', '')
+        py_version = az_config.CURRENT_PY_VERSION.replace('.', '')
         revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
-        runtime_name = f'{self.storage_account_name}-{az_config.RUNTIME_NAME}-v{py_version}-{revision}-{self.invocation_type}'
+        runtime_name = f'{self.storage_account_name}-lithops-runtime-v{py_version}-{revision}-{self.invocation_type}'
         return runtime_name
 
     def deploy_runtime(self, runtime_name, memory, timeout):
@@ -101,17 +101,6 @@ class AzureFunctionAppBackend:
             self.build_runtime(runtime_name, requirements_file)
         finally:
             os.remove(requirements_file)
-
-        # # Build default runtime using local dokcer
-        # python_version = version_str(sys.version_info)
-        # dockerfile = "Dockefile.default-azure-runtime"
-        # with open(dockerfile, 'w') as f:
-        #     f.write("FROM mcr.microsoft.com/azure-functions/python:3.0-python{}\n".format(python_version))
-        #     f.write(az_config.DEFAULT_DOCKERFILE)
-        # try:
-        #     self._build_runtime(default_runtime_name, dockerfile)
-        # finally:
-        #     os.remove(dockerfile)
 
     def build_runtime(self, runtime_name, requirements_file, extra_args=[]):
         logger.info(f'Building runtime {runtime_name} from {requirements_file}')
@@ -202,7 +191,7 @@ class AzureFunctionAppBackend:
                f'--storage-account {self.storage_account_name} '
                f'--resource-group {self.resource_group} '
                '--os-type Linux  --runtime python '
-               f'--runtime-version {az_config.PYTHON_VERSION} '
+               f'--runtime-version {az_config.CURRENT_PY_VERSION} '
                f'--functions-version {self.functions_version} '
                f'--consumption-plan-location {self.location}')
         utils.run_command(cmd)
@@ -355,9 +344,9 @@ class AzureFunctionAppBackend:
         Method that returns all the relevant information about the runtime set
         in config
         """
-        if az_config.PYTHON_VERSION not in az_config.SUPPORTED_PYTHON:
-            raise Exception(f'Python {az_config.PYTHON_VERSION} is not available for'
-                f'Azure Functions. Please use one of {az_config.SUPPORTED_PYTHON}')
+        if az_config.CURRENT_PY_VERSION not in az_config.AVAILABLE_PY_RUNTIMES:
+            raise Exception(f'Python {az_config.CURRENT_PY_VERSION} is not available for'
+                f'Azure Functions. Please use one of {az_config.AVAILABLE_PY_RUNTIMES}')
 
         if 'runtime' not in self.azure_config or self.azure_config['runtime'] == 'default':
             self.azure_config['runtime'] = self._get_default_runtime_name()

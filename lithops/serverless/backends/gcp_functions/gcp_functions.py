@@ -35,7 +35,7 @@ from lithops.utils import version_str
 from lithops.constants import COMPUTE_CLI_MSG, JOBS_PREFIX
 from lithops.constants import TEMP as TEMP_PATH
 
-from . import config as gcp_config
+from . import config
 
 logger = logging.getLogger(__name__)
 
@@ -48,18 +48,18 @@ AUDIENCE = "https://pubsub.googleapis.com/google.pubsub.v1.Publisher"
 
 
 class GCPFunctionsBackend:
-    def __init__(self, gcp_functions_config, internal_storage):
+    def __init__(self, gcf_config, internal_storage):
         self.name = 'gcp_functions'
         self.type = 'faas'
-        self.config = gcp_functions_config
+        self.gcf_config = gcf_config
         self.package = 'lithops_v' + __version__
 
-        self.region = gcp_functions_config['region']
-        self.service_account = gcp_functions_config['service_account']
-        self.project = gcp_functions_config['project_name']
-        self.credentials_path = gcp_functions_config['credentials_path']
-        self.num_retries = gcp_functions_config['retries']
-        self.retry_sleep = gcp_functions_config['retry_sleep']
+        self.region = gcf_config['region']
+        self.service_account = gcf_config['service_account']
+        self.project = gcf_config['project_name']
+        self.credentials_path = gcf_config['credentials_path']
+        self.num_retries = gcf_config['retries']
+        self.retry_sleep = gcf_config['retry_sleep']
 
         self.internal_storage = internal_storage
 
@@ -90,7 +90,8 @@ class GCPFunctionsBackend:
         return runtime_name, runtime_memory
 
     def _get_default_runtime_name(self):
-        return gcp_config.CURRENT_RUNTIME
+        runtime = config.AVAILABLE_PY_RUNTIMES[config.CURRENT_PY_VERSION]
+        return f'default-runtime-'+runtime.replace('.', '')
 
     def _full_function_location(self, function_name):
         return 'projects/{}/locations/{}/functions/{}'.format(self.project, self.region, function_name)
@@ -115,27 +116,26 @@ class GCPFunctionsBackend:
         return build('cloudfunctions', FUNCTIONS_API_VERSION, http=http, cache_discovery=False)
 
     def _get_runtime_requirements(self, runtime_name):
-        if runtime_name == gcp_config.CURRENT_RUNTIME:
-            return gcp_config.DEFAULT_REQUIREMENTS
+        if runtime_name == self._get_default_runtime_name():
+            return config.DEFAULT_REQUIREMENTS
         else:
             user_runtimes = self._list_runtimes(default_runtimes=False)
             if runtime_name in user_runtimes:
-                raw_reqs = self.internal_storage.get_data(key='/'.join([gcp_config.USER_RUNTIMES_PREFIX, runtime_name]))
+                raw_reqs = self.internal_storage.get_data(key='/'.join([config.USER_RUNTIMES_PREFIX, runtime_name]))
                 reqs = raw_reqs.decode('utf-8')
                 return reqs.splitlines()
             else:
-                raise Exception('Runtime {} does not exist. '
-                                'Available runtimes: {}'.format(runtime_name,
-                                                                gcp_config.DEFAULT_RUNTIME_NAMES + user_runtimes))
+                raise Exception(f'Runtime {runtime_name} does not exist. '
+                    'Available runtimes: {}'.format([self._get_default_runtime_name()]+user_runtimes))
 
     def _list_runtimes(self, default_runtimes=True):
         runtimes = []
 
         if default_runtimes:
-            runtimes.extend(gcp_config.DEFAULT_RUNTIME_NAMES)
+            runtimes.extend(self._get_default_runtime_name())
 
         user_runtimes_keys = self.internal_storage.storage.list_keys(self.internal_storage.bucket,
-                                                                     prefix=gcp_config.USER_RUNTIMES_PREFIX)
+                                                                     prefix=config.USER_RUNTIMES_PREFIX)
         runtimes.extend([runtime.split('/', 1)[-1] for runtime in user_runtimes_keys])
         return runtimes
 
@@ -185,7 +185,7 @@ class GCPFunctionsBackend:
             'name': function_location,
             'description': self.package,
             'entryPoint': 'main',
-            'runtime': gcp_config.CURRENT_RUNTIME,
+            'runtime': config.AVAILABLE_PY_RUNTIMES[config.CURRENT_PY_VERSION],
             'timeout': str(timeout) + 's',
             'availableMemoryMb': memory,
             'serviceAccountEmail': self.service_account,
@@ -236,7 +236,7 @@ class GCPFunctionsBackend:
         with open(requirements_file, 'r') as req_file:
             requirements = req_file.read()
 
-        self.internal_storage.put_data('/'.join([gcp_config.USER_RUNTIMES_PREFIX, runtime_name]), requirements)
+        self.internal_storage.put_data('/'.join([config.USER_RUNTIMES_PREFIX, runtime_name]), requirements)
         logger.info('Ok - Created runtime {}'.format(runtime_name))
         logger.info('Available runtimes: {}'.format(self._list_runtimes(default_runtimes=True)))
 
@@ -308,7 +308,7 @@ class GCPFunctionsBackend:
         user_runtimes = self._list_runtimes(default_runtimes=False)
         if runtime_name in user_runtimes and delete_runtime_storage:
             self.internal_storage.storage.delete_object(self.internal_storage.bucket,
-                                                        '/'.join([gcp_config.USER_RUNTIMES_PREFIX, runtime_name]))
+                                                        '/'.join([config.USER_RUNTIMES_PREFIX, runtime_name]))
 
     def clean(self):
         logger.debug('Going to delete all deployed runtimes...')
@@ -382,18 +382,18 @@ class GCPFunctionsBackend:
         Method that returns all the relevant information about the runtime set
         in config
         """
-        if gcp_config.PYTHON_VERSION not in gcp_config.SUPPORTED_PYTHON:
-            raise Exception(f'Python {gcp_config.PYTHON_VERSION} is not available for Google'
-                f' Cloud Functions. Please use one of {gcp_config.SUPPORTED_PYTHON}')
+        if config.CURRENT_PY_VERSION not in config.AVAILABLE_PY_RUNTIMES:
+            raise Exception(f'Python {config.CURRENT_PY_VERSION} is not available for Google '
+             f'Cloud Functions. Please use one of {config.AVAILABLE_PY_RUNTIMES.keys()}')
 
-        if 'runtime' not in self.config or self.config['runtime'] == 'default':
-            self.config['runtime'] = self._get_default_runtime_name()
+        if 'runtime' not in self.gcf_config or self.gcf_config['runtime'] == 'default':
+            self.gcf_config['runtime'] = self._get_default_runtime_name()
         
         runime_info = {
-            'runtime_name': self.config['runtime'],
-            'runtime_memory': self.config['runtime_memory'],
-            'runtime_timeout': self.config['runtime_timeout'],
-            'max_workers': self.config['max_workers'],
+            'runtime_name': self.gcf_config['runtime'],
+            'runtime_memory': self.gcf_config['runtime_memory'],
+            'runtime_timeout': self.gcf_config['runtime_timeout'],
+            'max_workers': self.gcf_config['max_workers'],
         }
 
         return runime_info

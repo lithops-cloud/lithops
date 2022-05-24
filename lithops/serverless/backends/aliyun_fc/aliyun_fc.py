@@ -24,7 +24,7 @@ import fc2
 
 from lithops import utils
 from lithops.constants import COMPUTE_CLI_MSG, TEMP
-from . import config as aliyunfc_config
+from . import config as ay_config
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +47,7 @@ class AliyunFunctionComputeBackend:
         self.role_arn = aliyun_fc_config['role_arn']
         self.region = self.endpoint.split('.')[1]
 
-        self.default_service_name = f'{aliyunfc_config.SERVICE_NAME}_{self.access_key_id[0:4].lower()}'
+        self.default_service_name = f'{ay_config.SERVICE_NAME}_{self.access_key_id[0:4].lower()}'
         self.service_name = aliyun_fc_config.get('service', self.default_service_name)
 
         logger.debug(f"Set Aliyun FC Service to {self.service_name}")
@@ -70,7 +70,8 @@ class AliyunFunctionComputeBackend:
         return image_name, int(memory.replace('MB', ''))
 
     def _get_default_runtime_name(self):
-        return aliyunfc_config.CURRENT_RUNTIME.replace('.', '')
+        runtime = ay_config.AVAILABLE_PY_RUNTIMES[ay_config.CURRENT_PY_VERSION]
+        return f'default-runtime-'+runtime.replace('.', '')
 
     def build_runtime(self, runtime_name, requirements_file, extra_args=[]):
         pass
@@ -94,7 +95,7 @@ class AliyunFunctionComputeBackend:
                 self.fc_client.create_service(self.service_name, role=self.role_arn)
 
         if runtime_name == self._get_default_runtime_name():
-            handler_path = aliyunfc_config.HANDLER_FOLDER_LOCATION
+            handler_path = ay_config.HANDLER_FOLDER_LOCATION
             is_custom = False
         elif os.path.isdir(runtime_name):
             handler_path = runtime_name
@@ -115,7 +116,7 @@ class AliyunFunctionComputeBackend:
             self.fc_client.create_function(
                 serviceName=self.service_name,
                 functionName=function_name,
-                runtime=aliyunfc_config.AVAILABLE_RUNTIMES[aliyunfc_config.PYTHON_VERSION],
+                runtime=ay_config.AVAILABLE_RUNTIMES[ay_config.CURRENT_PY_VERSION],
                 handler='entry_point.main',
                 codeDir=handler_path,
                 memorySize=memory,
@@ -192,7 +193,7 @@ class AliyunFunctionComputeBackend:
             logger.debug("Installing base modules (via pip install)")
             req_file = os.path.join(TEMP, 'requirements.txt')
             with open(req_file, 'w') as reqf:
-                reqf.write(aliyunfc_config.REQUIREMENTS_FILE)
+                reqf.write(ay_config.REQUIREMENTS_FILE)
 
             cmd = f'{sys.executable} -m pip install -t {handler_path} -r {req_file} --no-deps'
             utils.run_command(cmd)
@@ -257,10 +258,10 @@ class AliyunFunctionComputeBackend:
         Method that returns all the relevant information about the runtime set
         in config
         """
-        if aliyunfc_config.PYTHON_VERSION not in aliyunfc_config.SUPPORTED_PYTHON:
-            raise Exception(f'Python {aliyunfc_config.PYTHON_VERSION} is not available for'
-             f'Aiyun Functions. Please use one of {aliyunfc_config.SUPPORTED_PYTHON}')
-        
+        if ay_config.CURRENT_PY_VERSION not in ay_config.AVAILABLE_PY_RUNTIMES:
+            raise Exception(f'Python {ay_config.CURRENT_PY_VERSION} is not available for'
+             f'Aliyun Functions. Please use one of {ay_config.AVAILABLE_PY_RUNTIMES.keys()}')
+
         if 'runtime' not in self.config or self.config['runtime'] == 'default':
             self.config['runtime'] = self._get_default_runtime_name()
         

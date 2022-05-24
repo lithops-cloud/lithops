@@ -26,8 +26,6 @@ ACTION_MODULES_DIR = os.path.join('.python_packages', 'lib', 'site-packages')
 
 FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_azure.zip')
 
-RUNTIME_NAME = 'lithops-runtime'
-
 DEFAULT_CONFIG_KEYS = {
     'runtime_timeout': 300,  # Default: 600 seconds => 10 minutes
     'runtime_memory': 256,  # Default memory: 256 MB
@@ -38,8 +36,8 @@ DEFAULT_CONFIG_KEYS = {
     'invocation_type': 'http'
 }
 
-PYTHON_VERSION = version_str(sys.version_info)
-SUPPORTED_PYTHON = ['3.6', '3.7', '3.8', '3.9']
+CURRENT_PY_VERSION = version_str(sys.version_info)
+AVAILABLE_PY_RUNTIMES = ['3.6', '3.7', '3.8', '3.9']
 
 REQUIRED_AZURE_STORAGE_PARAMS = ['storage_account_name', 'storage_account_key']
 REQUIRED_AZURE_FUNCTIONS_PARAMS = ['resource_group', 'location']

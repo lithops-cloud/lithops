@@ -32,7 +32,7 @@ from botocore.auth import SigV4Auth
 from lithops import utils
 from lithops.constants import COMPUTE_CLI_MSG
 
-from . import config as lambda_config
+from . import config
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +45,7 @@ class AWSLambdaBackend:
     A wrap-up around AWS Boto3 API
     """
 
-    def __init__(self, aws_lambda_config, internal_storage):
+    def __init__(self, lambda_config, internal_storage):
         """
         Initialize AWS Lambda Backend
         """
@@ -53,20 +53,20 @@ class AWSLambdaBackend:
 
         self.name = 'aws_lambda'
         self.type = 'faas'
-        self.aws_lambda_config = aws_lambda_config
+        self.lambda_config = lambda_config
         self.internal_storage = internal_storage
-        self.user_agent = aws_lambda_config['user_agent']
+        self.user_agent = lambda_config['user_agent']
 
-        self.user_key = aws_lambda_config['access_key_id'][-4:]
+        self.user_key = lambda_config['access_key_id'][-4:]
         self.package = 'lithops_v{}_{}'.format(lithops.__version__, self.user_key.lower()).replace('.', '-')
-        self.region_name = aws_lambda_config['region_name']
-        self.role_arn = aws_lambda_config['execution_role']
+        self.region_name = lambda_config['region_name']
+        self.role_arn = lambda_config['execution_role']
 
         logger.debug('Creating Boto3 AWS Session and Lambda Client')
 
         self.aws_session = boto3.Session(
-            aws_access_key_id=aws_lambda_config['access_key_id'],
-            aws_secret_access_key=aws_lambda_config['secret_access_key'],
+            aws_access_key_id=lambda_config['access_key_id'],
+            aws_secret_access_key=lambda_config['secret_access_key'],
             region_name=self.region_name
         )
 
@@ -81,8 +81,8 @@ class AWSLambdaBackend:
         self.session = URLLib3Session()
         self.host = f'lambda.{self.region_name}.amazonaws.com'
 
-        if self.aws_lambda_config['account_id']:
-            self.account_id = self.aws_lambda_config['account_id']
+        if self.lambda_config['account_id']:
+            self.account_id = self.lambda_config['account_id']
         else:
             sts_client = self.aws_session.client('sts', region_name=self.region_name)
             self.account_id = sts_client.get_caller_identity()["Account"]
@@ -113,16 +113,17 @@ class AWSLambdaBackend:
         return '_'.join([self.package, runtime_name, 'layer'])
 
     def _get_default_runtime_name(self):
-        if lambda_config.PYTHON_VERSION not in lambda_config.SUPPORTED_PYTHON:
-            raise Exception(f'Python {lambda_config.PYTHON_VERSION} is not available '
-                f' for AWS Lambda, please use one of {lambda_config.SUPPORTED_PYTHON}')
+        if config.CURRENT_PY_VERSION not in config.AVAILABLE_PY_RUNTIMES:
+            raise Exception(f'Python {config.CURRENT_PY_VERSION} is not available '
+                f' for AWS Lambda, please use one of {config.AVAILABLE_PY_RUNTIMES.keys()}, '
+                'or use a container runtime.')
 
-        return lambda_config.CURRENT_RUNTIME.replace('.', '')
+        runtime = config.AVAILABLE_PY_RUNTIMES[config.CURRENT_PY_VERSION]
+        return f'default-runtime-'+runtime.replace('.', '')
 
-    @staticmethod
-    def _is_container_runtime(runtime_name):
+    def _is_container_runtime(self, runtime_name):
         name = runtime_name.split('/', 1)[-1]
-        return name not in lambda_config.DEFAULT_RUNTIME_NAMES
+        return name != self._get_default_runtime_name()
 
     def _format_repo_name(self, runtime_name):
         if ':' in runtime_name:
@@ -155,7 +156,7 @@ class AWSLambdaBackend:
         Helper function which waits for the lambda to be deployed (state is 'Active').
         Raises exception if waiting times out or if state is 'Failed' or 'Inactive'
         """
-        retries, sleep_seconds = (15, 25) if 'vpc' in self.aws_lambda_config else (30, 5)
+        retries, sleep_seconds = (15, 25) if 'vpc' in self.lambda_config else (30, 5)
 
         while retries > 0:
             res = self.lambda_client.get_function(FunctionName=func_name)
@@ -211,7 +212,7 @@ class AWSLambdaBackend:
         try:
             resp = self.lambda_client.create_function(
                 FunctionName=func_name,
-                Runtime=lambda_config.CURRENT_RUNTIME,
+                Runtime=config.AVAILABLE_PY_RUNTIMES[config.CURRENT_PY_VERSION],
                 Role=self.role_arn,
                 Handler='build_layer.lambda_handler',
                 Code={
@@ -229,7 +230,7 @@ class AWSLambdaBackend:
             self._wait_for_function_deployed(func_name)
             logger.debug('OK --> Created "layer builder" function {}'.format(runtime_name))
 
-            dependencies = [dependency.strip().replace(' ', '') for dependency in lambda_config.DEFAULT_REQUIREMENTS]
+            dependencies = [dependency.strip().replace(' ', '') for dependency in config.DEFAULT_REQUIREMENTS]
             layer_name = self._format_layer_name(runtime_name)
             payload = {
                 'dependencies': dependencies,
@@ -262,7 +263,7 @@ class AWSLambdaBackend:
                 'S3Bucket': self.internal_storage.bucket,
                 'S3Key': layer_name
             },
-            CompatibleRuntimes=[lambda_config.CURRENT_RUNTIME]
+            CompatibleRuntimes=[config.AVAILABLE_PY_RUNTIMES[config.CURRENT_PY_VERSION]]
         )
 
         try:
@@ -394,8 +395,6 @@ class AWSLambdaBackend:
         logger.info(f"Deploying runtime: {runtime_name} - Memory: {memory} Timeout: {timeout}")
         function_name = self._format_function_name(runtime_name, memory)
 
-        runtime_name = runtime_name.replace('.', '')
-
         layer_arn = self._get_layer(runtime_name)
         if not layer_arn:
             layer_arn = self._create_layer(runtime_name)
@@ -405,7 +404,7 @@ class AWSLambdaBackend:
         try:
             response = self.lambda_client.create_function(
                 FunctionName=function_name,
-                Runtime=lambda_config.CURRENT_RUNTIME,
+                Runtime=config.AVAILABLE_PY_RUNTIMES[config.CURRENT_PY_VERSION],
                 Role=self.role_arn,
                 Handler='entry_point.lambda_handler',
                 Code={
@@ -416,13 +415,13 @@ class AWSLambdaBackend:
                 MemorySize=memory,
                 Layers=[layer_arn],
                 VpcConfig={
-                    'SubnetIds': self.aws_lambda_config['vpc']['subnets'],
-                    'SecurityGroupIds': self.aws_lambda_config['vpc']['security_groups']
+                    'SubnetIds': self.lambda_config['vpc']['subnets'],
+                    'SecurityGroupIds': self.lambda_config['vpc']['security_groups']
                 },
                 FileSystemConfigs=[
                     {'Arn': efs_conf['access_point'],
                         'LocalMountPath': efs_conf['mount_path']}
-                    for efs_conf in self.aws_lambda_config['efs']
+                    for efs_conf in self.lambda_config['efs']
                 ],
                 Tags={
                     'runtime_name': runtime_name
@@ -480,18 +479,18 @@ class AWSLambdaBackend:
                 Timeout=timeout,
                 MemorySize=memory,
                 VpcConfig={
-                    'SubnetIds': self.aws_lambda_config['vpc']['subnets'],
-                    'SecurityGroupIds': self.aws_lambda_config['vpc']['security_groups']
+                    'SubnetIds': self.lambda_config['vpc']['subnets'],
+                    'SecurityGroupIds': self.lambda_config['vpc']['security_groups']
                 },
                 FileSystemConfigs=[
                     {'Arn': efs_conf['access_point'],
                         'LocalMountPath': efs_conf['mount_path']}
-                    for efs_conf in self.aws_lambda_config['efs']
+                    for efs_conf in self.lambda_config['efs']
                 ],
                 Tags={
                     'runtime_name': self.package+'/'+runtime_name
                 },
-                Architectures=[self.aws_lambda_config['architecture']]
+                Architectures=[self.lambda_config['architecture']]
             )
 
             if response['ResponseMetadata']['HTTPStatusCode'] not in (200, 201):
@@ -577,24 +576,24 @@ class AWSLambdaBackend:
         @return: list of tuples (runtime name, memory)
         """
         runtimes = []
-        response = self.lambda_client.list_functions(FunctionVersion='ALL')
-        for function in response['Functions']:
-            if self.package in function['FunctionName']:
-                rt_name, rt_memory = self._unformat_function_name(function['FunctionName'])
-                runtimes.append((rt_name, rt_memory))
 
-        while 'NextMarker' in response:
-            response = self.lambda_client.list_functions(Marker=response['NextMarker'])
+        def get_runtimes(response):
             for function in response['Functions']:
                 if self.package in function['FunctionName']:
                     rt_name, rt_memory = self._unformat_function_name(function['FunctionName'])
                     runtimes.append((rt_name, rt_memory))
+            
+        response = self.lambda_client.list_functions(FunctionVersion='ALL')
+        get_runtimes(response)
+        while 'NextMarker' in response:
+            response = self.lambda_client.list_functions(Marker=response['NextMarker'])
+            get_runtimes(response)
 
         if runtime_name != 'all':
             if self._is_container_runtime(runtime_name) and ':' not in runtime_name:
                 runtime_name = runtime_name + ':latest'
             runtimes = [tup for tup in runtimes if runtime_name in tup[0]]
-
+    
         return runtimes
 
     def invoke(self, runtime_name, runtime_memory, payload):
@@ -666,14 +665,14 @@ class AWSLambdaBackend:
         Method that returns all the relevant information about the runtime set
         in config
         """
-        if 'runtime' not in self.aws_lambda_config or self.aws_lambda_config['runtime'] == 'default':
-            self.aws_lambda_config['runtime'] = self._get_default_runtime_name()
+        if 'runtime' not in self.lambda_config or self.lambda_config['runtime'] == 'default':
+            self.lambda_config['runtime'] = self._get_default_runtime_name()
 
         runime_info = {
-            'runtime_name': self.aws_lambda_config['runtime'],
-            'runtime_memory': self.aws_lambda_config['runtime_memory'],
-            'runtime_timeout': self.aws_lambda_config['runtime_timeout'],
-            'max_workers': self.aws_lambda_config['max_workers'],
+            'runtime_name': self.lambda_config['runtime'],
+            'runtime_memory': self.lambda_config['runtime_memory'],
+            'runtime_timeout': self.lambda_config['runtime_timeout'],
+            'max_workers': self.lambda_config['max_workers'],
         }
 
         return runime_info
