@@ -27,16 +27,18 @@ import concurrent.futures as cf
 from tblib import pickling_support
 from lithops.constants import MONITORING_INTERVAL
 
-
 pickling_support.install()
 
 logger = logging.getLogger(__name__)
+
+LOG_INTERVAL = 60  # Print monitor debug every LOG_INTERVAL seconds
 
 
 class Monitor(threading.Thread):
     """
     Monitor base class
     """
+
     def __init__(self, executor_id,
                  internal_storage,
                  token_bucket_q,
@@ -121,7 +123,7 @@ class Monitor(threading.Thread):
         callids_pending = len([f for f in self.futures if f.invoked])
         callids_running = len([f for f in self.futures if f.running])
         callids_done = len([f for f in self.futures if f.ready or f.success or f.done])
-        if (callids_pending, callids_running, callids_done) != previous_log or log_time > 60:
+        if (callids_pending, callids_running, callids_done) != previous_log or log_time > LOG_INTERVAL:
             logger.debug(f'ExecutorID {self.executor_id} - Pending: {callids_pending} '
                          f'- Running: {callids_running} - Done: {callids_done}')
             log_time = 0
@@ -201,13 +203,17 @@ class RabbitmqMonitor(Monitor):
         self.callids_done_worker[worker_id].append(call_id)
 
         if worker_id not in self.workers_done and \
-           len(self.callids_done_worker[worker_id]) == call_status['chunksize']:
+                len(self.callids_done_worker[worker_id]) == call_status['chunksize']:
             self.workers_done.append(worker_id)
             if self.should_run:
                 self.token_bucket_q.put('#')
 
     def run(self):
         logger.debug(f'ExecutorID {self.executor_id} |  Starting RabbitMQ job monitor')
+        prevoius_log = None
+        log_time = 0
+        SLEEP_TIME = 2
+
         channel = self.connection.channel()
 
         def callback(ch, method, properties, body):
@@ -231,16 +237,16 @@ class RabbitmqMonitor(Monitor):
 
         while not self._all_ready() or not self.futures:
             # Format call_ids running, pending and done
-            self._print_status_log()
+            prevoius_log, log_time = self._print_status_log(previous_log=prevoius_log, log_time=log_time)
             self._future_timeout_checker(self.futures)
-            time.sleep(2)
+            time.sleep(SLEEP_TIME)
+            log_time += SLEEP_TIME
 
             if not self.should_run:
                 break
 
 
 class StorageMonitor(Monitor):
-
     THREADPOOL_SIZE = 64
 
     def __init__(self, executor_id, internal_storage, token_bucket_q, generate_tokens, config):
@@ -358,7 +364,7 @@ class StorageMonitor(Monitor):
                 continue
             chunksize = self.job_chunksize[job_id]
             if worker_id not in self.workers_done and \
-               len(self.callids_done_worker[worker_id]) == chunksize:
+                    len(self.callids_done_worker[worker_id]) == chunksize:
                 self.workers_done.append(worker_id)
                 if self.should_run:
                     self.token_bucket_q.put('#')
@@ -420,7 +426,7 @@ class JobMonitor:
 
     def start(self, fs, job_id=None, chunksize=None, generate_tokens=False):
         if self.backend == 'storage':
-            mi = self.config['lithops'].get('monitoring_interval', MONITORING_INTERVAL)\
+            mi = self.config['lithops'].get('monitoring_interval', MONITORING_INTERVAL) \
                 if self.config else MONITORING_INTERVAL
             bk_config = {'monitoring_interval': mi}
         else:
