@@ -31,7 +31,7 @@ pickling_support.install()
 
 logger = logging.getLogger(__name__)
 
-LOG_INTERVAL = 60  # Print monitor debug every LOG_INTERVAL seconds
+LOG_INTERVAL = 30  # Print monitor debug every LOG_INTERVAL seconds
 
 
 class Monitor(threading.Thread):

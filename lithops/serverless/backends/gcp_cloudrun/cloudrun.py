@@ -157,8 +157,11 @@ class GCPCloudRunBackend:
         logger.info("Extracting Python modules from: {}".format(runtime_name))
 
         try:
-            runtime_meta = self.invoke(runtime_name, memory,
-                                       {'service_route': '/preinstalls'}, return_result=True)
+            runtime_meta = self.invoke(
+                runtime_name, memory,
+                {'service_route': '/preinstalls'},
+                return_result=True
+            )
         except Exception as e:
             raise Exception("Unable to extract the preinstalled modules from the runtime: {}".format(e))
 
@@ -233,10 +236,12 @@ class GCPCloudRunBackend:
         cmd = f'{docker_path} push {image_name}'
         utils.run_command(cmd)
 
-    def deploy_runtime(self, runtime_name, runtime_memory, timeout):
-        if runtime_name == self._get_default_runtime_image_name():
-            self._build_default_runtime(runtime_name)
-
+    def _create_service(self, runtime_name, runtime_memory, timeout):
+        """
+        Creates a service in knative based on the docker_image_name and the memory provided
+        """
+        logger.debug("Creating Lithops runtime service in Google Cloud Run")
+        
         img_name = self._format_image_name(runtime_name)
         service_name = self._format_service_name(runtime_name, runtime_memory)
 
@@ -261,8 +266,6 @@ class GCPCloudRunBackend:
         container['resources']['requests']['memory'] = f'{runtime_memory}Mi'
         container['resources']['requests']['cpu'] = str(self.cr_config['runtime_cpu'])
 
-        print(svc_res)
-
         res = self._build_api_resource().namespaces().services().create(
             parent=f'namespaces/{self.project_name}', body=svc_res
         ).execute()
@@ -282,26 +285,33 @@ class GCPCloudRunBackend:
 
             if not ready:
                 logger.debug('...')
-                time.sleep(15)
+                time.sleep(10)
                 retry -= 1
                 if retry == 0:
                     raise Exception(f'Maximum retries reached: {res}')
             else:
                 self._service_url = res['status']['url']
 
-        logger.info('Ok -- service is up at {}'.format(self._service_url))
+        logger.info(f'Ok -- service is up at {self._service_url}')
 
-        runtime_meta = self._generate_runtime_meta(runtime_name, runtime_memory)
+    def deploy_runtime(self, runtime_name, memory, timeout):
+        
+        if runtime_name == self._get_default_runtime_image_name():
+            self._build_default_runtime(runtime_name)
+
+        logger.info(f"Deploying runtime: {runtime_name} - Memory: {memory} Timeout: {timeout}")
+        self._create_service(runtime_name, memory, timeout)
+        runtime_meta = self._generate_runtime_meta(runtime_name, memory)
         return runtime_meta
 
     def delete_runtime(self, runtime_name, memory):
         service_name = self._format_service_name(runtime_name, memory)
 
-        logger.debug('Deleting runtime {}'.format(runtime_name))
+        logger.debug(f'Deleting runtime {runtime_name}')
         res = self._build_api_resource().namespaces().services().delete(
-            name='namespaces/{}/services/{}'.format(self.project_name, service_name)
+            name=f'namespaces/{self.project_name}/services/{service_name}'
         ).execute()
-        logger.debug('Ok -- deleted runtime {}'.format(runtime_name))
+        logger.debug(f'Ok -- deleted runtime {runtime_name}')
 
     def clean(self):
         logger.debug('Deleting all runtimes..')
@@ -311,16 +321,16 @@ class GCPCloudRunBackend:
             self.delete_runtime(runtime_name, memory)
 
     def list_runtimes(self, runtime_name='all'):
-        logger.debug('Listing runtimes...')
+        logger.debug('Listing runtimes')
 
         res = self._build_api_resource().namespaces().services().list(
-            parent='namespaces/{}'.format(self.project_name),
+            parent=f'namespaces/{self.project_name}',
         ).execute()
 
         if 'items' not in res:
             return []
 
-        logger.debug('Ok -- {} runtimes listed'.format(len(res['items'])))
+        logger.debug(f'Ok -- {len(res["items"])} runtimes listed')
 
         return [self._unformat_service_name(item['metadata']['name']) for item in res['items']]
 
