@@ -5,6 +5,7 @@
 ### Added
 
 ### Changed
+- [Monitor] Reduce debug log verbosity, status is printed every 60 s or when a future changes state
 
 ### Fixed
 
