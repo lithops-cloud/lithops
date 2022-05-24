@@ -14,17 +14,12 @@
 # limitations under the License.
 #
 
-import sys
-import shutil
 import logging
-import lithops
 
-from lithops.utils import version_str
 from lithops.constants import WORKER_PROCESSES_DEFAULT
 
 logger = logging.getLogger(__name__)
 
-DOCKER_PATH = shutil.which('docker')
 DEFAULT_RUNTIME_NAME = 'default_runtime'
 
 ENV_TYPES = {'EC2', 'SPOT', 'FARGATE', 'FARGATE_SPOT'}
@@ -75,13 +70,6 @@ def load_config(config_data):
         raise Exception("'aws' and 'aws_batch' sections are mandatory in the configuration")
 
     # Generic serverless config
-    if 'runtime' not in config_data['aws_batch']:
-        if not DOCKER_PATH:
-            raise Exception('docker command not found. Install docker or use an already built runtime')
-        python_version = version_str(sys.version_info).replace('.', '')
-        revision = 'latest' if 'dev' in lithops.__version__ else lithops.__version__.replace('.', '')
-        runtime_name = '{}-v{}:{}'.format(DEFAULT_RUNTIME_NAME, python_version, revision)
-        config_data['aws_batch']['runtime'] = runtime_name
     if 'runtime_memory' not in config_data['aws_batch']:
         config_data['aws_batch']['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
     if config_data['aws_batch']['runtime_memory'] > RUNTIME_MEMORY_MAX:
@@ -90,10 +78,10 @@ def load_config(config_data):
         config_data['aws_batch']['runtime_memory'] = RUNTIME_MEMORY_MAX
     if 'runtime_timeout' not in config_data['aws_batch']:
         config_data['aws_batch']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
-    if config_data['aws_batch']['runtime_timeout'] > RUNTIME_MEMORY_MAX:
+    if config_data['aws_batch']['runtime_timeout'] > RUNTIME_TIMEOUT_MAX:
         logger.warning("Timeout set to {} - {} exceeds the "
                        "maximum amount".format(RUNTIME_TIMEOUT_MAX, config_data['aws_batch']['runtime_timeout']))
-        config_data['aws_batch']['runtime_memory'] = RUNTIME_MEMORY_MAX
+        config_data['aws_batch']['runtime_timeout'] = RUNTIME_TIMEOUT_MAX
     if 'worker_processes' not in config_data['aws_batch']:
         config_data['aws_batch']['worker_processes'] = WORKER_PROCESSES_DEFAULT
 

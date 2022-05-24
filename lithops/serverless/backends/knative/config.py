@@ -16,7 +16,6 @@
 #
 
 import os
-import shutil
 from lithops.version import __version__
 
 RUNTIME_NAME = 'lithops-knative'
@@ -25,7 +24,6 @@ DEFAULT_GROUP = "serving.knative.dev"
 DEFAULT_VERSION = "v1"
 
 BUILD_GIT_URL = 'https://github.com/lithops-cloud/lithops'
-DOCKER_PATH = shutil.which('docker')
 
 DEFAULT_CONFIG_KEYS = {
     'runtime_timeout': 600,  # Default: 600 seconds => 10 minutes
@@ -34,6 +32,7 @@ DEFAULT_CONFIG_KEYS = {
     'max_workers': 250,
     'worker_processes': 1,
     'invoke_pool_threads': 250,
+    'docker_server': 'docker.io'
 }
 
 FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_knative.zip')
@@ -201,10 +200,10 @@ spec:
           resources:
             limits:
               memory: "256Mi"
-              cpu: "1"
+              cpu: "0.5"
             requests:
               memory: "256Mi"
-              cpu: "1"
+              cpu: "0.5"
       imagePullSecrets:
         - name: lithops-regcred
 """
@@ -222,3 +221,9 @@ def load_config(config_data):
     if 'git_rev' not in config_data['knative']:
         revision = 'master' if 'dev' in __version__ else __version__
         config_data['knative']['git_rev'] = revision
+
+    if 'runtime' in config_data['knative']:
+        runtime = config_data['knative']['runtime']
+        registry = config_data['knative']['docker_server']
+        if runtime.count('/') == 1 and registry not in runtime:
+            config_data['knative']['runtime'] = f'{registry}/{runtime}'

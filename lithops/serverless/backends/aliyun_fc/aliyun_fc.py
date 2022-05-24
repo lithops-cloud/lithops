@@ -22,8 +22,9 @@ import json
 import lithops
 import fc2
 
+from lithops import utils
 from lithops.constants import COMPUTE_CLI_MSG, TEMP
-from . import config as aliyunfc_config
+from . import config as ay_config
 
 logger = logging.getLogger(__name__)
 
@@ -46,28 +47,31 @@ class AliyunFunctionComputeBackend:
         self.role_arn = aliyun_fc_config['role_arn']
         self.region = self.endpoint.split('.')[1]
 
-        self.default_service_name = f'{aliyunfc_config.SERVICE_NAME}_{self.access_key_id[0:4].lower()}'
+        self.default_service_name = f'{ay_config.SERVICE_NAME}_{self.access_key_id[0:4].lower()}'
         self.service_name = aliyun_fc_config.get('service', self.default_service_name)
 
-        logger.debug("Set Aliyun FC Service to {}".format(self.service_name))
-        logger.debug("Set Aliyun FC Endpoint to {}".format(self.endpoint))
+        logger.debug(f"Set Aliyun FC Service to {self.service_name}")
+        logger.debug(f"Set Aliyun FC Endpoint to {self.endpoint}")
 
         self.fc_client = fc2.Client(endpoint=self.endpoint,
                                     accessKeyID=self.access_key_id,
                                     accessKeySecret=self.access_key_secret)
 
-        msg = COMPUTE_CLI_MSG.format('Aliyun Function Compute')
-        logger.info("{}".format(msg))
+        logger.info(COMPUTE_CLI_MSG.format('Aliyun Function Compute'))
 
     def _format_function_name(self, runtime_name, runtime_memory):
         runtime_name = runtime_name.replace('/', '_').replace(':', '_')
-        return '{}_{}MB'.format(runtime_name, runtime_memory)
+        return f'{runtime_name}_{runtime_memory}MB'
 
     def _unformat_function_name(self, function_name):
         runtime_name, memory = function_name.rsplit('_', 1)
         image_name = runtime_name.replace('_', '/', 1)
         image_name = image_name.replace('_', ':', -1)
         return image_name, int(memory.replace('MB', ''))
+
+    def _get_default_runtime_name(self):
+        runtime = ay_config.AVAILABLE_PY_RUNTIMES[ay_config.CURRENT_PY_VERSION]
+        return f'default-runtime-'+runtime.replace('.', '')
 
     def build_runtime(self, runtime_name, requirements_file, extra_args=[]):
         pass
@@ -77,7 +81,7 @@ class AliyunFunctionComputeBackend:
         Deploys a new runtime into Aliyun Function Compute
         with the custom modules for lithops
         """
-        logger.debug(f"Deploying runtime: {runtime_name} - Memory: {memory} Timeout: {timeout}")
+        logger.info(f"Deploying runtime: {runtime_name} - Memory: {memory} Timeout: {timeout}")
 
         if self.service_name == self.default_service_name:
             services = self.fc_client.list_services(prefix=self.service_name).data['services']
@@ -87,19 +91,18 @@ class AliyunFunctionComputeBackend:
                     service = serv
                     break
             if not service:
-                logger.debug("creating service {}".format(self.service_name))
+                logger.debug(f"creating service {self.service_name}")
                 self.fc_client.create_service(self.service_name, role=self.role_arn)
 
-        if runtime_name == 'default':
-            runtime_name = aliyunfc_config.RUNTIME_DEFAULT
-            handler_path = aliyunfc_config.HANDLER_FOLDER_LOCATION
+        if runtime_name == self._get_default_runtime_name():
+            handler_path = ay_config.HANDLER_FOLDER_LOCATION
             is_custom = False
         elif os.path.isdir(runtime_name):
             handler_path = runtime_name
             is_custom = True
         else:
             raise Exception('The path you provided for the custom runtime'
-                            'does not exist: {}'.format(runtime_name))
+                            f'does not exist: {runtime_name}')
 
         try:
             self._create_function_handler_folder(handler_path, is_custom=is_custom)
@@ -113,7 +116,7 @@ class AliyunFunctionComputeBackend:
             self.fc_client.create_function(
                 serviceName=self.service_name,
                 functionName=function_name,
-                runtime=aliyunfc_config.RUNTIME_DEFAULT,
+                runtime=ay_config.AVAILABLE_RUNTIMES[ay_config.CURRENT_PY_VERSION],
                 handler='entry_point.main',
                 codeDir=handler_path,
                 memorySize=memory,
@@ -132,8 +135,6 @@ class AliyunFunctionComputeBackend:
         """
         Deletes a runtime
         """
-        if runtime_name == 'default':
-            runtime_name = aliyunfc_config.RUNTIME_DEFAULT
         function_name = self._format_function_name(runtime_name, memory)
         self.fc_client.delete_function(self.service_name, function_name)
 
@@ -151,9 +152,6 @@ class AliyunFunctionComputeBackend:
         List all the runtimes deployed in the Aliyun FC service
         return: list of tuples (docker_image_name, memory)
         """
-        if runtime_name == 'default':
-            runtime_name = aliyunfc_config.RUNTIME_DEFAULT
-
         runtimes = []
         functions = self.fc_client.list_functions(self.service_name).data['functions']
 
@@ -167,8 +165,6 @@ class AliyunFunctionComputeBackend:
         """
         Invoke function
         """
-        if runtime_name == 'default':
-            runtime_name = aliyunfc_config.RUNTIME_DEFAULT
         function_name = self._format_function_name(runtime_name, memory)
 
         try:
@@ -183,24 +179,11 @@ class AliyunFunctionComputeBackend:
 
         return res.headers['X-Fc-Request-Id']
 
-    def get_runtime_key(self, runtime_name, runtime_memory):
-        """
-        Method that creates and returns the runtime key.
-        Runtime keys are used to uniquely identify runtimes within the storage,
-        in order to know which runtimes are installed and which not.
-        """
-        if runtime_name == 'default':
-            runtime_name = aliyunfc_config.RUNTIME_DEFAULT
-        function_name = self._format_function_name(runtime_name, runtime_memory)
-        runtime_key = os.path.join(self.name, self.region, self.service_name, function_name)
-
-        return runtime_key
-
     def _create_function_handler_folder(self, handler_path, is_custom):
         """
         Creates a local directory with all the required dependencies
         """
-        logger.debug("Creating function handler folder in {}".format(handler_path))
+        logger.debug(f"Creating function handler folder in {handler_path}")
 
         if not is_custom:
             self._delete_function_handler_folder(handler_path)
@@ -210,14 +193,10 @@ class AliyunFunctionComputeBackend:
             logger.debug("Installing base modules (via pip install)")
             req_file = os.path.join(TEMP, 'requirements.txt')
             with open(req_file, 'w') as reqf:
-                reqf.write(aliyunfc_config.REQUIREMENTS_FILE)
+                reqf.write(ay_config.REQUIREMENTS_FILE)
 
             cmd = f'{sys.executable} -m pip install -t {handler_path} -r {req_file} --no-deps'
-            if logger.getEffectiveLevel() != logging.DEBUG:
-                cmd = cmd + " >{} 2>&1".format(os.devnull)
-            res = os.system(cmd)
-            if res != 0:
-                raise Exception('There was an error building the runtime')
+            utils.run_command(cmd)
 
         # Add function handlerd
         current_location = os.path.dirname(os.path.abspath(__file__))
@@ -244,7 +223,7 @@ class AliyunFunctionComputeBackend:
         """
         Extract installed Python modules from Aliyun runtime
         """
-        logger.info('Extracting preinstalls from Aliyun runtime')
+        logger.info('Extracting metadata from Aliyun runtime')
         payload = {'log_level': logger.getEffectiveLevel(), 'get_preinstalls': True}
         try:
             res = self.fc_client.invoke_function(
@@ -255,10 +234,42 @@ class AliyunFunctionComputeBackend:
             runtime_meta = json.loads(res.data)
 
         except Exception:
-            raise Exception("Unable to extract runtime modules preinstalls")
+            raise Exception("Unable to extract runtime metadata")
 
         if not runtime_meta or 'preinstalls' not in runtime_meta:
             raise Exception(runtime_meta)
 
         logger.debug("Metadata extracted successfully")
         return runtime_meta
+
+    def get_runtime_key(self, runtime_name, runtime_memory):
+        """
+        Method that creates and returns the runtime key.
+        Runtime keys are used to uniquely identify runtimes within the storage,
+        in order to know which runtimes are installed and which not.
+        """
+        function_name = self._format_function_name(runtime_name, runtime_memory)
+        runtime_key = os.path.join(self.name, self.region, self.service_name, function_name)
+
+        return runtime_key
+
+    def get_runtime_info(self):
+        """
+        Method that returns all the relevant information about the runtime set
+        in config
+        """
+        if ay_config.CURRENT_PY_VERSION not in ay_config.AVAILABLE_PY_RUNTIMES:
+            raise Exception(f'Python {ay_config.CURRENT_PY_VERSION} is not available for'
+             f'Aliyun Functions. Please use one of {ay_config.AVAILABLE_PY_RUNTIMES.keys()}')
+
+        if 'runtime' not in self.config or self.config['runtime'] == 'default':
+            self.config['runtime'] = self._get_default_runtime_name()
+        
+        runime_info = {
+            'runtime_name': self.config['runtime'],
+            'runtime_memory': self.config['runtime_memory'],
+            'runtime_timeout': self.config['runtime_timeout'],
+            'max_workers': self.config['max_workers'],
+        }
+
+        return runime_info

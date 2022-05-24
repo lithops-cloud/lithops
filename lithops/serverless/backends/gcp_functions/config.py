@@ -27,13 +27,15 @@ DEFAULT_CONFIG_KEYS = {
     'invoke_pool_threads': 1000,
 }
 
-RUNTIME_MEMORY_MAX = 2048  # 2048 MB
-RUNTIME_MEMORY_OPTIONS = {128, 256, 512, 1024, 2048, 4096}
+RUNTIME_MEMORY_MAX = 8192  # 8GB
+RUNTIME_MEMORY_OPTIONS = {128, 256, 512, 1024, 2048, 4096, 8192}
 
 RETRIES = 15
 RETRY_SLEEP = 45
 
-DEFAULT_RUNTIMES = ['python3.7', 'python3.8']
+CURRENT_PY_VERSION = version_str(sys.version_info)
+AVAILABLE_PY_RUNTIMES = {'3.7': 'python37', '3.8': 'python38', '3.9': 'python39'}
+
 USER_RUNTIMES_PREFIX = 'lithops.user_runtimes'
 
 REQ_PARAMS = ('project_name', 'service_account', 'credentials_path', 'region')

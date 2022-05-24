@@ -15,22 +15,17 @@
 #
 
 import os
-import sys
-import shutil
-
-from lithops.utils import version_str, get_docker_username
 from lithops.version import __version__
 
 RUNTIME_NAME = 'lithops-codeengine'
-
-DOCKER_PATH = shutil.which('docker')
 
 DEFAULT_CONFIG_KEYS = {
     'runtime_timeout': 600,  # Default: 10 minutes
     'runtime_memory': 256,  # Default memory: 256 MB
     'runtime_cpu': 0.125,  # 0.125 vCPU
     'max_workers': 1000,
-    'worker_processes': 1
+    'worker_processes': 1,
+    'docker_server': 'docker.io'
 }
 
 DEFAULT_GROUP = "codeengine.cloud.ibm.com"
@@ -50,7 +45,7 @@ RUN apt-get update && apt-get install -y \
         && rm -rf /var/lib/apt/lists/*
 
 RUN pip install --upgrade --ignore-installed setuptools six pip \
-    && pip install --no-cache-dir \
+    && pip install --upgrade --no-cache-dir --ignore-installed \
         gunicorn \
         pika \
         flask \
@@ -170,3 +165,9 @@ def load_config(config_data):
     if region and region not in VALID_REGIONS:
         raise Exception('{} is an invalid region name. Set one of: '
                         '{}'.format(region, VALID_REGIONS))
+
+    if 'runtime' in config_data['code_engine']:
+        runtime = config_data['code_engine']['runtime']
+        registry = config_data['code_engine']['docker_server']
+        if runtime.count('/') == 1 and registry not in runtime:
+            config_data['code_engine']['runtime'] = f'{registry}/{runtime}'
