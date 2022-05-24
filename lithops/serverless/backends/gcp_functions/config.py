@@ -14,8 +14,8 @@
 # limitations under the License.
 #
 
+import os
 import sys
-from os.path import exists, isfile
 from lithops.utils import version_str
 
 
@@ -25,13 +25,14 @@ DEFAULT_CONFIG_KEYS = {
     'max_workers': 1000,
     'worker_processes': 1,
     'invoke_pool_threads': 1000,
+    'trigger': 'pub/sub'
 }
 
 RUNTIME_MEMORY_MAX = 8192  # 8GB
 RUNTIME_MEMORY_OPTIONS = {128, 256, 512, 1024, 2048, 4096, 8192}
 
-RETRIES = 15
-RETRY_SLEEP = 45
+RETRIES = 5
+RETRY_SLEEP = 20
 
 CURRENT_PY_VERSION = version_str(sys.version_info)
 AVAILABLE_PY_RUNTIMES = {'3.7': 'python37', '3.8': 'python38', '3.9': 'python39'}
@@ -76,20 +77,17 @@ def load_config(config_data=None):
 
     for param in REQ_PARAMS:
         if param not in config_data['gcp']:
-            msg = "{} is mandatory under 'gcp' section of the configuration".format(REQ_PARAMS)
+            msg = f"{param} is mandatory under 'gcp' section of the configuration"
             raise Exception(msg)
 
-    if not exists(config_data['gcp']['credentials_path']) or not isfile(config_data['gcp']['credentials_path']):
-        raise Exception("Path {} must be credentials JSON file.".format(config_data['gcp']['credentials_path']))
+    config_data['gcp']['credentials_path'] = os.path.expanduser(config_data['gcp']['credentials_path'])
+
+    if not os.path.isfile(config_data['gcp']['credentials_path']):
+        raise Exception(f"Credentials file {config_data['gcp']['credentials_path']} not found")
 
     for key in DEFAULT_CONFIG_KEYS:
         if key not in config_data['gcp_functions']:
             config_data['gcp_functions'][key] = DEFAULT_CONFIG_KEYS[key]
-
-    config_data['gcp_functions']['invoke_pool_threads'] = config_data['gcp_functions']['max_workers']
-
-    if 'runtime' not in config_data['gcp_functions']:
-        config_data['gcp_functions']['runtime'] = 'python' + version_str(sys.version_info)
 
     if config_data['gcp_functions']['runtime_memory'] not in RUNTIME_MEMORY_OPTIONS:
         raise Exception('{} MB runtime is not available (Only one of {} MB is available)'.format(
@@ -98,13 +96,7 @@ def load_config(config_data=None):
     if config_data['gcp_functions']['runtime_memory'] > RUNTIME_MEMORY_MAX:
         config_data['gcp_functions']['runtime_memory'] = RUNTIME_MEMORY_MAX
 
-    config_data['gcp']['retries'] = RETRIES
-    config_data['gcp']['retry_sleep'] = RETRY_SLEEP
-
-    required_parameters = ('project_name',
-                           'service_account',
-                           'credentials_path')
-    if not set(required_parameters) <= set(config_data['gcp']):
-        raise Exception("'project_name', 'service_account' and 'credentials_path' are mandatory under 'gcp' section")
+    config_data['gcp_functions']['retries'] = RETRIES
+    config_data['gcp_functions']['retry_sleep'] = RETRY_SLEEP
 
     config_data['gcp_functions'].update(config_data['gcp'])

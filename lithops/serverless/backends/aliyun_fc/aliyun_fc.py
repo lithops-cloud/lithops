@@ -24,7 +24,7 @@ import fc2
 
 from lithops import utils
 from lithops.constants import COMPUTE_CLI_MSG, TEMP
-from . import config as ay_config
+from . import config
 
 logger = logging.getLogger(__name__)
 
@@ -34,21 +34,21 @@ class AliyunFunctionComputeBackend:
     A wrap-up around Aliyun Function Compute backend.
     """
 
-    def __init__(self, aliyun_fc_config, storage_config):
+    def __init__(self, afc_config, storage_config):
         logger.debug("Creating Aliyun Function Compute client")
         self.name = 'aliyun_fc'
         self.type = 'faas'
-        self.config = aliyun_fc_config
-        self.user_agent = aliyun_fc_config['user_agent']
+        self.config = afc_config
+        self.user_agent = afc_config['user_agent']
 
-        self.endpoint = aliyun_fc_config['public_endpoint']
-        self.access_key_id = aliyun_fc_config['access_key_id']
-        self.access_key_secret = aliyun_fc_config['access_key_secret']
-        self.role_arn = aliyun_fc_config['role_arn']
+        self.endpoint = afc_config['public_endpoint']
+        self.access_key_id = afc_config['access_key_id']
+        self.access_key_secret = afc_config['access_key_secret']
+        self.role_arn = afc_config['role_arn']
         self.region = self.endpoint.split('.')[1]
 
-        self.default_service_name = f'{ay_config.SERVICE_NAME}_{self.access_key_id[0:4].lower()}'
-        self.service_name = aliyun_fc_config.get('service', self.default_service_name)
+        self.default_service_name = f'{config.SERVICE_NAME}_{self.access_key_id[0:4].lower()}'
+        self.service_name = afc_config.get('service', self.default_service_name)
 
         logger.debug(f"Set Aliyun FC Service to {self.service_name}")
         logger.debug(f"Set Aliyun FC Endpoint to {self.endpoint}")
@@ -70,8 +70,8 @@ class AliyunFunctionComputeBackend:
         return image_name, int(memory.replace('MB', ''))
 
     def _get_default_runtime_name(self):
-        runtime = ay_config.AVAILABLE_PY_RUNTIMES[ay_config.CURRENT_PY_VERSION]
-        return f'default-runtime-'+runtime.replace('.', '')
+        py_version = config.CURRENT_PY_VERSION.replace('.', '')
+        return  f'default-runtime-v{py_version}'
 
     def build_runtime(self, runtime_name, requirements_file, extra_args=[]):
         pass
@@ -95,7 +95,7 @@ class AliyunFunctionComputeBackend:
                 self.fc_client.create_service(self.service_name, role=self.role_arn)
 
         if runtime_name == self._get_default_runtime_name():
-            handler_path = ay_config.HANDLER_FOLDER_LOCATION
+            handler_path = config.HANDLER_FOLDER_LOCATION
             is_custom = False
         elif os.path.isdir(runtime_name):
             handler_path = runtime_name
@@ -116,7 +116,7 @@ class AliyunFunctionComputeBackend:
             self.fc_client.create_function(
                 serviceName=self.service_name,
                 functionName=function_name,
-                runtime=ay_config.AVAILABLE_RUNTIMES[ay_config.CURRENT_PY_VERSION],
+                runtime=config.AVAILABLE_RUNTIMES[config.CURRENT_PY_VERSION],
                 handler='entry_point.main',
                 codeDir=handler_path,
                 memorySize=memory,
@@ -193,7 +193,7 @@ class AliyunFunctionComputeBackend:
             logger.debug("Installing base modules (via pip install)")
             req_file = os.path.join(TEMP, 'requirements.txt')
             with open(req_file, 'w') as reqf:
-                reqf.write(ay_config.REQUIREMENTS_FILE)
+                reqf.write(config.REQUIREMENTS_FILE)
 
             cmd = f'{sys.executable} -m pip install -t {handler_path} -r {req_file} --no-deps'
             utils.run_command(cmd)
@@ -258,9 +258,9 @@ class AliyunFunctionComputeBackend:
         Method that returns all the relevant information about the runtime set
         in config
         """
-        if ay_config.CURRENT_PY_VERSION not in ay_config.AVAILABLE_PY_RUNTIMES:
-            raise Exception(f'Python {ay_config.CURRENT_PY_VERSION} is not available for'
-             f'Aliyun Functions. Please use one of {ay_config.AVAILABLE_PY_RUNTIMES.keys()}')
+        if config.CURRENT_PY_VERSION not in config.AVAILABLE_PY_RUNTIMES:
+            raise Exception(f'Python {config.CURRENT_PY_VERSION} is not available for'
+             f'Aliyun Functions. Please use one of {config.AVAILABLE_PY_RUNTIMES.keys()}')
 
         if 'runtime' not in self.config or self.config['runtime'] == 'default':
             self.config['runtime'] = self._get_default_runtime_name()

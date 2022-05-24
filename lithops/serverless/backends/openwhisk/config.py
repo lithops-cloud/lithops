@@ -42,7 +42,7 @@ def load_config(config_data):
 
     for param in REQ_PARAMS:
         if param not in config_data['openwhisk']:
-            msg = "{} is mandatory in 'openwhisk' section of the configuration".format(REQ_PARAMS)
+            msg = f"{param} is mandatory under 'openwhisk' section of the configuration"
             raise Exception(msg)
 
     for key in DEFAULT_CONFIG_KEYS:

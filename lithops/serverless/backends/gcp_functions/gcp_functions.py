@@ -19,11 +19,13 @@ import logging
 import json
 import base64
 import httplib2
-import sys
+
 import zipfile
 import time
+
 import lithops
 from google.cloud import pubsub_v1
+from google.api_core.retry import Retry
 from google.oauth2 import service_account
 from google_auth_httplib2 import AuthorizedHttp
 from googleapiclient.discovery import build
@@ -31,7 +33,6 @@ from googleapiclient.errors import HttpError
 from google.auth import jwt
 
 from lithops.version import __version__
-from lithops.utils import version_str
 from lithops.constants import COMPUTE_CLI_MSG, JOBS_PREFIX
 from lithops.constants import TEMP as TEMP_PATH
 
@@ -39,7 +40,7 @@ from . import config
 
 logger = logging.getLogger(__name__)
 
-ZIP_LOCATION = os.path.join(TEMP_PATH, 'lithops_gcp.zip')
+ZIP_LOCATION = os.path.join(TEMP_PATH, 'lithops_gcp_functions.zip')
 SCOPES = ('https://www.googleapis.com/auth/cloud-platform',
           'https://www.googleapis.com/auth/pubsub')
 FUNCTIONS_API_VERSION = 'v1'
@@ -60,21 +61,23 @@ class GCPFunctionsBackend:
         self.credentials_path = gcf_config['credentials_path']
         self.num_retries = gcf_config['retries']
         self.retry_sleep = gcf_config['retry_sleep']
+        self.trigger = gcf_config['trigger']
 
         self.internal_storage = internal_storage
 
         # Setup Pub/Sub client
         try:  # Get credentials from JSON file
             service_account_info = json.load(open(self.credentials_path))
-            credentials = jwt.Credentials.from_service_account_info(service_account_info,
-                                                                    audience=AUDIENCE)
-            credentials_pub = credentials.with_claims(audience=AUDIENCE)
-        except Exception:  # Get credentials from gcp function environment
-            credentials_pub = None
-        self.publisher_client = pubsub_v1.PublisherClient(credentials=credentials_pub)
+            credentials = jwt.Credentials.from_service_account_info(
+                service_account_info,
+                audience=AUDIENCE
+            )
+        except Exception as e:  # Get credentials from gcp function environment
+            credentials = None
+        self.publisher_client = pubsub_v1.PublisherClient(credentials=credentials)
 
         msg = COMPUTE_CLI_MSG.format('GCP Functions')
-        logger.info("{} - Region: {} - Project: {}".format(msg, self.region, self.project))
+        logger.info(f"{msg} - Region: {self.region} - Project: {self.project}")
 
     def _format_function_name(self, runtime_name, runtime_memory):
         runtime_name = (self.package + '_' + runtime_name).replace('.', '-')
@@ -90,8 +93,8 @@ class GCPFunctionsBackend:
         return runtime_name, runtime_memory
 
     def _get_default_runtime_name(self):
-        runtime = config.AVAILABLE_PY_RUNTIMES[config.CURRENT_PY_VERSION]
-        return f'default-runtime-'+runtime.replace('.', '')
+        py_version = config.CURRENT_PY_VERSION.replace('.', '')
+        return  f'default-runtime-v{py_version}'
 
     def _full_function_location(self, function_name):
         return 'projects/{}/locations/{}/functions/{}'.format(self.project, self.region, function_name)
@@ -173,13 +176,45 @@ class GCPFunctionsBackend:
         except Exception as e:
             raise Exception('Unable to create Lithops package: {}'.format(e))
 
-    def _create_function(self, runtime_name, memory, code, timeout=60, trigger='HTTP'):
-        logger.debug("Creating function {} - Memory: {} Timeout: {} Trigger: {}".format(runtime_name,
-                                                                                        memory, timeout, trigger))
+    def _create_function(self, runtime_name, memory, timeout=60):
+        """
+        Creates all the resources needed by a function
+        """
+        # Create topic
+        topic_name = self._format_topic_name(runtime_name, memory)
+        topic_list_response = self.publisher_client.list_topics(
+            request={'project': f'projects/{self.project}'})
+        topic_location = self._full_topic_location(topic_name)
+        topics = [topic.name for topic in topic_list_response]
+        if topic_location in topics:
+            logger.debug(f"Topic {topic_location} already exists - Restarting queue")
+            self.publisher_client.delete_topic(topic=topic_location)
+        logger.debug(f"Creating topic {topic_location}")
+        self.publisher_client.create_topic(name=topic_location)
+
+        # create the ZIP file
         default_location = self._full_default_location()
         function_location = self._full_function_location(self._format_function_name(runtime_name, memory))
         bin_name = self._format_function_name(runtime_name, memory) + '_bin.zip'
-        self.internal_storage.put_data(bin_name, code)
+        try:
+            self._create_handler_zip(runtime_name)
+            with open(ZIP_LOCATION, "rb") as action_zip:
+                action_bin = action_zip.read()
+            self.internal_storage.put_data(bin_name, action_bin)
+        finally:
+            os.remove(ZIP_LOCATION)
+
+        # Create the function
+        fn_list_response = self._get_funct_conn().projects().locations().functions().list(
+            parent=self._full_default_location()
+        ).execute(num_retries=self.num_retries)
+        if 'functions' in fn_list_response:
+            deployed_functions = [fn['name'] for fn in fn_list_response['functions']]
+            if function_location in deployed_functions:
+                logger.debug(f"Function {function_location} already exists - Deleting function")
+                self._get_funct_conn().projects().locations().functions().delete(
+                    name=function_location,
+                ).execute(num_retries=self.num_retries)
 
         cloud_function = {
             'name': function_location,
@@ -190,12 +225,13 @@ class GCPFunctionsBackend:
             'availableMemoryMb': memory,
             'serviceAccountEmail': self.service_account,
             'maxInstances': 0,
-            'sourceArchiveUrl': 'gs://{}/{}'.format(self.internal_storage.bucket, bin_name)
+            'sourceArchiveUrl': f'gs://{self.internal_storage.bucket}/{bin_name}'
         }
 
-        if trigger == 'HTTP':
+        if self.trigger == 'http':
             cloud_function['httpsTrigger'] = {}
-        elif trigger == 'Pub/Sub':
+
+        elif self.trigger == 'pub/sub':
             topic_location = self._full_topic_location(self._format_topic_name(runtime_name, memory))
             cloud_function['eventTrigger'] = {
                 'eventType': 'providers/cloud.pubsub/eventTypes/topic.publish',
@@ -203,26 +239,28 @@ class GCPFunctionsBackend:
                 'failurePolicy': {}
             }
 
+        logger.debug(f'Creating function {function_location}')
         response = self._get_funct_conn().projects().locations().functions().create(
             location=default_location,
             body=cloud_function
         ).execute(num_retries=self.num_retries)
 
         # Wait until function is completely deployed
+        logger.info('Waiting for the function to be deployed')
         while True:
             response = self._get_funct_conn().projects().locations().functions().get(
                 name=function_location
             ).execute(num_retries=self.num_retries)
-            logger.debug('Function status is {}'.format(response['status']))
             if response['status'] == 'ACTIVE':
                 break
             elif response['status'] == 'OFFLINE':
                 raise Exception('Error while deploying Cloud Function')
             elif response['status'] == 'DEPLOY_IN_PROGRESS':
                 time.sleep(self.retry_sleep)
-                logger.info('Waiting for function to be deployed...')
+                logger.info('...')
             else:
-                raise Exception('Unknown status {}'.format(response['status']))
+                raise Exception(f"Unknown status {response['status']}")
+
 
         # Delete runtime bin archive from storage
         self.internal_storage.storage.delete_object(self.internal_storage.bucket, bin_name)
@@ -243,23 +281,7 @@ class GCPFunctionsBackend:
     def deploy_runtime(self, runtime_name, memory, timeout=60):
         logger.info(f"Deploying runtime: {runtime_name} - Memory: {memory} Timeout: {timeout}")
 
-        # Create topic
-        topic_name = self._format_topic_name(runtime_name, memory)
-        topic_list_request = self.publisher_client.list_topics(request={'project': 'projects/{}'.format(self.project)})
-        topic_location = self._full_topic_location(topic_name)
-        topics = [topic.name for topic in topic_list_request]
-        if topic_location in topics:
-            logger.debug("Topic {} already exists - Restarting queue...".format(topic_location))
-            self.publisher_client.delete_topic(topic=topic_location)
-        logger.debug("Creating topic {}...".format(topic_location))
-        self.publisher_client.create_topic(name=topic_location)
-
-        # Create function
-        self._create_handler_zip(runtime_name)
-        with open(ZIP_LOCATION, "rb") as action_zip:
-            action_bin = action_zip.read()
-
-        self._create_function(runtime_name, memory, code=action_bin, timeout=timeout, trigger='Pub/Sub')
+        self._create_function(runtime_name, memory, timeout=timeout)
 
         # Get runtime preinstalls
         runtime_meta = self._generate_runtime_meta(runtime_name, memory)
@@ -293,7 +315,7 @@ class GCPFunctionsBackend:
                 break
 
         # Delete Pub/Sub topic attached as trigger for the cloud function
-        logger.debug('Listing Pub/Sub topics...')
+        logger.debug('Listing Pub/Sub topics')
         topic_name = self._format_topic_name(runtime_name, runtime_memory)
         topic_location = self._full_topic_location(topic_name)
         topic_list_request = self.publisher_client.list_topics(request={'project': 'projects/{}'.format(self.project)})
@@ -311,7 +333,7 @@ class GCPFunctionsBackend:
                                                         '/'.join([config.USER_RUNTIMES_PREFIX, runtime_name]))
 
     def clean(self):
-        logger.debug('Going to delete all deployed runtimes...')
+        logger.debug('Going to delete all deployed runtimes')
         runtimes = self.list_runtimes()
         for runtime in runtimes:
             if 'lithops_v' in runtime:
