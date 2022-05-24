@@ -30,7 +30,7 @@ from azure.storage.queue import QueueServiceClient
 from lithops import utils
 from lithops.version import __version__
 from lithops.constants import COMPUTE_CLI_MSG
-from . import config as az_config
+from . import config
 
 logger = logging.getLogger(__name__)
 
@@ -40,17 +40,17 @@ class AzureFunctionAppBackend:
     A wrap-up around Azure Function Apps backend.
     """
 
-    def __init__(self, config, internal_storage):
+    def __init__(self, af_config, internal_storage):
         logger.debug("Creating Azure Functions client")
         self.name = 'azure_fa'
         self.type = 'faas'
-        self.azure_config = config
-        self.invocation_type = self.azure_config['invocation_type']
-        self.resource_group = self.azure_config['resource_group']
-        self.storage_account_name = self.azure_config['storage_account_name']
-        self.storage_account_key = self.azure_config['storage_account_key']
-        self.location = self.azure_config['location']
-        self.functions_version = self.azure_config['functions_version']
+        self.af_config = af_config
+        self.invocation_type = af_config['invocation_type']
+        self.resource_group = af_config['resource_group']
+        self.storage_account_name = af_config['storage_account_name']
+        self.storage_account_key = af_config['storage_account_key']
+        self.location = af_config['location']
+        self.functions_version = self.af_config['functions_version']
 
         self.queue_service_url = f'https://{self.storage_account_name}.queue.core.windows.net'
         self.queue_service = QueueServiceClient(account_url=self.queue_service_url,
@@ -71,7 +71,7 @@ class AzureFunctionAppBackend:
         """
         Generates the default runtime name
         """
-        py_version = az_config.CURRENT_PY_VERSION.replace('.', '')
+        py_version = config.CURRENT_PY_VERSION.replace('.', '')
         revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
         runtime_name = f'{self.storage_account_name}-lithops-runtime-v{py_version}-{revision}-{self.invocation_type}'
         return runtime_name
@@ -96,7 +96,7 @@ class AzureFunctionAppBackend:
         """
         requirements_file = 'az_default_requirements.txt'
         with open(requirements_file, 'w') as reqf:
-            reqf.write(az_config.REQUIREMENTS_FILE)
+            reqf.write(config.REQUIREMENTS_FILE)
         try:
             self.build_runtime(runtime_name, requirements_file)
         finally:
@@ -106,16 +106,16 @@ class AzureFunctionAppBackend:
         logger.info(f'Building runtime {runtime_name} from {requirements_file}')
 
         try:
-            shutil.rmtree(az_config.BUILD_DIR)
+            shutil.rmtree(config.BUILD_DIR)
         except Exception:
             pass
 
         action_name = self._format_function_name(runtime_name)
 
-        build_dir = os.path.join(az_config.BUILD_DIR, action_name)
+        build_dir = os.path.join(config.BUILD_DIR, action_name)
         os.makedirs(build_dir, exist_ok=True)
 
-        action_dir = os.path.join(build_dir, az_config.ACTION_DIR)
+        action_dir = os.path.join(build_dir, config.ACTION_DIR)
         os.makedirs(action_dir, exist_ok=True)
 
         logger.debug('Building runtime in {}'.format(build_dir))
@@ -134,35 +134,35 @@ class AzureFunctionAppBackend:
 
         host_file = os.path.join(build_dir, 'host.json')
         with open(host_file, 'w') as hstf:
-            hstf.write(az_config.HOST_FILE)
+            hstf.write(config.HOST_FILE)
 
         fn_file = os.path.join(action_dir, 'function.json')
         if self.invocation_type == 'event':
             with open(fn_file, 'w') as fnf:
-                in_q_name = self._format_queue_name(action_name, az_config.IN_QUEUE)
-                az_config.BINDINGS_QUEUE['bindings'][0]['queueName'] = in_q_name
-                out_q_name = self._format_queue_name(action_name, az_config.OUT_QUEUE)
-                az_config.BINDINGS_QUEUE['bindings'][1]['queueName'] = out_q_name
-                fnf.write(json.dumps(az_config.BINDINGS_QUEUE))
+                in_q_name = self._format_queue_name(action_name, config.IN_QUEUE)
+                config.BINDINGS_QUEUE['bindings'][0]['queueName'] = in_q_name
+                out_q_name = self._format_queue_name(action_name, config.OUT_QUEUE)
+                config.BINDINGS_QUEUE['bindings'][1]['queueName'] = out_q_name
+                fnf.write(json.dumps(config.BINDINGS_QUEUE))
 
         elif self.invocation_type == 'http':
             with open(fn_file, 'w') as fnf:
-                fnf.write(json.dumps(az_config.BINDINGS_HTTP))
+                fnf.write(json.dumps(config.BINDINGS_HTTP))
 
         entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
         main_file = os.path.join(action_dir, '__init__.py')
         shutil.copy(entry_point, main_file)
 
         if utils.is_unix_system():
-            mod_dir = os.path.join(build_dir, az_config.ACTION_MODULES_DIR)
+            mod_dir = os.path.join(build_dir, config.ACTION_MODULES_DIR)
             os.chdir(build_dir)
             cmd = f'{sys.executable} -m pip install -U -t {mod_dir} -r requirements.txt'
             utils.run_command(cmd)
-            utils.create_handler_zip(az_config.FH_ZIP_LOCATION, entry_point, '__init__.py')
-            archive = zipfile.ZipFile(az_config.FH_ZIP_LOCATION)
+            utils.create_handler_zip(config.FH_ZIP_LOCATION, entry_point, '__init__.py')
+            archive = zipfile.ZipFile(config.FH_ZIP_LOCATION)
             archive.extractall(path=mod_dir)
             os.remove(mod_dir+'/__init__.py')
-            os.remove(az_config.FH_ZIP_LOCATION)
+            os.remove(config.FH_ZIP_LOCATION)
 
     def _create_function(self, runtime_name, memory, timeout):
         """
@@ -173,14 +173,14 @@ class AzureFunctionAppBackend:
 
         if self.invocation_type == 'event':
             try:
-                in_q_name = self._format_queue_name(action_name, az_config.IN_QUEUE)
+                in_q_name = self._format_queue_name(action_name, config.IN_QUEUE)
                 logger.debug(f'Creating queue {in_q_name}')
                 self.queue_service.create_queue(in_q_name)
             except Exception:
                 in_queue = self.queue_service.get_queue_client(in_q_name)
                 in_queue.clear_messages()
             try:
-                out_q_name = self._format_queue_name(action_name, az_config.OUT_QUEUE)
+                out_q_name = self._format_queue_name(action_name, config.OUT_QUEUE)
                 logger.debug(f'Creating queue {out_q_name}')
                 self.queue_service.create_queue(out_q_name)
             except Exception:
@@ -191,13 +191,13 @@ class AzureFunctionAppBackend:
                f'--storage-account {self.storage_account_name} '
                f'--resource-group {self.resource_group} '
                '--os-type Linux  --runtime python '
-               f'--runtime-version {az_config.CURRENT_PY_VERSION} '
+               f'--runtime-version {config.CURRENT_PY_VERSION} '
                f'--functions-version {self.functions_version} '
                f'--consumption-plan-location {self.location}')
         utils.run_command(cmd)
 
         logger.debug(f'Publishing function: {action_name}')
-        build_dir = os.path.join(az_config.BUILD_DIR, action_name)
+        build_dir = os.path.join(config.BUILD_DIR, action_name)
         os.chdir(build_dir)
         res = 1
         while res != 0:
@@ -220,12 +220,12 @@ class AzureFunctionAppBackend:
         utils.run_command(cmd)
 
         try:
-            in_q_name = self._format_queue_name(action_name, az_config.IN_QUEUE)
+            in_q_name = self._format_queue_name(action_name, config.IN_QUEUE)
             self.queue_service.delete_queue(in_q_name)
         except Exception:
             pass
         try:
-            out_q_name = self._format_queue_name(action_name, az_config.OUT_QUEUE)
+            out_q_name = self._format_queue_name(action_name, config.OUT_QUEUE)
             self.queue_service.delete_queue(out_q_name)
         except Exception:
             pass
@@ -237,13 +237,13 @@ class AzureFunctionAppBackend:
         action_name = self._format_function_name(docker_image_name, memory)
         if self.invocation_type == 'event':
 
-            in_q_name = self._format_queue_name(action_name, az_config.IN_QUEUE)
+            in_q_name = self._format_queue_name(action_name, config.IN_QUEUE)
             in_queue = self.queue_service.get_queue_client(in_q_name)
             msg = in_queue.send_message(utils.dict_to_b64str(payload))
             activation_id = msg.id
 
             if return_result:
-                out_q_name = self._format_queue_name(action_name, az_config.OUT_QUEUE)
+                out_q_name = self._format_queue_name(action_name, config.OUT_QUEUE)
                 out_queue = self.queue_service.get_queue_client(out_q_name)
                 msg = []
                 while not msg:
@@ -344,18 +344,18 @@ class AzureFunctionAppBackend:
         Method that returns all the relevant information about the runtime set
         in config
         """
-        if az_config.CURRENT_PY_VERSION not in az_config.AVAILABLE_PY_RUNTIMES:
-            raise Exception(f'Python {az_config.CURRENT_PY_VERSION} is not available for'
-                f'Azure Functions. Please use one of {az_config.AVAILABLE_PY_RUNTIMES}')
+        if config.CURRENT_PY_VERSION not in config.AVAILABLE_PY_RUNTIMES:
+            raise Exception(f'Python {config.CURRENT_PY_VERSION} is not available for'
+                f'Azure Functions. Please use one of {config.AVAILABLE_PY_RUNTIMES}')
 
-        if 'runtime' not in self.azure_config or self.azure_config['runtime'] == 'default':
-            self.azure_config['runtime'] = self._get_default_runtime_name()
+        if 'runtime' not in self.af_config or self.af_config['runtime'] == 'default':
+            self.af_config['runtime'] = self._get_default_runtime_name()
         
         runime_info = {
-            'runtime_name': self.azure_config['runtime'],
-            'runtime_memory': self.azure_config['runtime_memory'],
-            'runtime_timeout': self.azure_config['runtime_timeout'],
-            'max_workers': self.azure_config['max_workers'],
+            'runtime_name': self.af_config['runtime'],
+            'runtime_memory': self.af_config['runtime_memory'],
+            'runtime_timeout': self.af_config['runtime_timeout'],
+            'max_workers': self.af_config['max_workers'],
         }
 
         return runime_info

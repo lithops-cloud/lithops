@@ -118,8 +118,8 @@ class AWSLambdaBackend:
                 f' for AWS Lambda, please use one of {config.AVAILABLE_PY_RUNTIMES.keys()}, '
                 'or use a container runtime.')
 
-        runtime = config.AVAILABLE_PY_RUNTIMES[config.CURRENT_PY_VERSION]
-        return f'default-runtime-'+runtime.replace('.', '')
+        py_version = config.CURRENT_PY_VERSION.replace('.', '')
+        return  f'default-runtime-v{py_version}'
 
     def _is_container_runtime(self, runtime_name):
         name = runtime_name.split('/', 1)[-1]
@@ -544,11 +544,14 @@ class AWSLambdaBackend:
                 package = '_'.join(func_name.split('_')[:3])
                 repo_name = f"{package}/{image}"
                 logger.info(f'Going to delete ECR repository {repo_name} tag {tag}')
-                self.ecr_client.batch_delete_image(repositoryName=repo_name, imageIds=[{'imageTag': tag}])
-                images = self.ecr_client.list_images(repositoryName=repo_name, filter={'tagStatus': 'TAGGED'})
-                if not images['imageIds']:
-                    logger.debug(f'Going to delete ECR repository {repo_name}')
-                    self.ecr_client.delete_repository(repositoryName=repo_name, force=True)
+                try:
+                    self.ecr_client.batch_delete_image(repositoryName=repo_name, imageIds=[{'imageTag': tag}])
+                    images = self.ecr_client.list_images(repositoryName=repo_name, filter={'tagStatus': 'TAGGED'})
+                    if not images['imageIds']:
+                        logger.debug(f'Going to delete ECR repository {repo_name}')
+                        self.ecr_client.delete_repository(repositoryName=repo_name, force=True)
+                except:
+                    pass
             else:
                 layer = self._format_layer_name(runtime_name)
                 self._delete_layer(layer)

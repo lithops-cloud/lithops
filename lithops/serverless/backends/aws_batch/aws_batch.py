@@ -77,7 +77,7 @@ class AWSBatchBackend:
     def _get_default_runtime_image_name(self):
         python_version = utils.version_str(sys.version_info).replace('.', '')
         revision = 'latest' if 'dev' in lithops.__version__ else lithops.__version__.replace('.', '')
-        runtime_name = f'{batch_config.DEFAULT_RUNTIME_NAME}-v{python_version}:{revision}'
+        runtime_name = f'default-runtime-v{python_version}:{revision}'
         return runtime_name
 
     def _get_full_image_name(self, runtime_name):

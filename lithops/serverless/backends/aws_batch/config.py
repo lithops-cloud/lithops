@@ -20,8 +20,6 @@ from lithops.constants import WORKER_PROCESSES_DEFAULT
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_RUNTIME_NAME = 'default_runtime'
-
 ENV_TYPES = {'EC2', 'SPOT', 'FARGATE', 'FARGATE_SPOT'}
 DEFAULT_ENV_TYPE = 'FARGATE_SPOT'
 

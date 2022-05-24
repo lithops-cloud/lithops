@@ -14,6 +14,9 @@
 # limitations under the License.
 #
 
+import os
+
+
 REQ_PARAMS = ('project_name', 'service_account', 'credentials_path', 'region')
 
 
@@ -25,8 +28,13 @@ def load_config(config_data=None):
         if param not in config_data['gcp']:
             msg = f"'{param}' is mandatory under 'gcp' section of the configuration"
             raise Exception(msg)
+    
+    config_data['gcp']['credentials_path'] = os.path.expanduser(config_data['gcp']['credentials_path'])
 
-    config_data['gcp_storage'] = config_data['gcp'].copy()
+    if not os.path.isfile(config_data['gcp']['credentials_path']):
+        raise Exception(f"Credentials file {config_data['gcp']['credentials_path']} not found")
+
+    config_data['gcp_storage'].update(config_data['gcp'])
 
     if 'storage_bucket' in config_data['gcp_storage']:
         config_data['lithops']['storage_bucket'] = config_data['gcp_storage']['storage_bucket']

@@ -31,6 +31,7 @@ logging.getLogger('urllib3').setLevel(logging.CRITICAL)
 
 logger = logging.getLogger(__name__)
 
+TIMEOUT = 5
 
 class GCPStorageBackend:
     def __init__(self, gcp_storage_config):
@@ -50,7 +51,7 @@ class GCPStorageBackend:
         done = False
         while not done:
             try:
-                bucket = self.client.get_bucket(bucket_name)
+                bucket = self.client.get_bucket(bucket_name, timeout=TIMEOUT)
                 blob = bucket.blob(blob_name=key)
                 if hasattr(data, 'read'):
                     blob.upload_from_file(file_obj=data)
@@ -64,7 +65,7 @@ class GCPStorageBackend:
 
     def get_object(self, bucket_name, key, stream=False, extra_get_args={}):
         try:
-            bucket = self.client.get_bucket(bucket_name)
+            bucket = self.client.get_bucket(bucket_name, timeout=TIMEOUT)
             blob = bucket.blob(blob_name=key)
         except google_exceptions.NotFound:
             raise StorageNoSuchKeyError(bucket_name, key)
@@ -136,7 +137,7 @@ class GCPStorageBackend:
 
     def head_object(self, bucket_name, key):
         try:
-            bucket = self.client.get_bucket(bucket_name)
+            bucket = self.client.get_bucket(bucket_name, timeout=TIMEOUT)
             blob = bucket.get_blob(blob_name=key)
         except google_exceptions.NotFound:
             raise StorageNoSuchKeyError(bucket_name, key)
@@ -154,7 +155,7 @@ class GCPStorageBackend:
 
     def delete_object(self, bucket_name, key):
         try:
-            bucket = self.client.get_bucket(bucket_name)
+            bucket = self.client.get_bucket(bucket_name, timeout=TIMEOUT)
         except google_exceptions.NotFound:
             raise StorageNoSuchKeyError(bucket_name, key)
         blob = bucket.get_blob(blob_name=key)
@@ -163,7 +164,7 @@ class GCPStorageBackend:
         blob.delete()
 
     def delete_objects(self, bucket_name, key_list):
-        bucket = self.client.get_bucket(bucket_name)
+        bucket = self.client.get_bucket(bucket_name, timeout=TIMEOUT)
         try:
             bucket.delete_blobs(blobs=key_list)
         except google_exceptions.NotFound:
@@ -174,14 +175,16 @@ class GCPStorageBackend:
 
     def list_objects(self, bucket_name, prefix=None):
         try:
-            page = self.client.get_bucket(bucket_name).list_blobs(prefix=prefix)
+            bucket = self.client.get_bucket(bucket_name, timeout=TIMEOUT)
+            page = bucket.list_blobs(prefix=prefix)
         except google_exceptions.ClientError:
             raise StorageNoSuchKeyError(bucket_name, '')
         return [{'Key': blob.name, 'Size': blob.size} for blob in page]
 
     def list_keys(self, bucket_name, prefix=None):
         try:
-            page = list(self.client.get_bucket(bucket_name).list_blobs(prefix=prefix))
+            bucket = self.client.get_bucket(bucket_name, timeout=TIMEOUT)
+            page = bucket.list_blobs(prefix=prefix)
         except google_exceptions.ClientError:
             raise StorageNoSuchKeyError(bucket_name, '')
         return [blob.name for blob in page]
