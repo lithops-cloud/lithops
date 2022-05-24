@@ -12,6 +12,7 @@
 - [Core] Load docker command only when needed instead of loading it always
 - [Core] Load runtime data only on invocation
 - [Multiprocessing] Improved remote logging
+- [Monitor] Reduce debug log verbosity, status is printed every 60 s or when a future changes state
 
 ### Fixed
 - [Core] Make sure all temp files generated during build_runtime() are cleaned
