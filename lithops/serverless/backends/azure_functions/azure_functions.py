@@ -71,7 +71,7 @@ class AzureFunctionAppBackend:
         """
         Generates the default runtime name
         """
-        py_version = config.CURRENT_PY_VERSION.replace('.', '')
+        py_version = utils.CURRENT_PY_VERSION.replace('.', '')
         revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
         runtime_name = f'{self.storage_account_name}-lithops-runtime-v{py_version}-{revision}-{self.invocation_type}'
         return runtime_name
@@ -191,7 +191,7 @@ class AzureFunctionAppBackend:
                f'--storage-account {self.storage_account_name} '
                f'--resource-group {self.resource_group} '
                '--os-type Linux  --runtime python '
-               f'--runtime-version {config.CURRENT_PY_VERSION} '
+               f'--runtime-version {utils.CURRENT_PY_VERSION} '
                f'--functions-version {self.functions_version} '
                f'--consumption-plan-location {self.location}')
         utils.run_command(cmd)
@@ -344,18 +344,18 @@ class AzureFunctionAppBackend:
         Method that returns all the relevant information about the runtime set
         in config
         """
-        if config.CURRENT_PY_VERSION not in config.AVAILABLE_PY_RUNTIMES:
-            raise Exception(f'Python {config.CURRENT_PY_VERSION} is not available for'
+        if utils.CURRENT_PY_VERSION not in config.AVAILABLE_PY_RUNTIMES:
+            raise Exception(f'Python {utils.CURRENT_PY_VERSION} is not available for'
                 f'Azure Functions. Please use one of {config.AVAILABLE_PY_RUNTIMES}')
 
         if 'runtime' not in self.af_config or self.af_config['runtime'] == 'default':
             self.af_config['runtime'] = self._get_default_runtime_name()
         
-        runime_info = {
+        runtime_info = {
             'runtime_name': self.af_config['runtime'],
             'runtime_memory': self.af_config['runtime_memory'],
             'runtime_timeout': self.af_config['runtime_timeout'],
             'max_workers': self.af_config['max_workers'],
         }
 
-        return runime_info
+        return runtime_info

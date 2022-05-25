@@ -17,7 +17,6 @@
 import os
 from lithops.version import __version__
 
-RUNTIME_NAME = 'lithops-codeengine'
 
 DEFAULT_CONFIG_KEYS = {
     'runtime_timeout': 600,  # Default: 10 minutes

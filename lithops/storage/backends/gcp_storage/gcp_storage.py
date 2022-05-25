@@ -27,8 +27,6 @@ from google.cloud.exceptions import NotFound
 from lithops.constants import STORAGE_CLI_MSG
 from lithops.storage.utils import StorageNoSuchKeyError
 
-logging.getLogger('urllib3').setLevel(logging.CRITICAL)
-
 logger = logging.getLogger(__name__)
 
 TIMEOUT = 5
@@ -179,7 +177,7 @@ class GCPStorageBackend:
             page = bucket.list_blobs(prefix=prefix)
         except google_exceptions.ClientError:
             raise StorageNoSuchKeyError(bucket_name, '')
-        return [{'Key': blob.name, 'Size': blob.size} for blob in page]
+        return [{'Key': blob.name, 'Size': blob.size, 'LastModified': blob.updated } for blob in page]
 
     def list_keys(self, bucket_name, prefix=None):
         try:

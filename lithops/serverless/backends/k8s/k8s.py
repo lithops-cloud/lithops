@@ -15,7 +15,6 @@
 #
 
 import os
-import sys
 import base64
 import json
 import logging
@@ -23,14 +22,15 @@ import copy
 import time
 import yaml
 import urllib3
-from kubernetes import client, config, watch
+from kubernetes import client, watch
+from kubernetes.config import load_kube_config, load_incluster_config, list_kube_config_contexts
 from kubernetes.client.rest import ApiException
 
 from lithops import utils
 from lithops.version import __version__
 from lithops.constants import COMPUTE_CLI_MSG, JOBS_PREFIX
 
-from . import config as k8sconfig
+from . import config
 
 
 logger = logging.getLogger(__name__)
@@ -53,8 +53,8 @@ class KubernetesBackend:
         self.user_agent = k8s_config['user_agent']
 
         try:
-            config.load_kube_config(config_file=self.kubecfg_path)
-            contexts = config.list_kube_config_contexts(config_file=self.kubecfg_path)
+            load_kube_config(config_file=self.kubecfg_path)
+            contexts = list_kube_config_contexts(config_file=self.kubecfg_path)
             current_context = contexts[1].get('context')
             self.namespace = current_context.get('namespace', 'default')
             self.cluster = current_context.get('cluster')
@@ -63,7 +63,7 @@ class KubernetesBackend:
             self.is_incluster = False
         except Exception:
             logger.debug('Loading incluster config')
-            config.load_incluster_config()
+            load_incluster_config()
             self.namespace = self.k8s_config.get('namespace', 'default')
             self.cluster = self.k8s_config.get('cluster', 'default')
             self.is_incluster = True
@@ -93,7 +93,7 @@ class KubernetesBackend:
         revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
         return utils.get_default_k8s_image_name(
             self.name, self.k8s_config,
-            k8sconfig.RUNTIME_NAME,
+            'lithops-default-k8s-runtime',
             revision
         )
 
@@ -114,10 +114,10 @@ class KubernetesBackend:
 
         try:
             entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
-            utils.create_handler_zip(k8sconfig.FH_ZIP_LOCATION, entry_point, 'lithopsentry.py')
+            utils.create_handler_zip(config.FH_ZIP_LOCATION, entry_point, 'lithopsentry.py')
             utils.run_command(cmd)
         finally:
-            os.remove(k8sconfig.FH_ZIP_LOCATION)
+            os.remove(config.FH_ZIP_LOCATION)
 
         logger.debug(f'Pushing runtime {docker_image_name} to container registry')
         cmd = f'{docker_path} push {docker_image_name}'
@@ -130,11 +130,10 @@ class KubernetesBackend:
         Builds the default runtime
         """
         # Build default runtime using local dokcer
-        python_version = utils.version_str(sys.version_info)
         dockerfile = "Dockefile.default-k8s-runtime"
         with open(dockerfile, 'w') as f:
-            f.write(f"FROM python:{python_version}-slim-buster\n")
-            f.write(k8sconfig.DOCKERFILE_DEFAULT)
+            f.write(f"FROM python:{utils.CURRENT_PY_VERSION}-slim-buster\n")
+            f.write(config.DOCKERFILE_DEFAULT)
         try:
             self.build_runtime(docker_image_name, dockerfile)
         finally:
@@ -288,7 +287,7 @@ class KubernetesBackend:
         except Exception as e:
             pass
 
-        job_res = yaml.safe_load(k8sconfig.JOB_DEFAULT)
+        job_res = yaml.safe_load(config.JOB_DEFAULT)
         job_res['metadata']['name'] = job_name
         job_res['metadata']['namespace'] = self.namespace
         container = job_res['spec']['template']['spec']['containers'][0]
@@ -328,7 +327,7 @@ class KubernetesBackend:
         chunksize = job_payload['chunksize']
         total_workers = min(workers, total_calls // chunksize + (total_calls % chunksize > 0))
 
-        job_res = yaml.safe_load(k8sconfig.JOB_DEFAULT)
+        job_res = yaml.safe_load(config.JOB_DEFAULT)
 
         activation_id = f'lithops-{job_key.lower()}'
 
@@ -374,7 +373,7 @@ class KubernetesBackend:
         payload['runtime_name'] = runtime_name
         payload['log_level'] = logger.getEffectiveLevel()
 
-        job_res = yaml.safe_load(k8sconfig.JOB_DEFAULT)
+        job_res = yaml.safe_load(config.JOB_DEFAULT)
         job_res['metadata']['name'] = meta_job_name
         job_res['metadata']['namespace'] = self.namespace
 
@@ -468,7 +467,7 @@ class KubernetesBackend:
         if 'runtime' not in self.k8s_config or self.k8s_config['runtime'] == 'default':
             self.k8s_config['runtime'] = self._get_default_runtime_image_name()
         
-        runime_info = {
+        runtime_info = {
             'runtime_name': self.k8s_config['runtime'],
             'runtime_cpu': self.k8s_config['runtime_cpu'],
             'runtime_memory': self.k8s_config['runtime_memory'],
@@ -476,4 +475,4 @@ class KubernetesBackend:
             'max_workers': self.k8s_config['max_workers'],
         }
 
-        return runime_info
+        return runtime_info

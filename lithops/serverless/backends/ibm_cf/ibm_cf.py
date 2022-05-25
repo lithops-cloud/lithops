@@ -15,7 +15,6 @@
 #
 
 import os
-import sys
 import base64
 import logging
 from threading import Lock
@@ -25,7 +24,8 @@ from lithops.version import __version__
 from lithops.libs.openwhisk.client import OpenWhiskClient
 from lithops.util.ibm_token_manager import IBMTokenManager
 from lithops.constants import COMPUTE_CLI_MSG
-from . import config as ibmcf_config
+
+from . import config
 
 logger = logging.getLogger(__name__)
 invoke_mutex = Lock()
@@ -106,11 +106,10 @@ class IBMCloudFunctionsBackend:
         return image_name, int(memory.replace('MB', ''))
 
     def _get_default_runtime_image_name(self):
-        python_version = utils.version_str(sys.version_info)
         try:
-           return ibmcf_config.RUNTIME_DEFAULT[python_version]
+           return config.AVAILABLE_PY_RUNTIMES[utils.CURRENT_PY_VERSION]
         except KeyError:
-            raise Exception(f'Unsupported Python version: {python_version}')
+            raise Exception(f'Unsupported Python version: {utils.CURRENT_PY_VERSION}')
 
     def build_runtime(self, docker_image_name, dockerfile, extra_args=[]):
         """
@@ -145,16 +144,16 @@ class IBMCloudFunctionsBackend:
         action_name = self._format_function_name(docker_image_name, memory)
 
         entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
-        utils.create_handler_zip(ibmcf_config.FH_ZIP_LOCATION, entry_point, '__main__.py')
+        utils.create_handler_zip(config.FH_ZIP_LOCATION, entry_point, '__main__.py')
 
         try:
-            with open(ibmcf_config.FH_ZIP_LOCATION, "rb") as action_zip:
+            with open(config.FH_ZIP_LOCATION, "rb") as action_zip:
                 action_bin = action_zip.read()
             self.cf_client.create_action(self.package, action_name,
                 docker_image_name, code=action_bin, memory=memory,
                 is_binary=True, timeout=timeout * 1000)
         finally:
-            os.remove(ibmcf_config.FH_ZIP_LOCATION)
+            os.remove(config.FH_ZIP_LOCATION)
 
         runtime_meta = self._generate_runtime_meta(docker_image_name, memory)
 
@@ -260,14 +259,14 @@ class IBMCloudFunctionsBackend:
         if 'runtime' not in self.config or self.config['runtime'] == 'default':
             self.config['runtime'] = self._get_default_runtime_image_name()
 
-        runime_info = {
+        runtime_info = {
             'runtime_name': self.config['runtime'],
             'runtime_memory': self.config['runtime_memory'],
             'runtime_timeout': self.config['runtime_timeout'],
             'max_workers': self.config['max_workers'],
         }
 
-        return runime_info
+        return runtime_info
 
     def _generate_runtime_meta(self, docker_image_name, memory):
         """
@@ -296,4 +295,4 @@ class IBMCloudFunctionsBackend:
         :params *argv and **arg: made to support compatibility with similarly named functions in
         alternative computational backends.
         """
-        return ibmcf_config.UNIT_PRICE * sum(runtimes[i] * memory[i] / 1024 for i in range(len(runtimes)))
+        return config.UNIT_PRICE * sum(runtimes[i] * memory[i] / 1024 for i in range(len(runtimes)))

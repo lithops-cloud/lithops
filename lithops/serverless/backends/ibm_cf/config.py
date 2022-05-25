@@ -16,7 +16,7 @@
 
 import os
 
-RUNTIME_DEFAULT = {
+AVAILABLE_PY_RUNTIMES = {
     '3.5': 'lithopscloud/ibmcf-python-v35',
     '3.6': 'lithopscloud/ibmcf-python-v36',
     '3.7': 'lithopscloud/ibmcf-python-v37',

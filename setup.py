@@ -32,7 +32,6 @@ extras_require = {
         'boto3'
     ],
     'gcp': [
-        'gcsfs',
         'httplib2',
         'google-cloud-storage',
         'google-cloud-pubsub',

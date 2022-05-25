@@ -16,7 +16,6 @@
 #
 
 import os
-import sys
 import base64
 import json
 import time
@@ -24,7 +23,8 @@ import logging
 import urllib3
 import copy
 import yaml
-from kubernetes import client, config, watch
+from kubernetes import client, watch
+from kubernetes.config import load_kube_config, load_incluster_config, list_kube_config_contexts
 from kubernetes.client.rest import ApiException
 
 from lithops import utils
@@ -32,7 +32,7 @@ from lithops.version import __version__
 from lithops.constants import COMPUTE_CLI_MSG, JOBS_PREFIX
 from lithops.util.ibm_token_manager import IBMTokenManager
 
-from . import config as ceconfig
+from . import config
 
 urllib3.disable_warnings()
 
@@ -91,16 +91,16 @@ class CodeEngineBackend:
         self.is_lithops_worker = utils.is_lithops_worker()
 
         if self.namespace and self.region:
-            self.cluster = ceconfig.CLUSTER_URL.format(self.region)
+            self.cluster = config.CLUSTER_URL.format(self.region)
 
         if self.iam_api_key and not self.is_lithops_worker:
             self._get_iam_token()
 
         else:
             try:
-                config.load_kube_config(config_file=self.kubecfg_path)
+                load_kube_config(config_file=self.kubecfg_path)
                 logger.debug("Loading kubecfg file")
-                contexts = config.list_kube_config_contexts(config_file=self.kubecfg_path)
+                contexts = list_kube_config_contexts(config_file=self.kubecfg_path)
                 current_context = contexts[1].get('context')
                 self.namespace = current_context.get('namespace')
                 self.cluster = current_context.get('cluster')
@@ -110,7 +110,7 @@ class CodeEngineBackend:
 
             except Exception:
                 logger.debug('Loading incluster kubecfg')
-                config.load_incluster_config()
+                load_incluster_config()
 
         self.ce_config['namespace'] = self.namespace
         self.ce_config['cluster'] = self.cluster
@@ -165,7 +165,7 @@ class CodeEngineBackend:
         revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
         return utils.get_default_k8s_image_name(
             self.name, self.ce_config,
-            ceconfig.RUNTIME_NAME,
+            'lithops-default-ce-runtime',
             revision
         )
 
@@ -186,10 +186,10 @@ class CodeEngineBackend:
 
         try:
             entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
-            utils.create_handler_zip(ceconfig.FH_ZIP_LOCATION, entry_point, 'lithopsentry.py')
+            utils.create_handler_zip(config.FH_ZIP_LOCATION, entry_point, 'lithopsentry.py')
             utils.run_command(cmd)
         finally:
-            os.remove(ceconfig.FH_ZIP_LOCATION)
+            os.remove(config.FH_ZIP_LOCATION)
 
         logger.debug(f'Pushing runtime {docker_image_name} to container registry')
         cmd = f'{docker_path} push {docker_image_name}'
@@ -202,11 +202,10 @@ class CodeEngineBackend:
         Builds the default runtime
         """
         # Build default runtime using local dokcer
-        python_version = utils.version_str(sys.version_info)
-        dockerfile = "Dockefile.default-codeengine-runtime"
+        dockerfile = "Dockefile.default-ce-runtime"
         with open(dockerfile, 'w') as f:
-            f.write(f"FROM python:{python_version}-slim-buster\n")
-            f.write(ceconfig.DOCKERFILE_DEFAULT)
+            f.write(f"FROM python:{utils.CURRENT_PY_VERSION}-slim-buster\n")
+            f.write(config.DOCKERFILE_DEFAULT)
         try:
             self.build_runtime(default_runtime_img_name, dockerfile)
         finally:
@@ -241,8 +240,8 @@ class CodeEngineBackend:
         logger.debug(f"Deleting jobrun {jobrun_name}")
         try:
             self.custom_api.delete_namespaced_custom_object(
-                group=ceconfig.DEFAULT_GROUP,
-                version=ceconfig.DEFAULT_VERSION,
+                group=config.DEFAULT_GROUP,
+                version=config.DEFAULT_VERSION,
                 name=jobrun_name,
                 namespace=self.namespace,
                 plural="jobruns",
@@ -255,8 +254,8 @@ class CodeEngineBackend:
         logger.info(f"Deleting runtime: {jobdef_id}")
         try:
             self.custom_api.delete_namespaced_custom_object(
-                group=ceconfig.DEFAULT_GROUP,
-                version=ceconfig.DEFAULT_VERSION,
+                group=config.DEFAULT_GROUP,
+                version=config.DEFAULT_VERSION,
                 name=jobdef_id,
                 namespace=self.namespace,
                 plural="jobdefinitions",
@@ -294,8 +293,8 @@ class CodeEngineBackend:
         runtimes = []
         try:
             jobdefs = self.custom_api.list_namespaced_custom_object(
-                            group=ceconfig.DEFAULT_GROUP,
-                            version=ceconfig.DEFAULT_VERSION,
+                            group=config.DEFAULT_GROUP,
+                            version=config.DEFAULT_VERSION,
                             namespace=self.namespace,
                             plural="jobdefinitions")
         except ApiException as e:
@@ -329,7 +328,7 @@ class CodeEngineBackend:
 
         jobs_to_delete = job_keys or self.jobs
         for job_key in jobs_to_delete:
-            jobrun_name = 'lithops-{}'.format(job_key.lower())
+            jobrun_name = f'lithops-{job_key.lower()}'
             try:
                 self._job_run_cleanup(jobrun_name)
                 self._delete_config_map(jobrun_name)
@@ -366,7 +365,7 @@ class CodeEngineBackend:
         if not self._job_def_exists(jobdef_name):
             jobdef_name = self._create_job_definition(docker_image_name, runtime_memory, jobdef_name)
 
-        jobrun_res = yaml.safe_load(ceconfig.JOBRUN_DEFAULT)
+        jobrun_res = yaml.safe_load(config.JOBRUN_DEFAULT)
 
         activation_id = f'lithops-{job_key.lower()}'
 
@@ -382,7 +381,7 @@ class CodeEngineBackend:
         config_map = self._create_config_map(activation_id, job_payload)
         container['env'][1]['valueFrom']['configMapKeyRef']['name'] = config_map
 
-        container['resources']['requests']['memory'] = '{}G'.format(runtime_memory/1024)
+        container['resources']['requests']['memory'] = f'{runtime_memory/1024}G'
         container['resources']['requests']['cpu'] = str(self.ce_config['runtime_cpu'])
 
         logger.debug('ExecutorID {} | JobID {} - Going to run {} activations '
@@ -397,8 +396,8 @@ class CodeEngineBackend:
     @retry_on_except
     def _run_job(self, jobrun_res):
         self.custom_api.create_namespaced_custom_object(
-            group=ceconfig.DEFAULT_GROUP,
-            version=ceconfig.DEFAULT_VERSION,
+            group=config.DEFAULT_GROUP,
+            version=config.DEFAULT_VERSION,
             namespace=self.namespace,
             plural="jobruns",
             body=jobrun_res,
@@ -459,7 +458,7 @@ class CodeEngineBackend:
         self._create_container_registry_secret()
 
         jobdef_name = self._format_jobdef_name(docker_image_name, runtime_memory)
-        jobdef_res = yaml.safe_load(ceconfig.JOBDEF_DEFAULT)
+        jobdef_res = yaml.safe_load(config.JOBDEF_DEFAULT)
         jobdef_res['metadata']['name'] = jobdef_name
         container = jobdef_res['spec']['template']['containers'][0]
         container['image'] = docker_image_name
@@ -473,8 +472,8 @@ class CodeEngineBackend:
 
         try:
             self.custom_api.delete_namespaced_custom_object(
-                group=ceconfig.DEFAULT_GROUP,
-                version=ceconfig.DEFAULT_VERSION,
+                group=config.DEFAULT_GROUP,
+                version=config.DEFAULT_VERSION,
                 namespace=self.namespace,
                 plural="jobdefinitions",
                 name=jobdef_name,
@@ -484,8 +483,8 @@ class CodeEngineBackend:
 
         try:
             self.custom_api.create_namespaced_custom_object(
-                group=ceconfig.DEFAULT_GROUP,
-                version=ceconfig.DEFAULT_VERSION,
+                group=config.DEFAULT_GROUP,
+                version=config.DEFAULT_VERSION,
                 namespace=self.namespace,
                 plural="jobdefinitions",
                 body=jobdef_res,
@@ -516,7 +515,7 @@ class CodeEngineBackend:
         if 'runtime' not in self.ce_config or self.ce_config['runtime'] == 'default':
             self.ce_config['runtime'] = self._get_default_runtime_image_name()
 
-        runime_info = {
+        runtime_info = {
             'runtime_name': self.ce_config['runtime'],
             'runtime_cpu': self.ce_config['runtime_cpu'],
             'runtime_memory': self.ce_config['runtime_memory'],
@@ -524,15 +523,15 @@ class CodeEngineBackend:
             'max_workers': self.ce_config['max_workers'],
         }
 
-        return runime_info
+        return runtime_info
 
     @retry_on_except
     def _job_def_exists(self, jobdef_name):
         logger.debug(f"Check if job_definition {jobdef_name} exists")
         try:
             self.custom_api.get_namespaced_custom_object(
-                group=ceconfig.DEFAULT_GROUP,
-                version=ceconfig.DEFAULT_VERSION,
+                group=config.DEFAULT_GROUP,
+                version=config.DEFAULT_VERSION,
                 namespace=self.namespace,
                 plural="jobdefinitions",
                 name=jobdef_name
@@ -548,7 +547,7 @@ class CodeEngineBackend:
     def _generate_runtime_meta(self, docker_image_name, memory):
 
         logger.info(f"Extracting metadata from: {docker_image_name}")
-        jobrun_res = yaml.safe_load(ceconfig.JOBRUN_DEFAULT)
+        jobrun_res = yaml.safe_load(config.JOBRUN_DEFAULT)
 
         jobdef_name = self._format_jobdef_name(docker_image_name, memory)
         jobrun_name = 'lithops-runtime-preinstalls'
@@ -570,8 +569,8 @@ class CodeEngineBackend:
 
         try:
             self.custom_api.delete_namespaced_custom_object(
-                group=ceconfig.DEFAULT_GROUP,
-                version=ceconfig.DEFAULT_VERSION,
+                group=config.DEFAULT_GROUP,
+                version=config.DEFAULT_VERSION,
                 namespace=self.namespace,
                 plural="jobruns",
                 name=jobrun_name
@@ -581,8 +580,8 @@ class CodeEngineBackend:
 
         try:
             self.custom_api.create_namespaced_custom_object(
-                group=ceconfig.DEFAULT_GROUP,
-                version=ceconfig.DEFAULT_VERSION,
+                group=config.DEFAULT_GROUP,
+                version=config.DEFAULT_VERSION,
                 namespace=self.namespace,
                 plural="jobruns",
                 body=jobrun_res,
@@ -599,8 +598,8 @@ class CodeEngineBackend:
             try:
                 w = watch.Watch()
                 for event in w.stream(self.custom_api.list_namespaced_custom_object,
-                                      namespace=self.namespace, group=ceconfig.DEFAULT_GROUP,
-                                      version=ceconfig.DEFAULT_VERSION, plural="jobruns",
+                                      namespace=self.namespace, group=config.DEFAULT_GROUP,
+                                      version=config.DEFAULT_VERSION, plural="jobruns",
                                       field_selector=f"metadata.name={jobrun_name}",
                                       timeout_seconds=10):
                     failed = int(event['object'].get('status')['failed'])
@@ -616,8 +615,8 @@ class CodeEngineBackend:
 
         try:
             self.custom_api.delete_namespaced_custom_object(
-                group=ceconfig.DEFAULT_GROUP,
-                version=ceconfig.DEFAULT_VERSION,
+                group=config.DEFAULT_GROUP,
+                version=config.DEFAULT_VERSION,
                 namespace=self.namespace,
                 plural="jobruns",
                 name=jobrun_name

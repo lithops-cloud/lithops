@@ -18,8 +18,6 @@
 import os
 from lithops.version import __version__
 
-RUNTIME_NAME = 'lithops-knative'
-
 DEFAULT_GROUP = "serving.knative.dev"
 DEFAULT_VERSION = "v1"
 
@@ -64,7 +62,7 @@ RUN pip install --upgrade --ignore-installed setuptools six pip \
         tblib
 
 ENV PORT 8080
-ENV CONCURRENCY 4
+ENV CONCURRENCY 1
 ENV TIMEOUT 600
 ENV PYTHONUNBUFFERED TRUE
 

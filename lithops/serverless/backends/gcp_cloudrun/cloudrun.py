@@ -17,9 +17,10 @@
 import logging
 import httplib2
 import os
-import sys
 import time
 import json
+
+import yaml
 
 from lithops import utils
 from lithops.version import __version__
@@ -29,7 +30,7 @@ from google_auth_httplib2 import AuthorizedHttp
 from google.auth.transport.requests import AuthorizedSession
 from googleapiclient.discovery import build
 
-from . import config as cr_config
+from . import config
 
 logger = logging.getLogger(__name__)
 
@@ -42,12 +43,11 @@ class GCPCloudRunBackend:
     def __init__(self, cloudrun_config, internal_storage):
         self.name = 'cloudrun'
         self.type = 'faas'
+        self.cr_config = cloudrun_config
         self.credentials_path = cloudrun_config['credentials_path']
         self.service_account = cloudrun_config['service_account']
         self.project_name = cloudrun_config['project_name']
         self.region = cloudrun_config['region']
-        self.runtime_cpu = cloudrun_config['runtime_cpu']
-        self.workers = cloudrun_config['max_workers']
 
         self._invoker_sess = None
         self._invoker_sess_route = '/'
@@ -59,9 +59,11 @@ class GCPCloudRunBackend:
         """
         Formats service name string from runtime name and memory
         """
-        return 'lithops--{}--{}--{}mb'.format(__version__.replace('.', '-'),
-                                              runtime_name.replace('.', ''),
-                                              runtime_memory)
+        runtime_name = runtime_name.replace('/', '--')
+        runtime_name = runtime_name.replace(':', '--')
+        runtime_name = runtime_name.replace('.', '')
+        runtime_name = runtime_name.replace('_', '-')
+        return f'{runtime_name}--{runtime_memory}mb'
 
     @staticmethod
     def _unformat_service_name(service_name):
@@ -74,6 +76,14 @@ class GCPCloudRunBackend:
         memory = int(split_service_name[3].replace('mb', ''))
         return runtime_name, memory
 
+    def _get_default_runtime_image_name(self):
+        """
+        Generates the default runtime image name
+        """
+        py_version = utils.CURRENT_PY_VERSION.replace('.', '')
+        revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
+        return f'lithops-default-cr-runtime-v{py_version}:{revision}'
+
     def _build_api_resource(self):
         """
         Instantiate and authorize admin discovery API session
@@ -82,12 +92,13 @@ class GCPCloudRunBackend:
             logger.debug('Building admin API session')
             credentials = service_account.Credentials.from_service_account_file(self.credentials_path, scopes=SCOPES)
             http = AuthorizedHttp(credentials, http=httplib2.Http())
-            self._api_resource = build('run', CLOUDRUN_API_VERSION,
-                                       http=http,
-                                       cache_discovery=False,
-                                       client_options={
-                                           'api_endpoint': 'https://{}-run.googleapis.com'.format(self.region)
-                                       })
+            self._api_resource = build(
+                'run', CLOUDRUN_API_VERSION,
+                http=http, cache_discovery=False,
+                client_options={
+                    'api_endpoint': f'https://{self.region}-run.googleapis.com'
+                }
+            )
         return self._api_resource
 
     def _build_invoker_sess(self, runtime_name, memory, route):
@@ -110,9 +121,9 @@ class GCPCloudRunBackend:
         """
         if self._service_url is None:
             logger.debug('Getting service endpoint')
+            svc_name = self._format_service_name(runtime_name, memory)
             res = self._build_api_resource().namespaces().services().get(
-                name='namespaces/{}/services/{}'.format(self.project_name,
-                                                        self._format_service_name(runtime_name, memory))
+                name=f'namespaces/{self.project_name}/services/{svc_name}'
             ).execute()
             self._service_url = res['status']['url']
         return self._service_url
@@ -121,26 +132,23 @@ class GCPCloudRunBackend:
         """
         Formats GCR image name from runtime name
         """
-        runtime_name = runtime_name.replace('.', '').replace('_', '-')
-        revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
-        return f'gcr.io/{self.project_name}/lithops-cloudrun-{runtime_name}:{revision}'
+        country = self.region.split('-')[0]
+        return f'{country}.gcr.io/{self.project_name}/{runtime_name}'
 
-    def _build_default_runtime(self):
+    def _build_default_runtime(self, runtime_name):
         """
         Builds the default runtime
         """
-        logger.debug(f'Building default {cr_config.DEFAULT_RUNTIME_NAME} runtime')
+        logger.debug(f'Building default {runtime_name} runtime')
         # Build default runtime using local dokcer
-        python_version = utils.version_str(sys.version_info)
-        dockerfile = "Dockefile.default-knative-runtime"
+        dockerfile = "Dockefile.default-kn-runtime"
         with open(dockerfile, 'w') as f:
-            f.write("FROM python:{}-slim-buster\n".format(python_version))
-            f.write(cr_config.DEFAULT_DOCKERFILE)
+            f.write(f"FROM python:{utils.CURRENT_PY_VERSION}-slim-buster\n")
+            f.write(config.DEFAULT_DOCKERFILE)
         try:
-            self.build_runtime(cr_config.DEFAULT_RUNTIME_NAME, dockerfile)
+            self.build_runtime(runtime_name, dockerfile)
         finally:
             os.remove(dockerfile)
-
 
     def _generate_runtime_meta(self, runtime_name, memory):
         """
@@ -149,8 +157,11 @@ class GCPCloudRunBackend:
         logger.info("Extracting Python modules from: {}".format(runtime_name))
 
         try:
-            runtime_meta = self.invoke(runtime_name, memory,
-                                       {'service_route': '/preinstalls'}, return_result=True)
+            runtime_meta = self.invoke(
+                runtime_name, memory,
+                {'service_route': '/preinstalls'},
+                return_result=True
+            )
         except Exception as e:
             raise Exception("Unable to extract the preinstalled modules from the runtime: {}".format(e))
 
@@ -207,109 +218,100 @@ class GCPCloudRunBackend:
 
         try:
             entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
-            utils.create_handler_zip(cr_config.FH_ZIP_LOCATION, entry_point, 'lithopsproxy.py')
+            utils.create_handler_zip(config.FH_ZIP_LOCATION, entry_point, 'lithopsproxy.py')
             utils.run_command(cmd)
         finally:
-            os.remove(cr_config.FH_ZIP_LOCATION)
+            os.remove(config.FH_ZIP_LOCATION)
 
         logger.debug('Authorizing Docker client with GCR permissions')
-        cmd = f'cat {self.credentials_path} | {docker_path} login -u _json_key --password-stdin https://gcr.io'
-        utils.run_command(cmd)
+        country = self.region.split('-')[0]
+        cmd = f'cat {self.credentials_path} | {docker_path} login {country}.gcr.io -u _json_key --password-stdin'
+        if logger.getEffectiveLevel() != logging.DEBUG:
+            cmd = cmd + " >{} 2>&1".format(os.devnull)
+        res = os.system(cmd)
+        if res != 0:
+            raise Exception('There was an error authorizing Docker for push to GCR')
 
         logger.debug(f'Pushing runtime {image_name} to GCP Container Registry')
         cmd = f'{docker_path} push {image_name}'
         utils.run_command(cmd)
 
-    def deploy_runtime(self, runtime_name, memory, timeout):
-        if runtime_name == cr_config.DEFAULT_RUNTIME_NAME:
-            self._build_default_runtime()
-
+    def _create_service(self, runtime_name, runtime_memory, timeout):
+        """
+        Creates a service in knative based on the docker_image_name and the memory provided
+        """
+        logger.debug("Creating Lithops runtime service in Google Cloud Run")
+        
         img_name = self._format_image_name(runtime_name)
-        service_name = self._format_service_name(runtime_name, memory)
+        service_name = self._format_service_name(runtime_name, runtime_memory)
 
-        body = {
-            "apiVersion": 'serving.knative.dev/v1',
-            "kind": 'Service',
-            "metadata": {
-                "name": service_name,
-                "namespace": self.project_name,
-            },
-            "spec": {
-                "template": {
-                    "metadata": {
-                        "name": '{}-rev'.format(service_name),
-                        "namespace": self.project_name,
-                        "annotations": {
-                            "autoscaling.knative.dev/minScale": "0",
-                            "autoscaling.knative.dev/maxScale": str(self.workers)
-                        }
-                    },
-                    "spec": {
-                        "containerConcurrency": 1,
-                        "timeoutSeconds": timeout,
-                        "serviceAccountName": self.service_account,
-                        "containers": [
-                            {
-                                "image": img_name,
-                                "resources": {
-                                    "limits": {
-                                        "memory": "{}Mi".format(memory),
-                                        "cpu": str(self.runtime_cpu)
-                                    },
-                                },
-                            }
-                        ],
-                    }
-                },
-                "traffic": [
-                    {
-                        "percent": 100,
-                        "latestRevision": True
-                    }
-                ]
-            }
-        }
+        svc_res = yaml.safe_load(config.service_res)
+        svc_res['metadata']['name'] = service_name
+        svc_res['metadata']['namespace'] = self.project_name
+
+        logger.debug(f"Service name: {service_name}")
+        logger.debug(f"Namespace: {self.project_name}")
+
+        svc_res['spec']['template']['spec']['timeoutSeconds'] = timeout
+        svc_res['spec']['template']['spec']['containerConcurrency'] = 1
+        svc_res['spec']['template']['spec']['serviceAccountName'] = self.service_account
+        svc_res['spec']['template']['metadata']['annotations']['autoscaling.knative.dev/maxScale'] = str(self.cr_config['max_workers'])
+
+        container = svc_res['spec']['template']['spec']['containers'][0]
+        container['image'] = img_name
+        container['env'][0] = {'name': 'CONCURRENCY', 'value': '1'}
+        container['env'][1] = {'name': 'TIMEOUT', 'value': str(timeout)}
+        container['resources']['limits']['memory'] = f'{runtime_memory}Mi'
+        container['resources']['limits']['cpu'] = str(self.cr_config['runtime_cpu'])
+        container['resources']['requests']['memory'] = f'{runtime_memory}Mi'
+        container['resources']['requests']['cpu'] = str(self.cr_config['runtime_cpu'])
 
         res = self._build_api_resource().namespaces().services().create(
-            parent='namespaces/{}'.format(self.project_name),
-            body=body
+            parent=f'namespaces/{self.project_name}', body=svc_res
         ).execute()
 
-        logger.info('Ok -- created service {}'.format(service_name))
+        logger.info(f'Ok -- created service {service_name}')
 
         # Wait until service is up
         ready = False
         retry = 15
+        logger.debug(f'Waiting {service_name} service to become ready')
         while not ready:
             res = self._build_api_resource().namespaces().services().get(
-                name='namespaces/{}/services/{}'.format(self.project_name,
-                                                        self._format_service_name(runtime_name, memory))
+                name=f'namespaces/{self.project_name}/services/{service_name}'
             ).execute()
 
             ready = all(cond['status'] == 'True' for cond in res['status']['conditions'])
 
             if not ready:
-                logger.debug('Waiting until service is up...')
+                logger.debug('...')
                 time.sleep(10)
                 retry -= 1
                 if retry == 0:
-                    raise Exception('Maximum retries reached: {}'.format(res))
+                    raise Exception(f'Maximum retries reached: {res}')
             else:
                 self._service_url = res['status']['url']
 
-        logger.info('Ok -- service is up at {}'.format(self._service_url))
+        logger.info(f'Ok -- service is up at {self._service_url}')
 
+    def deploy_runtime(self, runtime_name, memory, timeout):
+        
+        if runtime_name == self._get_default_runtime_image_name():
+            self._build_default_runtime(runtime_name)
+
+        logger.info(f"Deploying runtime: {runtime_name} - Memory: {memory} Timeout: {timeout}")
+        self._create_service(runtime_name, memory, timeout)
         runtime_meta = self._generate_runtime_meta(runtime_name, memory)
         return runtime_meta
 
     def delete_runtime(self, runtime_name, memory):
         service_name = self._format_service_name(runtime_name, memory)
 
-        logger.debug('Deleting runtime {}'.format(runtime_name))
+        logger.debug(f'Deleting runtime {runtime_name}')
         res = self._build_api_resource().namespaces().services().delete(
-            name='namespaces/{}/services/{}'.format(self.project_name, service_name)
+            name=f'namespaces/{self.project_name}/services/{service_name}'
         ).execute()
-        logger.debug('Ok -- deleted runtime {}'.format(runtime_name))
+        logger.debug(f'Ok -- deleted runtime {runtime_name}')
 
     def clean(self):
         logger.debug('Deleting all runtimes..')
@@ -319,16 +321,16 @@ class GCPCloudRunBackend:
             self.delete_runtime(runtime_name, memory)
 
     def list_runtimes(self, runtime_name='all'):
-        logger.debug('Listing runtimes...')
+        logger.debug('Listing runtimes')
 
         res = self._build_api_resource().namespaces().services().list(
-            parent='namespaces/{}'.format(self.project_name),
+            parent=f'namespaces/{self.project_name}',
         ).execute()
 
         if 'items' not in res:
             return []
 
-        logger.debug('Ok -- {} runtimes listed'.format(len(res['items'])))
+        logger.debug(f'Ok -- {len(res["items"])} runtimes listed')
 
         return [self._unformat_service_name(item['metadata']['name']) for item in res['items']]
 
@@ -338,3 +340,21 @@ class GCPCloudRunBackend:
         logger.debug('Runtime key: {}'.format(runtime_key))
 
         return runtime_key
+
+    def get_runtime_info(self):
+        """
+        Method that returns all the relevant information about the runtime set
+        in config
+        """
+        if 'runtime' not in self.cr_config or self.cr_config['runtime'] == 'default':
+            self.cr_config['runtime'] = self._get_default_runtime_image_name()
+
+        runtime_info = {
+            'runtime_name': self.cr_config['runtime'],
+            'runtime_cpu': self.cr_config['runtime_cpu'],
+            'runtime_memory': self.cr_config['runtime_memory'],
+            'runtime_timeout': self.cr_config['runtime_timeout'],
+            'max_workers': self.cr_config['max_workers'],
+        }
+
+        return runtime_info

@@ -677,8 +677,12 @@ class WrappedStreamingBodyPartition(WrappedStreamingBody):
 
         return retval
 
+
 def run_command(cmd):
     if logger.getEffectiveLevel() != logging.DEBUG:
         sp.check_call(cmd.split(), stdout=sp.DEVNULL, stderr=sp.DEVNULL)
     else:
         sp.check_call(cmd.split())
+
+
+CURRENT_PY_VERSION = version_str(sys.version_info)

@@ -113,12 +113,12 @@ class AWSLambdaBackend:
         return '_'.join([self.package, runtime_name, 'layer'])
 
     def _get_default_runtime_name(self):
-        if config.CURRENT_PY_VERSION not in config.AVAILABLE_PY_RUNTIMES:
-            raise Exception(f'Python {config.CURRENT_PY_VERSION} is not available '
+        if utils.CURRENT_PY_VERSION not in config.AVAILABLE_PY_RUNTIMES:
+            raise Exception(f'Python {utils.CURRENT_PY_VERSION} is not available '
                 f' for AWS Lambda, please use one of {config.AVAILABLE_PY_RUNTIMES.keys()}, '
                 'or use a container runtime.')
 
-        py_version = config.CURRENT_PY_VERSION.replace('.', '')
+        py_version = utils.CURRENT_PY_VERSION.replace('.', '')
         return  f'default-runtime-v{py_version}'
 
     def _is_container_runtime(self, runtime_name):
@@ -212,7 +212,7 @@ class AWSLambdaBackend:
         try:
             resp = self.lambda_client.create_function(
                 FunctionName=func_name,
-                Runtime=config.AVAILABLE_PY_RUNTIMES[config.CURRENT_PY_VERSION],
+                Runtime=config.AVAILABLE_PY_RUNTIMES[utils.CURRENT_PY_VERSION],
                 Role=self.role_arn,
                 Handler='build_layer.lambda_handler',
                 Code={
@@ -263,7 +263,7 @@ class AWSLambdaBackend:
                 'S3Bucket': self.internal_storage.bucket,
                 'S3Key': layer_name
             },
-            CompatibleRuntimes=[config.AVAILABLE_PY_RUNTIMES[config.CURRENT_PY_VERSION]]
+            CompatibleRuntimes=[config.AVAILABLE_PY_RUNTIMES[utils.CURRENT_PY_VERSION]]
         )
 
         try:
@@ -405,7 +405,7 @@ class AWSLambdaBackend:
         try:
             response = self.lambda_client.create_function(
                 FunctionName=function_name,
-                Runtime=config.AVAILABLE_PY_RUNTIMES[config.CURRENT_PY_VERSION],
+                Runtime=config.AVAILABLE_PY_RUNTIMES[utils.CURRENT_PY_VERSION],
                 Role=self.role_arn,
                 Handler='entry_point.lambda_handler',
                 Code={
@@ -684,14 +684,14 @@ class AWSLambdaBackend:
         if 'runtime' not in self.lambda_config or self.lambda_config['runtime'] == 'default':
             self.lambda_config['runtime'] = self._get_default_runtime_name()
 
-        runime_info = {
+        runtime_info = {
             'runtime_name': self.lambda_config['runtime'],
             'runtime_memory': self.lambda_config['runtime_memory'],
             'runtime_timeout': self.lambda_config['runtime_timeout'],
             'max_workers': self.lambda_config['max_workers'],
         }
 
-        return runime_info
+        return runtime_info
 
     def _generate_runtime_meta(self, runtime_name, runtime_memory):
         """

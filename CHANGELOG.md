@@ -8,6 +8,7 @@
 - [K8s] Append 'docker_server' as a prefix of the runtime
 - [Code Engine] Append 'docker_server' as a prefix of the runtime
 - [Knative] Append 'docker_server' as a prefix of the runtime
+- [Google Cloud Run] Allow CPU values <1, 6 and 8
 
 ### Changed
 - [Core] Load docker command only when needed instead of loading it always

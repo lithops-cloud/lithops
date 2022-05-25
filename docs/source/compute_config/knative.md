@@ -89,7 +89,7 @@ knative:
 |knative | runtime_cpu | 0.5 |no | CPU limit. Default 0.5vCPU |
 |knative | runtime_memory | 256 |no | Memory limit in MB. Default 256Mi |
 |knative | runtime_timeout | 600 |no | Runtime timeout in seconds. Default 600 seconds |
-|knative | invoke_pool_threads | {lithops.workers} |no | Number of concurrent threads used for invocation |
+|knative | invoke_pool_threads | 250 |no | Number of concurrent threads used for invocation |
 
 
 ### Verify
