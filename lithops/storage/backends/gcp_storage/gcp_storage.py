@@ -39,7 +39,7 @@ class GCPStorageBackend:
             self.client = storage.Client.from_service_account_json(self.credentials_path)
         except Exception:  # Get credentials from gcp function environment
             self.client = storage.Client()
-        msg = STORAGE_CLI_MSG.format('GCP')
+        msg = STORAGE_CLI_MSG.format('Google Cloud Storage')
         logger.info("{}".format(msg))
 
     def get_client(self):

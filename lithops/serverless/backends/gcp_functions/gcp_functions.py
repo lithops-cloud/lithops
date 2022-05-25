@@ -76,12 +76,12 @@ class GCPFunctionsBackend:
             credentials = None
         self.publisher_client = pubsub_v1.PublisherClient(credentials=credentials)
 
-        msg = COMPUTE_CLI_MSG.format('GCP Functions')
+        msg = COMPUTE_CLI_MSG.format('Google Cloud Functions')
         logger.info(f"{msg} - Region: {self.region} - Project: {self.project}")
 
     def _format_function_name(self, runtime_name, runtime_memory):
         runtime_name = (self.package + '_' + runtime_name).replace('.', '-')
-        return '{}_{}MB'.format(runtime_name, runtime_memory)
+        return f'{runtime_name}_{runtime_memory}MB'
     
     def _unformat_function_name(self, function_name):
         package, runtime_name, runtime_memory = function_name.rsplit('_', 2)
@@ -126,8 +126,9 @@ class GCPFunctionsBackend:
                 reqs = raw_reqs.decode('utf-8')
                 return reqs.splitlines()
             else:
+                available_runtims = [self._get_default_runtime_name()]+user_runtimes
                 raise Exception(f'Runtime {runtime_name} does not exist. '
-                    'Available runtimes: {}'.format([self._get_default_runtime_name()]+user_runtimes))
+                    f'Available runtimes: {available_runtims}')
 
     def _list_runtimes(self, default_runtimes=True):
         runtimes = []
@@ -135,13 +136,14 @@ class GCPFunctionsBackend:
         if default_runtimes:
             runtimes.extend(self._get_default_runtime_name())
 
-        user_runtimes_keys = self.internal_storage.storage.list_keys(self.internal_storage.bucket,
-                                                                     prefix=config.USER_RUNTIMES_PREFIX)
+        user_runtimes_keys = self.internal_storage.storage.list_keys(
+            self.internal_storage.bucket, prefix=config.USER_RUNTIMES_PREFIX
+        )
         runtimes.extend([runtime.split('/', 1)[-1] for runtime in user_runtimes_keys])
         return runtimes
 
     def _create_handler_zip(self, runtime_name):
-        logger.debug("Creating function handler zip in {}".format(ZIP_LOCATION))
+        logger.debug(f"Creating function handler zip in {ZIP_LOCATION}")
 
         def add_folder_to_zip(zip_file, full_dir_path, sub_dir=''):
             for file in os.listdir(full_dir_path):
@@ -153,10 +155,10 @@ class GCPFunctionsBackend:
 
         # Get runtime requirements
         runtime_requirements = self._get_runtime_requirements(runtime_name)
-        requirements_file_path = os.path.join(TEMP_PATH, '{}_requirements.txt'.format(runtime_name))
+        requirements_file_path = os.path.join(TEMP_PATH, f'{runtime_name}_requirements.txt')
         with open(requirements_file_path, 'w') as reqs_file:
             for req in runtime_requirements:
-                reqs_file.write('{}\n'.format(req))
+                reqs_file.write(f'{req}\n')
 
         try:
             with zipfile.ZipFile(ZIP_LOCATION, 'w') as lithops_zip:
@@ -172,7 +174,7 @@ class GCPFunctionsBackend:
                 module_location = os.path.dirname(os.path.abspath(lithops.__file__))
                 add_folder_to_zip(lithops_zip, module_location)
         except Exception as e:
-            raise Exception('Unable to create Lithops package: {}'.format(e))
+            raise Exception(f'Unable to create Lithops package: {e}')
 
     def _create_function(self, runtime_name, memory, timeout=60):
         """
@@ -273,8 +275,8 @@ class GCPFunctionsBackend:
             requirements = req_file.read()
 
         self.internal_storage.put_data('/'.join([config.USER_RUNTIMES_PREFIX, runtime_name]), requirements)
-        logger.info('Ok - Created runtime {}'.format(runtime_name))
-        logger.info('Available runtimes: {}'.format(self._list_runtimes(default_runtimes=True)))
+        logger.info(f'Runtime {runtime_name} created successfuly')
+
 
     def deploy_runtime(self, runtime_name, memory, timeout=60):
         logger.info(f"Deploying runtime: {runtime_name} - Memory: {memory} Timeout: {timeout}")
@@ -289,7 +291,7 @@ class GCPFunctionsBackend:
     def delete_runtime(self, runtime_name, runtime_memory, delete_runtime_storage=True):
         action_name = self._format_function_name(runtime_name, runtime_memory)
         function_location = self._full_function_location(action_name)
-        logger.debug('Going to delete runtime {}'.format(action_name))
+        logger.debug(f'Going to delete runtime {action_name}')
 
         # Delete function
         self._get_funct_conn().projects().locations().functions().delete(
@@ -303,40 +305,38 @@ class GCPFunctionsBackend:
                 response = self._get_funct_conn().projects().locations().functions().get(
                     name=function_location
                 ).execute(num_retries=self.num_retries)
-                logger.debug('Function status is {}'.format(response['status']))
+                logger.debug(f'Function status is {response["status"]}')
                 if response['status'] == 'DELETE_IN_PROGRESS':
                     time.sleep(self.retry_sleep)
                 else:
-                    raise Exception('Unknown status: {}'.format(response['status']))
-            except HttpError as e:
-                logger.debug('Ok - {}'.format(e))
+                    raise Exception(f'Unknown status: {response["status"]}')
+            except Exception as e:
                 break
 
         # Delete Pub/Sub topic attached as trigger for the cloud function
         logger.debug('Listing Pub/Sub topics')
         topic_name = self._format_topic_name(runtime_name, runtime_memory)
         topic_location = self._full_topic_location(topic_name)
-        topic_list_request = self.publisher_client.list_topics(request={'project': 'projects/{}'.format(self.project)})
+        topic_list_request = self.publisher_client.list_topics(
+            request={f'project': 'projects/{self.project}'}
+        )
         topics = [topic.name for topic in topic_list_request]
-        logger.debug('Topics: {}'.format(topics))
         if topic_location in topics:
-            logger.debug('Going to delete topic {}'.format(topic_name))
+            logger.debug(f'Going to delete topic {topic_name}')
             self.publisher_client.delete_topic(topic=topic_location)
-            logger.debug('Ok - topic {} deleted'.format(topic_name))
+            logger.debug(f'Ok - topic {topic_name} deleted')
 
         # Delete user runtime from storage
         user_runtimes = self._list_runtimes(default_runtimes=False)
         if runtime_name in user_runtimes and delete_runtime_storage:
-            self.internal_storage.storage.delete_object(self.internal_storage.bucket,
-                                                        '/'.join([config.USER_RUNTIMES_PREFIX, runtime_name]))
+            self.internal_storage.storage.delete_object(
+                self.internal_storage.bucket, '/'.join([config.USER_RUNTIMES_PREFIX, runtime_name]))
 
     def clean(self):
         logger.debug('Going to delete all deployed runtimes')
         runtimes = self.list_runtimes()
-        for runtime in runtimes:
-            if 'lithops_v' in runtime:
-                runtime_name, runtime_memory = self._unformat_function_name(runtime)
-                self.delete_runtime(runtime_name, runtime_memory)
+        for runtime_name, runtime_memory in runtimes:
+            self.delete_runtime(runtime_name, runtime_memory)
 
     def list_runtimes(self, runtime_name='all'):
         logger.debug('Listing deployed runtimes')
@@ -347,9 +347,10 @@ class GCPFunctionsBackend:
         deployed_runtimes = [f['name'].split('/')[-1] for f in response.get('functions', []) if 'lithops_v' in f['name']]
         runtimes = []
         for func_runtime in deployed_runtimes:
-            fn_name, memory = self._unformat_function_name(func_runtime)
-            if runtime_name == fn_name or runtime_name == 'all':
-                runtimes.append((fn_name, memory))
+            if 'lithops_v' in func_runtime:
+                fn_name, memory = self._unformat_function_name(func_runtime)
+                if runtime_name == fn_name or runtime_name == 'all':
+                    runtimes.append((fn_name, memory))
 
         return runtimes
 
@@ -365,11 +366,10 @@ class GCPFunctionsBackend:
         return invocation_id
 
     def _generate_runtime_meta(self, runtime_name, memory):
-        logger.debug('Generating runtime meta for {}'.format(runtime_name))
+        logger.debug(f'Generating runtime meta for {runtime_name}')
 
         function_name = self._format_function_name(runtime_name, memory)
         function_location = self._full_function_location(function_name)
-        logger.debug('Going to synchronously invoke {} through developer API'.format(function_name))
 
         payload = {
             'get_preinstalls': {
@@ -394,12 +394,12 @@ class GCPFunctionsBackend:
         elif 'error' in response:
             raise Exception(response['error'])
         else:
-            raise Exception('Error at retrieving runtime meta: {}'.format(response))
+            raise Exception(f'Error at retrieving runtime meta: {response}')
 
     def get_runtime_key(self, runtime_name, runtime_memory):
         action_name = self._format_function_name(runtime_name, runtime_memory)
         runtime_key = os.path.join(self.name, self.region, action_name)
-        logger.debug('Runtime key: {}'.format(runtime_key))
+        logger.debug(f'Runtime key: {runtime_key}')
         return runtime_key
 
     def get_runtime_info(self):

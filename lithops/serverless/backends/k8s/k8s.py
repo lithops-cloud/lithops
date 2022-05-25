@@ -90,11 +90,8 @@ class KubernetesBackend:
         """
         Generates the default runtime image name
         """
-        revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
         return utils.get_default_k8s_image_name(
-            self.name, self.k8s_config,
-            'lithops-default-k8s-runtime',
-            revision
+            self.name, self.k8s_config, 'lithops-k8s-default', __version__
         )
 
     def build_runtime(self, docker_image_name, dockerfile, extra_args=[]):
@@ -333,6 +330,7 @@ class KubernetesBackend:
 
         job_res['metadata']['name'] = activation_id
         job_res['metadata']['namespace'] = self.namespace
+        job_res['metadata']['labels']['version'] = 'lithops_v'+__version__
 
         job_res['spec']['activeDeadlineSeconds'] = self.k8s_config['runtime_timeout']
         job_res['spec']['parallelism'] = total_workers

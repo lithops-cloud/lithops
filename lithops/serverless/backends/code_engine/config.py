@@ -78,9 +78,11 @@ JOBDEF_DEFAULT = """
 apiVersion: codeengine.cloud.ibm.com/v1beta1
 kind: JobDefinition
 metadata:
-  name: "<INPUT>"
+  name: lithops-runtime-name
+  namespace: default
   labels:
     type: lithops-runtime
+    version: lithops_vX.X.X
 spec:
   arraySpec: '0'
   maxExecutionTime: 7200

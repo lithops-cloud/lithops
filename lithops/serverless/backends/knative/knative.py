@@ -132,11 +132,8 @@ class KnativeServingBackend:
         """
         Generates the default runtime image name
         """
-        revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
         return utils.get_default_k8s_image_name(
-            self.name, self.kn_config,
-            'lithops-default-kn-runtime',
-            revision
+            self.name, self.kn_config, 'lithops-kn-default', __version__
         )
 
     def _get_service_host(self, service_name):
@@ -439,8 +436,8 @@ class KnativeServingBackend:
 
         svc_res['spec']['template']['spec']['timeoutSeconds'] = timeout
         svc_res['spec']['template']['spec']['containerConcurrency'] = 1
+        svc_res['spec']['template']['metadata']['labels']['version'] = 'lithops_v'+__version__
         svc_res['spec']['template']['metadata']['annotations']['autoscaling.knative.dev/maxScale'] = str(self.kn_config['max_workers'])
-
 
         container = svc_res['spec']['template']['spec']['containers'][0]
         container['image'] = docker_image_name

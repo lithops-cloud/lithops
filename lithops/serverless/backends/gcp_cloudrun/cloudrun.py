@@ -23,6 +23,7 @@ import json
 import yaml
 
 from lithops import utils
+from lithops.constants import COMPUTE_CLI_MSG
 from lithops.version import __version__
 
 from google.oauth2 import service_account
@@ -54,6 +55,9 @@ class GCPCloudRunBackend:
         self._service_url = None
         self._api_resource = None
 
+        msg = COMPUTE_CLI_MSG.format('Google Cloud Run')
+        logger.info(f"{msg} - Region: {self.region} - Project: {self.project_name}")
+
     @staticmethod
     def _format_service_name(runtime_name, runtime_memory):
         """
@@ -70,8 +74,7 @@ class GCPCloudRunBackend:
         Generates the default runtime image name
         """
         py_version = utils.CURRENT_PY_VERSION.replace('.', '')
-        revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
-        return f'lithops-default-cr-runtime-v{py_version}:{revision}'
+        return f'lithops-cr-default-v{py_version}:{__version__}'
 
     def _build_api_resource(self):
         """
@@ -151,7 +154,7 @@ class GCPCloudRunBackend:
         """
         Extract installed Python modules from docker image
         """
-        logger.info("Extracting Python modules from: {}".format(runtime_name))
+        logger.info(f"Extracting metadata from: {runtime_name}")
 
         try:
             runtime_meta = self.invoke(
@@ -160,12 +163,12 @@ class GCPCloudRunBackend:
                 return_result=True
             )
         except Exception as e:
-            raise Exception("Unable to extract the preinstalled modules from the runtime: {}".format(e))
+            raise Exception(f"Unable to extract metadata from the runtime: {e}")
 
         if not runtime_meta or 'preinstalls' not in runtime_meta:
-            raise Exception('Failed getting runtime metadata: {}'.format(runtime_meta))
+            raise Exception(f'Failed getting runtime metadata: {runtime_meta}')
 
-        logger.debug('Ok -- Extraced modules from {}'.format(runtime_name))
+        logger.debug(f'Ok -- Extraced modules from {runtime_name}')
         return runtime_meta
 
     def invoke(self, runtime_name, memory, payload, return_result=False):
@@ -180,11 +183,9 @@ class GCPCloudRunBackend:
         sess = self._build_invoker_sess(runtime_name, memory, route)
 
         if exec_id and job_id and call_id:
-            logger.debug('ExecutorID {} | JobID {} - Invoking function call {}'
-                         .format(exec_id, job_id, call_id))
+            logger.debug(f'ExecutorID {exec_id} | JobID {job_id} - Invoking function call {call_id}')
         elif exec_id and job_id:
-            logger.debug('ExecutorID {} | JobID {} - Invoking function'
-                         .format(exec_id, job_id))
+            logger.debug(f'ExecutorID {exec_id} | JobID {job_id} - Invoking function')
         else:
             logger.debug('Invoking function')
 
@@ -224,7 +225,7 @@ class GCPCloudRunBackend:
         country = self.region.split('-')[0]
         cmd = f'cat {self.credentials_path} | {docker_path} login {country}.gcr.io -u _json_key --password-stdin'
         if logger.getEffectiveLevel() != logging.DEBUG:
-            cmd = cmd + " >{} 2>&1".format(os.devnull)
+            cmd = cmd + f" >{os.devnull} 2>&1"
         res = os.system(cmd)
         if res != 0:
             raise Exception('There was an error authorizing Docker for push to GCR')
@@ -252,6 +253,7 @@ class GCPCloudRunBackend:
         svc_res['spec']['template']['spec']['timeoutSeconds'] = timeout
         svc_res['spec']['template']['spec']['containerConcurrency'] = 1
         svc_res['spec']['template']['spec']['serviceAccountName'] = self.service_account
+        svc_res['spec']['template']['metadata']['labels']['version'] = 'lithops_v'+__version__
         svc_res['spec']['template']['metadata']['annotations']['autoscaling.knative.dev/maxScale'] = str(self.cr_config['max_workers'])
 
         container = svc_res['spec']['template']['spec']['containers'][0]
@@ -344,7 +346,7 @@ class GCPCloudRunBackend:
     def get_runtime_key(self, runtime_name, memory):
         service_name = self._format_service_name(runtime_name, memory)
         runtime_key = os.path.join(self.name, self.project_name, service_name)
-        logger.debug('Runtime key: {}'.format(runtime_key))
+        logger.debug(f'Runtime key: {runtime_key}')
 
         return runtime_key
 

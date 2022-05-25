@@ -105,7 +105,7 @@ service_res = """
 apiVersion: serving.knative.dev/v1
 kind: Service
 metadata:
-  name: lithops-runtime
+  name: lithops-runtime-name
   namespace: default
   annotations:
     run.googleapis.com/launch-stage: BETA
@@ -114,6 +114,7 @@ spec:
     metadata:
       labels:
         type: lithops-runtime
+        version: lithops_vX.X.X
       annotations:
         autoscaling.knative.dev/target: "1"
         autoscaling.knative.dev/minScale: "0"
