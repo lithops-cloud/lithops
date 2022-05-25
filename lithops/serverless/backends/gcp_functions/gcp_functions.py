@@ -76,7 +76,7 @@ class GCPFunctionsBackend:
             credentials = None
         self.publisher_client = pubsub_v1.PublisherClient(credentials=credentials)
 
-        msg = COMPUTE_CLI_MSG.format('GCP Functions')
+        msg = COMPUTE_CLI_MSG.format('Google Cloud Functions')
         logger.info(f"{msg} - Region: {self.region} - Project: {self.project}")
 
     def _format_function_name(self, runtime_name, runtime_memory):

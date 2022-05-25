@@ -23,6 +23,7 @@ import json
 import yaml
 
 from lithops import utils
+from lithops.constants import COMPUTE_CLI_MSG
 from lithops.version import __version__
 
 from google.oauth2 import service_account
@@ -54,6 +55,9 @@ class GCPCloudRunBackend:
         self._service_url = None
         self._api_resource = None
 
+        msg = COMPUTE_CLI_MSG.format('Google Cloud Run')
+        logger.info(f"{msg} - Region: {self.region} - Project: {self.project_name}")
+
     @staticmethod
     def _format_service_name(runtime_name, runtime_memory):
         """
@@ -70,8 +74,7 @@ class GCPCloudRunBackend:
         Generates the default runtime image name
         """
         py_version = utils.CURRENT_PY_VERSION.replace('.', '')
-        revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
-        return f'lithops-default-cr-runtime-v{py_version}:{revision}'
+        return f'lithops-default-cr-runtime-v{py_version}:{__version__}'
 
     def _build_api_resource(self):
         """

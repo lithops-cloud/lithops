@@ -90,11 +90,8 @@ class KubernetesBackend:
         """
         Generates the default runtime image name
         """
-        revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
         return utils.get_default_k8s_image_name(
-            self.name, self.k8s_config,
-            'lithops-default-k8s-runtime',
-            revision
+            self.name, self.k8s_config, 'lithops-default-k8s-runtime', __version__
         )
 
     def build_runtime(self, docker_image_name, dockerfile, extra_args=[]):

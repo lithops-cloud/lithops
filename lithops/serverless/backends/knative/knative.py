@@ -132,11 +132,8 @@ class KnativeServingBackend:
         """
         Generates the default runtime image name
         """
-        revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
         return utils.get_default_k8s_image_name(
-            self.name, self.kn_config,
-            'lithops-default-kn-runtime',
-            revision
+            self.name, self.kn_config, 'lithops-default-kn-runtime', __version__
         )
 
     def _get_service_host(self, service_name):

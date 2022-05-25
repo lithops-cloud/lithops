@@ -363,7 +363,7 @@ def get_default_k8s_image_name(backend, backend_config, runtime_name, revision):
     Used in serverless/kubernetes-based backends
     """
     python_version = version_str(sys.version_info).replace('.', '')
-    img = f'{runtime_name}-v{python_version}:{revision}'
+    img = f'{runtime_name}-v{python_version}:{__version__}'
 
     docker_server = backend_config['docker_server']
 
