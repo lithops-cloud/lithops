@@ -84,7 +84,7 @@ class GCPFunctionsBackend:
         return '{}_{}MB'.format(runtime_name, runtime_memory)
 
     def _format_topic_name(self, runtime_name, runtime_memory):
-        return self._format_function_name(runtime_name, runtime_memory) + '_topic'
+        return self._format_function_name(runtime_name, runtime_memory) +'_'+ self.region + '_topic'
 
     def _unformat_function_name(self, action_name):
         split = action_name.split('_')
@@ -220,7 +220,7 @@ class GCPFunctionsBackend:
             'name': function_location,
             'description': self.package,
             'entryPoint': 'main',
-            'runtime': config.AVAILABLE_PY_RUNTIMES[config.CURRENT_PY_VERSION],
+            'runtime': config.AVAILABLE_PY_RUNTIMES[utils.CURRENT_PY_VERSION],
             'timeout': str(timeout) + 's',
             'availableMemoryMb': memory,
             'serviceAccountEmail': self.service_account,
