@@ -93,7 +93,7 @@ class GCPFunctionsBackend:
 
     def _get_default_runtime_name(self):
         py_version = utils.CURRENT_PY_VERSION.replace('.', '')
-        return  f'default-runtime-v{py_version}'
+        return  f'lithops-default-runtime-v{py_version}'
 
     def _full_function_location(self, function_name):
         return f'projects/{self.project}/locations/{self.region}/functions/{function_name}'
