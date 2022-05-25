@@ -15,8 +15,6 @@
 #
 
 import os
-import sys
-from lithops.utils import version_str
 
 
 DEFAULT_CONFIG_KEYS = {

@@ -82,28 +82,26 @@ class GCPFunctionsBackend:
     def _format_function_name(self, runtime_name, runtime_memory):
         runtime_name = (self.package + '_' + runtime_name).replace('.', '-')
         return '{}_{}MB'.format(runtime_name, runtime_memory)
+    
+    def _unformat_function_name(self, function_name):
+        package, runtime_name, runtime_memory = function_name.rsplit('_', 2)
+        return runtime_name, runtime_memory.replace('MB', '')
 
     def _format_topic_name(self, runtime_name, runtime_memory):
         return self._format_function_name(runtime_name, runtime_memory) +'_'+ self.region + '_topic'
-
-    def _unformat_function_name(self, action_name):
-        split = action_name.split('_')
-        runtime_name = split[2].replace('-', '.')
-        runtime_memory = int(split[3].replace('MB', ''))
-        return runtime_name, runtime_memory
 
     def _get_default_runtime_name(self):
         py_version = utils.CURRENT_PY_VERSION.replace('.', '')
         return  f'default-runtime-v{py_version}'
 
     def _full_function_location(self, function_name):
-        return 'projects/{}/locations/{}/functions/{}'.format(self.project, self.region, function_name)
+        return f'projects/{self.project}/locations/{self.region}/functions/{function_name}'
 
     def _full_topic_location(self, topic_name):
-        return 'projects/{}/topics/{}'.format(self.project, topic_name)
+        return f'projects/{self.project}/topics/{topic_name}'
 
     def _full_default_location(self):
-        return 'projects/{}/locations/{}'.format(self.project, self.region)
+        return f'projects/{self.project}/locations/{self.region}'
 
     def _encode_payload(self, payload):
         return base64.b64encode(bytes(json.dumps(payload), 'utf-8')).decode('utf-8')
@@ -218,7 +216,7 @@ class GCPFunctionsBackend:
 
         cloud_function = {
             'name': function_location,
-            'description': self.package,
+            'description': 'Lithops Worker for '+self.package,
             'entryPoint': 'main',
             'runtime': config.AVAILABLE_PY_RUNTIMES[utils.CURRENT_PY_VERSION],
             'timeout': str(timeout) + 's',
@@ -340,14 +338,19 @@ class GCPFunctionsBackend:
                 runtime_name, runtime_memory = self._unformat_function_name(runtime)
                 self.delete_runtime(runtime_name, runtime_memory)
 
-    def list_runtimes(self, docker_image_name='all'):
-        logger.debug('Listing deployed runtimes...')
+    def list_runtimes(self, runtime_name='all'):
+        logger.debug('Listing deployed runtimes')
         response = self._get_funct_conn().projects().locations().functions().list(
             parent=self._full_default_location()
         ).execute(num_retries=self.num_retries)
 
-        runtimes = [function['name'].split('/')[-1] for function in response.get('functions', [])]
-        logger.debug('Deployed runtimes: {}'.format(runtimes))
+        deployed_runtimes = [f['name'].split('/')[-1] for f in response.get('functions', []) if 'lithops_v' in f['name']]
+        runtimes = []
+        for func_runtime in deployed_runtimes:
+            fn_name, memory = self._unformat_function_name(func_runtime)
+            if runtime_name == fn_name or runtime_name == 'all':
+                runtimes.append((fn_name, memory))
+
         return runtimes
 
     def invoke(self, runtime_name, runtime_memory, payload={}):
