@@ -65,9 +65,11 @@ JOB_DEFAULT = """
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: "<INPUT>"
+  name: lithops-runtime-name
+  namespace: default
   labels:
     type: lithops-runtime
+    version: lithops_vX.X.X
 spec:
   activeDeadlineSeconds: 600
   ttlSecondsAfterFinished: 60

@@ -74,7 +74,7 @@ class GCPCloudRunBackend:
         Generates the default runtime image name
         """
         py_version = utils.CURRENT_PY_VERSION.replace('.', '')
-        return f'lithops-default-cr-runtime-v{py_version}:{__version__}'
+        return f'lithops-cr-default-v{py_version}:{__version__}'
 
     def _build_api_resource(self):
         """
@@ -253,6 +253,7 @@ class GCPCloudRunBackend:
         svc_res['spec']['template']['spec']['timeoutSeconds'] = timeout
         svc_res['spec']['template']['spec']['containerConcurrency'] = 1
         svc_res['spec']['template']['spec']['serviceAccountName'] = self.service_account
+        svc_res['spec']['template']['metadata']['labels']['version'] = 'lithops_v'+__version__
         svc_res['spec']['template']['metadata']['annotations']['autoscaling.knative.dev/maxScale'] = str(self.cr_config['max_workers'])
 
         container = svc_res['spec']['template']['spec']['containers'][0]

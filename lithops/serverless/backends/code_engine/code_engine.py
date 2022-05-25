@@ -163,7 +163,7 @@ class CodeEngineBackend:
         Generates the default runtime image name
         """
         return utils.get_default_k8s_image_name(
-            self.name, self.ce_config, 'lithops-default-ce-runtime', __version__
+            self.name, self.ce_config, 'lithops-ce-default', __version__
         )
 
     def build_runtime(self, docker_image_name, dockerfile, extra_args=[]):
@@ -368,6 +368,7 @@ class CodeEngineBackend:
 
         jobrun_res['metadata']['name'] = activation_id
         jobrun_res['metadata']['namespace'] = self.namespace
+
         jobrun_res['spec']['jobDefinitionRef'] = str(jobdef_name)
         jobrun_res['spec']['jobDefinitionSpec']['arraySpec'] = '0-' + str(total_workers - 1)
 
@@ -456,7 +457,10 @@ class CodeEngineBackend:
 
         jobdef_name = self._format_jobdef_name(docker_image_name, runtime_memory)
         jobdef_res = yaml.safe_load(config.JOBDEF_DEFAULT)
+
         jobdef_res['metadata']['name'] = jobdef_name
+        jobdef_res['metadata']['labels']['version'] = 'lithops_v'+__version__
+
         container = jobdef_res['spec']['template']['containers'][0]
         container['image'] = docker_image_name
         container['name'] = jobdef_name

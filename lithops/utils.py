@@ -357,13 +357,13 @@ def get_docker_path():
     return docker_path
 
 
-def get_default_k8s_image_name(backend, backend_config, runtime_name, revision):
+def get_default_k8s_image_name(backend, backend_config, runtime_name, version):
     """
     Generates the default runtime image name
     Used in serverless/kubernetes-based backends
     """
     python_version = version_str(sys.version_info).replace('.', '')
-    img = f'{runtime_name}-v{python_version}:{__version__}'
+    img = f'{runtime_name}-v{python_version}:{version}'
 
     docker_server = backend_config['docker_server']
 
