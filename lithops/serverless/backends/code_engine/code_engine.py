@@ -267,8 +267,8 @@ class CodeEngineBackend:
         """
         self.clear()
         runtimes = self.list_runtimes()
-        for docker_image_name, memory in runtimes:
-            self.delete_runtime(docker_image_name, memory)
+        for image_name, memory, version in runtimes:
+            self.delete_runtime(image_name, memory)
 
         logger.debug('Deleting all lithops configmaps')
         configmaps = self.core_api.list_namespaced_config_map(namespace=self.namespace)
@@ -301,12 +301,13 @@ class CodeEngineBackend:
         for jobdef in jobdefs['items']:
             try:
                 if jobdef['metadata']['labels']['type'] == 'lithops-runtime':
+                    version = jobdef['metadata']['labels']['version']
                     container = jobdef['spec']['template']['containers'][0]
                     image_name = container['image']
                     memory = container['resources']['requests']['memory'].replace('M', '')
                     memory = int(int(memory)/1000*1024)
                     if docker_image_name in image_name or docker_image_name == 'all':
-                        runtimes.append((image_name, memory))
+                        runtimes.append((image_name, memory, version))
             except Exception:
                 # It is not a lithops runtime
                 pass

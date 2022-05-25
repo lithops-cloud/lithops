@@ -53,7 +53,6 @@ class GCPFunctionsBackend:
         self.name = 'gcp_functions'
         self.type = 'faas'
         self.gcf_config = gcf_config
-        self.package = 'lithops_v' + __version__
 
         self.region = gcf_config['region']
         self.service_account = gcf_config['service_account']
@@ -80,19 +79,21 @@ class GCPFunctionsBackend:
         logger.info(f"{msg} - Region: {self.region} - Project: {self.project}")
 
     def _format_function_name(self, runtime_name, runtime_memory):
-        runtime_name = (self.package + '_' + runtime_name).replace('.', '-')
+        version = 'lithops_v' + __version__
+        runtime_name = (version + '_' + runtime_name).replace('.', '-')
         return f'{runtime_name}_{runtime_memory}MB'
     
     def _unformat_function_name(self, function_name):
-        package, runtime_name, runtime_memory = function_name.rsplit('_', 2)
-        return runtime_name, runtime_memory.replace('MB', '')
+        version, runtime_name, runtime_memory = function_name.rsplit('_', 2)
+        version = version.replace('lithops_v', '').replace('-', '.')
+        return version, runtime_name, runtime_memory.replace('MB', '')
 
     def _format_topic_name(self, runtime_name, runtime_memory):
         return self._format_function_name(runtime_name, runtime_memory) +'_'+ self.region + '_topic'
 
     def _get_default_runtime_name(self):
         py_version = utils.CURRENT_PY_VERSION.replace('.', '')
-        return  f'default-runtime-v{py_version}'
+        return  f'lithops-default-runtime-v{py_version}'
 
     def _full_function_location(self, function_name):
         return f'projects/{self.project}/locations/{self.region}/functions/{function_name}'
@@ -120,7 +121,7 @@ class GCPFunctionsBackend:
         if runtime_name == self._get_default_runtime_name():
             return config.DEFAULT_REQUIREMENTS
         else:
-            user_runtimes = self._list_runtimes(default_runtimes=False)
+            user_runtimes = self._list_built_runtimes(default_runtimes=False)
             if runtime_name in user_runtimes:
                 raw_reqs = self.internal_storage.get_data(key='/'.join([config.USER_RUNTIMES_PREFIX, runtime_name]))
                 reqs = raw_reqs.decode('utf-8')
@@ -130,7 +131,7 @@ class GCPFunctionsBackend:
                 raise Exception(f'Runtime {runtime_name} does not exist. '
                     f'Available runtimes: {available_runtims}')
 
-    def _list_runtimes(self, default_runtimes=True):
+    def _list_built_runtimes(self, default_runtimes=True):
         runtimes = []
 
         if default_runtimes:
@@ -216,9 +217,10 @@ class GCPFunctionsBackend:
                     name=function_location,
                 ).execute(num_retries=self.num_retries)
 
+
         cloud_function = {
             'name': function_location,
-            'description': 'Lithops Worker for '+self.package,
+            'description': 'Lithops Worker for Lithops v'+ __version__,
             'entryPoint': 'main',
             'runtime': config.AVAILABLE_PY_RUNTIMES[utils.CURRENT_PY_VERSION],
             'timeout': str(timeout) + 's',
@@ -327,7 +329,7 @@ class GCPFunctionsBackend:
             logger.debug(f'Ok - topic {topic_name} deleted')
 
         # Delete user runtime from storage
-        user_runtimes = self._list_runtimes(default_runtimes=False)
+        user_runtimes = self._list_built_runtimes(default_runtimes=False)
         if runtime_name in user_runtimes and delete_runtime_storage:
             self.internal_storage.storage.delete_object(
                 self.internal_storage.bucket, '/'.join([config.USER_RUNTIMES_PREFIX, runtime_name]))
@@ -335,7 +337,7 @@ class GCPFunctionsBackend:
     def clean(self):
         logger.debug('Going to delete all deployed runtimes')
         runtimes = self.list_runtimes()
-        for runtime_name, runtime_memory in runtimes:
+        for runtime_name, runtime_memory, version in runtimes:
             self.delete_runtime(runtime_name, runtime_memory)
 
     def list_runtimes(self, runtime_name='all'):
@@ -348,9 +350,9 @@ class GCPFunctionsBackend:
         runtimes = []
         for func_runtime in deployed_runtimes:
             if 'lithops_v' in func_runtime:
-                fn_name, memory = self._unformat_function_name(func_runtime)
+                version, fn_name, memory = self._unformat_function_name(func_runtime)
                 if runtime_name == fn_name or runtime_name == 'all':
-                    runtimes.append((fn_name, memory))
+                    runtimes.append((fn_name, memory, version))
 
         return runtimes
 
