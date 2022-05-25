@@ -65,17 +65,6 @@ class GCPCloudRunBackend:
         runtime_name = runtime_name.replace('_', '-')
         return f'{runtime_name}--{runtime_memory}mb'
 
-    @staticmethod
-    def _unformat_service_name(service_name):
-        """
-        Parse service string name into runtime name and memory
-        :return: Tuple of (runtime_name, runtime_memory)
-        """
-        split_service_name = service_name.split('--')
-        runtime_name = split_service_name[2]
-        memory = int(split_service_name[3].replace('mb', ''))
-        return runtime_name, memory
-
     def _get_default_runtime_image_name(self):
         """
         Generates the default runtime image name
@@ -134,6 +123,14 @@ class GCPCloudRunBackend:
         """
         country = self.region.split('-')[0]
         return f'{country}.gcr.io/{self.project_name}/{runtime_name}'
+
+    def _unformat_image_name(self, image_name):
+        """
+        Parse service string name into runtime name and memory
+        :return: Tuple of (runtime_name, runtime_memory)
+        """
+        runtime_name = image_name.split('/', 2)[2]
+        return runtime_name
 
     def _build_default_runtime(self, runtime_name):
         """
@@ -332,7 +329,17 @@ class GCPCloudRunBackend:
 
         logger.debug(f'Ok -- {len(res["items"])} runtimes listed')
 
-        return [self._unformat_service_name(item['metadata']['name']) for item in res['items']]
+        runtimes = []
+
+        for item in res['items']:
+            if item['spec']['template']['metadata']['labels']['type'] == 'lithops-runtime':
+                container = item['spec']['template']['spec']['containers'][0]
+                name = self._unformat_image_name(container['image'])
+                memory = container['resources']['limits']['memory'].replace('Mi', '')
+                if runtime_name == name or runtime_name == 'all':
+                    runtimes.append((name, memory))
+
+        return runtimes
 
     def get_runtime_key(self, runtime_name, memory):
         service_name = self._format_service_name(runtime_name, memory)

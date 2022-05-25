@@ -474,6 +474,8 @@ class AWSLambdaBackend:
         registry = f'{self.account_id}.dkr.ecr.{self.region_name}.amazonaws.com'
         image_uri = f'{registry}/{repo_name}@{image_digest}'
 
+        env_vars = {t['name']: t['value'] for t in self.lambda_config['env_vars']}
+        
         try:
             response = self.lambda_client.create_function(
                 FunctionName=function_name,
