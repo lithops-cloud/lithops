@@ -315,7 +315,7 @@ class KnativeServingBackend:
                     body=task_run
                 )
 
-        logger.debug("Building runtime...")
+        logger.debug("Building runtime")
         pod_name = None
         w = watch.Watch()
         for event in w.stream(self.custom_api.list_namespaced_custom_object, namespace=self.namespace,
@@ -436,7 +436,7 @@ class KnativeServingBackend:
 
         svc_res['spec']['template']['spec']['timeoutSeconds'] = timeout
         svc_res['spec']['template']['spec']['containerConcurrency'] = 1
-        svc_res['spec']['template']['metadata']['labels']['version'] = 'lithops_v'+__version__
+        svc_res['spec']['template']['metadata']['labels']['version'] = f'lithops_v{__version__}'.replace('.', '-')
         svc_res['spec']['template']['metadata']['annotations']['autoscaling.knative.dev/maxScale'] = str(self.kn_config['max_workers'])
 
         container = svc_res['spec']['template']['spec']['containers'][0]
@@ -589,8 +589,8 @@ class KnativeServingBackend:
         Deletes all runtimes deployed in knative
         """
         runtimes = self.list_runtimes()
-        for docker_image_name, memory in runtimes:
-            self.delete_runtime(docker_image_name, memory)
+        for img_name, memory, version in runtimes:
+            self.delete_runtime(img_name, memory)
 
     def list_runtimes(self, docker_image_name='all'):
         """
@@ -609,11 +609,13 @@ class KnativeServingBackend:
             try:
                 template = service['spec']['template']
                 if template['metadata']['labels']['type'] == 'lithops-runtime':
+                    version = template['metadata']['labels']['version']
+                    version = version.replace('lithops_v', '').replace('-', '.')
                     container = template['spec']['containers'][0]
-                    image_name = container['image']
+                    img_name = container['image']
                     memory = container['resources']['requests']['memory'].replace('Mi', '')
-                    if docker_image_name == image_name or docker_image_name == 'all':
-                        runtimes.append((image_name, memory))
+                    if docker_image_name == img_name or docker_image_name == 'all':
+                        runtimes.append((img_name, memory, version))
             except Exception:
                 # It is not a lithops runtime
                 pass

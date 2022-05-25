@@ -509,18 +509,19 @@ def list_runtimes(config, backend, debug):
     if runtimes:
         width = max([len(runtime[0]) for runtime in runtimes])
 
-        print('\n{:{width}} \t {}'.format('Runtime Name', 'Memory Size (MB)', width=width))
-        print('-' * width, '\t', '-' * 20)
+        print('\n{:{width}} \t {} \t {}'.format('Runtime Name', 'Memory Size', 'Lithops Version', width=width))
+        print('-' * width, '\t', '-' * 13, '\t', '-' * 17)
         for runtime in runtimes:
             name = runtime[0]
             mem = runtime[1]
-            print('{:{width}} \t {}'.format(name, mem, width=width))
+            ver = runtime[2] if len(runtime) == 3 else 'NaN'
+            print('{:{width}} \t {} MB \t {}'.format(name, mem, ver, width=width))
         print()
         print('Total runtimes: {}'.format(len(runtimes)))
     else:
-        width = 10
-        print('\n{:{width}} \t {}'.format('Runtime Name', 'Memory Size (MB)', width=width))
-        print('-' * width, '\t', '-' * 20)
+        width = 14
+        print('\n{:{width}} \t {} \t {}'.format('Runtime Name', 'Memory Size', 'Lithops Version', width=width))
+        print('-' * width, '\t', '-' * 13, '\t', '-' * 17)
         print('\nNo runtimes deployed')
 
 

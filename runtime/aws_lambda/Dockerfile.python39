@@ -19,10 +19,10 @@ RUN apt-get update && \
 RUN mkdir -p ${FUNCTION_DIR}
 
 # Update pip
-RUN pip install -U pip wheel six setuptools
+RUN pip install --upgrade --ignore-installed pip wheel six setuptools
 
 # Install the function's dependencies
-RUN pip install \
+RUN pip install --upgrade --no-cache-dir --ignore-installed\
     --target ${FUNCTION_DIR} \
         awslambdaric \
         boto3 \

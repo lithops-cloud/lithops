@@ -14,10 +14,7 @@
 # limitations under the License.
 #
 
-import sys
 import logging
-
-from lithops.utils import version_str
 
 logger = logging.getLogger(__name__)
 

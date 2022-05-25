@@ -231,6 +231,7 @@ class GCPCloudRunBackend:
             raise Exception('There was an error authorizing Docker for push to GCR')
 
         logger.debug(f'Pushing runtime {image_name} to GCP Container Registry')
+        # Use --format docker --remove-signatures in podman
         cmd = f'{docker_path} push {image_name}'
         utils.run_command(cmd)
 
@@ -253,7 +254,7 @@ class GCPCloudRunBackend:
         svc_res['spec']['template']['spec']['timeoutSeconds'] = timeout
         svc_res['spec']['template']['spec']['containerConcurrency'] = 1
         svc_res['spec']['template']['spec']['serviceAccountName'] = self.service_account
-        svc_res['spec']['template']['metadata']['labels']['version'] = 'lithops_v'+__version__
+        svc_res['spec']['template']['metadata']['labels']['version'] = f'lithops_v{__version__}'.replace('.', '-')
         svc_res['spec']['template']['metadata']['annotations']['autoscaling.knative.dev/maxScale'] = str(self.cr_config['max_workers'])
 
         container = svc_res['spec']['template']['spec']['containers'][0]
@@ -313,11 +314,11 @@ class GCPCloudRunBackend:
         logger.debug(f'Ok -- deleted runtime {runtime_name}')
 
     def clean(self):
-        logger.debug('Deleting all runtimes..')
+        logger.debug('Deleting all runtimes')
 
         runtimes = self.list_runtimes()
-        for runtime_name, memory in runtimes:
-            self.delete_runtime(runtime_name, memory)
+        for img_name, memory, version in runtimes:
+            self.delete_runtime(img_name, memory)
 
     def list_runtimes(self, runtime_name='all'):
         logger.debug('Listing runtimes')
@@ -335,11 +336,13 @@ class GCPCloudRunBackend:
 
         for item in res['items']:
             if item['spec']['template']['metadata']['labels']['type'] == 'lithops-runtime':
+                version = item['spec']['template']['metadata']['labels']['version']
+                version = version.replace('lithops_v', '').replace('-', '.')
                 container = item['spec']['template']['spec']['containers'][0]
-                name = self._unformat_image_name(container['image'])
+                img_name = self._unformat_image_name(container['image'])
                 memory = container['resources']['limits']['memory'].replace('Mi', '')
-                if runtime_name == name or runtime_name == 'all':
-                    runtimes.append((name, memory))
+                if runtime_name == img_name or runtime_name == 'all':
+                    runtimes.append((img_name, memory, version))
 
         return runtimes
 

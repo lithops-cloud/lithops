@@ -21,7 +21,6 @@ import time
 import json
 import zipfile
 import subprocess
-import lithops
 import botocore.exceptions
 import base64
 
@@ -30,6 +29,7 @@ from botocore.awsrequest import AWSRequest
 from botocore.auth import SigV4Auth
 
 from lithops import utils
+from lithops import __version__
 from lithops.constants import COMPUTE_CLI_MSG
 
 from . import config
@@ -58,7 +58,7 @@ class AWSLambdaBackend:
         self.user_agent = lambda_config['user_agent']
 
         self.user_key = lambda_config['access_key_id'][-4:]
-        self.package = 'lithops_v{}_{}'.format(lithops.__version__, self.user_key.lower()).replace('.', '-')
+        self.package = f'lithops_v{__version__}_{self.user_key.lower()}'.replace(".", "-")
         self.region_name = lambda_config['region_name']
         self.role_arn = lambda_config['execution_role']
 
@@ -96,18 +96,18 @@ class AWSLambdaBackend:
         runtime_name = runtime_name.replace('/', '__')
         runtime_name = runtime_name.replace('.', '')
         runtime_name = runtime_name.replace(':', '--')
-
-        if not runtime_name.startswith('lithops_v'):
-            runtime_name = self.package + '__' + runtime_name
+        runtime_name = self.package + '__' + runtime_name
 
         return '{}_{}MB'.format(runtime_name, runtime_memory)
 
     @staticmethod
     def _unformat_function_name(function_name):
-        action_name = function_name.replace('__', '/')
-        action_name = action_name.replace('--', ':')
-        runtime_name, runtime_memory = action_name.rsplit('_', 1)
-        return runtime_name, runtime_memory.replace('MB', '')
+        version, runtime = function_name.split('__', 1)
+        version = version.replace('lithops_v', '').split('_')[0]
+        runtime = runtime.replace('__', '/')
+        runtime = runtime.replace('--', ':')
+        runtime_name, runtime_memory = runtime.rsplit('_', 1)
+        return version, runtime_name, runtime_memory.replace('MB', '')
 
     def _format_layer_name(self, runtime_name):
         return '_'.join([self.package, runtime_name, 'layer'])
@@ -119,11 +119,11 @@ class AWSLambdaBackend:
                 'or use a container runtime.')
 
         py_version = utils.CURRENT_PY_VERSION.replace('.', '')
-        return  f'default-runtime-v{py_version}'
+        return  f'lithops-default-runtime-v{py_version}'
 
     def _is_container_runtime(self, runtime_name):
         name = runtime_name.split('/', 1)[-1]
-        return name != self._get_default_runtime_name()
+        return 'lithops-default-runtime-v' not in name
 
     def _format_repo_name(self, runtime_name):
         if ':' in runtime_name:
@@ -383,6 +383,7 @@ class AWSLambdaBackend:
         utils.run_command(cmd)
 
         logger.debug(f'Pushing runtime {registry}/{repo_name}:{tag} to AWS container registry')
+        # Use --format docker --remove-signatures for podman
         cmd = f'{docker_path} push {registry}/{repo_name}:{tag}'
         utils.run_command(cmd)
 
@@ -580,7 +581,7 @@ class AWSLambdaBackend:
         runtimes = self.list_runtimes()
 
         for runtime in runtimes:
-            runtime_name, runtime_memory = runtime
+            runtime_name, runtime_memory, version = runtime
             self.delete_runtime(runtime_name, runtime_memory)
 
         layers = self._list_layers()
@@ -598,8 +599,8 @@ class AWSLambdaBackend:
         def get_runtimes(response):
             for function in response['Functions']:
                 if self.package in function['FunctionName']:
-                    rt_name, rt_memory = self._unformat_function_name(function['FunctionName'])
-                    runtimes.append((rt_name, rt_memory))
+                    version, rt_name, rt_memory = self._unformat_function_name(function['FunctionName'])
+                    runtimes.append((rt_name, rt_memory, version))
 
         response = self.lambda_client.list_functions(FunctionVersion='ALL')
         get_runtimes(response)

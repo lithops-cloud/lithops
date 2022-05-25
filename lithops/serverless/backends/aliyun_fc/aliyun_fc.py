@@ -71,7 +71,7 @@ class AliyunFunctionComputeBackend:
 
     def _get_default_runtime_name(self):
         py_version = utils.CURRENT_PY_VERSION.replace('.', '')
-        return  f'default-runtime-v{py_version}'
+        return  f'lithops-default-runtime-v{py_version}'
 
     def build_runtime(self, runtime_name, requirements_file, extra_args=[]):
         pass
