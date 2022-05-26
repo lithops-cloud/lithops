@@ -19,28 +19,26 @@ import logging
 import json
 import base64
 import httplib2
-
 import zipfile
 import time
-
 import lithops
+
 from google.cloud import pubsub_v1
 from google.oauth2 import service_account
 from google_auth_httplib2 import AuthorizedHttp
 from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
 from google.auth import jwt
 
 from lithops import utils
 from lithops.version import __version__
 from lithops.constants import COMPUTE_CLI_MSG, JOBS_PREFIX
-from lithops.constants import TEMP as TEMP_PATH
+from lithops.constants import TEMP_DIR
 
 from . import config
 
 logger = logging.getLogger(__name__)
 
-ZIP_LOCATION = os.path.join(TEMP_PATH, 'lithops_gcp_functions.zip')
+ZIP_LOCATION = os.path.join(TEMP_DIR, 'lithops_gcp_functions.zip')
 SCOPES = ('https://www.googleapis.com/auth/cloud-platform',
           'https://www.googleapis.com/auth/pubsub')
 FUNCTIONS_API_VERSION = 'v1'
@@ -158,7 +156,7 @@ class GCPFunctionsBackend:
 
         # Get runtime requirements
         runtime_requirements = self._get_runtime_requirements(runtime_name)
-        requirements_file_path = os.path.join(TEMP_PATH, f'{runtime_name}_requirements.txt')
+        requirements_file_path = os.path.join(TEMP_DIR, f'{runtime_name}_requirements.txt')
         with open(requirements_file_path, 'w') as reqs_file:
             for req in runtime_requirements:
                 reqs_file.write(f'{req}\n')
@@ -279,7 +277,7 @@ class GCPFunctionsBackend:
             requirements = req_file.read()
 
         self.internal_storage.put_data('/'.join([config.USER_RUNTIMES_PREFIX, runtime_name]), requirements)
-        logger.info(f'Runtime {runtime_name} created successfuly')
+        logger.info(f'Runtime {runtime_name} built successfuly')
 
 
     def deploy_runtime(self, runtime_name, memory, timeout=60):

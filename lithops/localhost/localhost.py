@@ -28,7 +28,7 @@ import subprocess as sp
 from shutil import copyfile
 from pathlib import Path
 
-from lithops.constants import RN_LOG_FILE, TEMP, LITHOPS_TEMP_DIR, COMPUTE_CLI_MSG, JOBS_PREFIX
+from lithops.constants import RN_LOG_FILE, TEMP_DIR, LITHOPS_TEMP_DIR, COMPUTE_CLI_MSG, JOBS_PREFIX
 from lithops.utils import is_lithops_worker, is_unix_system
 
 logger = logging.getLogger(__name__)
@@ -285,7 +285,7 @@ class DockerEnv(BaseEnv):
         if not os.path.isfile(RUNNER):
             self.setup()
 
-        tmp_path = Path(TEMP).as_posix()
+        tmp_path = Path(TEMP_DIR).as_posix()
         cmd = 'docker run '
         cmd += f'--user {self.uid}:{self.gid} ' if is_unix_system() else ''
         cmd += f'--rm -v {tmp_path}:/tmp --entrypoint "python3" {self.runtime} /tmp/lithops/runner.py preinstalls'
@@ -311,7 +311,7 @@ class DockerEnv(BaseEnv):
         if not os.path.isfile(RUNNER):
             self.setup()
 
-        tmp_path = Path(TEMP).as_posix()
+        tmp_path = Path(TEMP_DIR).as_posix()
         if job_payload['config'].get('standalone', {}).get('gpu', False):
             cmd = f'docker run --gpus all --name lithops_{job_key} '
         else:

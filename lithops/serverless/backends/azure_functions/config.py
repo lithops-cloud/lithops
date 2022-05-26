@@ -15,9 +15,9 @@
 #
 
 import os
-from lithops.constants import TEMP
+from lithops.constants import TEMP_DIR
 
-BUILD_DIR = os.path.join(TEMP, 'AzureRuntimeBuild')
+BUILD_DIR = os.path.join(TEMP_DIR, 'AzureRuntimeBuild')
 ACTION_DIR = 'lithops_handler'
 ACTION_MODULES_DIR = os.path.join('.python_packages', 'lib', 'site-packages')
 

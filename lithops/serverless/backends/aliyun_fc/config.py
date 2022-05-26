@@ -15,7 +15,7 @@
 #
 
 import os
-from lithops.constants import TEMP
+from lithops.constants import TEMP_DIR
 
 
 DEFAULT_CONFIG_KEYS = {
@@ -29,7 +29,7 @@ DEFAULT_CONFIG_KEYS = {
 CONNECTION_POOL_SIZE = 300
 
 SERVICE_NAME = 'lithops'
-BUILD_DIR = os.path.join(TEMP, 'AliyunRuntimeBuild')
+BUILD_DIR = os.path.join(TEMP_DIR, 'AliyunRuntimeBuild')
 
 AVAILABLE_PY_RUNTIMES = {
     '3.6': 'python3',

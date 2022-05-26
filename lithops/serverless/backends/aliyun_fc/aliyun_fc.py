@@ -24,7 +24,7 @@ import fc2
 
 from lithops import utils
 from lithops.version import __version__
-from lithops.constants import COMPUTE_CLI_MSG, TEMP
+from lithops.constants import COMPUTE_CLI_MSG, TEMP_DIR
 
 from . import config
 
@@ -110,6 +110,13 @@ class AliyunFunctionComputeBackend:
         else:
             shutil.copytree(module_location, dst_location, ignore=shutil.ignore_patterns('__pycache__'))
 
+        # Create zip file
+        os.chdir(build_dir)
+        runtime_zip = f'{config.BUILD_DIR}/{runtime_name}.zip'
+        os.remove(runtime_zip)
+        utils.run_command(f'zip -r {runtime_zip} .')
+        shutil.rmtree(build_dir, ignore_errors=True)
+
     def _service_exists(self, service_name):
         """
         Checks if a given service exists
@@ -124,7 +131,7 @@ class AliyunFunctionComputeBackend:
         """
         Builds the default runtime
         """
-        requirements_file = os.path.join(TEMP, 'aliyun_default_requirements.txt')
+        requirements_file = os.path.join(TEMP_DIR, 'aliyun_default_requirements.txt')
         with open(requirements_file, 'w') as reqf:
             reqf.write(config.REQUIREMENTS_FILE)
         try:
@@ -148,9 +155,11 @@ class AliyunFunctionComputeBackend:
 
         function_name = self._format_function_name(runtime_name, memory)
 
+        logger.debug(f'Crating function {function_name}')
         functions = self.fc_client.list_functions(self.service_name).data['functions']
         for function in functions:
             if function['functionName'] == function_name:
+                logger.debug(f'Function {function_name} already exists. Deleting it')
                 self.delete_runtime(runtime_name, memory)
 
         self.fc_client.create_function(
@@ -158,7 +167,7 @@ class AliyunFunctionComputeBackend:
             functionName=function_name,
             runtime=config.AVAILABLE_PY_RUNTIMES[utils.CURRENT_PY_VERSION],
             handler='entry_point.main',
-            codeDir=os.path.join(config.BUILD_DIR, runtime_name),
+            codeZipFile=f'{config.BUILD_DIR}/{runtime_name}.zip',
             memorySize=memory,
             timeout=timeout
         )
@@ -235,7 +244,7 @@ class AliyunFunctionComputeBackend:
         """
         Extract installed Python modules from Aliyun runtime
         """
-        logger.info('Extracting metadata from Aliyun runtime')
+        logger.info(f'Extracting metadata from {function_name}')
         payload = {'log_level': logger.getEffectiveLevel(), 'get_preinstalls': True}
         try:
             res = self.fc_client.invoke_function(

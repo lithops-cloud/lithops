@@ -28,7 +28,7 @@ from azure.storage.queue import QueueServiceClient
 
 from lithops import utils
 from lithops.version import __version__
-from lithops.constants import COMPUTE_CLI_MSG, TEMP
+from lithops.constants import COMPUTE_CLI_MSG, TEMP_DIR
 
 from . import config
 
@@ -95,7 +95,7 @@ class AzureFunctionAppBackend:
         """
         Builds the default runtime
         """
-        requirements_file = os.path.join(TEMP, 'az_default_requirements.txt')
+        requirements_file = os.path.join(TEMP_DIR, 'az_default_requirements.txt')
         with open(requirements_file, 'w') as reqf:
             reqf.write(config.REQUIREMENTS_FILE)
         try:
