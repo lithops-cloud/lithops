@@ -59,7 +59,8 @@ class AliyunFunctionComputeBackend:
                                     accessKeyID=self.access_key_id,
                                     accessKeySecret=self.access_key_secret)
 
-        logger.info(COMPUTE_CLI_MSG.format('Aliyun Function Compute'))
+        msg = COMPUTE_CLI_MSG.format('Aliyun Function Compute')
+        logger.info(f"{msg} - Region: {self.region}")
 
     def _format_function_name(self, runtime_name, runtime_memory):
         version = 'lithops_v' + __version__

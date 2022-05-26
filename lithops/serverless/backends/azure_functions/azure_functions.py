@@ -57,7 +57,7 @@ class AzureFunctionAppBackend:
                                                 credential=self.storage_account_key)
 
         msg = COMPUTE_CLI_MSG.format('Azure Functions')
-        logger.info("{} - Location: {}".format(msg, self.location))
+        logger.info(f"{msg} - Location: {self.location}")
 
     def _format_function_name(self, runtime_name, runtime_memory=None):
         """
