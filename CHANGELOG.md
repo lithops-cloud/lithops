@@ -9,7 +9,8 @@
 - [Code Engine] Append 'docker_server' as a prefix of the runtime
 - [Knative] Append 'docker_server' as a prefix of the runtime
 - [Google Cloud Run] Allow CPU values <1, 6 and 8
-- [Alibaba Cloud Functions] Enable Python 3.9 runtimes
+- [Alibaba Cloud Functions] Added Python 3.9 runtime compatibility
+- [Alibaba Cloud Functions] Allow to build a runtime from a custom requirements.txt file
 
 ### Changed
 - [Core] Load docker command only when needed instead of loading it always
@@ -18,10 +19,12 @@
 - [Monitor] Reduce debug log verbosity, status is printed every 30s or when a future changes state
 
 ### Fixed
+- [Google Cloud Functions] Fixed errors when deploying a function
 - [Core] Make sure all temp files generated during build_runtime() are cleaned
 - [knative] AttributeError: 'KnativeServingBackend' object has no attribute 'coreV1Api'
 - [knative] Fixed service deployment
-- [Alibaba Cloud Functions] Fixed error when deploying a function
+- [Alibaba Cloud Functions] Fixed errors when deploying a function
+- [Azure Functions] Fixed errors when deploying a function
 
 ## [v2.6.0]
 

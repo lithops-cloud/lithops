@@ -183,7 +183,8 @@ class GCPFunctionsBackend:
             cloud_function['httpsTrigger'] = {}
 
         elif self.trigger == 'pub/sub':
-            topic_location = self._full_topic_location(self._format_topic_name(runtime_name, memory))
+            topic_name = self._format_topic_name(runtime_name, memory)
+            topic_location = self._full_topic_location(topic_name)
             cloud_function['eventTrigger'] = {
                 'eventType': 'providers/cloud.pubsub/eventTypes/topic.publish',
                 'resource': topic_location,
@@ -211,9 +212,6 @@ class GCPFunctionsBackend:
                 time.sleep(self.retry_sleep)
             else:
                 raise Exception(f"Unknown status {response['status']}")
-
-        # Delete runtime bin archive from storage
-        self.internal_storage.storage.delete_object(self.internal_storage.bucket, bin_name)
 
     def build_runtime(self, runtime_name, requirements_file, extra_args=[]):
         logger.info(f'Building runtime {runtime_name} from {requirements_file}')
