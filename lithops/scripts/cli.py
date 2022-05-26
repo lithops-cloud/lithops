@@ -487,8 +487,9 @@ def deploy(name, storage, backend, memory, timeout, config, debug):
 @runtime.command('list')
 @click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
 @click.option('--backend', '-b', default=None, help='compute backend')
+@click.option('--storage', '-s', default=None, help='storage backend')
 @click.option('--debug', '-d', is_flag=True, help='debug mode')
-def list_runtimes(config, backend, debug):
+def list_runtimes(config, backend, storage, debug):
     """ list all deployed serverless runtime. """
     log_level = logging.INFO if not debug else logging.DEBUG
     setup_lithops_logger(log_level)

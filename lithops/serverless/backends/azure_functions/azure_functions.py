@@ -21,7 +21,6 @@ import json
 import time
 import logging
 import shutil
-import lithops
 import zipfile
 import http.client
 from urllib.parse import urlparse
@@ -29,7 +28,8 @@ from azure.storage.queue import QueueServiceClient
 
 from lithops import utils
 from lithops.version import __version__
-from lithops.constants import COMPUTE_CLI_MSG
+from lithops.constants import COMPUTE_CLI_MSG, TEMP
+
 from . import config
 
 logger = logging.getLogger(__name__)
@@ -60,21 +60,22 @@ class AzureFunctionAppBackend:
         logger.info("{} - Location: {}".format(msg, self.location))
 
     def _format_function_name(self, runtime_name, runtime_memory=None):
-        runtime_name = runtime_name.replace('/', '--').replace(':', '--')
-        return runtime_name
+        """
+        Formates the function name
+        """
+        ver = __version__ .replace('.', '-')
+        function_name = f'{self.storage_account_name}-{runtime_name}-{ver}-{self.invocation_type}'
+        return function_name
 
-    def _format_queue_name(self, action_name, q_type):
-        runtime_name = action_name.replace('--', '-')
-        return runtime_name+'-'+q_type
+    def _format_queue_name(self, function_name, q_type):
+        return  function_name.replace('--', '-') + '-' + q_type
 
     def _get_default_runtime_name(self):
         """
         Generates the default runtime name
         """
         py_version = utils.CURRENT_PY_VERSION.replace('.', '')
-        revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
-        runtime_name = f'{self.storage_account_name}-lithops-runtime-v{py_version}-{revision}-{self.invocation_type}'
-        return runtime_name
+        return  f'lithops-default-runtime-v{py_version}'
 
     def deploy_runtime(self, runtime_name, memory, timeout):
         """
@@ -94,7 +95,7 @@ class AzureFunctionAppBackend:
         """
         Builds the default runtime
         """
-        requirements_file = 'az_default_requirements.txt'
+        requirements_file = os.path.join(TEMP, 'az_default_requirements.txt')
         with open(requirements_file, 'w') as reqf:
             reqf.write(config.REQUIREMENTS_FILE)
         try:
@@ -110,15 +111,15 @@ class AzureFunctionAppBackend:
         except Exception:
             pass
 
-        action_name = self._format_function_name(runtime_name)
+        function_name = self._format_function_name(runtime_name)
 
-        build_dir = os.path.join(config.BUILD_DIR, action_name)
+        build_dir = os.path.join(config.BUILD_DIR, function_name)
         os.makedirs(build_dir, exist_ok=True)
 
         action_dir = os.path.join(build_dir, config.ACTION_DIR)
         os.makedirs(action_dir, exist_ok=True)
 
-        logger.debug('Building runtime in {}'.format(build_dir))
+        logger.debug(f'Building runtime in {build_dir}')
 
         with open(requirements_file, 'r') as req_file:
             req_data = req_file.read()
@@ -127,10 +128,10 @@ class AzureFunctionAppBackend:
         with open(req_file, 'w') as reqf:
             reqf.write(req_data)
             if not utils.is_unix_system():
-                if 'dev' in lithops.__version__:
+                if 'dev' in __version__:
                     reqf.write('git+https://github.com/lithops-cloud/lithops')
                 else:
-                    reqf.write('lithops=={}'.format(lithops.__version__))
+                    reqf.write(f'lithops=={__version__}')
 
         host_file = os.path.join(build_dir, 'host.json')
         with open(host_file, 'w') as hstf:
@@ -139,9 +140,9 @@ class AzureFunctionAppBackend:
         fn_file = os.path.join(action_dir, 'function.json')
         if self.invocation_type == 'event':
             with open(fn_file, 'w') as fnf:
-                in_q_name = self._format_queue_name(action_name, config.IN_QUEUE)
+                in_q_name = self._format_queue_name(function_name, config.IN_QUEUE)
                 config.BINDINGS_QUEUE['bindings'][0]['queueName'] = in_q_name
-                out_q_name = self._format_queue_name(action_name, config.OUT_QUEUE)
+                out_q_name = self._format_queue_name(function_name, config.OUT_QUEUE)
                 config.BINDINGS_QUEUE['bindings'][1]['queueName'] = out_q_name
                 fnf.write(json.dumps(config.BINDINGS_QUEUE))
 
@@ -168,64 +169,62 @@ class AzureFunctionAppBackend:
         """
         Create and publish an Azure Functions
         """
-        action_name = self._format_function_name(runtime_name, memory)
-        logger.info(f'Creating new Lithops runtime for Azure Function: {action_name}')
+        logger.info(f'Creating Azure Function from runtime {runtime_name}')
+        function_name = self._format_function_name(runtime_name, memory)
 
         if self.invocation_type == 'event':
             try:
-                in_q_name = self._format_queue_name(action_name, config.IN_QUEUE)
+                in_q_name = self._format_queue_name(function_name, config.IN_QUEUE)
                 logger.debug(f'Creating queue {in_q_name}')
                 self.queue_service.create_queue(in_q_name)
             except Exception:
                 in_queue = self.queue_service.get_queue_client(in_q_name)
                 in_queue.clear_messages()
             try:
-                out_q_name = self._format_queue_name(action_name, config.OUT_QUEUE)
+                out_q_name = self._format_queue_name(function_name, config.OUT_QUEUE)
                 logger.debug(f'Creating queue {out_q_name}')
                 self.queue_service.create_queue(out_q_name)
             except Exception:
                 out_queue = self.queue_service.get_queue_client(out_q_name)
                 out_queue.clear_messages()
 
-        cmd = (f'az functionapp create --name {action_name} '
+        cmd = (f'az functionapp create --name {function_name} '
                f'--storage-account {self.storage_account_name} '
                f'--resource-group {self.resource_group} '
-               '--os-type Linux  --runtime python '
+               '--os-type Linux --runtime python '
                f'--runtime-version {utils.CURRENT_PY_VERSION} '
                f'--functions-version {self.functions_version} '
-               f'--consumption-plan-location {self.location}')
+               f'--consumption-plan-location {self.location} '
+               f'--tags type=lithops-runtime lithops_version={__version__} runtime_name={runtime_name}')
         utils.run_command(cmd)
+        time.sleep(10)
 
-        logger.debug(f'Publishing function: {action_name}')
-        build_dir = os.path.join(config.BUILD_DIR, action_name)
+        logger.debug(f'Publishing function: {function_name}')
+        build_dir = os.path.join(config.BUILD_DIR, function_name)
         os.chdir(build_dir)
-        res = 1
-        while res != 0:
-            time.sleep(5)
-            if utils.is_unix_system():
-                cmd = f'func azure functionapp publish {action_name} --python --no-build'
-            else:
-                cmd = f'func azure functionapp publish {action_name} --python'
-            utils.run_command(cmd)
-
+        if utils.is_unix_system():
+            cmd = f'func azure functionapp publish {function_name} --python --no-build'
+        else:
+            cmd = f'func azure functionapp publish {function_name} --python'
+        utils.run_command(cmd)
         time.sleep(10)
 
     def delete_runtime(self, runtime_name, memory):
         """
         Deletes a runtime
         """
-        action_name = self._format_function_name(runtime_name, memory)
-        logger.debug(f'Deleting function app: {action_name}')
-        cmd = f'az functionapp delete --name {action_name} --resource-group {self.resource_group}'
+        function_name = self._format_function_name(runtime_name, memory)
+        logger.info(f'Deleting function app: {function_name}')
+        cmd = f'az functionapp delete --name {function_name} --resource-group {self.resource_group}'
         utils.run_command(cmd)
 
         try:
-            in_q_name = self._format_queue_name(action_name, config.IN_QUEUE)
+            in_q_name = self._format_queue_name(function_name, config.IN_QUEUE)
             self.queue_service.delete_queue(in_q_name)
         except Exception:
             pass
         try:
-            out_q_name = self._format_queue_name(action_name, config.OUT_QUEUE)
+            out_q_name = self._format_queue_name(function_name, config.OUT_QUEUE)
             self.queue_service.delete_queue(out_q_name)
         except Exception:
             pass
@@ -234,16 +233,16 @@ class AzureFunctionAppBackend:
         """
         Invoke function
         """
-        action_name = self._format_function_name(docker_image_name, memory)
+        function_name = self._format_function_name(docker_image_name, memory)
         if self.invocation_type == 'event':
 
-            in_q_name = self._format_queue_name(action_name, config.IN_QUEUE)
+            in_q_name = self._format_queue_name(function_name, config.IN_QUEUE)
             in_queue = self.queue_service.get_queue_client(in_q_name)
             msg = in_queue.send_message(utils.dict_to_b64str(payload))
             activation_id = msg.id
 
             if return_result:
-                out_q_name = self._format_queue_name(action_name, config.OUT_QUEUE)
+                out_q_name = self._format_queue_name(function_name, config.OUT_QUEUE)
                 out_queue = self.queue_service.get_queue_client(out_q_name)
                 msg = []
                 while not msg:
@@ -253,7 +252,7 @@ class AzureFunctionAppBackend:
                 return utils.b64str_to_dict(msg.content)
 
         elif self.invocation_type == 'http':
-            endpoint = f"https://{action_name}.azurewebsites.net"
+            endpoint = f"https://{function_name}.azurewebsites.net"
             parsed_url = urlparse(endpoint)
             ctx = ssl._create_unverified_context()
             conn = http.client.HTTPSConnection(parsed_url.netloc, context=ctx)
@@ -284,8 +283,8 @@ class AzureFunctionAppBackend:
         Runtime keys are used to uniquely identify runtimes within the storage,
         in order to know which runtimes are installed and which not.
         """
-        action_name = self._format_function_name(docker_image_name, runtime_memory)
-        runtime_key = os.path.join(self.name, action_name)
+        function_name = self._format_function_name(docker_image_name, runtime_memory)
+        runtime_key = os.path.join(self.name, function_name)
 
         return runtime_key
 
@@ -297,8 +296,7 @@ class AzureFunctionAppBackend:
 
         runtimes = self.list_runtimes()
 
-        for runtime in runtimes:
-            runtime_name, runtime_memory = runtime
+        for runtime_name, runtime_memory, version in runtimes:
             self.delete_runtime(runtime_name, runtime_memory)
 
     def _generate_runtime_meta(self, docker_image_name, memory):
@@ -320,24 +318,26 @@ class AzureFunctionAppBackend:
         logger.debug("Extracted metadata succesfully")
         return runtime_meta
 
-    def list_runtimes(self, docker_image_name='all'):
+    def list_runtimes(self, runtime_name='all'):
         """
         List all the Azure Function Apps deployed.
         return: Array of tuples (function_name, memory)
         """
         logger.debug('Listing all functions deployed...')
 
-        functions = []
-        response = os.popen('az functionapp list --query "[].defaultHostName\"').read()
+        runtimes = []
+        response = os.popen('az functionapp list --query "[].{Name:name, Tags:tags}\"').read()
         response = json.loads(response)
 
         for function in response:
-            function = function.replace('.azurewebsites.net', '')
-            if docker_image_name == function or docker_image_name == 'all':
-                functions.append((function, ''))
+            if function['Tags'] and 'type' in function['Tags'] \
+                and function['Tags']['type'] == 'lithops-runtime':
+                version = function['Tags']['lithops_version']
+                runtime = function['Tags']['runtime_name']
+                if runtime_name == function['Name'] or runtime_name == 'all':
+                    runtimes.append((runtime, 'shared', version))
 
-        logger.debug('Listed {} functions'.format(len(functions)))
-        return functions
+        return runtimes
 
     def get_runtime_info(self):
         """

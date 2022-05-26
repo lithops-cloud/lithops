@@ -14,10 +14,7 @@
 # limitations under the License.
 #
 
-import sys
 import os
-from lithops.utils import version_str
-from lithops import __version__
 from lithops.constants import TEMP
 
 BUILD_DIR = os.path.join(TEMP, 'AzureRuntimeBuild')
