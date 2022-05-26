@@ -23,7 +23,9 @@ import lithops
 import fc2
 
 from lithops import utils
+from lithops.version import __version__
 from lithops.constants import COMPUTE_CLI_MSG, TEMP
+
 from . import config
 
 logger = logging.getLogger(__name__)
@@ -38,7 +40,7 @@ class AliyunFunctionComputeBackend:
         logger.debug("Creating Aliyun Function Compute client")
         self.name = 'aliyun_fc'
         self.type = 'faas'
-        self.config = afc_config
+        self.afc_config = afc_config
         self.user_agent = afc_config['user_agent']
 
         self.endpoint = afc_config['public_endpoint']
@@ -60,21 +62,74 @@ class AliyunFunctionComputeBackend:
         logger.info(COMPUTE_CLI_MSG.format('Aliyun Function Compute'))
 
     def _format_function_name(self, runtime_name, runtime_memory):
-        runtime_name = runtime_name.replace('/', '_').replace(':', '_')
+        version = 'lithops_v' + __version__
+        runtime_name = (version + '_' + runtime_name).replace('.', '-')
         return f'{runtime_name}_{runtime_memory}MB'
 
     def _unformat_function_name(self, function_name):
-        runtime_name, memory = function_name.rsplit('_', 1)
-        image_name = runtime_name.replace('_', '/', 1)
-        image_name = image_name.replace('_', ':', -1)
-        return image_name, int(memory.replace('MB', ''))
+        runtime_name, runtime_memory = function_name.rsplit('_', 1)
+        runtime_name = runtime_name.replace('lithops_v', '')
+        version, runtime_name = runtime_name.split('_', 1)
+        version = version.replace('-', '.')
+        return version, runtime_name, runtime_memory.replace('MB', '')
 
     def _get_default_runtime_name(self):
         py_version = utils.CURRENT_PY_VERSION.replace('.', '')
         return  f'lithops-default-runtime-v{py_version}'
 
     def build_runtime(self, runtime_name, requirements_file, extra_args=[]):
-        pass
+        logger.info(f'Building runtime {runtime_name} from {requirements_file}')
+        
+        build_dir = os.path.join(config.BUILD_DIR, runtime_name)
+
+        shutil.rmtree(build_dir, ignore_errors=True)
+        os.makedirs(build_dir)
+
+        # Add lithops base modules
+        logger.debug("Installing base modules (via pip install)")
+        req_file = os.path.join(build_dir, 'requirements.txt')
+        with open(req_file, 'w') as reqf:
+            reqf.write(config.REQUIREMENTS_FILE)
+
+        cmd = f'{sys.executable} -m pip install -t {build_dir} -r {req_file} --no-deps'
+        utils.run_command(cmd)
+
+        # Add function handlerd
+        current_location = os.path.dirname(os.path.abspath(__file__))
+        handler_file = os.path.join(current_location, 'entry_point.py')
+        shutil.copy(handler_file, build_dir)
+
+        # Add lithops module
+        module_location = os.path.dirname(os.path.abspath(lithops.__file__))
+        dst_location = os.path.join(build_dir, 'lithops')
+
+        if os.path.isdir(dst_location):
+            logger.warning("Using user specified 'lithops' module from the custom runtime folder. "
+                           "Please refrain from including it as it will be automatically installed anyway.")
+        else:
+            shutil.copytree(module_location, dst_location, ignore=shutil.ignore_patterns('__pycache__'))
+
+    def _service_exists(self, service_name):
+        """
+        Checks if a given service exists
+        """
+        services = self.fc_client.list_services(prefix=service_name).data['services']
+        for serv in services:
+            if serv['serviceName'] == service_name:
+                return True
+        return False
+
+    def _build_default_runtime(self, runtime_name):
+        """
+        Builds the default runtime
+        """
+        requirements_file = os.path.join(TEMP, 'aliyun_default_requirements.txt')
+        with open(requirements_file, 'w') as reqf:
+            reqf.write(config.REQUIREMENTS_FILE)
+        try:
+            self.build_runtime(runtime_name, requirements_file)
+        finally:
+            os.remove(requirements_file)
 
     def deploy_runtime(self, runtime_name, memory, timeout):
         """
@@ -83,51 +138,31 @@ class AliyunFunctionComputeBackend:
         """
         logger.info(f"Deploying runtime: {runtime_name} - Memory: {memory} Timeout: {timeout}")
 
-        if self.service_name == self.default_service_name:
-            services = self.fc_client.list_services(prefix=self.service_name).data['services']
-            service = None
-            for serv in services:
-                if serv['serviceName'] == self.service_name:
-                    service = serv
-                    break
-            if not service:
-                logger.debug(f"creating service {self.service_name}")
-                self.fc_client.create_service(self.service_name, role=self.role_arn)
-
+        if not self._service_exists(self.service_name):
+            logger.debug(f"creating service {self.service_name}")
+            self.fc_client.create_service(self.service_name, role=self.role_arn)
+        
         if runtime_name == self._get_default_runtime_name():
-            handler_path = config.HANDLER_FOLDER_LOCATION
-            is_custom = False
-        elif os.path.isdir(runtime_name):
-            handler_path = runtime_name
-            is_custom = True
-        else:
-            raise Exception('The path you provided for the custom runtime'
-                            f'does not exist: {runtime_name}')
+            self._build_default_runtime(runtime_name)
 
-        try:
-            self._create_function_handler_folder(handler_path, is_custom=is_custom)
-            function_name = self._format_function_name(runtime_name, memory)
+        function_name = self._format_function_name(runtime_name, memory)
 
-            functions = self.fc_client.list_functions(self.service_name).data['functions']
-            for function in functions:
-                if function['functionName'] == function_name:
-                    self.delete_runtime(runtime_name, memory)
+        functions = self.fc_client.list_functions(self.service_name).data['functions']
+        for function in functions:
+            if function['functionName'] == function_name:
+                self.delete_runtime(runtime_name, memory)
 
-            self.fc_client.create_function(
-                serviceName=self.service_name,
-                functionName=function_name,
-                runtime=config.AVAILABLE_RUNTIMES[utils.CURRENT_PY_VERSION],
-                handler='entry_point.main',
-                codeDir=handler_path,
-                memorySize=memory,
-                timeout=timeout
-            )
+        self.fc_client.create_function(
+            serviceName=self.service_name,
+            functionName=function_name,
+            runtime=config.AVAILABLE_PY_RUNTIMES[utils.CURRENT_PY_VERSION],
+            handler='entry_point.main',
+            codeDir=os.path.join(config.BUILD_DIR, runtime_name),
+            memorySize=memory,
+            timeout=timeout
+        )
 
-            metadata = self._generate_runtime_meta(function_name)
-
-        finally:
-            if not is_custom:
-                self._delete_function_handler_folder(handler_path)
+        metadata = self._generate_runtime_meta(function_name)
 
         return metadata
 
@@ -136,15 +171,25 @@ class AliyunFunctionComputeBackend:
         Deletes a runtime
         """
         function_name = self._format_function_name(runtime_name, memory)
+        logger.debug(f'Going to delete runtime {function_name}')
         self.fc_client.delete_function(self.service_name, function_name)
 
     def clean(self):
         """"
         Deletes all runtimes from the current service
         """
+        logger.debug('Going to delete all deployed runtimes')
+        if not self._service_exists(self.service_name):
+            return
+        
         functions = self.fc_client.list_functions(self.service_name).data['functions']
+
         for function in functions:
-            self.fc_client.delete_function(self.service_name, function['functionName'])
+            function_name = function['functionName']
+            if function_name.startswith('lithops_v'):
+                logger.info(f'Going to delete runtime {function_name}')
+                self.fc_client.delete_function(self.service_name, function_name)
+
         self.fc_client.delete_service(self.service_name)
 
     def list_runtimes(self, runtime_name='all'):
@@ -152,13 +197,19 @@ class AliyunFunctionComputeBackend:
         List all the runtimes deployed in the Aliyun FC service
         return: list of tuples (docker_image_name, memory)
         """
+        logger.debug('Listing deployed runtimes')
         runtimes = []
+
+        if not self._service_exists(self.service_name):
+            return runtimes
+
         functions = self.fc_client.list_functions(self.service_name).data['functions']
 
         for function in functions:
-            name, memory = self._unformat_function_name(function['functionName'])
-            if runtime_name == name or runtime_name == 'all':
-                runtimes.append((name, memory))
+            if function['functionName'].startswith('lithops_v'):
+                version, name, memory = self._unformat_function_name(function['functionName'])
+                if runtime_name == name or runtime_name == 'all':
+                    runtimes.append((name, memory, version))
         return runtimes
 
     def invoke(self, runtime_name, memory=None, payload={}):
@@ -178,46 +229,6 @@ class AliyunFunctionComputeBackend:
             raise(e)
 
         return res.headers['X-Fc-Request-Id']
-
-    def _create_function_handler_folder(self, handler_path, is_custom):
-        """
-        Creates a local directory with all the required dependencies
-        """
-        logger.debug(f"Creating function handler folder in {handler_path}")
-
-        if not is_custom:
-            self._delete_function_handler_folder(handler_path)
-            os.mkdir(handler_path)
-
-            # Add lithops base modules
-            logger.debug("Installing base modules (via pip install)")
-            req_file = os.path.join(TEMP, 'requirements.txt')
-            with open(req_file, 'w') as reqf:
-                reqf.write(config.REQUIREMENTS_FILE)
-
-            cmd = f'{sys.executable} -m pip install -t {handler_path} -r {req_file} --no-deps'
-            utils.run_command(cmd)
-
-        # Add function handlerd
-        current_location = os.path.dirname(os.path.abspath(__file__))
-        handler_file = os.path.join(current_location, 'entry_point.py')
-        shutil.copy(handler_file, handler_path)
-
-        # Add lithops module
-        module_location = os.path.dirname(os.path.abspath(lithops.__file__))
-        dst_location = os.path.join(handler_path, 'lithops')
-
-        if os.path.isdir(dst_location):
-            logger.warning("Using user specified 'lithops' module from the custom runtime folder. "
-                           "Please refrain from including it as it will be automatically installed anyway.")
-        else:
-            shutil.copytree(module_location, dst_location, ignore=shutil.ignore_patterns('__pycache__'))
-
-    def _delete_function_handler_folder(self, handler_path):
-        """
-        Deletes local handler folder
-        """
-        shutil.rmtree(handler_path, ignore_errors=True)
 
     def _generate_runtime_meta(self, function_name):
         """
@@ -262,14 +273,14 @@ class AliyunFunctionComputeBackend:
             raise Exception(f'Python {utils.CURRENT_PY_VERSION} is not available for'
              f'Aliyun Functions. Please use one of {config.AVAILABLE_PY_RUNTIMES.keys()}')
 
-        if 'runtime' not in self.config or self.config['runtime'] == 'default':
-            self.config['runtime'] = self._get_default_runtime_name()
+        if 'runtime' not in self.afc_config or self.afc_config['runtime'] == 'default':
+            self.afc_config['runtime'] = self._get_default_runtime_name()
         
         runtime_info = {
-            'runtime_name': self.config['runtime'],
-            'runtime_memory': self.config['runtime_memory'],
-            'runtime_timeout': self.config['runtime_timeout'],
-            'max_workers': self.config['max_workers'],
+            'runtime_name': self.afc_config['runtime'],
+            'runtime_memory': self.afc_config['runtime_memory'],
+            'runtime_timeout': self.afc_config['runtime_timeout'],
+            'max_workers': self.afc_config['max_workers'],
         }
 
         return runtime_info

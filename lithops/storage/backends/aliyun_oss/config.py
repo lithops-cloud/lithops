@@ -14,6 +14,8 @@
 # limitations under the License.
 #
 
+CONNECTION_POOL_SIZE = 300
+
 REQ_PARAMS_1 = ('access_key_id', 'access_key_secret')
 REQ_PARAMS_2 = ('public_endpoint', 'internal_endpoint')
 

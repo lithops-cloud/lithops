@@ -84,8 +84,10 @@ class GCPFunctionsBackend:
         return f'{runtime_name}_{runtime_memory}MB'
     
     def _unformat_function_name(self, function_name):
-        version, runtime_name, runtime_memory = function_name.rsplit('_', 2)
-        version = version.replace('lithops_v', '').replace('-', '.')
+        runtime_name, runtime_memory = function_name.rsplit('_', 1)
+        runtime_name = runtime_name.replace('lithops_v', '')
+        version, runtime_name = runtime_name.split('_', 1)
+        version = version.replace('-', '.')
         return version, runtime_name, runtime_memory.replace('MB', '')
 
     def _format_topic_name(self, runtime_name, runtime_memory):
