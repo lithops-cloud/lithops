@@ -109,6 +109,8 @@ def clean(config, backend, storage, debug, all, force):
     # Clean local lithops cache
     shutil.rmtree(CACHE_DIR, ignore_errors=True)
 
+    logger.info('All Lithops data cleaned')
+
 
 @lithops_cli.command('verify')
 @click.option('--config', '-c', default=None, help='Path to yaml config file', type=click.Path(exists=True))
@@ -445,6 +447,8 @@ def build(ctx, name, file, config, backend):
     runtime_name = runtime_info['runtime_name']
     compute_handler.build_runtime(runtime_name, file, ctx.args)
 
+    logger.info('Runtime built')
+
 
 @runtime.command('deploy')
 @click.argument('name', required=False)
@@ -483,6 +487,7 @@ def deploy(name, storage, backend, memory, timeout, config, debug):
     runtime_meta = compute_handler.deploy_runtime(runtime_name, runtime_memory, runtime_timeout)
     internal_storage.put_runtime_meta(runtime_key, runtime_meta)
 
+    logger.info('Runtime deployed')
 
 @runtime.command('list')
 @click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
@@ -565,6 +570,7 @@ def update(name, config, backend, storage, debug):
         runtime_meta = compute_handler.deploy_runtime(runtime[0], runtime[1], runtime_timeout)
         internal_storage.put_runtime_meta(runtime_key, runtime_meta)
 
+    logger.info('Runtime updated')
 
 @runtime.command('delete')
 @click.argument('name', required=False)
@@ -603,6 +609,7 @@ def delete(name, config, backend, storage, debug):
         runtime_key = compute_handler.get_runtime_key(runtime[0], runtime[1])
         internal_storage.delete_runtime_meta(runtime_key)
 
+    logger.info('Runtime deleted')
 
 lithops_cli.add_command(runtime)
 lithops_cli.add_command(logs)

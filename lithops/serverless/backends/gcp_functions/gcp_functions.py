@@ -38,12 +38,7 @@ from . import config
 
 logger = logging.getLogger(__name__)
 
-ZIP_LOCATION = os.path.join(TEMP_DIR, 'lithops_gcp_functions.zip')
-SCOPES = ('https://www.googleapis.com/auth/cloud-platform',
-          'https://www.googleapis.com/auth/pubsub')
-FUNCTIONS_API_VERSION = 'v1'
-PUBSUB_API_VERSION = 'v1'
-AUDIENCE = "https://pubsub.googleapis.com/google.pubsub.v1.Publisher"
+
 
 
 class GCPFunctionsBackend:
@@ -67,7 +62,7 @@ class GCPFunctionsBackend:
             service_account_info = json.load(open(self.credentials_path))
             credentials = jwt.Credentials.from_service_account_info(
                 service_account_info,
-                audience=AUDIENCE
+                audience=config.AUDIENCE
             )
         except Exception as e:  # Get credentials from gcp function environment
             credentials = None
@@ -76,10 +71,14 @@ class GCPFunctionsBackend:
         msg = COMPUTE_CLI_MSG.format('Google Cloud Functions')
         logger.info(f"{msg} - Region: {self.region} - Project: {self.project}")
 
-    def _format_function_name(self, runtime_name, runtime_memory):
+    def _format_function_name(self, runtime_name, runtime_memory=None):
         version = 'lithops_v' + __version__
         runtime_name = (version + '_' + runtime_name).replace('.', '-')
-        return f'{runtime_name}_{runtime_memory}MB'
+
+        if runtime_memory:
+            return f'{runtime_name}_{runtime_memory}MB'
+        else:
+            return f'{runtime_name}'
     
     def _unformat_function_name(self, function_name):
         runtime_name, runtime_memory = function_name.rsplit('_', 1)
@@ -109,29 +108,18 @@ class GCPFunctionsBackend:
 
     def _get_auth_session(self):
         credentials = service_account.Credentials.from_service_account_file(self.credentials_path,
-                                                                            scopes=SCOPES)
+                                                                            scopes=config.SCOPES)
         http = httplib2.Http()
         return AuthorizedHttp(credentials, http=http)
 
     def _get_funct_conn(self):
         http = self._get_auth_session()
-        return build('cloudfunctions', FUNCTIONS_API_VERSION, http=http, cache_discovery=False)
-
-    def _get_runtime_requirements(self, runtime_name):
-        if runtime_name == self._get_default_runtime_name():
-            return config.DEFAULT_REQUIREMENTS
-        else:
-            user_runtimes = self._list_built_runtimes(default_runtimes=False)
-            if runtime_name in user_runtimes:
-                raw_reqs = self.internal_storage.get_data(key='/'.join([config.USER_RUNTIMES_PREFIX, runtime_name]))
-                reqs = raw_reqs.decode('utf-8')
-                return reqs.splitlines()
-            else:
-                available_runtims = [self._get_default_runtime_name()]+user_runtimes
-                raise Exception(f'Runtime {runtime_name} does not exist. '
-                    f'Available runtimes: {available_runtims}')
+        return build('cloudfunctions', config.FUNCTIONS_API_VERSION, http=http, cache_discovery=False)
 
     def _list_built_runtimes(self, default_runtimes=True):
+        """
+        Lists all the built runtimes uploaded by self.build_runtime()
+        """
         runtimes = []
 
         if default_runtimes:
@@ -142,40 +130,6 @@ class GCPFunctionsBackend:
         )
         runtimes.extend([runtime.split('/', 1)[-1] for runtime in user_runtimes_keys])
         return runtimes
-
-    def _create_handler_zip(self, runtime_name):
-        logger.debug(f"Creating function handler zip in {ZIP_LOCATION}")
-
-        def add_folder_to_zip(zip_file, full_dir_path, sub_dir=''):
-            for file in os.listdir(full_dir_path):
-                full_path = os.path.join(full_dir_path, file)
-                if os.path.isfile(full_path):
-                    zip_file.write(full_path, os.path.join('lithops', sub_dir, file), zipfile.ZIP_DEFLATED)
-                elif os.path.isdir(full_path) and '__pycache__' not in full_path:
-                    add_folder_to_zip(zip_file, full_path, os.path.join(sub_dir, file))
-
-        # Get runtime requirements
-        runtime_requirements = self._get_runtime_requirements(runtime_name)
-        requirements_file_path = os.path.join(TEMP_DIR, f'{runtime_name}_requirements.txt')
-        with open(requirements_file_path, 'w') as reqs_file:
-            for req in runtime_requirements:
-                reqs_file.write(f'{req}\n')
-
-        try:
-            with zipfile.ZipFile(ZIP_LOCATION, 'w') as lithops_zip:
-                # Add Lithops entryfile to zip archive
-                current_location = os.path.dirname(os.path.abspath(__file__))
-                main_file = os.path.join(current_location, 'entry_point.py')
-                lithops_zip.write(main_file, 'main.py', zipfile.ZIP_DEFLATED)
-
-                # Add runtime requirements.txt to zip archive
-                lithops_zip.write(requirements_file_path, 'requirements.txt', zipfile.ZIP_DEFLATED)
-
-                # Add Lithops to zip archive
-                module_location = os.path.dirname(os.path.abspath(lithops.__file__))
-                add_folder_to_zip(lithops_zip, module_location)
-        except Exception as e:
-            raise Exception(f'Unable to create Lithops package: {e}')
 
     def _create_function(self, runtime_name, memory, timeout=60):
         """
@@ -193,22 +147,15 @@ class GCPFunctionsBackend:
         logger.debug(f"Creating topic {topic_location}")
         self.publisher_client.create_topic(name=topic_location)
 
-        # create the ZIP file
-        default_location = self._full_default_location()
-        function_location = self._full_function_location(self._format_function_name(runtime_name, memory))
-        bin_name = self._format_function_name(runtime_name, memory) + '_bin.zip'
-        try:
-            self._create_handler_zip(runtime_name)
-            with open(ZIP_LOCATION, "rb") as action_zip:
-                action_bin = action_zip.read()
-            self.internal_storage.put_data(bin_name, action_bin)
-        finally:
-            os.remove(ZIP_LOCATION)
-
         # Create the function
+        default_location = self._full_default_location()
+        function_name = self._format_function_name(runtime_name, memory)
+        function_location = self._full_function_location(function_name)
+
         fn_list_response = self._get_funct_conn().projects().locations().functions().list(
             parent=self._full_default_location()
         ).execute(num_retries=self.num_retries)
+
         if 'functions' in fn_list_response:
             deployed_functions = [fn['name'] for fn in fn_list_response['functions']]
             if function_location in deployed_functions:
@@ -217,6 +164,8 @@ class GCPFunctionsBackend:
                     name=function_location,
                 ).execute(num_retries=self.num_retries)
 
+        function_name =  self._format_function_name(runtime_name)
+        bin_name = config.USER_RUNTIMES_PREFIX + '/' + function_name + '_bin.zip'
 
         cloud_function = {
             'name': function_location,
@@ -253,16 +202,15 @@ class GCPFunctionsBackend:
             response = self._get_funct_conn().projects().locations().functions().get(
                 name=function_location
             ).execute(num_retries=self.num_retries)
+            logger.debug(f'Function status is {response["status"]}')
             if response['status'] == 'ACTIVE':
                 break
             elif response['status'] == 'OFFLINE':
                 raise Exception('Error while deploying Cloud Function')
             elif response['status'] == 'DEPLOY_IN_PROGRESS':
                 time.sleep(self.retry_sleep)
-                logger.info('...')
             else:
                 raise Exception(f"Unknown status {response['status']}")
-
 
         # Delete runtime bin archive from storage
         self.internal_storage.storage.delete_object(self.internal_storage.bucket, bin_name)
@@ -270,20 +218,43 @@ class GCPFunctionsBackend:
     def build_runtime(self, runtime_name, requirements_file, extra_args=[]):
         logger.info(f'Building runtime {runtime_name} from {requirements_file}')
 
-        if requirements_file is None:
-            raise Exception('Please provide a `requirements.txt` file with the necessary modules')
+        if not requirements_file:
+            raise Exception('Please provide a "requirements.txt" file with the necessary modules')
 
-        with open(requirements_file, 'r') as req_file:
-            requirements = req_file.read()
+        try:
+            entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
+            utils.create_handler_zip(config.FH_ZIP_LOCATION, entry_point, 'main.py')
+            with zipfile.ZipFile(config.FH_ZIP_LOCATION, 'a') as lithops_zip:
+                lithops_zip.write(requirements_file, 'requirements.txt', zipfile.ZIP_DEFLATED)
+            with open(config.FH_ZIP_LOCATION, "rb") as action_zip:
+                action_bin = action_zip.read()
+            function_name =  self._format_function_name(runtime_name)
+            bin_name = config.USER_RUNTIMES_PREFIX + '/' + function_name + '_bin.zip'
+            self.internal_storage.put_data(bin_name, action_bin)
+        finally:
+            os.remove(config.FH_ZIP_LOCATION)
 
-        self.internal_storage.put_data('/'.join([config.USER_RUNTIMES_PREFIX, runtime_name]), requirements)
         logger.info(f'Runtime {runtime_name} built successfuly')
 
+    def _build_default_runtime(self, runtime_name):
+        """
+        Builds the default runtime
+        """
+        requirements_file = os.path.join(TEMP_DIR, 'gcf_default_requirements.txt')
+        with open(requirements_file, 'w') as reqf:
+            reqf.write(config.REQUIREMENTS_FILE)
+        try:
+            self.build_runtime(runtime_name, requirements_file)
+        finally:
+            os.remove(requirements_file)
 
-    def deploy_runtime(self, runtime_name, memory, timeout=60):
+    def deploy_runtime(self, runtime_name, memory, timeout):
         logger.info(f"Deploying runtime: {runtime_name} - Memory: {memory} Timeout: {timeout}")
 
-        self._create_function(runtime_name, memory, timeout=timeout)
+        if runtime_name == self._get_default_runtime_name():
+            self._build_default_runtime(runtime_name)
+
+        self._create_function(runtime_name, memory, timeout)
 
         # Get runtime preinstalls
         runtime_meta = self._generate_runtime_meta(runtime_name, memory)
@@ -320,7 +291,7 @@ class GCPFunctionsBackend:
         topic_name = self._format_topic_name(runtime_name, runtime_memory)
         topic_location = self._full_topic_location(topic_name)
         topic_list_request = self.publisher_client.list_topics(
-            request={f'project': 'projects/{self.project}'}
+            request={'project': f'projects/{self.project}'}
         )
         topics = [topic.name for topic in topic_list_request]
         if topic_location in topics:
