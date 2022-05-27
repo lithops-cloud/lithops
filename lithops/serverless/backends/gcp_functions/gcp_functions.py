@@ -131,6 +131,21 @@ class GCPFunctionsBackend:
         runtimes.extend([runtime.split('/', 1)[-1] for runtime in user_runtimes_keys])
         return runtimes
 
+    def _wait_function_deleted(self, function_location):
+        # Wait until function is completely deleted
+        while True:
+            try:
+                response = self._get_funct_conn().projects().locations().functions().get(
+                    name=function_location
+                ).execute(num_retries=self.num_retries)
+                logger.debug(f'Function status is {response["status"]}')
+                if response['status'] == 'DELETE_IN_PROGRESS':
+                    time.sleep(self.retry_sleep)
+                else:
+                    raise Exception(f'Unknown status: {response["status"]}')
+            except Exception as e:
+                break
+
     def _create_function(self, runtime_name, memory, timeout=60):
         """
         Creates all the resources needed by a function
@@ -155,7 +170,6 @@ class GCPFunctionsBackend:
         fn_list_response = self._get_funct_conn().projects().locations().functions().list(
             parent=self._full_default_location()
         ).execute(num_retries=self.num_retries)
-
         if 'functions' in fn_list_response:
             deployed_functions = [fn['name'] for fn in fn_list_response['functions']]
             if function_location in deployed_functions:
@@ -163,6 +177,7 @@ class GCPFunctionsBackend:
                 self._get_funct_conn().projects().locations().functions().delete(
                     name=function_location,
                 ).execute(num_retries=self.num_retries)
+                self._wait_function_deleted(function_location)
 
         function_name =  self._format_function_name(runtime_name)
         bin_name = config.USER_RUNTIMES_PREFIX + '/' + function_name + '_bin.zip'
@@ -270,19 +285,7 @@ class GCPFunctionsBackend:
         ).execute(num_retries=self.num_retries)
         logger.debug('Request Ok - Waiting until function is completely deleted')
 
-        # Wait until function is completely deleted
-        while True:
-            try:
-                response = self._get_funct_conn().projects().locations().functions().get(
-                    name=function_location
-                ).execute(num_retries=self.num_retries)
-                logger.debug(f'Function status is {response["status"]}')
-                if response['status'] == 'DELETE_IN_PROGRESS':
-                    time.sleep(self.retry_sleep)
-                else:
-                    raise Exception(f'Unknown status: {response["status"]}')
-            except Exception as e:
-                break
+        self._wait_function_deleted(function_location)
 
         # Delete Pub/Sub topic attached as trigger for the cloud function
         logger.debug('Listing Pub/Sub topics')
