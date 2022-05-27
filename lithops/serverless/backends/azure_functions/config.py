@@ -14,13 +14,10 @@
 # limitations under the License.
 #
 
-import sys
 import os
-from lithops.utils import version_str
-from lithops import __version__
-from lithops.constants import TEMP
+from lithops.constants import TEMP_DIR
 
-BUILD_DIR = os.path.join(TEMP, 'AzureRuntimeBuild')
+BUILD_DIR = os.path.join(TEMP_DIR, 'AzureRuntimeBuild')
 ACTION_DIR = 'lithops_handler'
 ACTION_MODULES_DIR = os.path.join('.python_packages', 'lib', 'site-packages')
 

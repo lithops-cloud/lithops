@@ -40,7 +40,7 @@ $ python3 -m pip install lithops[azure]
     ```bash
       $ storage_account_name=lithops$(openssl rand -hex 3)
       $ echo $storage_account_name
-      $ az storage_config account create --name $storage_account_name --location westeurope \
+      $ az storage account create --name $storage_account_name --location westeurope \
          --resource-group LithopsResourceGroup --sku Standard_LRS
     ```
 

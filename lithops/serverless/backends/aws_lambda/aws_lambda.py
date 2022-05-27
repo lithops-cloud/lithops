@@ -103,7 +103,7 @@ class AWSLambdaBackend:
     @staticmethod
     def _unformat_function_name(function_name):
         version, runtime = function_name.split('__', 1)
-        version = version.replace('lithops_v', '').split('_')[0]
+        version = version.replace('lithops_v', '').split('_')[0].replace('-', '.')
         runtime = runtime.replace('__', '/')
         runtime = runtime.replace('--', ':')
         runtime_name, runtime_memory = runtime.rsplit('_', 1)

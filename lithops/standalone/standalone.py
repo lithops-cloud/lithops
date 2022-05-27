@@ -25,13 +25,11 @@ import shlex
 import concurrent.futures as cf
 
 from lithops.utils import is_lithops_worker, create_handler_zip
-from lithops.constants import SA_SERVICE_PORT, SA_INSTALL_DIR
+from lithops.constants import SA_SERVICE_PORT, SA_INSTALL_DIR, TEMP_DIR
 from lithops.standalone.utils import get_master_setup_script
 from lithops.version import __version__ as lithops_version
 
 logger = logging.getLogger(__name__)
-LOCAL_FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_standalone.zip')
-
 
 class LithopsValidationError(Exception):
     pass
@@ -424,15 +422,17 @@ class StandaloneHandler:
         Setup lithops necessary packages and files in master VM instance
         """
         logger.info(f'Installing Lithops in {self.backend.master}')
+
         ssh_client = self.backend.master.get_ssh_client()
 
+        handler_zip = os.path.join(TEMP_DIR, 'lithops_standalone.zip')
         worker_path = os.path.join(os.path.dirname(__file__), 'worker.py')
         master_path = os.path.join(os.path.dirname(__file__), 'master.py')
-        create_handler_zip(LOCAL_FH_ZIP_LOCATION, [master_path, worker_path])
+        create_handler_zip(handler_zip, [master_path, worker_path])
 
         logger.debug('Uploading lithops files to {}'.format(self.backend.master))
-        ssh_client.upload_local_file(LOCAL_FH_ZIP_LOCATION, '/tmp/lithops_standalone.zip')
-        os.remove(LOCAL_FH_ZIP_LOCATION)
+        ssh_client.upload_local_file(handler_zip, '/tmp/lithops_standalone.zip')
+        os.remove(handler_zip)
 
         vm_data = {'name': self.backend.master.name,
                    'instance_id': self.backend.master.instance_id,

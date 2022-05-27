@@ -19,32 +19,34 @@ import oss2
 import shutil
 import logging
 
-from lithops.serverless.backends.aliyun_fc.config import CONNECTION_POOL_SIZE
 from lithops.storage.utils import StorageNoSuchKeyError
 from lithops.utils import is_lithops_worker
 from lithops.constants import STORAGE_CLI_MSG
 
+from . import config
 
 logger = logging.getLogger(__name__)
 
 
 class AliyunObjectStorageServiceBackend:
 
-    def __init__(self, config):
+    def __init__(self, oss_config):
         logger.debug("Creating Aliyun Object Storage Service client")
-        self.config = config
-        self.auth = oss2.Auth(self.config['access_key_id'], self.config['access_key_secret'])
+        self.oss_config = oss_config
+        self.auth = oss2.Auth(self.oss_config['access_key_id'], self.oss_config['access_key_secret'])
 
         if is_lithops_worker():
-            self.endpoint = self.config['internal_endpoint']
+            self.endpoint = self.oss_config['internal_endpoint']
         else:
-            self.endpoint = self.config['public_endpoint']
+            self.endpoint = self.oss_config['public_endpoint']
+
+        self.region = self.endpoint.split('-', 1)[1].split('.')[0]
 
         # Connection pool size in aliyun_oss must be updated to avoid "connection pool is full" type errors.
-        oss2.defaults.connection_pool_size = CONNECTION_POOL_SIZE
+        oss2.defaults.connection_pool_size = config.CONNECTION_POOL_SIZE
 
         msg = STORAGE_CLI_MSG.format('Aliyun Object Storage Service')
-        logger.info("{} - Endpoint: {}".format(msg, self.endpoint))
+        logger.info(f"{msg} - Region: {self.region}")
 
     def _connect_bucket(self, bucket_name):
         if hasattr(self, 'bucket') and self.bucket.bucket_name == bucket_name:

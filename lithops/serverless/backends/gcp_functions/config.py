@@ -16,15 +16,14 @@
 
 import os
 
+from lithops.constants import TEMP_DIR
 
-DEFAULT_CONFIG_KEYS = {
-    'runtime_timeout': 300,  # Default: 5 minutes
-    'runtime_memory': 256,  # Default memory: 256 MB
-    'max_workers': 1000,
-    'worker_processes': 1,
-    'invoke_pool_threads': 1000,
-    'trigger': 'pub/sub'
-}
+FH_ZIP_LOCATION = os.path.join(TEMP_DIR, 'lithops_gcp_functions.zip')
+SCOPES = ('https://www.googleapis.com/auth/cloud-platform',
+          'https://www.googleapis.com/auth/pubsub')
+FUNCTIONS_API_VERSION = 'v1'
+PUBSUB_API_VERSION = 'v1'
+AUDIENCE = "https://pubsub.googleapis.com/google.pubsub.v1.Publisher"
 
 RUNTIME_MEMORY_MAX = 8192  # 8GB
 RUNTIME_MEMORY_OPTIONS = {128, 256, 512, 1024, 2048, 4096, 8192}
@@ -38,34 +37,43 @@ USER_RUNTIMES_PREFIX = 'lithops.user_runtimes'
 
 REQ_PARAMS = ('project_name', 'service_account', 'credentials_path', 'region')
 
-DEFAULT_REQUIREMENTS = [
-    'numpy',
-    'scipy',
-    'scikit-learn',
-    'pandas',
-    'google-cloud',
-    'google-cloud-storage',
-    'google-cloud-pubsub',
-    'google-auth',
-    'certifi',
-    'chardet',
-    'docutils',
-    'httplib2',
-    'idna',
-    'jmespath',
-    'kafka-python',
-    'lxml',
-    'pika',
-    'redis',
-    'requests',
-    'six',
-    'urllib3',
-    'virtualenv',
-    'PyYAML',
-    'cloudpickle',
-    'ps-mem',
-    'tblib'
-]
+DEFAULT_CONFIG_KEYS = {
+    'runtime_timeout': 300,  # Default: 5 minutes
+    'runtime_memory': 256,  # Default memory: 256 MB
+    'max_workers': 1000,
+    'worker_processes': 1,
+    'invoke_pool_threads': 1000,
+    'trigger': 'pub/sub'
+}
+
+REQUIREMENTS_FILE = """
+numpy
+scipy
+scikit-learn
+pandas
+google-cloud
+google-cloud-storage
+google-cloud-pubsub
+google-auth
+certifi
+chardet
+docutils
+httplib2
+idna
+jmespath
+kafka-python
+lxml
+pika
+redis
+requests
+six
+urllib3
+virtualenv
+PyYAML
+cloudpickle
+ps-mem
+tblib
+"""
 
 
 def load_config(config_data=None):
