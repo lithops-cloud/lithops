@@ -42,7 +42,7 @@ SCOPES = ('https://www.googleapis.com/auth/cloud-platform',)
 class GCPCloudRunBackend:
 
     def __init__(self, cloudrun_config, internal_storage):
-        self.name = 'cloudrun'
+        self.name = 'gcp_cloudrun'
         self.type = 'faas'
         self.cr_config = cloudrun_config
         self.credentials_path = cloudrun_config['credentials_path']
@@ -74,7 +74,8 @@ class GCPCloudRunBackend:
         Generates the default runtime image name
         """
         py_version = utils.CURRENT_PY_VERSION.replace('.', '')
-        return f'lithops-cr-default-v{py_version}:{__version__}'
+        revision = 'latest' if 'dev' in __version__ else __version__
+        return f'lithops-cr-default-v{py_version}:{revision}'
 
     def _build_api_resource(self):
         """
@@ -159,7 +160,7 @@ class GCPCloudRunBackend:
         try:
             runtime_meta = self.invoke(
                 runtime_name, memory,
-                {'service_route': '/preinstalls'},
+                {'service_route': '/metadata'},
                 return_result=True
             )
         except Exception as e:
@@ -231,8 +232,10 @@ class GCPCloudRunBackend:
             raise Exception('There was an error authorizing Docker for push to GCR')
 
         logger.debug(f'Pushing runtime {image_name} to GCP Container Registry')
-        # Use --format docker --remove-signatures in podman
-        cmd = f'{docker_path} push {image_name}'
+        if utils.is_podman(docker_path):
+            cmd = f'{docker_path} push {image_name} --format docker --remove-signatures'
+        else:
+            cmd = f'{docker_path} push {image_name}'
         utils.run_command(cmd)
 
     def _create_service(self, runtime_name, runtime_memory, timeout):
@@ -243,6 +246,8 @@ class GCPCloudRunBackend:
         
         img_name = self._format_image_name(runtime_name)
         service_name = self._format_service_name(runtime_name, runtime_memory)
+
+        self.delete_runtime(runtime_name, runtime_memory)
 
         svc_res = yaml.safe_load(config.service_res)
         svc_res['metadata']['name'] = service_name
@@ -266,11 +271,12 @@ class GCPCloudRunBackend:
         container['resources']['requests']['memory'] = f'{runtime_memory}Mi'
         container['resources']['requests']['cpu'] = str(self.cr_config['runtime_cpu'])
 
+        logger.info(f"Creating runtime: {runtime_name}")
         res = self._build_api_resource().namespaces().services().create(
             parent=f'namespaces/{self.project_name}', body=svc_res
         ).execute()
 
-        logger.info(f'Ok -- created service {service_name}')
+        logger.debug(f'Ok -- created service {service_name}')
 
         # Wait until service is up
         ready = False
@@ -292,7 +298,7 @@ class GCPCloudRunBackend:
             else:
                 self._service_url = res['status']['url']
 
-        logger.info(f'Ok -- service is up at {self._service_url}')
+        logger.debug(f'Ok -- service is up at {self._service_url}')
 
     def deploy_runtime(self, runtime_name, memory, timeout):
         
@@ -304,14 +310,28 @@ class GCPCloudRunBackend:
         runtime_meta = self._generate_runtime_meta(runtime_name, memory)
         return runtime_meta
 
+    def _wait_service_deleted(self, service_name):
+        # Wait until the service is completely deleted
+        while True:
+            try:
+                res = self._build_api_resource().namespaces().services().get(
+                    name=f'namespaces/{self.project_name}/services/{service_name}'
+                ).execute()
+                time.sleep(1)
+            except Exception as e:
+                break
+
     def delete_runtime(self, runtime_name, memory):
         service_name = self._format_service_name(runtime_name, memory)
-
-        logger.debug(f'Deleting runtime {runtime_name}')
-        res = self._build_api_resource().namespaces().services().delete(
-            name=f'namespaces/{self.project_name}/services/{service_name}'
-        ).execute()
-        logger.debug(f'Ok -- deleted runtime {runtime_name}')
+        logger.info(f'Deleting runtime: {runtime_name} - {memory}MB')
+        try:
+            self._build_api_resource().namespaces().services().delete(
+                name=f'namespaces/{self.project_name}/services/{service_name}'
+            ).execute()
+            self._wait_service_deleted(service_name)
+            logger.debug(f'Ok -- deleted runtime {runtime_name}')
+        except:
+            pass
 
     def clean(self):
         logger.debug('Deleting all runtimes')
@@ -348,7 +368,7 @@ class GCPCloudRunBackend:
 
     def get_runtime_key(self, runtime_name, memory):
         service_name = self._format_service_name(runtime_name, memory)
-        runtime_key = os.path.join(self.name, self.project_name, service_name)
+        runtime_key = os.path.join(self.name, __version__, self.project_name, self.region, service_name)
         logger.debug(f'Runtime key: {runtime_key}')
 
         return runtime_key

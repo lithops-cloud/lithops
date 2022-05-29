@@ -28,7 +28,7 @@ from lithops.version import __version__
 from lithops.utils import setup_lithops_logger, b64str_to_dict,\
     iterchunks
 from lithops.worker import function_handler
-from lithops.worker.utils import get_runtime_preinstalls
+from lithops.worker.utils import get_runtime_metadata
 from lithops.constants import JOBS_PREFIX
 from lithops.storage.storage import InternalStorage
 
@@ -58,29 +58,29 @@ def get_id(jobkey, total_calls):
     return call_id
 
 
-def master():
+def run_master_server():
     proxy.logger.setLevel(logging.DEBUG)
     proxy.run(debug=True, host='0.0.0.0', port=MASTER_PORT)
 
 
 def extract_runtime_meta(encoded_payload):
-    logger.info("Lithops v{} - Generating metadata".format(__version__))
+    logger.info(f"Lithops v{__version__} - Generating metadata")
 
     payload = b64str_to_dict(encoded_payload)
 
     setup_lithops_logger(payload['log_level'])
 
-    runtime_meta = get_runtime_preinstalls()
+    runtime_meta = get_runtime_metadata()
 
     internal_storage = InternalStorage(payload)
     status_key = '/'.join([JOBS_PREFIX, payload['runtime_name']+'.meta'])
-    logger.info("Runtime metadata key {}".format(status_key))
+    logger.info(f"Runtime metadata key {status_key}")
     dmpd_response_status = json.dumps(runtime_meta)
     internal_storage.put_data(status_key, dmpd_response_status)
 
 
 def run_job(encoded_payload):
-    logger.info("Lithops v{} - Starting kubernetes execution".format(__version__))
+    logger.info(f"Lithops v{__version__} - Starting kubernetes execution")
 
     payload = b64str_to_dict(encoded_payload)
     setup_lithops_logger(payload['log_level'])
@@ -128,10 +128,9 @@ if __name__ == '__main__':
     encoded_payload = sys.argv[2]
 
     switcher = {
-        'preinstalls': partial(extract_runtime_meta, encoded_payload),
-        'run': partial(run_job, encoded_payload),
-        'master': master
-
+        'get_metadata': partial(extract_runtime_meta, encoded_payload),
+        'run_job': partial(run_job, encoded_payload),
+        'run_master': run_master_server
     }
 
     func = switcher.get(action, lambda: "Invalid command")

@@ -23,6 +23,7 @@ import base64
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 
+from lithops.version import __version__
 from lithops.util.ssh_client import SSHClient
 from lithops.constants import COMPUTE_CLI_MSG, CACHE_DIR
 from lithops.config import load_yaml_config, dump_yaml_config
@@ -239,7 +240,7 @@ class AWSEC2Backend:
 
     def get_runtime_key(self, runtime_name):
         name = runtime_name.replace('/', '-').replace(':', '-')
-        runtime_key = '/'.join([self.name, self.ec2_data['instance_id'], name])
+        runtime_key = os.path.join(self.name, __version__, self.ec2_data['instance_id'], name)
         return runtime_key
 
 

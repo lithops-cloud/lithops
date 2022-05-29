@@ -685,4 +685,13 @@ def run_command(cmd):
         sp.check_call(cmd.split())
 
 
+def is_podman(docker_path):
+    try:
+        cmd = f'{docker_path} info | grep podman'
+        sp.check_output(cmd, shell=True, stderr=sp.STDOUT)
+        return True
+    except:
+        return False
+
+
 CURRENT_PY_VERSION = version_str(sys.version_info)

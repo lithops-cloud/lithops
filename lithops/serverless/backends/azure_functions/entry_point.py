@@ -22,7 +22,7 @@ from lithops.version import __version__
 from lithops.utils import setup_lithops_logger
 from lithops.worker import function_handler
 from lithops.worker import function_invoker
-from lithops.worker.utils import get_runtime_preinstalls
+from lithops.worker.utils import get_runtime_metadata
 
 logger = logging.getLogger('lithops.worker')
 
@@ -38,15 +38,15 @@ def main_queue(msgIn: func.QueueMessage, msgOut: func.Out[func.QueueMessage]):
     os.environ['__LITHOPS_ACTIVATION_ID'] = str(msgIn.id)
     os.environ['__LITHOPS_BACKEND'] = 'Azure Functions (event)'
 
-    if 'get_preinstalls' in payload:
-        logger.info("Lithops v{} - Generating metadata".format(__version__))
-        runtime_meta = get_runtime_preinstalls()
+    if 'get_metadata' in payload:
+        logger.info(f"Lithops v{__version__} - Generating metadata")
+        runtime_meta = get_runtime_metadata()
         msgOut.set(json.dumps(runtime_meta))
     elif 'remote_invoker' in payload:
-        logger.info("Lithops v{} - Starting Azure Functions (event) invoker".format(__version__))
+        logger.info(f"Lithops v{__version__} - Starting Azure Functions (event) invoker")
         function_invoker(payload)
     else:
-        logger.info("Lithops v{} - Starting Azure Functions (event) execution".format(__version__))
+        logger.info(f"Lithops v{__version__} - Starting Azure Functions (event) execution")
         function_handler(payload)
 
 
@@ -58,15 +58,15 @@ def main_http(req: func.HttpRequest, context: func.Context) -> str:
     os.environ['__LITHOPS_ACTIVATION_ID'] = context.invocation_id
     os.environ['__LITHOPS_BACKEND'] = 'Azure Functions (http)'
 
-    if 'get_preinstalls' in payload:
-        logger.info("Lithops v{} - Generating metadata".format(__version__))
-        runtime_meta = get_runtime_preinstalls()
+    if 'get_metadata' in payload:
+        logger.info(f"Lithops v{__version__} - Generating metadata".format())
+        runtime_meta = get_runtime_metadata()
         return json.dumps(runtime_meta)
     elif 'remote_invoker' in payload:
-        logger.info("Lithops v{} - Starting Azure Functions (http) invoker".format(__version__))
+        logger.info(f"Lithops v{__version__} - Starting Azure Functions (http) invoker")
         function_invoker(payload)
     else:
-        logger.info("Lithops v{} - Starting Azure Functions (http) execution".format(__version__))
+        logger.info(f"Lithops v{__version__} - Starting Azure Functions (http) execution")
         function_handler(payload)
 
     return context.invocation_id

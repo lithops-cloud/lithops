@@ -24,7 +24,7 @@ import multiprocessing as mp
 from pathlib import Path
 
 from lithops.worker import function_handler
-from lithops.worker.utils import get_runtime_preinstalls
+from lithops.worker.utils import get_runtime_metadata
 from lithops.constants import LITHOPS_TEMP_DIR, JOBS_DIR, LOGS_DIR,\
     RN_LOG_FILE, LOGGER_FORMAT
 
@@ -45,7 +45,7 @@ if platform.system() == 'Darwin':
     mp.set_start_method("fork")
 
 
-def run():
+def run_job():
     sys.stdout = log_file_stream
     sys.stderr = log_file_stream
 
@@ -82,18 +82,18 @@ def run():
 
 
 def extract_runtime_meta():
-    runtime_meta = get_runtime_preinstalls()
+    runtime_meta = get_runtime_metadata()
     print(json.dumps(runtime_meta))
 
 
 if __name__ == "__main__":
     logger.info('Starting Localhost job runner')
     command = sys.argv[1]
-    logger.info('Received command: {}'.format(command))
+    logger.info(f'Received command: {command}')
 
     switcher = {
-        'preinstalls': extract_runtime_meta,
-        'run': run
+        'get_metadata': extract_runtime_meta,
+        'run_job': run_job
     }
 
     switcher.get(command, lambda: "Invalid command")()

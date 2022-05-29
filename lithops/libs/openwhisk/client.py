@@ -127,7 +127,7 @@ class OpenWhiskClient:
         """
         Delete an IBM Cloud Function
         """
-        logger.info("Deleting cloud function action: {}".format(action_name))
+        logger.debug("Deleting cloud function action: {}".format(action_name))
         url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.namespace, 'actions', package, action_name])
         res = self.session.delete(url)
         resp_text = res.json()

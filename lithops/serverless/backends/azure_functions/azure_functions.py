@@ -42,7 +42,7 @@ class AzureFunctionAppBackend:
 
     def __init__(self, af_config, internal_storage):
         logger.debug("Creating Azure Functions client")
-        self.name = 'azure_fa'
+        self.name = 'azure_functions'
         self.type = 'faas'
         self.af_config = af_config
         self.invocation_type = af_config['invocation_type']
@@ -63,7 +63,7 @@ class AzureFunctionAppBackend:
         """
         Formates the function name
         """
-        ver = __version__ .replace('.', '-')
+        ver = __version__.replace('.', '-')
         function_name = f'{self.storage_account_name}-{runtime_name}-{ver}-{self.invocation_type}'
         return function_name
 
@@ -164,6 +164,8 @@ class AzureFunctionAppBackend:
             archive.extractall(path=mod_dir)
             os.remove(mod_dir+'/__init__.py')
             os.remove(config.FH_ZIP_LOCATION)
+        
+        logger.debug(f'Runtime {runtime_name} built successfully')
 
     def _create_function(self, runtime_name, memory, timeout):
         """
@@ -206,15 +208,20 @@ class AzureFunctionAppBackend:
             cmd = f'func azure functionapp publish {function_name} --python --no-build'
         else:
             cmd = f'func azure functionapp publish {function_name} --python'
-        utils.run_command(cmd)
+        while True:
+            try:
+                utils.run_command(cmd)
+                break
+            except Exception as e:
+                time.sleep(10)
         time.sleep(10)
 
     def delete_runtime(self, runtime_name, memory):
         """
         Deletes a runtime
         """
+        logger.info(f'Deleting runtime: {runtime_name} - {memory}MB')
         function_name = self._format_function_name(runtime_name, memory)
-        logger.info(f'Deleting function app: {function_name}')
         cmd = f'az functionapp delete --name {function_name} --resource-group {self.resource_group}'
         utils.run_command(cmd)
 
@@ -284,7 +291,7 @@ class AzureFunctionAppBackend:
         in order to know which runtimes are installed and which not.
         """
         function_name = self._format_function_name(docker_image_name, runtime_memory)
-        runtime_key = os.path.join(self.name, function_name)
+        runtime_key = os.path.join(self.name, __version__, function_name)
 
         return runtime_key
 
@@ -304,13 +311,13 @@ class AzureFunctionAppBackend:
         Extract metadata from Azure runtime
         """
         logger.info(f"Extracting metadata from: {docker_image_name}")
-        payload = {'log_level': logger.getEffectiveLevel(), 'get_preinstalls': True}
+        payload = {'log_level': logger.getEffectiveLevel(), 'get_metadata': True}
 
         try:
             runtime_meta = self.invoke(docker_image_name, memory=memory,
                                        payload=payload, return_result=True)
-        except Exception:
-            raise Exception("Unable to invoke 'extract-preinstalls' action")
+        except Exception as e:
+            raise Exception(f"Unable to extract metadata: {e}")
 
         if not runtime_meta or 'preinstalls' not in runtime_meta:
             raise Exception(runtime_meta)

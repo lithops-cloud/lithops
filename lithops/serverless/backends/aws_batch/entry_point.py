@@ -23,8 +23,7 @@ from lithops.storage import InternalStorage
 from lithops.version import __version__
 from lithops.utils import setup_lithops_logger, iterchunks
 from lithops.worker import function_handler
-from lithops.worker import function_invoker
-from lithops.worker.utils import get_runtime_preinstalls
+from lithops.worker.utils import get_runtime_metadata
 
 logger = logging.getLogger('lithops.worker')
 
@@ -33,23 +32,19 @@ if __name__ == '__main__':
     action = os.getenv('__LITHOPS_ACTION')
     os.environ['__LITHOPS_BACKEND'] = 'AWS Batch'
 
-    if action == 'get_preinstalls':
+    if action == 'get_metadata':
         lithops_conf_json = os.environ['__LITHOPS_PAYLOAD']
         lithops_conf = json.loads(lithops_conf_json)
         setup_lithops_logger(lithops_conf.get('log_level', logging.INFO))
         logger.info("Lithops v{} - Generating metadata".format(__version__))
-        runtime_meta = get_runtime_preinstalls()
+        runtime_meta = get_runtime_metadata()
         internal_storage = InternalStorage(lithops_conf)
         status_key = lithops_conf['runtime_name'] + '.meta'
         logger.info("Runtime metadata key {}".format(status_key))
         runtime_meta_json = json.dumps(runtime_meta)
         internal_storage.put_data(status_key, runtime_meta_json)
-    elif action == 'remote_invoker':
-        lithops_payload_json = os.environ['__LITHOPS_PAYLOAD']
-        lithops_payload = json.loads(lithops_payload_json)
-        logger.info("Lithops v{} - Starting AWS Lambda invoker".format(__version__))
-        function_invoker(lithops_payload)
-    elif action == 'job':
+
+    elif action == 'run_job':
         lithops_payload_json = os.environ['__LITHOPS_PAYLOAD']
         lithops_payload = json.loads(lithops_payload_json)
         setup_lithops_logger(lithops_payload.get('log_level', logging.INFO))

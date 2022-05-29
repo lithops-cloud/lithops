@@ -21,7 +21,7 @@ from lithops.version import __version__
 from lithops.utils import setup_lithops_logger
 from lithops.worker import function_handler
 from lithops.worker import function_invoker
-from lithops.worker.utils import get_runtime_preinstalls
+from lithops.worker.utils import get_runtime_metadata
 from lithops.constants import LOGGER_FORMAT_SHORT
 
 logger = logging.getLogger('lithops.worker')
@@ -33,14 +33,14 @@ def main(args):
 
     setup_lithops_logger(args['log_level'], LOGGER_FORMAT_SHORT, sys.stdout)
 
-    if 'get_preinstalls' in args:
-        logger.info("Lithops v{} - Generating metadata".format(__version__))
-        return get_runtime_preinstalls()
+    if 'get_metadata' in args:
+        logger.info(f"Lithops v{__version__} - Generating metadata")
+        return get_runtime_metadata()
     elif 'remote_invoker' in args:
-        logger.info("Lithops v{} - Starting OpenWhisk invoker".format(__version__))
+        logger.info(f"Lithops v{__version__} - Starting OpenWhisk invoker")
         function_invoker(args)
     else:
-        logger.info("Lithops v{} - Starting OpenWhisk execution".format(__version__))
+        logger.info(f"Lithops v{__version__} - Starting OpenWhisk execution")
         function_handler(args)
 
     return {"Execution": "Finished"}
