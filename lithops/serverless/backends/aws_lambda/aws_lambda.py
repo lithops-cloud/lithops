@@ -57,8 +57,8 @@ class AWSLambdaBackend:
         self.internal_storage = internal_storage
         self.user_agent = lambda_config['user_agent']
 
-        self.user_key = lambda_config['access_key_id'][-4:]
-        self.package = f'lithops_v{__version__}_{self.user_key.lower()}'.replace(".", "-")
+        self.user_key = lambda_config['access_key_id'][-4:].lower()
+        self.package = f'lithops_v{__version__.replace(".", "-")}_{self.user_key}'
         self.region_name = lambda_config['region_name']
         self.role_arn = lambda_config['execution_role']
 
@@ -321,6 +321,7 @@ class AWSLambdaBackend:
         Deletes a function by its formatted name
         @param function_name: function name to delete
         """
+        logger.info(f'Deleting function: {function_name}')
         try:
             response = self.lambda_client.delete_function(
                 FunctionName=function_name
@@ -580,11 +581,16 @@ class AWSLambdaBackend:
         """
         logger.debug('Deleting all runtimes')
 
-        runtimes = self.list_runtimes()
+        def delete_runtimes(response):
+            for function in response['Functions']:
+                if function['FunctionName'].startswith('lithops_v') and self.user_key in function['FunctionName']:
+                    self._delete_function(function['FunctionName'])
 
-        for runtime in runtimes:
-            runtime_name, runtime_memory, version = runtime
-            self.delete_runtime(runtime_name, runtime_memory)
+        response = self.lambda_client.list_functions(FunctionVersion='ALL')
+        delete_runtimes(response)
+        while 'NextMarker' in response:
+            response = self.lambda_client.list_functions(Marker=response['NextMarker'])
+            delete_runtimes(response)
 
         layers = self._list_layers()
         for layer_name, _ in layers:
@@ -600,7 +606,7 @@ class AWSLambdaBackend:
 
         def get_runtimes(response):
             for function in response['Functions']:
-                if self.package in function['FunctionName']:
+                if function['FunctionName'].startswith('lithops_v') and self.user_key in function['FunctionName']:
                     version, rt_name, rt_memory = self._unformat_function_name(function['FunctionName'])
                     runtimes.append((rt_name, rt_memory, version))
 
