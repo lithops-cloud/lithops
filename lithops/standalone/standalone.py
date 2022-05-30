@@ -309,11 +309,11 @@ class StandaloneHandler:
         job_payload['config'][backend].pop('ssh_key_filename', None)
 
         if self.is_lithops_worker:
-            url = f"http://lithops-master:{SA_SERVICE_PORT}/run"
+            url = f"http://lithops-master:{SA_SERVICE_PORT}/run-job"
             requests.post(url, data=json.dumps(job_payload))
         else:
             pl = shlex.quote(json.dumps(job_payload))
-            cmd = (f'curl http://127.0.0.1:{SA_SERVICE_PORT}/run -d {pl} '
+            cmd = (f'curl http://127.0.0.1:{SA_SERVICE_PORT}/run-job -d {pl} '
                    '-H \'Content-Type: application/json\' -X POST')
             self.backend.master.get_ssh_client().run_remote_command(cmd)
             # self.backend.master.del_ssh_client()  # Client is deleted in clear()
@@ -329,8 +329,7 @@ class StandaloneHandler:
 
     def deploy_runtime(self, runtime_name, *args):
         """
-        Installs the proxy and extracts the runtime metadata and
-        preinstalled modules
+        Installs the proxy and extracts the runtime metadata
         """
         logger.debug(f'Checking if {self.backend.master} is ready')
         if not self.backend.master.is_ready():
@@ -345,12 +344,12 @@ class StandaloneHandler:
         payload = {'runtime': runtime_name, 'pull_runtime': True}
 
         if self.is_lithops_worker:
-            url = f"http://lithops-master:{SA_SERVICE_PORT}/preinstalls"
+            url = f"http://lithops-master:{SA_SERVICE_PORT}/get-metadata"
             resp = requests.get(url, data=json.dumps(payload))
             runtime_meta = resp.json()
         else:
             pl = shlex.quote(json.dumps(payload))
-            cmd = (f'curl http://127.0.0.1:{SA_SERVICE_PORT}/preinstalls -d {pl} '
+            cmd = (f'curl http://127.0.0.1:{SA_SERVICE_PORT}/get-metadata -d {pl} '
                    '-H \'Content-Type: application/json\' -X GET')
             out = self.backend.master.get_ssh_client().run_remote_command(cmd)
             runtime_meta = json.loads(out)
@@ -395,7 +394,7 @@ class StandaloneHandler:
         """
         Wrapper method that returns a formated string that represents the
         runtime key. Each backend has its own runtime key format. Used to
-        store modules preinstalls into the storage
+        store runtime metadata into the storage
         """
         return self.backend.get_runtime_key(runtime_name)
     
@@ -410,6 +409,8 @@ class StandaloneHandler:
             'runtime_timeout': self.config['hard_dismantle_timeout'],
             'max_workers': self.config[self.backend_name]['max_workers'],
         }
+
+        return runtime_info
 
     def get_backend_type(self):
         """

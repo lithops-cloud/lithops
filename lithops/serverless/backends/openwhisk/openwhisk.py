@@ -129,6 +129,7 @@ class OpenWhiskBackend:
         """
         Deletes a runtime
         """
+        logger.info(f'Deleting runtime: {docker_image_name} - {memory}MB')
         action_name = self._format_function_name(docker_image_name, memory)
         self.cf_client.delete_action(self.package, action_name)
 
@@ -142,6 +143,7 @@ class OpenWhiskBackend:
                 actions = self.cf_client.list_actions(pkg['name'])
                 while actions:
                     for action in actions:
+                        logger.info(f'Deleting function: {action["name"]}')
                         self.cf_client.delete_action(pkg['name'], action['name'])
                     actions = self.cf_client.list_actions(pkg['name'])
                 self.cf_client.delete_package(pkg['name'])
@@ -182,7 +184,7 @@ class OpenWhiskBackend:
         in order to know which runtimes are installed and which not.
         """
         action_name = self._format_function_name(docker_image_name, runtime_memory)
-        runtime_key = os.path.join(self.name, self.namespace, action_name)
+        runtime_key = os.path.join(self.name, __version__, self.namespace, action_name)
 
         return runtime_key
     
@@ -207,9 +209,9 @@ class OpenWhiskBackend:
         """
         Extract installed Python modules from the docker image
         """
-        logger.debug("Extracting Python modules list from: {}".format(docker_image_name))
+        logger.debug(f"Extracting runtime metadata from: {docker_image_name}")
         action_name = self._format_function_name(docker_image_name, memory)
-        payload = {'log_level': logger.getEffectiveLevel(), 'get_preinstalls': True}
+        payload = {'log_level': logger.getEffectiveLevel(), 'get_metadata': True}
         try:
             retry_invoke = True
             while retry_invoke:
@@ -218,7 +220,7 @@ class OpenWhiskBackend:
                 if 'activationId' in runtime_meta:
                     retry_invoke = True
         except Exception as e:
-            raise("Unable to extract runtime preinstalls: {}".format(e))
+            raise(f"Unable to extract metadata: {e}")
 
         if not runtime_meta or 'preinstalls' not in runtime_meta:
             raise Exception(runtime_meta)

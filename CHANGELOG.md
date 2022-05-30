@@ -11,6 +11,8 @@
 - [Google Cloud Run] Allow CPU values <1, 6 and 8
 - [Alibaba Cloud Functions] Added Python 3.9 runtime compatibility
 - [Alibaba Cloud Functions] Allow to build a runtime from a custom requirements.txt file
+- [Core] Add support for building container runtimes with podman
+- [Core] Delete only runtimes from the specified backend on 'lithops clean'
 
 ### Changed
 - [Core] Load docker command only when needed instead of loading it always

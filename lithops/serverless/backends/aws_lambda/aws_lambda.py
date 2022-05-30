@@ -29,7 +29,7 @@ from botocore.awsrequest import AWSRequest
 from botocore.auth import SigV4Auth
 
 from lithops import utils
-from lithops import __version__
+from lithops.version import __version__
 from lithops.constants import COMPUTE_CLI_MSG
 
 from . import config
@@ -163,7 +163,7 @@ class AWSLambdaBackend:
             state = res['Configuration']['State']
             if state == 'Pending':
                 time.sleep(sleep_seconds)
-                logger.info('"{}" function is being deployed... '
+                logger.debug('"{}" function is being deployed... '
                             '(status: {})'.format(func_name, res['Configuration']['State']))
                 retries -= 1
                 if retries == 0:
@@ -362,7 +362,7 @@ class AWSLambdaBackend:
 
         res = self.ecr_client.get_authorization_token()
         if res['ResponseMetadata']['HTTPStatusCode'] != 200:
-            raise Exception('Could not get ECR auth token: {}'.format(res))
+            raise Exception(f'Could not get ECR auth token: {res}')
 
         auth_data = res['authorizationData'].pop()
         ecr_token = base64.b64decode(auth_data['authorizationToken']).split(b':')[1]
@@ -377,14 +377,16 @@ class AWSLambdaBackend:
         try:
             self.ecr_client.create_repository(repositoryName=repo_name)
         except self.ecr_client.exceptions.RepositoryAlreadyExistsException:
-            logger.info('Repository {} already exists'.format(repo_name))
+            logger.debug(f'Repository {repo_name} already exists')
 
-        cmd = f'{docker_path} tag {runtime_name} {registry}/{repo_name}:{tag}'
+        image_name = f'{registry}/{repo_name}:{tag}'
+        logger.debug(f'Pushing runtime {image_name} to AWS container registry')
+        cmd = f'{docker_path} tag {runtime_name} {image_name}/{repo_name}:{tag}'
         utils.run_command(cmd)
-
-        logger.debug(f'Pushing runtime {registry}/{repo_name}:{tag} to AWS container registry')
-        # Use --format docker --remove-signatures for podman
-        cmd = f'{docker_path} push {registry}/{repo_name}:{tag}'
+        if utils.is_podman(docker_path):
+            cmd = f'{docker_path} push {image_name} --format docker --remove-signatures'
+        else:
+            cmd = f'{docker_path} push {image_name}'
         utils.run_command(cmd)
 
         logger.debug('Building done!')
@@ -559,7 +561,7 @@ class AWSLambdaBackend:
                     image, tag = runtime_name, 'latest'
                 package = '_'.join(func_name.split('_')[:3])
                 repo_name = f"{package}/{image}"
-                logger.info(f'Going to delete ECR repository {repo_name} tag {tag}')
+                logger.debug(f'Going to delete ECR repository {repo_name} tag {tag}')
                 try:
                     self.ecr_client.batch_delete_image(repositoryName=repo_name, imageIds=[{'imageTag': tag}])
                     images = self.ecr_client.list_images(repositoryName=repo_name, filter={'tagStatus': 'TAGGED'})
@@ -675,7 +677,7 @@ class AWSLambdaBackend:
         in order to know which runtimes are installed and which not.
         """
         action_name = self._format_function_name(runtime_name, runtime_memory)
-        runtime_key = '/'.join([self.name, self.region_name, action_name])
+        runtime_key = os.path.join(self.name, __version__, self.region_name, action_name)
 
         return runtime_key
 
@@ -701,13 +703,13 @@ class AWSLambdaBackend:
         Extract preinstalled Python modules from lambda function execution environment
         return : runtime meta dictionary
         """
-        logger.debug(f'Extracting metadata from: {runtime_name}')
+        logger.debug(f'Extracting runtime metadata from: {runtime_name}')
 
         function_name = self._format_function_name(runtime_name, runtime_memory)
 
         response = self.lambda_client.invoke(
             FunctionName=function_name,
-            Payload=json.dumps({'get_preinstalls': {}})
+            Payload=json.dumps({'get_metadata': {}})
         )
 
         result = json.loads(response['Payload'].read())

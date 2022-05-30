@@ -174,7 +174,7 @@ def get_server_info():
     return server_info
 
 
-def get_runtime_preinstalls():
+def get_runtime_metadata():
     """
     Generates the runtime metadata needed for lithops
     """

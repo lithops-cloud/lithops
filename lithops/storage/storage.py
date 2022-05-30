@@ -21,11 +21,10 @@ import logging
 import itertools
 import importlib
 from typing import Optional, List, Union, Tuple, Dict, TextIO, BinaryIO
-from lithops.version import __version__
+
 from lithops.constants import CACHE_DIR, RUNTIMES_PREFIX, JOBS_PREFIX, TEMP_PREFIX
 from lithops.utils import is_lithops_worker
-from lithops.storage.utils import create_status_key, create_output_key, \
-    status_key_suffix, init_key_suffix, CloudObject, StorageNoSuchKeyError
+from lithops.storage import utils
 from lithops.config import extract_storage_config, default_storage_config
 
 logger = logging.getLogger(__name__)
@@ -206,7 +205,7 @@ class Storage:
         return self.storage_handler.list_keys(bucket, prefix)
 
     def put_cloudobject(self, body: Union[str, bytes, TextIO, BinaryIO],
-                        bucket: Optional[str] = None, key: Optional[str] = None) -> CloudObject:
+                        bucket: Optional[str] = None, key: Optional[str] = None) -> utils.CloudObject:
         """
         Put a CloudObject into storage.
 
@@ -224,9 +223,9 @@ class Storage:
         bucket = bucket or self.bucket
         self.storage_handler.put_object(bucket, key, body)
 
-        return CloudObject(self.backend, bucket, key)
+        return utils.CloudObject(self.backend, bucket, key)
 
-    def get_cloudobject(self, cloudobject: CloudObject,
+    def get_cloudobject(self, cloudobject: utils.CloudObject,
                         stream: Optional[bool] = False) -> Union[str, bytes, TextIO, BinaryIO]:
         """
         Get a CloudObject's content from storage.
@@ -243,7 +242,7 @@ class Storage:
         else:
             raise Exception("CloudObject: Invalid Storage backend")
 
-    def delete_cloudobject(self, cloudobject: CloudObject):
+    def delete_cloudobject(self, cloudobject: utils.CloudObject):
         """
         Delete a CloudObject from storage.
 
@@ -256,7 +255,7 @@ class Storage:
         else:
             raise Exception("CloudObject: Invalid Storage backend")
 
-    def delete_cloudobjects(self, cloudobjects: List[CloudObject]):
+    def delete_cloudobjects(self, cloudobjects: List[utils.CloudObject]):
         """
         Delete multiple CloudObjects from storage.
 
@@ -359,12 +358,12 @@ class InternalStorage:
         callset_prefix = '/'.join([JOBS_PREFIX, executor_id])
         keys = self.storage.list_keys(self.bucket, callset_prefix)
 
-        running_keys = [k.split('/') for k in keys if init_key_suffix in k]
+        running_keys = [k.split('/') for k in keys if utils.init_key_suffix in k]
         running_callids = [(tuple(k[1].rsplit("-", 1)+[k[2]]),
-                            k[3].replace(init_key_suffix, ''))
+                            k[3].replace(utils.init_key_suffix, ''))
                            for k in running_keys]
 
-        done_keys = [k.split('/')[1:] for k in keys if status_key_suffix in k]
+        done_keys = [k.split('/')[1:] for k in keys if utils.status_key_suffix in k]
         done_callids = [tuple(k[0].rsplit("-", 1) + [k[1]]) for k in done_keys]
 
         return set(running_callids), set(done_callids)
@@ -376,11 +375,11 @@ class InternalStorage:
         :param call_id: call ID of the call
         :return: A dictionary containing call's status, or None if no updated status
         """
-        status_key = create_status_key(executor_id, job_id, call_id)
+        status_key = utils.create_status_key(executor_id, job_id, call_id)
         try:
             data = self.storage.get_object(self.bucket, status_key)
             return json.loads(data.decode('ascii'))
-        except StorageNoSuchKeyError:
+        except utils.StorageNoSuchKeyError:
             return None
 
     def get_call_output(self, executor_id, job_id, call_id):
@@ -390,10 +389,10 @@ class InternalStorage:
         :param call_id: call ID of the call
         :return: Output of the call.
         """
-        output_key = create_output_key(executor_id, job_id, call_id)
+        output_key = utils.create_output_key(executor_id, job_id, call_id)
         try:
             return self.storage.get_object(self.bucket, output_key)
-        except StorageNoSuchKeyError:
+        except utils.StorageNoSuchKeyError:
             return None
 
     def get_runtime_meta(self, key):
@@ -405,7 +404,7 @@ class InternalStorage:
 
         global RUNTIME_META_CACHE
 
-        path = [RUNTIMES_PREFIX, __version__,  key+".meta.json"]
+        path = [RUNTIMES_PREFIX, key+".meta.json"]
         filename_local_path = os.path.join(CACHE_DIR, *path)
 
         if '/'.join(path) in RUNTIME_META_CACHE:
@@ -441,7 +440,7 @@ class InternalStorage:
 
                 RUNTIME_META_CACHE['/'.join(path)] = runtime_meta
                 return runtime_meta
-            except StorageNoSuchKeyError:
+            except utils.StorageNoSuchKeyError:
                 logger.debug('Runtime metadata not found in storage')
                 return None
 
@@ -451,7 +450,7 @@ class InternalStorage:
         :param runtime: name of the runtime
         :param runtime_meta metadata
         """
-        path = [RUNTIMES_PREFIX, __version__,  key+".meta.json"]
+        path = [RUNTIMES_PREFIX, key+".meta.json"]
         obj_key = '/'.join(path).replace('\\', '/')
         logger.debug("Uploading runtime metadata to: {}://{}/{}"
                      .format(self.backend, self.bucket, obj_key))
@@ -473,7 +472,7 @@ class InternalStorage:
         :param runtime: name of the runtime
         :param runtime_meta metadata
         """
-        path = [RUNTIMES_PREFIX, __version__,  key+".meta.json"]
+        path = [RUNTIMES_PREFIX, key+".meta.json"]
         obj_key = '/'.join(path).replace('\\', '/')
         filename_local_path = os.path.join(CACHE_DIR, *path)
         if os.path.exists(filename_local_path):

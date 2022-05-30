@@ -23,7 +23,7 @@ from lithops.version import __version__
 from lithops.utils import setup_lithops_logger
 from lithops.worker import function_handler
 from lithops.worker import function_invoker
-from lithops.worker.utils import get_runtime_preinstalls
+from lithops.worker.utils import get_runtime_metadata
 from lithops.storage.storage import InternalStorage
 from lithops.constants import JOBS_PREFIX
 
@@ -39,19 +39,19 @@ def main(event, context):
     os.environ['__LITHOPS_ACTIVATION_ID'] = uuid.uuid4().hex
     os.environ['__LITHOPS_BACKEND'] = 'Google Cloud Functions'
 
-    if 'get_preinstalls' in args:
-        logger.info("Lithops v{} - Generating metadata".format(__version__))
-        internal_storage = InternalStorage(args['get_preinstalls']['storage_config'])
-        object_key = '/'.join([JOBS_PREFIX, args['get_preinstalls']['runtime_name'] + '.meta'])
-        logger.info("Runtime metadata key {}".format(object_key))
-        runtime_meta = get_runtime_preinstalls()
+    if 'get_metadata' in args:
+        logger.info(f"Lithops v{__version__} - Generating metadata")
+        internal_storage = InternalStorage(args['get_metadata']['storage_config'])
+        object_key = '/'.join([JOBS_PREFIX, args['get_metadata']['runtime_name'] + '.meta'])
+        logger.info(f"Runtime metadata key {object_key}")
+        runtime_meta = get_runtime_metadata()
         runtime_meta_json = json.dumps(runtime_meta)
         internal_storage.put_data(object_key, runtime_meta_json)
     elif 'remote_invoker' in args:
-        logger.info("Lithops v{} - Starting Google Cloud Functions invoker".format(__version__))
+        logger.info(f"Lithops v{__version__} - Starting Google Cloud Functions invoker")
         function_invoker(args)
     else:
-        logger.info("Lithops v{} - Starting Google Cloud Functions execution".format(__version__))
+        logger.info(f"Lithops v{__version__} - Starting Google Cloud Functions execution")
         function_handler(args)
 
     return {"Execution": "Finished"}

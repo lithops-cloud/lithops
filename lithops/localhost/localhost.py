@@ -28,6 +28,7 @@ import subprocess as sp
 from shutil import copyfile
 from pathlib import Path
 
+from lithops.version import __version__
 from lithops.constants import RN_LOG_FILE, TEMP_DIR, LITHOPS_TEMP_DIR, COMPUTE_CLI_MSG, JOBS_PREFIX
 from lithops.utils import is_lithops_worker, is_unix_system
 
@@ -115,11 +116,11 @@ class LocalhostHandler:
         """
         Extract the runtime metadata and preinstalled modules
         """
-        logger.info(f"Extracting preinstalled Python modules from {runtime_name}")
-
+        logger.info(f"Deploying runtime: {runtime_name}")
         env = self.get_env(runtime_name)
 
-        runtime_metadata = env.preinstalls()
+        logger.debug(f"Extracting runtime metadata from: {runtime_name}")
+        runtime_metadata = env.get_metadata()
 
         return runtime_metadata
 
@@ -143,7 +144,7 @@ class LocalhostHandler:
         Generate the runtime key that identifies the runtime
         """
         env_type = self._get_env_type(runtime_name)
-        runtime_key = os.path.join('localhost', env_type, runtime_name.strip("/"))
+        runtime_key = os.path.join('localhost', __version__, env_type, runtime_name.strip("/"))
 
         return runtime_key
     
@@ -281,14 +282,14 @@ class DockerEnv(BaseEnv):
             sp.run(shlex.split(f'docker pull {self.runtime}'), check=True,
                    stdout=sp.PIPE, universal_newlines=True)
 
-    def preinstalls(self):
+    def get_metadata(self):
         if not os.path.isfile(RUNNER):
             self.setup()
 
         tmp_path = Path(TEMP_DIR).as_posix()
         cmd = 'docker run '
         cmd += f'--user {self.uid}:{self.gid} ' if is_unix_system() else ''
-        cmd += f'--rm -v {tmp_path}:/tmp --entrypoint "python3" {self.runtime} /tmp/lithops/runner.py preinstalls'
+        cmd += f'--rm -v {tmp_path}:/tmp --entrypoint "python3" {self.runtime} /tmp/lithops/runner.py get_metadata'
 
         process = sp.run(shlex.split(cmd), check=True, stdout=sp.PIPE,
                          universal_newlines=True, start_new_session=True)
@@ -317,7 +318,7 @@ class DockerEnv(BaseEnv):
         else:
             cmd = f'docker run --name lithops_{job_key} '
         cmd += f'--user {self.uid}:{self.gid} ' if is_unix_system() else ''
-        cmd += f'--rm -v {tmp_path}:/tmp --entrypoint "python3" {self.runtime} /tmp/lithops/runner.py run {job_filename}'
+        cmd += f'--rm -v {tmp_path}:/tmp --entrypoint "python3" {self.runtime} /tmp/lithops/runner.py run_job {job_filename}'
 
         log = open(RN_LOG_FILE, 'a')
         process = sp.Popen(shlex.split(cmd), stdout=log, stderr=log, start_new_session=True)
@@ -352,11 +353,11 @@ class DefaultEnv(BaseEnv):
         logger.debug('Setting up Default environment')
         self._copy_lithops_to_tmp()
 
-    def preinstalls(self):
+    def get_metadata(self):
         if not os.path.isfile(RUNNER):
             self.setup()
 
-        cmd = [self.runtime, RUNNER, 'preinstalls']
+        cmd = [self.runtime, RUNNER, 'get_metadata']
         process = sp.run(cmd, check=True, stdout=sp.PIPE, universal_newlines=True,
                          start_new_session=True)
         runtime_meta = json.loads(process.stdout.strip())
@@ -377,7 +378,7 @@ class DefaultEnv(BaseEnv):
         if not os.path.isfile(RUNNER):
             self.setup()
 
-        cmd = [self.runtime, RUNNER, 'run', job_filename]
+        cmd = [self.runtime, RUNNER, 'run_job', job_filename]
         log = open(RN_LOG_FILE, 'a')
         process = sp.Popen(cmd, stdout=log, stderr=log, start_new_session=True)
         self.jobs[job_key] = process
