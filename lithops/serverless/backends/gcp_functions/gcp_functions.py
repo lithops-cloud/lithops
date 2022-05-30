@@ -317,7 +317,7 @@ class GCPFunctionsBackend:
             parent=self._full_default_location()
         ).execute(num_retries=self.num_retries)
 
-        deployed_runtimes = [f['name'].split('/')[-1] for f in response.get('functions', []) if 'lithops_v' in f['name']]
+        deployed_runtimes = [f['name'].split('/')[-1] for f in response.get('functions', [])]
         runtimes = []
         for func_runtime in deployed_runtimes:
             if 'lithops_v' in func_runtime:
