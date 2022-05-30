@@ -180,8 +180,8 @@ class AliyunFunctionComputeBackend:
         """
         Deletes a runtime
         """
+        logger.info(f'Deleting runtime: {runtime_name} - {memory}MB')
         function_name = self._format_function_name(runtime_name, memory)
-        logger.debug(f'Going to delete runtime {function_name}')
         self.fc_client.delete_function(self.service_name, function_name)
 
     def clean(self):
@@ -244,8 +244,8 @@ class AliyunFunctionComputeBackend:
         """
         Extract installed Python modules from Aliyun runtime
         """
-        logger.info(f'Extracting metadata from {function_name}')
-        payload = {'log_level': logger.getEffectiveLevel(), 'get_preinstalls': True}
+        logger.info(f'Extracting runtime metadata from: {function_name}')
+        payload = {'log_level': logger.getEffectiveLevel(), 'get_metadata': True}
         try:
             res = self.fc_client.invoke_function(
                 self.service_name, function_name,
@@ -270,7 +270,7 @@ class AliyunFunctionComputeBackend:
         in order to know which runtimes are installed and which not.
         """
         function_name = self._format_function_name(runtime_name, runtime_memory)
-        runtime_key = os.path.join(self.name, self.region, self.service_name, function_name)
+        runtime_key = os.path.join(self.name, __version__, self.region, self.service_name, function_name)
 
         return runtime_key
 

@@ -24,8 +24,8 @@ import sys
 import time
 import boto3
 
-import lithops
 from lithops import utils
+from lithops.version import __version__
 from lithops.constants import COMPUTE_CLI_MSG
 from lithops.storage.utils import StorageNoSuchKeyError
 
@@ -48,7 +48,7 @@ class AWSBatchBackend:
         self.aws_batch_config = aws_batch_config
 
         self.user_key = aws_batch_config['access_key_id'][-4:]
-        self.package = 'aws-batch_lithops_v{}_{}'.format(lithops.__version__, self.user_key)
+        self.package = 'aws-batch_lithops_v{}_{}'.format(__version__, self.user_key)
         self.region_name = aws_batch_config['region_name']
 
         self._env_type = self.aws_batch_config['env_type']
@@ -76,7 +76,7 @@ class AWSBatchBackend:
 
     def _get_default_runtime_image_name(self):
         python_version = utils.CURRENT_PY_VERSION.replace('.', '')
-        revision = 'latest' if 'dev' in lithops.__version__ else lithops.__version__.replace('.', '')
+        revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
         return f'default-batch-runtime-v{python_version}:{revision}'
 
     def _get_full_image_name(self, runtime_name):
@@ -315,13 +315,13 @@ class AWSBatchBackend:
             raise Exception('More than one job def with the same name')
 
     def _generate_runtime_meta(self, runtime_name, runtime_memory):
-        job_name = '{}_preinstalls'.format(self._format_jobdef_name(runtime_name, runtime_memory))
+        job_name = '{}_metadata'.format(self._format_jobdef_name(runtime_name, runtime_memory))
 
         payload = copy.deepcopy(self.internal_storage.storage.storage_config)
         payload['runtime_name'] = runtime_name
         payload['log_level'] = logger.getEffectiveLevel()
 
-        logger.debug(f'Submitting extract preinstalls job for runtime {runtime_name}')
+        logger.debug(f'Submitting get-metadata job for runtime {runtime_name}')
         res = self.batch_client.submit_job(
             jobName=job_name,
             jobQueue=self._queue_name,
@@ -330,7 +330,7 @@ class AWSBatchBackend:
                 'environment': [
                     {
                         'name': '__LITHOPS_ACTION',
-                        'value': 'get_preinstalls'
+                        'value': 'get_metadata'
                     },
                     {
                         'name': '__LITHOPS_PAYLOAD',
@@ -340,7 +340,7 @@ class AWSBatchBackend:
             }
         )
 
-        logger.info('Waiting for preinstalls job to finish...')
+        logger.info('Waiting for get-metadata job to finish...')
         status_key = runtime_name + '.meta'
         retry = 25
         while retry > 0:
@@ -536,7 +536,7 @@ class AWSBatchBackend:
                     'environment': [
                         {
                             'name': '__LITHOPS_ACTION',
-                            'value': 'job'
+                            'value': 'run_job'
                         },
                         {
                             'name': '__LITHOPS_PAYLOAD',
@@ -554,7 +554,7 @@ class AWSBatchBackend:
                     'environment': [
                         {
                             'name': '__LITHOPS_ACTION',
-                            'value': 'job'
+                            'value': 'run_job'
                         },
                         {
                             'name': '__LITHOPS_PAYLOAD',
@@ -566,7 +566,7 @@ class AWSBatchBackend:
 
     def get_runtime_key(self, runtime_name, runtime_memory):
         jobdef_name = self._format_jobdef_name(runtime_name, runtime_memory)
-        runtime_key = os.path.join(self.name, self.package, self.region_name, jobdef_name)
+        runtime_key = os.path.join(self.name, __version__, self.package, self.region_name, jobdef_name)
         return runtime_key
 
     def get_runtime_info(self):

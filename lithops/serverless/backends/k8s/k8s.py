@@ -90,8 +90,9 @@ class KubernetesBackend:
         """
         Generates the default runtime image name
         """
+        revision = 'latest' if 'dev' in __version__ else __version__
         return utils.get_default_k8s_image_name(
-            self.name, self.k8s_config, 'lithops-k8s-default', __version__
+            self.name, self.k8s_config, 'lithops-k8s-default', revision
         )
 
     def build_runtime(self, docker_image_name, dockerfile, extra_args=[]):
@@ -117,7 +118,10 @@ class KubernetesBackend:
             os.remove(config.FH_ZIP_LOCATION)
 
         logger.debug(f'Pushing runtime {docker_image_name} to container registry')
-        cmd = f'{docker_path} push {docker_image_name}'
+        if utils.is_podman(docker_path):
+            cmd = f'{docker_path} push {docker_image_name} --format docker --remove-signatures'
+        else:
+            cmd = f'{docker_path} push {docker_image_name}'
         utils.run_command(cmd)
 
         logger.debug('Building done!')
@@ -289,7 +293,7 @@ class KubernetesBackend:
         job_res['metadata']['namespace'] = self.namespace
         container = job_res['spec']['template']['spec']['containers'][0]
         container['image'] = docker_image_name
-        container['env'][0]['value'] = 'master'
+        container['env'][0]['value'] = 'run_master'
 
         try:
             self.batch_api.create_namespaced_job(
@@ -340,7 +344,7 @@ class KubernetesBackend:
         if not docker_image_name.endswith(':latest'):
             container['imagePullPolicy'] = 'IfNotPresent'
 
-        container['env'][0]['value'] = 'run'
+        container['env'][0]['value'] = 'run_job'
         container['env'][1]['value'] = utils.dict_to_b64str(job_payload)
         container['env'][2]['value'] = master_ip
 
@@ -377,7 +381,7 @@ class KubernetesBackend:
 
         container = job_res['spec']['template']['spec']['containers'][0]
         container['image'] = docker_image_name
-        container['env'][0]['value'] = 'preinstalls'
+        container['env'][0]['value'] = 'get_metadata'
         container['env'][1]['value'] = utils.dict_to_b64str(payload)
 
         if not all(key in self.k8s_config for key in ["docker_user", "docker_password"]):
@@ -453,7 +457,7 @@ class KubernetesBackend:
         in order to know which runtimes are installed and which not.
         """
         jobdef_name = self._format_job_name(docker_image_name, 256)
-        runtime_key = os.path.join(self.name, self.namespace, jobdef_name)
+        runtime_key = os.path.join(self.name, __version__, self.namespace, jobdef_name)
 
         return runtime_key
     

@@ -162,8 +162,9 @@ class CodeEngineBackend:
         """
         Generates the default runtime image name
         """
+        revision = 'latest' if 'dev' in __version__ else __version__
         return utils.get_default_k8s_image_name(
-            self.name, self.ce_config, 'lithops-ce-default', __version__
+            self.name, self.ce_config, 'lithops-ce-default', revision
         )
 
     def build_runtime(self, docker_image_name, dockerfile, extra_args=[]):
@@ -189,7 +190,10 @@ class CodeEngineBackend:
             os.remove(config.FH_ZIP_LOCATION)
 
         logger.debug(f'Pushing runtime {docker_image_name} to container registry')
-        cmd = f'{docker_path} push {docker_image_name}'
+        if utils.is_podman(docker_path):
+            cmd = f'{docker_path} push {docker_image_name} --format docker --remove-signatures'
+        else:
+            cmd = f'{docker_path} push {docker_image_name}'
         utils.run_command(cmd)
 
         logger.debug('Building done!')
@@ -505,7 +509,7 @@ class CodeEngineBackend:
         in order to know which runtimes are installed and which not.
         """
         jobdef_name = self._format_jobdef_name(docker_image_name, 256)
-        runtime_key = os.path.join(self.name, self.region, self.namespace, jobdef_name)
+        runtime_key = os.path.join(self.name, __version__, self.region, self.namespace, jobdef_name)
 
         return runtime_key
     
@@ -552,7 +556,7 @@ class CodeEngineBackend:
         jobrun_res = yaml.safe_load(config.JOBRUN_DEFAULT)
 
         jobdef_name = self._format_jobdef_name(docker_image_name, memory)
-        jobrun_name = 'lithops-runtime-preinstalls'
+        jobrun_name = 'lithops-runtime-metadata'
 
         job_payload = copy.deepcopy(self.internal_storage.storage.storage_config)
         job_payload['log_level'] = logger.getEffectiveLevel()
@@ -563,9 +567,9 @@ class CodeEngineBackend:
         jobrun_res['spec']['jobDefinitionRef'] = str(jobdef_name)
         container = jobrun_res['spec']['jobDefinitionSpec']['template']['containers'][0]
         container['name'] = str(jobdef_name)
-        container['env'][0]['value'] = 'preinstalls'
+        container['env'][0]['value'] = 'metadata'
 
-        config_map_name = f'lithops-{jobdef_name}-preinstalls'
+        config_map_name = f'lithops-{jobdef_name}-metadata'
         config_map_name = self._create_config_map(config_map_name, job_payload)
         container['env'][1]['valueFrom']['configMapKeyRef']['name'] = config_map_name
 

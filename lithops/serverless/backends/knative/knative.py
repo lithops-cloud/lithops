@@ -132,8 +132,9 @@ class KnativeServingBackend:
         """
         Generates the default runtime image name
         """
+        revision = 'latest' if 'dev' in __version__ else __version__
         return utils.get_default_k8s_image_name(
-            self.name, self.kn_config, 'lithops-kn-default', __version__
+            self.name, self.kn_config, 'lithops-kn-default', revision
         )
 
     def _get_service_host(self, service_name):
@@ -507,7 +508,7 @@ class KnativeServingBackend:
         logger.info(f"Extracting metadata from: {docker_image_name}")
         payload = {}
 
-        payload['service_route'] = "/preinstalls"
+        payload['service_route'] = "/metadata"
 
         try:
             runtime_meta = self.invoke(docker_image_name, memory, payload, return_result=True)
@@ -564,7 +565,10 @@ class KnativeServingBackend:
             os.remove(config.FH_ZIP_LOCATION)
 
         logger.debug(f'Pushing runtime {docker_image_name} to container registry')
-        cmd = f'{docker_path} push {docker_image_name}'
+        if utils.is_podman(docker_path):
+            cmd = f'{docker_path} push {docker_image_name} --format docker --remove-signatures'
+        else:
+            cmd = f'{docker_path} push {docker_image_name}'
         utils.run_command(cmd)
 
         logger.debug('Building done!')
@@ -695,7 +699,7 @@ class KnativeServingBackend:
         """
         service_name = self._format_service_name(docker_image_name, runtime_memory)
         cluster = self.cluster.replace('https://', '').replace('http://', '')
-        runtime_key = os.path.join(self.name, cluster, self.namespace, service_name)
+        runtime_key = os.path.join(self.name, __version__, cluster, self.namespace, service_name)
 
         return runtime_key
 

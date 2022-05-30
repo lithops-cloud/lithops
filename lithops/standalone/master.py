@@ -370,7 +370,7 @@ def stop():
     return ('', 204)
 
 
-@app.route('/run', methods=['POST'])
+@app.route('/run-job', methods=['POST'])
 def run():
     """
     Run a job locally, in consume mode
@@ -433,8 +433,8 @@ def ping():
     return response
 
 
-@app.route('/preinstalls', methods=['GET'])
-def preinstalls():
+@app.route('/get-metadata', methods=['GET'])
+def get_metadata():
     payload = flask.request.get_json(force=True, silent=True)
     if payload and not isinstance(payload, dict):
         return error('The action did not receive a dictionary as an argument.')

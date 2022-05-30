@@ -86,6 +86,7 @@ def clean(config, backend, storage, debug, all, force):
     internal_storage = InternalStorage(storage_config)
 
     mode = config['lithops']['mode']
+    backend = config['lithops']['backend']
 
     if mode == LOCALHOST:
         compute_config = extract_localhost_config(config)
@@ -101,8 +102,10 @@ def clean(config, backend, storage, debug, all, force):
 
     # Clean object storage temp dirs
     storage = internal_storage.storage
-    clean_bucket(storage, storage_config['bucket'], RUNTIMES_PREFIX, sleep=1)
-    clean_bucket(storage, storage_config['bucket'], JOBS_PREFIX, sleep=1)
+    runtimes_path = RUNTIMES_PREFIX if all else RUNTIMES_PREFIX+'/'+backend
+    jobs_path = JOBS_PREFIX
+    clean_bucket(storage, storage_config['bucket'], runtimes_path, sleep=1)
+    clean_bucket(storage, storage_config['bucket'], jobs_path, sleep=1)
 
     # Clean localhost executor temp dirs
     shutil.rmtree(LITHOPS_TEMP_DIR, ignore_errors=True)

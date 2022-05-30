@@ -26,7 +26,7 @@ from lithops.utils import setup_lithops_logger, b64str_to_dict,\
     iterchunks
 from lithops.worker import function_handler
 from lithops.worker import function_invoker
-from lithops.worker.utils import get_runtime_preinstalls
+from lithops.worker.utils import get_runtime_metadata
 from lithops.constants import JOBS_PREFIX
 from lithops.storage.storage import InternalStorage
 
@@ -54,10 +54,10 @@ def run():
     os.environ['__LITHOPS_BACKEND'] = 'Code Engine (Knative)'
 
     if 'remote_invoker' in message:
-        logger.info("Lithops v{} - Starting Code Engine (Knative) invoker".format(__version__))
+        logger.info(f"Lithops v{__version__} - Starting Code Engine (Knative) invoker")
         function_invoker(message)
     else:
-        logger.info("Lithops v{} - Starting Code Engine (Knative) execution".format(__version__))
+        logger.info(f"Lithops v{__version__} - Starting Code Engine (Knative) execution")
         function_handler(message)
 
     response = flask.jsonify({"activationId": act_id})
@@ -66,11 +66,11 @@ def run():
     return complete(response)
 
 
-@proxy.route('/preinstalls', methods=['GET', 'POST'])
-def preinstalls_task():
+@proxy.route('/metadata', methods=['GET', 'POST'])
+def metadata_task():
     setup_lithops_logger(logging.INFO)
-    logger.info("Lithops v{} - Generating metadata".format(__version__))
-    runtime_meta = get_runtime_preinstalls()
+    logger.info(f"Lithops v{__version__} - Generating metadata")
+    runtime_meta = get_runtime_metadata()
     response = flask.jsonify(runtime_meta)
     response.status_code = 200
     logger.info("Done!")
@@ -86,36 +86,36 @@ def complete(response):
     return response
 
 
-def main_request():
+def run_knative_server():
     port = int(os.getenv('PORT', 8080))
     proxy.run(debug=True, host='0.0.0.0', port=port)
 
 
-def runtime_packages(payload):
-    logger.info("Lithops v{} - Generating metadata".format(__version__))
-    runtime_meta = get_runtime_preinstalls()
+def extract_runtime_metadata(payload):
+    logger.info(f"Lithops v{__version__} - Generating metadata")
+    runtime_meta = get_runtime_metadata()
 
     internal_storage = InternalStorage(payload)
     status_key = '/'.join([JOBS_PREFIX, payload['runtime_name']+'.meta'])
-    logger.info("Runtime metadata key {}".format(status_key))
+    logger.info(f"Runtime metadata key {status_key}")
     dmpd_response_status = json.dumps(runtime_meta)
     internal_storage.put_data(status_key, dmpd_response_status)
 
 
-def main_job(action, encoded_payload):
-    logger.info("Lithops v{} - Starting Code Engine (Job) execution".format(__version__))
+def run_ce_job(action, encoded_payload):
+    logger.info(f"Lithops v{__version__} - Starting Code Engine (Job) execution")
 
     payload = b64str_to_dict(encoded_payload)
 
     setup_lithops_logger(payload['log_level'])
 
-    if (action == 'preinstalls'):
-        runtime_packages(payload)
+    if (action == 'metadata'):
+        extract_runtime_metadata(payload)
         return {"Execution": "Finished"}
 
     job_index = int(os.environ['JOB_INDEX'])
     payload['JOB_INDEX'] = job_index
-    logger.info("Action {}. Job Index {}".format(action, job_index))
+    logger.info(f"Action {action}. Job Index {job_index}")
 
     act_id = str(uuid.uuid4()).replace('-', '')[:12]
     os.environ['__LITHOPS_ACTIVATION_ID'] = act_id
@@ -136,6 +136,6 @@ def main_job(action, encoded_payload):
 
 if __name__ == '__main__':
     if 'JOB_INDEX' in os.environ:
-        main_job(sys.argv[1:][0], sys.argv[1:][1])
+        run_ce_job(sys.argv[1:][0], sys.argv[1:][1])
     else:
-        main_request()
+        run_knative_server()

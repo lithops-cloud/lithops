@@ -1,6 +1,24 @@
+#
+# Copyright IBM Coorp. 2021
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+import os
 import logging
 import time
 
+from lithops.version import __version__
 from lithops.constants import COMPUTE_CLI_MSG
 from lithops.util.ssh_client import SSHClient
 from lithops.standalone.standalone import LithopsValidationError
@@ -44,7 +62,7 @@ class VMBackend:
 
     def get_runtime_key(self, runtime_name):
         runtime = runtime_name.replace('/', '-').replace(':', '-')
-        runtime_key = '/'.join([self.name, self.config['ip_address'], runtime])
+        runtime_key = os.path.join(self.name, __version__, self.config['ip_address'], runtime)
         return runtime_key
 
 
