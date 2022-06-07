@@ -100,7 +100,7 @@ class SerializeIndependent:
         seen = set()
         mods = set()
 
-        if inspect.isfunction(obj) or inspect.ismethod(obj):
+        if inspect.isfunction(obj) or (inspect.ismethod(obj) and inspect.isfunction(obj.__func__)):
             # The obj is the user's function
             worklist.append(obj)
 
@@ -116,14 +116,14 @@ class SerializeIndependent:
                         # it is a user defined class
                         members = inspect.getmembers(param)
                         for k, v in members:
-                            if inspect.ismethod(v):
+                            if inspect.ismethod(v) and inspect.isfunction(v.__func__):
                                 worklist.append(v)
         else:
             # The obj is the user's function but in form of a class
             members = inspect.getmembers(obj)
             found_methods = []
             for k, v in members:
-                if inspect.ismethod(v):
+                if inspect.ismethod(v) and inspect.isfunction(v.__func__):
                     found_methods.append(k)
                     worklist.append(v)
             if "__call__" not in found_methods:
