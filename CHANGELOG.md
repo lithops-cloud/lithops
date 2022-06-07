@@ -17,6 +17,7 @@
 - [Core] Load runtime data only on invocation
 - [Multiprocessing] Improved remote logging
 - [Monitor] Reduce debug log verbosity, status is printed every 30s or when a future changes state
+- [AWS Batch] Increased resource limits
 
 ### Fixed
 - [Google Cloud Functions] Fixed errors when deploying a function
