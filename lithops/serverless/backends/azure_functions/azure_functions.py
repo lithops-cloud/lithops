@@ -75,7 +75,7 @@ class AzureFunctionAppBackend:
         Generates the default runtime name
         """
         py_version = utils.CURRENT_PY_VERSION.replace('.', '')
-        return  f'lithops-default-runtime-v{py_version}'
+        return  f'lithops-runtime-v{py_version}'
 
     def deploy_runtime(self, runtime_name, memory, timeout):
         """
@@ -258,6 +258,8 @@ class AzureFunctionAppBackend:
                 out_queue.clear_messages()
                 return utils.b64str_to_dict(msg.content)
 
+            return activation_id
+
         elif self.invocation_type == 'http':
             endpoint = f"https://{function_name}.azurewebsites.net"
             parsed_url = urlparse(endpoint)
@@ -268,21 +270,21 @@ class AzureFunctionAppBackend:
             if return_result:
                 conn.request("GET", route, body=json.dumps(payload, default=str))
                 resp = conn.getresponse()
-                data = json.loads(resp.read().decode("utf-8"))
+                resp_text = resp.read().decode("utf-8")
                 conn.close()
-                return data
+                if resp.status != 200:
+                    raise Exception(f'Invocation error: {resp.reason} - {resp_text}')
             else:
                 # logger.debug('Invoking calls {}'.format(', '.join(payload['call_ids'])))
                 conn.request("POST", route, body=json.dumps(payload, default=str))
                 resp = conn.getresponse()
+                resp_text = resp.read().decode("utf-8")
+                conn.close()
                 if resp.status == 429:
                     time.sleep(0.2)
-                    conn.close()
                     return None
-                activation_id = resp.read().decode("utf-8")
-                conn.close()
 
-        return activation_id
+            return resp_text
 
     def get_runtime_key(self, docker_image_name, runtime_memory):
         """
@@ -313,16 +315,20 @@ class AzureFunctionAppBackend:
         logger.info(f"Extracting metadata from: {docker_image_name}")
         payload = {'log_level': logger.getEffectiveLevel(), 'get_metadata': True}
 
-        try:
-            runtime_meta = self.invoke(docker_image_name, memory=memory,
-                                       payload=payload, return_result=True)
-        except Exception as e:
-            raise Exception(f"Unable to extract metadata: {e}")
+        response = self.invoke(
+            docker_image_name, memory=memory,
+            payload=payload, return_result=True
+        )
 
-        if not runtime_meta or 'preinstalls' not in runtime_meta:
+        try:
+            runtime_meta = json.loads(response)
+        except Exception as e:
+            raise Exception(f'Unable to load runtime metadata: {response}')
+
+        if 'preinstalls' not in runtime_meta:
             raise Exception(runtime_meta)
 
-        logger.debug("Extracted metadata succesfully")
+        logger.debug("Metadata extracted succesfully")
         return runtime_meta
 
     def list_runtimes(self, runtime_name='all'):
