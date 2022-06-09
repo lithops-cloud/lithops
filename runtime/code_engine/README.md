@@ -1,6 +1,6 @@
 # Lithops runtime for IBM Code Engine
 
-The runtime is the place where the functions are executed. In IBM Code Engine, runtimes are based on docker images. 
+The runtime is the place where the functions are executed. In IBM Code Engine, runtimes are based on docker images, in this sense you can run functions using any Python version > 3.6.
 
 For running lithops on Code Engine, you need a runtime build on the docker hub (or any other container registry), or you need a docker hub account for placing the runtimes automatically created by lithops.
 

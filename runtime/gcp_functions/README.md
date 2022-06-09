@@ -5,14 +5,15 @@ The runtime is the place where your functions are executed.
 Unlike other Serverless backends like IBM Cloud Function or Google Cloud Run, Google Cloud Functions is not based on Docker, so it is not possible to provide a Docker image as the function's runtime.
 However, it is possible to expand the default installed packages by providing a different `requirements.txt` file. In consequence, it is not possible to add a system library to the runtime, only Python modules that can be installed using `pip`.
 
-Google Cloud Functions provide the following default runtimes with some packages already preinstalled:
+Currently, Google Cloud Functions supports Python 3.7, 3.8 and 3.9, and it provides the following default runtimes with some packages already preinstalled:
 
 | Runtime name | Python version | Packages included |
 | ----| ----| ---- |
-| python3.7 | 3.7 | [list of packages](https://cloud.google.com/functions/docs/writing/specifying-dependencies-python#pre-installed_packages) |
-| python3.8 | 3.8 | [list of packages](https://cloud.google.com/functions/docs/writing/specifying-dependencies-python#pre-installed_packages) |
+| lithops-default-runtime-v37 | 3.7 | [list of packages](https://cloud.google.com/functions/docs/writing/specifying-dependencies-python#pre-installed_packages) |
+| lithops-default-runtime-v38 | 3.8 | [list of packages](https://cloud.google.com/functions/docs/writing/specifying-dependencies-python#pre-installed_packages) |
+| lithops-default-runtime-v38 | 3.9 | [list of packages](https://cloud.google.com/functions/docs/writing/specifying-dependencies-python#pre-installed_packages) |
 
-Lithops runtime also ships with the following packages:
+Lithops default runtimes are also ship with the following packages:
 ```
 numpy
 scikit-learn

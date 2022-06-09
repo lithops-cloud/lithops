@@ -1,0 +1,14 @@
+azure-functions
+azure-storage-blob
+azure-storage-queue
+pika
+flask
+gevent
+redis
+requests
+PyYAML
+kubernetes
+numpy
+cloudpickle
+ps-mem
+tblib

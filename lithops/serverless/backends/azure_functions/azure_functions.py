@@ -63,9 +63,13 @@ class AzureFunctionAppBackend:
         """
         Formates the function name
         """
-        ver = __version__.replace('.', '-')
-        function_name = f'{self.storage_account_name}-{runtime_name}-{ver}-{self.invocation_type}'
-        return function_name
+        ver = __version__
+        inv_type = self.invocation_type
+        ac_name = self.storage_account_name
+        function_name = f'{ac_name}-{runtime_name}-{ver}-{inv_type}'
+        function_name = function_name.replace('.', '-')
+        function_name = function_name.replace('_', '-')
+        return function_name.lower()
 
     def _format_queue_name(self, function_name, q_type):
         return  function_name.replace('--', '-') + '-' + q_type
