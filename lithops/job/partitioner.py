@@ -31,9 +31,17 @@ CHUNK_SIZE_MIN = 0*1024  # 0MB
 CHUNK_THRESHOLD = 128*1024  # 128KB
 
 
-def create_partitions(config, internal_storage, map_iterdata, obj_chunk_size, obj_chunk_number):
+def create_partitions(
+    config,
+    internal_storage,
+    map_iterdata,
+    obj_chunk_size,
+    obj_chunk_number,
+    obj_newline
+):
     """
-    Method that returns the function that will create the partitions of the objects in the Cloud
+    Method that returns the function that will create
+    the partitions of the objects in the Cloud
     """
 
     urls = []
@@ -42,7 +50,8 @@ def create_partitions(config, internal_storage, map_iterdata, obj_chunk_size, ob
 
     logger.debug("Parsing input data")
 
-    # first filter; decide if the iterdata elements are urls, paths or object storage objects
+    # first filter; decide if the iterdata elements are urls,
+    # paths or object storage objects
     for elem in map_iterdata:
         if elem['obj'].startswith('http'):
             # iterdata is a list of public urls
@@ -59,30 +68,25 @@ def create_partitions(config, internal_storage, map_iterdata, obj_chunk_size, ob
     if urls:
         # process objects from urls.
         return _split_objects_from_urls(
-                                urls,
-                                obj_chunk_size,
-                                obj_chunk_number)
+            urls, obj_chunk_size, obj_chunk_number)
 
     elif paths:
         # process objects from localhost paths.
         return _split_objects_from_paths(
-                                paths,
-                                obj_chunk_size,
-                                obj_chunk_number)
+            paths, obj_chunk_size, obj_chunk_number)
 
     elif objects:
         # process objects from an object store.
         return _split_objects_from_object_storage(
-                                objects,
-                                obj_chunk_size,
-                                obj_chunk_number,
-                                internal_storage,
-                                config)
+            objects, obj_chunk_size, obj_chunk_number,
+            internal_storage, config)
 
 
-def _split_objects_from_urls(map_func_args_list,
-                             chunk_size,
-                             chunk_number):
+def _split_objects_from_urls(
+    map_func_args_list,
+    chunk_size,
+    chunk_number
+):
     """
     Create partitions from a list of objects urls
     """

@@ -69,18 +69,20 @@ class FunctionExecutor:
     :param log_level: Log level printing (INFO, DEBUG, ...). Set it to None to hide all logs. If this is param is set, all logging params in config are disabled
     """
 
-    def __init__(self,
-                 mode: Optional[str] = None,
-                 config: Optional[Dict[str, Any]] = None,
-                 backend: Optional[str] = None,
-                 storage: Optional[str] = None,
-                 runtime: Optional[str] = None,
-                 runtime_memory: Optional[int] = None,
-                 monitoring: Optional[str] = None,
-                 max_workers: Optional[int] = None,
-                 worker_processes: Optional[int] = None,
-                 remote_invoker: Optional[bool] = None,
-                 log_level: Optional[str] = False):
+    def __init__(
+        self,
+        mode: Optional[str] = None,
+        config: Optional[Dict[str, Any]] = None,
+        backend: Optional[str] = None,
+        storage: Optional[str] = None,
+        runtime: Optional[str] = None,
+        runtime_memory: Optional[int] = None,
+        monitoring: Optional[str] = None,
+        max_workers: Optional[int] = None,
+        worker_processes: Optional[int] = None,
+        remote_invoker: Optional[bool] = None,
+        log_level: Optional[str] = False
+    ):
         self.is_lithops_worker = is_lithops_worker()
         self.executor_id = create_executor_id()
         self.futures = []
@@ -178,14 +180,16 @@ class FunctionExecutor:
         self.total_jobs += 1
         return '{}{}'.format(call_type, job_id)
 
-    def call_async(self,
-                   func: Callable,
-                   data: Union[List[Any], Tuple[Any, ...], Dict[str, Any]],
-                   extra_env: Optional[Dict] = None,
-                   runtime_memory: Optional[int] = None,
-                   timeout: Optional[int] = None,
-                   include_modules: Optional[List] = [],
-                   exclude_modules: Optional[List] = []) -> ResponseFuture:
+    def call_async(
+        self,
+        func: Callable,
+        data: Union[List[Any], Tuple[Any, ...], Dict[str, Any]],
+        extra_env: Optional[Dict] = None,
+        runtime_memory: Optional[int] = None,
+        timeout: Optional[int] = None,
+        include_modules: Optional[List] = [],
+        exclude_modules: Optional[List] = []
+    ) -> ResponseFuture:
         """
         For running one function execution asynchronously.
 
@@ -222,18 +226,21 @@ class FunctionExecutor:
 
         return futures[0]
 
-    def map(self,
-            map_function: Callable,
-            map_iterdata: List[Union[List[Any], Tuple[Any, ...], Dict[str, Any]]],
-            chunksize: Optional[int] = None,
-            extra_args: Optional[Union[List[Any], Tuple[Any, ...], Dict[str, Any]]] = None,
-            extra_env: Optional[Dict[str, str]] = None,
-            runtime_memory: Optional[int] = None,
-            obj_chunk_size: Optional[int] = None,
-            obj_chunk_number: Optional[int] = None,
-            timeout: Optional[int] = None,
-            include_modules: Optional[List[str]] = [],
-            exclude_modules: Optional[List[str]] = []) -> FuturesList:
+    def map(
+        self,
+        map_function: Callable,
+        map_iterdata: List[Union[List[Any], Tuple[Any, ...], Dict[str, Any]]],
+        chunksize: Optional[int] = None,
+        extra_args: Optional[Union[List[Any], Tuple[Any, ...], Dict[str, Any]]] = None,
+        extra_env: Optional[Dict[str, str]] = None,
+        runtime_memory: Optional[int] = None,
+        obj_chunk_size: Optional[int] = None,
+        obj_chunk_number: Optional[int] = None,
+        obj_newline: Optional[str] = '\n',
+        timeout: Optional[int] = None,
+        include_modules: Optional[List[str]] = [],
+        exclude_modules: Optional[List[str]] = []
+    ) -> FuturesList:
         """
         Spawn multiple function activations based on the items of an input list.
 
@@ -245,6 +252,7 @@ class FunctionExecutor:
         :param runtime_memory: Memory (in MB) to use to run the functions
         :param obj_chunk_size: Used for data processing. Chunk size to split each object in bytes. Must be >= 1MiB. 'None' for processing the whole file in one function activation
         :param obj_chunk_number: Used for data processing. Number of chunks to split each object. 'None' for processing the whole file in one function activation. chunk_n has prevalence over chunk_size if both parameters are set
+        :param obj_newline: new line character for keeping line integrity of partitions. 'None' for disabling line integrity logic
         :param timeout: Max time per function activation (seconds)
         :param include_modules: Explicitly pickle these dependencies. All required dependencies are pickled if default empty list. No one dependency is pickled if it is explicitly set to None
         :param exclude_modules: Explicitly keep these modules from pickled dependencies. It is not taken into account if you set include_modules.
@@ -257,22 +265,25 @@ class FunctionExecutor:
 
         runtime_meta = self.invoker.select_runtime(job_id, runtime_memory)
 
-        job = create_map_job(config=self.config,
-                             internal_storage=self.internal_storage,
-                             executor_id=self.executor_id,
-                             job_id=job_id,
-                             map_function=map_function,
-                             iterdata=map_iterdata,
-                             chunksize=chunksize,
-                             runtime_meta=runtime_meta,
-                             runtime_memory=runtime_memory,
-                             extra_env=extra_env,
-                             include_modules=include_modules,
-                             exclude_modules=exclude_modules,
-                             execution_timeout=timeout,
-                             extra_args=extra_args,
-                             obj_chunk_size=obj_chunk_size,
-                             obj_chunk_number=obj_chunk_number)
+        job = create_map_job(
+            config=self.config,
+            internal_storage=self.internal_storage,
+            executor_id=self.executor_id,
+            job_id=job_id,
+            map_function=map_function,
+            iterdata=map_iterdata,
+            chunksize=chunksize,
+            runtime_meta=runtime_meta,
+            runtime_memory=runtime_memory,
+            extra_env=extra_env,
+            include_modules=include_modules,
+            exclude_modules=exclude_modules,
+            execution_timeout=timeout,
+            extra_args=extra_args,
+            obj_chunk_size=obj_chunk_size,
+            obj_chunk_number=obj_chunk_number,
+            obj_newline=obj_newline
+        )
 
         futures = self.invoker.run_job(job)
         self.futures.extend(futures)
@@ -283,22 +294,25 @@ class FunctionExecutor:
 
         return create_futures_list(futures, self)
 
-    def map_reduce(self,
-                   map_function: Callable,
-                   map_iterdata: List[Union[List[Any], Tuple[Any, ...], Dict[str, Any]]],
-                   reduce_function: Callable,
-                   chunksize: Optional[int] = None,
-                   extra_args: Optional[Union[List[Any], Tuple[Any, ...], Dict[str, Any]]] = None,
-                   extra_env: Optional[Dict[str, str]] = None,
-                   map_runtime_memory: Optional[int] = None,
-                   reduce_runtime_memory: Optional[int] = None,
-                   obj_chunk_size: Optional[int] = None,
-                   obj_chunk_number: Optional[int] = None,
-                   timeout: Optional[int] = None,
-                   reducer_one_per_object: Optional[bool] = False,
-                   spawn_reducer: Optional[int] = 20,
-                   include_modules: Optional[List[str]] = [],
-                   exclude_modules: Optional[List[str]] = []) -> FuturesList:
+    def map_reduce(
+        self,
+        map_function: Callable,
+        map_iterdata: List[Union[List[Any], Tuple[Any, ...], Dict[str, Any]]],
+        reduce_function: Callable,
+        chunksize: Optional[int] = None,
+        extra_args: Optional[Union[List[Any], Tuple[Any, ...], Dict[str, Any]]] = None,
+        extra_env: Optional[Dict[str, str]] = None,
+        map_runtime_memory: Optional[int] = None,
+        reduce_runtime_memory: Optional[int] = None,
+        timeout: Optional[int] = None,
+        obj_chunk_size: Optional[int] = None,
+        obj_chunk_number: Optional[int] = None,
+        obj_newline: Optional[str] = '\n',
+        obj_reduce_by_key: Optional[bool] = False,
+        spawn_reducer: Optional[int] = 20,
+        include_modules: Optional[List[str]] = [],
+        exclude_modules: Optional[List[str]] = []
+    ) -> FuturesList:
         """
         Map the map_function over the data and apply the reduce_function across all futures.
 
@@ -310,10 +324,11 @@ class FunctionExecutor:
         :param extra_env: Additional environment variables for action environment. Default None
         :param map_runtime_memory: Memory to use to run the map function. Default None (loaded from config)
         :param reduce_runtime_memory: Memory to use to run the reduce function. Default None (loaded from config)
+        :param timeout: Time that the functions have to complete their execution before raising a timeout
         :param obj_chunk_size: the size of the data chunks to split each object. 'None' for processing the whole file in one function activation
         :param obj_chunk_number: Number of chunks to split each object. 'None' for processing the whole file in one function activation
-        :param timeout: Time that the functions have to complete their execution before raising a timeout
-        :param reducer_one_per_object: Set one reducer per object after running the partitioner
+        :param obj_newline: new line character for keeping line integrity of partitions. 'None' for disabling line integrity logic
+        :param obj_reduce_by_key: Set one reducer per object after running the partitioner
         :param spawn_reducer: Percentage of done map functions before spawning the reduce function
         :param include_modules: Explicitly pickle these dependencies.
         :param exclude_modules: Explicitly keep these modules from pickled dependencies.
@@ -325,22 +340,25 @@ class FunctionExecutor:
 
         runtime_meta = self.invoker.select_runtime(map_job_id, map_runtime_memory)
 
-        map_job = create_map_job(config=self.config,
-                                 internal_storage=self.internal_storage,
-                                 executor_id=self.executor_id,
-                                 job_id=map_job_id,
-                                 map_function=map_function,
-                                 iterdata=map_iterdata,
-                                 chunksize=chunksize,
-                                 runtime_meta=runtime_meta,
-                                 runtime_memory=map_runtime_memory,
-                                 extra_args=extra_args,
-                                 extra_env=extra_env,
-                                 obj_chunk_size=obj_chunk_size,
-                                 obj_chunk_number=obj_chunk_number,
-                                 include_modules=include_modules,
-                                 exclude_modules=exclude_modules,
-                                 execution_timeout=timeout)
+        map_job = create_map_job(
+            config=self.config,
+            internal_storage=self.internal_storage,
+            executor_id=self.executor_id,
+            job_id=map_job_id,
+            map_function=map_function,
+            iterdata=map_iterdata,
+            chunksize=chunksize,
+            runtime_meta=runtime_meta,
+            runtime_memory=map_runtime_memory,
+            extra_args=extra_args,
+            extra_env=extra_env,
+            obj_chunk_size=obj_chunk_size,
+            obj_chunk_number=obj_chunk_number,
+            obj_newline=obj_newline,
+            include_modules=include_modules,
+            exclude_modules=exclude_modules,
+            execution_timeout=timeout
+        )
 
         map_futures = self.invoker.run_job(map_job)
         self.futures.extend(map_futures)
@@ -358,19 +376,21 @@ class FunctionExecutor:
 
         runtime_meta = self.invoker.select_runtime(reduce_job_id, reduce_runtime_memory)
 
-        reduce_job = create_reduce_job(config=self.config,
-                                       internal_storage=self.internal_storage,
-                                       executor_id=self.executor_id,
-                                       reduce_job_id=reduce_job_id,
-                                       reduce_function=reduce_function,
-                                       map_job=map_job,
-                                       map_futures=map_futures,
-                                       runtime_meta=runtime_meta,
-                                       runtime_memory=reduce_runtime_memory,
-                                       reducer_one_per_object=reducer_one_per_object,
-                                       extra_env=extra_env,
-                                       include_modules=include_modules,
-                                       exclude_modules=exclude_modules)
+        reduce_job = create_reduce_job(
+            config=self.config,
+            internal_storage=self.internal_storage,
+            executor_id=self.executor_id,
+            reduce_job_id=reduce_job_id,
+            reduce_function=reduce_function,
+            map_job=map_job,
+            map_futures=map_futures,
+            runtime_meta=runtime_meta,
+            runtime_memory=reduce_runtime_memory,
+            obj_reduce_by_key=obj_reduce_by_key,
+            extra_env=extra_env,
+            include_modules=include_modules,
+            exclude_modules=exclude_modules
+        )
 
         reduce_futures = self.invoker.run_job(reduce_job)
         self.futures.extend(reduce_futures)
@@ -380,14 +400,16 @@ class FunctionExecutor:
 
         return create_futures_list(map_futures + reduce_futures, self)
 
-    def wait(self,
-             fs: Optional[Union[ResponseFuture, FuturesList, List[ResponseFuture]]] = None,
-             throw_except: Optional[bool] = True,
-             return_when: Optional[Any] = ALL_COMPLETED,
-             download_results: Optional[bool] = False,
-             timeout: Optional[int] = None,
-             threadpool_size: Optional[int] = THREADPOOL_SIZE,
-             wait_dur_sec: Optional[int] = WAIT_DUR_SEC) -> Tuple[FuturesList, FuturesList]:
+    def wait(
+        self,
+        fs: Optional[Union[ResponseFuture, FuturesList, List[ResponseFuture]]] = None,
+        throw_except: Optional[bool] = True,
+        return_when: Optional[Any] = ALL_COMPLETED,
+        download_results: Optional[bool] = False,
+        timeout: Optional[int] = None,
+        threadpool_size: Optional[int] = THREADPOOL_SIZE,
+        wait_dur_sec: Optional[int] = WAIT_DUR_SEC
+    ) -> Tuple[FuturesList, FuturesList]:
         """
         Wait for the Future instances (possibly created by different Executor instances)
         given by fs to complete. Returns a named 2-tuple of sets. The first set, named done,
@@ -463,10 +485,13 @@ class FunctionExecutor:
         :param wait_dur_sec: Time interval between each check.
         :return: The result of the future/s
         """
-        fs_done, _ = self.wait(fs=fs, throw_except=throw_except,
-                               timeout=timeout, download_results=True,
-                               threadpool_size=threadpool_size,
-                               wait_dur_sec=wait_dur_sec)
+        fs_done, _ = self.wait(
+            fs=fs, throw_except=throw_except,
+            timeout=timeout, download_results=True,
+            threadpool_size=threadpool_size,
+            wait_dur_sec=wait_dur_sec
+        )
+
         result = []
         fs_done = [f for f in fs_done if not f.futures and f._produce_output]
         for f in fs_done:

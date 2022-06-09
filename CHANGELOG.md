@@ -20,6 +20,7 @@
 - [Multiprocessing] Improved remote logging
 - [Monitor] Reduce debug log verbosity, status is printed every 30s or when a future changes state
 - [AWS Batch] Increased resource limits
+- [Executor] Changed 'reducer_one_per_object' parameter to 'obj_reduce_by_key'
 
 ### Fixed
 - [Google Cloud Functions] Fixed errors when deploying a function

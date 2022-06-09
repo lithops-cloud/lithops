@@ -70,5 +70,5 @@ if __name__ == "__main__":
     print('One reducer per object:')
     fexec = lithops.FunctionExecutor()
     fexec.map_reduce(my_map_function, bucketname, my_reduce_function, obj_chunk_size=chunk_size,
-                     reducer_one_per_object=True)
+                     obj_reduce_by_key=True)
     print(fexec.get_result())

@@ -73,7 +73,7 @@ class TestMapReduce(unittest.TestCase):
         fexec = lithops.FunctionExecutor(config=CONFIG)
         fexec.map_reduce(my_map_function_obj, data_prefix,
                          my_reduce_function,
-                         reducer_one_per_object=True)
+                         obj_reduce_by_key=True)
         result = fexec.get_result()
         # the reducer returns a list containing sum of the words uploaded via each file.
         self.assertEqual(sum(result), self.__class__.words_in_cos_files)
@@ -97,7 +97,7 @@ class TestMapReduce(unittest.TestCase):
         fexec = lithops.FunctionExecutor(config=CONFIG)
         fexec.map_reduce(my_map_function_obj, iterdata,
                          my_reduce_function,
-                         reducer_one_per_object=True)
+                         obj_reduce_by_key=True)
         result = fexec.get_result()
         self.assertEqual(sum(result), self.__class__.words_in_cos_files)
 
@@ -160,7 +160,7 @@ class TestMapReduce(unittest.TestCase):
         futures = fexec.map_reduce(my_map_function_obj, data_prefix,
                                    my_reduce_function,
                                    obj_chunk_size=OBJ_CHUNK_SIZE,
-                                   reducer_one_per_object=True)
+                                   obj_reduce_by_key=True)
         result = fexec.get_result(futures)
         self.assertEqual(sum(result), self.__class__.words_in_cos_files)
 
@@ -172,7 +172,7 @@ class TestMapReduce(unittest.TestCase):
         fexec = lithops.FunctionExecutor(config=CONFIG)
         futures = fexec.map_reduce(my_map_function_obj, data_prefix,
                                    my_reduce_function, obj_chunk_number=OBJ_CHUNK_NUMBER,
-                                   reducer_one_per_object=True)
+                                   obj_reduce_by_key=True)
         result = fexec.get_result(futures)
         self.assertEqual(sum(result), self.__class__.words_in_cos_files)
         self.assertEqual(len(futures), len(TEST_FILES_URLS)*OBJ_CHUNK_NUMBER + len(TEST_FILES_URLS))  # + len(TEST_FILES_URLS) due to map_reduce activation per object
