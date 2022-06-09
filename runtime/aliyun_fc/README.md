@@ -4,6 +4,23 @@ The runtime is the place where your functions are executed.
 
 The default runtime is created the first time you execute a function. Lithops automatically detects the Python version of your environment and deploys the default runtime based on it.
 
+Currently, Aliyun Functions Compute supports Python 3.6, and 3.9, and it provides the following default runtimes with some packages already preinstalled:
+
+
+| Runtime name | Python version | Packages included |
+| ----| ----| ---- |
+| lithops-default-runtime-v36 | 3.6 | [list of packages](https://www.alibabacloud.com/help/en/function-compute/latest/python-event-functions) |
+| lithops-default-runtime-v38 | 3.9 | [list of packages](https://www.alibabacloud.com/help/en/function-compute/latest/python-event-functions) |
+
+Lithops default runtimes are also ship with the following packages:
+```
+pika
+tblib
+cloudpickle
+ps-mem
+```
+
+
 To run a function with the default runtime you don't need to specify anything in the code, since everything is managed internally by Lithops:
 
 ```python
@@ -85,4 +102,4 @@ res = lith.get_result()
 print(res)
 ```
 
-Note that both the client and the runtime must have the same python version. If we are running Lithops, for example, with Python 3.8, `my_matplotlib_runtime` will be a Python 3.8 runtime with the extra modules specified installed.
+Note that both the client and the runtime must have the same python version. If you are running Lithops, for example, with Python 3.8, `my_matplotlib_runtime` will be a Python 3.8 runtime with the extra modules specified installed.

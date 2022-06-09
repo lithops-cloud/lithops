@@ -1,15 +1,16 @@
 # Lithops runtime for IBM Cloud Functions
 
-The runtime is the place where your functions are executed. In Lithops, runtimes are based on docker images, and it includes by default three different runtimes that allows you to run functions with Python 3.5, 3.6, 3.7 adn 3.8 environments. Lithops main runtime is responsible to execute Python functions within IBM Cloud Functions cluster. The strong requirement here is to match Python versions between the client and the runtime. The runtime may also contain additional packages which your code depends on.
+The runtime is the place where your functions are executed. In Lithops, runtimes are based on docker images, and it includes by default three different runtimes that allows you to run functions with Python 3.6, 3.7, 3.8, 3.9 and 3.10 environments. Lithops main runtime is responsible to execute Python functions within IBM Cloud Functions cluster. The strong requirement here is to match Python versions between the client and the runtime. The runtime may also contain additional packages which your code depends on.
 
 Lithops for IBM Cloud is shipped with these default runtimes:
 
 | Runtime name | Python version | Packages included |
 | ----| ----| ---- |
-| lithopscloud/ibmcf-python-v35 | 3.5 | [list of packages](requirements.txt) |
 | lithopscloud/ibmcf-python-v36 | 3.6 | [list of packages](requirements.txt) |
 | lithopscloud/ibmcf-python-v37 | 3.7 | [list of packages](requirements.txt) |
 | lithopscloud/ibmcf-python-v38 | 3.8 | [list of packages](requirements.txt) |
+| lithopscloud/ibmcf-python-v39 | 3.9 | [list of packages](requirements.txt) |
+| lithopscloud/ibmcf-python-v310 | 3.10 | [list of packages](requirements.txt) |
 
 The default runtime is created the first time you execute a function. Lithops automatically detects the Python version of your environment and deploys the default runtime based on it.
 
