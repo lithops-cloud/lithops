@@ -31,9 +31,17 @@ CHUNK_SIZE_MIN = 0*1024  # 0MB
 CHUNK_THRESHOLD = 128*1024  # 128KB
 
 
-def create_partitions(config, internal_storage, map_iterdata, obj_chunk_size, obj_chunk_number):
+def create_partitions(
+    config,
+    internal_storage,
+    map_iterdata,
+    obj_chunk_size,
+    obj_chunk_number,
+    obj_newline
+):
     """
-    Method that returns the function that will create the partitions of the objects in the Cloud
+    Method that returns the function that will create
+    the partitions of the objects in the Cloud
     """
 
     urls = []
@@ -42,7 +50,8 @@ def create_partitions(config, internal_storage, map_iterdata, obj_chunk_size, ob
 
     logger.debug("Parsing input data")
 
-    # first filter; decide if the iterdata elements are urls, paths or object storage objects
+    # first filter; decide if the iterdata elements are urls,
+    # paths or object storage objects
     for elem in map_iterdata:
         if elem['obj'].startswith('http'):
             # iterdata is a list of public urls
@@ -59,37 +68,38 @@ def create_partitions(config, internal_storage, map_iterdata, obj_chunk_size, ob
     if urls:
         # process objects from urls.
         return _split_objects_from_urls(
-                                urls,
-                                obj_chunk_size,
-                                obj_chunk_number)
+            urls, obj_chunk_size,
+            obj_chunk_number, obj_newline
+        )
 
     elif paths:
         # process objects from localhost paths.
         return _split_objects_from_paths(
-                                paths,
-                                obj_chunk_size,
-                                obj_chunk_number)
+            paths, obj_chunk_size, 
+            obj_chunk_number, obj_newline
+        )
 
     elif objects:
         # process objects from an object store.
         return _split_objects_from_object_storage(
-                                objects,
-                                obj_chunk_size,
-                                obj_chunk_number,
-                                internal_storage,
-                                config)
+            objects, obj_chunk_size, obj_chunk_number,
+            internal_storage, config, obj_newline
+        )
 
 
-def _split_objects_from_urls(map_func_args_list,
-                             chunk_size,
-                             chunk_number):
+def _split_objects_from_urls(
+    map_func_args_list,
+    chunk_size,
+    chunk_number,
+    obj_newline
+):
     """
     Create partitions from a list of objects urls
     """
     if chunk_number:
-        logger.debug('Chunk size set to {}'.format(chunk_size))
+        logger.debug(f'Chunk size set to {chunk_size}')
     elif chunk_size:
-        logger.debug('Chunk number set to {}'.format(chunk_number))
+        logger.debug(f'Chunk number set to {chunk_number}')
     else:
         logger.debug('Chunk size and chunk number not set ')
 
@@ -123,11 +133,14 @@ def _split_objects_from_urls(map_func_args_list,
         ci = obj_size
         cz = obj_chunk_size
         parts = ci // cz + (ci % cz > 0)
-        logger.debug('Creating {} partitions from url {} ({})'
-                     .format(parts, object_url, sizeof_fmt(obj_size)))
+        logger.debug(f'Creating {parts} partitions from url {object_url} ({sizeof_fmt(obj_size)})')
 
         while size < obj_size:
-            brange = (size, size+obj_chunk_size+CHUNK_THRESHOLD)
+            if obj_newline is None:
+                brange = (size, size+obj_chunk_size)
+            else:
+                brange = (size, size+obj_chunk_size+CHUNK_THRESHOLD)
+
             brange = None if obj_size == obj_chunk_size else brange
 
             partition = entry.copy()
@@ -135,10 +148,15 @@ def _split_objects_from_urls(map_func_args_list,
             partition['obj'].data_byte_range = brange
             partition['obj'].chunk_size = obj_chunk_size
             partition['obj'].part = total_partitions
+            partition['obj'].newline = obj_newline
             partitions.append(partition)
 
             total_partitions += 1
-            size += obj_chunk_size
+
+            if obj_newline is None:
+                size += obj_chunk_size + 1
+            else:
+                size += obj_chunk_size   
 
         parts_per_object.append(total_partitions)
 
@@ -148,16 +166,19 @@ def _split_objects_from_urls(map_func_args_list,
     return partitions, parts_per_object
 
 
-def _split_objects_from_paths(map_func_args_list,
-                              chunk_size,
-                              chunk_number):
+def _split_objects_from_paths(
+    map_func_args_list,
+    chunk_size,
+    chunk_number,
+    obj_newline
+):
     """
-    Create partitions from a list of objects urls
+    Create partitions from a list of objects paths
     """
     if chunk_number:
-        logger.debug('Chunk size set to {}'.format(chunk_size))
+        logger.debug(f'Chunk size set to {chunk_size}')
     elif chunk_size:
-        logger.debug('Chunk number set to {}'.format(chunk_number))
+        logger.debug(f'Chunk number set to {chunk_number}')
     else:
         logger.debug('Chunk size and chunk number not set ')
 
@@ -207,11 +228,14 @@ def _split_objects_from_paths(map_func_args_list,
         ci = obj_size
         cz = obj_chunk_size
         parts = ci // cz + (ci % cz > 0)
-        logger.debug('Creating {} partitions from file {} ({})'
-                     .format(parts, path, sizeof_fmt(obj_size)))
+        logger.debug(f'Creating {parts} partitions from url {path} ({sizeof_fmt(obj_size)})')
 
         while size < obj_size:
-            brange = (size, size+obj_chunk_size+CHUNK_THRESHOLD)
+            if obj_newline is None:
+                brange = (size, size+obj_chunk_size)
+            else:
+                brange = (size, size+obj_chunk_size+CHUNK_THRESHOLD)
+
             brange = None if obj_size == obj_chunk_size else brange
 
             partition = entry.copy()
@@ -219,10 +243,14 @@ def _split_objects_from_paths(map_func_args_list,
             partition['obj'].data_byte_range = brange
             partition['obj'].chunk_size = obj_chunk_size
             partition['obj'].part = total_partitions
+            partition['obj'].newline = obj_newline
             partitions.append(partition)
 
             total_partitions += 1
-            size += obj_chunk_size
+            if obj_newline is None:
+                size += obj_chunk_size + 1
+            else:
+                size += obj_chunk_size   
 
         parts_per_object.append(total_partitions)
 
@@ -232,20 +260,23 @@ def _split_objects_from_paths(map_func_args_list,
     return partitions, parts_per_object
 
 
-def _split_objects_from_object_storage(map_func_args_list,
-                                       chunk_size,
-                                       chunk_number,
-                                       internal_storage,
-                                       config):
+def _split_objects_from_object_storage(
+    map_func_args_list,
+    chunk_size,
+    chunk_number,
+    internal_storage,
+    config,
+    obj_newline
+):
     """
     Create partitions from a list of buckets or object keys
     """
     if chunk_number:
-        logger.debug('Chunk size set to {}'.format(chunk_size))
+        logger.debug(f'Chunk size set to {chunk_size}')
     elif chunk_size:
-        logger.debug('Chunk number set to {}'.format(chunk_number))
+        logger.debug(f'Chunk number set to {chunk_number}')
     else:
-        logger.debug('Chunk size and chunk number not set ')
+        logger.debug('Chunk size and chunk number not set')
 
     sbs = set()
     buckets = set()
@@ -254,13 +285,11 @@ def _split_objects_from_object_storage(map_func_args_list,
 
     for elem in map_func_args_list:
         if type(elem['obj']) == CloudObject:
-            elem['obj'] = '{}://{}/{}'.format(elem['obj'].backend,
-                                              elem['obj'].bucket,
-                                              elem['obj'].key)
+            elem['obj'] = f"{elem['obj'].backend}://{elem['obj'].bucket}/{elem['obj'].key}"
         sb, bucket, prefix, obj_name = utils.split_object_url(elem['obj'])
         if sb is None:
             sb = internal_storage.backend
-            elem['obj'] = '{}://{}'.format(sb, elem['obj'])
+            elem['obj'] = f"{sb}://{elem['obj']}"
         if obj_name:
             obj_names.add((bucket, prefix))
         elif prefix:
@@ -271,7 +300,7 @@ def _split_objects_from_object_storage(map_func_args_list,
 
     if len(sbs) > 1:
         raise Exception('Process objects from multiple storage backends is not supported. '
-                        'Current storage backends: {}'.format(sbs))
+                        f'Current storage backends: {sbs}')
     sb = sbs.pop()
     if sb == internal_storage.backend:
         storage = internal_storage.storage
@@ -282,29 +311,26 @@ def _split_objects_from_object_storage(map_func_args_list,
 
     if obj_names:
         for bucket, prefix in obj_names:
-            logger.debug("Listing objects in '{}://{}'"
-                         .format(sb, '/'.join([bucket, prefix])))
+            logger.debug(f"Listing objects in {sb}://{'/'.join([bucket, prefix])}")
             if bucket not in objects:
                 objects[bucket] = []
             prefix = prefix + '/' if prefix else prefix
             objects[bucket].extend(storage.list_objects(bucket, prefix))
-        logger.debug("Total objects found: {}".format(len(objects[bucket])))
 
     elif prefixes:
         for bucket, prefix in prefixes:
-            logger.debug("Listing objects in '{}://{}'"
-                         .format(sb, '/'.join([bucket, prefix])))
+            logger.debug(f"Listing objects in {sb}://{'/'.join([bucket, prefix])}")
             if bucket not in objects:
                 objects[bucket] = []
             prefix = prefix + '/' if prefix else prefix
             objects[bucket].extend(storage.list_objects(bucket, prefix))
-        logger.debug("Total objects found: {}".format(len(objects[bucket])))
 
     elif buckets:
         for bucket in buckets:
-            logger.debug("Listing objects in '{}://{}'".format(sb, bucket))
+            logger.debug(f"Listing objects in {sb}://{bucket}")
             objects[bucket] = storage.list_objects(bucket)
-        logger.debug("Total objects found: {}".format(len(objects[bucket])))
+    
+    logger.debug(f"Total objects found: {len(objects[bucket])}")
 
     if all([len(objects[bucket]) == 0 for bucket in objects]):
         raise Exception(f'No objects found in bucket: {", ".join(objects.keys())}')
@@ -340,11 +366,14 @@ def _split_objects_from_object_storage(map_func_args_list,
         ci = obj_size
         cz = obj_chunk_size
         parts = ci // cz + (ci % cz > 0)
-        logger.debug('Creating {} partitions from object {} ({})'
-                     .format(parts, key, sizeof_fmt(obj_size)))
+        logger.debug(f'Creating {parts} partitions from object {key} ({sizeof_fmt(obj_size)})')
 
         while size < obj_size:
-            brange = (size, size+obj_chunk_size+CHUNK_THRESHOLD)
+            if obj_newline is None:
+                brange = (size, size+obj_chunk_size)
+            else:
+                brange = (size, size+obj_chunk_size+CHUNK_THRESHOLD)
+
             brange = None if obj_size == obj_chunk_size else brange
 
             partition = entry.copy()
@@ -352,10 +381,15 @@ def _split_objects_from_object_storage(map_func_args_list,
             partition['obj'].data_byte_range = brange
             partition['obj'].chunk_size = obj_chunk_size
             partition['obj'].part = total_partitions
+            partition['obj'].newline = obj_newline
             partitions.append(partition)
 
             total_partitions += 1
-            size += obj_chunk_size
+
+            if obj_newline is None:
+                size += obj_chunk_size + 1
+            else:
+                size += obj_chunk_size    
 
         parts_per_object.append(total_partitions)
 

@@ -148,9 +148,9 @@ See a complete example in `map_reduce_localhost.py <https://github.com/lithops-c
 
 Reducer granularity
 -------------------
-When using the ``map_reduce()`` API call with ``obj_chunk_size`` or ``obj_chunk_number``, by default there will be only one reducer for all the object chunks from all the objects. Alternatively, you can spawn one reducer for each object by setting the parameter ``reducer_one_per_object=True``.
+When using the ``map_reduce()`` API call with ``obj_chunk_size`` or ``obj_chunk_number``, by default there will be only one reducer for all the object chunks from all the objects. Alternatively, you can spawn one reducer for each object by setting the parameter ``obj_reduce_by_key=True``.
 
 .. code:: python
 
     fexec.map_reduce(my_map_function, bucket_name, my_reduce_function,
-                     obj_chunk_size=obj_chunk_size, reducer_one_per_object=True)
+                     obj_chunk_size=obj_chunk_size, obj_reduce_by_key=True)

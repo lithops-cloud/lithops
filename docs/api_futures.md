@@ -201,7 +201,7 @@ Spawn multiple *map_function* activations,  based on the items of an input list,
 |exclude_modules| [] |Explicitly keep these modules from pickled dependencies. It is not taken into account if you set include_modules |
 |obj_chunk_size| None | Used for data_processing. Chunk size to split each object in bytes. Must be >= 1MiB. 'None' for processing the whole file in one function activation|
 |obj_chunk_number| None | Used for data_processing. Number of chunks to split each object. 'None' for processing the whole file in one function activation. chunk_n has prevalence over chunk_size if both parameters are set|
-|reducer_one_per_object| False| Used for data_processing. Set one reducer per object after running the partitioner (reduce-by-key) |
+|obj_reduce_by_key| False| Used for data_processing. Set one reducer per object after running the partitioner (reduce-by-key) |
 
 
 * **Returns**: A list with size  len(map_iterdata)  of futures for each job (Futures are also internally stored by Lithops).

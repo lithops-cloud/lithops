@@ -532,8 +532,7 @@ def verify_args(func, iterdata, extra_args):
 
 class WrappedStreamingBody:
     """
-    Wrap boto3's StreamingBody object to provide enough Python fileobj functionality,
-    and to discard data added by partitioner and cut lines.
+    Wrap boto3's StreamingBody object to provide enough Python fileobj functionality.
 
     from https://gist.github.com/debedb/2e5cbeb54e43f031eaf0
 
@@ -612,13 +611,18 @@ class WrappedStreamingBody:
 
 
 class WrappedStreamingBodyPartition(WrappedStreamingBody):
-
-    def __init__(self, sb, size, byterange):
+    """
+    Wrap boto3's StreamingBody object to provide line integrity of the partitions
+    based on the newline character.
+    """
+    def __init__(self, sb, size, byterange, newline='\n'):
         super().__init__(sb, size)
         # Chunk size
         self.chunk_size = size
         # Range of the chunk
         self.range = byterange
+        # New line character
+        self.newline_char = newline.encode()
         # The first chunk does not contain plusbyte
         self._plusbytes = 0 if not self.range or self.range[0] == 0 else 1
         # To store the first byte of this chunk, which actually is the last byte of previous chunk
@@ -641,17 +645,17 @@ class WrappedStreamingBodyPartition(WrappedStreamingBody):
         self.pos += len(retval)
         first_row_start_pos = 0
 
-        if self._first_read and self._first_byte != b'\n' and self._plusbytes == 1:
+        if self._first_read and self._first_byte != self.newline_char and self._plusbytes == 1:
             logger.debug('Discarding first partial row')
-            # Previous byte is not \n
+            # Previous byte is not self.newline_char
             # This means that we have to discard first row because it is cut
-            first_row_start_pos = retval.find(b'\n')+1
+            first_row_start_pos = retval.find(self.newline_char)+1
             self._first_read = False
 
         last_row_end_pos = self.pos
         # Find end of the line in threshold
         if self.pos > self.chunk_size:
-            last_byte_pos = retval[self.chunk_size:].find(b'\n')+1
+            last_byte_pos = retval[self.chunk_size:].find(self.newline_char)+1
             last_row_end_pos = self.chunk_size+last_byte_pos
             self._eof = True
 
@@ -663,7 +667,7 @@ class WrappedStreamingBodyPartition(WrappedStreamingBody):
 
         if not self._first_byte and self._plusbytes == 1:
             self._first_byte = self.sb.read(self._plusbytes)
-            if self._first_byte != b'\n':
+            if self._first_byte != self.newline_char:
                 logger.debug('Discarding first partial row')
                 self.sb._raw_stream.readline()
         try:
