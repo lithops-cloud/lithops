@@ -36,7 +36,7 @@ except ModuleNotFoundError:
 from lithops.storage import Storage
 from lithops.wait import wait
 from lithops.future import ResponseFuture
-from lithops.utils import sizeof_fmt, is_object_processing_function, FuturesList,\
+from lithops.utils import WrappedStreamingBody, sizeof_fmt, is_object_processing_function, FuturesList,\
     verify_args
 from lithops.utils import WrappedStreamingBodyPartition
 from lithops.util.metrics import PrometheusExporter
@@ -140,14 +140,15 @@ class JobRunner:
             if obj.data_byte_range is not None:
                 extra_get_args['Range'] = 'bytes={}-{}'.format(*obj.data_byte_range)
                 logger.info(f'Chunk: {obj.part} - Range: {extra_get_args["Range"]}')
-                sb = storage.get_object(obj.bucket, obj.key, stream=True,
-                                        extra_get_args=extra_get_args)
-                wsb = WrappedStreamingBodyPartition(sb, obj.chunk_size, obj.data_byte_range, obj.newline)
-                obj.data_stream = wsb
+                stream = storage.get_object(obj.bucket, obj.key, stream=True,
+                                            extra_get_args=extra_get_args)
+                if obj.newline is None:
+                    sb = WrappedStreamingBody(stream, obj.chunk_size)
+                else:
+                    sb = WrappedStreamingBodyPartition(stream, obj.chunk_size, obj.data_byte_range, obj.newline)
             else:
                 sb = storage.get_object(obj.bucket, obj.key, stream=True,
                                         extra_get_args=extra_get_args)
-                obj.data_stream = sb
 
         elif hasattr(obj, 'url'):
             logger.info(f'Getting dataset from {obj.url}')
@@ -156,7 +157,7 @@ class JobRunner:
                 extra_get_args['Range'] = range_str
                 logger.info(f'Chunk: {obj.part} - Range: {extra_get_args["Range"]}')
             resp = requests.get(obj.url, headers=extra_get_args, stream=True)
-            obj.data_stream = resp.raw
+            sb = resp.raw
 
         elif hasattr(obj, 'path'):
             logger.info(f'Getting dataset from {obj.path}')
@@ -166,11 +167,15 @@ class JobRunner:
                     logger.info(f'Chunk: {obj.part} - Range: {extra_get_args["Range"]}')
                     first_byte, last_byte = obj.data_byte_range
                     f.seek(first_byte)
-                    buffer = io.BytesIO(f.read(last_byte-first_byte+1))
-                    sb = WrappedStreamingBodyPartition(buffer, obj.chunk_size, obj.data_byte_range, obj.newline)
+                    stream = io.BytesIO(f.read(last_byte-first_byte+1))
+                    if obj.newline is None:
+                        sb = WrappedStreamingBody(stream, obj.chunk_size)
+                    else:
+                        sb = WrappedStreamingBodyPartition(stream, obj.chunk_size, obj.data_byte_range, obj.newline)
                 else:
                     sb = io.BytesIO(f.read())
-            obj.data_stream = sb
+        
+        obj.data_stream = sb
 
     # Decorator to execute pre-run and post-run functions provided via environment variables
     def prepost(func):
