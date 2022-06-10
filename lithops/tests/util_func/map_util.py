@@ -53,12 +53,19 @@ def lithops_return_futures_map_function3(x):
 
 def my_map_function_obj(obj, id):
     """returns a dictionary of {word:number of appearances} key:value items."""
+    print('Function id: {}'.format(id))
     print('Bucket: {}'.format(obj.bucket))
     print('Key: {}'.format(obj.key))
     print('Partition num: {}'.format(obj.part))
-    print('Action id: {}'.format(id))
+
+    print('Chunk size: {}'.format(obj.chunk_size))
+    print('Byte range: {}'.format(obj.data_byte_range))
+
     counter = {}
     data = obj.data_stream.read()
+
+    print('Data lenght: {}'.format(len(data)))
+
     for line in data.splitlines():
         for word in line.decode('utf-8').split():
             if word not in counter:

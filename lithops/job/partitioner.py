@@ -137,7 +137,7 @@ def _split_objects_from_urls(
 
         while size < obj_size:
             if obj_newline is None:
-                brange = (size, size+obj_chunk_size)
+                brange = (size, size+obj_chunk_size-1)
             else:
                 brange = (size, size+obj_chunk_size+CHUNK_THRESHOLD)
 
@@ -152,11 +152,7 @@ def _split_objects_from_urls(
             partitions.append(partition)
 
             total_partitions += 1
-
-            if obj_newline is None:
-                size += obj_chunk_size + 1
-            else:
-                size += obj_chunk_size   
+            size += obj_chunk_size   
 
         parts_per_object.append(total_partitions)
 
@@ -232,7 +228,7 @@ def _split_objects_from_paths(
 
         while size < obj_size:
             if obj_newline is None:
-                brange = (size, size+obj_chunk_size)
+                brange = (size, size+obj_chunk_size-1)
             else:
                 brange = (size, size+obj_chunk_size+CHUNK_THRESHOLD)
 
@@ -247,10 +243,7 @@ def _split_objects_from_paths(
             partitions.append(partition)
 
             total_partitions += 1
-            if obj_newline is None:
-                size += obj_chunk_size + 1
-            else:
-                size += obj_chunk_size   
+            size += obj_chunk_size   
 
         parts_per_object.append(total_partitions)
 
@@ -370,7 +363,7 @@ def _split_objects_from_object_storage(
 
         while size < obj_size:
             if obj_newline is None:
-                brange = (size, size+obj_chunk_size)
+                brange = (size, size+obj_chunk_size-1)
             else:
                 brange = (size, size+obj_chunk_size+CHUNK_THRESHOLD)
 
@@ -385,11 +378,7 @@ def _split_objects_from_object_storage(
             partitions.append(partition)
 
             total_partitions += 1
-
-            if obj_newline is None:
-                size += obj_chunk_size + 1
-            else:
-                size += obj_chunk_size    
+            size += obj_chunk_size    
 
         parts_per_object.append(total_partitions)
 
