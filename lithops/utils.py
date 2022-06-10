@@ -535,7 +535,6 @@ class WrappedStreamingBody:
     Wrap boto3's StreamingBody object to provide enough Python fileobj functionality.
 
     from https://gist.github.com/debedb/2e5cbeb54e43f031eaf0
-
     """
     def __init__(self, sb, size):
         # The StreamingBody we're wrapping
@@ -546,7 +545,6 @@ class WrappedStreamingBody:
         self.size = size
 
     def tell(self):
-        # print("In tell()")
         return self.pos
 
     def read(self, n=None):
@@ -565,20 +563,18 @@ class WrappedStreamingBody:
         return retval
 
     def seek(self, offset, whence=0):
-        # print("Calling seek()")
         retval = self.pos
         if whence == 2:
             if offset == 0:
                 retval = self.size
             else:
                 raise Exception("Unsupported")
-        else:
-            if whence == 1:
-                offset = self.pos + offset
-                if offset > self.size:
-                    retval = self.size
-                else:
-                    retval = offset
+        elif whence == 1:
+            offset = self.pos + offset
+            if offset > self.size:
+                retval = self.size
+            else:
+                retval = offset
         # print("In seek(%s, %s): %s, size is %s" % (offset, whence, retval, self.size))
 
         self.pos = retval
@@ -587,9 +583,13 @@ class WrappedStreamingBody:
     def __str__(self):
         return "WrappedBody"
 
-    def __getattr__(self, attr):
-        # print("Calling %s"  % attr)
+    def __iter__(self):
+        return self
 
+    def __next__(self):
+        return self.read(64*1024)
+    
+    def __getattr__(self, attr):
         if attr == 'tell':
             return self.tell
         elif attr == 'seek':
@@ -600,14 +600,12 @@ class WrappedStreamingBody:
             return self.readline
         elif attr == '__str__':
             return self.__str__
+        elif attr == '__iter__':
+            return self.__iter__
+        elif attr == '__next__':
+            return self.__next__
         else:
             return getattr(self.sb, attr)
-
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        return self.read(64*1024)
 
 
 class WrappedStreamingBodyPartition(WrappedStreamingBody):
@@ -617,8 +615,6 @@ class WrappedStreamingBodyPartition(WrappedStreamingBody):
     """
     def __init__(self, sb, size, byterange, newline='\n'):
         super().__init__(sb, size)
-        # Chunk size
-        self.chunk_size = size
         # Range of the chunk
         self.range = byterange
         # New line character
@@ -649,14 +645,14 @@ class WrappedStreamingBodyPartition(WrappedStreamingBody):
             logger.debug('Discarding first partial row')
             # Previous byte is not self.newline_char
             # This means that we have to discard first row because it is cut
-            first_row_start_pos = retval.find(self.newline_char)+1
+            first_row_start_pos = retval.find(self.newline_char) + 1
             self._first_read = False
 
         last_row_end_pos = self.pos
         # Find end of the line in threshold
-        if self.pos > self.chunk_size:
-            last_byte_pos = retval[self.chunk_size:].find(self.newline_char)+1
-            last_row_end_pos = self.chunk_size+last_byte_pos
+        if self.pos > self.size:
+            last_byte_pos = retval[self.size:].find(self.newline_char) + 1
+            last_row_end_pos = self.size + last_byte_pos
             self._eof = True
 
         return retval[first_row_start_pos:last_row_end_pos]
@@ -676,7 +672,7 @@ class WrappedStreamingBodyPartition(WrappedStreamingBody):
             raise EOFError()
         self.pos += len(retval)
 
-        if self.pos >= self.chunk_size:
+        if self.pos >= self.size:
             self._eof = True
 
         return retval

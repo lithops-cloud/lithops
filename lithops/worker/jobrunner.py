@@ -174,10 +174,15 @@ class JobRunner:
         
         if obj.data_byte_range is not None:
             first_byte, last_byte = obj.data_byte_range
-            last_byte_new = first_byte + obj.chunk_size - 1
-            obj.data_byte_range = (first_byte, last_byte_new)
-            logger.info(f'Chunk: {obj.part} - Size: {obj.chunk_size} - Range: {first_byte}-{last_byte_new}')
-
+            if last_byte - first_byte > obj.chunk_size:
+                last_byte = first_byte + obj.chunk_size - 1
+                obj.data_byte_range = (first_byte, last_byte)
+        else:
+            first_byte = 0
+            last_byte = obj.chunk_size-1
+            obj.data_byte_range = (0, last_byte)
+        
+        logger.info(f'Chunk: {obj.part}/{obj.total_parts} - Size: {obj.chunk_size} - Range: {first_byte}-{last_byte}')
         obj.data_stream = sb
 
     # Decorator to execute pre-run and post-run functions provided via environment variables
