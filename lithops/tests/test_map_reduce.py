@@ -89,7 +89,7 @@ class TestMapReduce(unittest.TestCase):
         result = fexec.get_result()
         self.assertEqual(result, self.__class__.words_in_cos_files)
 
-    def test_map_reduce_obj_key_one_reducer_per_object(self):
+    def test_map_reduce_obj_key_reduce_by_key(self):
         logger.info('Testing map_reduce() over object keys with one reducer per object')
         sb = STORAGE_CONFIG['backend']
         bucket_name = STORAGE_CONFIG['bucket']

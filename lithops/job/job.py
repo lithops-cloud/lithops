@@ -55,7 +55,8 @@ def create_map_job(
     extra_args=None,
     obj_chunk_size=None,
     obj_newline='\n',
-    obj_chunk_number=None):
+    obj_chunk_number=None
+):
     """
     Wrapper to create a map job. It integrates COS logic to process objects.
     """
@@ -76,20 +77,22 @@ def create_map_job(
         host_job_meta['host_job_create_partitions_time'] = round(time.time()-create_partitions_start, 6)
     # ########
 
-    job = _create_job(config=config,
-                      internal_storage=internal_storage,
-                      executor_id=executor_id,
-                      job_id=job_id,
-                      func=map_function,
-                      iterdata=map_iterdata,
-                      chunksize=chunksize,
-                      runtime_meta=runtime_meta,
-                      runtime_memory=runtime_memory,
-                      extra_env=extra_env,
-                      include_modules=include_modules,
-                      exclude_modules=exclude_modules,
-                      execution_timeout=execution_timeout,
-                      host_job_meta=host_job_meta)
+    job = _create_job(
+        config=config,
+        internal_storage=internal_storage,
+        executor_id=executor_id,
+        job_id=job_id,
+        func=map_function,
+        iterdata=map_iterdata,
+        chunksize=chunksize,
+        runtime_meta=runtime_meta,
+        runtime_memory=runtime_memory,
+        extra_env=extra_env,
+        include_modules=include_modules,
+        exclude_modules=exclude_modules,
+        execution_timeout=execution_timeout,
+        host_job_meta=host_job_meta
+    )
 
     if ppo:
         job.parts_per_object = ppo
@@ -97,10 +100,22 @@ def create_map_job(
     return job
 
 
-def create_reduce_job(config, internal_storage, executor_id, reduce_job_id,
-                      reduce_function, map_job, map_futures, runtime_meta,
-                      runtime_memory, obj_reduce_by_key, extra_env,
-                      include_modules, exclude_modules, execution_timeout=None):
+def create_reduce_job(
+    config,
+    internal_storage,
+    executor_id,
+    reduce_job_id,
+    reduce_function,
+    map_job,
+    map_futures,
+    runtime_meta,
+    runtime_memory,
+    obj_reduce_by_key,
+    extra_env,
+    include_modules,
+    exclude_modules,
+    execution_timeout=None
+):
     """
     Wrapper to create a reduce job. Apply a function across all map futures.
     """
@@ -124,25 +139,39 @@ def create_reduce_job(config, internal_storage, executor_id, reduce_job_id,
 
     iterdata = utils.verify_args(reduce_function, iterdata, None)
 
-    return _create_job(config=config,
-                       internal_storage=internal_storage,
-                       executor_id=executor_id,
-                       job_id=reduce_job_id,
-                       func=reduce_function,
-                       iterdata=iterdata,
-                       runtime_meta=runtime_meta,
-                       runtime_memory=runtime_memory,
-                       extra_env=ext_env,
-                       include_modules=include_modules,
-                       exclude_modules=exclude_modules,
-                       execution_timeout=execution_timeout,
-                       host_job_meta=host_job_meta)
+    return _create_job(
+        config=config,
+        internal_storage=internal_storage,
+        executor_id=executor_id,
+        job_id=reduce_job_id,
+        func=reduce_function,
+        iterdata=iterdata,
+        runtime_meta=runtime_meta,
+        runtime_memory=runtime_memory,
+        extra_env=ext_env,
+        include_modules=include_modules,
+        exclude_modules=exclude_modules,
+        execution_timeout=execution_timeout,
+        host_job_meta=host_job_meta
+    )
 
 
-def _create_job(config, internal_storage, executor_id, job_id, func,
-                iterdata,  runtime_meta, runtime_memory, extra_env,
-                include_modules, exclude_modules, execution_timeout,
-                host_job_meta, chunksize=None):
+def _create_job(
+    config,
+    internal_storage,
+    executor_id,
+    job_id,
+    func,
+    iterdata,
+    runtime_meta,
+    runtime_memory,
+    extra_env,
+    include_modules,
+    exclude_modules,
+    execution_timeout,
+    host_job_meta,
+    chunksize=None
+):
     """
     Creates a new Job
     """
@@ -290,7 +319,12 @@ def _create_job(config, internal_storage, executor_id, job_id, func,
     return job
 
 
-def _store_func_and_modules(job_tmp_dir, func_key, func_str, module_data):
+def _store_func_and_modules(
+    job_tmp_dir,
+    func_key,
+    func_str,
+    module_data
+):
     ''' stores function and modules in temporary directory to be
     used later in optimized runtime
     '''

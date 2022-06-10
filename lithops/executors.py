@@ -469,12 +469,14 @@ class FunctionExecutor:
 
         return create_futures_list(fs_done, self), create_futures_list(fs_notdone, self)
 
-    def get_result(self,
-                   fs: Optional[Union[ResponseFuture, FuturesList, List[ResponseFuture]]] = None,
-                   throw_except: Optional[bool] = True,
-                   timeout: Optional[int] = None,
-                   threadpool_size: Optional[int] = THREADPOOL_SIZE,
-                   wait_dur_sec: Optional[int] = WAIT_DUR_SEC):
+    def get_result(
+        self,
+        fs: Optional[Union[ResponseFuture, FuturesList, List[ResponseFuture]]] = None,
+        throw_except: Optional[bool] = True,
+        timeout: Optional[int] = None,
+        threadpool_size: Optional[int] = THREADPOOL_SIZE,
+        wait_dur_sec: Optional[int] = WAIT_DUR_SEC
+    ):
         """
         For getting the results from all function activations
 
@@ -486,8 +488,10 @@ class FunctionExecutor:
         :return: The result of the future/s
         """
         fs_done, _ = self.wait(
-            fs=fs, throw_except=throw_except,
-            timeout=timeout, download_results=True,
+            fs=fs,
+            throw_except=throw_except,
+            timeout=timeout,
+            download_results=True,
             threadpool_size=threadpool_size,
             wait_dur_sec=wait_dur_sec
         )
@@ -512,9 +516,11 @@ class FunctionExecutor:
 
         return result
 
-    def plot(self,
-             fs: Optional[Union[ResponseFuture, List[ResponseFuture], FuturesList]] = None,
-             dst: Optional[str] = None):
+    def plot(
+        self,
+        fs: Optional[Union[ResponseFuture, List[ResponseFuture], FuturesList]] = None,
+        dst: Optional[str] = None
+    ):
         """
         Creates timeline and histogram of the current execution in dst_dir.
 
@@ -540,12 +546,14 @@ class FunctionExecutor:
         create_timeline(ftrs_to_plot, dst)
         create_histogram(ftrs_to_plot, dst)
 
-    def clean(self,
-              fs: Optional[Union[ResponseFuture, List[ResponseFuture]]] = None,
-              cs: Optional[List[CloudObject]] = None,
-              clean_cloudobjects: Optional[bool] = True,
-              clean_fn: Optional[bool] = False,
-              force: Optional[bool] = False):
+    def clean(
+        self,
+        fs: Optional[Union[ResponseFuture, List[ResponseFuture]]] = None,
+        cs: Optional[List[CloudObject]] = None,
+        clean_cloudobjects: Optional[bool] = True,
+        clean_fn: Optional[bool] = False,
+        force: Optional[bool] = False
+    ):
         """
         Deletes all the temp files from storage. These files include the function,
         the data serialization and the function invocation results. It can also clean
@@ -691,21 +699,24 @@ class LocalhostExecutor(FunctionExecutor):
     :param log_level: log level to use during the execution.
     """
 
-    def __init__(self,
-                 config: Optional[Dict[str, Any]] = None,
-                 runtime: Optional[int] = None,
-                 storage: Optional[str] = None,
-                 worker_processes: Optional[int] = None,
-                 monitoring: Optional[str] = None,
-                 log_level: Optional[str] = False):
-
-        super().__init__(backend=LOCALHOST,
-                         config=config,
-                         runtime=runtime,
-                         storage=storage or LOCALHOST,
-                         log_level=log_level,
-                         monitoring=monitoring,
-                         worker_processes=worker_processes)
+    def __init__(
+        self,
+        config: Optional[Dict[str, Any]] = None,
+        runtime: Optional[int] = None,
+        storage: Optional[str] = None,
+        worker_processes: Optional[int] = None,
+        monitoring: Optional[str] = None,
+        log_level: Optional[str] = False
+    ):
+        super().__init__(
+            backend=LOCALHOST,
+            config=config,
+            runtime=runtime,
+            storage=storage or LOCALHOST,
+            log_level=log_level,
+            monitoring=monitoring,
+            worker_processes=worker_processes
+        )
 
 
 class ServerlessExecutor(FunctionExecutor):
@@ -724,29 +735,32 @@ class ServerlessExecutor(FunctionExecutor):
     :param log_level: log level to use during the execution
     """
 
-    def __init__(self,
-                 config: Optional[Dict[str, Any]] = None,
-                 runtime: Optional[str] = None,
-                 runtime_memory: Optional[int] = None,
-                 backend: Optional[str] = None,
-                 storage: Optional[str] = None,
-                 max_workers: Optional[int] = None,
-                 worker_processes: Optional[int] = None,
-                 monitoring: Optional[str] = None,
-                 remote_invoker: Optional[bool] = None,
-                 log_level: Optional[str] = False):
-
-        super().__init__(config=config,
-                         mode='serverless',
-                         runtime=runtime,
-                         runtime_memory=runtime_memory,
-                         backend=backend,
-                         storage=storage,
-                         max_workers=max_workers,
-                         worker_processes=worker_processes,
-                         monitoring=monitoring,
-                         log_level=log_level,
-                         remote_invoker=remote_invoker)
+    def __init__(
+        self,
+        config: Optional[Dict[str, Any]] = None,
+        runtime: Optional[str] = None,
+        runtime_memory: Optional[int] = None,
+        backend: Optional[str] = None,
+        storage: Optional[str] = None,
+        max_workers: Optional[int] = None,
+        worker_processes: Optional[int] = None,
+        monitoring: Optional[str] = None,
+        remote_invoker: Optional[bool] = None,
+        log_level: Optional[str] = False
+    ):
+        super().__init__(
+            config=config,
+            mode='serverless',
+            runtime=runtime,
+            runtime_memory=runtime_memory,
+            backend=backend,
+            storage=storage,
+            max_workers=max_workers,
+            worker_processes=worker_processes,
+            monitoring=monitoring,
+            log_level=log_level,
+            remote_invoker=remote_invoker
+        )
 
 
 class StandaloneExecutor(FunctionExecutor):
@@ -763,22 +777,25 @@ class StandaloneExecutor(FunctionExecutor):
     :param log_level: log level to use during the execution
     """
 
-    def __init__(self,
-                 config: Optional[Dict[str, Any]] = None,
-                 runtime: Optional[str] = None,
-                 backend: Optional[str] = None,
-                 storage: Optional[str] = None,
-                 max_workers: Optional[int] = None,
-                 worker_processes: Optional[int] = None,
-                 monitoring: Optional[str] = None,
-                 log_level: Optional[str] = False):
-
-        super().__init__(config=config,
-                         mode='standalone',
-                         runtime=runtime,
-                         backend=backend,
-                         storage=storage,
-                         max_workers=max_workers,
-                         worker_processes=worker_processes,
-                         monitoring=monitoring,
-                         log_level=log_level)
+    def __init__(
+        self,
+        config: Optional[Dict[str, Any]] = None,
+        runtime: Optional[str] = None,
+        backend: Optional[str] = None,
+        storage: Optional[str] = None,
+        max_workers: Optional[int] = None,
+        worker_processes: Optional[int] = None,
+        monitoring: Optional[str] = None,
+        log_level: Optional[str] = False
+    ):
+        super().__init__(
+            config=config,
+            mode='standalone',
+            runtime=runtime,
+            backend=backend,
+            storage=storage,
+            max_workers=max_workers,
+            worker_processes=worker_processes,
+            monitoring=monitoring,
+            log_level=log_level
+        )
