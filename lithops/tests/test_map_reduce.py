@@ -66,7 +66,7 @@ class TestMapReduce(unittest.TestCase):
         result = fexec.get_result()
         self.assertEqual(result, self.__class__.words_in_cos_files)
 
-    def test_map_reduce_obj_bucket_one_reducer_per_object(self):
+    def test_map_reduce_obj_bucket_reduce_by_key(self):
         logger.info('Testing map_reduce() over a bucket with one reducer per object')
         sb = STORAGE_CONFIG['backend']
         data_prefix = sb + '://' + STORAGE_CONFIG['bucket'] + '/' + DATASET_PREFIX + '/'
@@ -115,7 +115,7 @@ class TestMapReduce(unittest.TestCase):
          chunk_number - creates 'chunk_number' invocations that process [file_size//chunk_number] bytes each. """
 
         logger.info('Testing chunks on a bucket')
-        OBJ_CHUNK_SIZE = 1 * 1024 ** 2  # create a new invocation
+        OBJ_CHUNK_SIZE = 1 * 800 ** 2  # create a new invocation
         OBJ_CHUNK_NUMBER = 2
         activations = 0
 

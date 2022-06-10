@@ -139,7 +139,6 @@ class JobRunner:
 
             if obj.data_byte_range is not None:
                 extra_get_args['Range'] = 'bytes={}-{}'.format(*obj.data_byte_range)
-                logger.info(f'Chunk: {obj.part} - Range: {extra_get_args["Range"]}')
                 stream = storage.get_object(obj.bucket, obj.key, stream=True,
                                             extra_get_args=extra_get_args)
                 if obj.newline is None:
@@ -155,7 +154,6 @@ class JobRunner:
             if obj.data_byte_range is not None:
                 range_str = 'bytes={}-{}'.format(*obj.data_byte_range)
                 extra_get_args['Range'] = range_str
-                logger.info(f'Chunk: {obj.part} - Range: {extra_get_args["Range"]}')
             resp = requests.get(obj.url, headers=extra_get_args, stream=True)
             sb = resp.raw
 
@@ -164,7 +162,6 @@ class JobRunner:
             with open(obj.path, "rb") as f:
                 if obj.data_byte_range is not None:
                     extra_get_args['Range'] = 'bytes={}-{}'.format(*obj.data_byte_range)
-                    logger.info(f'Chunk: {obj.part} - Range: {extra_get_args["Range"]}')
                     first_byte, last_byte = obj.data_byte_range
                     f.seek(first_byte)
                     stream = io.BytesIO(f.read(last_byte-first_byte+1))
@@ -175,6 +172,12 @@ class JobRunner:
                 else:
                     sb = io.BytesIO(f.read())
         
+        if obj.data_byte_range is not None:
+            first_byte, last_byte = obj.data_byte_range
+            last_byte_new = first_byte + obj.chunk_size - 1
+            obj.data_byte_range = (first_byte, last_byte_new)
+            logger.info(f'Chunk: {obj.part} - Size: {obj.chunk_size} - Range: {first_byte}-{last_byte_new}')
+
         obj.data_stream = sb
 
     # Decorator to execute pre-run and post-run functions provided via environment variables
