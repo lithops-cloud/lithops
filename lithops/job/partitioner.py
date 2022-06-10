@@ -136,7 +136,11 @@ def _split_objects_from_urls(
         logger.debug(f'Creating {parts} partitions from url {object_url} ({sizeof_fmt(obj_size)})')
 
         while size < obj_size:
-            brange = (size, size+obj_chunk_size+CHUNK_THRESHOLD)
+            if obj_newline is None:
+                brange = (size, size+obj_chunk_size)
+            else:
+                brange = (size, size+obj_chunk_size+CHUNK_THRESHOLD)
+
             brange = None if obj_size == obj_chunk_size else brange
 
             partition = entry.copy()
@@ -148,7 +152,11 @@ def _split_objects_from_urls(
             partitions.append(partition)
 
             total_partitions += 1
-            size += obj_chunk_size
+
+            if obj_newline is None:
+                size += obj_chunk_size + 1
+            else:
+                size += obj_chunk_size   
 
         parts_per_object.append(total_partitions)
 
@@ -223,7 +231,11 @@ def _split_objects_from_paths(
         logger.debug(f'Creating {parts} partitions from url {path} ({sizeof_fmt(obj_size)})')
 
         while size < obj_size:
-            brange = (size, size+obj_chunk_size+CHUNK_THRESHOLD)
+            if obj_newline is None:
+                brange = (size, size+obj_chunk_size)
+            else:
+                brange = (size, size+obj_chunk_size+CHUNK_THRESHOLD)
+
             brange = None if obj_size == obj_chunk_size else brange
 
             partition = entry.copy()
@@ -235,7 +247,10 @@ def _split_objects_from_paths(
             partitions.append(partition)
 
             total_partitions += 1
-            size += obj_chunk_size
+            if obj_newline is None:
+                size += obj_chunk_size + 1
+            else:
+                size += obj_chunk_size   
 
         parts_per_object.append(total_partitions)
 
@@ -354,7 +369,11 @@ def _split_objects_from_object_storage(
         logger.debug(f'Creating {parts} partitions from object {key} ({sizeof_fmt(obj_size)})')
 
         while size < obj_size:
-            brange = (size, size+obj_chunk_size+CHUNK_THRESHOLD)
+            if obj_newline is None:
+                brange = (size, size+obj_chunk_size)
+            else:
+                brange = (size, size+obj_chunk_size+CHUNK_THRESHOLD)
+
             brange = None if obj_size == obj_chunk_size else brange
 
             partition = entry.copy()
@@ -366,7 +385,11 @@ def _split_objects_from_object_storage(
             partitions.append(partition)
 
             total_partitions += 1
-            size += obj_chunk_size
+
+            if obj_newline is None:
+                size += obj_chunk_size + 1
+            else:
+                size += obj_chunk_size    
 
         parts_per_object.append(total_partitions)
 

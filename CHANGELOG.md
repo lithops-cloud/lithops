@@ -13,6 +13,7 @@
 - [Alibaba Cloud Functions] Allow to build a runtime from a custom requirements.txt file
 - [Core] Add support for building container runtimes with podman
 - [Core] Delete only runtimes from the specified backend on 'lithops clean'
+- [Executor] Added obj_newline parameter in map() and map_reduce() methods
 
 ### Changed
 - [Core] Load docker command only when needed instead of loading it always

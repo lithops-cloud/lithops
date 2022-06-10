@@ -252,7 +252,7 @@ class FunctionExecutor:
         :param runtime_memory: Memory (in MB) to use to run the functions
         :param obj_chunk_size: Used for data processing. Chunk size to split each object in bytes. Must be >= 1MiB. 'None' for processing the whole file in one function activation
         :param obj_chunk_number: Used for data processing. Number of chunks to split each object. 'None' for processing the whole file in one function activation. chunk_n has prevalence over chunk_size if both parameters are set
-        :param obj_newline: new line character for keeping line integrity of partitions. 'None' for disabling line integrity logic
+        :param obj_newline: new line character for keeping line integrity of partitions. 'None' for disabling line integrity logic and get partitions of the exact same size in the functions
         :param timeout: Max time per function activation (seconds)
         :param include_modules: Explicitly pickle these dependencies. All required dependencies are pickled if default empty list. No one dependency is pickled if it is explicitly set to None
         :param exclude_modules: Explicitly keep these modules from pickled dependencies. It is not taken into account if you set include_modules.
@@ -327,8 +327,8 @@ class FunctionExecutor:
         :param timeout: Time that the functions have to complete their execution before raising a timeout
         :param obj_chunk_size: the size of the data chunks to split each object. 'None' for processing the whole file in one function activation
         :param obj_chunk_number: Number of chunks to split each object. 'None' for processing the whole file in one function activation
-        :param obj_newline: new line character for keeping line integrity of partitions. 'None' for disabling line integrity logic
-        :param obj_reduce_by_key: Set one reducer per object after running the partitioner
+        :param obj_newline: new line character for keeping line integrity of partitions. 'None' for disabling line integrity logic and get partitions of the exact same size in the functions
+        :param obj_reduce_by_key: Set one reducer per object after running the partitioner. By default there is one reducer for all the objects
         :param spawn_reducer: Percentage of done map functions before spawning the reduce function
         :param include_modules: Explicitly pickle these dependencies.
         :param exclude_modules: Explicitly keep these modules from pickled dependencies.
