@@ -123,55 +123,49 @@ class JobRunner:
 
     def _load_object(self, data):
         """
-        Loads the object in /tmp in case of object processing
+        Loads the object in case of object processing
         """
         extra_get_args = {}
-
         obj = data['obj']
 
+        print(obj.data_byte_range)
         if hasattr(obj, 'bucket') and not hasattr(obj, 'path'):
             logger.info(f'Getting dataset from {obj.backend}://{obj.bucket}/{obj.key}')
-
             if obj.backend == self.internal_storage.backend:
                 storage = self.internal_storage.storage
             else:
                 storage = Storage(config=self.lithops_config, backend=obj.backend)
-
             if obj.data_byte_range is not None:
                 extra_get_args['Range'] = 'bytes={}-{}'.format(*obj.data_byte_range)
-                stream = storage.get_object(obj.bucket, obj.key, stream=True,
-                                            extra_get_args=extra_get_args)
-                if obj.newline is None:
-                    sb = WrappedStreamingBody(stream, obj.chunk_size)
-                else:
-                    sb = WrappedStreamingBodyPartition(stream, obj.chunk_size, obj.data_byte_range, obj.newline)
-            else:
-                sb = storage.get_object(obj.bucket, obj.key, stream=True,
-                                        extra_get_args=extra_get_args)
+            stream = storage.get_object(obj.bucket, obj.key, stream=True, extra_get_args=extra_get_args)
+            stream_body = stream
 
         elif hasattr(obj, 'url'):
             logger.info(f'Getting dataset from {obj.url}')
             if obj.data_byte_range is not None:
-                range_str = 'bytes={}-{}'.format(*obj.data_byte_range)
-                extra_get_args['Range'] = range_str
-            resp = requests.get(obj.url, headers=extra_get_args, stream=True)
-            sb = resp.raw
+                extra_get_args['Range'] = 'bytes={}-{}'.format(*obj.data_byte_range)
+            stream = requests.get(obj.url, headers=extra_get_args, stream=True).raw
+            stream_body = stream
 
         elif hasattr(obj, 'path'):
             logger.info(f'Getting dataset from {obj.path}')
             with open(obj.path, "rb") as f:
                 if obj.data_byte_range is not None:
-                    extra_get_args['Range'] = 'bytes={}-{}'.format(*obj.data_byte_range)
                     first_byte, last_byte = obj.data_byte_range
                     f.seek(first_byte)
                     stream = io.BytesIO(f.read(last_byte-first_byte+1))
-                    if obj.newline is None:
-                        sb = WrappedStreamingBody(stream, obj.chunk_size)
-                    else:
-                        sb = WrappedStreamingBodyPartition(stream, obj.chunk_size, obj.data_byte_range, obj.newline)
                 else:
-                    sb = io.BytesIO(f.read())
-        
+                    stream = io.BytesIO(f.read())
+            stream_body = stream
+
+        if obj.data_byte_range is not None:
+            if obj.newline is None:
+                stream_body = WrappedStreamingBody(stream, obj.chunk_size)
+            else:
+                stream_body = WrappedStreamingBodyPartition(stream, obj.chunk_size, obj.data_byte_range, obj.newline)
+
+        obj.data_stream = stream_body
+
         if obj.data_byte_range is not None:
             first_byte, last_byte = obj.data_byte_range
             if last_byte - first_byte > obj.chunk_size:
@@ -183,7 +177,6 @@ class JobRunner:
             obj.data_byte_range = (0, last_byte)
         
         logger.info(f'Chunk: {obj.part}/{obj.total_parts} - Size: {obj.chunk_size} - Range: {first_byte}-{last_byte}')
-        obj.data_stream = sb
 
     # Decorator to execute pre-run and post-run functions provided via environment variables
     def prepost(func):

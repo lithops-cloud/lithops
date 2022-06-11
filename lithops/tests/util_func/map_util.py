@@ -76,10 +76,18 @@ def my_map_function_obj(obj, id):
     return counter
 
 
-def my_map_function_url(obj):
+def my_map_function_url(id, obj):
     print('I am processing the object from {}'.format(obj.url))
+    print('Function id: {}'.format(id))
+    print('Partition num: {}'.format(obj.part))
+    print('Chunk size: {}'.format(obj.chunk_size))
+    print('Byte range: {}'.format(obj.data_byte_range))
+
     counter = {}
     data = obj.data_stream.read()
+
+    print('Data lenght: {}'.format(len(data)))
+
     for line in data.splitlines():
         for word in line.decode('utf-8').split():
             if word not in counter:

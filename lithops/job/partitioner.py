@@ -144,7 +144,7 @@ def _split_objects_from_urls(
             elif size+obj_chunk_size >= obj_size:
                 # last chunk
                 brange = (size, obj_size-1)
-                obj_chunk_size = brange[1] - brange[0]
+                obj_chunk_size = obj_size - size
             elif obj_newline is None:
                 brange = (size, size+obj_chunk_size-1)
             else:
@@ -247,7 +247,7 @@ def _split_objects_from_paths(
             elif size+obj_chunk_size >= obj_size:
                 # last chunk
                 brange = (size, obj_size-1)
-                obj_chunk_size = brange[1] - brange[0]
+                obj_chunk_size = obj_size - size
             elif obj_newline is None:
                 brange = (size, size+obj_chunk_size-1)
             else:
@@ -394,7 +394,7 @@ def _split_objects_from_object_storage(
             elif size+obj_chunk_size >= obj_size:
                 # last chunk
                 brange = (size, obj_size-1)
-                obj_chunk_size = brange[1] - brange[0]
+                obj_chunk_size = obj_size - size
             elif obj_newline is None:
                 brange = (size, size+obj_chunk_size-1)
             else:
