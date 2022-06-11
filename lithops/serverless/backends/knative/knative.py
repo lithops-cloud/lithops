@@ -51,8 +51,9 @@ class KnativeServingBackend:
         self.name = 'knative'
         self.type = 'faas'
         self.kn_config = knative_config
-        self.istio_endpoint = self.kn_config.get('istio_endpoint')
+        self.ingress_endpoint = self.kn_config.get('ingress_endpoint')
         self.kubecfg_path = self.kn_config.get('kubecfg_path')
+        self.networking_layer = self.kn_config.get('networking_layer')
 
         # k8s config can be incluster, in ~/.kube/config or generate kube-config.yaml file and
         # set env variable KUBECONFIG=<path-to-kube-confg>
@@ -78,12 +79,19 @@ class KnativeServingBackend:
         self.custom_api = client.CustomObjectsApi()
         self.core_api = client.CoreV1Api()
 
-        if self.istio_endpoint is None:
+        if self.ingress_endpoint is None:
+            if self.networking_layer == 'istio':
+                namespace = 'istio-system'
+                service = 'istio-ingressgateway'
+            else:
+                namespace = 'kourier-system'
+                service = 'kourier'
+
             try:
                 ip = None
-                ingress = self.core_api.read_namespaced_service('istio-ingressgateway', 'istio-system')
+                ingress = self.core_api.read_namespaced_service(service, namespace)
                 http_port = list(filter(lambda port: port.port == 80, ingress.spec.ports))[0].node_port
-                # https_port = list(filter(lambda port: port.port == 443, ingress.spec.ports))[0].node_port
+                https_port = list(filter(lambda port: port.port == 443, ingress.spec.ports))[0].node_port
                 if ingress.status.load_balancer.ingress is not None:
                     # get loadbalancer ip
                     ip = ingress.status.load_balancer.ingress[0].ip
@@ -101,9 +109,9 @@ class KnativeServingBackend:
                     if not ip:
                         ip = node.items[0].status.addresses[0].address
                 if ip and http_port:
-                    self.istio_endpoint = f'http://{ip}:{http_port}'
-                    self.kn_config['istio_endpoint'] = self.istio_endpoint
-                    logger.debug(f"Istio endpoint set to {self.istio_endpoint}")
+                    self.ingress_endpoint = f'http://{ip}:{http_port}'
+                    self.kn_config['ingress_endpoint'] = self.ingress_endpoint
+                    logger.debug(f"Ingress endpoint set to {self.ingress_endpoint}")
             except Exception as e:
                 pass
 
@@ -638,9 +646,9 @@ class KnativeServingBackend:
 
         headers = {}
 
-        if self.istio_endpoint:
+        if self.ingress_endpoint:
             headers['Host'] = service_host
-            endpoint = self.istio_endpoint
+            endpoint = self.ingress_endpoint
         else:
             endpoint = f'http://{service_host}'
 

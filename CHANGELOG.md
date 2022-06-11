@@ -8,6 +8,7 @@
 - [K8s] Append 'docker_server' as a prefix of the runtime
 - [Code Engine] Append 'docker_server' as a prefix of the runtime
 - [Knative] Append 'docker_server' as a prefix of the runtime
+- [Knative] Allow to use Kourier as the networking layer
 - [Google Cloud Run] Allow CPU values <1, 6 and 8
 - [Alibaba Cloud Functions] Added Python 3.9 runtime compatibility
 - [Alibaba Cloud Functions] Allow to build a runtime from a custom requirements.txt file

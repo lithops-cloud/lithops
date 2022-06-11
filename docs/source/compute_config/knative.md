@@ -23,7 +23,7 @@ Note that Lithops automatically builds the default runtime the first time you ru
 
 6. [Follow this instructions to install knative serving.](https://knative.dev/docs/install/yaml-install/serving/install-serving-with-yaml/)
 
-7. Install a networking layer. Currently lithops supports **Istio**. [Follow these instructions to install Istio.](https://knative.dev/docs/install/yaml-install/serving/install-serving-with-yaml/#install-a-networking-layer)
+7. Install a networking layer. Currently Lithops supports **Kourier**. [Follow these instructions to install Kourier.](https://knative.dev/docs/install/yaml-install/serving/install-serving-with-yaml/#install-a-networking-layer)
 
 
 ### Option 2 (IBM IKS or any other Kubernetes Cluster):
@@ -32,7 +32,7 @@ Note that Lithops automatically builds the default runtime the first time you ru
 
 6. [Follow this instructions to install knative serving.](https://knative.dev/docs/install/yaml-install/serving/install-serving-with-yaml/)
 
-7. Install a networking layer. Currently Lithops supports **Istio**. [Follow these instructions to install Istio.](https://knative.dev/docs/install/yaml-install/serving/install-serving-with-yaml/#install-a-networking-layer)
+7. Install a networking layer. Currently Lithops supports **Kourier**. [Follow these instructions to install Kourier.](https://knative.dev/docs/install/yaml-install/serving/install-serving-with-yaml/#install-a-networking-layer)
 
 
 ## Configuration
@@ -76,7 +76,7 @@ knative:
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|knative | istio_endpoint | |no | Istio IngressGateway Endpoint. Make sure to use http:// prefix |
+|knative | ingress_endpoint | |no | Ingress endpoint. Make sure to use http:// prefix |
 |knative | kubecfg_path | |no | Path to kubecfg file. Mandatory if config file not in `~/.kube/config` or KUBECONFIG env var not present|
 |knative | docker_server | docker.io |no | Docker server URL |
 |knative | docker_user | |no | Docker hub username |
