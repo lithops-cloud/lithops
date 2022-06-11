@@ -26,11 +26,12 @@ BUILD_GIT_URL = 'https://github.com/lithops-cloud/lithops'
 DEFAULT_CONFIG_KEYS = {
     'runtime_timeout': 600,  # Default: 600 seconds => 10 minutes
     'runtime_memory': 256,  # Default memory: 256 MB
-    'runtime_cpu': 0.5,  # 0.125 vCPU
+    'runtime_cpu': 0.125,  # 0.125 vCPU
     'max_workers': 250,
     'worker_processes': 1,
     'invoke_pool_threads': 250,
-    'docker_server': 'docker.io'
+    'docker_server': 'docker.io',
+    'networking_layer': 'kourier'
 }
 
 FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_knative.zip')

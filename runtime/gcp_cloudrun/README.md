@@ -34,12 +34,11 @@ import lithops
 pw = lithops.FunctionExecutor(runtime_memory=512)
 ```
 
-By default, Lithops uses 1vCPU for the Google Cloud Run runtimes. However, you can change it in the `config` by setting the appropiate vCPU size in vCPUs units (1, 2 or 4). You can also modify the container concurrency (how many requests go to a container). By default, Lithops uses a concurrency of 1.
+By default, Lithops uses 1vCPU for the Google Cloud Run runtimes. However, you can change it in the `config` by setting the appropiate vCPU size in vCPUs units.
 
 ```yaml
 gcp_cloudrun:
-    runtime_cpus: 2
-    container_concurrency: 5
+    runtime_cpu: 2
 ```
 
 ## Custom runtime

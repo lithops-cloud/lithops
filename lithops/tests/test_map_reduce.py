@@ -105,7 +105,7 @@ class TestMapReduce(unittest.TestCase):
         logger.info('Testing map_reduce() over URLs')
         fexec = lithops.FunctionExecutor(config=CONFIG)
         fexec.map_reduce(my_map_function_url, TEST_FILES_URLS,
-                         my_reduce_function)
+                         my_reduce_function, obj_chunk_number=2)
         result = fexec.get_result()
         self.assertEqual(result, self.__class__.words_in_cos_files)
 

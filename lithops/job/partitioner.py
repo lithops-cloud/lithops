@@ -128,33 +128,45 @@ def _split_objects_from_urls(
         if 'accept-ranges' not in metadata.headers:
             obj_chunk_size = obj_size
 
-        size = total_partitions = 0
+        obj_partitions = []
+        size = obj_total_partitions = 0
 
         ci = obj_size
         cz = obj_chunk_size
         parts = ci // cz + (ci % cz > 0)
         logger.debug(f'Creating {parts} partitions from url {object_url} ({sizeof_fmt(obj_size)})')
 
-        while size < obj_size:
-            if obj_newline is None:
+        while size < obj_size - 1:
+            if obj_size <= obj_chunk_size:
+                # Only one chunk
+                brange = None
+                obj_chunk_size = obj_size
+            elif size+obj_chunk_size >= obj_size:
+                # last chunk
+                brange = (size, obj_size-1)
+                obj_chunk_size = obj_size - size
+            elif obj_newline is None:
                 brange = (size, size+obj_chunk_size-1)
             else:
                 brange = (size, size+obj_chunk_size+CHUNK_THRESHOLD)
 
-            brange = None if obj_size == obj_chunk_size else brange
+            obj_total_partitions += 1
 
             partition = entry.copy()
             partition['obj'] = CloudObjectUrl(object_url)
             partition['obj'].data_byte_range = brange
             partition['obj'].chunk_size = obj_chunk_size
-            partition['obj'].part = total_partitions
+            partition['obj'].part = obj_total_partitions
             partition['obj'].newline = obj_newline
-            partitions.append(partition)
+            obj_partitions.append(partition)
 
-            total_partitions += 1
             size += obj_chunk_size   
 
-        parts_per_object.append(total_partitions)
+        for partition in obj_partitions:
+            partition['obj'].total_parts = obj_total_partitions
+        
+        partitions.extend(obj_partitions)
+        parts_per_object.append(obj_total_partitions)
 
     with ThreadPoolExecutor(64) as ex:
         ex.map(_split, map_func_args_list)
@@ -219,33 +231,45 @@ def _split_objects_from_paths(
         else:
             obj_chunk_size = obj_size = 1
 
-        size = total_partitions = 0
+        obj_partitions = []
+        size = obj_total_partitions = 0
 
         ci = obj_size
         cz = obj_chunk_size
         parts = ci // cz + (ci % cz > 0)
         logger.debug(f'Creating {parts} partitions from url {path} ({sizeof_fmt(obj_size)})')
 
-        while size < obj_size:
-            if obj_newline is None:
+        while size < obj_size - 1:
+            if obj_size <= obj_chunk_size:
+                # Only one chunk
+                brange = None
+                obj_chunk_size = obj_size
+            elif size+obj_chunk_size >= obj_size:
+                # last chunk
+                brange = (size, obj_size-1)
+                obj_chunk_size = obj_size - size
+            elif obj_newline is None:
                 brange = (size, size+obj_chunk_size-1)
             else:
                 brange = (size, size+obj_chunk_size+CHUNK_THRESHOLD)
 
-            brange = None if obj_size == obj_chunk_size else brange
+            obj_total_partitions += 1
 
             partition = entry.copy()
             partition['obj'] = CloudObjectLocal(path)
             partition['obj'].data_byte_range = brange
             partition['obj'].chunk_size = obj_chunk_size
-            partition['obj'].part = total_partitions
+            partition['obj'].part = obj_total_partitions
             partition['obj'].newline = obj_newline
-            partitions.append(partition)
+            obj_partitions.append(partition)
 
-            total_partitions += 1
             size += obj_chunk_size   
 
-        parts_per_object.append(total_partitions)
+        for partition in obj_partitions:
+            partition['obj'].total_parts = obj_total_partitions
+        
+        partitions.extend(obj_partitions)
+        parts_per_object.append(obj_total_partitions)
 
     with ThreadPoolExecutor(64) as ex:
         ex.map(_split, new_map_func_args_list)
@@ -337,7 +361,7 @@ def _split_objects_from_object_storage(
     partitions = []
     parts_per_object = []
 
-    def create_partition(bucket, key, entry):
+    def _split(bucket, key, entry):
 
         if key.endswith('/'):
             logger.debug(f'Discarding object "{key}" as it is a prefix folder (0.0B)')
@@ -354,33 +378,45 @@ def _split_objects_from_object_storage(
         else:
             obj_chunk_size = obj_size
 
-        size = total_partitions = 0
+        obj_partitions = []
+        size = obj_total_partitions = 0
 
         ci = obj_size
         cz = obj_chunk_size
         parts = ci // cz + (ci % cz > 0)
         logger.debug(f'Creating {parts} partitions from object {key} ({sizeof_fmt(obj_size)})')
 
-        while size < obj_size:
-            if obj_newline is None:
+        while size < obj_size - 1:
+            if obj_size <= obj_chunk_size:
+                # Only one chunk
+                brange = None
+                obj_chunk_size = obj_size
+            elif size+obj_chunk_size >= obj_size:
+                # last chunk
+                brange = (size, obj_size-1)
+                obj_chunk_size = obj_size - size
+            elif obj_newline is None:
                 brange = (size, size+obj_chunk_size-1)
             else:
                 brange = (size, size+obj_chunk_size+CHUNK_THRESHOLD)
 
-            brange = None if obj_size == obj_chunk_size else brange
+            obj_total_partitions += 1
 
             partition = entry.copy()
             partition['obj'] = CloudObject(sb, bucket, key)
             partition['obj'].data_byte_range = brange
             partition['obj'].chunk_size = obj_chunk_size
-            partition['obj'].part = total_partitions
+            partition['obj'].part = obj_total_partitions
             partition['obj'].newline = obj_newline
-            partitions.append(partition)
+            obj_partitions.append(partition)
 
-            total_partitions += 1
-            size += obj_chunk_size    
+            size += obj_chunk_size
 
-        parts_per_object.append(total_partitions)
+        for partition in obj_partitions:
+            partition['obj'].total_parts = obj_total_partitions
+        
+        partitions.extend(obj_partitions)
+        parts_per_object.append(obj_total_partitions)
 
     for entry in map_func_args_list:
         sb, bucket, prefix, obj_name = utils.split_object_url(entry['obj'])
@@ -388,11 +424,10 @@ def _split_objects_from_object_storage(
         if obj_name:
             # each entry is an object key
             key = '/'.join([prefix, obj_name]) if prefix else obj_name
-            create_partition(bucket, key, entry)
-
+            _split(bucket, key, entry)
         else:
             # each entry is a bucket
             for key in keys_dict[bucket]:
-                create_partition(bucket, key, entry)
+               _split(bucket, key, entry)
 
     return partitions, parts_per_object
