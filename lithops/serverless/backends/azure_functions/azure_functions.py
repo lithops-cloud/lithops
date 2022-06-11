@@ -278,6 +278,10 @@ class AzureFunctionAppBackend:
                 conn.close()
                 if resp.status != 200:
                     raise Exception(f'Invocation error: {resp.reason} - {resp_text}')
+                try:
+                    resp_text = json.loads(resp_text)
+                except Exception as e:
+                    raise Exception(f'Unable to load runtime metadata: {resp_text}')
             else:
                 # logger.debug('Invoking calls {}'.format(', '.join(payload['call_ids'])))
                 conn.request("POST", route, body=json.dumps(payload, default=str))
@@ -319,15 +323,10 @@ class AzureFunctionAppBackend:
         logger.info(f"Extracting metadata from: {docker_image_name}")
         payload = {'log_level': logger.getEffectiveLevel(), 'get_metadata': True}
 
-        response = self.invoke(
+        runtime_meta = self.invoke(
             docker_image_name, memory=memory,
             payload=payload, return_result=True
         )
-
-        try:
-            runtime_meta = json.loads(response)
-        except Exception as e:
-            raise Exception(f'Unable to load runtime metadata: {response}')
 
         if 'preinstalls' not in runtime_meta:
             raise Exception(runtime_meta)
