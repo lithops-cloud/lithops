@@ -217,7 +217,7 @@ class OpenWhiskClient:
                 data = json.loads(resp.read().decode("utf-8"))
                 conn.close()
         except Exception as e:
-            logger.exception('Failed: {}'.format(str(e)))
+            logger.debug('Invocation Failed: {}. Doing reinvocation'.format(str(e)))
             if not is_ow_action:
                 conn.close()
             if self_invoked:
