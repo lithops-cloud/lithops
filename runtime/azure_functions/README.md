@@ -73,7 +73,7 @@ numpy
 matplotlib
 ```
 
-**IMPORTANT**: Note that the runtime is built using your local machine, and some libraries, like Numpy, compile some *C* libraries based on the Operating System you are using. Azure functions run on a Linux machine, this mean that if you use **MacOS** or **Windows**, those libraries that complied *C* code cannot be executed from within the function. In this case, you must use a Linux machine for building the runtime.
+**IMPORTANT**: Note that the runtime is built using your local machine, and some libraries, like Numpy, compile some *C* code based on the Operating System you are using. Azure functions run on a Linux machine, this mean that if you use **MacOS** or **Windows** for building the runtime, those libraries that compiled *C* code cannot be executed from within the function. In this case, you must use a Linux machine for building the runtime.
 
 Then, we will build the runtime, specifying the modified `requirements.txt` file and a runtime name:
 ```
