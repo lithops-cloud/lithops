@@ -121,14 +121,9 @@ def load_config(config_data):
         raise Exception("All mount paths must start with '/mnt' on 'aws_lambda/efs/*/mount_path' section")
 
     # Lambda runtime config
-    if 'ephemeral_storage' not in config_data['aws_lambda']:
-        config_data['aws_lambda']['ephemeral_storage'] = DEFAULT_CONFIG_KEYS['ephemeral_storage']
     if config_data['aws_lambda']['ephemeral_storage'] < RUNTIME_TMP_SZ_MIN \
             or config_data['aws_lambda']['ephemeral_storage'] > RUNTIME_TMP_SZ_MAX:
         raise Exception(f'Ephemeral storage value must be between {RUNTIME_TMP_SZ_MIN} and {RUNTIME_TMP_SZ_MAX}')
-
-    if 'env_vars' not in config_data['aws_lambda']:
-        config_data['aws_lambda']['env_vars'] = DEFAULT_CONFIG_KEYS['env_vars']
 
     # Put credential keys to 'aws_lambda' dict entry
     config_data['aws_lambda'].update(config_data['aws'])

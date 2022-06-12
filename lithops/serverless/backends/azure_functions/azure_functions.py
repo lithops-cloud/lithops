@@ -56,6 +56,8 @@ class AzureFunctionAppBackend:
         self.queue_service = QueueServiceClient(account_url=self.queue_service_url,
                                                 credential=self.storage_account_key)
 
+        logger.debug(f'Invocation type set to: {self.invocation_type}')
+
         msg = COMPUTE_CLI_MSG.format('Azure Functions')
         logger.info(f"{msg} - Location: {self.location}")
 
@@ -168,7 +170,7 @@ class AzureFunctionAppBackend:
             archive.extractall(path=mod_dir)
             os.remove(mod_dir+'/__init__.py')
             os.remove(config.FH_ZIP_LOCATION)
-        
+
         logger.debug(f'Runtime {runtime_name} built successfully')
 
     def _create_function(self, runtime_name, memory, timeout):
@@ -203,9 +205,13 @@ class AzureFunctionAppBackend:
                f'--consumption-plan-location {self.location} '
                f'--tags type=lithops-runtime lithops_version={__version__} runtime_name={runtime_name}')
         utils.run_command(cmd)
-        time.sleep(10)
 
-        logger.debug(f'Publishing function: {function_name}')
+        cmd = (f'az functionapp config appsettings set --name {function_name} '
+               f'--resource-group {self.resource_group} '
+               f'--settings FUNCTIONS_WORKER_PROCESS_COUNT=1 '
+               f'PYTHON_THREADPOOL_THREAD_COUNT=None')
+        # utils.run_command(cmd)
+
         build_dir = os.path.join(config.BUILD_DIR, function_name)
         os.chdir(build_dir)
         if utils.is_unix_system():
@@ -214,10 +220,13 @@ class AzureFunctionAppBackend:
             cmd = f'func azure functionapp publish {function_name} --python'
         while True:
             try:
+                logger.debug(f'Publishing function: {function_name}')
+                time.sleep(10)
                 utils.run_command(cmd)
                 break
             except Exception as e:
-                time.sleep(10)
+                pass
+
         time.sleep(10)
 
     def delete_runtime(self, runtime_name, memory):
@@ -245,8 +254,8 @@ class AzureFunctionAppBackend:
         Invoke function
         """
         function_name = self._format_function_name(docker_image_name, memory)
-        if self.invocation_type == 'event':
 
+        if self.invocation_type == 'event':
             in_q_name = self._format_queue_name(function_name, config.IN_QUEUE)
             in_queue = self.queue_service.get_queue_client(in_q_name)
             msg = in_queue.send_message(utils.dict_to_b64str(payload))
