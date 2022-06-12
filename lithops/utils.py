@@ -326,12 +326,12 @@ def sdb_to_dict(item):
 
 def dict_to_b64str(the_dict):
     bytes_dict = json.dumps(the_dict, default=str).encode()
-    b64_dict = base64.urlsafe_b64encode(bytes_dict)
+    b64_dict = base64.b64encode(bytes_dict)
     return b64_dict.decode()
 
 
 def b64str_to_dict(str_data):
-    b64_dict = base64.urlsafe_b64decode(str_data.encode())
+    b64_dict = base64.b64decode(str_data.encode())
     bytes_dict = json.loads(b64_dict)
 
     return bytes_dict

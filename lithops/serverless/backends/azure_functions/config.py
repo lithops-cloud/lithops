@@ -24,9 +24,9 @@ ACTION_MODULES_DIR = os.path.join('.python_packages', 'lib', 'site-packages')
 FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_azure.zip')
 
 DEFAULT_CONFIG_KEYS = {
-    'runtime_timeout': 300,  # Default: 600 seconds => 10 minutes
+    'runtime_timeout': 600,  # Default: 600 seconds => 10 minutes
     'runtime_memory': 256,  # Default memory: 256 MB
-    'max_workers': 200,
+    'max_workers': 100,
     'worker_processes': 1,
     'invoke_pool_threads': 100,
     'functions_version': 3,
@@ -80,6 +80,7 @@ BINDINGS_HTTP = {
             "name": "$return"
         }]}
 
+# https://docs.microsoft.com/en-us/azure/azure-functions/functions-host-json
 HOST_FILE = """
 {
     "version": "2.0",
@@ -102,8 +103,16 @@ HOST_FILE = """
     "extensions": {
         "http": {
             "maxOutstandingRequests": 1,
-            "maxConcurrentRequests": 1
-        }
+            "maxConcurrentRequests": 1,
+            "dynamicThrottlesEnabled": true
+        },
+        "queues": {
+            "maxPollingInterval": 2000,
+            "visibilityTimeout" : "00:00:05",
+            "batchSize": 1,
+            "maxDequeueCount": 5,
+            "newBatchThreshold": 1
+        },
     },
     "extensionBundle": {
         "id": "Microsoft.Azure.Functions.ExtensionBundle",
@@ -123,7 +132,6 @@ redis
 requests
 PyYAML
 kubernetes
-numpy
 cloudpickle
 ps-mem
 tblib

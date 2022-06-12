@@ -8,7 +8,6 @@ redis
 requests
 PyYAML
 kubernetes
-numpy
 cloudpickle
 ps-mem
 tblib
