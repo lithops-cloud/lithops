@@ -16,6 +16,7 @@
 
 import os
 import json
+import time
 import logging
 from azure.storage.queue import QueueClient
 from lithops.storage.storage import InternalStorage
@@ -31,11 +32,13 @@ queue_name = os.environ['QueueName']
 queue = QueueClient.from_connection_string(conn_str=connection_string, queue_name=queue_name)
 
 def get_message():
-    try:
-        message = next(queue.receive_messages())
-        queue.delete_message(message)
-    except:
-        message = None
+    message = None
+    while not message:
+        try:
+            message = next(queue.receive_messages())
+            queue.delete_message(message)
+        except:
+            time.sleep(5)
 
     return message
 
@@ -66,7 +69,6 @@ def run_job(message):
 
 
 if __name__ == '__main__':
-    message = get_message()
-    while message is not None:
-        run_job(message)
+    while True:
         message = get_message()
+        run_job(message)

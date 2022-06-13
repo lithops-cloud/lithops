@@ -76,7 +76,7 @@ class AzureContainerAppBackend:
         """        
         revision = 'latest' if 'dev' in __version__ else __version__
         return utils.get_default_k8s_image_name(
-            self.name, self.ac_config, 'lithops-ca-default2', revision
+            self.name, self.ac_config, 'lithops-ca-default', revision
         )
 
     def deploy_runtime(self, runtime_name, memory, timeout):

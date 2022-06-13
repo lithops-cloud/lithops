@@ -84,7 +84,7 @@ CONTAINERAPP_JOSN = {
                         "name": "queue-based-autoscaling",
                         "azureQueue": {
                             "queueName": "",
-                            "queueLength": 1000,
+                            "queueLength": 1,
                             "auth": [
                                 {
                                     "secretRef": "queueconnection",
