@@ -71,7 +71,7 @@ $ python3 -m pip install lithops[azure]
       storage_account_key: <STORAGE_ACCOUNT_KEY>
 
   azure_containers:
-      location: <CONSUMPTION_PLAN_LOCATION>
+      location: <LOCATION>
       resource_group: <RESOURCE_GROUP_NAME>
 ```
 
@@ -89,12 +89,13 @@ $ python3 -m pip install lithops[azure]
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |azure_containers| resource_group | |yes | Name of the resource group used in the step 5 of the installation. |
-|azure_containers| location |  |yes | The location of the consumption plan for the runtime. Use `az functionapp list-consumption-locations` to view the available locations.|
+|azure_containers| location |  |yes | The location where you created the 'lithops' Container APP environment|
 |azure_containers | docker_server | docker.io |no | Docker server URL |
 |azure_containers | docker_user | |no | Docker hub username |
-|azure_containers | max_workers | 200 | no | Max number of workers per `FunctionExecutor()`|
+|azure_containers | max_workers | 30 | no | Max number of workers. Limited to 30 by Azure|
 |azure_containers | worker_processes | 1 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker |
 |azure_containers| runtime |  |no | Runtime name already deployed in the service|
-|azure_containers | runtime_timeout | 300 |no | Runtime timeout in seconds. Default 5 minutes |
-|azure_containers| invocation_type | http  | no | One of 'http' or 'event'|
+|azure_containers | runtime_memory | 512 |no | Memory limit in MB. Default 512Mi |
+|azure_containers | runtime_timeout | 600 |no | Runtime timeout in seconds. Default 5 minutes |
+|azure_containers| invocation_type | event  | no | One of 'event'|
 |azure_containers | invoke_pool_threads | 100 |no | Number of concurrent threads used for invocation |

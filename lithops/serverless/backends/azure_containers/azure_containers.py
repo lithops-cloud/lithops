@@ -154,7 +154,6 @@ class AzureContainerAppBackend:
                 in_queue = self.queue_service.get_queue_client(containerapp_name)
                 in_queue.clear_messages()
 
-
         ca_temaplate = config.CONTAINERAPP_JOSN
         ca_temaplate['name'] = containerapp_name
         ca_temaplate['location'] = self.location
@@ -162,6 +161,14 @@ class AzureContainerAppBackend:
         ca_temaplate['tags']['lithops_version'] = str(__version__)
         ca_temaplate['tags']['runtime_name'] = runtime_name
         ca_temaplate['tags']['runtime_memory'] = str(memory)
+
+        try:
+            runtime_memory, runtime_cpu = config.ALLOWED_MEM[memory]
+            ca_temaplate['properties']['template']['containers'][0]['resources']['cpu'] = runtime_cpu
+            ca_temaplate['properties']['template']['containers'][0]['resources']['memory'] = runtime_memory
+        except:
+            raise Exception(f'The memory {memory} is not allowed, you must choose '
+                            f'one of thses memory values: {config.ALLOWED_MEM.keys()}')
 
         ca_temaplate['properties']['template']['containers'][0]['image'] = runtime_name
         ca_temaplate['properties']['template']['containers'][0]['env'][0]['value'] = containerapp_name

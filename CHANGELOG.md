@@ -3,6 +3,7 @@
 ## [v2.6.1.dev0]
 
 ### Added
+- [Azure Container APPs] Added new lithops backend for Azure Container APPs
 - [AWS Lambda] Added "env_vars" and "ephemeral_storage" parameters for lambda runtime config
 - [Azure Functions] Allow to build a runtime from a custom requirements.txt file
 - [K8s] Append 'docker_server' as a prefix of the runtime

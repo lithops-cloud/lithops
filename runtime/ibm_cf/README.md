@@ -17,7 +17,7 @@ The default runtime is created the first time you execute a function. Lithops au
 Alternatively, you can create the default runtime by running the following command:
 
 ```bash
-$ lithops runtime deploy default
+$ lithops runtime deploy default -b ibm_cf -s ibm_cos
 ```
 
 To run a function with the default runtime you don't need to specify anything in the code, since everything is managed internally by Lithops:
@@ -63,15 +63,15 @@ pw = lithops.FunctionExecutor(runtime_memory=512)
     If you need another Python version, for example Python 3.8, you must use the [Dockerfile.python38](ibm_cf/Dockerfile.python38) that
     points to a source image based on Python 3.8. Finally run the build script:
 
-        $ lithops runtime build docker_username/runtimename:tag
+        $ lithops runtime build -b ibm_cf docker_username/runtimename:tag
 
     Note that Docker hub image names look like *"docker_username/runtimename:tag"* and must be all lower case, for example:
 
-        $ lithops runtime build jsampe/lithops-custom-runtime-3.8:0.1
+        $ lithops runtime build -b ibm_cf jsampe/lithops-custom-runtime-3.8:0.1
 
     By default the Dockerfile should be located in the same folder from where you execute the **lithops runtime** command. If your Dockerfile is located in another folder, or the Dockerfile has another name, you can specify its location with the **-f** parameter, for example:
 
-        $ lithops runtime build -f ibm_cf/Dockerfile.conda jsampe/lithops-conda-runtime-3.8:0.1
+        $ lithops runtime build -b ibm_cf -f ibm_cf/Dockerfile.conda username/lithops-conda-runtime-3.8:0.1
 
     Once you have built your runtime with all of your necessary packages, you can already use it with Lithops.
     To do so, you have to specify the full docker image name in the configuration or when you create the **ibm_cf_executor** instance, for example:
@@ -95,11 +95,11 @@ pw = lithops.FunctionExecutor(runtime_memory=512)
 
     Alternatively, you can create a Lithops runtime based on already built Docker image by executing the following command, which will deploy all the necessary information to use the runtime with your Lithops.
 
-        $ lithops runtime deploy docker_username/runtimename:tag
+        $ lithops runtime deploy docker_username/runtimename:tag -b ibm_cf -s ibm_cos
 
     For example, you can use an already built runtime based on Python 3.8 and with the *matplotlib* and *nltk* libraries by running:
 
-        $ lithops runtime deploy jsampe/lithops-matplotlib-3.8:0.1
+        $ lithops runtime deploy jsampe/lithops-matplotlib-3.8:0.1 -b ibm_cf -s ibm_cos
 
     Once finished, you can use the runtime in your Lithops code:
 
@@ -116,19 +116,19 @@ pw = lithops.FunctionExecutor(runtime_memory=512)
 
     You can update default runtime by:
 
-        $ lithops runtime update default
+        $ lithops runtime update default -b ibm_cf -s ibm_cos
 
     You can update any other runtime deployed in your namespace by specifying the docker image that the runtime depends on:
 
-        $ lithops runtime update docker_username/runtimename:tag
+        $ lithops runtime update docker_username/runtimename:tag -b ibm_cf -s ibm_cos
 
     For example, you can update an already created runtime based on the Docker image `jsampe/lithops-conda-3.8:0.1` by:
 
-        $ lithops runtime update jsampe/lithops-conda-3.8:0.1
+        $ lithops runtime update jsampe/lithops-conda-3.8:0.1 -b ibm_cf -s ibm_cos
 
     Alternatively, you can update all the deployed runtimes at a time by:
 
-        $ lithops runtime update all
+        $ lithops runtime update all -b ibm_cf -s ibm_cos
 
 2. **Delete a runtime**
 
@@ -136,22 +136,22 @@ pw = lithops.FunctionExecutor(runtime_memory=512)
 
     You can delete default runtime by:
 
-        $ lithops runtime delete default
+        $ lithops runtime delete default -b ibm_cf -s ibm_cos
 
     You can delete any other runtime deployed in your namespace by specifying the docker image that the runtime depends on:
 
-        $ lithops runtime delete docker_username/runtimename:tag
+        $ lithops runtime delete docker_username/runtimename:tag -b ibm_cf -s ibm_cos
 
     For example, you can delete runtime based on the Docker image `jsampe/lithops-conda-3.8:0.1` by:
 
-        $ lithops runtime delete jsampe/lithops-conda-3.8:0.1
+        $ lithops runtime delete jsampe/lithops-conda-3.8:0.1 -b ibm_cf -s ibm_cos
 
     You can delete all the runtimes at a time by:
 
-        $ lithops runtime delete all
+        $ lithops runtime delete all -b ibm_cf -s ibm_cos
 
 3. **Clean everything**
 
      You can clean everything related to Lithops, such as all deployed runtimes and cache information, and start from scratch by simply running the next command (Configuration is not deleted):
 
-        $ lithops clean -b ibm_cf
+        $ lithops clean -b ibm_cf -s ibm_cos
