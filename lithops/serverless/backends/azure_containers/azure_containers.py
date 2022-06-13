@@ -154,7 +154,7 @@ class AzureContainerAppBackend:
                 in_queue = self.queue_service.get_queue_client(containerapp_name)
                 in_queue.clear_messages()
 
-        ca_temaplate = config.CONTAINERAPP_JOSN
+        ca_temaplate = config.CONTAINERAPP_JSON
         ca_temaplate['name'] = containerapp_name
         ca_temaplate['location'] = self.location
         ca_temaplate['tags']['type'] = 'lithops-runtime'

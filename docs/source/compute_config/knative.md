@@ -13,9 +13,31 @@ Note that Lithops automatically builds the default runtime the first time you ru
    docker login
    ```
 
-3. Choose one of these 2 installation options:
+3. Choose one of these 3 installation options:
 
-### Option 1 (IBM IKS):
+### Option 1 - Minikube:
+
+4. Start minikube with the 'ingress' addon:
+   ```bash
+   minikube start --addons=ingress
+   ```
+
+5. [Follow this instructions to install knative serving.](https://knative.dev/docs/install/yaml-install/serving/install-serving-with-yaml/)
+
+6. Install a networking layer. Currently Lithops supports **Kourier**. [Follow these instructions to install Kourier.](https://knative.dev/docs/install/yaml-install/serving/install-serving-with-yaml/#install-a-networking-layer)
+
+7. Edit your lithops config and add:
+    ```yaml
+    knative:
+        ingress_endpoint : http://127.0.0.1:80
+    ```
+
+8. On a separate terminal, keep running:
+   ```bash
+   minikube tunnel
+   ```
+
+### Option 2 - IBM IKS:
 
 4. Access to the [IBM dashboard](https://cloud.ibm.com/kubernetes/landing) and create a new Kubernetes cluster.
 
@@ -26,7 +48,7 @@ Note that Lithops automatically builds the default runtime the first time you ru
 7. Install a networking layer. Currently Lithops supports **Kourier**. [Follow these instructions to install Kourier.](https://knative.dev/docs/install/yaml-install/serving/install-serving-with-yaml/#install-a-networking-layer)
 
 
-### Option 2 (IBM IKS or any other Kubernetes Cluster):
+### Option 3 - IBM IKS or any other Kubernetes Cluster:
 
 4. Install Kubernetes >= v1.16 and make sure the *kubectl* client is running.
 
@@ -37,12 +59,12 @@ Note that Lithops automatically builds the default runtime the first time you ru
 
 ## Configuration
 
-7. Make sure you have the ~/.kube/config file. Alternatively, you can set KUBECONFIG environment variable:
+8. Make sure you have the ~/.kube/config file. Alternatively, you can set KUBECONFIG environment variable:
    ```bash
    export KUBECONFIG=<path-to-kube-config-file>
    ```
 
-8. Edit your lithops config and add the following keys:
+9. Edit your lithops config and add the following keys:
     ```yaml
     lithops:
         backend: knative
@@ -94,12 +116,12 @@ knative:
 
 ### Verify
 
-9. Verify that all the pods from the following namespaces are in *Running* status: 
+10. Verify that all the pods from the following namespaces are in *Running* status: 
     ```bash
     kubectl get pods -n knative-serving
     ```
 
-10. Monitor how pods and other resources are created:
+11. Monitor how pods and other resources are created:
     ```bash
     watch kubectl get pod,service,revision,deployment -o wide
     ```
