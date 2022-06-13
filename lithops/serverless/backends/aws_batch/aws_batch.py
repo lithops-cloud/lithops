@@ -315,6 +315,8 @@ class AWSBatchBackend:
             raise Exception('More than one job def with the same name')
 
     def _generate_runtime_meta(self, runtime_name, runtime_memory):
+        logger.info(f"Extracting metadata from: {runtime_name}")
+
         job_name = '{}_metadata'.format(self._format_jobdef_name(runtime_name, runtime_memory))
 
         payload = copy.deepcopy(self.internal_storage.storage.storage_config)
@@ -340,7 +342,7 @@ class AWSBatchBackend:
             }
         )
 
-        logger.info('Waiting for get-metadata job to finish...')
+        logger.debug('Waiting for get-metadata job to finish')
         status_key = runtime_name + '.meta'
         retry = 25
         while retry > 0:
@@ -350,7 +352,7 @@ class AWSBatchBackend:
                 self.internal_storage.del_data(key=status_key)
                 return runtime_meta
             except StorageNoSuchKeyError:
-                logger.debug('Get runtime meta retry {}...'.format(retry))
+                logger.debug('Get runtime meta retry {}'.format(retry))
                 time.sleep(30)
                 retry -= 1
         raise Exception('Could not get metadata')

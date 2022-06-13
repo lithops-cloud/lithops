@@ -86,36 +86,46 @@ CONFIG_DIR = os.path.join(HOME_DIR, '.lithops')
 CACHE_DIR = os.path.join(CONFIG_DIR, 'cache')
 CONFIG_FILE = os.path.join(CONFIG_DIR, 'config')
 
-SERVERLESS_BACKENDS = ['ibm_cf',
-                       'code_engine',
-                       'knative',
-                       'openwhisk',
-                       'aws_lambda',
-                       'aws_batch',
-                       'gcp_cloudrun',
-                       'gcp_functions',
-                       'cloudrun',
-                       'azure_functions',
-                       'aliyun_fc',
-                       'k8s']
+SERVERLESS_BACKENDS = [
+    'ibm_cf',
+    'code_engine',
+    'knative',
+    'openwhisk',
+    'aws_lambda',
+    'aws_batch',
+    'gcp_cloudrun',
+    'gcp_functions',
+    'cloudrun',
+    'azure_functions',
+    'azure_containers',
+    'aliyun_fc',
+    'k8s'
+]
 
-STANDALONE_BACKENDS = ['ibm_vpc',
-                       'aws_ec2',
-                       'vm']
+STANDALONE_BACKENDS = [
+    'ibm_vpc',
+    'aws_ec2',
+    'vm'
+]
 
-FAAS_BACKENDS = ['ibm_cf',
-                 'knative',
-                 'openwhisk',
-                 'aws_lambda',
-                 'gcp_cloudrun',
-                 'gcp_functions',
-                 'cloudrun',
-                 'azure_functions',
-                 'aliyun_fc']
+FAAS_BACKENDS = [
+    'ibm_cf',
+    'knative',
+    'openwhisk',
+    'aws_lambda',
+    'gcp_cloudrun',
+    'gcp_functions',
+    'cloudrun',
+    'azure_functions',
+    'azure_containers',
+    'aliyun_fc'
+]
 
-BATCH_BACKENDS = ['ibm_vpc',
-                  'aws_ec2',
-                  'aws_batch',
-                  'k8s',
-                  'code_engine'
-                  'vm']
+BATCH_BACKENDS = [
+    'ibm_vpc',
+    'aws_ec2',
+    'aws_batch',
+    'k8s',
+    'code_engine'
+    'vm'
+]

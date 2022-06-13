@@ -21,7 +21,7 @@ BUILD_DIR = os.path.join(TEMP_DIR, 'AzureRuntimeBuild')
 ACTION_DIR = 'lithops_handler'
 ACTION_MODULES_DIR = os.path.join('.python_packages', 'lib', 'site-packages')
 
-FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_azure.zip')
+FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_azure_fa.zip')
 
 DEFAULT_CONFIG_KEYS = {
     'runtime_timeout': 600,  # Default: 600 seconds => 10 minutes
@@ -137,34 +137,6 @@ ps-mem
 tblib
 """
 
-DEFAULT_DOCKERFILE = """
-ENV AzureWebJobsScriptRoot=/home/site/wwwroot \
-    AzureFunctionsJobHost__Logging__Console__IsEnabled=true
-
-RUN apt-get update && apt-get install -y \
-        zip \
-        && rm -rf /var/lib/apt/lists/*
-
-RUN pip install --upgrade setuptools six pip \
-    && pip install --no-cache-dir \
-        azure-functions \
-        azure-storage-blob \
-        azure-storage-queue \
-        pika \
-        flask \
-        gevent \
-        redis \
-        requests \
-        PyYAML \
-        kubernetes \
-        numpy
-
-COPY lithops_azure.zip .
-RUN mkdir -p /home/site/wwwroo \
-    && unzip lithops_azure.zip -d /home/site/wwwroo \
-    && rm lithops_azure.zip
-"""
-
 
 def load_config(config_data):
     if 'azure_storage' not in config_data:
@@ -179,10 +151,10 @@ def load_config(config_data):
 
     for key in REQUIRED_AZURE_STORAGE_PARAMS:
         if key not in config_data['azure_storage']:
-            raise Exception('{} key is mandatory in azure section of the configuration'.format(key))
+            raise Exception(f'{key} key is mandatory in azure section of the configuration')
 
     for key in REQUIRED_AZURE_FUNCTIONS_PARAMS:
         if key not in config_data['azure_functions']:
-            raise Exception('{} key is mandatory in azure section of the configuration'.format(key))
+            raise Exception(f'{key} key is mandatory in azure section of the configuration')
 
     config_data['azure_functions'].update(config_data['azure_storage'])

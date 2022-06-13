@@ -249,11 +249,11 @@ class AzureFunctionAppBackend:
         except Exception:
             pass
 
-    def invoke(self, docker_image_name, memory=None, payload={}, return_result=False):
+    def invoke(self, runtime_name, memory=None, payload={}, return_result=False):
         """
         Invoke function
         """
-        function_name = self._format_function_name(docker_image_name, memory)
+        function_name = self._format_function_name(runtime_name, memory)
 
         if self.invocation_type == 'event':
             in_q_name = self._format_queue_name(function_name, config.IN_QUEUE)
@@ -303,13 +303,13 @@ class AzureFunctionAppBackend:
 
             return resp_text
 
-    def get_runtime_key(self, docker_image_name, runtime_memory):
+    def get_runtime_key(self, runtime_name, runtime_memory):
         """
         Method that creates and returns the runtime key.
         Runtime keys are used to uniquely identify runtimes within the storage,
         in order to know which runtimes are installed and which not.
         """
-        function_name = self._format_function_name(docker_image_name, runtime_memory)
+        function_name = self._format_function_name(runtime_name, runtime_memory)
         runtime_key = os.path.join(self.name, __version__, function_name)
 
         return runtime_key
@@ -325,15 +325,15 @@ class AzureFunctionAppBackend:
         for runtime_name, runtime_memory, version in runtimes:
             self.delete_runtime(runtime_name, runtime_memory)
 
-    def _generate_runtime_meta(self, docker_image_name, memory):
+    def _generate_runtime_meta(self, runtime_name, memory):
         """
         Extract metadata from Azure runtime
         """
-        logger.info(f"Extracting metadata from: {docker_image_name}")
+        logger.info(f"Extracting metadata from: {runtime_name}")
         payload = {'log_level': logger.getEffectiveLevel(), 'get_metadata': True}
 
         runtime_meta = self.invoke(
-            docker_image_name, memory=memory,
+            runtime_name, memory=memory,
             payload=payload, return_result=True
         )
 
@@ -348,18 +348,18 @@ class AzureFunctionAppBackend:
         List all the Azure Function Apps deployed.
         return: Array of tuples (function_name, memory)
         """
-        logger.debug('Listing all functions deployed...')
+        logger.debug('Listing all deployed runtimes')
 
         runtimes = []
         response = os.popen('az functionapp list --query "[].{Name:name, Tags:tags}\"').read()
         response = json.loads(response)
 
-        for function in response:
-            if function['Tags'] and 'type' in function['Tags'] \
-                and function['Tags']['type'] == 'lithops-runtime':
-                version = function['Tags']['lithops_version']
-                runtime = function['Tags']['runtime_name']
-                if runtime_name == function['Name'] or runtime_name == 'all':
+        for functionapp in response:
+            if functionapp['Tags'] and 'type' in functionapp['Tags'] \
+                and functionapp['Tags']['type'] == 'lithops-runtime':
+                version = functionapp['Tags']['lithops_version']
+                runtime = functionapp['Tags']['runtime_name']
+                if runtime_name == functionapp['Name'] or runtime_name == 'all':
                     runtimes.append((runtime, 'shared', version))
 
         return runtimes

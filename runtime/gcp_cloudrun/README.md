@@ -11,7 +11,7 @@ If you don't have an already built runtime, the default runtime is built the fir
 Alternatively, you can create the default runtime by running the following command:
 
 ```bash
-$ lithops runtime deploy default -b gcp_cloudrun
+$ lithops runtime deploy default -b gcp_cloudrun -s gcp_storage
 ```
 
 To run a function with the default runtime you don't need to specify anything in the code, since everything is managed internally by Lithops:
@@ -130,15 +130,15 @@ gcp_cloudrun:
 
     You can update default runtime by:
 
-        $ lithops runtime update default -b gcp_cloudrun
+        $ lithops runtime update default -b gcp_cloudrun -s gcp_storage
 
     You can update any other runtime deployed in your namespace by specifying the runtime name:
 
-        $ lithops runtime update myruntime -b gcp_cloudrun
+        $ lithops runtime update myruntime -b gcp_cloudrun -s gcp_storage
 
     Alternatively, you can update all the deployed runtimes at a time by:
 
-        $ lithops runtime update all -b gcp_cloudrun
+        $ lithops runtime update all -b gcp_cloudrun -s gcp_storage
 
 2. **Delete a runtime**
 
@@ -146,18 +146,18 @@ gcp_cloudrun:
 
     You can delete default runtime by:
 
-        $ lithops runtime delete default -b gcp_cloudrun
+        $ lithops runtime delete default -b gcp_cloudrun -s gcp_storage
 
     You can delete any other runtime deployed in your namespace by specifying the runtime name:
 
-        $ lithops runtime delete myruntime -b gcp_cloudrun
+        $ lithops runtime delete myruntime -b gcp_cloudrun -s gcp_storage
 
     You can delete all the runtimes at a time by:
 
-        $ lithops runtime delete all -b gcp_cloudrun
+        $ lithops runtime delete all -b gcp_cloudrun -s gcp_storage
 
 3. **Clean everything**
 
      You can clean everything related to Lithops, such as all deployed runtimes and cache information, and start from scratch by simply running the next command (Configuration is not deleted):
 
-        $ lithops clean -b gcp_cloudrun
+        $ lithops clean -b gcp_cloudrun -s gcp_storage
