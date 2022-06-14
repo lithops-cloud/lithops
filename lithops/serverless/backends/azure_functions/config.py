@@ -128,6 +128,7 @@ azure-storage-queue
 pika
 flask
 gevent
+numpy
 redis
 requests
 PyYAML
