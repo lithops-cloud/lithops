@@ -64,3 +64,12 @@ k8s:
 |k8s | runtime_cpu | 0.5 |no | CPU limit. Default 0.5vCPU |
 |k8s | runtime_memory | 256 |no | Memory limit in MB. Default 256Mi |
 |k8s | runtime_timeout | 600 |no | Runtime timeout in seconds. Default 600 seconds |
+
+
+## Viewing the execution logs
+
+You can view the function executions logs in your local machine using the *lithops client*:
+
+```bash
+lithops logs poll
+```

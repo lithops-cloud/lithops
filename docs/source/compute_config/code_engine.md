@@ -194,6 +194,14 @@ if __name__ == '__main__':
     print(lt.get_result())
 ```
 
+## Viewing the execution logs
+
+You can view the function executions logs in your local machine using the *lithops client*:
+
+```bash
+lithops logs poll
+```
+
 ###  Troubleshooting
 
 #### Fault

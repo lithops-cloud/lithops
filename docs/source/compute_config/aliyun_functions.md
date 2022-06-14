@@ -7,7 +7,7 @@ Lithops with *Aliyun Function Compute* as serverless compute backend.
 1. Install Alibaba Cloud backend dependencies:
 
 ```
-$ python3 -m pip install lithops[aliyun]
+python3 -m pip install lithops[aliyun]
 ```
 
 1. Access to your [console](https://homenew-intl.console.aliyun.com/) and activate your Functions service instance.
@@ -58,3 +58,12 @@ $ python3 -m pip install lithops[aliyun]
 |aliyun_fc | runtime_memory | 256 |no | Memory limit in MB. Default 256MB |
 |aliyun_fc | runtime_timeout | 300 |no | Runtime timeout in seconds. Default 5 minutes |
 |aliyun_fc | invoke_pool_threads | 300 |no | Number of concurrent threads used for invocation |
+
+
+## Viewing the execution logs
+
+You can view the function executions logs in your local machine using the *lithops client*:
+
+```bash
+lithops logs poll
+```

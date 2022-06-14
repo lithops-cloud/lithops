@@ -7,7 +7,7 @@ Lithops with *AWS Lambda* as serverless compute backend.
 1. Install Amazon Web Services backend dependencies:
 
 ```
-$ python3 -m pip install lithops[aws]
+python3 -m pip install lithops[aws]
 ```
 
 2. [Login](https://console.aws.amazon.com/?nc2=h_m_mc) to Amazon Web Services Console (or signup if you don't have an account)
@@ -136,3 +136,12 @@ aws_lambda:
 **Note:** to access those volumes, the Lithops lambda has to be connected to the same VPC and subnets as the EFS volumes are mounted to.
 
 For more information, check out [AWS documentation on attaching EFS volumes to Lambda](https://aws.amazon.com/blogs/compute/using-amazon-efs-for-aws-lambda-in-your-serverless-applications/).
+
+
+## Viewing the execution logs
+
+You can view the function executions logs in your local machine using the *lithops client*:
+
+```bash
+lithops logs poll
+```

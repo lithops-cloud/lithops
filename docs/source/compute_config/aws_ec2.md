@@ -115,7 +115,7 @@ aws_ec2:
 You can view the function executions logs in your local machine using the *lithops client*:
 
 ```bash
-$ lithops logs poll
+lithops logs poll
 ```
 
 The master and worker VMs contains the Lithops service logs in `/tmp/lithops/service.log`

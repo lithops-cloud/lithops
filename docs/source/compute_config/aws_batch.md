@@ -7,7 +7,7 @@ Lithops with *AWS Batch* as serverless batch compute backend.
 1. Install Amazon Web Services backend dependencies:
 
 ```
-$ python3 -m pip install lithops[aws]
+python3 -m pip install lithops[aws]
 ```
 
 2. [Login](https://console.aws.amazon.com/?nc2=h_m_mc) to Amazon Web Services Console (or signup if you don't have an account)
@@ -81,4 +81,12 @@ aws_batch:
 | aws_batch  | assign_public_ip | `true` | no | Assing public IPs to ECS task containers. Set to `true` if the tasks are being deployed in a public subnet. Set to `false` when deploying on a private subnet. |
 | aws_batch  | subnets          |  | yes | List of subnets where to deploy the ECS task containers. Note that if you are using a **private subnet**, you can set `assing_public_ip` to `false` but make sure containers can reach other AWS services like ECR, Secrets service, etc., by, for example, using a NAT gateway. If you are using a **public subnet** you must set `assing_public_ip` to `true` |
 | aws_batch  | security_groups  |  | yes | List of Security groups to attach for ECS task containers. By default, you can use a security group that accepts all outbound traffic but blocks all inbound traffic. |
- 
+
+
+## Viewing the execution logs
+
+You can view the function executions logs in your local machine using the *lithops client*:
+
+```bash
+lithops logs poll
+```

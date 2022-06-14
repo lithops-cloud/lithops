@@ -23,13 +23,13 @@ Lithops with *OpenWhisk* as serverless compute backend. Lithops can also run fun
     Now issue the `wsk` command to deploy the python action:
     
     ```
-    $ wsk action create helloPython hello.py
+    wsk action create helloPython hello.py
     ```
     
     Finally, test the helloPython action:
     
     ```
-    $ wsk action invoke --result helloPython --param name World
+    wsk action invoke --result helloPython --param name World
     ```
 
 ## Configuration
@@ -80,3 +80,11 @@ Lithops with *OpenWhisk* as serverless compute backend. Lithops can also run fun
 |openwhisk | runtime_memory | 256 |no | Memory limit in MB. Default 256MB |
 |openwhisk | runtime_timeout | 600 |no | Runtime timeout in seconds. Default 10 minutes |
 |openwhisk | invoke_pool_threads | 500 |no | Number of concurrent threads used for invocation |
+
+## Viewing the execution logs
+
+You can view the function executions logs in your local machine using the *lithops client*:
+
+```bash
+lithops logs poll
+```

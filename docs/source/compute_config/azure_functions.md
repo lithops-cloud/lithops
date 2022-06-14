@@ -9,7 +9,7 @@ Lithops with Azure Functions as serverless compute backend.
 1. Install Microsoft Azure backend dependencies:
 
 ```
-$ python3 -m pip install lithops[azure]
+python3 -m pip install lithops[azure]
 ```
 
 2. Install [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli?view=azure-cli-latest)
@@ -19,7 +19,7 @@ $ python3 -m pip install lithops[azure]
 4. Sign in with the Azure CLI:
 
 ```bash
-  $ az login
+  az login
 ```
 
 5. Create a Resource Group and a Storage Account:
@@ -35,16 +35,16 @@ $ python3 -m pip install lithops[azure]
     1. Create a Resource Group in a specific location. If you already have a resource group, omit this step.
     
     ```bash
-      $ az group create --name LithopsResourceGroup --location westeurope
+      az group create --name LithopsResourceGroup --location westeurope
     ```
     
     2. Create a Storage Account with a unique name. If you already have a storage account, omit this step.
     
     ```bash
-      $ storage_account_name=lithops$(openssl rand -hex 3)
-      $ echo $storage_account_name
-      $ az storage account create --name $storage_account_name --location westeurope \
-         --resource-group LithopsResourceGroup --sku Standard_LRS
+      storage_account_name=lithops$(openssl rand -hex 3)
+      echo $storage_account_name
+      az storage account create --name $storage_account_name --location westeurope \
+        --resource-group LithopsResourceGroup --sku Standard_LRS
     ```
 
 
@@ -90,3 +90,12 @@ $ python3 -m pip install lithops[azure]
 |azure_functions | runtime_timeout | 300 |no | Runtime timeout in seconds. Default 5 minutes |
 |azure_functions| invocation_type | event  | no | One of 'http' or 'event'|
 |azure_functions | invoke_pool_threads | 100 |no | Number of concurrent threads used for invocation |
+
+
+## Viewing the execution logs
+
+You can view the function executions logs in your local machine using the *lithops client*:
+
+```bash
+lithops logs poll
+```
