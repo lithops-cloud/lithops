@@ -19,7 +19,7 @@ The localhost backend can run functions both using the local ``python3`` interpr
 In both cases, you can view the executions logs in your local machine using the *lithops client*:
 
 ```bash
-$ lithops logs poll
+lithops logs poll
 ```
 
 ### Default Environment

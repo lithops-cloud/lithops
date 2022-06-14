@@ -6,8 +6,8 @@ Lithops with *GCP Cloud Run* as serverless compute backend.
 
 1. Install Google Cloud Platform backend dependencies:
 
-```
-$ python3 -m install lithops[gcp]
+```bash
+python3 -m install lithops[gcp]
 ```
 
 2. [Login](https://console.cloud.google.com) to Google Cloud Console (or sign up if you don't have an account).
@@ -63,3 +63,12 @@ $ python3 -m install lithops[gcp]
 |gcp_cloudrun | runtime_memory | 256 |no | Memory limit in MB. Default 256Mi |
 |gcp_cloudrun | runtime_timeout | 300 |no | Runtime timeout in seconds. Default 5 minutes |
 |gcp_cloudrun | invoke_pool_threads | 1000 |no | Number of concurrent threads used for invocation |
+
+
+## Viewing the execution logs
+
+You can view the function executions logs in your local machine using the *lithops client*:
+
+```bash
+lithops logs poll
+```

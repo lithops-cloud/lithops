@@ -113,7 +113,6 @@ knative:
 |knative | runtime_timeout | 600 |no | Runtime timeout in seconds. Default 600 seconds |
 |knative | invoke_pool_threads | 250 |no | Number of concurrent threads used for invocation |
 
-
 ### Verify
 
 10. Verify that all the pods from the following namespaces are in *Running* status: 
@@ -125,3 +124,11 @@ knative:
     ```bash
     watch kubectl get pod,service,revision,deployment -o wide
     ```
+
+## Viewing the execution logs
+
+You can view the function executions logs in your local machine using the *lithops client*:
+
+```bash
+lithops logs poll
+```

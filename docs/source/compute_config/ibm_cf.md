@@ -117,3 +117,12 @@ By default, the IBM Cloud account provides an automatically created CloudFoundry
 |ibm_cf | runtime_timeout | 600 |no | Runtime timeout in seconds. Default 600 seconds |
 |ibm_cf | invoke_pool_threads | 500 |no | Number of concurrent threads used for invocation |
 |ibm_cf | remote_invoker | False | no |  Activate the remote invoker feature that uses one cloud function to spawn all the actual `map()` activations |
+
+
+## Viewing the execution logs
+
+You can view the function executions logs in your local machine using the *lithops client*:
+
+```bash
+lithops logs poll
+```
