@@ -27,13 +27,13 @@ Lithops is specially suited for highly-parallel programs with little or no need 
 1. Install Lithops from the PyPi repository:
 
     ```bash
-    $ pip install lithops
+    pip install lithops
     ```
 
 2. Execute a *Hello World* test function:
   
    ```bash
-   $ lithops test
+   lithops test
    ```
 
 ## Configuration

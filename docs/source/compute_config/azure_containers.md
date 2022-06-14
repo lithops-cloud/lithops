@@ -7,7 +7,7 @@ Lithops with Azure Container Apps as serverless compute backend.
 1. Install Microsoft Azure backend dependencies:
 
 ```
-$ python3 -m pip install lithops[azure]
+python3 -m pip install lithops[azure]
 ```
 
 2. Install [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli?view=azure-cli-latest)
@@ -90,6 +90,7 @@ $ python3 -m pip install lithops[azure]
 |---|---|---|---|---|
 |azure_containers| resource_group | |yes | Name of the resource group used in the step 5 of the installation. |
 |azure_containers| location |  |yes | The location where you created the 'lithops' Container APP environment|
+|azure_containers| environment | lithops |no | The environemnt name you cretad in the step 5 of the installation |
 |azure_containers | docker_server | docker.io |no | Docker server URL for building the default runtime |
 |azure_containers | docker_user | |no | Docker hub username for building the default runtime |
 |azure_containers | max_workers | 1000 | no | Although Azure limits the number of workers to 30, it is convenient to keep this value high|
