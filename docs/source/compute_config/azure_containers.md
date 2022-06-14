@@ -47,10 +47,10 @@ $ python3 -m pip install lithops[azure]
 
     3. Create a Container App environment named lithops.
     ```bash
-      az extension add --name containerapp --upgrade
-      az provider register --namespace Microsoft.App
-      az provider register --namespace Microsoft.OperationalInsights
-      az containerapp env create --name lithops --resource-group LithopsResourceGroup --location westeurope
+      $ az extension add --name containerapp --upgrade
+      $ az provider register --namespace Microsoft.App
+      $ az provider register --namespace Microsoft.OperationalInsights
+      $ az containerapp env create --name lithops --resource-group LithopsResourceGroup --location westeurope
     ```
 
 
@@ -92,10 +92,10 @@ $ python3 -m pip install lithops[azure]
 |azure_containers| location |  |yes | The location where you created the 'lithops' Container APP environment|
 |azure_containers | docker_server | docker.io |no | Docker server URL |
 |azure_containers | docker_user | |no | Docker hub username |
-|azure_containers | max_workers | 30 | no | Max number of workers. Limited to 30 by Azure|
+|azure_containers | max_workers | 1000 | no | Altough Azure limits the number of workrs to 30, it is convenient to keep this value high|
 |azure_containers | worker_processes | 1 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker |
 |azure_containers| runtime |  |no | Runtime name already deployed in the service|
 |azure_containers | runtime_memory | 512 |no | Memory limit in MB. Default 512Mi |
 |azure_containers | runtime_timeout | 600 |no | Runtime timeout in seconds. Default 5 minutes |
-|azure_containers| invocation_type | event  | no | One of 'event'|
-|azure_containers | invoke_pool_threads | 100 |no | Number of concurrent threads used for invocation |
+|azure_containers| invocation_type | event  | no | Currently it supports event invocation|
+|azure_containers | invoke_pool_threads | 10 |no | Number of concurrent threads used for invocation |

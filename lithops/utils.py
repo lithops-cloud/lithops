@@ -351,10 +351,11 @@ def b64str_to_bytes(str_data):
 
 def get_docker_path():
     docker_path = shutil.which('docker')
-    if not docker_path:
-        raise Exception('"docker" command not found. '
-         'Install docker or use an already built runtime')
-    return docker_path
+    podman_path = shutil.which('podman')
+    if not docker_path and not podman_path:
+        raise Exception('docker/podman command not found. '
+         'Install docker/podman or use an already built runtime')
+    return docker_path or podman_path
 
 
 def get_default_k8s_image_name(backend, backend_config, runtime_name, version):

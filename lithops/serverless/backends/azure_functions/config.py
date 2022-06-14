@@ -26,11 +26,11 @@ FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_azure_fa.zip')
 DEFAULT_CONFIG_KEYS = {
     'runtime_timeout': 600,  # Default: 600 seconds => 10 minutes
     'runtime_memory': 256,  # Default memory: 256 MB
-    'max_workers': 100,
+    'max_workers': 1000,
     'worker_processes': 1,
-    'invoke_pool_threads': 100,
+    'invoke_pool_threads': 10,
     'functions_version': 3,
-    'invocation_type': 'http'
+    'invocation_type': 'event'
 }
 
 AVAILABLE_PY_RUNTIMES = ['3.6', '3.7', '3.8', '3.9']
@@ -128,6 +128,7 @@ azure-storage-queue
 pika
 flask
 gevent
+numpy
 redis
 requests
 PyYAML
