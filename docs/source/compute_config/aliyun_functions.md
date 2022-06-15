@@ -52,9 +52,9 @@ python3 -m pip install lithops[aliyun]
 |aliyun_fc | public_endpoint | |yes | public endpoint (URL) to the service. OSS and FC endpoints are different. |
 |aliyun_fc | role_arn | |yes | Role ARN. For example: `acs:ram::5244532493961771:role/aliyunfclogexecutionrole` |
 |aliyun_fc | service | |no | Service name |
-|aliyun_fc | max_workers | 300 | no | Max number of workers per `FunctionExecutor()`|
+|aliyun_fc | max_workers | 300 | no | Max number of workers. Alibaba limits the number of parallel workers to 300|
 |aliyun_fc | worker_processes | 1 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker |
-|aliyun_fc | runtime |  |no | One of `python3` or `python3.9`|
+|aliyun_fc | runtime |  |no | Runtime name you built and deployed using the lithops client|
 |aliyun_fc | runtime_memory | 256 |no | Memory limit in MB. Default 256MB |
 |aliyun_fc | runtime_timeout | 300 |no | Runtime timeout in seconds. Default 5 minutes |
 |aliyun_fc | invoke_pool_threads | 300 |no | Number of concurrent threads used for invocation |
