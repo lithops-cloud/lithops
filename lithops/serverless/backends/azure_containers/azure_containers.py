@@ -48,6 +48,7 @@ class AzureContainerAppBackend:
         self.storage_account_name = ac_config['storage_account_name']
         self.storage_account_key = ac_config['storage_account_key']
         self.location = ac_config['location']
+        self.environment = ac_config['environment']
 
         self.queue_service_url = f'https://{self.storage_account_name}.queue.core.windows.net'
         self.queue_service = QueueServiceClient(account_url=self.queue_service_url,
@@ -174,7 +175,7 @@ class AzureContainerAppBackend:
         ca_temaplate['properties']['template']['containers'][0]['env'][0]['value'] = containerapp_name
         ca_temaplate['properties']['template']['scale']['rules'][0]['azureQueue']['queueName'] = containerapp_name
 
-        cmd = f"az containerapp env show -g {self.resource_group} -n lithops --query id"
+        cmd = f"az containerapp env show -g {self.resource_group} -n {self.environment} --query id"
         envorinemnt_id = sp.check_output(cmd.split()).decode("ascii").strip().replace('"', '')
         ca_temaplate['properties']['managedEnvironmentId'] = envorinemnt_id
 
@@ -187,7 +188,7 @@ class AzureContainerAppBackend:
 
         cmd = (f'az containerapp create --name {containerapp_name} '
                f'--resource-group {self.resource_group} '
-               f'--environment lithops '
+               f'--environment {self.environment} '
                f'--yaml {config.CA_JSON_LOCATION}')
 
         try:

@@ -27,6 +27,7 @@ DEFAULT_CONFIG_KEYS = {
     'worker_processes': 1,
     'invoke_pool_threads': 10,
     'invocation_type': 'event',
+    'environment': 'lithops',
     'docker_server': 'docker.io'
 }
 

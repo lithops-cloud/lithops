@@ -19,11 +19,11 @@ from lithops.constants import TEMP_DIR
 
 
 DEFAULT_CONFIG_KEYS = {
-    'runtime_timeout': 600,  # Default: 5 minutes
+    'runtime_timeout': 300,  # Default: 5 minutes
     'runtime_memory': 256,  # Default memory: 256 MB
     'max_workers': 300,
     'worker_processes': 1,
-    'invoke_pool_threads': 300,
+    'invoke_pool_threads': 64,
 }
 
 CONNECTION_POOL_SIZE = 300

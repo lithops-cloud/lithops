@@ -24,7 +24,7 @@ ACTION_MODULES_DIR = os.path.join('.python_packages', 'lib', 'site-packages')
 FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_azure_fa.zip')
 
 DEFAULT_CONFIG_KEYS = {
-    'runtime_timeout': 600,  # Default: 600 seconds => 10 minutes
+    'runtime_timeout': 300,  # Default: 300 seconds => 5 minutes
     'runtime_memory': 256,  # Default memory: 256 MB
     'max_workers': 1000,
     'worker_processes': 1,
