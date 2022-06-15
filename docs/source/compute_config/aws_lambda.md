@@ -138,6 +138,13 @@ aws_lambda:
 For more information, check out [AWS documentation on attaching EFS volumes to Lambda](https://aws.amazon.com/blogs/compute/using-amazon-efs-for-aws-lambda-in-your-serverless-applications/).
 
 
+## Test Lithops
+Once you have your compute and storage backends configured, you can run a hello world function with:
+
+```bash
+lithops test -b aws_lambda -s aws_s3
+```
+
 ## Viewing the execution logs
 
 You can view the function executions logs in your local machine using the *lithops client*:

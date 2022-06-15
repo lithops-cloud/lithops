@@ -67,3 +67,19 @@ In this mode of execution, you can use any docker image that contains all the re
 |---|---|---|---|---|
 |localhost | runtime |  python3  | no | Docker image name |
 |localhost | worker_processes | CPU_COUNT | no | Number of Lithops processes. This is used to parallelize function activations. By default it is set to the number of CPUs of your machine |
+
+## Test Lithops
+
+Once you have your compute and storage backends configured, you can run a hello world function with:
+
+```bash
+lithops test -b localhost -s localhost
+```
+
+## Viewing the execution logs
+
+You can view the function executions logs in your local machine using the *lithops client*:
+
+```bash
+lithops logs poll
+```

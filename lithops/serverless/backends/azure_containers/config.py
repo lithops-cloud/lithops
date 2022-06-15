@@ -25,7 +25,7 @@ DEFAULT_CONFIG_KEYS = {
     'runtime_memory': 512,  # Default memory: 512 MB
     'max_workers': 1000,
     'worker_processes': 1,
-    'invoke_pool_threads': 10,
+    'invoke_pool_threads': 32,
     'invocation_type': 'event',
     'environment': 'lithops',
     'docker_server': 'docker.io'

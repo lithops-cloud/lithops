@@ -60,6 +60,14 @@ python3 -m pip install lithops[aliyun]
 |aliyun_fc | invoke_pool_threads | 300 |no | Number of concurrent threads used for invocation |
 
 
+## Test Lithops
+Once you have your compute and storage backends configured, you can run a hello world function with:
+
+```bash
+lithops test -b aliyun_fc -s aliyun_oss
+```
+
+
 ## Viewing the execution logs
 
 You can view the function executions logs in your local machine using the *lithops client*:

@@ -60,3 +60,19 @@ In this backend, you can use any docker image that contains all the required dep
 |vm | ssh_key_filename | | no | Path to SSH key |
 |vm | runtime |  python3  |no | Docker image name |
 |vm | worker_processes | 1 | no | Number of Lithops processes within the VM. This can be used to parallelize function activations within a worker. It is recommendable to set it with the same number CPUs of the VM |
+
+## Test Lithops
+
+Once you have your compute and storage backends configured, you can run a hello world function with:
+
+```bash
+lithops test -b vm -s ibm_cos
+```
+
+## Viewing the execution logs
+
+You can view the function executions logs in your local machine using the *lithops client*:
+
+```bash
+lithops logs poll
+```

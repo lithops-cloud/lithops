@@ -65,6 +65,13 @@ k8s:
 |k8s | runtime_memory | 256 |no | Memory limit in MB. Default 256Mi |
 |k8s | runtime_timeout | 600 |no | Runtime timeout in seconds. Default 600 seconds |
 
+## Test Lithops
+
+Once you have your compute and storage backends configured, you can run a hello world function with:
+
+```bash
+lithops test -b k8s -s ibm_cos
+```
 
 ## Viewing the execution logs
 

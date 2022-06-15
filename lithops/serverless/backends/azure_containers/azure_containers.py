@@ -174,6 +174,7 @@ class AzureContainerAppBackend:
         ca_temaplate['properties']['template']['containers'][0]['image'] = runtime_name
         ca_temaplate['properties']['template']['containers'][0]['env'][0]['value'] = containerapp_name
         ca_temaplate['properties']['template']['scale']['rules'][0]['azureQueue']['queueName'] = containerapp_name
+        ca_temaplate['properties']['template']['scale']['maxReplicas'] = min(self.ac_config['max_workers'], 30)
 
         cmd = f"az containerapp env show -g {self.resource_group} -n {self.environment} --query id"
         envorinemnt_id = sp.check_output(cmd.split()).decode("ascii").strip().replace('"', '')

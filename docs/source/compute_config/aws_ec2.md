@@ -110,6 +110,13 @@ aws_ec2:
 |aws_ec2 | worker_processes | 2 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker. It is recommendable to set this value to the same number of CPUs of a worker VM. |
 
 
+## Test Lithops
+Once you have your compute and storage backends configured, you can run a hello world function with:
+
+```bash
+lithops test -b aws_ec2 -s aws_s3
+```
+
 ## Viewing the execution logs
 
 You can view the function executions logs in your local machine using the *lithops client*:

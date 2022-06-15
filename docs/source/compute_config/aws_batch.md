@@ -83,6 +83,13 @@ aws_batch:
 | aws_batch  | security_groups  |  | yes | List of Security groups to attach for ECS task containers. By default, you can use a security group that accepts all outbound traffic but blocks all inbound traffic. |
 
 
+## Test Lithops
+Once you have your compute and storage backends configured, you can run a hello world function with:
+
+```bash
+lithops test -b aws_batch -s aws_s3
+```
+
 ## Viewing the execution logs
 
 You can view the function executions logs in your local machine using the *lithops client*:

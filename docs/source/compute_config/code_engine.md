@@ -178,20 +178,12 @@ code_engine:
 The preferable way to run Lithops in Code Engine is by using the JOB API. However, Lithops can be also executed in Code Engine using the Knative API. To configure this mode of execution refer to the [Knative documentation](https://github.com/lithops-cloud/lithops/blob/master/config/compute/knative.md#configuration) and follow the steps to configure Knative.
 
 
-### Usage Example
+## Test Lithops
 
-```python
-import lithops
+Once you have your compute and storage backends configured, you can run a hello world function with:
 
-iterdata = ['Gil', 'Dana', 'John', 'Scott']
-
-def add_value(name):
-    return 'Hello ' + name
-
-if __name__ == '__main__':
-    lt = lithops.FunctionExecutor(backend='code_engine', runtime='ibmfunctions/lithops-ce-v385:235')
-    lt.map(add_value, iterdata)
-    print(lt.get_result())
+```bash
+lithops test -b code_engine -s ibm_cos
 ```
 
 ## Viewing the execution logs

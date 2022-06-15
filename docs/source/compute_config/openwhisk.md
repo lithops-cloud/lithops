@@ -81,6 +81,14 @@ Lithops with *OpenWhisk* as serverless compute backend. Lithops can also run fun
 |openwhisk | runtime_timeout | 600 |no | Runtime timeout in seconds. Default 10 minutes |
 |openwhisk | invoke_pool_threads | 500 |no | Number of concurrent threads used for invocation |
 
+## Test Lithops
+
+Once you have your compute and storage backends configured, you can run a hello world function with:
+
+```bash
+lithops test -b openwhisk -s ibm_cos
+```
+
 ## Viewing the execution logs
 
 You can view the function executions logs in your local machine using the *lithops client*:
