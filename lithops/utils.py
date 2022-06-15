@@ -269,6 +269,15 @@ def is_unix_system():
     return curret_system != 'Windows'
 
 
+def is_linux_system():
+    """Check if the current OS is LINUX"""
+    curret_system = platform.system().lower()
+    if curret_system == "linux":
+       return True
+    else:
+       return False
+
+
 def is_lithops_worker():
     """
     Checks if the current execution is within a lithops worker

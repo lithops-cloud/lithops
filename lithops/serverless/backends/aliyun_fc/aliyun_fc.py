@@ -87,13 +87,28 @@ class AliyunFunctionComputeBackend:
         os.makedirs(build_dir)
 
         # Add lithops base modules
-        logger.debug("Installing base modules (via pip install)")
+        logger.debug("Downloading base modules (via pip install)")
         req_file = os.path.join(build_dir, 'requirements.txt')
         with open(req_file, 'w') as reqf:
             reqf.write(config.REQUIREMENTS_FILE)
 
-        cmd = f'{sys.executable} -m pip install -t {build_dir} -r {req_file} --no-deps'
-        utils.run_command(cmd)
+        def download_requirements():
+            cmd = f'{sys.executable} -m pip install -t {build_dir} -r {req_file} --no-deps'
+            utils.run_command(cmd)
+
+        if utils.is_linux_system():
+            download_requirements()
+        else:
+            docker_path = utils.get_docker_path()
+            if docker_path:
+                # Build the runtime in a docker
+                cmd = f'python3 -m pip install -U -t . -r requirements.txt'
+                cmd = f'docker run -w /tmp -v {build_dir}:/tmp python:{utils.CURRENT_PY_VERSION}-slim-buster {cmd}'
+                utils.run_command(cmd)
+            else:
+                logger.warning('Aliyun Functions use a Linux environment. Building'
+                               'a runtime from a non-Linux environemnt might cause issues')
+                download_requirements()
 
         # Add function handlerd
         current_location = os.path.dirname(os.path.abspath(__file__))
@@ -113,7 +128,8 @@ class AliyunFunctionComputeBackend:
         # Create zip file
         os.chdir(build_dir)
         runtime_zip = f'{config.BUILD_DIR}/{runtime_name}.zip'
-        os.remove(runtime_zip)
+        if os.path.exists(runtime_zip):
+            os.remove(runtime_zip)
         utils.run_command(f'zip -r {runtime_zip} .')
         shutil.rmtree(build_dir, ignore_errors=True)
 
