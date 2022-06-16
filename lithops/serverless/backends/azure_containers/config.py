@@ -61,11 +61,19 @@ CONTAINERAPP_JSON = {
         "managedEnvironmentId": "",
         "configuration": {
             "activeRevisionsMode": "single",
-            "secrets": [
-            {
+            "secrets": [{
                 "name": "queueconnection",
                 "value": ""
-            }]
+            },
+            {
+                "name": "dockerhubtoken",
+                "value": ""
+            }],
+            "registries": [{
+              "server": "",
+              "username": "",
+              "passwordSecretRef": "dockerhubtoken"
+            }],
         },
         "template": {
             "containers": [

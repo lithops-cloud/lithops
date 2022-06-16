@@ -183,6 +183,11 @@ class AzureContainerAppBackend:
         cmd = f"az storage account show-connection-string -g {self.resource_group} --name {self.storage_account_name} --query connectionString --out json"
         queueconnection = sp.check_output(cmd.split()).decode("ascii").strip().replace('"', '')
         ca_temaplate['properties']['configuration']['secrets'][0]['value'] = queueconnection
+        
+        if self.ac_config.get('docker_password'):
+            ca_temaplate['properties']['configuration']['secrets'][1]['value'] = self.ac_config['docker_password']
+            ca_temaplate['properties']['configuration']['registries'][0]['server'] = self.ac_config['docker_server']
+            ca_temaplate['properties']['configuration']['registries'][0]['username'] = self.ac_config['docker_user']
 
         with open(config.CA_JSON_LOCATION, 'w') as f:
             f.write(json.dumps(ca_temaplate))
