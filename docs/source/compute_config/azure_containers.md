@@ -93,6 +93,7 @@ python3 -m pip install lithops[azure]
 |azure_containers| environment | lithops |no | The environemnt name you created in the step 5 of the installation |
 |azure_containers | docker_server | docker.io |no | Docker server URL for building the default runtime |
 |azure_containers | docker_user | |no | Docker hub username for building the default runtime |
+|azure_containers | docker_password | |no | Login to your docker hub account and generate a new access token [here](https://hub.docker.com/settings/security)|
 |azure_containers | max_workers | 1000 | no | Max number of parallel workers. Although Azure limits the number of parallel workers to 30, it is convenient to keep this value high|
 |azure_containers | worker_processes | 1 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker |
 |azure_containers| runtime |  |no | Docker image name|
