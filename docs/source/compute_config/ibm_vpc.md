@@ -185,6 +185,15 @@ If you need to create new VM, then follow the steps to create and update Lithops
 |ibm_vpc | ssh_key_filename | | no | Path to the ssh key file provided to create the VM. It will use the default path if not provided |
 |ibm_vpc | worker_processes | 2 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker. It is recommendable to set this value to the same number of CPUs of the VM. |
 
+
+## Test Lithops
+
+Once you have your compute and storage backends configured, you can run a hello world function with:
+
+```bash
+lithops test -b ibm_vpc -s ibm_cos
+```
+
 ## Viewing the execution logs
 
 You can view the function executions logs in your local machine using the *lithops client*:

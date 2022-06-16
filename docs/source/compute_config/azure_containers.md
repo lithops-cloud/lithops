@@ -90,16 +90,25 @@ python3 -m pip install lithops[azure]
 |---|---|---|---|---|
 |azure_containers| resource_group | |yes | Name of the resource group used in the step 5 of the installation. |
 |azure_containers| location |  |yes | The location where you created the 'lithops' Container APP environment|
-|azure_containers| environment | lithops |no | The environemnt name you cretad in the step 5 of the installation |
+|azure_containers| environment | lithops |no | The environemnt name you created in the step 5 of the installation |
 |azure_containers | docker_server | docker.io |no | Docker server URL for building the default runtime |
 |azure_containers | docker_user | |no | Docker hub username for building the default runtime |
-|azure_containers | max_workers | 1000 | no | Max number of workers. Although Azure limits the number of parallel workers to 30, it is convenient to keep this value high|
+|azure_containers | max_workers | 1000 | no | Max number of parallel workers. Although Azure limits the number of parallel workers to 30, it is convenient to keep this value high|
 |azure_containers | worker_processes | 1 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker |
 |azure_containers| runtime |  |no | Docker image name|
 |azure_containers | runtime_memory | 512 |no | Memory limit in MB. Default 512Mi |
 |azure_containers | runtime_timeout | 600 |no | Runtime timeout in seconds. Default 5 minutes |
 |azure_containers| invocation_type | event  | no | Currently it supports event invocation|
 |azure_containers | invoke_pool_threads | 10 |no | Number of concurrent threads used for invocation |
+
+
+## Test Lithops
+Once you have your compute and storage backends configured, you can run a hello world function with:
+
+```bash
+lithops test -b azure_containers -s azure_storage
+```
+
 
 ## Viewing the execution logs
 

@@ -104,17 +104,6 @@ Choose one option:
 
 ## Runtime
 
-### Use a pre-built runtime
-To work with Code Engine there is need to use dedicated runtime. You can use a pre-built runtime listed below
-
-|Default runtime name| Python version | What is included | Lithops version |
-|----|-----|----|-----|
-|ibmfunctions/lithops-ce-v385:230 | 3.8 | [included](https://github.com/lithops-cloud/lithops/blob/master/runtime/code_engine/requirements.txt) | 2.3.0 |
-|ibmfunctions/lithops-ce-v385:232 | 3.8 | [included](https://github.com/lithops-cloud/lithops/blob/master/runtime/code_engine/requirements.txt) | 2.3.2 |
-|ibmfunctions/lithops-ce-v385:233 | 3.8 | [included](https://github.com/lithops-cloud/lithops/blob/master/runtime/code_engine/requirements.txt) | 2.3.3 |
-|ibmfunctions/lithops-ce-v385:234 | 3.8 | [included](https://github.com/lithops-cloud/lithops/blob/master/runtime/code_engine/requirements.txt) | 2.3.4 |
-|ibmfunctions/lithops-ce-v385:235 | 3.8 | [included](https://github.com/lithops-cloud/lithops/blob/master/runtime/code_engine/requirements.txt) | 2.3.5 |
-
 ### Use your own runtime
 If a pre-built runtime is not provided, Lithops automatically builds the default runtime the first time you run a script. For this task it uses the **docker** command installed locally in your machine. To make this working, you need:
 
@@ -178,20 +167,12 @@ code_engine:
 The preferable way to run Lithops in Code Engine is by using the JOB API. However, Lithops can be also executed in Code Engine using the Knative API. To configure this mode of execution refer to the [Knative documentation](https://github.com/lithops-cloud/lithops/blob/master/config/compute/knative.md#configuration) and follow the steps to configure Knative.
 
 
-### Usage Example
+## Test Lithops
 
-```python
-import lithops
+Once you have your compute and storage backends configured, you can run a hello world function with:
 
-iterdata = ['Gil', 'Dana', 'John', 'Scott']
-
-def add_value(name):
-    return 'Hello ' + name
-
-if __name__ == '__main__':
-    lt = lithops.FunctionExecutor(backend='code_engine', runtime='ibmfunctions/lithops-ce-v385:235')
-    lt.map(add_value, iterdata)
-    print(lt.get_result())
+```bash
+lithops test -b code_engine -s ibm_cos
 ```
 
 ## Viewing the execution logs

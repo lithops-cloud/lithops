@@ -92,6 +92,14 @@ python3 -m pip install lithops[azure]
 |azure_functions | invoke_pool_threads | 100 |no | Number of concurrent threads used for invocation |
 
 
+## Test Lithops
+Once you have your compute and storage backends configured, you can run a hello world function with:
+
+```bash
+lithops test -b azure_functions -s azure_storage
+```
+
+
 ## Viewing the execution logs
 
 You can view the function executions logs in your local machine using the *lithops client*:

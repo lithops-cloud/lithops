@@ -4,12 +4,12 @@
 
 ### Added
 - [Azure Container APPs] Added new lithops backend for Azure Container APPs
+- [Knative] Added Kourier as the networking layer
 - [AWS Lambda] Added "env_vars" and "ephemeral_storage" parameters for lambda runtime config
 - [Azure Functions] Allow to build a runtime from a custom requirements.txt file
 - [K8s] Append 'docker_server' as a prefix of the runtime
 - [Code Engine] Append 'docker_server' as a prefix of the runtime
 - [Knative] Append 'docker_server' as a prefix of the runtime
-- [Knative] Allow to use Kourier as the networking layer
 - [Google Cloud Run] Allow CPU values <1, 6 and 8
 - [Alibaba Cloud Functions] Added Python 3.9 runtime compatibility
 - [Alibaba Cloud Functions] Allow to build a runtime from a custom requirements.txt file
@@ -32,6 +32,7 @@
 - [knative] Fixed service deployment
 - [Alibaba Cloud Functions] Fixed errors when deploying a function
 - [Azure Functions] Fixed errors when deploying a function
+- [Azure Functions] Fixed issue that was preventing building runtimes from a non-Linux system
 
 ## [v2.6.0]
 

@@ -125,6 +125,14 @@ knative:
     watch kubectl get pod,service,revision,deployment -o wide
     ```
 
+## Test Lithops
+
+Once you have your compute and storage backends configured, you can run a hello world function with:
+
+```bash
+lithops test -b knative -s ibm_cos
+```
+
 ## Viewing the execution logs
 
 You can view the function executions logs in your local machine using the *lithops client*:

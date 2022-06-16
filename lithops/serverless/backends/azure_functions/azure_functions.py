@@ -125,7 +125,7 @@ class AzureFunctionAppBackend:
         action_dir = os.path.join(build_dir, config.ACTION_DIR)
         os.makedirs(action_dir, exist_ok=True)
 
-        logger.debug(f'Building runtime in {build_dir}')
+        logger.debug(f'Building runtime in {build_dir}')     
 
         with open(requirements_file, 'r') as req_file:
             req_data = req_file.read()
@@ -133,7 +133,7 @@ class AzureFunctionAppBackend:
         req_file = os.path.join(build_dir, 'requirements.txt')
         with open(req_file, 'w') as reqf:
             reqf.write(req_data)
-            if not utils.is_unix_system():
+            if not utils.is_linux_system():
                 if 'dev' in __version__:
                     reqf.write('git+https://github.com/lithops-cloud/lithops')
                 else:
@@ -160,7 +160,7 @@ class AzureFunctionAppBackend:
         main_file = os.path.join(action_dir, '__init__.py')
         shutil.copy(entry_point, main_file)
 
-        if utils.is_unix_system():
+        if utils.is_linux_system():
             mod_dir = os.path.join(build_dir, config.ACTION_MODULES_DIR)
             os.chdir(build_dir)
             cmd = f'{sys.executable} -m pip install -U -t {mod_dir} -r requirements.txt'
@@ -214,7 +214,7 @@ class AzureFunctionAppBackend:
 
         build_dir = os.path.join(config.BUILD_DIR, function_name)
         os.chdir(build_dir)
-        if utils.is_unix_system():
+        if utils.is_linux_system():
             cmd = f'func azure functionapp publish {function_name} --python --no-build'
         else:
             cmd = f'func azure functionapp publish {function_name} --python'
