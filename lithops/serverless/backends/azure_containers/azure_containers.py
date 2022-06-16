@@ -189,8 +189,6 @@ class AzureContainerAppBackend:
             ca_temaplate['properties']['configuration']['registries'][0]['server'] = self.ac_config['docker_server']
             ca_temaplate['properties']['configuration']['registries'][0]['username'] = self.ac_config['docker_user']
 
-        print(ca_temaplate)
-
         with open(config.CA_JSON_LOCATION, 'w') as f:
             f.write(json.dumps(ca_temaplate))
 
