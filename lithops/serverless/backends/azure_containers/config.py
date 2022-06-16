@@ -39,7 +39,7 @@ ALLOWED_MEM = {
     2560: ('2.5Gi', 1.25),
     3072: ('3Gi', 1.5),
     3584: ('3.5Gi', 1.75),
-    3072: ('4Gi', 2),
+    4096: ('4Gi', 2),
 }
 
 REQUIRED_AZURE_STORAGE_PARAMS = ['storage_account_name', 'storage_account_key']
