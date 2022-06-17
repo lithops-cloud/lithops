@@ -163,7 +163,7 @@ class CodeEngineBackend:
         Generates the default runtime image name
         """
         revision = 'latest' if 'dev' in __version__ else __version__
-        return utils.get_default_k8s_image_name(
+        return utils.get_default_container_name(
             self.name, self.ce_config, 'lithops-ce-default', revision
         )
 

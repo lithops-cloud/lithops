@@ -91,7 +91,7 @@ class KubernetesBackend:
         Generates the default runtime image name
         """
         revision = 'latest' if 'dev' in __version__ else __version__
-        return utils.get_default_k8s_image_name(
+        return utils.get_default_container_name(
             self.name, self.k8s_config, 'lithops-k8s-default', revision
         )
 

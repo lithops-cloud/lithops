@@ -76,7 +76,7 @@ class AzureContainerAppBackend:
         Generates the default runtime image name
         """        
         revision = 'latest' if 'dev' in __version__ else __version__
-        return utils.get_default_k8s_image_name(
+        return utils.get_default_container_name(
             self.name, self.ac_config, 'lithops-ca-default', revision
         )
 
@@ -177,17 +177,20 @@ class AzureContainerAppBackend:
         ca_temaplate['properties']['template']['scale']['maxReplicas'] = min(self.ac_config['max_workers'], 30)
 
         cmd = f"az containerapp env show -g {self.resource_group} -n {self.environment} --query id"
-        envorinemnt_id = sp.check_output(cmd.split()).decode("ascii").strip().replace('"', '')
+        envorinemnt_id = utils.run_command(cmd, return_result=True)
         ca_temaplate['properties']['managedEnvironmentId'] = envorinemnt_id
 
         cmd = f"az storage account show-connection-string -g {self.resource_group} --name {self.storage_account_name} --query connectionString --out json"
-        queueconnection = sp.check_output(cmd.split()).decode("ascii").strip().replace('"', '')
+        queueconnection = utils.run_command(cmd, return_result=True)
         ca_temaplate['properties']['configuration']['secrets'][0]['value'] = queueconnection
         
         if self.ac_config.get('docker_password'):
             ca_temaplate['properties']['configuration']['secrets'][1]['value'] = self.ac_config['docker_password']
             ca_temaplate['properties']['configuration']['registries'][0]['server'] = self.ac_config['docker_server']
             ca_temaplate['properties']['configuration']['registries'][0]['username'] = self.ac_config['docker_user']
+        else:
+            del ca_temaplate['properties']['configuration']['secrets'][1]
+            del ca_temaplate['properties']['configuration']['registries']
 
         with open(config.CA_JSON_LOCATION, 'w') as f:
             f.write(json.dumps(ca_temaplate))
