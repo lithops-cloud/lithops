@@ -367,7 +367,7 @@ def get_docker_path():
     return docker_path or podman_path
 
 
-def get_default_k8s_image_name(backend, backend_config, runtime_name, version):
+def get_default_container_name(backend, backend_config, runtime_name, version):
     """
     Generates the default runtime image name
     Used in serverless/kubernetes-based backends
@@ -384,7 +384,7 @@ def get_default_k8s_image_name(backend, backend_config, runtime_name, version):
         except:
             raise Exception('You must provide "docker_user"'
                 f' param in config under "{backend}" section')
-        return f'{docker_server}/{docker_user}/{img}'
+        return f'docker.io/{docker_user}/{img}'
 
     elif 'icr.io' in docker_server:
         # IBM container registry
@@ -688,11 +688,17 @@ class WrappedStreamingBodyPartition(WrappedStreamingBody):
         return retval
 
 
-def run_command(cmd):
-    if logger.getEffectiveLevel() != logging.DEBUG:
-        sp.check_call(cmd.split(), stdout=sp.DEVNULL, stderr=sp.DEVNULL)
+def run_command(cmd, return_result=False):
+    if return_result:
+        if logger.getEffectiveLevel() != logging.DEBUG:
+            return sp.check_output(cmd.split(), encoding='UTF-8', stderr=sp.DEVNULL).strip().replace('"', '')
+        else:
+            return sp.check_output(cmd.split(), encoding='UTF-8').strip().replace('"', '')
     else:
-        sp.check_call(cmd.split())
+        if logger.getEffectiveLevel() != logging.DEBUG:
+            sp.check_call(cmd.split(), stdout=sp.DEVNULL, stderr=sp.DEVNULL)
+        else:
+            sp.check_call(cmd.split())
 
 
 def is_podman(docker_path):

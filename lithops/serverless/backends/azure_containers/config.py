@@ -28,7 +28,7 @@ DEFAULT_CONFIG_KEYS = {
     'invoke_pool_threads': 32,
     'invocation_type': 'event',
     'environment': 'lithops',
-    'docker_server': 'docker.io'
+    'docker_server': 'index.docker.io'
 }
 
 ALLOWED_MEM = {
