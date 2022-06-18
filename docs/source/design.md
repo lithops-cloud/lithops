@@ -1,5 +1,11 @@
 # Architecture Design
 
+## Lithops high-level architecture design:
+
+<p align="center">
+<img src="images/lithops.jpg" alt="Lithops Architecture" width="400"/>
+</p>
+
 ## Overview
 The chart below presents the main components of the architecture of Lithops. The components are largely divided into three sets: 
 * Components inside the dashed purple frame comprise the client code (running e.g., on your laptop). 
@@ -8,7 +14,7 @@ The chart below presents the main components of the architecture of Lithops. The
 
 Note that the sets of Lithops components in both dashed frames are partially overlapping. In particular, the storage components are shared since Lithops's main communication between the client and the workers relies on storage.
 
-![Lithops Architecture](images/lithops-architecture.png "Lithops Architecture v1.0")
+![Lithops Architecture](images/lithops.png "Lithops Architecture v1.0")
 
 The Lithops components themselves consist of key classes and modules. Both classes and modules are shown using UML class symbols, but class names start with uppercase letters and have an `__init__()` method, while modules do not.
 
