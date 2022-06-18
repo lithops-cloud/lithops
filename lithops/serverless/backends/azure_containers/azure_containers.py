@@ -16,10 +16,9 @@
 
 import os
 import json
+import time
 import logging
 import hashlib
-import subprocess as sp
-import time
 from azure.storage.queue import QueueServiceClient
 
 from lithops import utils

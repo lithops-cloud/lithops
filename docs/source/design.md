@@ -1,5 +1,11 @@
 # Architecture Design
 
+## Lithops high-level architecture design:
+
+<p align="center">
+<img src="images/lithops.jpg" alt="Lithops Architecture" width="400"/>
+</p>
+
 ## Overview
 The chart below presents the main components of the architecture of Lithops. The components are largely divided into three sets: 
 * Components inside the dashed purple frame comprise the client code (running e.g., on your laptop). 

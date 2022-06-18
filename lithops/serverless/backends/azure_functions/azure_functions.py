@@ -19,6 +19,7 @@ import sys
 import ssl
 import json
 import time
+import hashlib
 import logging
 import shutil
 import zipfile
@@ -74,14 +75,16 @@ class AzureFunctionAppBackend:
         return function_name.lower()
 
     def _format_queue_name(self, function_name, q_type):
-        return  function_name.replace('--', '-') + '-' + q_type
+        name_hash = hashlib.sha1(function_name.encode("utf-8")).hexdigest()[:10]
+        return  f'lithops-fn-runtime-{name_hash}-{q_type}'
 
     def _get_default_runtime_name(self):
         """
         Generates the default runtime name
         """
         py_version = utils.CURRENT_PY_VERSION.replace('.', '')
-        return  f'lithops-runtime-v{py_version}'
+        return  f'lithops-default-runtime-v{py_version}'
+        
 
     def deploy_runtime(self, runtime_name, memory, timeout):
         """
@@ -218,9 +221,9 @@ class AzureFunctionAppBackend:
             cmd = f'func azure functionapp publish {function_name} --python --no-build'
         else:
             cmd = f'func azure functionapp publish {function_name} --python'
+        logger.info(f'Publishing function: {function_name}')
         while True:
             try:
-                logger.debug(f'Publishing function: {function_name}')
                 time.sleep(10)
                 utils.run_command(cmd)
                 break

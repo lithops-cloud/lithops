@@ -26,8 +26,9 @@ Choose your compute and storage engines from the table below:
 || `Google Cloud Functions <compute_config/gcp_functions.html>`_     || `Infinispan <storage_config/infinispan.html>`_                    |
 || `Google Cloud Run <compute_config/gcp_cloudrun.html>`_            || `Ceph <storage_config/ceph.html>`_                                |
 || `Azure Functions <compute_config/azure_functions.html>`_          || `MinIO <storage_config/minio.html>`_                              |
-|| `Aliyun Function Compute <compute_config/aliyun_functions.html>`_ || `Redis <storage_config/redis.html>`_                              |
-|| `Kubernetes Jobs <compute_config/k8s_job.html>`_                  || `OpenStack Swift <storage_config/swift.html>`_                    |
+|| `Azure Container Apps <compute_config/azure_containers.html>`_    || `Redis <storage_config/redis.html>`_                              |
+|| `Aliyun Function Compute <compute_config/aliyun_functions.html>`_ || `OpenStack Swift <storage_config/swift.html>`_                    |
+|| `Kubernetes Jobs <compute_config/k8s_job.html>`_                  ||                                                                   |
 || `Knative <compute_config/knative.html>`_                          ||                                                                   |
 || `OpenWhisk <compute_config/openwhisk.html>`_                      ||                                                                   |
 || `Remote Host / Virtual Machine <compute_config/vm.html>`_         ||                                                                   |
