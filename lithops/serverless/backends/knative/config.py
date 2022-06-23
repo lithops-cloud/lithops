@@ -52,6 +52,7 @@ RUN pip install --upgrade --ignore-installed setuptools six pip \
         google-cloud-pubsub \
         azure-storage-blob \
         azure-storage-queue \
+        boto3 \
         redis \
         requests \
         PyYAML \
