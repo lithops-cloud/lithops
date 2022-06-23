@@ -382,7 +382,7 @@ class AWSLambdaBackend:
 
         image_name = f'{registry}/{repo_name}:{tag}'
         logger.debug(f'Pushing runtime {image_name} to AWS container registry')
-        cmd = f'{docker_path} tag {runtime_name} {image_name}/{repo_name}:{tag}'
+        cmd = f'{docker_path} tag {runtime_name} {image_name}'
         utils.run_command(cmd)
         if utils.is_podman(docker_path):
             cmd = f'{docker_path} push {image_name} --format docker --remove-signatures'
