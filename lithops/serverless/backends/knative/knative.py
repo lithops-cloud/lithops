@@ -626,6 +626,7 @@ class KnativeServingBackend:
                     container = template['spec']['containers'][0]
                     img_name = container['image']
                     memory = container['resources']['requests']['memory'].replace('Mi', '')
+                    memory = int(memory.replace('Gi', ''))*1024 if 'Gi'in memory else memory
                     if docker_image_name == img_name or docker_image_name == 'all':
                         runtimes.append((img_name, memory, version))
             except Exception:
