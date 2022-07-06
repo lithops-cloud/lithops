@@ -198,7 +198,7 @@ def _create_job(
 
     if mode == SERVERLESS:
         job.runtime_memory = runtime_memory or config[backend]['runtime_memory']
-        job.runtime_timeout = config[backend]['runtime_timeout']
+        job.runtime_timeout = runtime_meta['runtime_timeout']
         if job.execution_timeout >= job.runtime_timeout:
             job.execution_timeout = job.runtime_timeout - 5
 
