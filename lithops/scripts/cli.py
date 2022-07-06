@@ -488,6 +488,7 @@ def deploy(name, storage, backend, memory, timeout, config, debug):
 
     runtime_key = compute_handler.get_runtime_key(runtime_name, runtime_memory)
     runtime_meta = compute_handler.deploy_runtime(runtime_name, runtime_memory, runtime_timeout)
+    runtime_meta['runtime_timeout'] = runtime_timeout
     internal_storage.put_runtime_meta(runtime_key, runtime_meta)
 
     logger.info('Runtime deployed')
