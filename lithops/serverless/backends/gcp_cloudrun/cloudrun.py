@@ -14,7 +14,6 @@
 # limitations under the License.
 #
 
-from lib2to3.pgen2 import token
 import logging
 import httplib2
 import os
