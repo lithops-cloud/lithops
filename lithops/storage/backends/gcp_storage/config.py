@@ -17,7 +17,7 @@
 import os
 
 
-REQ_PARAMS = ('project_name', 'service_account', 'region')
+REQ_PARAMS = ('region', )
 
 
 def load_config(config_data=None):

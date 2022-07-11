@@ -35,7 +35,7 @@ AVAILABLE_PY_RUNTIMES = {'3.7': 'python37', '3.8': 'python38', '3.9': 'python39'
 
 USER_RUNTIMES_PREFIX = 'lithops.user_runtimes'
 
-REQ_PARAMS = ('project_name', 'service_account', 'region')
+REQ_PARAMS = ('region', )
 
 DEFAULT_CONFIG_KEYS = {
     'runtime_timeout': 300,  # Default: 5 minutes

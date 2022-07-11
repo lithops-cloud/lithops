@@ -571,6 +571,11 @@ class FunctionExecutor:
             with tempfile.NamedTemporaryFile(dir=CLEANER_DIR, delete=False) as temp:
                 pickle.dump(data, temp)
 
+        try:
+            self.internal_storage
+        except AttributeError:
+            return
+
         if cs:
             data = {
                 'cos_to_clean': list(cs),
