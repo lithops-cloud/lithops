@@ -24,14 +24,16 @@ import urllib
 import yaml
 import google.auth
 import google.oauth2.id_token
+from threading import Lock
 from google.oauth2 import service_account
 from google_auth_httplib2 import AuthorizedHttp
-from google.auth.transport.requests import AuthorizedSession
 from googleapiclient.discovery import build
 
 from lithops import utils
 from lithops.constants import COMPUTE_CLI_MSG
 from lithops.version import __version__
+
+invoke_mutex = Lock()
 
 from . import config
 
@@ -102,31 +104,30 @@ class GCPCloudRunBackend:
 
         return api_resource
 
-    def _get_token(self, target):
+    def _get_url_and_token(self, runtime_name, memory):
         """
         Generates a connection token
         """
-        if not self._id_token:
-            if self.credentials_path and os.path.isfile(self.credentials_path):
-                os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = self.credentials_path
-            auth_req = google.auth.transport.requests.Request()
-            self._id_token = google.oauth2.id_token.fetch_id_token(auth_req, target)
-
-        return self._id_token
-
-    def _get_service_endpoint(self, runtime_name, memory):
-        """
-        Gets service endpoint URL from runtime name and memory
-        """
-        if self._service_url is None:
+        invoke_mutex.acquire()
+        request_token = False
+        if not self._service_url or (self._service_url and str(memory) not in self._service_url):
             logger.debug('Getting service endpoint')
             svc_name = self._format_service_name(runtime_name, memory)
             res = self._api_resource.namespaces().services().get(
                 name=f'namespaces/{self.project_name}/services/{svc_name}'
             ).execute()
             self._service_url = res['status']['url']
+            request_token = True
+            logger.debug(f'Service endpoint url is {self._service_url}')
+        
+        if not self._id_token or request_token:
+            if self.credentials_path and os.path.isfile(self.credentials_path):
+                os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = self.credentials_path
+            auth_req = google.auth.transport.requests.Request()
+            self._id_token = google.oauth2.id_token.fetch_id_token(auth_req, self._service_url)
+        invoke_mutex.release()
 
-        return self._service_url
+        return self._service_url, self._id_token
 
     def _format_image_name(self, runtime_name):
         """
@@ -188,9 +189,7 @@ class GCPCloudRunBackend:
         job_id = payload.get('job_id')
         route = payload.get("service_route", '/')
 
-        target = self._get_service_endpoint(runtime_name, memory)
-        id_token = self._get_token(target)
-        print(id_token)
+        service_url, id_token = self._get_url_and_token(runtime_name, memory)
 
         if exec_id and job_id and call_id:
             logger.debug(f'ExecutorID {exec_id} | JobID {job_id} - Invoking function call {call_id}')
@@ -199,7 +198,7 @@ class GCPCloudRunBackend:
         else:
             logger.debug('Invoking function')
 
-        req = urllib.request.Request(target+route, data=json.dumps(payload, default=str).encode('utf-8'))
+        req = urllib.request.Request(service_url+route, data=json.dumps(payload, default=str).encode('utf-8'))
         req.add_header("Authorization", f"Bearer {id_token}")
         res = urllib.request.urlopen(req)
 
