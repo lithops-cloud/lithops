@@ -19,7 +19,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-REQ_PARAMS = ('project_name', 'service_account', 'credentials_path', 'region')
+REQ_PARAMS = ('project_name', 'service_account', 'region')
 
 DEFAULT_CONFIG_KEYS = {
     'runtime_timeout': 300,  # Default: 600 seconds => 10 minutes
@@ -80,6 +80,7 @@ RUN pip install --upgrade --ignore-installed setuptools six pip \
         cryptography \
         httplib2 \
         google-cloud-storage \
+        google-cloud-pubsub \
         google-api-python-client \
         gcsfs \
         google-auth
@@ -147,13 +148,15 @@ def load_config(config_data):
 
     for param in REQ_PARAMS:
         if param not in config_data['gcp']:
-            msg = "{} is mandatory under 'gcp' section of the configuration".format(REQ_PARAMS)
+            msg = f"{param} is mandatory under 'gcp' section of the configuration"
             raise Exception(msg)
 
-    config_data['gcp']['credentials_path'] = os.path.expanduser(config_data['gcp']['credentials_path'])
+    if 'credentials_path' not in config_data['gcp']:
+        if 'GOOGLE_APPLICATION_CREDENTIALS' in os.environ:
+            config_data['gcp']['credentials_path'] = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
 
-    if not os.path.isfile(config_data['gcp']['credentials_path']):
-        raise Exception(f"Credentials file {config_data['gcp']['credentials_path']} not found")
+    if 'credentials_path' in config_data['gcp']:
+        config_data['gcp']['credentials_path'] = os.path.expanduser(config_data['gcp']['credentials_path'])
 
     for key in DEFAULT_CONFIG_KEYS:
         if key not in config_data['gcp_cloudrun']:
