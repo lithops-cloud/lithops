@@ -17,7 +17,7 @@
 import os
 
 
-REQ_PARAMS = ('project_name', 'service_account', 'credentials_path', 'region')
+REQ_PARAMS = ('project_name', 'service_account', 'region')
 
 
 def load_config(config_data=None):
@@ -29,10 +29,12 @@ def load_config(config_data=None):
             msg = f"'{param}' is mandatory under 'gcp' section of the configuration"
             raise Exception(msg)
     
-    config_data['gcp']['credentials_path'] = os.path.expanduser(config_data['gcp']['credentials_path'])
+    if 'credentials_path' not in config_data['gcp']:
+        if 'GOOGLE_APPLICATION_CREDENTIALS' in os.environ:
+            config_data['gcp']['credentials_path'] = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
 
-    if not os.path.isfile(config_data['gcp']['credentials_path']):
-        raise Exception(f"Credentials file {config_data['gcp']['credentials_path']} not found")
+    if 'credentials_path' in config_data['gcp']:
+        config_data['gcp']['credentials_path'] = os.path.expanduser(config_data['gcp']['credentials_path'])
 
     config_data['gcp_storage'].update(config_data['gcp'])
 

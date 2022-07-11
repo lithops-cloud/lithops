@@ -19,17 +19,20 @@ import httplib2
 import os
 import time
 import json
-
+import urllib
 import yaml
+import google.auth
+import google.oauth2.id_token
+from threading import Lock
+from google.oauth2 import service_account
+from google_auth_httplib2 import AuthorizedHttp
+from googleapiclient.discovery import build
 
 from lithops import utils
 from lithops.constants import COMPUTE_CLI_MSG
 from lithops.version import __version__
 
-from google.oauth2 import service_account
-from google_auth_httplib2 import AuthorizedHttp
-from google.auth.transport.requests import AuthorizedSession
-from googleapiclient.discovery import build
+invoke_mutex = Lock()
 
 from . import config
 
@@ -45,15 +48,18 @@ class GCPCloudRunBackend:
         self.name = 'gcp_cloudrun'
         self.type = 'faas'
         self.cr_config = cloudrun_config
-        self.credentials_path = cloudrun_config['credentials_path']
+        self.credentials_path = cloudrun_config.get('credentials_path')
         self.service_account = cloudrun_config['service_account']
         self.project_name = cloudrun_config['project_name']
         self.region = cloudrun_config['region']
 
-        self._invoker_sess = None
-        self._invoker_sess_route = '/'
+        self._api_resource = self._build_api_resource()
+
         self._service_url = None
-        self._api_resource = None
+        self._id_token = None
+
+        if self.credentials_path and os.path.isfile(self.credentials_path):
+            logger.debug(f'Getting GCP credentials from {self.credentials_path}')
 
         msg = COMPUTE_CLI_MSG.format('Google Cloud Run')
         logger.info(f"{msg} - Region: {self.region} - Project: {self.project_name}")
@@ -81,45 +87,46 @@ class GCPCloudRunBackend:
         """
         Instantiate and authorize admin discovery API session
         """
-        if self._api_resource is None:
-            logger.debug('Building admin API session')
+        logger.debug('Building admin API session')
+        if os.path.isfile(self.credentials_path):
             credentials = service_account.Credentials.from_service_account_file(self.credentials_path, scopes=SCOPES)
-            http = AuthorizedHttp(credentials, http=httplib2.Http())
-            self._api_resource = build(
-                'run', CLOUDRUN_API_VERSION,
-                http=http, cache_discovery=False,
-                client_options={
-                    'api_endpoint': f'https://{self.region}-run.googleapis.com'
-                }
-            )
-        return self._api_resource
+        else:
+            credentials, _ = google.auth.default(scopes=SCOPES)
+        http = AuthorizedHttp(credentials, http=httplib2.Http())
+        api_resource = build(
+            'run', CLOUDRUN_API_VERSION,
+            http=http, cache_discovery=False,
+            client_options={
+                'api_endpoint': f'https://{self.region}-run.googleapis.com'
+            }
+        )
 
-    def _build_invoker_sess(self, runtime_name, memory, route):
-        """
-        Instantiate and authorize invoker session for a specific service and route
-        """
-        if self._invoker_sess is None or route != self._invoker_sess_route:
-            logger.debug('Building invoker session')
-            target = self._get_service_endpoint(runtime_name, memory) + route
-            credentials = (service_account
-                           .IDTokenCredentials
-                           .from_service_account_file(self.credentials_path, target_audience=target))
-            self._invoker_sess = AuthorizedSession(credentials)
-            self._invoker_sess_route = route
-        return self._invoker_sess
+        return api_resource
 
-    def _get_service_endpoint(self, runtime_name, memory):
+    def _get_url_and_token(self, runtime_name, memory):
         """
-        Gets service endpoint URL from runtime name and memory
+        Generates a connection token
         """
-        if self._service_url is None:
+        invoke_mutex.acquire()
+        request_token = False
+        if not self._service_url or (self._service_url and str(memory) not in self._service_url):
             logger.debug('Getting service endpoint')
             svc_name = self._format_service_name(runtime_name, memory)
-            res = self._build_api_resource().namespaces().services().get(
+            res = self._api_resource.namespaces().services().get(
                 name=f'namespaces/{self.project_name}/services/{svc_name}'
             ).execute()
             self._service_url = res['status']['url']
-        return self._service_url
+            request_token = True
+            logger.debug(f'Service endpoint url is {self._service_url}')
+        
+        if not self._id_token or request_token:
+            if self.credentials_path and os.path.isfile(self.credentials_path):
+                os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = self.credentials_path
+            auth_req = google.auth.transport.requests.Request()
+            self._id_token = google.oauth2.id_token.fetch_id_token(auth_req, self._service_url)
+        invoke_mutex.release()
+
+        return self._service_url, self._id_token
 
     def _format_image_name(self, runtime_name):
         """
@@ -181,7 +188,7 @@ class GCPCloudRunBackend:
         job_id = payload.get('job_id')
         route = payload.get("service_route", '/')
 
-        sess = self._build_invoker_sess(runtime_name, memory, route)
+        service_url, id_token = self._get_url_and_token(runtime_name, memory)
 
         if exec_id and job_id and call_id:
             logger.debug(f'ExecutorID {exec_id} | JobID {job_id} - Invoking function call {call_id}')
@@ -190,11 +197,12 @@ class GCPCloudRunBackend:
         else:
             logger.debug('Invoking function')
 
-        url = self._get_service_endpoint(runtime_name, memory) + route
-        res = sess.post(url=url, data=json.dumps(payload, default=str))
+        req = urllib.request.Request(service_url+route, data=json.dumps(payload, default=str).encode('utf-8'))
+        req.add_header("Authorization", f"Bearer {id_token}")
+        res = urllib.request.urlopen(req)
 
-        if res.status_code in (200, 202):
-            data = res.json()
+        if res.getcode() in (200, 202):
+            data = json.loads(res.read())
             if return_result:
                 return data
             return data["activationId"]
@@ -272,7 +280,7 @@ class GCPCloudRunBackend:
         container['resources']['requests']['cpu'] = str(self.cr_config['runtime_cpu'])
 
         logger.info(f"Creating runtime: {runtime_name}")
-        res = self._build_api_resource().namespaces().services().create(
+        res = self._api_resource.namespaces().services().create(
             parent=f'namespaces/{self.project_name}', body=svc_res
         ).execute()
 
@@ -283,7 +291,7 @@ class GCPCloudRunBackend:
         retry = 15
         logger.debug(f'Waiting {service_name} service to become ready')
         while not ready:
-            res = self._build_api_resource().namespaces().services().get(
+            res = self._api_resource.namespaces().services().get(
                 name=f'namespaces/{self.project_name}/services/{service_name}'
             ).execute()
 
@@ -314,7 +322,7 @@ class GCPCloudRunBackend:
         # Wait until the service is completely deleted
         while True:
             try:
-                res = self._build_api_resource().namespaces().services().get(
+                res = self._api_resource.namespaces().services().get(
                     name=f'namespaces/{self.project_name}/services/{service_name}'
                 ).execute()
                 time.sleep(1)
@@ -325,7 +333,7 @@ class GCPCloudRunBackend:
         service_name = self._format_service_name(runtime_name, memory)
         logger.info(f'Deleting runtime: {runtime_name} - {memory}MB')
         try:
-            self._build_api_resource().namespaces().services().delete(
+            self._api_resource.namespaces().services().delete(
                 name=f'namespaces/{self.project_name}/services/{service_name}'
             ).execute()
             self._wait_service_deleted(service_name)
@@ -343,7 +351,7 @@ class GCPCloudRunBackend:
     def list_runtimes(self, runtime_name='all'):
         logger.debug('Listing runtimes')
 
-        res = self._build_api_resource().namespaces().services().list(
+        res = self._api_resource.namespaces().services().list(
             parent=f'namespaces/{self.project_name}',
         ).execute()
 

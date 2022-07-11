@@ -21,6 +21,7 @@ import base64
 import httplib2
 import zipfile
 import time
+import google.auth
 from google.cloud import pubsub_v1
 from google.oauth2 import service_account
 from google_auth_httplib2 import AuthorizedHttp
@@ -45,7 +46,7 @@ class GCPFunctionsBackend:
         self.region = gcf_config['region']
         self.service_account = gcf_config['service_account']
         self.project_name = gcf_config['project_name']
-        self.credentials_path = gcf_config['credentials_path']
+        self.credentials_path = gcf_config.get('credentials_path')
         self.num_retries = gcf_config['retries']
         self.retry_sleep = gcf_config['retry_sleep']
         self.trigger = gcf_config['trigger']
@@ -59,7 +60,9 @@ class GCPFunctionsBackend:
                 service_account_info,
                 audience=config.AUDIENCE
             )
+            logger.debug(f'Getting GCP credentials from {self.credentials_path}')
         except Exception as e:  # Get credentials from gcp function environment
+            logger.debug(f'Getting GCP credentials from the environment')
             credentials = None
         self.publisher_client = pubsub_v1.PublisherClient(credentials=credentials)
 
@@ -106,8 +109,10 @@ class GCPFunctionsBackend:
         return base64.b64encode(bytes(json.dumps(payload), 'utf-8')).decode('utf-8')
 
     def _get_auth_session(self):
-        credentials = service_account.Credentials.from_service_account_file(self.credentials_path,
-                                                                            scopes=config.SCOPES)
+        if os.path.isfile(self.credentials_path):
+            credentials = service_account.Credentials.from_service_account_file(self.credentials_path, scopes=config.SCOPES)
+        else:
+            credentials, _ = google.auth.default(scopes=config.SCOPES)
         http = httplib2.Http()
         return AuthorizedHttp(credentials, http=http)
 
