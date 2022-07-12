@@ -97,11 +97,10 @@ class GCPFunctionsBackend:
 
         self._pub_client = pubsub_v1.PublisherClient(credentials=pubsub_cred)
 
-        http = httplib2.Http()
-        auth_http = AuthorizedHttp(api_cred, http=http)
+        http = AuthorizedHttp(api_cred, http=httplib2.Http())
         self._api_resource = build(
             'cloudfunctions', config.FUNCTIONS_API_VERSION,
-            http=auth_http, cache_discovery=False
+            http=http, cache_discovery=False
         )
 
     def _format_topic_name(self, runtime_name, runtime_memory):

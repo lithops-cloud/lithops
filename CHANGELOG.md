@@ -21,6 +21,7 @@
 ### Changed
 - [Core] Load docker command only when needed instead of loading it always
 - [Core] Load runtime data only on invocation
+- [Google Cloud] project_name and service_account config parameters are no longer required
 - [Multiprocessing] Improved remote logging
 - [Monitor] Reduce debug log verbosity, status is printed every 30s or when a future changes state
 - [AWS Batch] Increased resource limits
