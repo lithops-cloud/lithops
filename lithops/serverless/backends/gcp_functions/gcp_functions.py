@@ -42,29 +42,15 @@ class GCPFunctionsBackend:
         self.name = 'gcp_functions'
         self.type = 'faas'
         self.gcf_config = gcf_config
-
         self.region = gcf_config['region']
-        self.service_account = gcf_config['service_account']
-        self.project_name = gcf_config['project_name']
-        self.credentials_path = gcf_config.get('credentials_path')
         self.num_retries = gcf_config['retries']
         self.retry_sleep = gcf_config['retry_sleep']
         self.trigger = gcf_config['trigger']
+        self.credentials_path = gcf_config.get('credentials_path')
 
         self.internal_storage = internal_storage
 
-        # Setup Pub/Sub client
-        try:  # Get credentials from JSON file
-            service_account_info = json.load(open(self.credentials_path))
-            credentials = jwt.Credentials.from_service_account_info(
-                service_account_info,
-                audience=config.AUDIENCE
-            )
-            logger.debug(f'Getting GCP credentials from {self.credentials_path}')
-        except Exception as e:  # Get credentials from gcp function environment
-            logger.debug(f'Getting GCP credentials from the environment')
-            credentials = None
-        self.publisher_client = pubsub_v1.PublisherClient(credentials=credentials)
+        self._build_api_resource()
 
         msg = COMPUTE_CLI_MSG.format('Google Cloud Functions')
         logger.info(f"{msg} - Region: {self.region} - Project: {self.project_name}")
@@ -84,6 +70,38 @@ class GCPFunctionsBackend:
         version, runtime_name = runtime_name.split('_', 1)
         version = version.replace('-', '.')
         return version, runtime_name, runtime_memory.replace('MB', '')
+
+    def _build_api_resource(self):
+        """
+        Setup Credentials and resources
+        """
+        if self.credentials_path and os.path.isfile(self.credentials_path):
+            logger.debug(f'Getting GCP credentials from {self.credentials_path}')
+            
+            api_cred = service_account.Credentials.from_service_account_file(
+                self.credentials_path, scopes=config.SCOPES
+            )
+            self.project_name = api_cred.project_id
+            self.service_account = api_cred.service_account_email
+            
+            pubsub_cred = jwt.Credentials.from_service_account_file(
+                self.credentials_path,
+                audience=config.AUDIENCE
+            ) 
+        else:
+            # Get credentials from gcp function environment
+            logger.debug(f'Getting GCP credentials from the environment')
+            api_cred, self.project_name = google.auth.default(scopes=config.SCOPES)
+            self.service_account = api_cred.service_account_email
+            pubsub_cred = None
+
+        self._pub_client = pubsub_v1.PublisherClient(credentials=pubsub_cred)
+
+        http = AuthorizedHttp(api_cred, http=httplib2.Http())
+        self._api_resource = build(
+            'cloudfunctions', config.FUNCTIONS_API_VERSION,
+            http=http, cache_discovery=False
+        )
 
     def _format_topic_name(self, runtime_name, runtime_memory):
         return self._format_function_name(runtime_name, runtime_memory) +'_'+ self.region + '_topic'
@@ -108,18 +126,6 @@ class GCPFunctionsBackend:
     def _encode_payload(self, payload):
         return base64.b64encode(bytes(json.dumps(payload), 'utf-8')).decode('utf-8')
 
-    def _get_auth_session(self):
-        if os.path.isfile(self.credentials_path):
-            credentials = service_account.Credentials.from_service_account_file(self.credentials_path, scopes=config.SCOPES)
-        else:
-            credentials, _ = google.auth.default(scopes=config.SCOPES)
-        http = httplib2.Http()
-        return AuthorizedHttp(credentials, http=http)
-
-    def _get_funct_conn(self):
-        http = self._get_auth_session()
-        return build('cloudfunctions', config.FUNCTIONS_API_VERSION, http=http, cache_discovery=False)
-
     def _list_built_runtimes(self, default_runtimes=True):
         """
         Lists all the built runtimes uploaded by self.build_runtime()
@@ -139,7 +145,7 @@ class GCPFunctionsBackend:
         # Wait until function is completely deleted
         while True:
             try:
-                response = self._get_funct_conn().projects().locations().functions().get(
+                response = self._api_resource.projects().locations().functions().get(
                     name=function_location
                 ).execute(num_retries=self.num_retries)
                 logger.debug(f'Function status is {response["status"]}')
@@ -159,13 +165,13 @@ class GCPFunctionsBackend:
         topic_name = self._format_topic_name(runtime_name, memory)
         topic_location = self._full_topic_location(topic_name)
         logger.debug(f"Creating topic {topic_location}")
-        topic_list_response = self.publisher_client.list_topics(
+        topic_list_response = self._pub_client.list_topics(
             request={'project': f'projects/{self.project_name}'})
         topics = [topic.name for topic in topic_list_response]
         if topic_location in topics:
             logger.debug(f"Topic {topic_location} already exists - Restarting queue")
-            self.publisher_client.delete_topic(topic=topic_location)
-        self.publisher_client.create_topic(name=topic_location)
+            self._pub_client.delete_topic(topic=topic_location)
+        self._pub_client.create_topic(name=topic_location)
 
         # Create the function
         default_location = self._full_default_location()
@@ -173,14 +179,14 @@ class GCPFunctionsBackend:
         function_location = self._full_function_location(function_name)
         logger.debug(f"Creating function {topic_location}")
 
-        fn_list_response = self._get_funct_conn().projects().locations().functions().list(
+        fn_list_response = self._api_resource.projects().locations().functions().list(
             parent=self._full_default_location()
         ).execute(num_retries=self.num_retries)
         if 'functions' in fn_list_response:
             deployed_functions = [fn['name'] for fn in fn_list_response['functions']]
             if function_location in deployed_functions:
                 logger.debug(f"Function {function_location} already exists - Deleting function")
-                self._get_funct_conn().projects().locations().functions().delete(
+                self._api_resource.projects().locations().functions().delete(
                     name=function_location,
                 ).execute(num_retries=self.num_retries)
                 self._wait_function_deleted(function_location)
@@ -211,7 +217,7 @@ class GCPFunctionsBackend:
             }
 
         logger.debug(f'Creating function {function_location}')
-        response = self._get_funct_conn().projects().locations().functions().create(
+        response = self._api_resource.projects().locations().functions().create(
             location=default_location,
             body=cloud_function
         ).execute(num_retries=self.num_retries)
@@ -219,7 +225,7 @@ class GCPFunctionsBackend:
         # Wait until function is completely deployed
         logger.info('Waiting for the function to be deployed')
         while True:
-            response = self._get_funct_conn().projects().locations().functions().get(
+            response = self._api_resource.projects().locations().functions().get(
                 name=function_location
             ).execute(num_retries=self.num_retries)
             logger.debug(f'Function status is {response["status"]}')
@@ -283,7 +289,7 @@ class GCPFunctionsBackend:
         logger.info(f'Deleting runtime: {runtime_name} - {runtime_memory}MB')
 
         # Delete function
-        self._get_funct_conn().projects().locations().functions().delete(
+        self._api_resource.projects().locations().functions().delete(
             name=function_location,
         ).execute(num_retries=self.num_retries)
         logger.debug('Request Ok - Waiting until function is completely deleted')
@@ -294,13 +300,13 @@ class GCPFunctionsBackend:
         logger.debug('Listing Pub/Sub topics')
         topic_name = self._format_topic_name(runtime_name, runtime_memory)
         topic_location = self._full_topic_location(topic_name)
-        topic_list_request = self.publisher_client.list_topics(
+        topic_list_request = self._pub_client.list_topics(
             request={'project': f'projects/{self.project_name}'}
         )
         topics = [topic.name for topic in topic_list_request]
         if topic_location in topics:
             logger.debug(f'Going to delete topic {topic_name}')
-            self.publisher_client.delete_topic(topic=topic_location)
+            self._pub_client.delete_topic(topic=topic_location)
             logger.debug(f'Ok - topic {topic_name} deleted')
 
         # Delete user runtime from storage
@@ -318,7 +324,7 @@ class GCPFunctionsBackend:
 
     def list_runtimes(self, runtime_name='all'):
         logger.debug('Listing deployed runtimes')
-        response = self._get_funct_conn().projects().locations().functions().list(
+        response = self._api_resource.projects().locations().functions().list(
             parent=self._full_default_location()
         ).execute(num_retries=self.num_retries)
 
@@ -335,7 +341,7 @@ class GCPFunctionsBackend:
     def invoke(self, runtime_name, runtime_memory, payload={}):
         topic_location = self._full_topic_location(self._format_topic_name(runtime_name, runtime_memory))
 
-        fut = self.publisher_client.publish(
+        fut = self._pub_client.publish(
             topic_location,
             bytes(json.dumps(payload, default=str).encode('utf-8'))
         )
@@ -357,7 +363,7 @@ class GCPFunctionsBackend:
         }
 
         # Data is b64 encoded so we can treat REST call the same as async pub/sub event trigger
-        response = self._get_funct_conn().projects().locations().functions().call(
+        response = self._api_resource.projects().locations().functions().call(
             name=function_location,
             body={'data': json.dumps({'data': self._encode_payload(payload)})}
         ).execute(num_retries=self.num_retries)

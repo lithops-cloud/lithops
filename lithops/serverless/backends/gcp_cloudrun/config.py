@@ -19,7 +19,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-REQ_PARAMS = ('project_name', 'service_account', 'region')
+REQ_PARAMS = ('region', )
 
 DEFAULT_CONFIG_KEYS = {
     'runtime_timeout': 300,  # Default: 600 seconds => 10 minutes

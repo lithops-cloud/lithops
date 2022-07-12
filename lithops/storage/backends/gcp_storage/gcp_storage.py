@@ -35,10 +35,10 @@ class GCPStorageBackend:
     def __init__(self, gcp_storage_config):
         logger.debug("Creating GCP Storage client")
         self.credentials_path = gcp_storage_config.get('credentials_path')
-        try:  # Get credenitals from JSON file
-            self.client = storage.Client.from_service_account_json(self.credentials_path)
+        if self.credentials_path and os.path.isfile(self.credentials_path): 
             logger.debug(f'Getting GCP credentials from {self.credentials_path}')
-        except Exception:  # Get credentials from gcp function environment
+            self.client = storage.Client.from_service_account_json(self.credentials_path)
+        else:
             logger.debug(f'Getting GCP credentials from the environment')
             self.client = storage.Client()
         msg = STORAGE_CLI_MSG.format('Google Cloud Storage')

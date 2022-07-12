@@ -48,12 +48,10 @@ class GCPCloudRunBackend:
         self.name = 'gcp_cloudrun'
         self.type = 'faas'
         self.cr_config = cloudrun_config
-        self.credentials_path = cloudrun_config.get('credentials_path')
-        self.service_account = cloudrun_config['service_account']
-        self.project_name = cloudrun_config['project_name']
         self.region = cloudrun_config['region']
+        self.credentials_path = cloudrun_config.get('credentials_path')
 
-        self._api_resource = self._build_api_resource()
+        self._build_api_resource()
 
         self._service_url = None
         self._id_token = None
@@ -88,20 +86,22 @@ class GCPCloudRunBackend:
         Instantiate and authorize admin discovery API session
         """
         logger.debug('Building admin API session')
-        if os.path.isfile(self.credentials_path):
-            credentials = service_account.Credentials.from_service_account_file(self.credentials_path, scopes=SCOPES)
+        if self.credentials_path and os.path.isfile(self.credentials_path):
+            cred = service_account.Credentials.from_service_account_file(self.credentials_path, scopes=SCOPES)
+            self.project_name = cred.project_id
+            self.service_account = cred.service_account_email
         else:
-            credentials, _ = google.auth.default(scopes=SCOPES)
-        http = AuthorizedHttp(credentials, http=httplib2.Http())
-        api_resource = build(
+            cred, self.project_name = google.auth.default(scopes=SCOPES)
+            self.service_account = cred.service_account_email
+
+        http = AuthorizedHttp(cred, http=httplib2.Http())
+        self._api_resource = build(
             'run', CLOUDRUN_API_VERSION,
             http=http, cache_discovery=False,
             client_options={
                 'api_endpoint': f'https://{self.region}-run.googleapis.com'
             }
         )
-
-        return api_resource
 
     def _get_url_and_token(self, runtime_name, memory):
         """
@@ -120,6 +120,7 @@ class GCPCloudRunBackend:
             logger.debug(f'Service endpoint url is {self._service_url}')
         
         if not self._id_token or request_token:
+            logger.debug('Getting authentication token')
             if self.credentials_path and os.path.isfile(self.credentials_path):
                 os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = self.credentials_path
             auth_req = google.auth.transport.requests.Request()
