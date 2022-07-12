@@ -79,7 +79,6 @@ apiVersion: codeengine.cloud.ibm.com/v1beta1
 kind: JobDefinition
 metadata:
   name: lithops-runtime-name
-  namespace: default
   labels:
     type: lithops-runtime
     version: lithops_vX.X.X

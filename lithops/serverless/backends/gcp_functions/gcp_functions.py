@@ -89,7 +89,6 @@ class GCPFunctionsBackend:
                 audience=config.AUDIENCE
             ) 
         else:
-            # Get credentials from gcp function environment
             logger.debug(f'Getting GCP credentials from the environment')
             api_cred, self.project_name = google.auth.default(scopes=config.SCOPES)
             self.service_account = api_cred.service_account_email
@@ -103,6 +102,10 @@ class GCPFunctionsBackend:
             http=http, cache_discovery=False
         )
 
+    @property
+    def _default_location(self):
+        return f'projects/{self.project_name}/locations/{self.region}'
+
     def _format_topic_name(self, runtime_name, runtime_memory):
         return self._format_function_name(runtime_name, runtime_memory) +'_'+ self.region + '_topic'
 
@@ -110,16 +113,13 @@ class GCPFunctionsBackend:
         py_version = utils.CURRENT_PY_VERSION.replace('.', '')
         return  f'lithops-default-runtime-v{py_version}'
 
-    def _full_function_location(self, function_name):
-        return f'projects/{self.project_name}/locations/{self.region}/functions/{function_name}'
-
-    def _full_topic_location(self, topic_name):
+    def _get_topic_location(self, topic_name):
         return f'projects/{self.project_name}/topics/{topic_name}'
 
-    def _full_default_location(self):
-        return f'projects/{self.project_name}/locations/{self.region}'
+    def _get_function_location(self, function_name):
+        return f'{self._default_location}/functions/{function_name}'
 
-    def _full_runtime_bin_location(self, runtime_name):
+    def _get_runtime_bin_location(self, runtime_name):
         function_name =  self._format_function_name(runtime_name)
         return config.USER_RUNTIMES_PREFIX + '/' + function_name + '_bin.zip'
 
@@ -163,7 +163,7 @@ class GCPFunctionsBackend:
         """
         # Create topic
         topic_name = self._format_topic_name(runtime_name, memory)
-        topic_location = self._full_topic_location(topic_name)
+        topic_location = self._get_topic_location(topic_name)
         logger.debug(f"Creating topic {topic_location}")
         topic_list_response = self._pub_client.list_topics(
             request={'project': f'projects/{self.project_name}'})
@@ -174,13 +174,12 @@ class GCPFunctionsBackend:
         self._pub_client.create_topic(name=topic_location)
 
         # Create the function
-        default_location = self._full_default_location()
         function_name = self._format_function_name(runtime_name, memory)
-        function_location = self._full_function_location(function_name)
+        function_location = self._get_function_location(function_name)
         logger.debug(f"Creating function {topic_location}")
 
         fn_list_response = self._api_resource.projects().locations().functions().list(
-            parent=self._full_default_location()
+            parent=self._default_location
         ).execute(num_retries=self.num_retries)
         if 'functions' in fn_list_response:
             deployed_functions = [fn['name'] for fn in fn_list_response['functions']]
@@ -191,7 +190,7 @@ class GCPFunctionsBackend:
                 ).execute(num_retries=self.num_retries)
                 self._wait_function_deleted(function_location)
 
-        bin_location = self._full_runtime_bin_location(runtime_name)
+        bin_location = self._get_runtime_bin_location(runtime_name)
         cloud_function = {
             'name': function_location,
             'description': 'Lithops Worker for Lithops v'+ __version__,
@@ -209,7 +208,7 @@ class GCPFunctionsBackend:
 
         elif self.trigger == 'pub/sub':
             topic_name = self._format_topic_name(runtime_name, memory)
-            topic_location = self._full_topic_location(topic_name)
+            topic_location = self._get_topic_location(topic_name)
             cloud_function['eventTrigger'] = {
                 'eventType': 'providers/cloud.pubsub/eventTypes/topic.publish',
                 'resource': topic_location,
@@ -218,7 +217,7 @@ class GCPFunctionsBackend:
 
         logger.debug(f'Creating function {function_location}')
         response = self._api_resource.projects().locations().functions().create(
-            location=default_location,
+            location=self._default_location,
             body=cloud_function
         ).execute(num_retries=self.num_retries)
 
@@ -251,7 +250,7 @@ class GCPFunctionsBackend:
                 lithops_zip.write(requirements_file, 'requirements.txt', zipfile.ZIP_DEFLATED)
             with open(config.FH_ZIP_LOCATION, "rb") as action_zip:
                 action_bin = action_zip.read()
-            bin_location = self._full_runtime_bin_location(runtime_name)
+            bin_location = self._get_runtime_bin_location(runtime_name)
             self.internal_storage.put_data(bin_location, action_bin)
         finally:
             os.remove(config.FH_ZIP_LOCATION)
@@ -285,7 +284,7 @@ class GCPFunctionsBackend:
 
     def delete_runtime(self, runtime_name, runtime_memory):
         function_name = self._format_function_name(runtime_name, runtime_memory)
-        function_location = self._full_function_location(function_name)
+        function_location = self._get_function_location(function_name)
         logger.info(f'Deleting runtime: {runtime_name} - {runtime_memory}MB')
 
         # Delete function
@@ -299,7 +298,7 @@ class GCPFunctionsBackend:
         # Delete Pub/Sub topic attached as trigger for the cloud function
         logger.debug('Listing Pub/Sub topics')
         topic_name = self._format_topic_name(runtime_name, runtime_memory)
-        topic_location = self._full_topic_location(topic_name)
+        topic_location = self._get_topic_location(topic_name)
         topic_list_request = self._pub_client.list_topics(
             request={'project': f'projects/{self.project_name}'}
         )
@@ -310,7 +309,7 @@ class GCPFunctionsBackend:
             logger.debug(f'Ok - topic {topic_name} deleted')
 
         # Delete user runtime from storage
-        bin_location = self._full_runtime_bin_location(runtime_name)
+        bin_location = self._get_runtime_bin_location(runtime_name)
         user_runtimes = self._list_built_runtimes(default_runtimes=False)
         if bin_location in user_runtimes:
             self.internal_storage.storage.delete_object(
@@ -325,7 +324,7 @@ class GCPFunctionsBackend:
     def list_runtimes(self, runtime_name='all'):
         logger.debug('Listing deployed runtimes')
         response = self._api_resource.projects().locations().functions().list(
-            parent=self._full_default_location()
+            parent=self._default_location
         ).execute(num_retries=self.num_retries)
 
         deployed_runtimes = [f['name'].split('/')[-1] for f in response.get('functions', [])]
@@ -339,7 +338,7 @@ class GCPFunctionsBackend:
         return runtimes
 
     def invoke(self, runtime_name, runtime_memory, payload={}):
-        topic_location = self._full_topic_location(self._format_topic_name(runtime_name, runtime_memory))
+        topic_location = self._get_topic_location(self._format_topic_name(runtime_name, runtime_memory))
 
         fut = self._pub_client.publish(
             topic_location,
@@ -353,7 +352,7 @@ class GCPFunctionsBackend:
         logger.debug(f'Extracting runtime metadata from: {runtime_name}')
 
         function_name = self._format_function_name(runtime_name, memory)
-        function_location = self._full_function_location(function_name)
+        function_location = self._get_function_location(function_name)
 
         payload = {
             'get_metadata': {

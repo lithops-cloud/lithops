@@ -42,7 +42,7 @@ logger = logging.getLogger(__name__)
 def retry_on_except(func):
     def decorated_func(*args, **kwargs):
         _self = args[0]
-        connection_retries = _self.code_engine_config.get('connection_retries')
+        connection_retries = _self.ce_config.get('connection_retries')
         if not connection_retries:
             return func(*args, **kwargs)
         else:
@@ -305,7 +305,7 @@ class CodeEngineBackend:
         for jobdef in jobdefs['items']:
             try:
                 if jobdef['metadata']['labels']['type'] == 'lithops-runtime':
-                    version = jobdef['metadata']['labels']['version']
+                    version = jobdef['metadata']['labels']['version'].replace('lithops_v', '')
                     container = jobdef['spec']['template']['containers'][0]
                     image_name = container['image']
                     memory = container['resources']['requests']['memory'].replace('M', '')
@@ -313,7 +313,6 @@ class CodeEngineBackend:
                     if docker_image_name in image_name or docker_image_name == 'all':
                         runtimes.append((image_name, memory, version))
             except Exception:
-                # It is not a lithops runtime
                 pass
 
         return runtimes
