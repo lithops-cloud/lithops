@@ -56,9 +56,6 @@ class GCPCloudRunBackend:
         self._service_url = None
         self._id_token = None
 
-        if self.credentials_path and os.path.isfile(self.credentials_path):
-            logger.debug(f'Getting GCP credentials from {self.credentials_path}')
-
         msg = COMPUTE_CLI_MSG.format('Google Cloud Run')
         logger.info(f"{msg} - Region: {self.region} - Project: {self.project_name}")
 
@@ -85,12 +82,13 @@ class GCPCloudRunBackend:
         """
         Instantiate and authorize admin discovery API session
         """
-        logger.debug('Building admin API session')
         if self.credentials_path and os.path.isfile(self.credentials_path):
+            logger.debug(f'Getting GCP credentials from {self.credentials_path}')
             cred = service_account.Credentials.from_service_account_file(self.credentials_path, scopes=SCOPES)
             self.project_name = cred.project_id
             self.service_account = cred.service_account_email
         else:
+            logger.debug(f'Getting GCP credentials from the environment')
             cred, self.project_name = google.auth.default(scopes=SCOPES)
             self.service_account = cred.service_account_email
 

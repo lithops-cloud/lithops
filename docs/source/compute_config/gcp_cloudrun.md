@@ -46,7 +46,7 @@ python3 -m install lithops[gcp]
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|gcp | region | |yes | Region of the bucket created at step 8. Functions and pub/sub queue will be created in the same region (e.g. `us-east1`) |
+|gcp | region | |yes | Region name of the bucket created at step 8 of the gcp_storage config. Cloud Run containers will be created in the same region (e.g. `us-east1`) |
 |gcp | credentials_path | | yes | **Absolute** path of your JSON key file downloaded in step 7 (e.g. `/home/myuser/lithops-invoker1234567890.json`). Alternatively you can set `GOOGLE_APPLICATION_CREDENTIALS` environment variable. If not provided it will try to load the default credentials from the environment|
 
 ### Google Cloud Run
