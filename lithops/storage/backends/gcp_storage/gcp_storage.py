@@ -171,7 +171,16 @@ class GCPStorageBackend:
             pass
 
     def head_bucket(self, bucket_name):
-        pass
+        bucket = self.client.get_bucket(bucket_name, timeout=TIMEOUT)
+        response = {
+            'ResponseMetadata':
+                {'HTTPStatusCode': 200, 
+                'HTTPHeaders': {'content-type': 'application/xml', 
+                                'server': 'GoogleStorage'}
+                }
+        }
+        response['ResponseMetadata']['HTTPHeaders'].update(bucket._properties)
+        return response
 
     def list_objects(self, bucket_name, prefix=None):
         try:
