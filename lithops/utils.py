@@ -651,7 +651,8 @@ class WrappedStreamingBodyPartition(WrappedStreamingBody):
         self.pos += len(retval)
         first_row_start_pos = 0
 
-        if self._first_read and self._first_byte != self.newline_char and self._plusbytes == 1:
+        if self._first_read and self._first_byte and \
+           self._first_byte != self.newline_char:
             logger.debug('Discarding first partial row')
             # Previous byte is not self.newline_char
             # This means that we have to discard first row because it is cut
@@ -661,7 +662,7 @@ class WrappedStreamingBodyPartition(WrappedStreamingBody):
         last_row_end_pos = self.pos
         # Find end of the line in threshold
         if self.pos > self.size:
-            last_byte_pos = retval[self.size:].find(self.newline_char) + 1
+            last_byte_pos = retval[self.size-1:].find(self.newline_char)
             last_row_end_pos = self.size + last_byte_pos
             self._eof = True
 
