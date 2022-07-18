@@ -141,14 +141,16 @@ def _split_objects_from_urls(
                 # Only one chunk
                 brange = None
                 obj_chunk_size = obj_size
-            elif size+obj_chunk_size >= obj_size:
-                # last chunk
-                brange = (size, obj_size-1)
-                obj_chunk_size = obj_size - size
             elif obj_newline is None:
+                # partitions of the same size
                 brange = (size, size+obj_chunk_size-1)
+            elif size+obj_chunk_size < obj_size:
+                # common chunk
+                brange = (size-1 if size > 0 else 0, size+obj_chunk_size+CHUNK_THRESHOLD)
             else:
-                brange = (size, size+obj_chunk_size+CHUNK_THRESHOLD)
+                # last chunk
+                brange = (size-1 , obj_size-1)
+                obj_chunk_size = obj_size - size
 
             obj_total_partitions += 1
 
@@ -244,14 +246,16 @@ def _split_objects_from_paths(
                 # Only one chunk
                 brange = None
                 obj_chunk_size = obj_size
-            elif size+obj_chunk_size >= obj_size:
-                # last chunk
-                brange = (size, obj_size-1)
-                obj_chunk_size = obj_size - size
             elif obj_newline is None:
+                # partitions of the same size
                 brange = (size, size+obj_chunk_size-1)
+            elif size+obj_chunk_size < obj_size:
+                # common chunk
+                brange = (size-1 if size > 0 else 0, size+obj_chunk_size+CHUNK_THRESHOLD)
             else:
-                brange = (size, size+obj_chunk_size+CHUNK_THRESHOLD)
+                # last chunk
+                brange = (size-1 , obj_size-1)
+                obj_chunk_size = obj_size - size
 
             obj_total_partitions += 1
 
@@ -391,14 +395,16 @@ def _split_objects_from_object_storage(
                 # Only one chunk
                 brange = None
                 obj_chunk_size = obj_size
-            elif size+obj_chunk_size >= obj_size:
-                # last chunk
-                brange = (size, obj_size-1)
-                obj_chunk_size = obj_size - size
             elif obj_newline is None:
+                # partitions of the same size
                 brange = (size, size+obj_chunk_size-1)
+            elif size+obj_chunk_size < obj_size:
+                # common chunk
+                brange = (size-1 if size > 0 else 0, size+obj_chunk_size+CHUNK_THRESHOLD)
             else:
-                brange = (size, size+obj_chunk_size+CHUNK_THRESHOLD)
+                # last chunk
+                brange = (size-1 , obj_size-1)
+                obj_chunk_size = obj_size - size
 
             obj_total_partitions += 1
 
