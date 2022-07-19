@@ -23,6 +23,7 @@ import json
 import base64
 import io
 from requests.auth import HTTPBasicAuth
+from requests.auth import HTTPDigestAuth
 from lithops.constants import STORAGE_CLI_MSG
 from lithops.storage.utils import StorageNoSuchKeyError
 
@@ -37,7 +38,13 @@ class InfinispanBackend:
     def __init__(self, infinispan_config):
         logger.debug("Creating Infinispan storage client")
         self.infinispan_config = infinispan_config
-        self.basicAuth = HTTPBasicAuth(infinispan_config.get('username'),
+        self.mech = infinispan_config.get('auth_mech', 'DIGEST')
+        match self.mech:
+            case 'DIGEST':
+                self.auth = HTTPDigestAuth(infinispan_config.get('username'),
+                                       infinispan_config.get('password'))
+            case 'BASIC':
+                self.auth = HTTPBasicAuth(infinispan_config.get('username'),
                                        infinispan_config.get('password'))
         self.endpoint = infinispan_config.get('endpoint')
         self.cache_names = infinispan_config.get('cache_names', ['storage'])
@@ -57,12 +64,12 @@ class InfinispanBackend:
 
     def __create_cache(self, cache_name, cache_type):
         url = self.endpoint + '/rest/v2/caches/' + cache_name
-        res = self.infinispan_client.head(url, auth=self.basicAuth)
+        res = self.infinispan_client.head(url, auth=self.auth)
 
         if res.status_code == 404:
             logger.debug('going to create new Infinispan cache {}'.format(cache_name))
             url = self.endpoint+'/rest/v2/caches/'+cache_name+'?template='+cache_type
-            res = self.infinispan_client.post(url, auth=self.basicAuth)
+            res = self.infinispan_client.post(url, auth=self.auth)
             logger.debug('New Infinispan cache {} created with '
                          'status {}'.format(cache_name, res.status_code))
 
@@ -74,7 +81,7 @@ class InfinispanBackend:
 
     def __is_server_version_supported(self):
         url = self.endpoint + '/rest/v2/cache-managers/default'
-        res = self.infinispan_client.get(url, auth=self.basicAuth)
+        res = self.infinispan_client.get(url, auth=self.auth)
         json_resp = json.loads(res.content.decode('utf-8'))
         server_version = json_resp['version'].split('.')
         if (int(server_version[0]) < 10 or (int(server_version[0]) == 10 and int(server_version[1]) < 1)):
@@ -97,7 +104,7 @@ class InfinispanBackend:
         """
         url = self.__key_url(bucket_name, key)
         resp = self.infinispan_client.put(url, data=data,
-                                          auth=self.basicAuth,
+                                          auth=self.auth,
                                           headers=self.headers)
         logger.debug(resp)
 
@@ -109,7 +116,7 @@ class InfinispanBackend:
         :rtype: str/bytes
         """
         url = self.__key_url(bucket_name, key)
-        res = self.infinispan_client.get(url, headers=self.headers, auth=self.basicAuth)
+        res = self.infinispan_client.get(url, headers=self.headers, auth=self.auth)
         data = res.content
         if data is None or len(data) == 0:
             raise StorageNoSuchKeyError(bucket_name, key)
@@ -186,7 +193,7 @@ class InfinispanBackend:
         :param key: data key
         """
         url = self.__key_url(bucket_name, key)
-        return self.infinispan_client.delete(url, headers=self.headers, auth=self.basicAuth)
+        return self.infinispan_client.delete(url, headers=self.headers, auth=self.auth)
 
     def delete_objects(self, bucket_name, key_list):
         """
@@ -217,7 +224,7 @@ class InfinispanBackend:
         :rtype: list of str
         """
         url = self.endpoint + '/rest/v2/caches/' + bucket_name + '?action=keys'
-        res = self.infinispan_client.get(url, auth=self.basicAuth)
+        res = self.infinispan_client.get(url, auth=self.auth)
         data = res.content
         if data is None:
             return None
@@ -245,7 +252,7 @@ class InfinispanBackend:
         :rtype: list of str
         """
         url = self.endpoint + '/rest/v2/caches/' + bucket_name + '?action=keys'
-        res = self.infinispan_client.get(url, auth=self.basicAuth)
+        res = self.infinispan_client.get(url, auth=self.auth)
         data = res.content
         if data is None:
             return None
