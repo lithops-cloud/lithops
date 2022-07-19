@@ -22,6 +22,7 @@ infinispan_hotrod (native binary) endpoint.
     infinispan:
         username   : <USER_NAME>
         password   : <PASSWORD>
+        mech: <DIGEST|BASIC> # Defaults to DIGEST
         endpoint   : <INFINISPAN_SERVER_URL:PORT>
         cache_names :
         - cache_name_1
@@ -36,6 +37,7 @@ infinispan_hotrod (native binary) endpoint.
 |infinispan | endpoint | |yes | Endpoint to your Infinispan server |
 |infinispan | username | |yes | The username |
 |infinispan | password | |yes | The password |
+|infinispan | mech | |no | Authentication mechanism |
 |infinispan | cache_names | | no | Cache names list. Each bucket will be mapped on a different cache with the same name # Optional ['storage'] in default value |
 |infinispan | cache_type | | no | Type of the cache. # Optional 'default' in default value |
 
