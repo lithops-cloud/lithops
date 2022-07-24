@@ -90,7 +90,9 @@ The user can obtain these statistics through the future object:
      'worker_func_exec_time': 1.91e-06,
      'worker_func_start_tstamp': 1647526902.2985158,
      'worker_result_upload_time': 0.07001352,
-     'worker_start_tstamp': 1647526902.1615202}
+     'worker_start_tstamp': 1647526902.1615202,
+     'worker_peak_memory_start': 88469504,
+     'worker_peak_memory_end': 126469504}
 
 
 .. list-table::
@@ -143,6 +145,10 @@ The user can obtain these statistics through the future object:
      - Total time taken for the function to upload the result to cloud object storage.
    * - :code:`worker_start_tstamp`
      - Timestamp of the start of the worker function.
+   * - :code:`worker_peak_memory_start`
+     - Peak memory usage in bytes before executing the function.
+   * - :code:`worker_peak_memory_end`
+     - Peak memory usage in bytes after executing the function.
 
 
 

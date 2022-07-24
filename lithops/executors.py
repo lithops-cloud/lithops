@@ -327,7 +327,7 @@ class FunctionExecutor:
         :param timeout: Time that the functions have to complete their execution before raising a timeout
         :param obj_chunk_size: the size of the data chunks to split each object. 'None' for processing the whole file in one function activation
         :param obj_chunk_number: Number of chunks to split each object. 'None' for processing the whole file in one function activation
-        :param obj_newline: new line character for keeping line integrity of partitions. 'None' for disabling line integrity logic and get partitions of the exact same size in the functions
+        :param obj_newline: New line character for keeping line integrity of partitions. 'None' for disabling line integrity logic and get partitions of the exact same size in the functions
         :param obj_reduce_by_key: Set one reducer per object after running the partitioner. By default there is one reducer for all the objects
         :param spawn_reducer: Percentage of done map functions before spawning the reduce function
         :param include_modules: Explicitly pickle these dependencies.
@@ -408,7 +408,8 @@ class FunctionExecutor:
         download_results: Optional[bool] = False,
         timeout: Optional[int] = None,
         threadpool_size: Optional[int] = THREADPOOL_SIZE,
-        wait_dur_sec: Optional[int] = WAIT_DUR_SEC
+        wait_dur_sec: Optional[int] = WAIT_DUR_SEC,
+        show_progressbar: Optional[bool] = True
     ) -> Tuple[FuturesList, FuturesList]:
         """
         Wait for the Future instances (possibly created by different Executor instances)
@@ -425,6 +426,7 @@ class FunctionExecutor:
         :param timeout: Timeout of waiting for results
         :param threadpool_size: Number of threads to use. Default 64
         :param wait_dur_sec: Time interval between each check
+        :param show_progressbar: whether or not to show the progress bar.
 
         :return: `(fs_done, fs_notdone)` where `fs_done` is a list of futures that have completed and `fs_notdone` is a list of futures that have not completed.
         """
@@ -442,7 +444,8 @@ class FunctionExecutor:
                  return_when=return_when,
                  timeout=timeout,
                  threadpool_size=threadpool_size,
-                 wait_dur_sec=wait_dur_sec)
+                 wait_dur_sec=wait_dur_sec,
+                 show_progressbar=show_progressbar)
 
             if self.data_cleaner and return_when == ALL_COMPLETED:
                 present_jobs = {f.job_key for f in futures}
@@ -475,7 +478,8 @@ class FunctionExecutor:
         throw_except: Optional[bool] = True,
         timeout: Optional[int] = None,
         threadpool_size: Optional[int] = THREADPOOL_SIZE,
-        wait_dur_sec: Optional[int] = WAIT_DUR_SEC
+        wait_dur_sec: Optional[int] = WAIT_DUR_SEC,
+        show_progressbar: Optional[bool] = True
     ):
         """
         For getting the results from all function activations
@@ -485,6 +489,8 @@ class FunctionExecutor:
         :param timeout: Timeout for waiting for results.
         :param threadpool_size: Number of threads to use. Default 128
         :param wait_dur_sec: Time interval between each check.
+        :param show_progressbar: whether or not to show the progress bar.
+
         :return: The result of the future/s
         """
         fs_done, _ = self.wait(
@@ -493,7 +499,8 @@ class FunctionExecutor:
             timeout=timeout,
             download_results=True,
             threadpool_size=threadpool_size,
-            wait_dur_sec=wait_dur_sec
+            wait_dur_sec=wait_dur_sec,
+            show_progressbar=show_progressbar
         )
 
         result = []

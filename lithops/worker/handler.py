@@ -37,7 +37,7 @@ from lithops.config import extract_storage_config
 from lithops.storage import InternalStorage
 from lithops.worker.jobrunner import JobRunner
 from lithops.worker.utils import LogStream, custom_redirection,\
-    get_function_and_modules, get_function_data
+    get_function_and_modules, get_function_data, peak_memory
 from lithops.constants import JOBS_PREFIX, LITHOPS_TEMP_DIR, MODULES_DIR
 from lithops.utils import setup_lithops_logger, is_unix_system
 from lithops.worker.status import create_call_status
@@ -173,6 +173,8 @@ def run_job(job):
         # send init status event
         call_status.send_init_event()
 
+        call_status.add('worker_peak_memory_start', peak_memory())
+
         handler_conn, jobrunner_conn = Pipe()
         jobrunner = JobRunner(job, jobrunner_conn, internal_storage)
         logger.debug('Starting JobRunner process')
@@ -180,6 +182,8 @@ def run_job(job):
         jrp.start()
         jrp.join(job.execution_timeout)
         logger.debug('JobRunner process finished')
+        
+        call_status.add('worker_peak_memory_end', peak_memory())
 
         if jrp.is_alive():
             # If process is still alive after jr.join(job_max_runtime), kill it
