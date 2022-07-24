@@ -84,7 +84,7 @@ metadata:
     version: lithops_vX.X.X
 spec:
   arraySpec: '0'
-  maxExecutionTime: 7200
+  maxExecutionTime: 600
   retryLimit: 3
   template:
     containers:
@@ -122,7 +122,7 @@ spec:
   jobDefinitionRef: "<REF>"
   jobDefinitionSpec:
     arraySpec: '1'
-    maxExecutionTime: 7200
+    maxExecutionTime: 600
     retryLimit: 2
     template:
       containers:
