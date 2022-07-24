@@ -375,6 +375,7 @@ class CodeEngineBackend:
 
         jobrun_res['spec']['jobDefinitionRef'] = str(jobdef_name)
         jobrun_res['spec']['jobDefinitionSpec']['arraySpec'] = '0-' + str(total_workers - 1)
+        jobrun_res['spec']['jobDefinitionSpec']['maxExecutionTime'] = self.ce_config['runtime_timeout']
 
         container = jobrun_res['spec']['jobDefinitionSpec']['template']['containers'][0]
         container['name'] = str(jobdef_name)
@@ -464,6 +465,7 @@ class CodeEngineBackend:
 
         jobdef_res['metadata']['name'] = jobdef_name
         jobdef_res['metadata']['labels']['version'] = 'lithops_v'+__version__
+        jobdef_res['spec']['maxExecutionTime'] = self.ce_config['runtime_timeout']
 
         container = jobdef_res['spec']['template']['containers'][0]
         container['image'] = docker_image_name

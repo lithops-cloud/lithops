@@ -10,6 +10,8 @@
 - [K8s] Append 'docker_server' as a prefix of the runtime
 - [Code Engine] Append 'docker_server' as a prefix of the runtime
 - [Knative] Append 'docker_server' as a prefix of the runtime
+- [Google Cloud Storage] Add missing logic in gcp_storage
+- [Google Cloud] project_name and service_account are no longer required in config
 - [Google Cloud] Allow to use GOOGLE_APPLICATION_CREDENTIALS for service_credentials
 - [Google Cloud Run] Allow CPU values <1, 6 and 8
 - [Alibaba Cloud Functions] Added Python 3.9 runtime compatibility
@@ -17,6 +19,7 @@
 - [Core] Add support for building container runtimes with podman
 - [Core] Delete only runtimes from the specified backend on 'lithops clean'
 - [Executor] Added obj_newline parameter in map() and map_reduce() methods
+- [Infinispan] Support DIGEST authentication by default with the Infinispan REST backend
 
 ### Changed
 - [Core] Load docker command only when needed instead of loading it always
@@ -30,11 +33,14 @@
 ### Fixed
 - [Google Cloud Functions] Fixed errors when deploying a function
 - [Core] Make sure all temp files generated during build_runtime() are cleaned
+- [Core] Fix internal partitioner
 - [knative] AttributeError: 'KnativeServingBackend' object has no attribute 'coreV1Api'
 - [knative] Fixed service deployment
 - [Alibaba Cloud Functions] Fixed errors when deploying a function
 - [Azure Functions] Fixed errors when deploying a function
 - [Azure Functions] Fixed issue that was preventing building runtimes from a non-Linux system
+- [Code Engine] Fix runtime_timeout not being applied
+
 
 ## [v2.6.0]
 
