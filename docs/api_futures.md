@@ -166,6 +166,7 @@ Spawn multiple function activations based on the items of an input list.
 |exclude_modules| [] |Explicitly keep these modules from pickled dependencies. It is not taken into account if you set include_modules |
 |obj_chunk_size| None | Used for data_processing. Chunk size to split each object in bytes. Must be >= 1MiB. 'None' for processing the whole file in one function activation|
 |obj_chunk_number| None | Used for data_processing. Number of chunks to split each object. 'None' for processing the whole file in one function activation. chunk_n has prevalence over chunk_size if both parameters are set|
+|obj_newline| '\n' | New line character for keeping line integrity of partitions. 'None' for disabling line integrity logic and get partitions of the exact same size in the functions|
 
 * **Returns**: A list with size  len(map_iterdata) of futures for each job (Futures are also internally stored by Lithops).
 
@@ -201,6 +202,7 @@ Spawn multiple *map_function* activations,  based on the items of an input list,
 |exclude_modules| [] |Explicitly keep these modules from pickled dependencies. It is not taken into account if you set include_modules |
 |obj_chunk_size| None | Used for data_processing. Chunk size to split each object in bytes. Must be >= 1MiB. 'None' for processing the whole file in one function activation|
 |obj_chunk_number| None | Used for data_processing. Number of chunks to split each object. 'None' for processing the whole file in one function activation. chunk_n has prevalence over chunk_size if both parameters are set|
+|obj_newline| '\n' | New line character for keeping line integrity of partitions. 'None' for disabling line integrity logic and get partitions of the exact same size in the functions|
 |obj_reduce_by_key| False| Used for data_processing. Set one reducer per object after running the partitioner (reduce-by-key) |
 
 
@@ -231,6 +233,7 @@ Waits for the function activations to finish.
 |timeout| None | Timeout of waiting for results (in seconds)|
 |THREADPOOL_SIZE|  128 | Number of threads to use waiting for results|
 |WAIT_DUR_SEC| 1 |  Time interval between each check (seconds) if no rabbitmq_monitor activated |
+|show_progressbar| True | whether or not to show the progress bar |
 
 
 * **Returns**: `(fs_done, fs_notdone)` where `fs_done` is a list of futures that have completed and `fs_notdone` is a list of futures that have not completed.
@@ -258,6 +261,7 @@ Gets the results from all the function activations. It internally makes use of t
 |timeout| None | Timeout of waiting for results (in seconds)|
 |THREADPOOL_SIZE|  128 | Number of threads to use waiting for results|
 |WAIT_DUR_SEC| 1 |  Time interval between each check (seconds) if no rabbitmq_monitor activated |
+|show_progressbar| True | whether or not to show the progress bar |
 
 * **Returns**: The results are returned within an ordered list, where each element of the list is the result of one activation. 
 

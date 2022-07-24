@@ -49,7 +49,8 @@ def wait(fs: Union[ResponseFuture, FuturesList, List[ResponseFuture]],
          download_results: Optional[bool] = False,
          timeout: Optional[int] = None,
          threadpool_size: Optional[int] = THREADPOOL_SIZE,
-         wait_dur_sec: Optional[int] = WAIT_DUR_SEC) -> Tuple[FuturesList, FuturesList]:
+         wait_dur_sec: Optional[int] = WAIT_DUR_SEC,
+         show_progressbar: Optional[bool] = True) -> Tuple[FuturesList, FuturesList]:
     """
     Wait for the Future instances (possibly created by different Executor instances)
     given by fs to complete. Returns a named 2-tuple of sets. The first set, named done,
@@ -67,6 +68,7 @@ def wait(fs: Union[ResponseFuture, FuturesList, List[ResponseFuture]],
     :param timeout: Timeout of waiting for results.
     :param threadpool_zise: Number of threads to use. Default 64
     :param wait_dur_sec: Time interval between each check.
+    :param show_progressbar: whether or not to show the progress bar.
 
     :return: `(fs_done, fs_notdone)`
         where `fs_done` is a list of futures that have completed
@@ -105,7 +107,8 @@ def wait(fs: Union[ResponseFuture, FuturesList, List[ResponseFuture]],
 
     # Setup progress bar
     pbar = None
-    if not is_lithops_worker() and logger.getEffectiveLevel() == logging.INFO:
+    if not is_lithops_worker() and logger.getEffectiveLevel() == logging.INFO \
+       and show_progressbar:
         from tqdm.auto import tqdm
         if not is_notebook():
             print()
@@ -178,7 +181,8 @@ def get_result(fs: Optional[Union[ResponseFuture, FuturesList, List[ResponseFutu
                throw_except: Optional[bool] = True,
                timeout: Optional[int] = None,
                threadpool_size: Optional[int] = THREADPOOL_SIZE,
-               wait_dur_sec: Optional[int] = WAIT_DUR_SEC):
+               wait_dur_sec: Optional[int] = WAIT_DUR_SEC,
+               show_progressbar: Optional[bool] = True):
     """
     For getting the results from all function activations
 
@@ -188,6 +192,8 @@ def get_result(fs: Optional[Union[ResponseFuture, FuturesList, List[ResponseFutu
     :param timeout: Timeout for waiting for results.
     :param threadpool_size: Number of threads to use. Default 128
     :param wait_dur_sec: Time interval between each check.
+    :param show_progressbar: whether or not to show the progress bar.
+
     :return: The result of the future/s
     """
     if type(fs) != list and type(fs) != FuturesList:
@@ -197,7 +203,8 @@ def get_result(fs: Optional[Union[ResponseFuture, FuturesList, List[ResponseFutu
                       timeout=timeout, download_results=True,
                       internal_storage=internal_storage,
                       threadpool_size=threadpool_size,
-                      wait_dur_sec=wait_dur_sec)
+                      wait_dur_sec=wait_dur_sec,
+                      show_progressbar=show_progressbar)
     result = []
     fs_done = [f for f in fs_done if not f.futures and f._produce_output]
     for f in fs_done:

@@ -19,6 +19,7 @@ import sys
 import pkgutil
 import logging
 import pickle
+import platform
 import subprocess
 from contextlib import contextmanager
 
@@ -30,6 +31,7 @@ logger = logging.getLogger(__name__)
 
 
 if is_unix_system():
+    from resource import RUSAGE_SELF, getrusage
     # Windows hosts can't use ps_mem module
     import ps_mem
 
@@ -132,6 +134,16 @@ def get_memory_usage(formatted=True):
         return sizeof_fmt(int(ps_mem.human(total, units=1)))
     else:
         return int(ps_mem.human(total, units=1))
+
+
+def peak_memory():
+    """Return the peak memory usage in bytes."""
+    if not is_unix_system():
+        return None
+    ru_maxrss = getrusage(RUSAGE_SELF).ru_maxrss
+    # note that on Linux ru_maxrss is in KiB, while on Mac it is in bytes
+    # see https://pythonspeed.com/articles/estimating-memory-usage/#measuring-peak-memory-usage
+    return ru_maxrss * 1024 if platform.system() == "Linux" else ru_maxrss
 
 
 def free_disk_space(dirname):

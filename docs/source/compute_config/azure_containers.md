@@ -1,4 +1,4 @@
-# Azure Container Apps (Beta)
+# Azure Container Apps
 
 Lithops with Azure Container Apps as serverless compute backend.
 
