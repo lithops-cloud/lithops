@@ -81,7 +81,7 @@ class ResponseFuture:
         self._output_query_count = 0
 
         for key in job_metadata:
-            if any(ss in key for ss in ['time', 'tstamp', 'count', 'size']):
+            if any(key.startswith(ss) for ss in ['func', 'host', 'worker']):
                 self.stats[key] = job_metadata[key]
 
         self._storage_path = get_storage_path(self._storage_config)
@@ -262,7 +262,7 @@ class ResponseFuture:
                 return None
 
         for key in self._call_status:
-            if any(ss in key for ss in ['time', 'tstamp', 'count', 'size', 'start']):
+            if any(key.startswith(ss) for ss in ['func', 'host', 'worker']):
                 self.stats[key] = self._call_status[key]
 
         self.stats['worker_exec_time'] = round(self.stats['worker_end_tstamp'] - self.stats['worker_start_tstamp'], 8)

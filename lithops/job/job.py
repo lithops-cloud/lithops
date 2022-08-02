@@ -242,7 +242,7 @@ def _create_job(
     func_module_size_bytes = len(func_module_str)
 
     host_job_meta['host_job_serialize_time'] = round(time.time()-job_serialize_start, 6)
-    host_job_meta['data_size_bytes'] = data_size_bytes
+    host_job_meta['func_data_size_bytes'] = data_size_bytes
     host_job_meta['func_module_size_bytes'] = func_module_size_bytes
 
     # Check data limit

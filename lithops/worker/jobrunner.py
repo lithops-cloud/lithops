@@ -28,6 +28,8 @@ import traceback
 from pydoc import locate
 from distutils.util import strtobool
 
+from lithops.worker.utils import peak_memory
+
 try:
     import numpy as np
 except ModuleNotFoundError:
@@ -197,6 +199,7 @@ class JobRunner:
         Runs the function
         """
         # self.stats.write('worker_jobrunner_start_tstamp', time.time())
+        self.stats.write('worker_peak_memory_start',  peak_memory())
         logger.debug("Process started")
         result = None
         exception = False
@@ -257,8 +260,6 @@ class JobRunner:
                 self.stats.write("result", False)
                 self.stats.write('func_result_size', 0)
 
-            # self.stats.write('worker_jobrunner_end_tstamp', time.time())
-
         except Exception:
             exception = True
             self.stats.write("exception", True)
@@ -288,6 +289,8 @@ class JobRunner:
                 self.stats.write("exc_info", str(pickled_exc))
 
         finally:
+            # self.stats.write('worker_jobrunner_end_tstamp', time.time())
+            self.stats.write('worker_peak_memory_end',  peak_memory())
             self.prometheus.send_metric(
                 name='function_end',
                 value=time.time(),
