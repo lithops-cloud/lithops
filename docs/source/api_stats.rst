@@ -69,8 +69,7 @@ The user can obtain these statistics through the future object:
 
 .. code::
 
-    {'chunksize': 1,
-     'data_size_bytes': 21,
+    {'func_data_size_bytes': 21,
      'func_module_size_bytes': 556,
      'func_result_size': 26.0,
      'host_data_upload_time': 0,
@@ -101,9 +100,7 @@ The user can obtain these statistics through the future object:
 
    * - Stat
      - Description
-   * - :code:`chunksize`
-     - The number of "chunks" the function has processed. It is given by the "chunksize" parameter of the `FunctionExecutor` job submit. A chunksize of N means that the function has processed N elements of the input list.
-   * - :code:`data_size_bytes`
+   * - :code:`func_data_size_bytes`
      - Size in bytes of the input data processed by this function. That is, the object size of the input list item processed by this function. Note that if the function processes data obtained from object storage, this value does not include the size of that data, only those that have been serialized and sent from the host process to the function.
    * - :code:`func_module_size_bytes`
      - Size in bytes of the dependencies (function and modules) serialized and uploaded by the host process.
