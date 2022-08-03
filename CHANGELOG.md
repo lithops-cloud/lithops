@@ -1,6 +1,17 @@
 # Changelog
 
-## [v2.6.1.dev0]
+## [v2.7.1.dev0]
+
+### Added
+-
+
+### Changed
+-
+
+### Fixed
+-
+
+## [v2.7.0]
 
 ### Added
 - [Azure Container APPs] Added new lithops backend for Azure Container APPs
