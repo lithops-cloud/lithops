@@ -53,7 +53,7 @@ Follow [IBM VPC setup](https://cloud.ibm.com/vpc-ext/overview) if you need to cr
 ### Choose an operating system image for VSI
 Any Virtual Service Instance (VSI) need to define the instance’s operating system and version. Lithops support both standard operting system choices provided by the VPC or using pre-defined custom images that already contains all dependencies required by Lithops.
 
-- Option 1: By default, Lithops uses an Ubuntu 20.04 image. In this case, no further action is required and you can continue to the next step. Lithops will install all required dependencies in the VSI by itself. Notice this can consume about 3 min to complete all installations.
+- Option 1: Lithops is compatible with any Ubuntu 22.04 image provided in IBM Cloud. In this case, no further action is required and you can continue to the next step. Lithops will install all required dependencies in the VSI by itself. Notice this can consume about 3 min to complete all installations.
 
 - Option 2: Alternatively, you can use a pre-built custom image that will greatly improve VSI creation time for Lithops jobs. To benefit from this approach, navigate to [runtime/ibm_vpc](https://github.com/lithops-cloud/lithops/tree/master/runtime/ibm_vpc), and follow the instructions.
 
@@ -82,13 +82,14 @@ ibm_vpc:
     security_group_id: <SECURITY_GROUP_ID>
     subnet_id: <SUBNET_ID>
     key_id: <PUBLIC_KEY_ID>
+    image_id: <UBUNTU_22_04_IMAGE_ID>
 ```
 
 The fastest way to find all the required keys for `ibm_vpc` section as follows:
 
 1. Login to IBM Cloud and open up your [dashboard](https://cloud.ibm.com/).
 2. Navigate to your [IBM VPC create instance](https://cloud.ibm.com/vpc-ext/provision/vs).
-3. On the left, fill all the parameters required for your new VM instance creation: name, resource group, location, ssh key, vpc. Choose either Ubuntu 20.04 VSI standard image or choose your **custom image** from the previous step
+3. On the left, fill all the parameters required for your new VM instance creation: name, resource group, location, ssh key, vpc. Choose either Ubuntu 22.04 VSI standard image or choose your **custom image** from the previous step
 4. On the right, click `Get sample API call`.
 5. Copy to clipboard the code from the `REST request: Creating a virtual server instance` dialog and paste to your favorite editor.
 6. Close the `Create instance` window without creating it.
@@ -133,12 +134,12 @@ This will create 4 different VM instance and execute `my_map_function` in the ea
 |ibm_vpc | security_group_id | | yes | Security group id |
 |ibm_vpc | subnet_id | | yes | Subnet id |
 |ibm_vpc | key_id | | yes | Ssh public key id |
+|ibm_vpc | image_id | | yes | Virtual machine image id |
 |ibm_vpc | ssh_username | root |no | Username to access the VPC |
 |ibm_vpc | ssh_password |  |no | Password for accessing the worker VMs. If not provided, it is created randomly|
 |ibm_vpc | ssh_key_filename | | no | Path to the ssh key file provided to access the VPC. It will use the default path if not provided |
-|ibm_vpc | image_id | | no | Virtual machine image id |
 |ibm_vpc | boot_volume_profile | general-purpose | no | Virtual machine boot volume profile |
-|ibm_vpc | boot_volume_capacity | 100 | no | Virtual machine boot volume capacity in GB |
+|ibm_vpc | boot_volume_capacity | 100 | no | Virtual machine boot volume capacity in GB. Set it to 10 if using a custom image. |
 |ibm_vpc | profile_name | cx2-2x4 | no | Profile name for the worker VMs |
 |ibm_vpc | master_profile_name | cx2-2x4 | no | Profile name for the master VM |
 |ibm_vpc | delete_on_dismantle | True | no | Delete the worekr VMs when they are stopped |
@@ -169,7 +170,7 @@ Edit your lithops config and add the relevant keys:
 
 If you need to create new VM, then follow the steps to create and update Lithops configuration:
 
-1. Create an Ubuntu 20.04 virtual server instance (VSI) in [IBM VPC virtual server instances UI](https://cloud.ibm.com/vpc-ext/compute/vs) with CPUs and RAM needed for your application.
+1. Create an Ubuntu 22.04 virtual server instance (VSI) in [IBM VPC virtual server instances UI](https://cloud.ibm.com/vpc-ext/compute/vs) with CPUs and RAM needed for your application.
 2. Reserve and associate a floating IP address in [IBM VPC floating IPs UI](https://cloud.ibm.com/vpc-ext/network/floatingIPs) to be used for the virtual server instance.
 3. Get the floating IP address of your virtual server instance which can be found [here](https://cloud.ibm.com/vpc-ext/network/floatingIPs).
 4. Get the endpoint of your subnet region, endpoint URLs list can be found [here](https://cloud.ibm.com/apidocs/vpc#endpoint-url).
