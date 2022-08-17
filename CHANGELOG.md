@@ -6,7 +6,7 @@
 -
 
 ### Changed
--
+- [IBM VPC] Make 'image_id' mandatory in config
 
 ### Fixed
 -
