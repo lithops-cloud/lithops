@@ -73,7 +73,7 @@ class IBMVPCBackend:
         decorate_instance(self.ibm_vpc_client, vpc_retry_on_except)
 
         msg = COMPUTE_CLI_MSG.format('IBM VPC')
-        logger.info("{} - Region: {}".format(msg, self.region))
+        logger.info(f"{msg} - Region: {self.region}")
 
     def _create_vpc(self, vpc_data):
         """
@@ -140,37 +140,6 @@ class IBMVPCBackend:
             self.ibm_vpc_client.create_security_group_rule(self.config['security_group_id'],
                                                            sg_rule_prototype_icmp)
 
-    def _create_gateway(self, vpc_data):
-        """
-        Crates a public gateway.
-        Gateway is used by private nodes for accessing internet
-        """
-        if 'gateway_id' in self.config:
-            return
-
-        if 'gateway_id' in vpc_data:
-            self.config['gateway_id'] = vpc_data['gateway_id']
-            return
-
-        gateway_name = 'lithops-gateway-{}'.format(self.vpc_key)
-        gateway_data = None
-
-        gateways_info = self.ibm_vpc_client.list_public_gateways().get_result()
-        for gw in gateways_info['public_gateways']:
-            if gw['vpc']['id'] == self.config['vpc_id']:
-                gateway_data = gw
-
-        if not gateway_data:
-            logger.debug('Creating Gateway {}'.format(gateway_name))
-            gateway_prototype = {}
-            gateway_prototype['vpc'] = {'id': self.config['vpc_id']}
-            gateway_prototype['zone'] = {'name': self.config['zone_name']}
-            gateway_prototype['name'] = gateway_name
-            response = self.ibm_vpc_client.create_public_gateway(**gateway_prototype)
-            gateway_data = response.result
-
-        self.config['gateway_id'] = gateway_data['id']
-
     def _create_subnet(self, vpc_data):
         """
         Creates a new subnet
@@ -204,9 +173,41 @@ class IBMVPCBackend:
 
         self.config['subnet_id'] = subnet_data['id']
 
+    def _create_gateway(self, vpc_data):
+        """
+        Crates a public gateway.
+        Gateway is used by private nodes for accessing internet
+        """
+        if 'gateway_id' in self.config:
+            return
+
+        if 'gateway_id' in vpc_data:
+            self.config['gateway_id'] = vpc_data['gateway_id']
+            return
+
+        gateway_name = 'lithops-gateway-{}'.format(self.vpc_key)
+        gateway_data = None
+
+        gateways_info = self.ibm_vpc_client.list_public_gateways().get_result()
+        for gw in gateways_info['public_gateways']:
+            if gw['vpc']['id'] == self.config['vpc_id']:
+                gateway_data = gw
+
+        if not gateway_data:
+            logger.debug('Creating Gateway {}'.format(gateway_name))
+            gateway_prototype = {}
+            gateway_prototype['vpc'] = {'id': self.config['vpc_id']}
+            gateway_prototype['zone'] = {'name': self.config['zone_name']}
+            gateway_prototype['name'] = gateway_name
+            gateway_prototype['resource_group'] = {'id': self.config['resource_group_id']}
+            response = self.ibm_vpc_client.create_public_gateway(**gateway_prototype)
+            gateway_data = response.result
+
+        self.config['gateway_id'] = gateway_data['id']
+
         # Attach public gateway to the subnet
-        self.ibm_vpc_client.set_subnet_public_gateway(self.config['subnet_id'],
-                                                      {'id': self.config['gateway_id']})
+        self.ibm_vpc_client.set_subnet_public_gateway(
+            self.config['subnet_id'], {'id': self.config['gateway_id']})
 
     def _create_floating_ip(self, vpc_data):
         """
@@ -278,10 +279,10 @@ class IBMVPCBackend:
             self._create_vpc(self.vpc_data)
             # Set the prefix used for the VPC resources
             self.vpc_key = self.config['vpc_id'].split('-')[2]
-            # Create a new gateway if not exists
-            self._create_gateway(self.vpc_data)
             # Create a new subnaet if not exists
             self._create_subnet(self.vpc_data)
+            # Create a new gateway if not exists
+            self._create_gateway(self.vpc_data)
             # Create a new floating IP if not exists
             self._create_floating_ip(self.vpc_data)
 
@@ -307,7 +308,8 @@ class IBMVPCBackend:
                 'security_group_id': self.config['security_group_id'],
                 'floating_ip': self.config['floating_ip'],
                 'floating_ip_id': self.config['floating_ip_id'],
-                'gateway_id': self.config['gateway_id']
+                'gateway_id': self.config['gateway_id'],
+                'zone_name': self.config['zone_name']
             }
 
             dump_yaml_config(vpc_data_filename, self.vpc_data)
