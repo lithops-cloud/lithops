@@ -23,6 +23,7 @@ MANDATORY_PARAMETERS_1 = ('endpoint',
                           'iam_api_key')
 
 MANDATORY_PARAMETERS_2 = ('endpoint',
+                          'image_id',
                           'vpc_id',
                           'resource_group_id',
                           'key_id',
@@ -36,11 +37,7 @@ MANDATORY_PARAMETERS_3 = ('endpoint',
                           'ip_address',
                           'iam_api_key')
 
-BOOT_VOLUME_CAPACITY_DEFAULT = 100  # GB
-BOOT_VOLUME_CAPACITY_CUSTOM = 10  # GB
-
 DEFAULT_CONFIG_KEYS = {
-    'image_id': 'r014-b7da49af-b46a-4099-99a4-c183d2d40ea8',  # ubuntu 20.04
     'master_profile_name': 'cx2-2x4',
     'profile_name': 'cx2-2x4',
     'boot_volume_profile': 'general-purpose',
@@ -49,7 +46,8 @@ DEFAULT_CONFIG_KEYS = {
     'ssh_key_filename': '~/.ssh/id_rsa',
     'delete_on_dismantle': True,
     'max_workers': 100,
-    'worker_processes': 2
+    'worker_processes': 2,
+    'boot_volume_capacity' : 100
 }
 
 
@@ -70,17 +68,10 @@ def load_config(config_data):
 
     for param in params_to_check:
         if param not in config_data['ibm_vpc']:
-            msg = "'{}' is mandatory in 'ibm_vpc' section of the configuration".format(param)
+            msg = f"'{param}' is mandatory in 'ibm_vpc' section of the configuration"
             raise Exception(msg)
 
     config_data['ibm_vpc']['endpoint'] = config_data['ibm_vpc']['endpoint'].replace('/v1', '')
-
-    if not config_data['ibm_vpc'].get('boot_volume_capacity'):
-        if config_data['ibm_vpc']['image_id'] == DEFAULT_CONFIG_KEYS['image_id']:
-            config_data['ibm_vpc']['boot_volume_capacity'] = BOOT_VOLUME_CAPACITY_DEFAULT
-        else:
-            # The image built by lithops script has 10GB boot device
-            config_data['ibm_vpc']['boot_volume_capacity'] = BOOT_VOLUME_CAPACITY_CUSTOM
 
     region = config_data['ibm_vpc']['endpoint'].split('//')[1].split('.')[0]
     if 'zone_name' not in config_data['ibm_vpc']:

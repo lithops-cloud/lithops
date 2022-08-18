@@ -6,10 +6,11 @@
 -
 
 ### Changed
--
+- [IBM VPC] Make 'image_id' mandatory in config
 
 ### Fixed
--
+- [IBM VPC] Create floating IP using the specified resource group
+- [IBM VPC] Attach floating IP to the subnet
 
 ## [v2.7.0]
 
