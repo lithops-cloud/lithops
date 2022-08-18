@@ -145,10 +145,16 @@ class IBMVPCBackend:
         Creates a new subnet
         """
         if 'subnet_id' in self.config:
+            if 'subnet_id' in vpc_data and vpc_data['subnet_id'] == self.config['subnet_id']:
+                self.config['zone_name'] = vpc_data['zone_name']
+            else:
+                resp = self.ibm_vpc_client.get_subnet(self.config['subnet_id'])
+                self.config['zone_name'] = resp.result['zone']['name']
             return
 
         if 'subnet_id' in vpc_data:
             self.config['subnet_id'] = vpc_data['subnet_id']
+            self.config['zone_name'] = vpc_data['zone_name']
             return
 
         subnet_name = 'lithops-subnet-{}'.format(self.vpc_key)
@@ -172,6 +178,7 @@ class IBMVPCBackend:
             subnet_data = response.result
 
         self.config['subnet_id'] = subnet_data['id']
+        self.config['zone_name'] = subnet_data['zone']['name']
 
     def _create_gateway(self, vpc_data):
         """
@@ -287,7 +294,7 @@ class IBMVPCBackend:
             self._create_floating_ip(self.vpc_data)
 
             # create the master VM insatnce
-            name = 'lithops-master-{}'.format(self.vpc_key)
+            name = f'lithops-master-{self.vpc_key}'
             self.master = IBMVPCInstance(name, self.config, self.ibm_vpc_client, public=True)
             self.master.public_ip = self.config['floating_ip']
             self.master.profile_name = self.config['master_profile_name']
@@ -300,7 +307,7 @@ class IBMVPCBackend:
                 self.master.instance_id = instance_data['id']
 
             self.vpc_data = {
-                'mode': 'consume',
+                'mode': 'create/reuse',
                 'instance_name': self.master.name,
                 'instance_id': '0af1',
                 'vpc_id': self.config['vpc_id'],
@@ -461,7 +468,7 @@ class IBMVPCBackend:
         Stop all worker VM instances
         """
         if len(self.workers) > 0:
-            with ThreadPoolExecutor(len(self.workers)) as ex:
+            with ThreadPoolExecutor(32) as ex:
                 ex.map(lambda worker: worker.stop(), self.workers)
             self.workers = []
 
@@ -888,7 +895,7 @@ def decorate_instance(instance, decorator):
 
 def vpc_retry_on_except(func):
 
-    RETRIES = 10
+    RETRIES = 5
     SLEEP_FACTOR = 1.5
     MAX_SLEEP = 60
 

@@ -72,7 +72,3 @@ def load_config(config_data):
             raise Exception(msg)
 
     config_data['ibm_vpc']['endpoint'] = config_data['ibm_vpc']['endpoint'].replace('/v1', '')
-
-    region = config_data['ibm_vpc']['endpoint'].split('//')[1].split('.')[0]
-    if 'zone_name' not in config_data['ibm_vpc']:
-        config_data['ibm_vpc']['zone_name'] = '{}-2'.format(region)

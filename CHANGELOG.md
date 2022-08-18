@@ -7,6 +7,7 @@
 
 ### Changed
 - [IBM VPC] Make 'image_id' mandatory in config
+- [IBM VPC] Infer zone_name from subnet
 
 ### Fixed
 - [IBM VPC] Create floating IP using the specified resource group
