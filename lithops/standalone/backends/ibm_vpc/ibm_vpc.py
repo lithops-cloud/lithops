@@ -307,7 +307,7 @@ class IBMVPCBackend:
                 self.master.instance_id = instance_data['id']
 
             self.vpc_data = {
-                'mode': 'create/reuse',
+                'mode': self.mode,
                 'instance_name': self.master.name,
                 'instance_id': '0af1',
                 'vpc_id': self.config['vpc_id'],
@@ -468,7 +468,7 @@ class IBMVPCBackend:
         Stop all worker VM instances
         """
         if len(self.workers) > 0:
-            with ThreadPoolExecutor(32) as ex:
+            with ThreadPoolExecutor(min(len(self.workers), 48)) as ex:
                 ex.map(lambda worker: worker.stop(), self.workers)
             self.workers = []
 
