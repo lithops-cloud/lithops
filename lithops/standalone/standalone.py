@@ -239,8 +239,7 @@ class StandaloneHandler:
         def create_workers(workers_to_create):
             current_workers_old = set(self.backend.workers)
             futures = []
-            # with cf.ThreadPoolExecutor(workers_to_create+1) as ex:
-            with cf.ThreadPoolExecutor(32) as ex:
+            with cf.ThreadPoolExecutor(min(workers_to_create+1, 48)) as ex:
                 if not self._is_master_service_ready():
                     futures.append(ex.submit(lambda: self.backend.master.create(check_if_exists=True)))
 
