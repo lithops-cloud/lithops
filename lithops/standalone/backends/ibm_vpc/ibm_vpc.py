@@ -264,7 +264,7 @@ class IBMVPCBackend:
                 ins_id = self.config['instance_id']
                 instance_data = self.ibm_vpc_client.get_instance(ins_id)
                 name = instance_data.get_result()['name']
-                self.vpc_data = {'mode': 'consume',
+                self.vpc_data = {'mode': self.mode,
                                  'instance_id': self.config['instance_id'],
                                  'instance_name': name,
                                  'floating_ip': self.config['ip_address']}
@@ -549,7 +549,12 @@ class IBMVPCInstance:
         self.validated = False
 
     def __str__(self):
-        return f'VM instance {self.name} ({self.public_ip or self.private_ip})'
+        ip = self.public_ip if self.public else self.private_ip
+        
+        if ip is None or ip == '0.0.0.0':
+            return f'VM instance {self.name}'
+        else:
+            return f'VM instance {self.name} ({ip})'
 
     def _create_vpc_client(self):
         """
@@ -634,6 +639,12 @@ class IBMVPCInstance:
         logger.debug(f'Waiting {self} to become ready')
 
         start = time.time()
+
+        if self.public:
+            self.get_public_ip()
+        else:
+            self.get_private_ip()
+
         while(time.time() - start < timeout):
             if self.is_ready():
                 start_time = round(time.time()-start, 2)
@@ -757,10 +768,7 @@ class IBMVPCInstance:
         """
         Requests the public IP address
         """
-        if self.public and self.public_ip:
-            return self.public_ip
-
-        return None
+        return self.public_ip
 
     def create(self, check_if_exists=False, user_data=None):
         """
@@ -780,7 +788,6 @@ class IBMVPCInstance:
         if not vsi_exists:
             instance = self._create_instance(user_data=user_data)
             self.instance_id = instance['id']
-            self.private_ip = self.get_private_ip()
         else:
             self.start()
 

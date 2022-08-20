@@ -34,7 +34,7 @@ from lithops.standalone.standalone import LithopsValidationError
 logger = logging.getLogger(__name__)
 
 INSTANCE_START_TIMEOUT = 180
-DEFAULT_UBUNTU_IMAGE = 'ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-202111*'
+DEFAULT_UBUNTU_IMAGE = 'ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-202204*'
 
 
 def b64s(string):
@@ -129,13 +129,14 @@ class AWSEC2Backend:
             self.master.ssh_credentials.pop('password')
 
             instance_data = self.master.get_instance_data()
-            if instance_data and 'InstanceId' in instance_data:
-                self.master.instance_id = instance_data['InstanceId']
-            if instance_data and 'PrivateIpAddress' in instance_data:
-                self.master.private_ip = instance_data['PrivateIpAddress']
-            if instance_data and instance_data['State']['Name'] == 'running' and \
-               'PublicIpAddress' in instance_data:
-                self.master.public_ip = instance_data['PublicIpAddress']
+            if instance_data:
+                if 'InstanceId' in instance_data:
+                    self.master.instance_id = instance_data['InstanceId']
+                if 'PrivateIpAddress' in instance_data:
+                    self.master.private_ip = instance_data['PrivateIpAddress']
+                if instance_data['State']['Name'] == 'running' and \
+                   'PublicIpAddress' in instance_data:
+                    self.master.public_ip = instance_data['PublicIpAddress']
 
             self.ec2_data['instance_id'] = '0af1'
 
@@ -278,7 +279,7 @@ class EC2Instance:
 
     def __str__(self):
         ip = self.public_ip if self.public else self.private_ip
-
+        
         if ip is None or ip == '0.0.0.0':
             return f'VM instance {self.name}'
         else:
@@ -348,6 +349,12 @@ class EC2Instance:
         logger.debug(f'Waiting {self} to become ready')
 
         start = time.time()
+
+        if self.public:
+            self.get_public_ip()
+        else:
+            self.get_private_ip()
+
         while(time.time() - start < timeout):
             if self.is_ready():
                 start_time = round(time.time()-start, 2)
@@ -467,8 +474,11 @@ class EC2Instance:
             filters = [{'Name': 'tag:Name', 'Values': [self.name]}]
             resp = self.ec2_client.describe_instances(Filters=filters)
             if len(resp['Reservations']) > 0:
-                self.instance_data = resp['Reservations'][0]['Instances'][0]
-                return self.instance_data
+                for res in resp['Reservations']:
+                    instance_data = res['Instances'][0]
+                    if instance_data['State']['Name'] != 'terminated':
+                        self.instance_data = instance_data
+                        return self.instance_data
 
         return None
 
@@ -529,7 +539,6 @@ class EC2Instance:
             instance_data = self._create_instance(user_data=user_data)
             self.instance_id = instance_data['InstanceId']
             self.private_ip = instance_data['PrivateIpAddress']
-            self.public_ip = self.get_public_ip()
         else:
             self.start()
 

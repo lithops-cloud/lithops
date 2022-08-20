@@ -85,8 +85,8 @@ def setup_worker(worker_info, work_queue_name):
     global workers, workers_state
 
     worker = standalone_handler.backend.get_instance(**worker_info, public=False)
-    logger.debug(f'Starting setup for VM instance {worker.name} ({worker.private_ip})')
-
+    logger.debug(f'Starting setup for {worker}')
+    
     max_instance_create_retries = standalone_config.get('worker_create_retries', MAX_INSTANCE_CREATE_RETRIES)
 
     def wait_worker_ready(worker):
