@@ -49,6 +49,9 @@ class IBMVPCBackend:
         self.config = ibm_vpc_config
         self.mode = mode
 
+        self.vpc_data = None
+        self.vpc_key = None
+
         self.endpoint = self.config['endpoint']
         self.region = self.endpoint.split('//')[1].split('.')[0]
         self.vpc_name = self.config.get('vpc_name')
@@ -157,7 +160,7 @@ class IBMVPCBackend:
             self.config['zone_name'] = vpc_data['zone_name']
             return
 
-        subnet_name = 'lithops-subnet-{}'.format(self.vpc_key)
+        subnet_name = f'lithops-subnet-{self.vpc_key}'
         subnet_data = None
 
         subnets_info = self.ibm_vpc_client.list_subnets(resource_group_id=self.config['resource_group_id']).get_result()
@@ -192,7 +195,7 @@ class IBMVPCBackend:
             self.config['gateway_id'] = vpc_data['gateway_id']
             return
 
-        gateway_name = 'lithops-gateway-{}'.format(self.vpc_key)
+        gateway_name = f'lithops-gateway-{self.vpc_key}'
         gateway_data = None
 
         gateways_info = self.ibm_vpc_client.list_public_gateways().get_result()
@@ -228,7 +231,7 @@ class IBMVPCBackend:
             self.config['floating_ip_id'] = vpc_data['floating_ip_id']
             return
 
-        floating_ip_name = 'lithops-floatingip-{}'.format(self.vpc_key)
+        floating_ip_name = f'lithops-floatingip-{self.vpc_key}'
         floating_ip_data = None
 
         floating_ips_info = self.ibm_vpc_client.list_floating_ips().get_result()
@@ -325,20 +328,20 @@ class IBMVPCBackend:
         """
         Deletes all VM instances in the VPC
         """
-        msg = ('Deleting all Lithops worker VMs in {}'.format(self.vpc_name)
+        msg = (f'Deleting all Lithops worker VMs in {self.vpc_name}'
                if self.vpc_name else 'Deleting all Lithops worker VMs')
         logger.info(msg)
 
         def delete_instance(instance_info):
             ins_name, ins_id = instance_info
             try:
-                logger.info('Deleting instance {}'.format(ins_name))
+                logger.info(f'Deleting instance {ins_name}')
                 self.ibm_vpc_client.delete_instance(ins_id)
-            except ApiException as e:
-                if e.code == 404:
+            except ApiException as err:
+                if err.code == 404:
                     pass
                 else:
-                    raise e
+                    raise err
 
         LITHOPS_MASTER = 'lithops-master-'
 
@@ -377,7 +380,7 @@ class IBMVPCBackend:
         """
         Deletes all VM instances in the VPC
         """
-        subnet_name = 'lithops-subnet-{}'.format(self.vpc_key)
+        subnet_name = f'lithops-subnet-{self.vpc_key}'
         if 'subnet_id' not in vpc_data:
             subnets_info = self.ibm_vpc_client.list_subnets().get_result()
 
@@ -386,21 +389,21 @@ class IBMVPCBackend:
                     vpc_data['subnet_id'] = subn['id']
 
         if 'subnet_id' in vpc_data:
-            logger.info('Deleting subnet {}'.format(subnet_name))
+            logger.info(f'Deleting subnet {subnet_name}')
             try:
                 self.ibm_vpc_client.delete_subnet(vpc_data['subnet_id'])
-            except ApiException as e:
-                if e.code == 404:
+            except ApiException as err:
+                if err.code == 404:
                     pass
                 else:
-                    raise e
+                    raise err
             time.sleep(5)
 
     def _delete_gateway(self, vpc_data):
         """
         Deletes the public gateway
         """
-        gateway_name = 'lithops-gateway-{}'.format(self.vpc_key)
+        gateway_name = f'lithops-gateway-{self.vpc_key}'
         if 'gateway_id' not in vpc_data:
             gateways_info = self.ibm_vpc_client.list_public_gateways().get_result()
 
@@ -409,16 +412,16 @@ class IBMVPCBackend:
                     vpc_data['gateway_id'] = gw['id']
 
         if 'gateway_id' in vpc_data:
-            logger.info('Deleting gateway {}'.format(gateway_name))
+            logger.info(f'Deleting gateway {gateway_name}')
             try:
                 self.ibm_vpc_client.delete_public_gateway(vpc_data['gateway_id'])
-            except ApiException as e:
-                if e.code == 404:
+            except ApiException as err:
+                if err.code == 404:
                     pass
-                elif e.code == 400:
+                elif err.code == 400:
                     pass
                 else:
-                    raise e
+                    raise err
             time.sleep(5)
 
     def _delete_vpc(self, vpc_data):
@@ -432,14 +435,14 @@ class IBMVPCBackend:
                     vpc_data['vpc_id'] = vpc['id']
 
         if 'vpc_id' in vpc_data:
-            logger.info('Deleting VPC {}'.format(self.vpc_name))
+            logger.info(f'Deleting VPC {self.vpc_name}')
             try:
                 self.ibm_vpc_client.delete_vpc(vpc_data['vpc_id'])
-            except ApiException as e:
-                if e.code == 404:
+            except ApiException as err:
+                if err.code == 404:
                     pass
                 else:
-                    raise e
+                    raise err
 
     def clean(self, delete_master=False, force=False):
         """
@@ -513,6 +516,9 @@ class IBMVPCBackend:
         self.workers.append(worker)
 
     def get_runtime_key(self, runtime_name):
+        """
+        Creates the runtime key
+        """
         name = runtime_name.replace('/', '-').replace(':', '-')
         runtime_key = os.path.join(self.name, __version__, self.vpc_data['instance_id'], name)
         return runtime_key
@@ -550,7 +556,7 @@ class IBMVPCInstance:
 
     def __str__(self):
         ip = self.public_ip if self.public else self.private_ip
-        
+
         if ip is None or ip == '0.0.0.0':
             return f'VM instance {self.name}'
         else:
@@ -560,7 +566,7 @@ class IBMVPCInstance:
         """
         Creates an IBM VPC python-sdk instance
         """
-        authenticator = IAMAuthenticator(self.iam_api_key, url=self.config.get('iam_endpoint'))
+        authenticator = IAMAuthenticator(self.config.get('iam_api_key'), url=self.config.get('iam_endpoint'))
         ibm_vpc_client = VpcV1(VPC_API_VERSION, authenticator=authenticator)
         ibm_vpc_client.set_service_url(self.config['endpoint'] + '/v1')
 
@@ -624,10 +630,10 @@ class IBMVPCInstance:
             not self.public else 'publickey'
         try:
             self.get_ssh_client().run_remote_command('id')
-        except LithopsValidationError as e:
-            raise e
-        except Exception as e:
-            logger.debug(f'SSH to {self.public_ip if self.public else self.private_ip} failed ({login_type}): {e}')
+        except LithopsValidationError as err:
+            raise err
+        except Exception as err:
+            logger.debug(f'SSH to {self.public_ip if self.public else self.private_ip} failed ({login_type}): {err}')
             self.del_ssh_client()
             return False
         return True
@@ -645,9 +651,9 @@ class IBMVPCInstance:
         else:
             self.get_private_ip()
 
-        while(time.time() - start < timeout):
+        while (time.time() - start < timeout):
             if self.is_ready():
-                start_time = round(time.time()-start, 2)
+                start_time = round(time.time() - start, 2)
                 logger.debug(f'{self} ready in {start_time} seconds')
                 return True
             time.sleep(5)
@@ -670,7 +676,7 @@ class IBMVPCInstance:
 
         boot_volume_data = {
             'capacity': self.config['boot_volume_capacity'],
-            'name': '{}-{}-boot'.format(self.name, str(uuid.uuid4())[:4]),
+            'name': f'{self.name}-{str(uuid.uuid4())[:4]}-boot',
             'profile': {'name': self.config['boot_volume_profile']}}
 
         boot_volume_attachment = {
@@ -696,16 +702,15 @@ class IBMVPCInstance:
 
         try:
             resp = self.ibm_vpc_client.create_instance(instance_prototype)
-        except ApiException as e:
-            if e.code == 400 and 'already exists' in e.message:
+        except ApiException as err:
+            if err.code == 400 and 'already exists' in err.message:
                 return self.get_instance_data()
-            elif e.code == 400 and 'over quota' in e.message:
-                logger.debug("Create VM instance {} failed due to quota limit"
-                             .format(self.name))
+            elif err.code == 400 and 'over quota' in err.message:
+                logger.debug(f"Create VM instance {self.name} failed due to quota limit")
             else:
                 logger.debug("Create VM instance {} failed with status code {}: {}"
-                             .format(self.name, str(e.code), e.message))
-            raise e
+                             .format(self.name, str(err.code), err.message))
+            raise err
 
         logger.debug("VM instance {} created successfully ".format(self.name))
 
@@ -797,15 +802,18 @@ class IBMVPCInstance:
         return self.instance_id
 
     def start(self):
+        """
+        Starts the VM instance
+        """
         logger.debug("Starting VM instance {}".format(self.name))
 
         try:
             self.ibm_vpc_client.create_instance_action(self.instance_id, 'start')
-        except ApiException as e:
-            if e.code == 404:
+        except ApiException as err:
+            if err.code == 404:
                 pass
             else:
-                raise e
+                raise err
 
         logger.debug("VM instance {} started successfully".format(self.name))
 
@@ -816,29 +824,32 @@ class IBMVPCInstance:
         logger.debug("Deleting VM instance {}".format(self.name))
         try:
             self.ibm_vpc_client.delete_instance(self.instance_id)
-        except ApiException as e:
-            if e.code == 404:
+        except ApiException as err:
+            if err.code == 404:
                 pass
             else:
-                raise e
+                raise err
         self.instance_id = None
         self.private_ip = None
         self.del_ssh_client()
 
     def _stop_instance(self):
         """
-        Stops the VM instacne and
+        Stops the VM instance
         """
         logger.debug("Stopping VM instance {}".format(self.name))
         try:
             self.ibm_vpc_client.create_instance_action(self.instance_id, 'stop')
-        except ApiException as e:
-            if e.code == 404:
+        except ApiException as err:
+            if err.code == 404:
                 pass
             else:
-                raise e
+                raise err
 
     def stop(self):
+        """
+        Stops the VM instance
+        """
         if self.delete_on_dismantle:
             self._delete_instance()
         else:
@@ -858,9 +869,9 @@ class IBMVPCInstance:
             cmd = "lscpu -p=socket|grep -v '#'"
             res = self.get_ssh_client().run_remote_command(cmd)
             sockets = set()
-            for c in res:
-                if c != '\n':
-                    sockets.add(c)
+            for char in res:
+                if char != '\n':
+                    sockets.add(char)
             if len(sockets) != 1:
                 raise LithopsValidationError(f'Not using single CPU socket as specified, using {len(sockets)} sockets instead')
 
@@ -912,23 +923,22 @@ def vpc_retry_on_except(func):
     def wrapper(*args, **kwargs):
         sleep_time = 1
 
-        def _sleep_or_raise(sleep_time):
+        def _sleep_or_raise(sleep_time, err):
             if i < RETRIES - 1:
                 time.sleep(sleep_time)
-                logger.warning((f'Got exception {e}, retrying for the {i} time, left retries {RETRIES - 1 -i}'))
+                logger.warning((f'Got exception {err}, retrying for the {i} time, left retries {RETRIES - 1 -i}'))
                 return min(sleep_time * SLEEP_FACTOR, MAX_SLEEP)
             else:
-                raise e
+                raise err
 
         for i in range(RETRIES):
             try:
                 return func(*args, **kwargs)
-            except ApiException as e:
-                if func.__name__ in IGNORED_404_METHODS and e.code == 404:
-                    logger.debug((f'Got exception {e} when trying to invoke {func.__name__}, ignoring'))
-                    pass
+            except ApiException as err:
+                if func.__name__ in IGNORED_404_METHODS and err.code == 404:
+                    logger.debug((f'Got exception {err} when trying to invoke {func.__name__}, ignoring'))
                 else:
-                    sleep_time = _sleep_or_raise(sleep_time)
-            except Exception as e:
-                sleep_time = _sleep_or_raise(sleep_time)
+                    sleep_time = _sleep_or_raise(sleep_time, err)
+            except Exception as err:
+                sleep_time = _sleep_or_raise(sleep_time, err)
     return wrapper
