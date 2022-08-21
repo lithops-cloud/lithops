@@ -17,11 +17,12 @@
 import os
 import time
 import logging
-import boto3
-import botocore
 import base64
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
+
+import boto3
+import botocore
 
 from lithops.version import __version__
 from lithops.util.ssh_client import SSHClient
@@ -34,7 +35,7 @@ from lithops.standalone.standalone import LithopsValidationError
 logger = logging.getLogger(__name__)
 
 INSTANCE_START_TIMEOUT = 180
-DEFAULT_UBUNTU_IMAGE = 'ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-202111*'
+DEFAULT_UBUNTU_IMAGE = 'ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-202204*'
 
 
 def b64s(string):
@@ -54,6 +55,9 @@ class AWSEC2Backend:
         self.region = self.config['region_name']
         self.cache_dir = os.path.join(CACHE_DIR, self.name)
 
+        self.ec2_data = None
+        self.vpc_key = self.config['vpc_id'][-4:]
+
         client_config = botocore.client.Config(
             user_agent_extra=self.config['user_agent']
         )
@@ -69,7 +73,7 @@ class AWSEC2Backend:
         self.workers = []
 
         msg = COMPUTE_CLI_MSG.format('AWS EC2')
-        logger.info("{} - Region: {}".format(msg, self.region))
+        logger.info(f"{msg} - Region: {self.region}")
 
     def init(self):
         """
@@ -121,21 +125,21 @@ class AWSEC2Backend:
 
                 self.config['target_ami'] = response['Images'][0]['ImageId']
 
-            self.vpc_key = self.config['vpc_id'][-4:]
-            master_name = 'lithops-master-{}'.format(self.vpc_key)
+            master_name = f'lithops-master-{self.vpc_key}'
             self.master = EC2Instance(master_name, self.config, self.ec2_client, public=True)
             self.master.instance_type = self.config['master_instance_type']
             self.master.delete_on_dismantle = False
             self.master.ssh_credentials.pop('password')
 
             instance_data = self.master.get_instance_data()
-            if instance_data and 'InstanceId' in instance_data:
-                self.master.instance_id = instance_data['InstanceId']
-            if instance_data and 'PrivateIpAddress' in instance_data:
-                self.master.private_ip = instance_data['PrivateIpAddress']
-            if instance_data and instance_data['State']['Name'] == 'running' and \
-               'PublicIpAddress' in instance_data:
-                self.master.public_ip = instance_data['PublicIpAddress']
+            if instance_data:
+                if 'InstanceId' in instance_data:
+                    self.master.instance_id = instance_data['InstanceId']
+                if 'PrivateIpAddress' in instance_data:
+                    self.master.private_ip = instance_data['PrivateIpAddress']
+                if instance_data['State']['Name'] == 'running' and \
+                   'PublicIpAddress' in instance_data:
+                    self.master.public_ip = instance_data['PublicIpAddress']
 
             self.ec2_data['instance_id'] = '0af1'
 
@@ -160,8 +164,8 @@ class AWSEC2Backend:
 
         ins_to_delete = []
         response = self.ec2_client.describe_instances()
-        for r in response['Reservations']:
-            for ins in r['Instances']:
+        for res in response['Reservations']:
+            for ins in res['Instances']:
                 if ins['State']['Name'] != 'terminated' and 'Tags' in ins:
                     for tag in ins['Tags']:
                         if tag['Key'] == 'Name' and tag['Value'].startswith('lithops-worker'):
@@ -239,6 +243,9 @@ class AWSEC2Backend:
         self.workers.append(worker)
 
     def get_runtime_key(self, runtime_name):
+        """
+        Creates the runtime key
+        """
         name = runtime_name.replace('/', '-').replace(':', '-')
         runtime_key = os.path.join(self.name, __version__, self.ec2_data['instance_id'], name)
         return runtime_key
@@ -293,8 +300,8 @@ class EC2Instance:
         )
 
         ec2_client = boto3.client(
-            'ec2', aws_access_key_id=self.ec2_config['access_key_id'],
-            aws_secret_access_key=self.ec2_config['secret_access_key'],
+            'ec2', aws_access_key_id=self.config['access_key_id'],
+            aws_secret_access_key=self.config['secret_access_key'],
             config=client_config,
             region_name=self.region
         )
@@ -333,10 +340,10 @@ class EC2Instance:
             not self.public else 'publickey'
         try:
             self.get_ssh_client().run_remote_command('id')
-        except LithopsValidationError as e:
-            raise e
-        except Exception as e:
-            logger.debug(f'SSH to {self.public_ip if self.public else self.private_ip} failed ({login_type}): {e}')
+        except LithopsValidationError as err:
+            raise err
+        except Exception as err:
+            logger.debug(f'SSH to {self.public_ip if self.public else self.private_ip} failed ({login_type}): {err}')
             self.del_ssh_client()
             return False
         return True
@@ -348,7 +355,13 @@ class EC2Instance:
         logger.debug(f'Waiting {self} to become ready')
 
         start = time.time()
-        while(time.time() - start < timeout):
+
+        if self.public:
+            self.get_public_ip()
+        else:
+            self.get_private_ip()
+
+        while (time.time() - start < timeout):
             if self.is_ready():
                 start_time = round(time.time()-start, 2)
                 logger.debug(f'{self} ready in {start_time} seconds')
@@ -467,8 +480,11 @@ class EC2Instance:
             filters = [{'Name': 'tag:Name', 'Values': [self.name]}]
             resp = self.ec2_client.describe_instances(Filters=filters)
             if len(resp['Reservations']) > 0:
-                self.instance_data = resp['Reservations'][0]['Instances'][0]
-                return self.instance_data
+                for res in resp['Reservations']:
+                    instance_data = res['Instances'][0]
+                    if instance_data['State']['Name'] != 'terminated':
+                        self.instance_data = instance_data
+                        return self.instance_data
 
         return None
 
@@ -529,24 +545,25 @@ class EC2Instance:
             instance_data = self._create_instance(user_data=user_data)
             self.instance_id = instance_data['InstanceId']
             self.private_ip = instance_data['PrivateIpAddress']
-            self.public_ip = self.get_public_ip()
         else:
             self.start()
 
         return self.instance_id
 
     def start(self):
+        """
+        Starts the VM instance
+        """
         logger.info("Starting VM instance {}".format(self.name))
 
         try:
             self.ec2_client.start_instances(InstanceIds=[self.instance_id])
             self.public_ip = self.get_public_ip()
-        except botocore.exceptions.ClientError as e:
-            if e.response['Error']['Code'] == 'IncorrectInstanceState':
+        except botocore.exceptions.ClientError as err:
+            if err.response['Error']['Code'] == 'IncorrectInstanceState':
                 time.sleep(20)
                 return self.start()
-            else:
-                raise e
+            raise err
 
         logger.debug("VM instance {} started successfully".format(self.name))
 
@@ -565,12 +582,15 @@ class EC2Instance:
 
     def _stop_instance(self):
         """
-        Stops the VM instacne and
+        Stops the VM instance
         """
         logger.debug("Stopping VM instance {}".format(self.name))
         self.ec2_client.stop_instances(InstanceIds=[self.instance_id])
 
     def stop(self):
+        """
+        Stops the VM instance
+        """
         if self.delete_on_dismantle:
             self._delete_instance()
         else:

@@ -85,7 +85,7 @@ def setup_worker(worker_info, work_queue_name):
     global workers, workers_state
 
     worker = standalone_handler.backend.get_instance(**worker_info, public=False)
-    logger.debug(f'Starting setup for VM instance {worker.name} ({worker.private_ip})')
+    logger.debug(f'Starting setup for {worker}')
 
     max_instance_create_retries = standalone_config.get('worker_create_retries', MAX_INSTANCE_CREATE_RETRIES)
 
@@ -188,7 +188,7 @@ def run_job_local(work_queue):
     pull_runtime = standalone_config.get('pull_runtime', False)
 
     def wait_job_completed(job_key):
-        done = os.path.join(JOBS_DIR, job_key+'.done')
+        done = os.path.join(JOBS_DIR, job_key + '.done')
         while True:
             if os.path.isfile(done):
                 break
@@ -228,7 +228,7 @@ def run_job_worker(job_payload, work_queue):
     while not work_queue.empty():
         time.sleep(1)
 
-    done = os.path.join(JOBS_DIR, job_key+'.done')
+    done = os.path.join(JOBS_DIR, job_key + '.done')
     Path(done).touch()
 
     logger.debug(f'Job process {job_key} finished')
@@ -321,7 +321,7 @@ def stop_job_process(job_key_list):
             if job_key == last_job_key:
                 # kill current running job process
                 localhos_handler.clear()
-                done = os.path.join(JOBS_DIR, job_key+'.done')
+                done = os.path.join(JOBS_DIR, job_key + '.done')
                 Path(done).touch()
             else:
                 # Delete job_payload from pending queue
