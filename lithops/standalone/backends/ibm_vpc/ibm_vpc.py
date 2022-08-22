@@ -913,9 +913,9 @@ def decorate_instance(instance, decorator):
 
 def vpc_retry_on_except(func):
 
-    RETRIES = 5
+    RETRIES = 3
     SLEEP_FACTOR = 1.5
-    MAX_SLEEP = 60
+    MAX_SLEEP = 30
 
     IGNORED_404_METHODS = ['delete_instance', 'delete_subnet', 'delete_public_gateway', 'delete_vpc', 'create_instance_action']
 
