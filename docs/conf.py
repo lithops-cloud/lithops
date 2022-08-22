@@ -86,7 +86,7 @@ html_theme_options = {
     'use_download_button': True,
     'use_fullscreen_button': False,
     'use_repository_button': True,
-    'show_navbar_depth': 0
+    'show_navbar_depth': 1
 }
 
 # html_title = f"Lithops v{lithops.__version__}"
