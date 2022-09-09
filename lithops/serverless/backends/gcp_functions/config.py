@@ -31,7 +31,12 @@ RUNTIME_MEMORY_OPTIONS = {128, 256, 512, 1024, 2048, 4096, 8192}
 RETRIES = 5
 RETRY_SLEEP = 20
 
-AVAILABLE_PY_RUNTIMES = {'3.7': 'python37', '3.8': 'python38', '3.9': 'python39'}
+AVAILABLE_PY_RUNTIMES = {
+    '3.7': 'python37',
+    '3.8': 'python38',
+    '3.9': 'python39',
+    '3.10': 'python310',
+}
 
 USER_RUNTIMES_PREFIX = 'lithops.user_runtimes'
 

@@ -3,7 +3,7 @@
 ## [v2.7.1.dev0]
 
 ### Added
--
+- [Google Cloud Functions] Added Python 3.10 runtime compatibility
 
 ### Changed
 - [IBM VPC] Make 'image_id' mandatory in config
