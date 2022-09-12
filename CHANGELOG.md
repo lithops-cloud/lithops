@@ -12,6 +12,7 @@
 ### Fixed
 - [IBM VPC] Create floating IP using the specified resource group
 - [IBM VPC] Attach floating IP to the subnet
+- [Core] Fix 'cpu_count' function from multiprocessing API
 
 ## [v2.7.0]
 
