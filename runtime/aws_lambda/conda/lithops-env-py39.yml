@@ -1,0 +1,9 @@
+name: lithops-conda
+channels:
+  - conda-forge
+  - anaconda
+  - defaults
+dependencies:
+  - python=3.9
+  - pip
+  # Put here your conda dependencies...
