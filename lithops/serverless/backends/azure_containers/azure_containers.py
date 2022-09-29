@@ -73,7 +73,7 @@ class AzureContainerAppBackend:
     def _get_default_runtime_image_name(self):
         """
         Generates the default runtime image name
-        """        
+        """
         revision = 'latest' if 'dev' in __version__ else __version__
         return utils.get_default_container_name(
             self.name, self.ac_config, 'lithops-ca-default', revision
@@ -121,7 +121,7 @@ class AzureContainerAppBackend:
             cmd = f'{docker_path} build -t {runtime_name} -f {dockerfile} . '
         else:
             cmd = f'{docker_path} build -t {runtime_name} . '
-        cmd = cmd+' '.join(extra_args)
+        cmd = cmd + ' '.join(extra_args)
 
         try:
             entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
@@ -166,7 +166,7 @@ class AzureContainerAppBackend:
             runtime_memory, runtime_cpu = config.ALLOWED_MEM[memory]
             ca_temaplate['properties']['template']['containers'][0]['resources']['cpu'] = runtime_cpu
             ca_temaplate['properties']['template']['containers'][0]['resources']['memory'] = runtime_memory
-        except:
+        except Exception:
             raise Exception(f'The memory {memory} is not allowed, you must choose '
                             f'one of thses memory values: {config.ALLOWED_MEM.keys()}')
 
@@ -182,7 +182,7 @@ class AzureContainerAppBackend:
         cmd = f"az storage account show-connection-string -g {self.resource_group} --name {self.storage_account_name} --query connectionString --out json"
         queueconnection = utils.run_command(cmd, return_result=True)
         ca_temaplate['properties']['configuration']['secrets'][0]['value'] = queueconnection
-        
+
         if self.ac_config.get('docker_password'):
             ca_temaplate['properties']['configuration']['secrets'][1]['value'] = self.ac_config['docker_password']
             ca_temaplate['properties']['configuration']['registries'][0]['server'] = self.ac_config['docker_server']
@@ -261,7 +261,7 @@ class AzureContainerAppBackend:
         containerapp_name = self._format_containerapp_name(runtime_name, memory)
 
         payload = {
-            'log_level': logger.getEffectiveLevel(), 
+            'log_level': logger.getEffectiveLevel(),
             'get_metadata': True,
             'containerapp_name': containerapp_name,
             'storage_config': self.internal_storage.storage.storage_config
@@ -271,7 +271,7 @@ class AzureContainerAppBackend:
 
         logger.debug('Waiting for get-metadata job to finish')
         status_key = containerapp_name + '.meta'
-        
+
         for i in range(0, 10):
             try:
                 time.sleep(15)
@@ -282,7 +282,7 @@ class AzureContainerAppBackend:
                 return runtime_meta
             except StorageNoSuchKeyError:
                 logger.debug(f'Get runtime metadata retry {i+1}')
-        
+
         raise Exception('Could not get metadata. Review container logs in the Azure Portal')
 
     def list_runtimes(self, runtime_name='all'):
@@ -297,7 +297,7 @@ class AzureContainerAppBackend:
 
         for containerapp in response:
             if containerapp['Tags'] and 'type' in containerapp['Tags'] \
-                and containerapp['Tags']['type'] == 'lithops-runtime':
+               and containerapp['Tags']['type'] == 'lithops-runtime':
                 name = containerapp['Tags']['runtime_name']
                 memory = containerapp['Tags']['runtime_memory']
                 version = containerapp['Tags']['lithops_version']
@@ -313,7 +313,7 @@ class AzureContainerAppBackend:
         """
         if 'runtime' not in self.ac_config or self.ac_config['runtime'] == 'default':
             self.ac_config['runtime'] = self._get_default_runtime_image_name()
-        
+
         runtime_info = {
             'runtime_name': self.ac_config['runtime'],
             'runtime_memory': self.ac_config['runtime_memory'],

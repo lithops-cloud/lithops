@@ -376,13 +376,13 @@ class AWSBatchBackend:
         ecr_token = base64.b64decode(auth_data['authorizationToken']).split(b':')[1]
 
         full_image_name, registry, repo_name = self._get_full_image_name(runtime_name)
-        
+
         if runtime_file:
             assert os.path.isfile(runtime_file), f'Cannot locate "{runtime_file}"'
             cmd = f'{docker_path} build -t {full_image_name} -f {runtime_file} . '
         else:
             cmd = f'{docker_path} build -t {full_image_name} . '
-        cmd = cmd+' '.join(extra_args)
+        cmd = cmd + ' '.join(extra_args)
 
         try:
             entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
@@ -578,7 +578,7 @@ class AWSBatchBackend:
         """
         if 'runtime' not in self.aws_batch_config or self.aws_batch_config['runtime'] == 'default':
             self.aws_batch_config['runtime'] = self._get_default_runtime_image_name()
-        
+
         runtime_info = {
             'runtime_name': self.aws_batch_config['runtime'],
             'runtime_memory': self.aws_batch_config['runtime_memory'],

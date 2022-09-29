@@ -76,15 +76,14 @@ class AzureFunctionAppBackend:
 
     def _format_queue_name(self, function_name, q_type):
         name_hash = hashlib.sha1(function_name.encode("utf-8")).hexdigest()[:10]
-        return  f'lithops-fn-runtime-{name_hash}-{q_type}'
+        return f'lithops-fn-runtime-{name_hash}-{q_type}'
 
     def _get_default_runtime_name(self):
         """
         Generates the default runtime name
         """
         py_version = utils.CURRENT_PY_VERSION.replace('.', '')
-        return  f'lithops-default-runtime-v{py_version}'
-        
+        return f'lithops-default-runtime-v{py_version}'
 
     def deploy_runtime(self, runtime_name, memory, timeout):
         """
@@ -128,7 +127,7 @@ class AzureFunctionAppBackend:
         action_dir = os.path.join(build_dir, config.ACTION_DIR)
         os.makedirs(action_dir, exist_ok=True)
 
-        logger.debug(f'Building runtime in {build_dir}')     
+        logger.debug(f'Building runtime in {build_dir}')
 
         with open(requirements_file, 'r') as req_file:
             req_data = req_file.read()
@@ -171,7 +170,7 @@ class AzureFunctionAppBackend:
             utils.create_handler_zip(config.FH_ZIP_LOCATION, entry_point, '__init__.py')
             archive = zipfile.ZipFile(config.FH_ZIP_LOCATION)
             archive.extractall(path=mod_dir)
-            os.remove(mod_dir+'/__init__.py')
+            os.remove(mod_dir + '/__init__.py')
             os.remove(config.FH_ZIP_LOCATION)
 
         logger.debug(f'Runtime {runtime_name} built successfully')
@@ -359,7 +358,7 @@ class AzureFunctionAppBackend:
 
         for functionapp in response:
             if functionapp['Tags'] and 'type' in functionapp['Tags'] \
-                and functionapp['Tags']['type'] == 'lithops-runtime':
+               and functionapp['Tags']['type'] == 'lithops-runtime':
                 version = functionapp['Tags']['lithops_version']
                 runtime = functionapp['Tags']['runtime_name']
                 if runtime_name == functionapp['Name'] or runtime_name == 'all':
@@ -373,12 +372,12 @@ class AzureFunctionAppBackend:
         in config
         """
         if utils.CURRENT_PY_VERSION not in config.AVAILABLE_PY_RUNTIMES:
-            raise Exception(f'Python {utils.CURRENT_PY_VERSION} is not available for'
-                f'Azure Functions. Please use one of {config.AVAILABLE_PY_RUNTIMES}')
+            raise Exception(f'Python {utils.CURRENT_PY_VERSION} is not available for Azure '
+                            f'Functions. Please use one of {config.AVAILABLE_PY_RUNTIMES}')
 
         if 'runtime' not in self.af_config or self.af_config['runtime'] == 'default':
             self.af_config['runtime'] = self._get_default_runtime_name()
-        
+
         runtime_info = {
             'runtime_name': self.af_config['runtime'],
             'runtime_memory': self.af_config['runtime_memory'],

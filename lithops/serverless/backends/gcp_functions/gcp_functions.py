@@ -63,7 +63,7 @@ class GCPFunctionsBackend:
             return f'{runtime_name}_{runtime_memory}MB'
         else:
             return f'{runtime_name}'
-    
+
     def _unformat_function_name(self, function_name):
         runtime_name, runtime_memory = function_name.rsplit('_', 1)
         runtime_name = runtime_name.replace('lithops_v', '')
@@ -77,19 +77,19 @@ class GCPFunctionsBackend:
         """
         if self.credentials_path and os.path.isfile(self.credentials_path):
             logger.debug(f'Getting GCP credentials from {self.credentials_path}')
-            
+
             api_cred = service_account.Credentials.from_service_account_file(
                 self.credentials_path, scopes=config.SCOPES
             )
             self.project_name = api_cred.project_id
             self.service_account = api_cred.service_account_email
-            
+
             pubsub_cred = jwt.Credentials.from_service_account_file(
                 self.credentials_path,
                 audience=config.AUDIENCE
-            ) 
+            )
         else:
-            logger.debug(f'Getting GCP credentials from the environment')
+            logger.debug('Getting GCP credentials from the environment')
             api_cred, self.project_name = google.auth.default(scopes=config.SCOPES)
             self.service_account = api_cred.service_account_email
             pubsub_cred = None
@@ -107,11 +107,11 @@ class GCPFunctionsBackend:
         return f'projects/{self.project_name}/locations/{self.region}'
 
     def _format_topic_name(self, runtime_name, runtime_memory):
-        return self._format_function_name(runtime_name, runtime_memory) +'_'+ self.region + '_topic'
+        return self._format_function_name(runtime_name, runtime_memory) + '_' + self.region + '_topic'
 
     def _get_default_runtime_name(self):
         py_version = utils.CURRENT_PY_VERSION.replace('.', '')
-        return  f'lithops-default-runtime-v{py_version}'
+        return f'lithops-default-runtime-v{py_version}'
 
     def _get_topic_location(self, topic_name):
         return f'projects/{self.project_name}/topics/{topic_name}'
@@ -120,7 +120,7 @@ class GCPFunctionsBackend:
         return f'{self._default_location}/functions/{function_name}'
 
     def _get_runtime_bin_location(self, runtime_name):
-        function_name =  self._format_function_name(runtime_name)
+        function_name = self._format_function_name(runtime_name)
         return config.USER_RUNTIMES_PREFIX + '/' + function_name + '_bin.zip'
 
     def _encode_payload(self, payload):
@@ -154,7 +154,7 @@ class GCPFunctionsBackend:
                 else:
                     raise Exception(f'Unknown status: {response["status"]}')
             except Exception as e:
-                logger.debug(f'Function status is DELETED')
+                logger.debug('Function status is DELETED')
                 break
 
     def _create_function(self, runtime_name, memory, timeout=60):
@@ -193,7 +193,7 @@ class GCPFunctionsBackend:
         bin_location = self._get_runtime_bin_location(runtime_name)
         cloud_function = {
             'name': function_location,
-            'description': 'Lithops Worker for Lithops v'+ __version__,
+            'description': 'Lithops Worker for Lithops v' + __version__,
             'entryPoint': 'main',
             'runtime': config.AVAILABLE_PY_RUNTIMES[utils.CURRENT_PY_VERSION],
             'timeout': str(timeout) + 's',
@@ -392,12 +392,12 @@ class GCPFunctionsBackend:
         in config
         """
         if utils.CURRENT_PY_VERSION not in config.AVAILABLE_PY_RUNTIMES:
-            raise Exception(f'Python {utils.CURRENT_PY_VERSION} is not available for Google '
-             f'Cloud Functions. Please use one of {config.AVAILABLE_PY_RUNTIMES.keys()}')
+            raise Exception(f'Python {utils.CURRENT_PY_VERSION} is not available for Google Cloud '
+                            f'Functions. Please use one of {config.AVAILABLE_PY_RUNTIMES.keys()}')
 
         if 'runtime' not in self.gcf_config or self.gcf_config['runtime'] == 'default':
             self.gcf_config['runtime'] = self._get_default_runtime_name()
-        
+
         runtime_info = {
             'runtime_name': self.gcf_config['runtime'],
             'runtime_memory': self.gcf_config['runtime_memory'],

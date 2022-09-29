@@ -76,11 +76,11 @@ class AliyunFunctionComputeBackend:
 
     def _get_default_runtime_name(self):
         py_version = utils.CURRENT_PY_VERSION.replace('.', '')
-        return  f'lithops-default-runtime-v{py_version}'
+        return f'lithops-default-runtime-v{py_version}'
 
     def build_runtime(self, runtime_name, requirements_file, extra_args=[]):
         logger.info(f'Building runtime {runtime_name} from {requirements_file}')
-        
+
         build_dir = os.path.join(config.BUILD_DIR, runtime_name)
 
         shutil.rmtree(build_dir, ignore_errors=True)
@@ -102,7 +102,7 @@ class AliyunFunctionComputeBackend:
             docker_path = utils.get_docker_path()
             if docker_path:
                 # Build the runtime in a docker
-                cmd = f'python3 -m pip install -U -t . -r requirements.txt'
+                cmd = 'python3 -m pip install -U -t . -r requirements.txt'
                 cmd = f'docker run -w /tmp -v {build_dir}:/tmp python:{utils.CURRENT_PY_VERSION}-slim-buster {cmd}'
                 utils.run_command(cmd)
             else:
@@ -165,7 +165,7 @@ class AliyunFunctionComputeBackend:
         if not self._service_exists(self.service_name):
             logger.debug(f"creating service {self.service_name}")
             self.fc_client.create_service(self.service_name, role=self.role_arn)
-        
+
         if runtime_name == self._get_default_runtime_name():
             self._build_default_runtime(runtime_name)
 
@@ -207,7 +207,7 @@ class AliyunFunctionComputeBackend:
         logger.debug('Going to delete all deployed runtimes')
         if not self._service_exists(self.service_name):
             return
-        
+
         functions = self.fc_client.list_functions(self.service_name).data['functions']
 
         for function in functions:
@@ -252,7 +252,7 @@ class AliyunFunctionComputeBackend:
                 headers={'x-fc-invocation-type': 'Async'}
             )
         except fc2.fc_exceptions.FcError as e:
-            raise(e)
+            raise (e)
 
         return res.headers['X-Fc-Request-Id']
 
@@ -296,12 +296,12 @@ class AliyunFunctionComputeBackend:
         in config
         """
         if utils.CURRENT_PY_VERSION not in config.AVAILABLE_PY_RUNTIMES:
-            raise Exception(f'Python {utils.CURRENT_PY_VERSION} is not available for'
-             f'Aliyun Functions. Please use one of {config.AVAILABLE_PY_RUNTIMES.keys()}')
+            raise Exception(f'Python {utils.CURRENT_PY_VERSION} is not available for Aliyun '
+                            f'Functions. Please use one of {config.AVAILABLE_PY_RUNTIMES.keys()}')
 
         if 'runtime' not in self.afc_config or self.afc_config['runtime'] == 'default':
             self.afc_config['runtime'] = self._get_default_runtime_name()
-        
+
         runtime_info = {
             'runtime_name': self.afc_config['runtime'],
             'runtime_memory': self.afc_config['runtime_memory'],

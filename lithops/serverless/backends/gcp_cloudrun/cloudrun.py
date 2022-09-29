@@ -88,7 +88,7 @@ class GCPCloudRunBackend:
             self.project_name = cred.project_id
             self.service_account = cred.service_account_email
         else:
-            logger.debug(f'Getting GCP credentials from the environment')
+            logger.debug('Getting GCP credentials from the environment')
             cred, self.project_name = google.auth.default(scopes=SCOPES)
             self.service_account = cred.service_account_email
 
@@ -116,7 +116,7 @@ class GCPCloudRunBackend:
             self._service_url = res['status']['url']
             request_token = True
             logger.debug(f'Service endpoint url is {self._service_url}')
-        
+
         if not self._id_token or request_token:
             logger.debug('Getting authentication token')
             if self.credentials_path and os.path.isfile(self.credentials_path):
@@ -196,7 +196,7 @@ class GCPCloudRunBackend:
         else:
             logger.debug('Invoking function')
 
-        req = urllib.request.Request(service_url+route, data=json.dumps(payload, default=str).encode('utf-8'))
+        req = urllib.request.Request(service_url + route, data=json.dumps(payload, default=str).encode('utf-8'))
         req.add_header("Authorization", f"Bearer {id_token}")
         res = urllib.request.urlopen(req)
 
@@ -220,7 +220,7 @@ class GCPCloudRunBackend:
             cmd = f'{docker_path} build -t {image_name} -f {dockerfile} . '
         else:
             cmd = f'{docker_path} build -t {image_name} . '
-        cmd = cmd+' '.join(extra_args)
+        cmd = cmd + ' '.join(extra_args)
 
         try:
             entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
@@ -250,7 +250,7 @@ class GCPCloudRunBackend:
         Creates a service in knative based on the docker_image_name and the memory provided
         """
         logger.debug("Creating Lithops runtime service in Google Cloud Run")
-        
+
         img_name = self._format_image_name(runtime_name)
         service_name = self._format_service_name(runtime_name, runtime_memory)
 
@@ -308,7 +308,6 @@ class GCPCloudRunBackend:
         logger.debug(f'Ok -- service is up at {self._service_url}')
 
     def deploy_runtime(self, runtime_name, memory, timeout):
-        
         if runtime_name == self._get_default_runtime_image_name():
             self._build_default_runtime(runtime_name)
 
@@ -337,7 +336,7 @@ class GCPCloudRunBackend:
             ).execute()
             self._wait_service_deleted(service_name)
             logger.debug(f'Ok -- deleted runtime {runtime_name}')
-        except:
+        except Exception:
             pass
 
     def clean(self):
