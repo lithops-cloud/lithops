@@ -78,7 +78,7 @@ def agg_data(data_strs):
     pos = 0
     for datum in data_strs:
         datum_len = len(datum)
-        ranges.append((pos, pos+datum_len-1))
+        ranges.append((pos, pos + datum_len - 1))
         pos += datum_len
     return b"".join(data_strs), ranges
 
@@ -117,7 +117,7 @@ class FuturesList(list):
         self._extend_futures(fs)
         return self
 
-    def map_reduce(self, map_function, reduce_function,  sync=False, **kwargs):
+    def map_reduce(self, map_function, reduce_function, sync=False, **kwargs):
         self._create_executor()
         if sync:
             self.executor.wait(self)
@@ -244,8 +244,8 @@ def create_handler_zip(dst_zip_location, entry_point_files, entry_point_name=Non
                 lithops_zip.write(ep_file, ep_name)
             add_folder_to_zip(lithops_zip, module_location)
 
-    except Exception:
-        raise Exception('Unable to create the {} package: {}'.format(dst_zip_location))
+    except Exception as e:
+        raise Exception(f'Unable to create the {dst_zip_location} package: {e}')
 
 
 def verify_runtime_name(runtime_name):
@@ -273,9 +273,9 @@ def is_linux_system():
     """Check if the current OS is LINUX"""
     curret_system = platform.system().lower()
     if curret_system == "linux":
-       return True
+        return True
     else:
-       return False
+        return False
 
 
 def is_lithops_worker():
@@ -362,8 +362,8 @@ def get_docker_path():
     docker_path = shutil.which('docker')
     podman_path = shutil.which('podman')
     if not docker_path and not podman_path:
-        raise Exception('docker/podman command not found. '
-         'Install docker/podman or use an already built runtime')
+        raise Exception('docker/podman command not found. Install docker'
+                        '/podman or use an already built runtime')
     return docker_path or podman_path
 
 
@@ -381,18 +381,18 @@ def get_default_container_name(backend, backend_config, runtime_name, version):
         # Docker hub container registry
         try:
             docker_user = backend_config['docker_user']
-        except:
-            raise Exception('You must provide "docker_user"'
-                f' param in config under "{backend}" section')
+        except Exception:
+            raise Exception('You must provide "docker_user" param '
+                            f'in config under "{backend}" section')
         return f'docker.io/{docker_user}/{img}'
 
     elif 'icr.io' in docker_server:
         # IBM container registry
         try:
             docker_namespace = backend_config['docker_namespace']
-        except:
-            raise Exception('You must provide "docker_namespace"'
-                f' param in config under "{backend}" section')
+        except Exception:
+            raise Exception('You must provide "docker_namespace" param'
+                            f'in config under "{backend}" section')
         return f'{docker_server}/{docker_namespace}/{img}'
 
     else:
@@ -416,8 +416,7 @@ def get_docker_username():
         try:
             cmd = ("docker-credential-desktop list | jq -r 'to_entries[].key' | while "
                    "read; do docker-credential-desktop get <<<$REPLY; break; done")
-            docker_user_info = sp.check_output(cmd,
-                shell=True, encoding='UTF-8', stderr=sp.STDOUT)
+            docker_user_info = sp.check_output(cmd, shell=True, encoding='UTF-8', stderr=sp.STDOUT)
             docker_data = json.loads(docker_user_info)
             user = docker_data['Username']
         except Exception:
@@ -597,8 +596,8 @@ class WrappedStreamingBody:
         return self
 
     def __next__(self):
-        return self.read(64*1024)
-    
+        return self.read(64 * 1024)
+
     def __getattr__(self, attr):
         if attr == 'tell':
             return self.tell
@@ -662,7 +661,7 @@ class WrappedStreamingBodyPartition(WrappedStreamingBody):
         last_row_end_pos = self.pos
         # Find end of the line in threshold
         if self.pos > self.size:
-            last_byte_pos = retval[self.size-1:].find(self.newline_char)
+            last_byte_pos = retval[self.size - 1:].find(self.newline_char)
             last_row_end_pos = self.size + last_byte_pos
             self._eof = True
 
@@ -707,7 +706,7 @@ def is_podman(docker_path):
         cmd = f'{docker_path} info | grep podman'
         sp.check_output(cmd, shell=True, stderr=sp.STDOUT)
         return True
-    except:
+    except Exception:
         return False
 
 

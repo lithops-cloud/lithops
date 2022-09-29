@@ -108,7 +108,7 @@ class KubernetesBackend:
             cmd = f'{docker_path} build -t {docker_image_name} -f {dockerfile} . '
         else:
             cmd = f'{docker_path} build -t {docker_image_name} . '
-        cmd = cmd+' '.join(extra_args)
+        cmd = cmd + ' '.join(extra_args)
 
         try:
             entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
@@ -193,7 +193,7 @@ class KubernetesBackend:
         """
         try:
             default_image_name = self._get_default_runtime_image_name()
-        except:
+        except Exception:
             default_image_name = None
         if docker_image_name == default_image_name:
             self._build_default_runtime(docker_image_name)
@@ -334,7 +334,7 @@ class KubernetesBackend:
 
         job_res['metadata']['name'] = activation_id
         job_res['metadata']['namespace'] = self.namespace
-        job_res['metadata']['labels']['version'] = 'lithops_v'+__version__
+        job_res['metadata']['labels']['version'] = 'lithops_v' + __version__
 
         job_res['spec']['activeDeadlineSeconds'] = self.k8s_config['runtime_timeout']
         job_res['spec']['parallelism'] = total_workers
@@ -404,7 +404,6 @@ class KubernetesBackend:
         except Exception as e:
             raise e
 
-
         logger.debug("Waiting for runtime metadata")
 
         done = False
@@ -440,7 +439,7 @@ class KubernetesBackend:
         if failed:
             raise Exception("Unable to extract metadata from the runtime")
 
-        data_key = '/'.join([JOBS_PREFIX, runtime_name+'.meta'])
+        data_key = '/'.join([JOBS_PREFIX, runtime_name + '.meta'])
         json_str = self.internal_storage.get_data(key=data_key)
         runtime_meta = json.loads(json_str.decode("ascii"))
         self.internal_storage.del_data(key=data_key)
@@ -460,7 +459,7 @@ class KubernetesBackend:
         runtime_key = os.path.join(self.name, __version__, self.namespace, jobdef_name)
 
         return runtime_key
-    
+
     def get_runtime_info(self):
         """
         Method that returns all the relevant information about the runtime set
@@ -468,7 +467,7 @@ class KubernetesBackend:
         """
         if 'runtime' not in self.k8s_config or self.k8s_config['runtime'] == 'default':
             self.k8s_config['runtime'] = self._get_default_runtime_image_name()
-        
+
         runtime_info = {
             'runtime_name': self.k8s_config['runtime'],
             'runtime_cpu': self.k8s_config['runtime_cpu'],

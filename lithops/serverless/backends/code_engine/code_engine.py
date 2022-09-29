@@ -180,7 +180,7 @@ class CodeEngineBackend:
             cmd = f'{docker_path} build -t {docker_image_name} -f {dockerfile} . '
         else:
             cmd = f'{docker_path} build -t {docker_image_name} . '
-        cmd = cmd+' '.join(extra_args)
+        cmd = cmd + ' '.join(extra_args)
 
         try:
             entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
@@ -218,11 +218,12 @@ class CodeEngineBackend:
         """
         try:
             default_image_name = self._get_default_runtime_image_name()
-        except:
+        except Exception:
             default_image_name = None
+
         if docker_image_name == default_image_name:
             self._build_default_runtime(docker_image_name)
-    
+
         logger.debug(f"Deploying runtime: {docker_image_name} - Memory: {memory} Timeout: {timeout}")
         self._create_job_definition(docker_image_name, memory, timeout)
         runtime_meta = self._generate_runtime_meta(docker_image_name, memory)
@@ -309,7 +310,7 @@ class CodeEngineBackend:
                     container = jobdef['spec']['template']['containers'][0]
                     image_name = container['image']
                     memory = container['resources']['requests']['memory'].replace('M', '')
-                    memory = int(int(memory)/1000*1024)
+                    memory = int(int(memory) / 1000 * 1024)
                     if docker_image_name in image_name or docker_image_name == 'all':
                         runtimes.append((image_name, memory, version))
             except Exception:
@@ -464,7 +465,7 @@ class CodeEngineBackend:
         jobdef_res = yaml.safe_load(config.JOBDEF_DEFAULT)
 
         jobdef_res['metadata']['name'] = jobdef_name
-        jobdef_res['metadata']['labels']['version'] = 'lithops_v'+__version__
+        jobdef_res['metadata']['labels']['version'] = 'lithops_v' + __version__
         jobdef_res['spec']['maxExecutionTime'] = self.ce_config['runtime_timeout']
 
         container = jobdef_res['spec']['template']['containers'][0]
@@ -513,7 +514,7 @@ class CodeEngineBackend:
         runtime_key = os.path.join(self.name, __version__, self.region, self.namespace, jobdef_name)
 
         return runtime_key
-    
+
     def get_runtime_info(self):
         """
         Method that returns all the relevant information about the runtime set

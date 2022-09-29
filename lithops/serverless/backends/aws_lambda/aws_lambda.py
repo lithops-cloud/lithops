@@ -119,7 +119,7 @@ class AWSLambdaBackend:
                 'or use a container runtime.')
 
         py_version = utils.CURRENT_PY_VERSION.replace('.', '')
-        return  f'lithops-default-runtime-v{py_version}'
+        return f'lithops-default-runtime-v{py_version}'
 
     def _is_container_runtime(self, runtime_name):
         name = runtime_name.split('/', 1)[-1]
@@ -164,7 +164,7 @@ class AWSLambdaBackend:
             if state == 'Pending':
                 time.sleep(sleep_seconds)
                 logger.debug('"{}" function is being deployed... '
-                            '(status: {})'.format(func_name, res['Configuration']['State']))
+                             '(status: {})'.format(func_name, res['Configuration']['State']))
                 retries -= 1
                 if retries == 0:
                     raise Exception('"{}" function not deployed (timed out): {}'.format(func_name, res))
@@ -351,7 +351,7 @@ class AWSLambdaBackend:
             cmd = f'{docker_path} build -t {runtime_name} -f {runtime_file} . '
         else:
             cmd = f'{docker_path} build -t {runtime_name} . '
-        cmd = cmd+' '.join(extra_args)
+        cmd = cmd + ' '.join(extra_args)
 
         try:
             self._create_handler_bin(remove=False)
@@ -415,7 +415,7 @@ class AWSLambdaBackend:
                 Code={
                     'ZipFile': code
                 },
-                Description='Lithops Worker for '+self.package,
+                Description='Lithops Worker for ' + self.package,
                 Timeout=timeout,
                 MemorySize=memory,
                 Layers=[layer_arn],
@@ -479,7 +479,7 @@ class AWSLambdaBackend:
         image_uri = f'{registry}/{repo_name}@{image_digest}'
 
         env_vars = {t['name']: t['value'] for t in self.lambda_config['env_vars']}
-        
+
         try:
             response = self.lambda_client.create_function(
                 FunctionName=function_name,
@@ -488,7 +488,7 @@ class AWSLambdaBackend:
                     'ImageUri': image_uri
                 },
                 PackageType='Image',
-                Description='Lithops Worker for '+self.package,
+                Description='Lithops Worker for ' + self.package,
                 Timeout=timeout,
                 MemorySize=memory,
                 VpcConfig={
@@ -501,7 +501,7 @@ class AWSLambdaBackend:
                     for efs_conf in self.lambda_config['efs']
                 ],
                 Tags={
-                    'runtime_name': self.package+'/'+runtime_name
+                    'runtime_name': self.package + '/' + runtime_name
                 },
                 Architectures=[self.lambda_config['architecture']],
                 EphemeralStorage={
@@ -569,7 +569,7 @@ class AWSLambdaBackend:
                     if not images['imageIds']:
                         logger.debug(f'Going to delete ECR repository {repo_name}')
                         self.ecr_client.delete_repository(repositoryName=repo_name, force=True)
-                except:
+                except Exception:
                     pass
             else:
                 layer = self._format_layer_name(runtime_name)

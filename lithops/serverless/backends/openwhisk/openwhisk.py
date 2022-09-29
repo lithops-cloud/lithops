@@ -76,7 +76,7 @@ class OpenWhiskBackend:
 
     def _get_default_runtime_image_name(self):
         try:
-           return config.AVAILABLE_PY_RUNTIMES[utils.CURRENT_PY_VERSION]
+            return config.AVAILABLE_PY_RUNTIMES[utils.CURRENT_PY_VERSION]
         except KeyError:
             raise Exception(f'Unsupported Python version: {utils.CURRENT_PY_VERSION}')
 
@@ -93,7 +93,7 @@ class OpenWhiskBackend:
             cmd = f'{docker_path} build -t {docker_image_name} -f {dockerfile} . '
         else:
             cmd = f'{docker_path} build -t {docker_image_name} . '
-        cmd = cmd+' '.join(extra_args)
+        cmd = cmd + ' '.join(extra_args)
         utils.run_command(cmd)
 
         logger.debug(f'Pushing runtime {docker_image_name} to container registry')
@@ -117,9 +117,11 @@ class OpenWhiskBackend:
         try:
             with open(config.FH_ZIP_LOCATION, "rb") as action_zip:
                 action_bin = action_zip.read()
-            self.cf_client.create_action(self.package, action_name, 
-                docker_image_name, code=action_bin, memory=memory,
-                is_binary=True, timeout=timeout*1000)
+            self.cf_client.create_action(
+                self.package, action_name, docker_image_name,
+                code=action_bin, memory=memory,
+                is_binary=True, timeout=timeout * 1000
+            )
         finally:
             os.remove(config.FH_ZIP_LOCATION)
 
@@ -187,7 +189,7 @@ class OpenWhiskBackend:
         runtime_key = os.path.join(self.name, __version__, self.namespace, action_name)
 
         return runtime_key
-    
+
     def get_runtime_info(self):
         """
         Method that returns all the relevant information about the runtime set
@@ -220,7 +222,7 @@ class OpenWhiskBackend:
                 if 'activationId' in runtime_meta:
                     retry_invoke = True
         except Exception as e:
-            raise(f"Unable to extract metadata: {e}")
+            raise (f"Unable to extract metadata: {e}")
 
         if not runtime_meta or 'preinstalls' not in runtime_meta:
             raise Exception(runtime_meta)

@@ -37,7 +37,7 @@ def get_message():
         try:
             message = next(queue.receive_messages())
             queue.delete_message(message)
-        except:
+        except Exception:
             time.sleep(5)
 
     return message
