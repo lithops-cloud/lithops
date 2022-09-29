@@ -53,9 +53,9 @@ def retry_on_except(func):
                 except ApiException as e:
                     if e.status == 409:
                         body = json.loads(e.body)
-                        if body.get('reason') == 'AlreadyExists' or 'already exists' in body.get('message'):
+                        if body.get('reason') in {'AlreadyExists', 'Conflict'} or 'already exists' in body.get('message'):
                             logger.debug("Encountered conflict error {}, ignoring".format(body.get('message')))
-                            return
+
                     if e.status == 500:
                         ex = e
                         logger.exception((f'Got exception {e}, retrying for the {retry} time, left retries {connection_retries - 1 - retry}'))
