@@ -296,8 +296,10 @@ class AliyunFunctionComputeBackend:
         in config
         """
         if utils.CURRENT_PY_VERSION not in config.AVAILABLE_PY_RUNTIMES:
-            raise Exception(f'Python {utils.CURRENT_PY_VERSION} is not available for Aliyun '
-                            f'Functions. Please use one of {config.AVAILABLE_PY_RUNTIMES.keys()}')
+            raise Exception(
+                f'Python {utils.CURRENT_PY_VERSION} is not available for Aliyun '
+                f'Functions. Please use one of {list(config.AVAILABLE_PY_RUNTIMES.keys())}'
+            )
 
         if 'runtime' not in self.afc_config or self.afc_config['runtime'] == 'default':
             self.afc_config['runtime'] = self._get_default_runtime_name()

@@ -8,11 +8,16 @@
 ### Changed
 - [IBM VPC] Make 'image_id' mandatory in config
 - [IBM VPC] Infer zone_name from subnet
+- [Knative] Reduced service name length
+- [AWS EC2] Updated ec2 default ubuntu image to 22.04
 
 ### Fixed
 - [IBM VPC] Create floating IP using the specified resource group
 - [IBM VPC] Attach floating IP to the subnet
-- [Core] Fix 'cpu_count' function from multiprocessing API
+- [Multiprocessing] Fix 'cpu_count' function from multiprocessing API
+- [Code Engine] Add CE conflict exception to retriables
+- [Core] Show logs from module_dependency.py
+
 
 ## [v2.7.0]
 
