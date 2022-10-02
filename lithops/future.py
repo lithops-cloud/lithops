@@ -206,14 +206,14 @@ class ResponseFuture:
         if 'logs' in self._call_status:
             self.logs = zlib.decompress(base64.b64decode(self._call_status['logs'].encode())).decode()
             job_key = create_job_key(self.executor_id, self.job_id)
-            log_file = os.path.join(LOGS_DIR, job_key+'.log')
+            log_file = os.path.join(LOGS_DIR, job_key + '.log')
             header = "Activation: '{}' ({})\n[\n".format(self.runtime_name, self.activation_id)
             tail = ']\n\n'
-            output = self.logs.replace('\r', '').replace('\n', '\n    ', self.logs.count('\n')-1)
+            output = self.logs.replace('\r', '').replace('\n', '\n    ', self.logs.count('\n') - 1)
             with open(log_file, 'a') as lf:
-                lf.write(header+'    '+output+tail)
+                lf.write(header + '    ' + output + tail)
             with open(FN_LOG_FILE, 'a') as lf:
-                lf.write(header+'    '+output+tail)
+                lf.write(header + '    ' + output + tail)
 
         if self._call_status['exception']:
             self._set_state(ResponseFuture.State.Error)

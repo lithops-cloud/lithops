@@ -603,7 +603,7 @@ def delete(name, config, backend, storage, debug):
     internal_storage = InternalStorage(storage_config)
     compute_config = extract_serverless_config(config)
     compute_handler = ServerlessHandler(compute_config, internal_storage)
-    
+
     runtime_info = compute_handler.get_runtime_info()
     runtime_name = runtime_info['runtime_name']
 

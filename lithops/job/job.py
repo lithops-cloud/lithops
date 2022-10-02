@@ -39,10 +39,10 @@ FUNCTION_CACHE = set()
 
 
 def create_map_job(
-    config, 
+    config,
     internal_storage,
     executor_id,
-    job_id, 
+    job_id,
     map_function,
     iterdata,
     runtime_meta,
@@ -71,10 +71,10 @@ def create_map_job(
         logger.debug('ExecutorID {} | JobID {} - Calling map on partitions '
                      'from object storage flow'.format(executor_id, job_id))
         map_iterdata, ppo = create_partitions(
-            config, internal_storage, map_iterdata, 
+            config, internal_storage, map_iterdata,
             obj_chunk_size, obj_chunk_number, obj_newline
         )
-        host_job_meta['host_job_create_partitions_time'] = round(time.time()-create_partitions_start, 6)
+        host_job_meta['host_job_create_partitions_time'] = round(time.time() - create_partitions_start, 6)
     # ########
 
     job = _create_job(
@@ -127,7 +127,7 @@ def create_reduce_job(
         prev_total_partitons = 0
         iterdata = []
         for total_partitions in map_job.parts_per_object:
-            iterdata.append((map_futures[prev_total_partitons:prev_total_partitons+total_partitions],))
+            iterdata.append((map_futures[prev_total_partitons:prev_total_partitons + total_partitions],))
             prev_total_partitons += total_partitions
 
     reduce_job_env = {'__LITHOPS_REDUCE_JOB': True}
@@ -241,7 +241,7 @@ def _create_job(
     func_module_str = pickle.dumps({'func': func_str, 'module_data': module_data}, -1)
     func_module_size_bytes = len(func_module_str)
 
-    host_job_meta['host_job_serialize_time'] = round(time.time()-job_serialize_start, 6)
+    host_job_meta['host_job_serialize_time'] = round(time.time() - job_serialize_start, 6)
     host_job_meta['func_data_size_bytes'] = data_size_bytes
     host_job_meta['func_module_size_bytes'] = func_module_size_bytes
 
@@ -250,14 +250,14 @@ def _create_job(
         data_limit = config['lithops']['data_limit']
     else:
         data_limit = MAX_AGG_DATA_SIZE
-    if data_limit and data_size_bytes > data_limit*1024**2:
+    if data_limit and data_size_bytes > data_limit * 1024**2:
         log_msg = ('ExecutorID {} | JobID {} - Total data exceeded maximum size '
-                   'of {}'.format(executor_id, job_id, utils.sizeof_fmt(data_limit*1024**2)))
+                   'of {}'.format(executor_id, job_id, utils.sizeof_fmt(data_limit * 1024**2)))
         raise Exception(log_msg)
 
     # Upload function and data
     upload_function = not config['lithops'].get('customized_runtime', False)
-    upload_data = not (len(str(data_strs[0])) * job.chunksize < 8*1204 and backend in FAAS_BACKENDS)
+    upload_data = not (len(str(data_strs[0])) * job.chunksize < 8 * 1204 and backend in FAAS_BACKENDS)
 
     # Upload function and modules
     if upload_function:
@@ -300,13 +300,13 @@ def _create_job(
         data_upload_start = time.time()
         internal_storage.put_data(data_key, data_bytes)
         data_upload_end = time.time()
-        host_job_meta['host_data_upload_time'] = round(data_upload_end-data_upload_start, 6)
+        host_job_meta['host_data_upload_time'] = round(data_upload_end - data_upload_start, 6)
 
     else:
         # pass iteradata as part of the invocation payload
         logger.debug('ExecutorID {} | JobID {} - Data per activation is < '
                      '{}. Passing data through invocation payload'
-                     .format(executor_id, job_id, utils.sizeof_fmt(8*1024)))
+                     .format(executor_id, job_id, utils.sizeof_fmt(8 * 1024)))
         job.data_key = None
         job.data_byte_ranges = None
         job.data_byte_strs = data_strs

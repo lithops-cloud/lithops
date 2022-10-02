@@ -138,9 +138,9 @@ class StandaloneHandler:
         logger.info(f'Waiting Lithops service to become ready on {self.backend.master}')
 
         start = time.time()
-        while(time.time() - start < self.start_timeout):
+        while (time.time() - start < self.start_timeout):
             if self._is_master_service_ready():
-                ready_time = round(time.time()-start, 2)
+                ready_time = round(time.time() - start, 2)
                 logger.debug(f'{self.backend.master} ready in {ready_time} seconds')
                 return True
             time.sleep(2)
@@ -178,7 +178,7 @@ class StandaloneHandler:
 
         start = time.time()
         workers_state_on_master = {}
-        while(time.time() - start < self.start_timeout * 2):
+        while (time.time() - start < self.start_timeout * 2):
             try:
                 cmd = (f'curl -X GET http://127.0.0.1:{SA_SERVICE_PORT}/workers-state '
                        '-H \'Content-Type: application/json\'')
@@ -239,7 +239,7 @@ class StandaloneHandler:
         def create_workers(workers_to_create):
             current_workers_old = set(self.backend.workers)
             futures = []
-            with cf.ThreadPoolExecutor(min(workers_to_create+1, 48)) as ex:
+            with cf.ThreadPoolExecutor(min(workers_to_create + 1, 48)) as ex:
                 if not self._is_master_service_ready():
                     futures.append(ex.submit(lambda: self.backend.master.create(check_if_exists=True)))
 
@@ -397,7 +397,7 @@ class StandaloneHandler:
         store runtime metadata into the storage
         """
         return self.backend.get_runtime_key(runtime_name)
-    
+
     def get_runtime_info(self):
         """
         Method that returns a dictionary with all the runtime information

@@ -615,7 +615,7 @@ class FunctionExecutor:
             save_data_to_clean(data)
             self.cleaned_jobs.update(jobs_to_clean)
 
-        spawn_cleaner = not(CLEANER_PROCESS and CLEANER_PROCESS.poll() is None)
+        spawn_cleaner = not (CLEANER_PROCESS and CLEANER_PROCESS.poll() is None)
         if (jobs_to_clean or cs) and spawn_cleaner:
             cmd = [sys.executable, '-m', 'lithops.scripts.cleaner']
             CLEANER_PROCESS = sp.Popen(cmd, start_new_session=True)

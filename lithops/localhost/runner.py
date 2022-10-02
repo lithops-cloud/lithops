@@ -71,7 +71,7 @@ def run_job():
     except KeyboardInterrupt:
         pass
 
-    done = os.path.join(JOBS_DIR, job_key+'.done')
+    done = os.path.join(JOBS_DIR, job_key + '.done')
     Path(done).touch()
 
     if os.path.exists(job_filename):

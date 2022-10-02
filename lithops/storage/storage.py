@@ -359,7 +359,7 @@ class InternalStorage:
         keys = self.storage.list_keys(self.bucket, callset_prefix)
 
         running_keys = [k.split('/') for k in keys if utils.init_key_suffix in k]
-        running_callids = [(tuple(k[1].rsplit("-", 1)+[k[2]]),
+        running_callids = [(tuple(k[1].rsplit("-", 1) + [k[2]]),
                             k[3].replace(utils.init_key_suffix, ''))
                            for k in running_keys]
 
@@ -404,7 +404,7 @@ class InternalStorage:
 
         global RUNTIME_META_CACHE
 
-        path = [RUNTIMES_PREFIX, key+".meta.json"]
+        path = [RUNTIMES_PREFIX, key + ".meta.json"]
         filename_local_path = os.path.join(CACHE_DIR, *path)
 
         if '/'.join(path) in RUNTIME_META_CACHE:
@@ -450,7 +450,7 @@ class InternalStorage:
         :param runtime: name of the runtime
         :param runtime_meta metadata
         """
-        path = [RUNTIMES_PREFIX, key+".meta.json"]
+        path = [RUNTIMES_PREFIX, key + ".meta.json"]
         obj_key = '/'.join(path).replace('\\', '/')
         logger.debug("Uploading runtime metadata to: {}://{}/{}"
                      .format(self.backend, self.bucket, obj_key))
@@ -472,7 +472,7 @@ class InternalStorage:
         :param runtime: name of the runtime
         :param runtime_meta metadata
         """
-        path = [RUNTIMES_PREFIX, key+".meta.json"]
+        path = [RUNTIMES_PREFIX, key + ".meta.json"]
         obj_key = '/'.join(path).replace('\\', '/')
         filename_local_path = os.path.join(CACHE_DIR, *path)
         if os.path.exists(filename_local_path):

@@ -667,8 +667,8 @@ def wait(object_list, timeout=None):
         ready = []
         for client, handle in object_list:
             if handle.startswith(REDIS_LIST_CONN):
-                l = client.llen(handle)
-                if l > 0:
+                llen = client.llen(handle)
+                if llen > 0:
                     ready.append((client, handle))
             elif handle.startswith(REDIS_PUBSUB_CONN) and client.connection.can_read():
                 ready.append((client, handle))

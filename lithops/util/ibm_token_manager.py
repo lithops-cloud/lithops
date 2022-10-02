@@ -69,7 +69,7 @@ class IBMTokenManager:
         """
         if (self._token_manager._is_expired() or self._is_token_expired()) \
            and not is_lithops_worker():
-            logger.debug("Token expired. Requesting new token".format(self.api_key_type))
+            logger.debug("Token expired. Requesting new token")
             self._generate_new_token()
 
         token = self._token_manager._token

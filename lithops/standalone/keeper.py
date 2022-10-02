@@ -65,7 +65,7 @@ class BudgetKeeper(threading.Thread):
             time_since_last_usage = time.time() - self.last_usage_time
 
             for job_key in self.jobs.keys():
-                done = os.path.join(JOBS_DIR, job_key+'.done')
+                done = os.path.join(JOBS_DIR, job_key + '.done')
                 if os.path.isfile(done):
                     self.jobs[job_key] = 'done'
 

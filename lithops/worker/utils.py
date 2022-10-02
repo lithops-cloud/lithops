@@ -102,7 +102,7 @@ def get_function_data(job, internal_storage):
         if job.data_byte_ranges is not None:
             for dbr in job.data_byte_ranges:
                 length = dbr[1] - dbr[0] + 1
-                loaded_data.append(data_obj[offset:offset+length])
+                loaded_data.append(data_obj[offset:offset + length])
                 offset += length
         else:
             loaded_data.append(data_obj)
@@ -194,7 +194,7 @@ def get_runtime_metadata():
     mods = list(pkgutil.iter_modules())
     runtime_meta["preinstalls"] = [entry for entry in sorted([[mod, is_pkg] for _, mod, is_pkg in mods])]
     python_version = sys.version_info
-    runtime_meta["python_version"] = str(python_version[0])+"."+str(python_version[1])
+    runtime_meta["python_version"] = str(python_version[0]) + "." + str(python_version[1])
     runtime_meta["lithops_version"] = lithops_ver
 
     return runtime_meta
@@ -209,7 +209,7 @@ def memory_monitor_worker(mm_conn, delay=0.01):
     logger.debug("Starting memory monitor")
 
     def make_measurement(peak):
-        mem = get_memory_usage(formatted=False) + 5*1024**2
+        mem = get_memory_usage(formatted=False) + 5 * 1024**2
         if mem > peak:
             peak = mem
         return peak
