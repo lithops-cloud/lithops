@@ -154,7 +154,7 @@ class JobRunner:
                 if obj.data_byte_range is not None:
                     first_byte, last_byte = obj.data_byte_range
                     f.seek(first_byte)
-                    stream = io.BytesIO(f.read(last_byte-first_byte+1))
+                    stream = io.BytesIO(f.read(last_byte - first_byte + 1))
                 else:
                     stream = io.BytesIO(f.read())
             stream_body = stream
@@ -174,7 +174,7 @@ class JobRunner:
                 obj.data_byte_range = (first_byte, last_byte)
         else:
             first_byte = 0
-            last_byte = obj.chunk_size-1
+            last_byte = obj.chunk_size - 1
             obj.data_byte_range = (0, last_byte)
         
         logger.info(f'Chunk: {obj.part}/{obj.total_parts} - Size: {obj.chunk_size} - Range: {first_byte}-{last_byte}')
@@ -199,7 +199,7 @@ class JobRunner:
         Runs the function
         """
         # self.stats.write('worker_jobrunner_start_tstamp', time.time())
-        self.stats.write('worker_peak_memory_start',  peak_memory())
+        self.stats.write('worker_peak_memory_start', peak_memory())
         logger.debug("Process started")
         result = None
         exception = False
@@ -240,7 +240,7 @@ class JobRunner:
 
             self.stats.write('worker_func_start_tstamp', function_start_tstamp)
             self.stats.write('worker_func_end_tstamp', function_end_tstamp)
-            self.stats.write('worker_func_exec_time', round(function_end_tstamp-function_start_tstamp, 8))
+            self.stats.write('worker_func_exec_time', round(function_end_tstamp - function_start_tstamp, 8))
 
             # Check for new futures
             if result is not None:
@@ -290,7 +290,7 @@ class JobRunner:
 
         finally:
             # self.stats.write('worker_jobrunner_end_tstamp', time.time())
-            self.stats.write('worker_peak_memory_end',  peak_memory())
+            self.stats.write('worker_peak_memory_end', peak_memory())
             self.prometheus.send_metric(
                 name='function_end',
                 value=time.time(),

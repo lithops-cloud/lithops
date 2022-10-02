@@ -55,7 +55,7 @@ def stop(job_key):
     if job_key == last_job_key:
         logger.debug(f'Received SIGTERM: Stopping job process {job_key}')
         localhos_handler.clear()
-        done = os.path.join(JOBS_DIR, job_key+'.done')
+        done = os.path.join(JOBS_DIR, job_key + '.done')
         Path(done).touch()
     response = flask.jsonify({'response': 'cancel'})
     response.status_code = 200
@@ -68,7 +68,7 @@ def wait_job_completed(job_key):
     """
     global budget_keeper
 
-    done = os.path.join(JOBS_DIR, job_key+'.done')
+    done = os.path.join(JOBS_DIR, job_key + '.done')
     while True:
         if os.path.isfile(done):
             os.remove(done)
@@ -103,7 +103,7 @@ def run_worker(master_ip, work_queue):
                 time.sleep(1)
                 continue
             else:
-                logger.debug('All tasks completed'.format(url))
+                logger.debug(f'All tasks completed from {url}')
                 return
 
         job_payload = resp.json()

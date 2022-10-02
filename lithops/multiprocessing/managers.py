@@ -426,7 +426,7 @@ class ListProxy(BaseProxy):
     def __deepcopy__(self, memo):
         selfcopy = type(self)()
 
-        # We should test the DUMP/RESTORE strategy 
+        # We should test the DUMP/RESTORE strategy
         # although it has serialization costs
         selfcopy._extend_same_type(self)
 
@@ -604,12 +604,12 @@ class DictProxy(BaseProxy):
             try:
                 for k in args[0].keys():
                     items.extend((k, self._pickler.dumps(args[0][k])))
-            except:
+            except Exception:
                 try:
                     items = []  # just in case
                     for k, v in args[0]:
                         items.extend((k, self._pickler.dumps(v)))
-                except:
+                except Exception:
                     raise TypeError(type(args[0]))
 
         for k in kwargs.keys():

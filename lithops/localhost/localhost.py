@@ -147,7 +147,7 @@ class LocalhostHandler:
         runtime_key = os.path.join('localhost', __version__, env_type, runtime_name.strip("/"))
 
         return runtime_key
-    
+
     def get_runtime_info(self):
         """
         Method that returns a dictionary with all the relevant runtime information

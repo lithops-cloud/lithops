@@ -57,9 +57,9 @@ def clean_executor_jobs(executor_id, executor_data):
         objects = storage.list_keys(storage.bucket, prefix)
 
         objects_to_delete = [
-                key for key in objects
-                if '-'.join(key.split('/')[1].split('-')[0:3])
-                in data['jobs_to_clean']
+            key for key in objects
+            if '-'.join(key.split('/')[1].split('-')[0:3])
+            in data['jobs_to_clean']
         ]
 
         while objects_to_delete:
@@ -111,7 +111,7 @@ def clean_functions(functions_data):
     logger.info(f'Going to clean functions from {executor_id}')
     storage_config = data['storage_config']
     storage = Storage(storage_config=storage_config)
-    prefix = '/'.join([JOBS_PREFIX, executor_id])+'/'
+    prefix = '/'.join([JOBS_PREFIX, executor_id]) + '/'
     key_list = storage.list_keys(storage.bucket, prefix)
     storage.delete_objects(storage.bucket, key_list)
 

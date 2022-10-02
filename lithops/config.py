@@ -23,7 +23,7 @@ import logging
 
 from lithops import constants as c
 from lithops.version import __version__
-from lithops.utils import verify_runtime_name, get_mode, get_default_backend
+from lithops.utils import get_mode, get_default_backend
 from builtins import FileNotFoundError
 
 logger = logging.getLogger(__name__)

@@ -104,7 +104,7 @@ class Invoker:
 
         msg = ('ExecutorID {} | JobID {} - Selected Runtime: {} '
                .format(self.executor_id, job_id, self.runtime_name))
-        msg = msg+'- {}MB'.format(runtime_memory) if runtime_memory else msg
+        msg = msg + '- {}MB'.format(runtime_memory) if runtime_memory else msg
         logger.info(msg)
 
         runtime_key = self.compute_handler.get_runtime_key(self.runtime_name, runtime_memory)
@@ -112,8 +112,8 @@ class Invoker:
 
         if not runtime_meta:
             msg = 'Runtime {}'.format(self.runtime_name)
-            msg = msg+' with {}MB'.format(runtime_memory) if runtime_memory else msg
-            logger.info(msg+' is not yet deployed')
+            msg = msg + ' with {}MB'.format(runtime_memory) if runtime_memory else msg
+            logger.info(msg + ' is not yet deployed')
             runtime_meta = self.compute_handler.deploy_runtime(self.runtime_name, runtime_memory, runtime_timeout)
             runtime_meta['runtime_timeout'] = runtime_timeout
             self.internal_storage.put_runtime_meta(runtime_key, runtime_meta)
@@ -204,7 +204,7 @@ class Invoker:
             self.stop()
             raise e
 
-        log_file = os.path.join(LOGS_DIR, job.job_key+'.log')
+        log_file = os.path.join(LOGS_DIR, job.job_key + '.log')
         logger.info("ExecutorID {} | JobID {} - View execution logs at {}"
                     .format(job.executor_id, job.job_id, log_file))
 

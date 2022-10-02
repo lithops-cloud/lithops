@@ -64,21 +64,21 @@ def create_timeline(fs, dst):
     legend = pylab.legend(handles=patches, loc='upper right', frameon=True)
     legend.get_frame().set_facecolor('#FFFFFF')
 
-    yplot_step = int(np.max([1, total_calls/20]))
-    y_ticks = np.arange(total_calls//yplot_step + 2) * yplot_step
+    yplot_step = int(np.max([1, total_calls / 20]))
+    y_ticks = np.arange(total_calls // yplot_step + 2) * yplot_step
     ax.set_yticks(y_ticks)
-    ax.set_ylim(-0.02*total_calls, total_calls*1.02)
+    ax.set_ylim(-0.02 * total_calls, total_calls * 1.02)
     for y in y_ticks:
         ax.axhline(y, c='k', alpha=0.1, linewidth=1)
 
     if 'host_result_done_tstamp' in stats_df:
-        max_seconds = np.max(stats_df.host_result_done_tstamp - host_job_create_tstamp)*1.25
+        max_seconds = np.max(stats_df.host_result_done_tstamp - host_job_create_tstamp) * 1.25
     elif 'host_status_done_tstamp' in stats_df:
-        max_seconds = np.max(stats_df.host_status_done_tstamp - host_job_create_tstamp)*1.25
+        max_seconds = np.max(stats_df.host_status_done_tstamp - host_job_create_tstamp) * 1.25
     else:
-        max_seconds = np.max(stats_df.end_tstamp - host_job_create_tstamp)*1.25
-    xplot_step = max(int(max_seconds/8), 1)
-    x_ticks = np.arange(max_seconds//xplot_step + 2) * xplot_step
+        max_seconds = np.max(stats_df.end_tstamp - host_job_create_tstamp) * 1.25
+    xplot_step = max(int(max_seconds / 8), 1)
+    x_ticks = np.arange(max_seconds // xplot_step + 2) * xplot_step
     ax.set_xlim(0, max_seconds)
 
     ax.set_xticks(x_ticks)
@@ -103,7 +103,7 @@ def create_histogram(fs, dst):
     host_job_create_tstamp = min([cm['host_job_create_tstamp'] for cm in stats])
 
     total_calls = len(stats)
-    max_seconds = int(max([cs['worker_end_tstamp']-host_job_create_tstamp for cs in stats])*2.5)
+    max_seconds = int(max([cs['worker_end_tstamp'] - host_job_create_tstamp for cs in stats]) * 2.5)
 
     runtime_bins = np.linspace(0, max_seconds, max_seconds)
 
@@ -121,7 +121,7 @@ def create_histogram(fs, dst):
             s = start_time[i]
             e = end_time[i]
             a, b = np.searchsorted(runtime_bins, [s, e])
-            if b-a > 0:
+            if b - a > 0:
                 runtime_calls_hist[i, a:b] = 1
 
         return {'start_tstamp': start_time,
@@ -144,13 +144,13 @@ def create_histogram(fs, dst):
 
     ax.plot(runtime_bins, time_hist['runtime_calls_hist'].sum(axis=0), label='Total Active Calls', zorder=-1)
 
-    yplot_step = int(np.max([1, total_calls/20]))
-    y_ticks = np.arange(total_calls//yplot_step + 2) * yplot_step
+    yplot_step = int(np.max([1, total_calls / 20]))
+    y_ticks = np.arange(total_calls // yplot_step + 2) * yplot_step
     ax.set_yticks(y_ticks)
-    ax.set_ylim(-0.02*total_calls, total_calls*1.02)
+    ax.set_ylim(-0.02 * total_calls, total_calls * 1.02)
 
-    xplot_step = max(int(max_seconds/8), 1)
-    x_ticks = np.arange(max_seconds//xplot_step + 2) * xplot_step
+    xplot_step = max(int(max_seconds / 8), 1)
+    x_ticks = np.arange(max_seconds // xplot_step + 2) * xplot_step
     ax.set_xlim(0, max_seconds)
     ax.set_xticks(x_ticks)
     for x in x_ticks:
