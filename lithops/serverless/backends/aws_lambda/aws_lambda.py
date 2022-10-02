@@ -113,11 +113,6 @@ class AWSLambdaBackend:
         return '_'.join([self.package, runtime_name, 'layer'])
 
     def _get_default_runtime_name(self):
-        if utils.CURRENT_PY_VERSION not in config.AVAILABLE_PY_RUNTIMES:
-            raise Exception(f'Python {utils.CURRENT_PY_VERSION} is not available '
-                f' for AWS Lambda, please use one of {config.AVAILABLE_PY_RUNTIMES.keys()}, '
-                'or use a container runtime.')
-
         py_version = utils.CURRENT_PY_VERSION.replace('.', '')
         return f'lithops-default-runtime-v{py_version}'
 
@@ -473,7 +468,7 @@ class AWSLambdaBackend:
             image = list(filter(lambda image: 'imageTags' in image and tag in image['imageTags'], images)).pop()
             image_digest = image['imageDigest']
         except botocore.exceptions.ClientError:
-            raise Exception(f'Runtime {runtime_name} is not deployed to ECR')
+            raise Exception(f'Runtime "{runtime_name}" is not deployed to ECR')
 
         registry = f'{self.account_id}.dkr.ecr.{self.region_name}.amazonaws.com'
         image_uri = f'{registry}/{repo_name}@{image_digest}'
@@ -693,6 +688,12 @@ class AWSLambdaBackend:
         in config
         """
         if 'runtime' not in self.lambda_config or self.lambda_config['runtime'] == 'default':
+            if utils.CURRENT_PY_VERSION not in config.AVAILABLE_PY_RUNTIMES:
+                raise Exception(
+                    f'Python {utils.CURRENT_PY_VERSION} is not available '
+                    f'for AWS Lambda, please use one of {list(config.AVAILABLE_PY_RUNTIMES.keys())},'
+                    ' or use a container runtime.'
+                )
             self.lambda_config['runtime'] = self._get_default_runtime_name()
 
         runtime_info = {

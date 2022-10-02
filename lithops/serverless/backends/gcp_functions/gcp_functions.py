@@ -392,8 +392,10 @@ class GCPFunctionsBackend:
         in config
         """
         if utils.CURRENT_PY_VERSION not in config.AVAILABLE_PY_RUNTIMES:
-            raise Exception(f'Python {utils.CURRENT_PY_VERSION} is not available for Google Cloud '
-                            f'Functions. Please use one of {config.AVAILABLE_PY_RUNTIMES.keys()}')
+            raise Exception(
+                f'Python {utils.CURRENT_PY_VERSION} is not available for Google Cloud '
+                f'Functions. Please use one of {list(config.AVAILABLE_PY_RUNTIMES.keys())}'
+            )
 
         if 'runtime' not in self.gcf_config or self.gcf_config['runtime'] == 'default':
             self.gcf_config['runtime'] = self._get_default_runtime_name()

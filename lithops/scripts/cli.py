@@ -102,7 +102,7 @@ def clean(config, backend, storage, debug, all, force):
 
     # Clean object storage temp dirs
     storage = internal_storage.storage
-    runtimes_path = RUNTIMES_PREFIX if all else RUNTIMES_PREFIX+'/'+backend
+    runtimes_path = RUNTIMES_PREFIX if all else RUNTIMES_PREFIX + '/' + backend
     jobs_path = JOBS_PREFIX
     clean_bucket(storage, storage_config['bucket'], runtimes_path, sleep=1)
     clean_bucket(storage, storage_config['bucket'], jobs_path, sleep=1)

@@ -372,8 +372,10 @@ class AzureFunctionAppBackend:
         in config
         """
         if utils.CURRENT_PY_VERSION not in config.AVAILABLE_PY_RUNTIMES:
-            raise Exception(f'Python {utils.CURRENT_PY_VERSION} is not available for Azure '
-                            f'Functions. Please use one of {config.AVAILABLE_PY_RUNTIMES}')
+            raise Exception(
+                f'Python {utils.CURRENT_PY_VERSION} is not available for Azure '
+                f'Functions. Please use one of {list(config.AVAILABLE_PY_RUNTIMES)}'
+            )
 
         if 'runtime' not in self.af_config or self.af_config['runtime'] == 'default':
             self.af_config['runtime'] = self._get_default_runtime_name()
