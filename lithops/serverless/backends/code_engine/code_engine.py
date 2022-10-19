@@ -55,8 +55,7 @@ def retry_on_except(func):
                         body = json.loads(e.body)
                         if body.get('reason') in {'AlreadyExists', 'Conflict'} or 'already exists' in body.get('message'):
                             logger.debug("Encountered conflict error {}, ignoring".format(body.get('message')))
-
-                    if e.status == 500:
+                    elif e.status == 500:
                         ex = e
                         logger.exception((f'Got exception {e}, retrying for the {retry} time, left retries {connection_retries - 1 - retry}'))
                     else:
@@ -295,10 +294,11 @@ class CodeEngineBackend:
         runtimes = []
         try:
             jobdefs = self.custom_api.list_namespaced_custom_object(
-                            group=config.DEFAULT_GROUP,
-                            version=config.DEFAULT_VERSION,
-                            namespace=self.namespace,
-                            plural="jobdefinitions")
+                group=config.DEFAULT_GROUP,
+                version=config.DEFAULT_VERSION,
+                namespace=self.namespace,
+                plural="jobdefinitions"
+            )
         except ApiException as e:
             logger.debug(f"List all jobdefinitions failed with {e.status} {e.reason}")
             return runtimes
@@ -637,7 +637,7 @@ class CodeEngineBackend:
         if failed:
             raise Exception("Unable to extract Python preinstalled modules from the runtime")
 
-        data_key = '/'.join([JOBS_PREFIX, jobdef_name+'.meta'])
+        data_key = '/'.join([JOBS_PREFIX, jobdef_name + '.meta'])
         json_str = self.internal_storage.get_data(key=data_key)
         runtime_meta = json.loads(json_str.decode("ascii"))
         self.internal_storage.del_data(key=data_key)
