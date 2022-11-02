@@ -98,8 +98,9 @@ knative:
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|knative | ingress_endpoint | |no | Ingress endpoint. Make sure to use http:// prefix |
 |knative | kubecfg_path | |no | Path to kubecfg file. Mandatory if config file not in `~/.kube/config` or KUBECONFIG env var not present|
+|knative | networking_layer | kourier |no | One of: **kourier** or **istio**  |
+|knative | ingress_endpoint | |no | Ingress endpoint. Make sure to use http:// prefix |
 |knative | docker_server | docker.io |no | Docker server URL |
 |knative | docker_user | |no | Docker hub username |
 |knative | docker_password | |no | Login to your docker hub account and generate a new access token [here](https://hub.docker.com/settings/security)|
