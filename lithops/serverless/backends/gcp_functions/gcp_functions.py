@@ -243,17 +243,12 @@ class GCPFunctionsBackend:
         if not requirements_file:
             raise Exception('Please provide a "requirements.txt" file with the necessary modules')
 
-        try:
-            entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
-            utils.create_handler_zip(config.FH_ZIP_LOCATION, entry_point, 'main.py')
-            with zipfile.ZipFile(config.FH_ZIP_LOCATION, 'a') as lithops_zip:
-                lithops_zip.write(requirements_file, 'requirements.txt', zipfile.ZIP_DEFLATED)
-            with open(config.FH_ZIP_LOCATION, "rb") as action_zip:
-                action_bin = action_zip.read()
-            bin_location = self._get_runtime_bin_location(runtime_name)
-            self.internal_storage.put_data(bin_location, action_bin)
-        finally:
-            os.remove(config.FH_ZIP_LOCATION)
+        entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
+        runtime_path = config.FH_ZIP_LOCATION.format(runtime_name)
+        os.makedirs(os.path.dirname(runtime_path), exist_ok=True)
+        utils.create_handler_zip(runtime_path, entry_point, 'main.py')
+        with zipfile.ZipFile(runtime_path, 'a') as lithops_zip:
+            lithops_zip.write(requirements_file, 'requirements.txt', zipfile.ZIP_DEFLATED)
 
         logger.debug(f'Runtime {runtime_name} built successfuly')
 
@@ -274,6 +269,15 @@ class GCPFunctionsBackend:
 
         if runtime_name == self._get_default_runtime_name():
             self._build_default_runtime(runtime_name)
+
+        try:
+            runtime_path = config.FH_ZIP_LOCATION.format(runtime_name)
+            with open(runtime_path, "rb") as action_zip:
+                action_bin = action_zip.read()
+            bin_location = self._get_runtime_bin_location(runtime_name)
+            self.internal_storage.put_data(bin_location, action_bin)
+        finally:
+            os.remove(runtime_path)
 
         self._create_function(runtime_name, memory, timeout)
 
