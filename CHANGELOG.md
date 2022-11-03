@@ -17,6 +17,7 @@
 - [Multiprocessing] Fix 'cpu_count' function from multiprocessing API
 - [Code Engine] Add CE conflict exception to retriables
 - [Core] Show logs from module_dependency.py
+- [GCP Functions] Fix runtime_build command
 
 
 ## [v2.7.0]

@@ -18,7 +18,7 @@ import os
 
 from lithops.constants import TEMP_DIR
 
-FH_ZIP_LOCATION = os.path.join(TEMP_DIR, 'lithops_gcp_functions.zip')
+FH_ZIP_LOCATION = os.path.join(TEMP_DIR, 'lithops_gcp_functions/{}.zip')
 SCOPES = ('https://www.googleapis.com/auth/cloud-platform',
           'https://www.googleapis.com/auth/pubsub')
 FUNCTIONS_API_VERSION = 'v1'
