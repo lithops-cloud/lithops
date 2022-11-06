@@ -21,27 +21,17 @@ An alternative mode of configuration is to use a python dictionary. This option 
 ## Compute and Storage backends
 Choose your compute and storage engines from the table below
 
-
 <table>
 <tr>
 <th align="center">
-<img width="441" height="1px">
 <p> 
 <small>
-Standalone Compute Backends
+Compute Backends
 </small>
 </p>
 </th>
+	
 <th align="center">
-<img width="441" height="1px">
-<p> 
-<small>
-Serverless Compute Backends
-</small>
-</p>
-</th>
-<th align="center">
-<img width="441" height="1">
 <p> 
 <small>
 Storage Backends
@@ -49,17 +39,13 @@ Storage Backends
 </p>
 </th>
 </tr>
+
 <tr>
-<td>
+<td valign="top">
 
 - [Localhost](../docs/source/compute_config/localhost.md)
-- [Remote Virtual Machine](../docs/source/compute_config/vm.md)
-- [IBM Virtual Private Cloud](../docs/source/compute_config/ibm_vpc.md)
-- [AWS Elastic Compute Cloud (EC2)](../docs/source/compute_config/aws_ec2.md)
-
-</td>
-<td>
-
+	</p>
+<b>Serverless Backends:</b>
 - [IBM Cloud Functions](../docs/source/compute_config/ibm_cf.md)
 - [IBM Code Engine](../docs/source/compute_config/code_engine.md)
 - [Kubernetes Jobs](../docs/source/compute_config/k8s_job.md)
@@ -72,9 +58,14 @@ Storage Backends
 - [Azure Functions](../docs/source/compute_config/azure_functions.md)
 - [Azure Container APPs](../docs/source/compute_config/azure_containers.md)
 - [Aliyun functions](../docs/source/compute_config/aliyun_functions.md)
+	</p>
+<b>Standalone Backends:</b>
+- [Remote Virtual Machine](../docs/source/compute_config/vm.md)
+- [IBM Virtual Private Cloud](../docs/source/compute_config/ibm_vpc.md)
+- [AWS Elastic Compute Cloud (EC2)](../docs/source/compute_config/aws_ec2.md)
 
 </td>
-<td>
+<td valign="top">
 
 - [IBM Cloud Object Storage](../docs/source/storage_config/ibm_cos.md)
 - [AWS S3](../docs/source/storage_config/aws_s3.md)
