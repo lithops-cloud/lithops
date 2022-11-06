@@ -9,7 +9,7 @@ In localhost, Lithops will use local CPUs to run functions in parallel. In this 
 ```yaml
 lithops:
     backend: localhost
-    storage: localhost  # You can also point it to a public storage backend, such as aws_s3 or ibm_cos
+    storage: localhost  # You can also set it to a public storage backend, such as aws_s3 or ibm_cos
 ```
 
 ## Execution Environments
