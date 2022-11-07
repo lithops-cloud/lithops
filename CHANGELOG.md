@@ -18,6 +18,7 @@
 - [Code Engine] Add CE conflict exception to retriables
 - [Core] Show logs from module_dependency.py
 - [GCP Functions] Fix runtime_build command
+- [Infinispan] Fix infinispan storage backend
 
 
 ## [v2.7.0]
