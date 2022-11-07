@@ -65,8 +65,8 @@ To run this endpoint you need to compile and install the Infinispan python clien
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|infinispan | endpoint | |yes | Endpoint to your Infinispan server |
-|infinispan | username | |yes | The username |
-|infinispan | password | |yes | The password |
-|infinispan | cache_names | | no | Cache names list. Each bucket will be mapped on a different cache with the same name # Optional ['storage'] in default value |
+|infinispan_hotrod | endpoint | |yes | Endpoint to your Infinispan server |
+|infinispan_hotrod | username | |yes | The username |
+|infinispan_hotrod | password | |yes | The password |
+|infinispan_hotrod | cache_names | | no | Cache names list. Each bucket will be mapped on a different cache with the same name # Optional ['storage'] in default value |
 

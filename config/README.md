@@ -67,16 +67,21 @@ Storage Backends
 </td>
 <td valign="top">
 
+- [Localhost](../docs/source/compute_config/localhost.md)
+	</p>
+<b>Object Storage:</b>
 - [IBM Cloud Object Storage](../docs/source/storage_config/ibm_cos.md)
 - [AWS S3](../docs/source/storage_config/aws_s3.md)
 - [Google Cloud Storage](../docs/source/storage_config/gcp_storage.md)
 - [Azure Blob Storage](../docs/source/storage_config/azure_blob.md)
 - [Aliyun Object Storage Service](../docs/source/storage_config/aliyun_oss.md)
-- [Infinispan](../docs/source/storage_config/infinispan.md)
 - [Ceph](../docs/source/storage_config/ceph.md)
 - [MinIO](../docs/source/storage_config/minio.md)
-- [Redis](../docs/source/storage_config/redis.md)
 - [OpenStack Swift](../docs/source/storage_config/swift.md)
+	</p>
+<b>In-Memory Storage:</b>
+- [Redis](../docs/source/storage_config/redis.md)
+- [Infinispan](../docs/source/storage_config/infinispan.md)
 
 </td>
 </tr>

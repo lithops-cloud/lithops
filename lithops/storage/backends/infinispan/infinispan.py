@@ -39,12 +39,11 @@ class InfinispanBackend:
         logger.debug("Creating Infinispan storage client")
         self.infinispan_config = infinispan_config
         self.mech = infinispan_config.get('auth_mech', 'DIGEST')
-        match self.mech:
-            case 'DIGEST':
-                self.auth = HTTPDigestAuth(infinispan_config.get('username'),
+        if self.mech == 'DIGEST':
+            self.auth = HTTPDigestAuth(infinispan_config.get('username'),
                                        infinispan_config.get('password'))
-            case 'BASIC':
-                self.auth = HTTPBasicAuth(infinispan_config.get('username'),
+        elif self.mech == 'BASIC':
+            self.auth = HTTPBasicAuth(infinispan_config.get('username'),
                                        infinispan_config.get('password'))
         self.endpoint = infinispan_config.get('endpoint')
         self.cache_names = infinispan_config.get('cache_names', ['storage'])
