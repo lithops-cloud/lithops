@@ -59,12 +59,14 @@ class SerializeIndependent:
 
         # Add modules
         direct_modules = set()
+        mod_paths = set()
         for module_name in mods:
             if module_name in ['__main__', None]:
                 continue
             try:
                 mod_spec = importlib.util.find_spec(module_name)
                 origin = mod_spec.origin if mod_spec else None
+                mod_paths.add(origin) if origin.endswith('.so') else None
                 direct_modules.add(origin if origin not in ['built-in', None] else module_name)
                 self._modulemgr.add(module_name)
             except Exception:
@@ -72,7 +74,7 @@ class SerializeIndependent:
 
         logger.debug("Referenced modules: {}".format(None if not direct_modules
                                                      else ", ".join(direct_modules)))
-        mod_paths = set()
+
         if include_modules is not None:
             tent_mod_paths = self._modulemgr.get_and_clear_paths()
             if include_modules:
@@ -85,7 +87,7 @@ class SerializeIndependent:
                             mod_paths.add(mp)
                             break
             else:
-                mod_paths = tent_mod_paths
+                mod_paths.union(tent_mod_paths)
 
         logger.debug("Modules to transmit: {}"
                      .format(None if not mod_paths else ", ".join(mod_paths)))

@@ -4,6 +4,7 @@
 
 ### Added
 - [Google Cloud Functions] Added Python 3.10 runtime compatibility
+- [Core] Allow to automatically transfer .so (cythonized .py) files if referneced in the code
 
 ### Changed
 - [IBM VPC] Make 'image_id' mandatory in config
@@ -19,6 +20,7 @@
 - [Core] Show logs from module_dependency.py
 - [GCP Functions] Fix runtime_build command
 - [Infinispan] Fix infinispan storage backend
+- [Core] Detect a Class if passed as a lithops input function
 
 
 ## [v2.7.0]
