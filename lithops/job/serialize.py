@@ -123,7 +123,10 @@ class SerializeIndependent:
             members = inspect.getmembers(obj)
             found_methods = []
             for k, v in members:
-                if inspect.ismethod(v) and inspect.isfunction(v.__func__):
+                if inspect.isfunction(v):
+                    found_methods.append(k)
+                    worklist.append(v)
+                elif inspect.ismethod(v) and inspect.isfunction(v.__func__):
                     found_methods.append(k)
                     worklist.append(v)
             if "__call__" not in found_methods:
