@@ -66,8 +66,9 @@ class SerializeIndependent:
             try:
                 mod_spec = importlib.util.find_spec(module_name)
                 origin = mod_spec.origin if mod_spec else None
-                if origin.endswith('.so'):
-                    if origin not in exclude_modules and os.path.basename(origin) not in exclude_modules:
+                if origin and origin.endswith('.so'):
+                    if origin not in exclude_modules and \
+                       os.path.basename(origin) not in exclude_modules:
                         mod_paths.add(origin)
                 else:
                     self._modulemgr.add(module_name)
