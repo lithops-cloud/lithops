@@ -59,20 +59,26 @@ class SerializeIndependent:
 
         # Add modules
         direct_modules = set()
+        mod_paths = set()
         for module_name in mods:
             if module_name in ['__main__', None]:
                 continue
             try:
                 mod_spec = importlib.util.find_spec(module_name)
                 origin = mod_spec.origin if mod_spec else None
+                if origin and origin.endswith('.so'):
+                    if origin not in exclude_modules and \
+                       os.path.basename(origin) not in exclude_modules:
+                        mod_paths.add(origin)
+                else:
+                    self._modulemgr.add(module_name)
                 direct_modules.add(origin if origin not in ['built-in', None] else module_name)
-                self._modulemgr.add(module_name)
             except Exception:
                 pass
 
         logger.debug("Referenced modules: {}".format(None if not direct_modules
                                                      else ", ".join(direct_modules)))
-        mod_paths = set()
+
         if include_modules is not None:
             tent_mod_paths = self._modulemgr.get_and_clear_paths()
             if include_modules:
@@ -85,7 +91,7 @@ class SerializeIndependent:
                             mod_paths.add(mp)
                             break
             else:
-                mod_paths = tent_mod_paths
+                mod_paths.union(tent_mod_paths)
 
         logger.debug("Modules to transmit: {}"
                      .format(None if not mod_paths else ", ".join(mod_paths)))
@@ -123,7 +129,10 @@ class SerializeIndependent:
             members = inspect.getmembers(obj)
             found_methods = []
             for k, v in members:
-                if inspect.ismethod(v) and inspect.isfunction(v.__func__):
+                if inspect.isfunction(v):
+                    found_methods.append(k)
+                    worklist.append(v)
+                elif inspect.ismethod(v) and inspect.isfunction(v.__func__):
                     found_methods.append(k)
                     worklist.append(v)
             if "__call__" not in found_methods:

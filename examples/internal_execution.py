@@ -7,7 +7,7 @@ import time
 
 
 def my_map_function(id, x):
-    print("I'm activation number {}".format(id))
+    print(f"I'm activation number {id}")
     time.sleep(3)
     return x + 7
 

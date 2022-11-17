@@ -6,7 +6,7 @@ import lithops
 
 
 def my_map_function(x):
-    print("I'm activation number {}".format(id))
+    print(f"I'm activation number {id}")
     return x + 7
 
 

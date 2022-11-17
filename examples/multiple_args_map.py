@@ -22,15 +22,15 @@ def my_map_function(x, y):
 def sum_list(list_of_numbers):
     total = 0
     for num in list_of_numbers:
-        total = total+num
+        total = total + num
     return total
 
 
 def sum_list_mult(list_of_numbers, x):
     total = 0
     for num in list_of_numbers:
-        total = total+num
-    return total*x
+        total = total + num
+    return total * x
 
 
 if __name__ == "__main__":

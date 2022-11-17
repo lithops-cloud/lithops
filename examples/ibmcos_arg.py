@@ -6,7 +6,7 @@ import lithops
 
 
 def my_function(bucket_name, key, ibm_cos):
-    print('I am processing the object cos://{}/{}'.format(bucket_name, key))
+    print(f'I am processing the object cos://{bucket_name}/{key}')
     counter = {}
 
     data = ibm_cos.get_object(Bucket=bucket_name, Key=key)['Body'].read()

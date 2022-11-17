@@ -7,8 +7,8 @@ import lithops
 
 
 def my_function_put(text, storage):
-    co1 = storage.put_cloudobject('Cloudobject test 1: {}'.format(text, ))
-    co2 = storage.put_cloudobject('Cloudobject test 2: {}'.format(text, ))
+    co1 = storage.put_cloudobject(f'Cloudobject test 1: {text}')
+    co2 = storage.put_cloudobject(f'Cloudobject test 2: {text}')
     return [co1, co2]
 
 
