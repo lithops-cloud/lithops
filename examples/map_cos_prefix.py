@@ -22,9 +22,9 @@ data_location = 'cos://lithops-sample-data/test/'  # Change-me
 
 
 def my_map_function(obj):
-    print('Bucket: {}'.format(obj.bucket))
-    print('Key: {}'.format(obj.key))
-    print('Partition num: {}'.format(obj.part))
+    print(f'Bucket: {obj.bucket}')
+    print(f'Key: {obj.key}')
+    print(f'Partition num: {obj.part}')
     counter = {}
 
     data = obj.data_stream.read()

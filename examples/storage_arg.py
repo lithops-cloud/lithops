@@ -6,7 +6,7 @@ import lithops
 
 
 def my_function(bucket_name, obj_key, storage):
-    print('I am processing the object //{}/{}'.format(bucket_name, obj_key))
+    print(f'I am processing the object //{bucket_name}/{obj_key}')
     counter = {}
 
     data = storage.get_object(bucket_name, obj_key)

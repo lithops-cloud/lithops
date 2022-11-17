@@ -32,7 +32,7 @@ DATA_URLS = ['https://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-w
 
 
 def my_map_function(obj):
-    print('I am processing the object from {}'.format(obj.path))
+    print(f'I am processing the object from {obj.path}')
     counter = {}
 
     data = obj.data_stream.read()

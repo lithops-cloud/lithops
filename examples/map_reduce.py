@@ -12,7 +12,7 @@ iterdata = [1, 2, 3, 4, 5]
 
 
 def my_map_function(x):
-    time.sleep(x*2)
+    time.sleep(x * 2)
     return x + 7
 
 

@@ -29,7 +29,7 @@ iterdata = ['https://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-wo
 
 
 def my_map_function(obj):
-    print('I am processing the object from {}'.format(obj.url))
+    print(f'I am processing the object from {obj.url}')
     counter = {}
 
     data = obj.data_stream.read()
