@@ -74,7 +74,8 @@ class SerializeIndependent:
                     self._modulemgr.add(module_name)
                 direct_modules.add(origin if origin not in ['built-in', None] else module_name)
             except Exception:
-                pass
+                direct_modules.add(module_name)
+                self._modulemgr.add(module_name)
 
         logger.debug("Referenced modules: {}".format(None if not direct_modules
                                                      else ", ".join(direct_modules)))
@@ -91,7 +92,7 @@ class SerializeIndependent:
                             mod_paths.add(mp)
                             break
             else:
-                mod_paths.union(tent_mod_paths)
+                mod_paths = mod_paths.union(tent_mod_paths)
 
         logger.debug("Modules to transmit: {}"
                      .format(None if not mod_paths else ", ".join(mod_paths)))
@@ -124,6 +125,13 @@ class SerializeIndependent:
                         for k, v in members:
                             if inspect.ismethod(v) and inspect.isfunction(v.__func__):
                                 worklist.append(v)
+
+        elif type(obj).__name__ == 'cython_function_or_method':
+            members = inspect.getmembers(obj)
+            for k, v in members:
+                if k == '__code__' and hasattr(v, 'co_filename'):
+                    mods.add(v.co_filename.replace('.py', ''))
+
         else:
             # The obj is the user's function but in form of a class
             members = inspect.getmembers(obj)
@@ -218,7 +226,7 @@ def create_module_data(mod_paths):
             f = os.path.abspath(f)
             with open(f, 'rb') as file:
                 mod_str = file.read()
-            dest_filename = Path(f[len(pkg_root)+1:]).as_posix()
+            dest_filename = Path(f[len(pkg_root) + 1:]).as_posix()
             module_data[dest_filename] = bytes_to_b64str(mod_str)
 
     return module_data
