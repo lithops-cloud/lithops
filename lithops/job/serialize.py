@@ -129,7 +129,6 @@ class SerializeIndependent:
         elif type(obj).__name__ == 'cython_function_or_method':
             members = inspect.getmembers(obj)
             for k, v in members:
-                print(k, v)
                 if k == '__code__' and hasattr(v, 'co_filename'):
                     mods.add(v.co_filename.replace('.py', ''))
 
