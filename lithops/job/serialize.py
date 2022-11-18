@@ -97,8 +97,6 @@ class SerializeIndependent:
         logger.debug("Modules to transmit: {}"
                      .format(None if not mod_paths else ", ".join(mod_paths)))
 
-        raise Exception
-
         return (strs, mod_paths)
 
     def _module_inspect(self, obj):
