@@ -65,20 +65,20 @@ class SerializeIndependent:
                 continue
             try:
                 mod_spec = importlib.util.find_spec(module_name)
-                origin = mod_spec.origin if mod_spec else None
-                if origin and origin.endswith('.so'):
-                    if origin not in exclude_modules and \
-                       os.path.basename(origin) not in exclude_modules:
-                        mod_paths.add(origin)
-                else:
-                    self._modulemgr.add(module_name)
-                direct_modules.add(origin if origin not in ['built-in', None] else module_name)
             except Exception:
-                direct_modules.add(module_name)
-                self._modulemgr.add(module_name)
+                mod_spec = None
 
-        logger.debug("Referenced modules: {}".format(None if not direct_modules
-                                                     else ", ".join(direct_modules)))
+            origin = mod_spec.origin if mod_spec else module_name
+            if origin and origin.endswith('.so'):
+                if origin not in exclude_modules and \
+                   os.path.basename(origin) not in exclude_modules:
+                    mod_paths.add(origin)
+            else:
+                self._modulemgr.add(module_name)
+            direct_modules.add(origin if origin not in ['built-in', None] else module_name)
+
+        logger.debug("Referenced modules: {}".format(None if not
+                     direct_modules else ", ".join(direct_modules)))
 
         if include_modules is not None:
             tent_mod_paths = self._modulemgr.get_and_clear_paths()
@@ -129,8 +129,8 @@ class SerializeIndependent:
         elif type(obj).__name__ == 'cython_function_or_method':
             members = inspect.getmembers(obj)
             for k, v in members:
-                if k == '__code__' and hasattr(v, 'co_filename'):
-                    mods.add(v.co_filename.replace('.py', ''))
+                if k == '__globals__':
+                    mods.add(v['__file__'])
 
         else:
             # The obj is the user's function but in form of a class
