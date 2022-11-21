@@ -10,11 +10,7 @@ import lithops
 from function import my_c_function
 
 
-def my_function(x):
-    return my_c_function(x)
-
-
 if __name__ == '__main__':
-    fexec = lithops.FunctionExecutor()
-    fexec.call_async(my_function, 3)
+    fexec = lithops.FunctionExecutor(log_level='DEBUG')
+    fexec.call_async(my_c_function, 3)
     print(fexec.get_result())
