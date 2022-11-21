@@ -4,9 +4,10 @@
 
 ### Added
 - [Google Cloud Functions] Added Python 3.10 runtime compatibility
-- [Core] Allow to automatically transfer .so (cythonized .py) files if referneced in the code
+- [Core] Allow to automatically transfer .so (cythonized .py) files if referenced in the code
 
 ### Changed
+- [Core] Improved cython coverage
 - [IBM VPC] Make 'image_id' mandatory in config
 - [IBM VPC] Infer zone_name from subnet
 - [Knative] Reduced service name length

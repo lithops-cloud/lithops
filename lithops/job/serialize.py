@@ -75,7 +75,8 @@ class SerializeIndependent:
                     mod_paths.add(origin)
             else:
                 self._modulemgr.add(module_name)
-            direct_modules.add(origin if origin not in ['built-in', None] else module_name)
+
+            direct_modules.add(origin if origin != 'built-in' else module_name)
 
         logger.debug("Referenced modules: {}".format(None if not
                      direct_modules else ", ".join(direct_modules)))
@@ -94,8 +95,8 @@ class SerializeIndependent:
             else:
                 mod_paths = mod_paths.union(tent_mod_paths)
 
-        logger.debug("Modules to transmit: {}"
-                     .format(None if not mod_paths else ", ".join(mod_paths)))
+        logger.debug("Modules to transmit: {}".format(None if
+                     not mod_paths else ", ".join(mod_paths)))
 
         return (strs, mod_paths)
 
@@ -107,40 +108,36 @@ class SerializeIndependent:
         seen = set()
         mods = set()
 
-        if inspect.isfunction(obj) or (inspect.ismethod(obj) and inspect.isfunction(obj.__func__)):
+        if inspect.isfunction(obj) or (inspect.ismethod(obj) and
+           inspect.isfunction(obj.__func__)):
             # The obj is the user's function
             worklist.append(obj)
 
-        elif type(obj) == dict:
-            # the obj is the user's iterdata
-            to_anayze = list(obj.values())
-            for param in to_anayze:
-                if type(param).__module__ != "__builtin__":
-                    if inspect.isfunction(param):
-                        # it is a user defined function
-                        worklist.append(param)
-                    else:
-                        # it is a user defined class
-                        members = inspect.getmembers(param)
-                        for k, v in members:
-                            if inspect.ismethod(v) and inspect.isfunction(v.__func__):
-                                worklist.append(v)
-
         elif type(obj).__name__ == 'cython_function_or_method':
-            members = inspect.getmembers(obj)
-            for k, v in members:
+            for k, v in inspect.getmembers(obj):
                 if k == '__globals__':
                     mods.add(v['__file__'])
 
+        elif type(obj) == dict:
+            # the obj is the user's iterdata
+            for param in obj.values():
+                if type(param).__module__ == "__builtin__":
+                    continue
+                elif inspect.isfunction(param):
+                    # it is a user defined function
+                    worklist.append(param)
+                else:
+                    # it is a user defined class
+                    for k, v in inspect.getmembers(param):
+                        if inspect.isfunction(v) or (inspect.ismethod(v) and
+                           inspect.isfunction(v.__func__)):
+                            worklist.append(v)
         else:
             # The obj is the user's function but in form of a class
-            members = inspect.getmembers(obj)
             found_methods = []
-            for k, v in members:
-                if inspect.isfunction(v):
-                    found_methods.append(k)
-                    worklist.append(v)
-                elif inspect.ismethod(v) and inspect.isfunction(v.__func__):
+            for k, v in inspect.getmembers(obj):
+                if inspect.isfunction(v) or (inspect.ismethod(v) and
+                   inspect.isfunction(v.__func__)):
                     found_methods.append(k)
                     worklist.append(v)
             if "__call__" not in found_methods:
