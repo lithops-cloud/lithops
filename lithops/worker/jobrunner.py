@@ -241,6 +241,7 @@ class JobRunner:
             self.stats.write('worker_func_start_tstamp', function_start_tstamp)
             self.stats.write('worker_func_end_tstamp', function_end_tstamp)
             self.stats.write('worker_func_exec_time', round(function_end_tstamp - function_start_tstamp, 8))
+            self.stats.write('func_result_size', 0)
 
             # Check for new futures
             if result is not None:
@@ -249,16 +250,14 @@ class JobRunner:
                     self.stats.write('new_futures', pickle.dumps(result))
                     result = None
                 else:
-                    self.stats.write("result", True)
                     logger.debug("Pickling result")
+                    pickled_output = pickle.dumps(result)
                     output_dict = {'result': result}
-                    pickled_output = pickle.dumps(output_dict)
-                    self.stats.write('func_result_size', len(pickled_output))
-
-            if result is None:
-                logger.debug("No result to store")
-                self.stats.write("result", False)
-                self.stats.write('func_result_size', 0)
+                    output_size = len(output_dict)
+                    self.stats.write('func_result_size', output_dict)
+                    if output_size < 8 * 1024:  # 8KB
+                        self.stats.write('result', output_dict)
+                        result = None
 
         except Exception:
             exception = True

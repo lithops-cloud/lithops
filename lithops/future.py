@@ -268,17 +268,18 @@ class ResponseFuture:
         self.stats['worker_exec_time'] = round(self.stats['worker_end_tstamp'] - self.stats['worker_start_tstamp'], 8)
         total_time = format(round(self.stats['worker_exec_time'], 2), '.2f')
 
-        logger.debug('ExecutorID {} | JobID {} - Got status from call {} - Activation '
-                     'ID: {} - Time: {} seconds'.format(self.executor_id,
-                                                        self.job_id,
-                                                        self.call_id,
-                                                        self.activation_id,
-                                                        str(total_time)))
+        logger.debug(f'ExecutorID {self.executor_id} | JobID {self.job_id} - Got status from call {self.call_id} '
+                     f'- Activation ID: {self.activation_id} - Time: {str(total_time)} seconds')
 
         self._set_state(ResponseFuture.State.Success)
 
-        if not self._call_status['result']:
+        if self._call_status['func_result_size'] == 0:
             self._produce_output = False
+
+        if 'result' in self._call_status:
+            logger.debug(f'ExecutorID {self.executor_id} | JobID {self.job_id} - Got output '
+                         f'from call {self.call_id} - Activation ID: {self.activation_id}')
+            self._call_output = self._call_status['result']
 
         if not self._produce_output:
             self._set_state(ResponseFuture.State.Done)
