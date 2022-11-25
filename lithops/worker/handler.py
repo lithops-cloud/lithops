@@ -209,7 +209,7 @@ def run_job(job):
                         call_status.add(key, float(value))
                     except Exception:
                         call_status.add(key, value)
-                    if key in ['exception', 'exc_pickle_fail', 'result']:
+                    if key in ['exception', 'exc_pickle_fail']:
                         call_status.add(key, eval(value))
 
     except KeyboardInterrupt:

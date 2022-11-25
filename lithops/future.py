@@ -71,7 +71,6 @@ class ResponseFuture:
         self._state = ResponseFuture.State.New
         self._exception = Exception()
         self._handler_exception = False
-        self._return_val = None
         self._new_futures = None
         self._traceback = None
         self._call_status = None
@@ -276,11 +275,6 @@ class ResponseFuture:
         if self._call_status['func_result_size'] == 0:
             self._produce_output = False
 
-        if 'result' in self._call_status:
-            logger.debug(f'ExecutorID {self.executor_id} | JobID {self.job_id} - Got output '
-                         f'from call {self.call_id} - Activation ID: {self.activation_id}')
-            self._call_output = self._call_status['result']
-
         if not self._produce_output:
             self._set_state(ResponseFuture.State.Done)
 
@@ -288,6 +282,12 @@ class ResponseFuture:
             new_futures = pickle.loads(eval(self._call_status['new_futures']))
             self._new_futures = [new_futures] if type(new_futures) == ResponseFuture else new_futures
             self._set_state(ResponseFuture.State.Futures)
+
+        if 'result' in self._call_status:
+            self._call_output = pickle.loads(eval(self._call_status['result']))
+            logger.debug(f'ExecutorID {self.executor_id} | JobID {self.job_id} - Got output '
+                         f'from call {self.call_id} - Activation ID: {self.activation_id}')
+            self._set_state(ResponseFuture.State.Done)
 
         return self._call_status
 
@@ -311,7 +311,7 @@ class ResponseFuture:
             self._set_state(ResponseFuture.State.Done)
 
         if self.done:
-            return self._return_val
+            return self._call_output
 
         if self._state == ResponseFuture.State.Futures:
             return self._new_futures
@@ -322,9 +322,9 @@ class ResponseFuture:
         self.status(throw_except=throw_except, internal_storage=internal_storage)
 
         if self.done:
-            return self._return_val
+            return self._call_output
 
-        if not self._call_output:
+        if self._call_output is None:
             call_output = internal_storage.get_call_output(self.executor_id, self.job_id, self.call_id)
             self._output_query_count += 1
 
@@ -348,6 +348,5 @@ class ResponseFuture:
             logger.debug('ExecutorID {} | JobID {} - Got output from call {} - Activation '
                          'ID: {}'.format(self.executor_id, self.job_id, self.call_id, self.activation_id))
 
-        self._return_val = self._call_output['result'] if not self._return_val else self._return_val
         self._set_state(ResponseFuture.State.Done)
-        return self._return_val
+        return self._call_output

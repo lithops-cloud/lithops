@@ -5,7 +5,7 @@ to spawn an internal map execution.
 import lithops
 
 
-def my_map_function(x):
+def my_map_function(id, x):
     print(f"I'm activation number {id}")
     return x + 7
 

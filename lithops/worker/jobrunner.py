@@ -176,7 +176,7 @@ class JobRunner:
             first_byte = 0
             last_byte = obj.chunk_size - 1
             obj.data_byte_range = (0, last_byte)
-        
+
         logger.info(f'Chunk: {obj.part}/{obj.total_parts} - Size: {obj.chunk_size} - Range: {first_byte}-{last_byte}')
 
     # Decorator to execute pre-run and post-run functions provided via environment variables
@@ -252,11 +252,10 @@ class JobRunner:
                 else:
                     logger.debug("Pickling result")
                     pickled_output = pickle.dumps(result)
-                    output_dict = {'result': result}
-                    output_size = len(output_dict)
-                    self.stats.write('func_result_size', output_dict)
-                    if output_size < 8 * 1024:  # 8KB
-                        self.stats.write('result', output_dict)
+                    pickled_output_size = len(pickled_output)
+                    self.stats.write('func_result_size', pickled_output_size)
+                    if pickled_output_size < 8 * 1024:  # 8KB
+                        self.stats.write('result', pickled_output)
                         result = None
 
         except Exception:
@@ -304,7 +303,7 @@ class JobRunner:
             store_result = strtobool(os.environ.get('STORE_RESULT', 'True'))
             if result is not None and store_result and not exception:
                 output_upload_start_tstamp = time.time()
-                logger.info("Storing function result - Size: {}".format(sizeof_fmt(len(pickled_output))))
+                logger.info(f"Storing function result - Size: {sizeof_fmt(len(pickled_output))}")
                 self.internal_storage.put_data(self.output_key, pickled_output)
                 output_upload_end_tstamp = time.time()
                 self.stats.write("worker_result_upload_time", round(output_upload_end_tstamp - output_upload_start_tstamp, 8))
