@@ -285,6 +285,8 @@ class ResponseFuture:
 
         if 'result' in self._call_status:
             self._call_output = pickle.loads(eval(self._call_status['result']))
+            self.stats['host_result_done_tstamp'] = time.time()
+            self.stats['host_result_query_count'] = 0
             logger.debug(f'ExecutorID {self.executor_id} | JobID {self.job_id} - Got output '
                          f'from call {self.call_id} - Activation ID: {self.activation_id}')
             self._set_state(ResponseFuture.State.Done)
@@ -304,7 +306,7 @@ class ResponseFuture:
         :raises TimeoutError: If job is not complete after `timeout` seconds.
         """
         if self._state == ResponseFuture.State.New:
-            raise ValueError("task not yet invoked")
+            raise ValueError("Task not yet invoked")
 
         if not self._produce_output:
             self.status(throw_except=throw_except, internal_storage=internal_storage)
@@ -335,8 +337,10 @@ class ResponseFuture:
 
             if call_output is None:
                 if throw_except:
-                    raise Exception('Unable to get the result from call {} - '
-                                    'Activation ID: {}'.format(self.call_id, self.activation_id))
+                    raise Exception(
+                        f'ExecutorID {self.executor_id} | JobID {self.job_id} - Unable to get '
+                        f'the result from call {self.call_id} - Activation ID: {self.activation_id}'
+                    )
                 else:
                     self._set_state(ResponseFuture.State.Error)
                     return None
@@ -345,8 +349,8 @@ class ResponseFuture:
 
             self.stats['host_result_done_tstamp'] = time.time()
             self.stats['host_result_query_count'] = self._output_query_count
-            logger.debug('ExecutorID {} | JobID {} - Got output from call {} - Activation '
-                         'ID: {}'.format(self.executor_id, self.job_id, self.call_id, self.activation_id))
+            logger.debug(f'ExecutorID {self.executor_id} | JobID {self.job_id} - Got output '
+                         f'from call {self.call_id} - Activation ID: {self.activation_id}')
 
         self._set_state(ResponseFuture.State.Done)
         return self._call_output
