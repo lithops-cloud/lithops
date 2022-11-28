@@ -71,7 +71,6 @@ class ResponseFuture:
         self._state = ResponseFuture.State.New
         self._exception = Exception()
         self._handler_exception = False
-        self._return_val = None
         self._new_futures = None
         self._traceback = None
         self._call_status = None
@@ -268,16 +267,12 @@ class ResponseFuture:
         self.stats['worker_exec_time'] = round(self.stats['worker_end_tstamp'] - self.stats['worker_start_tstamp'], 8)
         total_time = format(round(self.stats['worker_exec_time'], 2), '.2f')
 
-        logger.debug('ExecutorID {} | JobID {} - Got status from call {} - Activation '
-                     'ID: {} - Time: {} seconds'.format(self.executor_id,
-                                                        self.job_id,
-                                                        self.call_id,
-                                                        self.activation_id,
-                                                        str(total_time)))
+        logger.debug(f'ExecutorID {self.executor_id} | JobID {self.job_id} - Got status from call {self.call_id} '
+                     f'- Activation ID: {self.activation_id} - Time: {str(total_time)} seconds')
 
         self._set_state(ResponseFuture.State.Success)
 
-        if not self._call_status['result']:
+        if self._call_status['func_result_size'] == 0:
             self._produce_output = False
 
         if not self._produce_output:
@@ -287,6 +282,14 @@ class ResponseFuture:
             new_futures = pickle.loads(eval(self._call_status['new_futures']))
             self._new_futures = [new_futures] if type(new_futures) == ResponseFuture else new_futures
             self._set_state(ResponseFuture.State.Futures)
+
+        if 'result' in self._call_status:
+            self._call_output = pickle.loads(eval(self._call_status['result']))
+            self.stats['host_result_done_tstamp'] = time.time()
+            self.stats['host_result_query_count'] = 0
+            logger.debug(f'ExecutorID {self.executor_id} | JobID {self.job_id} - Got output '
+                         f'from call {self.call_id} - Activation ID: {self.activation_id}')
+            self._set_state(ResponseFuture.State.Done)
 
         return self._call_status
 
@@ -303,14 +306,14 @@ class ResponseFuture:
         :raises TimeoutError: If job is not complete after `timeout` seconds.
         """
         if self._state == ResponseFuture.State.New:
-            raise ValueError("task not yet invoked")
+            raise ValueError("Task not yet invoked")
 
         if not self._produce_output:
             self.status(throw_except=throw_except, internal_storage=internal_storage)
             self._set_state(ResponseFuture.State.Done)
 
         if self.done:
-            return self._return_val
+            return self._call_output
 
         if self._state == ResponseFuture.State.Futures:
             return self._new_futures
@@ -321,9 +324,9 @@ class ResponseFuture:
         self.status(throw_except=throw_except, internal_storage=internal_storage)
 
         if self.done:
-            return self._return_val
+            return self._call_output
 
-        if not self._call_output:
+        if self._call_output is None:
             call_output = internal_storage.get_call_output(self.executor_id, self.job_id, self.call_id)
             self._output_query_count += 1
 
@@ -334,8 +337,10 @@ class ResponseFuture:
 
             if call_output is None:
                 if throw_except:
-                    raise Exception('Unable to get the result from call {} - '
-                                    'Activation ID: {}'.format(self.call_id, self.activation_id))
+                    raise Exception(
+                        f'ExecutorID {self.executor_id} | JobID {self.job_id} - Unable to get '
+                        f'the result from call {self.call_id} - Activation ID: {self.activation_id}'
+                    )
                 else:
                     self._set_state(ResponseFuture.State.Error)
                     return None
@@ -344,9 +349,8 @@ class ResponseFuture:
 
             self.stats['host_result_done_tstamp'] = time.time()
             self.stats['host_result_query_count'] = self._output_query_count
-            logger.debug('ExecutorID {} | JobID {} - Got output from call {} - Activation '
-                         'ID: {}'.format(self.executor_id, self.job_id, self.call_id, self.activation_id))
+            logger.debug(f'ExecutorID {self.executor_id} | JobID {self.job_id} - Got output '
+                         f'from call {self.call_id} - Activation ID: {self.activation_id}')
 
-        self._return_val = self._call_output['result'] if not self._return_val else self._return_val
         self._set_state(ResponseFuture.State.Done)
-        return self._return_val
+        return self._call_output

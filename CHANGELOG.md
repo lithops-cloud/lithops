@@ -6,7 +6,7 @@
 - 
 
 ### Changed
--
+-  [Core] Include function result in the status.json file if it is < 8KB
 
 ### Fixed
 -

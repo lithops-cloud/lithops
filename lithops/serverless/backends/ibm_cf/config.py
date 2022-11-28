@@ -17,12 +17,11 @@
 import os
 
 AVAILABLE_PY_RUNTIMES = {
-    '3.5': 'lithopscloud/ibmcf-python-v35',
-    '3.6': 'lithopscloud/ibmcf-python-v36',
-    '3.7': 'lithopscloud/ibmcf-python-v37',
-    '3.8': 'lithopscloud/ibmcf-python-v38',
-    '3.9': 'lithopscloud/ibmcf-python-v39',
-    '3.10': 'lithopscloud/ibmcf-python-v310'
+    '3.6': 'docker.io/lithopscloud/ibmcf-python-v36',
+    '3.7': 'docker.io/lithopscloud/ibmcf-python-v37',
+    '3.8': 'docker.io/lithopscloud/ibmcf-python-v38',
+    '3.9': 'docker.io/lithopscloud/ibmcf-python-v39',
+    '3.10': 'docker.io/lithopscloud/ibmcf-python-v310'
 }
 
 DEFAULT_CONFIG_KEYS = {
