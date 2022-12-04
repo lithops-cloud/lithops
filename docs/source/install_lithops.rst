@@ -23,7 +23,7 @@ You can also install Lithops from Github and use the master branch. Using the ma
    $ cd lithops
    $ python3 setup.py
 
-It is highly recommended to use a Virtual Environment for your Python project that uses Lithops. Without a Virtual Environment, ``pip`` will install Lithops globally, while with a Virtual Environment, Lithops is installed locally and is only available when the Virtual Environment is activated.
+It is recommended to use a Virtual Environment for your Python project that uses Lithops. Without a Virtual Environment, ``pip`` will install Lithops globally, while with a Virtual Environment, Lithops is installed locally and is only available when the Virtual Environment is activated.
 
 .. code::
 

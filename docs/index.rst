@@ -100,7 +100,7 @@ Papers
    :maxdepth: 0
    :caption: Overview of Lithops
 
-   source/design.md
+   source/design.rst
    source/comparing_lithops.rst
    source/supported_clouds.rst
    source/execution_modes.rst

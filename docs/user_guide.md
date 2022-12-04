@@ -1,6 +1,6 @@
 # User Guide
 
-1. [Lithops design overview](source/design.md)
+1. [Lithops design overview](source/design.rst)
 
 1. [Supported Clouds](source/supported_clouds.rst)
 
