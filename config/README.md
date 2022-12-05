@@ -10,7 +10,7 @@ To configure Lithops through a [configuration file](config_template.yaml) you ha
 
 2. Create a new file called `.lithops_config` in the root directory of your project from where you will execute your Lithops scripts.
 
-3. Create a new file called `config` in the `/etc/lithops/` folder (i.e: `/etc/lithops/config`)
+3. Create a new file called `config` in the `/etc/lithops/` folder (i.e: `/etc/lithops/config`). Useful for sharing the config file on multi-user machines.
 
 4. Create the config file in any other location and configure the `LITHOPS_CONFIG_FILE` system environment variable:
 
