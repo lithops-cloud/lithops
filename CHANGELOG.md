@@ -3,7 +3,7 @@
 ## [v2.7.2.dev0]
 
 ### Added
-- 
+- [Config] Allow to store the config file in "/etc/lithops/config"
 
 ### Changed
 -  [Core] Include function result in the status.json file if it is < 8KB

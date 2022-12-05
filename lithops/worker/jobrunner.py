@@ -243,8 +243,8 @@ class JobRunner:
             self.stats.write('worker_func_exec_time', round(function_end_tstamp - function_start_tstamp, 8))
             self.stats.write('func_result_size', 0)
 
-            # Check for new futures
             if result is not None:
+                # Check for new futures
                 if isinstance(result, ResponseFuture) or isinstance(result, FuturesList) \
                    or (type(result) == list and len(result) > 0 and isinstance(result[0], ResponseFuture)):
                     self.stats.write('new_futures', pickle.dumps(result))
@@ -256,6 +256,7 @@ class JobRunner:
                     self.stats.write('func_result_size', pickled_output_size)
                     if pickled_output_size < 8 * 1024:  # 8KB
                         self.stats.write('result', pickled_output)
+                        self.stats.write("worker_result_upload_time", 0)
                         result = None
 
         except Exception:
@@ -300,8 +301,7 @@ class JobRunner:
                 )
             )
 
-            store_result = strtobool(os.environ.get('STORE_RESULT', 'True'))
-            if result is not None and store_result and not exception:
+            if result is not None and not exception:
                 output_upload_start_tstamp = time.time()
                 logger.info(f"Storing function result - Size: {sizeof_fmt(len(pickled_output))}")
                 self.internal_storage.put_data(self.output_key, pickled_output)

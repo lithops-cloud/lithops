@@ -35,7 +35,7 @@ Ray and Dask
    :align: center
    :width: 250
 
-.. image:: https://thepythonlab.com/wp-content/uploads/2019/05/dask-1.png
+.. image:: https://docs.dask.org/en/stable/_images/dask_horizontal.svg
    :align: center
    :width: 250
 

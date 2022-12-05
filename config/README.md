@@ -6,11 +6,13 @@ By default Lithops works on Localhost if no configuration is provided. To run wo
 
 To configure Lithops through a [configuration file](config_template.yaml) you have multiple options:
 
-1. Create a new file called `config` in the `~/.lithops` folder.
+1. Create a new file called `config` in the `~/.lithops` folder (i.e: `~/.lithops/config`).
 
 2. Create a new file called `.lithops_config` in the root directory of your project from where you will execute your Lithops scripts.
 
-3. Create the config file in any other location and configure the `LITHOPS_CONFIG_FILE` system environment variable:
+3. Create a new file called `config` in the `/etc/lithops/` folder (i.e: `/etc/lithops/config`). Useful for sharing the config file on multi-user machines.
+
+4. Create the config file in any other location and configure the `LITHOPS_CONFIG_FILE` system environment variable:
 
 	 	LITHOPS_CONFIG_FILE=<CONFIG_FILE_LOCATION>
     
