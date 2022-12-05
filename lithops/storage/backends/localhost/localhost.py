@@ -78,7 +78,7 @@ class LocalhostStorageBackend:
                 f.write(data)
         elif hasattr(data, 'read'):
             with open(file_path, "wb") as f:
-                shutil.copyfileobj(data, f, 1024*1024)
+                shutil.copyfileobj(data, f, 1024 * 1024)
         else:
             with open(file_path, "w") as f:
                 f.write(data)
@@ -99,7 +99,7 @@ class LocalhostStorageBackend:
                     byte_range = extra_get_args['Range'].replace('bytes=', '')
                     first_byte, last_byte = map(int, byte_range.split('-'))
                     f.seek(first_byte)
-                    buffer = io.BytesIO(f.read(last_byte-first_byte+1))
+                    buffer = io.BytesIO(f.read(last_byte - first_byte + 1))
                 else:
                     buffer = io.BytesIO(f.read())
             if stream:
@@ -252,8 +252,8 @@ class LocalhostStorageBackend:
                 roots = [os.path.join(base_dir, prefix, '**')]
             else:
                 roots = [
-                    os.path.join(base_dir, prefix+'*'),
-                    os.path.join(base_dir, prefix+'*', '**'),
+                    os.path.join(base_dir, prefix + '*'),
+                    os.path.join(base_dir, prefix + '*', '**'),
                 ]
         else:
             roots = [os.path.join(base_dir, '**')]
