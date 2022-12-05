@@ -68,7 +68,7 @@ MAX_AGG_DATA_SIZE = 4  # 4MiB
 WORKER_PROCESSES_DEFAULT = 1
 
 TEMP_DIR = os.path.realpath(tempfile.gettempdir())
-LITHOPS_TEMP_DIR = os.path.join(TEMP_DIR, 'lithops')
+LITHOPS_TEMP_DIR = os.path.join(TEMP_DIR, 'lithops-' + os.getenv("USER"))
 JOBS_DIR = os.path.join(LITHOPS_TEMP_DIR, 'jobs')
 LOGS_DIR = os.path.join(LITHOPS_TEMP_DIR, 'logs')
 MODULES_DIR = os.path.join(LITHOPS_TEMP_DIR, 'modules')
@@ -85,6 +85,7 @@ HOME_DIR = os.path.expanduser('~')
 CONFIG_DIR = os.path.join(HOME_DIR, '.lithops')
 CACHE_DIR = os.path.join(CONFIG_DIR, 'cache')
 CONFIG_FILE = os.path.join(CONFIG_DIR, 'config')
+CONFIG_FILE_GLOBAL = os.path.join("/etc", "lithops", "config")
 
 SERVERLESS_BACKENDS = [
     'ibm_cf',

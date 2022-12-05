@@ -61,6 +61,7 @@ def get_default_config_filename():
     First checks .lithops_config
     then checks LITHOPS_CONFIG_FILE environment variable
     then ~/.lithops/config
+    and as last resort the global configuration /etc/lithops/config
     """
     if 'LITHOPS_CONFIG_FILE' in os.environ:
         config_filename = os.environ['LITHOPS_CONFIG_FILE']
@@ -71,7 +72,9 @@ def get_default_config_filename():
     else:
         config_filename = c.CONFIG_FILE
         if not os.path.exists(config_filename):
-            return None
+            config_filename = c.CONFIG_FILE_GLOBAL
+            if not os.path.exists(config_filename):
+                return None
 
     return config_filename
 
