@@ -110,7 +110,7 @@ def upload_data_sets():
     """uploads datasets to storage and return a list of the number of words within each test file"""
 
     def up(param):
-        logger.info('Uploading datasets...')
+        logger.info(f'Uploading dataset {param[1]}')
         i, url = param
         content = urllib.request.urlopen(url).read()
         STORAGE.put_object(bucket=STORAGE_CONFIG['bucket'],
