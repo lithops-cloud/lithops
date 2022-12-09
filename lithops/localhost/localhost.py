@@ -66,6 +66,7 @@ class LocalhostHandler:
         """
         Starts manager thread to keep order in tasks
         """
+
         def job_manager():
             logger.debug('Staring localhost job manager')
             self.should_run = True
@@ -195,10 +196,11 @@ class LocalhostHandler:
         self.should_run = True
 
 
-class BaseEnv():
+class BaseEnv:
     """
     Base environment class for shared methods
     """
+
     def __init__(self, runtime):
         self.runtime = runtime
         self.jobs = {}  # dict to store executed jobs (job_keys) and PIDs
@@ -222,20 +224,14 @@ class BaseEnv():
         job_key = job_payload['job_key']
         storage_bucket = job_payload['config']['lithops']['storage_bucket']
 
-        local_job_dir = os.path.join(LITHOPS_TEMP_DIR, storage_bucket, JOBS_PREFIX)
-        docker_job_dir = f'/tmp/lithops/{storage_bucket}/{JOBS_PREFIX}'
+        job_dir = os.path.join(LITHOPS_TEMP_DIR, storage_bucket, JOBS_PREFIX)
         job_file = f'{job_key}-job.json'
 
-        os.makedirs(local_job_dir, exist_ok=True)
-        local_job_filename = os.path.join(local_job_dir, job_file)
+        os.makedirs(job_dir, exist_ok=True)
+        job_filename = os.path.join(job_dir, job_file)
 
-        with open(local_job_filename, 'w') as jl:
+        with open(job_filename, 'w') as jl:
             json.dump(job_payload, jl, default=str)
-
-        if isinstance(self, DockerEnv):
-            job_filename = '{}/{}'.format(docker_job_dir, job_file)
-        else:
-            job_filename = local_job_filename
 
         return job_filename
 
@@ -243,6 +239,7 @@ class BaseEnv():
         """
         Stops running processes
         """
+
         def kill_job(job_key):
             if self.jobs[job_key].poll() is None:
                 logger.debug(f'Killing job {job_key} with PID {self.jobs[job_key].pid}')
@@ -267,6 +264,7 @@ class DockerEnv(BaseEnv):
     """
     Docker environment uses a docker runtime image
     """
+
     def __init__(self, docker_image, pull_runtime):
         logger.debug(f'Starting Docker Environment for {docker_image}')
         super().__init__(runtime=docker_image)
@@ -289,7 +287,9 @@ class DockerEnv(BaseEnv):
         tmp_path = Path(TEMP_DIR).as_posix()
         cmd = 'docker run '
         cmd += f'--user {self.uid}:{self.gid} ' if is_unix_system() else ''
-        cmd += f'--rm -v {tmp_path}:/tmp --entrypoint "python3" {self.runtime} /tmp/lithops/runner.py get_metadata'
+        cmd += f'--env USER={os.getenv("USER")} '
+        cmd += f'--rm -v {tmp_path}:/tmp --entrypoint "python3" '
+        cmd += f'{self.runtime} {os.path.join(LITHOPS_TEMP_DIR, "runner.py")} get_metadata'
 
         process = sp.run(shlex.split(cmd), check=True, stdout=sp.PIPE,
                          universal_newlines=True, start_new_session=True)
@@ -318,7 +318,9 @@ class DockerEnv(BaseEnv):
         else:
             cmd = f'docker run --name lithops_{job_key} '
         cmd += f'--user {self.uid}:{self.gid} ' if is_unix_system() else ''
-        cmd += f'--rm -v {tmp_path}:/tmp --entrypoint "python3" {self.runtime} /tmp/lithops/runner.py run_job {job_filename}'
+        cmd += f'--env USER={os.getenv("USER")} '
+        cmd += f'--rm -v {tmp_path}:/tmp --entrypoint "python3" '
+        cmd += f'{self.runtime} {os.path.join(LITHOPS_TEMP_DIR, "runner.py")} run_job {job_filename}'
 
         log = open(RN_LOG_FILE, 'a')
         process = sp.Popen(shlex.split(cmd), stdout=log, stderr=log, start_new_session=True)
@@ -345,6 +347,7 @@ class DefaultEnv(BaseEnv):
     """
     Default environment uses current python3 installation
     """
+
     def __init__(self):
         logger.debug(f'Starting Default Environment for {sys.executable}')
         super().__init__(runtime=sys.executable)
