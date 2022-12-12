@@ -224,14 +224,20 @@ class BaseEnv:
         job_key = job_payload['job_key']
         storage_bucket = job_payload['config']['lithops']['storage_bucket']
 
-        job_dir = os.path.join(LITHOPS_TEMP_DIR, storage_bucket, JOBS_PREFIX)
+        local_job_dir = os.path.join(LITHOPS_TEMP_DIR, storage_bucket, JOBS_PREFIX)
+        docker_job_dir = f'/tmp/lithops-{os.getenv("USER")}/{storage_bucket}/{JOBS_PREFIX}'
         job_file = f'{job_key}-job.json'
 
-        os.makedirs(job_dir, exist_ok=True)
-        job_filename = os.path.join(job_dir, job_file)
+        os.makedirs(local_job_dir, exist_ok=True)
+        local_job_filename = os.path.join(local_job_dir, job_file)
 
-        with open(job_filename, 'w') as jl:
+        with open(local_job_filename, 'w') as jl:
             json.dump(job_payload, jl, default=str)
+
+        if isinstance(self, DockerEnv):
+            job_filename = '{}/{}'.format(docker_job_dir, job_file)
+        else:
+            job_filename = local_job_filename
 
         return job_filename
 
