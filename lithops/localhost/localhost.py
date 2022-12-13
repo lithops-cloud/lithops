@@ -295,7 +295,7 @@ class DockerEnv(BaseEnv):
         cmd += f'--user {self.uid}:{self.gid} ' if is_unix_system() else ''
         cmd += f'--env USER={os.getenv("USER")} '
         cmd += f'--rm -v {tmp_path}:/tmp --entrypoint "python3" '
-        cmd += f'{self.runtime} {os.path.join(LITHOPS_TEMP_DIR, "runner.py")} get_metadata'
+        cmd += f'{self.runtime} /tmp/lithops-{os.getenv("USER")}/runner.py get_metadata'
 
         process = sp.run(shlex.split(cmd), check=True, stdout=sp.PIPE,
                          universal_newlines=True, start_new_session=True)
@@ -326,7 +326,7 @@ class DockerEnv(BaseEnv):
         cmd += f'--user {self.uid}:{self.gid} ' if is_unix_system() else ''
         cmd += f'--env USER={os.getenv("USER")} '
         cmd += f'--rm -v {tmp_path}:/tmp --entrypoint "python3" '
-        cmd += f'{self.runtime} {os.path.join(LITHOPS_TEMP_DIR, "runner.py")} run_job {job_filename}'
+        cmd += f'{self.runtime} /tmp/lithops-{os.getenv("USER")}/runner.py run_job {job_filename}'
 
         log = open(RN_LOG_FILE, 'a')
         process = sp.Popen(shlex.split(cmd), stdout=log, stderr=log, start_new_session=True)
