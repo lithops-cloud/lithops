@@ -62,14 +62,13 @@ class AzureFunctionAppBackend:
         msg = COMPUTE_CLI_MSG.format('Azure Functions')
         logger.info(f"{msg} - Location: {self.location}")
 
-    def _format_function_name(self, runtime_name, runtime_memory=None):
+    def _format_function_name(self, runtime_name, runtime_memory=None, version=__version__):
         """
         Formates the function name
         """
-        ver = __version__
         inv_type = self.invocation_type
         ac_name = self.storage_account_name
-        function_name = f'{ac_name}-{runtime_name}-{ver}-{inv_type}'
+        function_name = f'{ac_name}-{runtime_name}-{version}-{inv_type}'
         function_name = function_name.replace('.', '-')
         function_name = function_name.replace('_', '-')
         return function_name.lower()
@@ -231,12 +230,12 @@ class AzureFunctionAppBackend:
 
         time.sleep(10)
 
-    def delete_runtime(self, runtime_name, memory):
+    def delete_runtime(self, runtime_name, memory, version=__version__):
         """
         Deletes a runtime
         """
         logger.info(f'Deleting runtime: {runtime_name} - {memory}MB')
-        function_name = self._format_function_name(runtime_name, memory)
+        function_name = self._format_function_name(runtime_name, memory, version)
         cmd = f'az functionapp delete --name {function_name} --resource-group {self.resource_group}'
         utils.run_command(cmd)
 
@@ -325,7 +324,7 @@ class AzureFunctionAppBackend:
         runtimes = self.list_runtimes()
 
         for runtime_name, runtime_memory, version in runtimes:
-            self.delete_runtime(runtime_name, runtime_memory)
+            self.delete_runtime(runtime_name, runtime_memory, version)
 
     def _generate_runtime_meta(self, runtime_name, memory):
         """

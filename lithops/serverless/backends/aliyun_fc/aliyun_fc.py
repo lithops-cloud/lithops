@@ -62,9 +62,8 @@ class AliyunFunctionComputeBackend:
         msg = COMPUTE_CLI_MSG.format('Aliyun Function Compute')
         logger.info(f"{msg} - Region: {self.region}")
 
-    def _format_function_name(self, runtime_name, runtime_memory):
-        version = 'lithops_v' + __version__
-        runtime_name = (version + '_' + runtime_name).replace('.', '-')
+    def _format_function_name(self, runtime_name, runtime_memory, version=__version__):
+        runtime_name = ('lithops_v' + version + '_' + runtime_name).replace('.', '-')
         return f'{runtime_name}_{runtime_memory}MB'
 
     def _unformat_function_name(self, function_name):
@@ -192,12 +191,12 @@ class AliyunFunctionComputeBackend:
 
         return metadata
 
-    def delete_runtime(self, runtime_name, memory):
+    def delete_runtime(self, runtime_name, memory, version=__version__):
         """
         Deletes a runtime
         """
         logger.info(f'Deleting runtime: {runtime_name} - {memory}MB')
-        function_name = self._format_function_name(runtime_name, memory)
+        function_name = self._format_function_name(runtime_name, memory, version)
         self.fc_client.delete_function(self.service_name, function_name)
 
     def clean(self):
@@ -262,6 +261,7 @@ class AliyunFunctionComputeBackend:
         """
         logger.info(f'Extracting runtime metadata from: {function_name}')
         payload = {'log_level': logger.getEffectiveLevel(), 'get_metadata': True}
+
         try:
             res = self.fc_client.invoke_function(
                 self.service_name, function_name,
