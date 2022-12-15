@@ -9,7 +9,9 @@
 -  [Core] Include function result in the status.json file if it is < 8KB
 
 ### Fixed
--
+- [GCP Functions] Allow to delete runtime from different lithops versions
+- [Azure Functions] Allow to delete runtime from different lithops versions
+- [Aliyun Functions] Allow to delete runtime from different lithops versions
 
 
 ## [v2.7.1]

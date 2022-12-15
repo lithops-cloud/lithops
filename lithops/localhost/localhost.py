@@ -29,7 +29,8 @@ from shutil import copyfile
 from pathlib import Path
 
 from lithops.version import __version__
-from lithops.constants import RN_LOG_FILE, TEMP_DIR, LITHOPS_TEMP_DIR, COMPUTE_CLI_MSG, JOBS_PREFIX
+from lithops.constants import RN_LOG_FILE, TEMP_DIR, USER_TEMP_DIR,\
+    LITHOPS_TEMP_DIR, COMPUTE_CLI_MSG, JOBS_PREFIX
 from lithops.utils import is_lithops_worker, is_unix_system
 
 logger = logging.getLogger(__name__)
@@ -225,7 +226,7 @@ class BaseEnv:
         storage_bucket = job_payload['config']['lithops']['storage_bucket']
 
         local_job_dir = os.path.join(LITHOPS_TEMP_DIR, storage_bucket, JOBS_PREFIX)
-        docker_job_dir = f'/tmp/lithops-{os.getenv("USER")}/{storage_bucket}/{JOBS_PREFIX}'
+        docker_job_dir = f'/tmp/{USER_TEMP_DIR}/{storage_bucket}/{JOBS_PREFIX}'
         job_file = f'{job_key}-job.json'
 
         os.makedirs(local_job_dir, exist_ok=True)
@@ -293,9 +294,9 @@ class DockerEnv(BaseEnv):
         tmp_path = Path(TEMP_DIR).as_posix()
         cmd = 'docker run '
         cmd += f'--user {self.uid}:{self.gid} ' if is_unix_system() else ''
-        cmd += f'--env USER={os.getenv("USER")} '
+        cmd += f'--env USER={os.getenv("USER", "root")} '
         cmd += f'--rm -v {tmp_path}:/tmp --entrypoint "python3" '
-        cmd += f'{self.runtime} /tmp/lithops-{os.getenv("USER")}/runner.py get_metadata'
+        cmd += f'{self.runtime} /tmp/{USER_TEMP_DIR}/runner.py get_metadata'
 
         process = sp.run(shlex.split(cmd), check=True, stdout=sp.PIPE,
                          universal_newlines=True, start_new_session=True)
@@ -324,9 +325,9 @@ class DockerEnv(BaseEnv):
         else:
             cmd = f'docker run --name lithops_{job_key} '
         cmd += f'--user {self.uid}:{self.gid} ' if is_unix_system() else ''
-        cmd += f'--env USER={os.getenv("USER")} '
+        cmd += f'--env USER={os.getenv("USER", "root")} '
         cmd += f'--rm -v {tmp_path}:/tmp --entrypoint "python3" '
-        cmd += f'{self.runtime} /tmp/lithops-{os.getenv("USER")}/runner.py run_job {job_filename}'
+        cmd += f'{self.runtime} /tmp/{USER_TEMP_DIR}/runner.py run_job {job_filename}'
 
         log = open(RN_LOG_FILE, 'a')
         process = sp.Popen(shlex.split(cmd), stdout=log, stderr=log, start_new_session=True)
