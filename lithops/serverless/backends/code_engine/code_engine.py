@@ -155,7 +155,7 @@ class CodeEngineBackend:
         name = f'{runtime_name}-{runtime_memory}-{version}'
         name_hash = hashlib.sha1(name.encode("utf-8")).hexdigest()[:10]
 
-        return f'lithops-codeenigne-runtime-{name_hash}'
+        return f'lithops-runtime-{name_hash}'
 
     def _get_default_runtime_image_name(self):
         """
@@ -163,7 +163,7 @@ class CodeEngineBackend:
         """
         revision = 'latest' if 'dev' in __version__ else __version__
         return utils.get_default_container_name(
-            self.name, self.ce_config, 'lithops-ce-default', revision
+            self.name, self.ce_config, 'lithops-codeenigne-default', revision
         )
 
     def build_runtime(self, docker_image_name, dockerfile, extra_args=[]):

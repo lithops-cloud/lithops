@@ -60,14 +60,14 @@ class GCPCloudRunBackend:
         msg = COMPUTE_CLI_MSG.format('Google Cloud Run')
         logger.info(f"{msg} - Region: {self.region} - Project: {self.project_name}")
 
-    def _format_service_name(runtime_name, runtime_memory, version=__version__):
+    def _format_service_name(self, runtime_name, runtime_memory, version=__version__):
         """
         Formats service name string from runtime name and memory
         """
         name = f'{runtime_name}-{runtime_memory}-{version}'
         name_hash = hashlib.sha1(name.encode("utf-8")).hexdigest()[:10]
 
-        return f'lithops-cloudrun-runtime-{name_hash}'
+        return f'lithops-runtime-{name_hash}'
 
     def _get_default_runtime_image_name(self):
         """
@@ -75,7 +75,7 @@ class GCPCloudRunBackend:
         """
         py_version = utils.CURRENT_PY_VERSION.replace('.', '')
         revision = 'latest' if 'dev' in __version__ else __version__
-        return f'lithops-cr-default-v{py_version}:{revision}'
+        return f'lithops-cloudrun-default-v{py_version}:{revision}'
 
     def _build_api_resource(self):
         """

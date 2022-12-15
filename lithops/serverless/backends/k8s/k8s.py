@@ -92,7 +92,7 @@ class KubernetesBackend:
         """
         revision = 'latest' if 'dev' in __version__ else __version__
         return utils.get_default_container_name(
-            self.name, self.k8s_config, 'lithops-k8s-default', revision
+            self.name, self.k8s_config, 'lithops-kubernetes-default', revision
         )
 
     def build_runtime(self, docker_image_name, dockerfile, extra_args=[]):

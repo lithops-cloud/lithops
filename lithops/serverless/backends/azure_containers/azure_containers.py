@@ -67,7 +67,7 @@ class AzureContainerAppBackend:
         name = f'{ac_name}-{runtime_name}-{version}-{inv_type}-{runtime_memory}'
         name_hash = hashlib.sha1(name.encode("utf-8")).hexdigest()[:10]
 
-        return f'lithops-ca-runtime-{name_hash}'
+        return f'lithops-runtime-{name_hash}'
 
     def _get_default_runtime_image_name(self):
         """
@@ -75,7 +75,7 @@ class AzureContainerAppBackend:
         """
         revision = 'latest' if 'dev' in __version__ else __version__
         return utils.get_default_container_name(
-            self.name, self.ac_config, 'lithops-ca-default', revision
+            self.name, self.ac_config, 'lithops-azurecontainers-default', revision
         )
 
     def deploy_runtime(self, runtime_name, memory, timeout):
