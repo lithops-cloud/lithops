@@ -17,6 +17,7 @@
 
 import os
 import base64
+import hashlib
 import json
 import time
 import logging
@@ -150,12 +151,11 @@ class CodeEngineBackend:
         configuration.api_key = {"authorization": "Bearer " + token}
         client.Configuration.set_default(configuration)
 
-    def _format_jobdef_name(self, runtime_name, runtime_memory):
-        runtime_name = runtime_name.replace('/', '--')
-        runtime_name = runtime_name.replace(':', '--')
-        runtime_name = runtime_name.replace('.', '')
-        runtime_name = runtime_name.replace('_', '-')
-        return f'{runtime_name}--{runtime_memory}mb'
+    def _format_jobdef_name(self, runtime_name, runtime_memory, version=__version__):
+        name = f'{runtime_name}-{runtime_memory}-{version}'
+        name_hash = hashlib.sha1(name.encode("utf-8")).hexdigest()[:10]
+
+        return f'lithops-codeenigne-runtime-{name_hash}'
 
     def _get_default_runtime_image_name(self):
         """
@@ -229,12 +229,12 @@ class CodeEngineBackend:
 
         return runtime_meta
 
-    def delete_runtime(self, docker_image_name, memory):
+    def delete_runtime(self, docker_image_name, memory, version=__version__):
         """
         Deletes a runtime
         We need to delete job definition
         """
-        def_id = self._format_jobdef_name(docker_image_name, memory)
+        def_id = self._format_jobdef_name(docker_image_name, memory, version)
         self._job_def_cleanup(def_id)
 
     def _job_run_cleanup(self, jobrun_name):
@@ -272,7 +272,7 @@ class CodeEngineBackend:
         self.clear()
         runtimes = self.list_runtimes()
         for image_name, memory, version in runtimes:
-            self.delete_runtime(image_name, memory)
+            self.delete_runtime(image_name, memory, version)
 
         logger.debug('Deleting all lithops configmaps')
         configmaps = self.core_api.list_namespaced_config_map(namespace=self.namespace)

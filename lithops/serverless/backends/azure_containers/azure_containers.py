@@ -58,14 +58,13 @@ class AzureContainerAppBackend:
         msg = COMPUTE_CLI_MSG.format('Azure Container Apps')
         logger.info(f"{msg} - Location: {self.location}")
 
-    def _format_containerapp_name(self, runtime_name, runtime_memory=None):
+    def _format_containerapp_name(self, runtime_name, runtime_memory, version=__version__):
         """
         Formates the conatiner app name
         """
-        ver = __version__
         inv_type = self.invocation_type
         ac_name = self.storage_account_name
-        name = f'{ac_name}-{runtime_name}-{ver}-{inv_type}-{runtime_memory}'
+        name = f'{ac_name}-{runtime_name}-{version}-{inv_type}-{runtime_memory}'
         name_hash = hashlib.sha1(name.encode("utf-8")).hexdigest()[:10]
 
         return f'lithops-ca-runtime-{name_hash}'
@@ -204,12 +203,12 @@ class AzureContainerAppBackend:
         finally:
             os.remove(config.CA_JSON_LOCATION)
 
-    def delete_runtime(self, runtime_name, memory):
+    def delete_runtime(self, runtime_name, memory, version=__version__):
         """
         Deletes a runtime
         """
         logger.info(f'Deleting runtime: {runtime_name} - {memory}MB')
-        containerapp_name = self._format_containerapp_name(runtime_name, memory)
+        containerapp_name = self._format_containerapp_name(runtime_name, memory, version)
         cmd = f'az containerapp delete --name {containerapp_name} --resource-group {self.resource_group} -y'
         utils.run_command(cmd)
 
@@ -251,7 +250,7 @@ class AzureContainerAppBackend:
         runtimes = self.list_runtimes()
 
         for runtime_name, runtime_memory, version in runtimes:
-            self.delete_runtime(runtime_name, runtime_memory)
+            self.delete_runtime(runtime_name, runtime_memory, version)
 
     def _generate_runtime_meta(self, runtime_name, memory):
         """

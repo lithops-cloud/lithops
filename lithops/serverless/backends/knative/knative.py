@@ -130,16 +130,11 @@ class KnativeServingBackend:
 
         logger.info(f'{COMPUTE_CLI_MSG.format("Knative")} - Cluster: {self.cluster}')
 
-    def _format_service_name(self, runtime_name, runtime_memory):
-        runtime_name = runtime_name.replace('/', '--')
-        runtime_name = runtime_name.replace(':', '--')
-        runtime_name = runtime_name.replace('.', '')
-        runtime_name = runtime_name.replace('_', '-')
-
-        name = f'{runtime_name}--{runtime_memory}mb'
+    def _format_service_name(self, runtime_name, runtime_memory, version=__version__):
+        name = f'{runtime_name}-{runtime_memory}-{version}'
         name_hash = hashlib.sha1(name.encode("utf-8")).hexdigest()[:10]
 
-        return f'lithops-kn-runtime-{name_hash}'
+        return f'lithops-knative-runtime-{name_hash}'
 
     def _get_default_runtime_image_name(self):
         """
@@ -587,8 +582,8 @@ class KnativeServingBackend:
 
         logger.debug('Building done!')
 
-    def delete_runtime(self, docker_image_name, memory):
-        service_name = self._format_service_name(docker_image_name, memory)
+    def delete_runtime(self, docker_image_name, memory, version=__version__):
+        service_name = self._format_service_name(docker_image_name, memory, version)
         logger.info(f'Deleting runtime: {service_name}')
         try:
             self.custom_api.delete_namespaced_custom_object(
@@ -608,7 +603,7 @@ class KnativeServingBackend:
         """
         runtimes = self.list_runtimes()
         for img_name, memory, version in runtimes:
-            self.delete_runtime(img_name, memory)
+            self.delete_runtime(img_name, memory, version)
 
     def list_runtimes(self, docker_image_name='all'):
         """
