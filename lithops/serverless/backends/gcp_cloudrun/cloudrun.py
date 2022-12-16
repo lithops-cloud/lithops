@@ -14,13 +14,14 @@
 # limitations under the License.
 #
 
-import logging
-import httplib2
 import os
 import time
 import json
 import urllib
 import yaml
+import hashlib
+import logging
+import httplib2
 import google.auth
 import google.oauth2.id_token
 from threading import Lock
@@ -59,16 +60,14 @@ class GCPCloudRunBackend:
         msg = COMPUTE_CLI_MSG.format('Google Cloud Run')
         logger.info(f"{msg} - Region: {self.region} - Project: {self.project_name}")
 
-    @staticmethod
-    def _format_service_name(runtime_name, runtime_memory):
+    def _format_service_name(self, runtime_name, runtime_memory, version=__version__):
         """
         Formats service name string from runtime name and memory
         """
-        runtime_name = runtime_name.replace('/', '--')
-        runtime_name = runtime_name.replace(':', '--')
-        runtime_name = runtime_name.replace('.', '')
-        runtime_name = runtime_name.replace('_', '-')
-        return f'{runtime_name}--{runtime_memory}mb'
+        name = f'{runtime_name}-{runtime_memory}-{version}'
+        name_hash = hashlib.sha1(name.encode("utf-8")).hexdigest()[:10]
+
+        return f'lithops-runtime-v{version.replace(".", "")}-{name_hash}'
 
     def _get_default_runtime_image_name(self):
         """
@@ -76,7 +75,7 @@ class GCPCloudRunBackend:
         """
         py_version = utils.CURRENT_PY_VERSION.replace('.', '')
         revision = 'latest' if 'dev' in __version__ else __version__
-        return f'lithops-cr-default-v{py_version}:{revision}'
+        return f'lithops-cloudrun-default-v{py_version}:{revision}'
 
     def _build_api_resource(self):
         """
@@ -327,8 +326,8 @@ class GCPCloudRunBackend:
             except Exception as e:
                 break
 
-    def delete_runtime(self, runtime_name, memory):
-        service_name = self._format_service_name(runtime_name, memory)
+    def delete_runtime(self, runtime_name, memory, version=__version__):
+        service_name = self._format_service_name(runtime_name, memory, version)
         logger.info(f'Deleting runtime: {runtime_name} - {memory}MB')
         try:
             self._api_resource.namespaces().services().delete(
@@ -344,7 +343,7 @@ class GCPCloudRunBackend:
 
         runtimes = self.list_runtimes()
         for img_name, memory, version in runtimes:
-            self.delete_runtime(img_name, memory)
+            self.delete_runtime(img_name, memory, version)
 
     def list_runtimes(self, runtime_name='all'):
         logger.debug('Listing runtimes')

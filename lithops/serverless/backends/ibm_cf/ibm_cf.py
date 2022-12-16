@@ -57,7 +57,7 @@ class IBMCloudFunctionsBackend:
         logger.debug(f"Set IBM CF Endpoint to {self.endpoint}")
 
         self.user_key = self.api_key.split(':')[1][:4] if self.api_key else self.iam_api_key[:4]
-        self.package = f'lithops_v{__version__}_{self.user_key}'
+        self.package = f'lithops_{self.user_key}'
 
         if self.api_key:
             enc_api_key = str.encode(self.api_key)
@@ -95,15 +95,15 @@ class IBMCloudFunctionsBackend:
         msg = COMPUTE_CLI_MSG.format('IBM CF')
         logger.info(f"{msg} - Region: {self.region} - Namespace: {self.namespace}")
 
-    def _format_function_name(self, runtime_name, runtime_memory):
+    def _format_function_name(self, runtime_name, runtime_memory, version=__version__):
         runtime_name = runtime_name.replace('/', '_').replace(':', '_')
-        return f'{runtime_name}_{runtime_memory}MB'
+        return f'{runtime_name}_{runtime_memory}MB_{version}'
 
     def _unformat_function_name(self, action_name):
-        runtime_name, memory = action_name.rsplit('_', 1)
-        image_name = runtime_name.replace('_', '/', 1)
+        runtime_name, memory, version = action_name.rsplit('_', 2)
+        image_name = runtime_name.replace('_', '/', 2)
         image_name = image_name.replace('_', ':', -1)
-        return image_name, int(memory.replace('MB', ''))
+        return version, image_name, int(memory.replace('MB', ''))
 
     def _get_default_runtime_image_name(self):
         try:
@@ -161,12 +161,12 @@ class IBMCloudFunctionsBackend:
 
         return runtime_meta
 
-    def delete_runtime(self, docker_image_name, memory):
+    def delete_runtime(self, docker_image_name, memory, version=__version__):
         """
         Deletes a runtime
         """
         logger.info(f'Deleting runtime: {docker_image_name} - {memory}MB')
-        action_name = self._format_function_name(docker_image_name, memory)
+        action_name = self._format_function_name(docker_image_name, memory, version)
         self.cf_client.delete_action(self.package, action_name)
 
     def clean(self):
@@ -175,8 +175,7 @@ class IBMCloudFunctionsBackend:
         """
         packages = self.cf_client.list_packages()
         for pkg in packages:
-            if (pkg['name'].startswith('lithops') and pkg['name'].endswith(self.user_key)) or \
-                    (pkg['name'].startswith('lithops') and pkg['name'].count('_') == 1):
+            if pkg['name'].startswith('lithops') and pkg['name'].endswith(self.user_key):
                 actions = self.cf_client.list_actions(pkg['name'])
                 while actions:
                     for action in actions:
@@ -193,14 +192,13 @@ class IBMCloudFunctionsBackend:
         runtimes = []
 
         packages = self.cf_client.list_packages()
-        for package in packages:
-            if package['name'].startswith('lithops_v'):
-                version = package['name'].replace('lithops_v', '').split('_')[0]
-                actions = self.cf_client.list_actions(package['name'])
+        for pkg in packages:
+            if pkg['name'].startswith('lithops') and pkg['name'].endswith(self.user_key):
+                actions = self.cf_client.list_actions(pkg['name'])
                 for action in actions:
-                    action_image_name, memory = self._unformat_function_name(action['name'])
-                    if docker_image_name == action_image_name or docker_image_name == 'all':
-                        runtimes.append((action_image_name, memory, version))
+                    version, image_name, memory = self._unformat_function_name(action['name'])
+                    if docker_image_name == image_name or docker_image_name == 'all':
+                        runtimes.append((image_name, memory, version))
         return runtimes
 
     def invoke(self, docker_image_name, runtime_memory, payload):
