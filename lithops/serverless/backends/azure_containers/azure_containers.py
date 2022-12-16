@@ -67,7 +67,7 @@ class AzureContainerAppBackend:
         name = f'{ac_name}-{runtime_name}-{version}-{inv_type}-{runtime_memory}'
         name_hash = hashlib.sha1(name.encode("utf-8")).hexdigest()[:10]
 
-        return f'lithops-runtime-{name_hash}'
+        return f'lithops-runtime-v{version.replace(".", "")}-{name_hash}'
 
     def _get_default_runtime_image_name(self):
         """

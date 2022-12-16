@@ -70,7 +70,7 @@ class OpenWhiskBackend:
 
     def _unformat_function_name(self, action_name):
         runtime_name, memory = action_name.rsplit('_', 1)
-        image_name = runtime_name.replace('_', '/', 1)
+        image_name = runtime_name.replace('_', '/', 2)
         image_name = image_name.replace('_', ':', -1)
         return image_name, int(memory.replace('MB', ''))
 
@@ -163,9 +163,9 @@ class OpenWhiskBackend:
                 version = package['name'].replace('lithops_v', '').split('_')[0]
                 actions = self.cf_client.list_actions(package['name'])
                 for action in actions:
-                    action_image_name, memory = self._unformat_function_name(action['name'])
-                    if docker_image_name == action_image_name or docker_image_name == 'all':
-                        runtimes.append((action_image_name, memory, version))
+                    image_name, memory = self._unformat_function_name(action['name'])
+                    if docker_image_name == image_name or docker_image_name == 'all':
+                        runtimes.append((image_name, memory, version))
         return runtimes
 
     def invoke(self, docker_image_name, runtime_memory, payload):
