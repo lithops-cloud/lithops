@@ -64,15 +64,15 @@ class OpenWhiskBackend:
         msg = COMPUTE_CLI_MSG.format('OpenWhisk')
         logger.info(f"{msg} - Namespace: {self.namespace}")
 
-    def _format_function_name(self, runtime_name, runtime_memory):
+    def _format_function_name(self, runtime_name, runtime_memory, version=__version__):
         runtime_name = runtime_name.replace('/', '_').replace(':', '_')
-        return f'{runtime_name}_{runtime_memory}MB'
+        return f'{runtime_name}_{runtime_memory}MB_{version}'
 
     def _unformat_function_name(self, action_name):
-        runtime_name, memory = action_name.rsplit('_', 1)
+        runtime_name, memory, version = action_name.rsplit('_', 2)
         image_name = runtime_name.replace('_', '/', 2)
         image_name = image_name.replace('_', ':', -1)
-        return image_name, int(memory.replace('MB', ''))
+        return version, image_name, int(memory.replace('MB', ''))
 
     def _get_default_runtime_image_name(self):
         try:
@@ -127,12 +127,12 @@ class OpenWhiskBackend:
 
         return self._generate_runtime_meta(docker_image_name, memory)
 
-    def delete_runtime(self, docker_image_name, memory):
+    def delete_runtime(self, docker_image_name, memory, version=__version__):
         """
         Deletes a runtime
         """
         logger.info(f'Deleting runtime: {docker_image_name} - {memory}MB')
-        action_name = self._format_function_name(docker_image_name, memory)
+        action_name = self._format_function_name(docker_image_name, memory, version)
         self.cf_client.delete_action(self.package, action_name)
 
     def clean(self):
@@ -158,12 +158,11 @@ class OpenWhiskBackend:
         runtimes = []
 
         packages = self.cf_client.list_packages()
-        for package in packages:
-            if package['name'].startswith('lithops_v'):
-                version = package['name'].replace('lithops_v', '').split('_')[0]
-                actions = self.cf_client.list_actions(package['name'])
+        for pkg in packages:
+            if pkg['name'].startswith('lithops') and pkg['name'].endswith(self.user_key):
+                actions = self.cf_client.list_actions(pkg['name'])
                 for action in actions:
-                    image_name, memory = self._unformat_function_name(action['name'])
+                    version, image_name, memory = self._unformat_function_name(action['name'])
                     if docker_image_name == image_name or docker_image_name == 'all':
                         runtimes.append((image_name, memory, version))
         return runtimes
