@@ -46,7 +46,6 @@ DEFAULT_CONFIG_KEYS = {
     'architecture': 'x86_64',
     'ephemeral_storage': 512,
     'env_vars': {},
-    'account_id': None,
     'vpc': {'subnets': [], 'security_groups': []},
     'efs': []
 }

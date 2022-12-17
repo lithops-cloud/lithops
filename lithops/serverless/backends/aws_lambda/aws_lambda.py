@@ -81,7 +81,7 @@ class AWSLambdaBackend:
         self.session = URLLib3Session()
         self.host = f'lambda.{self.region_name}.amazonaws.com'
 
-        if self.lambda_config['account_id']:
+        if 'account_id' in self.lambda_config:
             self.account_id = self.lambda_config['account_id']
         else:
             sts_client = self.aws_session.client('sts', region_name=self.region_name)

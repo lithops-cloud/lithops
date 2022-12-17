@@ -62,7 +62,7 @@ class AWSBatchBackend:
 
         self.internal_storage = internal_storage
 
-        if self.aws_batch_config['account_id']:
+        if 'account_id' in self.aws_batch_config:
             self.account_id = self.aws_batch_config['account_id']
         else:
             sts_client = self.aws_session.client('sts', region_name=self.region_name)
@@ -76,7 +76,7 @@ class AWSBatchBackend:
     def _get_default_runtime_image_name(self):
         python_version = utils.CURRENT_PY_VERSION.replace('.', '')
         revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
-        return f'lithops-batch-runtime-default-v{python_version}:{revision}'
+        return f'batch-default-runtime-v{python_version}:{revision}'
 
     def _get_full_image_name(self, runtime_name):
         full_image_name = runtime_name if ':' in runtime_name else f'{runtime_name}:latest'
@@ -88,21 +88,21 @@ class AWSBatchBackend:
     def _format_jobdef_name(self, runtime_name, runtime_memory, version=__version__):
         fmt_runtime_name = runtime_name.replace('/', '--').replace(':', '--')
         package = self.package.replace(__version__.replace(".", "-"), version.replace(".", "-"))
-        return f'{package}-{self._env_type}-{fmt_runtime_name}--{runtime_memory}mb'
+        return f'{package}--{self._env_type}--{fmt_runtime_name}--{runtime_memory}mb'
 
     def _unformat_jobdef_name(self, jobdef_name):
-        # Default jobdef name is "lithops_v2-7-0_WH6F-default_runtime-v39--latest--256mb"
-        prefix, tag, mem_str = jobdef_name.split('--')
-        memory = int(mem_str.replace('mb', ''))
-        runtime_name = prefix.replace(self.package + '-' + self._env_type + '-', '')
-        return runtime_name + ':' + tag, memory
+        # Default jobdef name is "lithops_v2-7-2_WU5O--FARGATE_SPOT--batch-default-runtime-v39--latest--1024mb"
+        prefix, env_type, runtime = jobdef_name.split('--', 2)
+        version = prefix.replace('lithops_v', '').split('_')[0].replace('-', '.')
+        runtime_name, memory = runtime.rsplit("--", 1)
+        return runtime_name.replace('--', ':'), memory.replace('mb', ''), version
 
     def _build_default_runtime(self, runtime_name):
         # Build default runtime using local docker
         python_version = utils.version_str(sys.version_info)
         dockerfile = "Dockerfile.default-batch-runtime"
         with open(dockerfile, 'w') as f:
-            f.write("FROM python:{}-slim-buster\n".format(python_version))
+            f.write(f"FROM python:{python_version}-slim-buster\n")
             f.write(batch_config.DOCKERFILE_DEFAULT)
         try:
             self.build_runtime(runtime_name, dockerfile)
@@ -113,7 +113,7 @@ class AWSBatchBackend:
         compute_env = self._get_compute_env(self._compute_env_name)
 
         if compute_env is None:
-            logger.debug('Creating new Compute Environment {}'.format(self._compute_env_name))
+            logger.debug(f'Creating new Compute Environment {self._compute_env_name}')
             compute_resources_spec = {
                 'type': self.aws_batch_config['env_type'],
                 'maxvCpus': self.aws_batch_config['env_max_cpus'],
@@ -129,7 +129,7 @@ class AWSBatchBackend:
                 compute_resources_spec['minvCpus'] = 0
                 compute_resources_spec['instanceTypes'] = ['optimal']
 
-            if self.aws_batch_config['service_role']:
+            if 'service_role' in self.aws_batch_config:
                 res = self.batch_client.create_compute_environment(
                     computeEnvironmentName=self._compute_env_name,
                     type='MANAGED',
@@ -152,18 +152,18 @@ class AWSBatchBackend:
                 if compute_env['status'] == 'VALID':
                     created = True
                 elif compute_env['status'] == 'CREATING':
-                    logger.debug('Compute environment is being created... (status: {})'.format(compute_env['status']))
+                    logger.debug(f'Compute environment is being created... (status: {compute_env["status"]})')
                     time.sleep(3)
                 else:
                     logger.error(res)
-                    raise Exception('Could not create compute environment (status is {})'.format(compute_env['status']))
+                    raise Exception(f'Could not create compute environment (status is {compute_env["status"]})')
 
-            logger.debug('Compute Environment {} successfully created'.format(self._compute_env_name))
+            logger.debug(f'Compute Environment {self._compute_env_name} successfully created')
         else:
             if compute_env['status'] != 'VALID' or compute_env['state'] != 'ENABLED':
                 logger.error(compute_env)
                 raise Exception('Compute env status must be VALID and state ENABLED')
-            logger.debug('Using existing Compute Environment {}'.format(self._compute_env_name))
+            logger.debug(f'Using existing Compute Environment {self._compute_env_name}')
 
     def _get_compute_env(self, ce_name=None):
         res = self.batch_client.describe_compute_environments()
@@ -344,17 +344,17 @@ class AWSBatchBackend:
 
         logger.debug('Waiting for get-metadata job to finish')
         status_key = runtime_name + '.meta'
-        retry = 25
-        while retry > 0:
+        retry = 0
+        while retry < 10:
+            logger.debug('Getting runtime metadata...')
             try:
                 runtime_meta_json = self.internal_storage.get_data(key=status_key)
                 runtime_meta = json.loads(runtime_meta_json)
                 self.internal_storage.del_data(key=status_key)
                 return runtime_meta
             except StorageNoSuchKeyError:
-                logger.debug('Get runtime meta retry {}'.format(retry))
-                time.sleep(30)
-                retry -= 1
+                time.sleep(20)
+                retry += 1
         raise Exception('Could not get metadata')
 
     def build_runtime(self, runtime_name, runtime_file, extra_args=[]):
@@ -366,11 +366,11 @@ class AWSBatchBackend:
         result = re.match(expression, runtime_name)
 
         if not result or result.group() != runtime_name:
-            raise Exception("Runtime name must satisfy regex {}".format(expression))
+            raise Exception(f"Runtime name must satisfy regex {expression}")
 
         res = self.ecr_client.get_authorization_token()
         if res['ResponseMetadata']['HTTPStatusCode'] != 200:
-            raise Exception('Could not get ECR auth token: {}'.format(res))
+            raise Exception(f'Could not get ECR auth token: {res}')
 
         auth_data = res['authorizationData'].pop()
         ecr_token = base64.b64decode(auth_data['authorizationToken']).split(b':')[1]
@@ -404,7 +404,7 @@ class AWSBatchBackend:
         cmd = f'{docker_path} push {full_image_name}'
         utils.run_command(cmd)
 
-        logger.debug('Runtime {runtime_name} built successfully')
+        logger.debug(f'Runtime {runtime_name} built successfully')
 
     def deploy_runtime(self, runtime_name, memory, timeout=900):
         if runtime_name == self._get_default_runtime_image_name():
@@ -512,10 +512,10 @@ class AWSBatchBackend:
         runtimes = []
 
         for job_def in self._get_job_def():
-            rt_name, rt_mem = self._unformat_jobdef_name(jobdef_name=job_def['jobDefinitionName'])
+            rt_name, rt_mem, version = self._unformat_jobdef_name(jobdef_name=job_def['jobDefinitionName'])
             if runtime_name != 'all' and runtime_name != rt_name:
                 continue
-            runtimes.append((rt_name, rt_mem))
+            runtimes.append((rt_name, rt_mem, version))
 
         return runtimes
 

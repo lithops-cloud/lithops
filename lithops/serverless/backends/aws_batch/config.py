@@ -26,13 +26,12 @@ AVAILABLE_CPU_FARGATE = [0.25, 0.5, 1, 2, 4]
 
 DEFAULT_CONFIG_KEYS = {
     'runtime_timeout': 180,  # Default: 180 seconds => 3 minutes
-    'runtime_memory': 256,  # Default memory: 256 MB
+    'runtime_memory': 1024,  # Default memory: 256 MB
     'max_workers': 1000,
     'worker_processes': 1,
-    'container_vcpus': 1,
+    'container_vcpus': 0.5,
     'env_max_cpus': 10,
     'env_type': 'FARGATE_SPOT',
-    'service_role': None,
     'assign_public_ip': True,
     'subnets': []
 }
@@ -41,15 +40,15 @@ RUNTIME_TIMEOUT_MAX = 7200  # Max. timeout: 7200s == 2h
 RUNTIME_MEMORY_MAX = 30720  # Max. memory: 30720 MB
 
 REQ_PARAMS1 = ('access_key_id', 'secret_access_key')
-REQ_PARAMS2 = ('execution_role', 'region_name', 'security_groups')
+REQ_PARAMS2 = ('execution_role', 'instance_role', 'region_name', 'security_groups')
 
 DOCKERFILE_DEFAULT = """
 RUN apt-get update && apt-get install -y \
         zip \
         && rm -rf /var/lib/apt/lists/*
 
-RUN pip install --upgrade setuptools six pip \
-    && pip install --no-cache-dir \
+RUN pip install --upgrade --ignore-installed setuptools six pip \
+    && pip install --upgrade --no-cache-dir --ignore-installed \
         boto3 \
         pika \
         glob2 \
@@ -89,6 +88,7 @@ def load_config(config_data):
     for param in REQ_PARAMS2:
         if param not in config_data['aws_batch']:
             msg = f'"{param}" is mandatory in the "aws_batch" section of the configuration'
+            raise Exception(msg)
 
     for key in DEFAULT_CONFIG_KEYS:
         if key not in config_data['aws_batch']:
