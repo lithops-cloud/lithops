@@ -701,15 +701,15 @@ class KnativeServingBackend:
             logger.debug('ExecutorID {} | JobID {} - Function call {} failed ({}). Retrying request'
                          .format(exec_id, job_id, ', '.join(call_ids), resp_status))
 
-    def get_runtime_key(self, docker_image_name, runtime_memory):
+    def get_runtime_key(self, docker_image_name, runtime_memory, version=__version__):
         """
         Method that creates and returns the runtime key.
         Runtime keys are used to uniquely identify runtimes within the storage,
         in order to know which runtimes are installed and which not.
         """
-        service_name = self._format_service_name(docker_image_name, runtime_memory)
+        service_name = self._format_service_name(docker_image_name, runtime_memory, version)
         cluster = self.cluster.replace('https://', '').replace('http://', '')
-        runtime_key = os.path.join(self.name, __version__, cluster, self.namespace, service_name)
+        runtime_key = os.path.join(self.name, version, cluster, self.namespace, service_name)
 
         return runtime_key
 

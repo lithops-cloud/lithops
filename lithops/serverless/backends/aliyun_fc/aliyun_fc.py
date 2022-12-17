@@ -279,14 +279,14 @@ class AliyunFunctionComputeBackend:
         logger.debug("Metadata extracted successfully")
         return runtime_meta
 
-    def get_runtime_key(self, runtime_name, runtime_memory):
+    def get_runtime_key(self, runtime_name, runtime_memory, version=__version__):
         """
         Method that creates and returns the runtime key.
         Runtime keys are used to uniquely identify runtimes within the storage,
         in order to know which runtimes are installed and which not.
         """
-        function_name = self._format_function_name(runtime_name, runtime_memory)
-        runtime_key = os.path.join(self.name, __version__, self.region, self.service_name, function_name)
+        function_name = self._format_function_name(runtime_name, runtime_memory, version)
+        runtime_key = os.path.join(self.name, version, self.region, self.service_name, function_name)
 
         return runtime_key
 

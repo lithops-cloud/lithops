@@ -31,6 +31,8 @@ DEFAULT_CONFIG_KEYS = {
     'docker_server': 'index.docker.io'
 }
 
+REQ_PARAMS = ('location', 'resource_group')
+
 ALLOWED_MEM = {
     512: ('0.5Gi', 0.25),
     1024: ('1Gi', 0.5),
@@ -64,15 +66,14 @@ CONTAINERAPP_JSON = {
             "secrets": [{
                 "name": "queueconnection",
                 "value": ""
-            },
-            {
+            }, {
                 "name": "dockerhubtoken",
                 "value": ""
             }],
             "registries": [{
-              "server": "",
-              "username": "",
-              "passwordSecretRef": "dockerhubtoken"
+                "server": "",
+                "username": "",
+                "passwordSecretRef": "dockerhubtoken"
             }],
         },
         "template": {
@@ -151,10 +152,15 @@ CMD ["python", "lithopsentry.py"]
 
 def load_config(config_data):
     if 'azure_storage' not in config_data:
-        raise Exception("azure_storage section is mandatory in the configuration")
+        raise Exception("'azure_storage' section is mandatory in the configuration")
 
-    if 'azure_containers' not in config_data:
-        raise Exception("azure_containers section is mandatory in the configuration")
+    if not config_data['azure_containers']:
+        raise Exception("'azure_containers' section is mandatory in the configuration")
+
+    for param in REQ_PARAMS:
+        if param not in config_data['azure_containers']:
+            msg = f'"{param}" is mandatory in the "azure_containers" section of the configuration'
+            raise Exception(msg)
 
     for key in DEFAULT_CONFIG_KEYS:
         if key not in config_data['azure_containers']:

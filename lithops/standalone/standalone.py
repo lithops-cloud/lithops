@@ -27,7 +27,7 @@ import concurrent.futures as cf
 from lithops.utils import is_lithops_worker, create_handler_zip
 from lithops.constants import SA_SERVICE_PORT, SA_INSTALL_DIR, TEMP_DIR
 from lithops.standalone.utils import get_master_setup_script
-from lithops.version import __version__ as lithops_version
+from lithops.version import __version__
 
 logger = logging.getLogger(__name__)
 
@@ -78,13 +78,13 @@ class StandaloneHandler:
                 cmd = f'curl -X GET http://127.0.0.1:{SA_SERVICE_PORT}/ping'
                 out = self.backend.master.get_ssh_client().run_remote_command(cmd)
                 data = json.loads(out)
-                if data['response'] == lithops_version:
+                if data['response'] == __version__:
                     return True
                 else:
                     self.dismantle()
                     raise LithopsValidationError(
                         f"Lithops version {data['response']} on {self.backend.master}, "
-                        f"doesn't match local lithops version {lithops_version}, consider "
+                        f"doesn't match local lithops version {__version__}, consider "
                         "running 'lithops clean' to delete runtime  metadata leftovers or "
                         "'lithops clean --all' to delete master instance as well")
         except LithopsValidationError as e:
@@ -96,7 +96,7 @@ class StandaloneHandler:
         """
         Checks the master VM is correctly installed
         """
-        logger.debug(f'Validating lithops version installed on master matches {lithops_version}')
+        logger.debug(f'Validating lithops version installed on master matches {__version__}')
 
         ssh_client = self.backend.master.get_ssh_client()
 
@@ -110,11 +110,11 @@ class StandaloneHandler:
                 "or 'lithops clean --all' to delete master instance as well")
 
         master_lithops_version = json.loads(res).get('lithops_version')
-        if master_lithops_version != lithops_version:
+        if master_lithops_version != __version__:
             self.dismantle()
             raise LithopsValidationError(
                 f"Lithops version {master_lithops_version} on {self.backend.master}, "
-                f"doesn't match local lithops version {lithops_version}, consider "
+                f"doesn't match local lithops version {__version__}, consider "
                 "running 'lithops clean' to delete runtime  metadata leftovers or "
                 "'lithops clean --all' to delete master instance as well")
 
@@ -390,13 +390,13 @@ class StandaloneHandler:
         if self.exec_mode != 'reuse':
             self.backend.clear(job_keys)
 
-    def get_runtime_key(self, runtime_name, *args):
+    def get_runtime_key(self, runtime_name, runtime_memory, version=__version__):
         """
         Wrapper method that returns a formated string that represents the
         runtime key. Each backend has its own runtime key format. Used to
         store runtime metadata into the storage
         """
-        return self.backend.get_runtime_key(runtime_name)
+        return self.backend.get_runtime_key(runtime_name, version)
 
     def get_runtime_info(self):
         """
@@ -439,7 +439,7 @@ class StandaloneHandler:
                    'instance_id': self.backend.master.instance_id,
                    'private_ip': self.backend.master.private_ip,
                    'delete_on_dismantle': self.backend.master.delete_on_dismantle,
-                   'lithops_version': lithops_version}
+                   'lithops_version': __version__}
 
         logger.debug('Executing lithops installation process on {}'.format(self.backend.master))
         logger.debug('Be patient, initial installation process may take up to 3 minutes')

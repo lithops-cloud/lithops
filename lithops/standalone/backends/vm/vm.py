@@ -60,9 +60,9 @@ class VMBackend:
     def dismantle(self, **kwargs):
         pass
 
-    def get_runtime_key(self, runtime_name):
+    def get_runtime_key(self, runtime_name, version=__version__):
         runtime = runtime_name.replace('/', '-').replace(':', '-')
-        runtime_key = os.path.join(self.name, __version__, self.config['ip_address'], runtime)
+        runtime_key = os.path.join(self.name, version, self.config['ip_address'], runtime)
         return runtime_key
 
 
@@ -122,9 +122,9 @@ class VMInstance:
         logger.debug(f'Waiting {self} to become ready')
 
         start = time.time()
-        while(time.time() - start < timeout):
+        while (time.time() - start < timeout):
             if self.is_ready():
-                start_time = round(time.time()-start, 2)
+                start_time = round(time.time() - start, 2)
                 logger.debug(f'{self} ready in {start_time} seconds')
                 return True
             time.sleep(5)

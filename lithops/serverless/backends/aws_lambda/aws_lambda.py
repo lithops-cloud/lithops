@@ -92,13 +92,12 @@ class AWSLambdaBackend:
         msg = COMPUTE_CLI_MSG.format('AWS Lambda')
         logger.info(f"{msg} - Region: {self.region_name}")
 
-    def _format_function_name(self, runtime_name, runtime_memory):
-        runtime_name = runtime_name.replace('/', '__')
-        runtime_name = runtime_name.replace('.', '')
-        runtime_name = runtime_name.replace(':', '--')
-        runtime_name = self.package + '__' + runtime_name
+    def _format_function_name(self, runtime_name, runtime_memory, version=__version__):
+        runtime_name = runtime_name.replace('/', '__').replace('.', '').replace(':', '--')
+        package = self.package.replace(__version__.replace(".", "-"), version.replace(".", "-"))
+        runtime_name = package + '__' + runtime_name
 
-        return '{}_{}MB'.format(runtime_name, runtime_memory)
+        return f'{runtime_name}_{runtime_memory}MB'
 
     @staticmethod
     def _unformat_function_name(function_name):
@@ -109,8 +108,9 @@ class AWSLambdaBackend:
         runtime_name, runtime_memory = runtime.rsplit('_', 1)
         return version, runtime_name, runtime_memory.replace('MB', '')
 
-    def _format_layer_name(self, runtime_name):
-        return '_'.join([self.package, runtime_name, 'layer'])
+    def _format_layer_name(self, runtime_name, version=__version__):
+        package = self.package.replace(__version__.replace(".", ""), version.replace(".", ""))
+        return '_'.join([package, runtime_name, 'layer'])
 
     def _get_default_runtime_name(self):
         py_version = utils.CURRENT_PY_VERSION.replace('.', '')
@@ -391,7 +391,7 @@ class AWSLambdaBackend:
         """
         Deploy the default runtime based on layers
         """
-        logger.info(f"Deploying runtime: {runtime_name} - Memory: {memory} Timeout: {timeout}")
+        logger.info(f"Deploying runtime: {runtime_name} - Memory: {memory} - Timeout: {timeout}")
         function_name = self._format_function_name(runtime_name, memory)
 
         layer_arn = self._get_layer(runtime_name)
@@ -424,7 +424,8 @@ class AWSLambdaBackend:
                     for efs_conf in self.lambda_config['efs']
                 ],
                 Tags={
-                    'runtime_name': runtime_name
+                    'runtime_name': runtime_name,
+                    'lithops_version': __version__
                 },
                 EphemeralStorage={
                     'Size': self.lambda_config['ephemeral_storage']
@@ -496,7 +497,8 @@ class AWSLambdaBackend:
                     for efs_conf in self.lambda_config['efs']
                 ],
                 Tags={
-                    'runtime_name': self.package + '/' + runtime_name
+                    'runtime_name': self.package + '/' + runtime_name,
+                    'lithops_version': __version__
                 },
                 Architectures=[self.lambda_config['architecture']],
                 EphemeralStorage={
@@ -536,14 +538,14 @@ class AWSLambdaBackend:
 
         return runtime_meta
 
-    def delete_runtime(self, runtime_name, runtime_memory):
+    def delete_runtime(self, runtime_name, runtime_memory, version=__version__):
         """
         Delete a Lithops lambda runtime
         @param runtime_name: name of the runtime to be deleted
         @param runtime_memory: memory of the runtime to be deleted in MB
         """
         logger.info(f'Deleting lambda runtime: {runtime_name} - {runtime_memory}MB')
-        func_name = self._format_function_name(runtime_name, runtime_memory)
+        func_name = self._format_function_name(runtime_name, runtime_memory, version)
 
         self._delete_function(func_name)
 
@@ -567,7 +569,7 @@ class AWSLambdaBackend:
                 except Exception:
                     pass
             else:
-                layer = self._format_layer_name(runtime_name)
+                layer = self._format_layer_name(runtime_name, version)
                 self._delete_layer(layer)
 
     def clean(self):
@@ -671,14 +673,14 @@ class AWSLambdaBackend:
         #     else:
         #         raise Exception(response)
 
-    def get_runtime_key(self, runtime_name, runtime_memory):
+    def get_runtime_key(self, runtime_name, runtime_memory, version=__version__):
         """
         Method that creates and returns the runtime key.
         Runtime keys are used to uniquely identify runtimes within the storage,
         in order to know which runtimes are installed and which not.
         """
-        action_name = self._format_function_name(runtime_name, runtime_memory)
-        runtime_key = os.path.join(self.name, __version__, self.region_name, action_name)
+        action_name = self._format_function_name(runtime_name, runtime_memory, version)
+        runtime_key = os.path.join(self.name, version, self.region_name, action_name)
 
         return runtime_key
 

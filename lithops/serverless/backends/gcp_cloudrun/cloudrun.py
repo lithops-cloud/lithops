@@ -253,8 +253,6 @@ class GCPCloudRunBackend:
         img_name = self._format_image_name(runtime_name)
         service_name = self._format_service_name(runtime_name, runtime_memory)
 
-        self.delete_runtime(runtime_name, runtime_memory)
-
         svc_res = yaml.safe_load(config.service_res)
         svc_res['metadata']['name'] = service_name
         svc_res['metadata']['namespace'] = self.project_name
@@ -277,12 +275,11 @@ class GCPCloudRunBackend:
         container['resources']['requests']['memory'] = f'{runtime_memory}Mi'
         container['resources']['requests']['cpu'] = str(self.cr_config['runtime_cpu'])
 
-        logger.info(f"Creating runtime: {runtime_name}")
+        logger.debug(f"Creating service: {service_name}")
         res = self._api_resource.namespaces().services().create(
             parent=f'namespaces/{self.project_name}', body=svc_res
         ).execute()
-
-        logger.debug(f'Ok -- created service {service_name}')
+        logger.debug(f'Ok -- service created {service_name}')
 
         # Wait until service is up
         ready = False
@@ -315,17 +312,6 @@ class GCPCloudRunBackend:
         runtime_meta = self._generate_runtime_meta(runtime_name, memory)
         return runtime_meta
 
-    def _wait_service_deleted(self, service_name):
-        # Wait until the service is completely deleted
-        while True:
-            try:
-                res = self._api_resource.namespaces().services().get(
-                    name=f'namespaces/{self.project_name}/services/{service_name}'
-                ).execute()
-                time.sleep(1)
-            except Exception as e:
-                break
-
     def delete_runtime(self, runtime_name, memory, version=__version__):
         service_name = self._format_service_name(runtime_name, memory, version)
         logger.info(f'Deleting runtime: {runtime_name} - {memory}MB')
@@ -333,7 +319,15 @@ class GCPCloudRunBackend:
             self._api_resource.namespaces().services().delete(
                 name=f'namespaces/{self.project_name}/services/{service_name}'
             ).execute()
-            self._wait_service_deleted(service_name)
+            # Wait until the service is completely deleted
+            while True:
+                try:
+                    self._api_resource.namespaces().services().get(
+                        name=f'namespaces/{self.project_name}/services/{service_name}'
+                    ).execute()
+                    time.sleep(1)
+                except Exception:
+                    break
             logger.debug(f'Ok -- deleted runtime {runtime_name}')
         except Exception:
             pass
@@ -371,9 +365,9 @@ class GCPCloudRunBackend:
 
         return runtimes
 
-    def get_runtime_key(self, runtime_name, memory):
-        service_name = self._format_service_name(runtime_name, memory)
-        runtime_key = os.path.join(self.name, __version__, self.project_name, self.region, service_name)
+    def get_runtime_key(self, runtime_name, memory, version=__version__):
+        service_name = self._format_service_name(runtime_name, memory, version)
+        runtime_key = os.path.join(self.name, version, self.project_name, self.region, service_name)
         logger.debug(f'Runtime key: {runtime_key}')
 
         return runtime_key

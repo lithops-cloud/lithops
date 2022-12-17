@@ -42,6 +42,10 @@ OPT_PARAMS_2 = ['namespace_id', 'iam_api_key']
 
 
 def load_config(config_data):
+
+    if not config_data['ibm_cf']:
+        raise Exception("'ibm_cf' section is mandatory in the configuration")
+
     for param in REQ_PARAMS:
         if param not in config_data['ibm_cf']:
             msg = f"{param} is mandatory in 'ibm_cf' section of the configuration"

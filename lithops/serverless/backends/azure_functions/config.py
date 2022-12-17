@@ -33,6 +33,8 @@ DEFAULT_CONFIG_KEYS = {
     'invocation_type': 'event'
 }
 
+REQ_PARAMS = ('location', 'resource_group')
+
 AVAILABLE_PY_RUNTIMES = ['3.6', '3.7', '3.8', '3.9']
 
 REQUIRED_AZURE_STORAGE_PARAMS = ['storage_account_name', 'storage_account_key']
@@ -141,10 +143,15 @@ tblib
 
 def load_config(config_data):
     if 'azure_storage' not in config_data:
-        raise Exception("azure_storage section is mandatory in the configuration")
+        raise Exception("'azure_storage' section is mandatory in the configuration")
 
-    if 'azure_functions' not in config_data:
-        raise Exception("azure_functions section is mandatory in the configuration")
+    if not config_data['azure_functions']:
+        raise Exception("'azure_functions' section is mandatory in the configuration")
+
+    for param in REQ_PARAMS:
+        if param not in config_data['azure_functions']:
+            msg = f'"{param}" is mandatory in the "azure_functions" section of the configuration'
+            raise Exception(msg)
 
     for key in DEFAULT_CONFIG_KEYS:
         if key not in config_data['azure_functions']:
