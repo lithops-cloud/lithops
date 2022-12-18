@@ -193,7 +193,7 @@ class IBMCloudFunctionsBackend:
 
         packages = self.cf_client.list_packages()
         for pkg in packages:
-            if pkg['name'].startswith('lithops') and pkg['name'].endswith(self.user_key):
+            if pkg['name'] == self.package:
                 actions = self.cf_client.list_actions(pkg['name'])
                 for action in actions:
                     version, image_name, memory = self._unformat_function_name(action['name'])
@@ -246,14 +246,14 @@ class IBMCloudFunctionsBackend:
 
         return activation_id
 
-    def get_runtime_key(self, docker_image_name, runtime_memory):
+    def get_runtime_key(self, docker_image_name, runtime_memory, version=__version__):
         """
         Method that creates and returns the runtime key.
         Runtime keys are used to uniquely identify runtimes within the storage,
         in order to know which runtimes are installed and which not.
         """
-        action_name = self._format_function_name(docker_image_name, runtime_memory)
-        runtime_key = os.path.join(self.name, __version__, self.region, self.namespace, action_name)
+        action_name = self._format_function_name(docker_image_name, runtime_memory, version)
+        runtime_key = os.path.join(self.name, version, self.region, self.namespace, action_name)
 
         return runtime_key
 

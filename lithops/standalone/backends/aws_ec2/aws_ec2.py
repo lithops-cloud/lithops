@@ -242,12 +242,12 @@ class AWSEC2Backend:
         worker.create(user_data=user_data)
         self.workers.append(worker)
 
-    def get_runtime_key(self, runtime_name):
+    def get_runtime_key(self, runtime_name, version=__version__):
         """
         Creates the runtime key
         """
         name = runtime_name.replace('/', '-').replace(':', '-')
-        runtime_key = os.path.join(self.name, __version__, self.ec2_data['instance_id'], name)
+        runtime_key = os.path.join(self.name, version, self.ec2_data['instance_id'], name)
         return runtime_key
 
 
@@ -363,7 +363,7 @@ class EC2Instance:
 
         while (time.time() - start < timeout):
             if self.is_ready():
-                start_time = round(time.time()-start, 2)
+                start_time = round(time.time() - start, 2)
                 logger.debug(f'{self} ready in {start_time} seconds')
                 return True
             time.sleep(5)

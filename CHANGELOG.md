@@ -4,12 +4,14 @@
 
 ### Added
 - [Config] Allow to store the config file in "/etc/lithops/config"
+- [CLI] Alow to specify 'memory' and 'version' in the 'lithops runtime delete' command
 
 ### Changed
 - [Core] Include function result in the status.json file if it is < 8KB
 
 ### Fixed
 - [Serverless] Allow to delete runtimes from different lithops versions
+- [AWS Batch] Fixed list_runtimes() method
 
 
 ## [v2.7.1]

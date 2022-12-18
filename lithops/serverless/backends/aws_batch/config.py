@@ -16,30 +16,39 @@
 
 import logging
 
-from lithops.constants import WORKER_PROCESSES_DEFAULT
-
 logger = logging.getLogger(__name__)
 
 ENV_TYPES = {'EC2', 'SPOT', 'FARGATE', 'FARGATE_SPOT'}
-DEFAULT_ENV_TYPE = 'FARGATE_SPOT'
-
-ENV_MAX_CPUS_DEFAULT = 10
+RUNTIME_ZIP = 'lithops_aws_batch.zip'
 
 AVAILABLE_MEM_FARGATE = [512] + [1024 * i for i in range(1, 31)]
 AVAILABLE_CPU_FARGATE = [0.25, 0.5, 1, 2, 4]
 
-RUNTIME_TIMEOUT_DEFAULT = 180  # Default timeout: 180s == 3 min
+DEFAULT_CONFIG_KEYS = {
+    'runtime_timeout': 180,  # Default: 180 seconds => 3 minutes
+    'runtime_memory': 1024,  # Default memory: 256 MB
+    'max_workers': 1000,
+    'worker_processes': 1,
+    'container_vcpus': 0.5,
+    'env_max_cpus': 10,
+    'env_type': 'FARGATE_SPOT',
+    'assign_public_ip': True,
+    'subnets': []
+}
+
 RUNTIME_TIMEOUT_MAX = 7200  # Max. timeout: 7200s == 2h
-RUNTIME_MEMORY_DEFAULT = 256  # Default memory: 256 MB
 RUNTIME_MEMORY_MAX = 30720  # Max. memory: 30720 MB
+
+REQ_PARAMS1 = ('access_key_id', 'secret_access_key')
+REQ_PARAMS2 = ('execution_role', 'instance_role', 'region_name', 'security_groups')
 
 DOCKERFILE_DEFAULT = """
 RUN apt-get update && apt-get install -y \
         zip \
         && rm -rf /var/lib/apt/lists/*
 
-RUN pip install --upgrade setuptools six pip \
-    && pip install --no-cache-dir \
+RUN pip install --upgrade --ignore-installed setuptools six pip \
+    && pip install --upgrade --no-cache-dir --ignore-installed \
         boto3 \
         pika \
         glob2 \
@@ -64,36 +73,43 @@ ENTRYPOINT python entry_point.py
 
 
 def load_config(config_data):
-    if 'aws' not in config_data or 'aws_batch' not in config_data:
-        raise Exception("'aws' and 'aws_batch' sections are mandatory in the configuration")
 
-    # Generic serverless config
-    if 'runtime_memory' not in config_data['aws_batch']:
-        config_data['aws_batch']['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
+    if 'aws' not in config_data:
+        raise Exception("'aws' section is mandatory in the configuration")
+
+    for param in REQ_PARAMS1:
+        if param not in config_data['aws']:
+            msg = f'"{param}" is mandatory in the "aws" section of the configuration'
+            raise Exception(msg)
+
+    if not config_data['aws_batch']:
+        raise Exception("'aws_batch' section is mandatory in the configuration")
+
+    for param in REQ_PARAMS2:
+        if param not in config_data['aws_batch']:
+            msg = f'"{param}" is mandatory in the "aws_batch" section of the configuration'
+            raise Exception(msg)
+
+    for key in DEFAULT_CONFIG_KEYS:
+        if key not in config_data['aws_batch']:
+            config_data['aws_batch'][key] = DEFAULT_CONFIG_KEYS[key]
+
     if config_data['aws_batch']['runtime_memory'] > RUNTIME_MEMORY_MAX:
         logger.warning("Memory set to {} - {} exceeds "
                        "the maximum amount".format(RUNTIME_MEMORY_MAX, config_data['aws_batch']['runtime_memory']))
         config_data['aws_batch']['runtime_memory'] = RUNTIME_MEMORY_MAX
-    if 'runtime_timeout' not in config_data['aws_batch']:
-        config_data['aws_batch']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
+
     if config_data['aws_batch']['runtime_timeout'] > RUNTIME_TIMEOUT_MAX:
         logger.warning("Timeout set to {} - {} exceeds the "
                        "maximum amount".format(RUNTIME_TIMEOUT_MAX, config_data['aws_batch']['runtime_timeout']))
         config_data['aws_batch']['runtime_timeout'] = RUNTIME_TIMEOUT_MAX
-    if 'worker_processes' not in config_data['aws_batch']:
-        config_data['aws_batch']['worker_processes'] = WORKER_PROCESSES_DEFAULT
 
     config_data['aws_batch']['max_workers'] = config_data['aws_batch']['env_max_cpus'] // config_data['aws_batch']['container_vcpus']
 
-    if config_data['aws_batch']['env_type'] not in {'EC2', 'SPOT', 'FARGATE', 'FARGATE_SPOT'}:
-        raise Exception('Unknown env type {}'.format(config_data['aws_batch']['env_type']))
-
-    if 'env_type' not in config_data['aws_batch']:
-        config_data['aws_batch']['env_type'] = DEFAULT_ENV_TYPE
     if config_data['aws_batch']['env_type'] not in ENV_TYPES:
-        logger.error(config_data['aws_batch'])
         raise Exception(
             'AWS Batch env type must be one of {} (is {})'.format(ENV_TYPES, config_data['aws_batch']['env_type']))
+
     if config_data['aws_batch']['env_type'] in {'FARGATE, FARGATE_SPOT'}:
         if config_data['aws_batch']['container_vcpus'] not in AVAILABLE_CPU_FARGATE:
             raise Exception('{} container vcpus is not available for {} environment (choose one of {})'.format(
@@ -105,28 +121,12 @@ def load_config(config_data):
                 config_data['aws_batch']['runtime_memory'], config_data['aws_batch']['env_type'],
                 AVAILABLE_MEM_FARGATE
             ))
+
     if config_data['aws_batch']['env_type'] in {'EC2', 'SPOT'}:
         if 'instance_role' not in config_data['aws_batch']:
             raise Exception("'instance_role' mandatory for EC2 or SPOT environments")
 
-    # Auth, role and region config
-    if not {'access_key_id', 'secret_access_key'}.issubset(set(config_data['aws'])):
-        raise Exception("'access_key_id' and 'secret_access_key' are mandatory under 'aws' section")
-
-    if 'account_id' not in config_data['aws']:
-        config_data['aws']['account_id'] = None
-
-    if not {'execution_role', 'region_name'}.issubset(set(config_data['aws_batch'])):
-        raise Exception("'execution_role' and 'region_name' are mandatory under 'aws_batch' section")
-    if 'service_role' not in config_data['aws_batch']:
-        config_data['aws_batch']['service_role'] = None
-
-    # VPC config
-    if 'subnets' not in config_data['aws_batch']:
-        config_data['aws_batch']['subnets'] = []
-    if 'assign_public_ip' not in config_data['aws_batch']:
-        config_data['aws_batch']['assign_public_ip'] = True
     assert isinstance(config_data['aws_batch']['assign_public_ip'], bool)
 
     # Put credential keys to 'aws_batch' dict entry
-    config_data['aws_batch'] = {**config_data['aws_batch'], **config_data['aws']}
+    config_data['aws_batch'].update(config_data['aws'])

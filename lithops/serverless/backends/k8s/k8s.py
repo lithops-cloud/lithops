@@ -449,14 +449,14 @@ class KubernetesBackend:
 
         return runtime_meta
 
-    def get_runtime_key(self, docker_image_name, runtime_memory):
+    def get_runtime_key(self, docker_image_name, runtime_memory, version=__version__):
         """
         Method that creates and returns the runtime key.
         Runtime keys are used to uniquely identify runtimes within the storage,
         in order to know which runtimes are installed and which not.
         """
-        jobdef_name = self._format_job_name(docker_image_name, 256)
-        runtime_key = os.path.join(self.name, __version__, self.namespace, jobdef_name)
+        jobdef_name = self._format_job_name(docker_image_name, 256, version)
+        runtime_key = os.path.join(self.name, version, self.namespace, jobdef_name)
 
         return runtime_key
 

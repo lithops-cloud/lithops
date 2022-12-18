@@ -230,14 +230,14 @@ class AzureContainerAppBackend:
 
             return activation_id
 
-    def get_runtime_key(self, runtime_name, runtime_memory):
+    def get_runtime_key(self, runtime_name, runtime_memory, version=__version__):
         """
         Method that creates and returns the runtime key.
         Runtime keys are used to uniquely identify runtimes within the storage,
         in order to know which runtimes are installed and which not.
         """
-        containerapp_name = self._format_containerapp_name(runtime_name, runtime_memory)
-        runtime_key = os.path.join(self.name, __version__, containerapp_name)
+        containerapp_name = self._format_containerapp_name(runtime_name, runtime_memory, version)
+        runtime_key = os.path.join(self.name, version, containerapp_name)
 
         return runtime_key
 

@@ -33,10 +33,9 @@ from . import config as batch_config
 
 logger = logging.getLogger(__name__)
 
-RUNTIME_ZIP = 'lithops_aws_batch.zip'
-
 
 class AWSBatchBackend:
+
     def __init__(self, aws_batch_config, internal_storage):
         """
         Initialize AWS Batch Backend
@@ -48,12 +47,12 @@ class AWSBatchBackend:
         self.aws_batch_config = aws_batch_config
 
         self.user_key = aws_batch_config['access_key_id'][-4:]
-        self.package = 'aws-batch_lithops_v{}_{}'.format(__version__, self.user_key)
+        self.package = f'lithops_v{__version__.replace(".", "-")}_{self.user_key}'
         self.region_name = aws_batch_config['region_name']
 
         self._env_type = self.aws_batch_config['env_type']
-        self._queue_name = '{}_{}_queue'.format(self.package.replace('.', '-'), self._env_type.replace('_', '-'))
-        self._compute_env_name = '{}_{}_env'.format(self.package.replace('.', '-'), self._env_type.replace('_', '-'))
+        self._queue_name = f'{self.package}_{self._env_type.replace("_", "-")}_queue'
+        self._compute_env_name = f'{self.package}_{self._env_type.replace("_", "-")}_env'
 
         logger.debug('Creating Boto3 AWS Session and Batch Client')
         self.aws_session = boto3.Session(aws_access_key_id=aws_batch_config['access_key_id'],
@@ -63,7 +62,7 @@ class AWSBatchBackend:
 
         self.internal_storage = internal_storage
 
-        if self.aws_batch_config['account_id']:
+        if 'account_id' in self.aws_batch_config:
             self.account_id = self.aws_batch_config['account_id']
         else:
             sts_client = self.aws_session.client('sts', region_name=self.region_name)
@@ -77,32 +76,33 @@ class AWSBatchBackend:
     def _get_default_runtime_image_name(self):
         python_version = utils.CURRENT_PY_VERSION.replace('.', '')
         revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
-        return f'default-batch-runtime-v{python_version}:{revision}'
+        return f'batch-default-runtime-v{python_version}:{revision}'
 
     def _get_full_image_name(self, runtime_name):
         full_image_name = runtime_name if ':' in runtime_name else f'{runtime_name}:latest'
         registry = f'{self.account_id}.dkr.ecr.{self.region_name}.amazonaws.com'
-        full_image_name = '/'.join([registry, self.package, full_image_name]).lower()
+        full_image_name = '/'.join([registry, self.package.replace('-', '.'), full_image_name]).lower()
         repo_name = full_image_name.split('/', 1)[1:].pop().split(':')[0]
         return full_image_name, registry, repo_name
 
-    def _format_jobdef_name(self, runtime_name, runtime_memory):
+    def _format_jobdef_name(self, runtime_name, runtime_memory, version=__version__):
         fmt_runtime_name = runtime_name.replace('/', '--').replace(':', '--')
-        return '{}-{}-{}--{}mb'.format(self.package.replace('.', '-'), self._env_type, fmt_runtime_name, runtime_memory)
+        package = self.package.replace(__version__.replace(".", "-"), version.replace(".", "-"))
+        return f'{package}--{self._env_type}--{fmt_runtime_name}--{runtime_memory}mb'
 
     def _unformat_jobdef_name(self, jobdef_name):
-        # Default jobdef name is "aws-batch_lithops_v2-5-5-dev0_WH6F-default_runtime-v39--latest--256mb"
-        prefix, tag, mem_str = jobdef_name.split('--')
-        memory = int(mem_str.replace('mb', ''))
-        runtime_name = prefix.replace(self.package.replace('.', '-') + '-' + self._env_type + '-', '')
-        return runtime_name + ':' + tag, memory
+        # Default jobdef name is "lithops_v2-7-2_WU5O--FARGATE_SPOT--batch-default-runtime-v39--latest--1024mb"
+        prefix, env_type, runtime = jobdef_name.split('--', 2)
+        version = prefix.replace('lithops_v', '').split('_')[0].replace('-', '.')
+        runtime_name, memory = runtime.rsplit("--", 1)
+        return runtime_name.replace('--', ':'), memory.replace('mb', ''), version
 
     def _build_default_runtime(self, runtime_name):
         # Build default runtime using local docker
         python_version = utils.version_str(sys.version_info)
         dockerfile = "Dockerfile.default-batch-runtime"
         with open(dockerfile, 'w') as f:
-            f.write("FROM python:{}-slim-buster\n".format(python_version))
+            f.write(f"FROM python:{python_version}-slim-buster\n")
             f.write(batch_config.DOCKERFILE_DEFAULT)
         try:
             self.build_runtime(runtime_name, dockerfile)
@@ -113,7 +113,7 @@ class AWSBatchBackend:
         compute_env = self._get_compute_env(self._compute_env_name)
 
         if compute_env is None:
-            logger.debug('Creating new Compute Environment {}'.format(self._compute_env_name))
+            logger.debug(f'Creating new Compute Environment {self._compute_env_name}')
             compute_resources_spec = {
                 'type': self.aws_batch_config['env_type'],
                 'maxvCpus': self.aws_batch_config['env_max_cpus'],
@@ -129,7 +129,7 @@ class AWSBatchBackend:
                 compute_resources_spec['minvCpus'] = 0
                 compute_resources_spec['instanceTypes'] = ['optimal']
 
-            if self.aws_batch_config['service_role']:
+            if 'service_role' in self.aws_batch_config:
                 res = self.batch_client.create_compute_environment(
                     computeEnvironmentName=self._compute_env_name,
                     type='MANAGED',
@@ -152,18 +152,18 @@ class AWSBatchBackend:
                 if compute_env['status'] == 'VALID':
                     created = True
                 elif compute_env['status'] == 'CREATING':
-                    logger.debug('Compute environment is being created... (status: {})'.format(compute_env['status']))
+                    logger.debug(f'Compute environment is being created... (status: {compute_env["status"]})')
                     time.sleep(3)
                 else:
                     logger.error(res)
-                    raise Exception('Could not create compute environment (status is {})'.format(compute_env['status']))
+                    raise Exception(f'Could not create compute environment (status is {compute_env["status"]})')
 
-            logger.debug('Compute Environment {} successfully created'.format(self._compute_env_name))
+            logger.debug(f'Compute Environment {self._compute_env_name} successfully created')
         else:
             if compute_env['status'] != 'VALID' or compute_env['state'] != 'ENABLED':
                 logger.error(compute_env)
                 raise Exception('Compute env status must be VALID and state ENABLED')
-            logger.debug('Using existing Compute Environment {}'.format(self._compute_env_name))
+            logger.debug(f'Using existing Compute Environment {self._compute_env_name}')
 
     def _get_compute_env(self, ce_name=None):
         res = self.batch_client.describe_compute_environments()
@@ -173,7 +173,7 @@ class AWSBatchBackend:
 
         if ce_name is None:
             compute_envs = [ce for ce in res['computeEnvironments'] if
-                            self.package.replace('.', '-') in ce['computeEnvironmentName']]
+                            self.package in ce['computeEnvironmentName']]
             return compute_envs
 
         compute_envs = [ce for ce in res['computeEnvironments'] if ce['computeEnvironmentName'] == ce_name]
@@ -231,7 +231,7 @@ class AWSBatchBackend:
 
         if jq_name is None:
             job_queues = [jq for jq in res['jobQueues']
-                          if self.package.replace('.', '-') in jq['jobQueueName']]
+                          if self.package in jq['jobQueueName']]
             return job_queues
 
         job_queues = [jq for jq in res['jobQueues'] if jq['jobQueueName'] == jq_name]
@@ -302,7 +302,7 @@ class AWSBatchBackend:
 
         if jd_name is None:
             job_defs = [jd for jd in res['jobDefinitions']
-                        if self.package.replace('.', '-') in jd['jobDefinitionName']]
+                        if self.package in jd['jobDefinitionName']]
             return job_defs
 
         job_defs = [jd for jd in res['jobDefinitions'] if jd['jobDefinitionName'] == jd_name]
@@ -344,17 +344,17 @@ class AWSBatchBackend:
 
         logger.debug('Waiting for get-metadata job to finish')
         status_key = runtime_name + '.meta'
-        retry = 25
-        while retry > 0:
+        retry = 0
+        while retry < 10:
+            logger.debug('Getting runtime metadata...')
             try:
                 runtime_meta_json = self.internal_storage.get_data(key=status_key)
                 runtime_meta = json.loads(runtime_meta_json)
                 self.internal_storage.del_data(key=status_key)
                 return runtime_meta
             except StorageNoSuchKeyError:
-                logger.debug('Get runtime meta retry {}'.format(retry))
-                time.sleep(30)
-                retry -= 1
+                time.sleep(20)
+                retry += 1
         raise Exception('Could not get metadata')
 
     def build_runtime(self, runtime_name, runtime_file, extra_args=[]):
@@ -366,11 +366,11 @@ class AWSBatchBackend:
         result = re.match(expression, runtime_name)
 
         if not result or result.group() != runtime_name:
-            raise Exception("Runtime name must satisfy regex {}".format(expression))
+            raise Exception(f"Runtime name must satisfy regex {expression}")
 
         res = self.ecr_client.get_authorization_token()
         if res['ResponseMetadata']['HTTPStatusCode'] != 200:
-            raise Exception('Could not get ECR auth token: {}'.format(res))
+            raise Exception(f'Could not get ECR auth token: {res}')
 
         auth_data = res['authorizationData'].pop()
         ecr_token = base64.b64decode(auth_data['authorizationToken']).split(b':')[1]
@@ -386,10 +386,10 @@ class AWSBatchBackend:
 
         try:
             entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
-            utils.create_handler_zip(os.path.join(os.getcwd(), RUNTIME_ZIP), entry_point)
+            utils.create_handler_zip(os.path.join(os.getcwd(), batch_config.RUNTIME_ZIP), entry_point)
             utils.run_command(cmd)
         finally:
-            os.remove(RUNTIME_ZIP)
+            os.remove(batch_config.RUNTIME_ZIP)
 
         cmd = f'{docker_path} login --username AWS --password-stdin {registry}'
         subprocess.check_output(cmd.split(), input=ecr_token)
@@ -404,7 +404,7 @@ class AWSBatchBackend:
         cmd = f'{docker_path} push {full_image_name}'
         utils.run_command(cmd)
 
-        logger.debug('Runtime {runtime_name} built successfully')
+        logger.debug(f'Runtime {runtime_name} built successfully')
 
     def deploy_runtime(self, runtime_name, memory, timeout=900):
         if runtime_name == self._get_default_runtime_image_name():
@@ -418,8 +418,8 @@ class AWSBatchBackend:
         runtime_meta = self._generate_runtime_meta(runtime_name, memory)
         return runtime_meta
 
-    def delete_runtime(self, runtime_name, runtime_memory):
-        jobdef_name = self._format_jobdef_name(runtime_name, runtime_memory)
+    def delete_runtime(self, runtime_name, runtime_memory, version=__version__):
+        jobdef_name = self._format_jobdef_name(runtime_name, runtime_memory, version)
         job_def = self._get_job_def(jobdef_name)
 
         logger.info('Deleting job definition with ARN {}'.format(job_def['jobDefinitionArn']))
@@ -512,10 +512,10 @@ class AWSBatchBackend:
         runtimes = []
 
         for job_def in self._get_job_def():
-            rt_name, rt_mem = self._unformat_jobdef_name(jobdef_name=job_def['jobDefinitionName'])
+            rt_name, rt_mem, version = self._unformat_jobdef_name(jobdef_name=job_def['jobDefinitionName'])
             if runtime_name != 'all' and runtime_name != rt_name:
                 continue
-            runtimes.append((rt_name, rt_mem))
+            runtimes.append((rt_name, rt_mem, version))
 
         return runtimes
 
@@ -566,9 +566,9 @@ class AWSBatchBackend:
                 }
             )
 
-    def get_runtime_key(self, runtime_name, runtime_memory):
-        jobdef_name = self._format_jobdef_name(runtime_name, runtime_memory)
-        runtime_key = os.path.join(self.name, __version__, self.package, self.region_name, jobdef_name)
+    def get_runtime_key(self, runtime_name, runtime_memory, version=__version__):
+        jobdef_name = self._format_jobdef_name(runtime_name, runtime_memory, version)
+        runtime_key = os.path.join(self.name, version, self.region_name, jobdef_name)
         return runtime_key
 
     def get_runtime_info(self):

@@ -52,7 +52,7 @@ def load_config(config_data=None):
     if 'aliyun' not in config_data:
         raise Exception("'aliyun' section is mandatory in the configuration")
 
-    if 'aliyun_fc' not in config_data:
+    if not config_data['aliyun_fc']:
         raise Exception("'aliyun_fc' section is mandatory in the configuration")
 
     for param in REQ_PARAMS_1:
