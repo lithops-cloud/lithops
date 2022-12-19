@@ -26,8 +26,9 @@ DEFAULT_CONFIG_KEYS = {
     'runtime_memory': 256,  # Default memory: 256 MB
     'runtime_cpu': 0.25,  # 0.25 vCPU
     'max_workers': 1000,
+    'min_workers': 0,
     'worker_processes': 1,
-    'invoke_pool_threads': 100,
+    'invoke_pool_threads': 100
 }
 
 MAX_RUNTIME_MEMORY = 32768  # 32 GiB

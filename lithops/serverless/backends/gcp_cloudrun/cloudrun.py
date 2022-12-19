@@ -264,6 +264,7 @@ class GCPCloudRunBackend:
         svc_res['spec']['template']['spec']['containerConcurrency'] = 1
         svc_res['spec']['template']['spec']['serviceAccountName'] = self.service_account
         svc_res['spec']['template']['metadata']['labels']['version'] = f'lithops_v{__version__}'.replace('.', '-')
+        svc_res['spec']['template']['metadata']['annotations']['autoscaling.knative.dev/minScale'] = str(self.cr_config['min_workers'])
         svc_res['spec']['template']['metadata']['annotations']['autoscaling.knative.dev/maxScale'] = str(self.cr_config['max_workers'])
 
         container = svc_res['spec']['template']['spec']['containers'][0]
