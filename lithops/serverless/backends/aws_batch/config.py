@@ -26,8 +26,7 @@ AVAILABLE_CPU_FARGATE = [0.25, 0.5, 1, 2, 4]
 
 DEFAULT_CONFIG_KEYS = {
     'runtime_timeout': 180,  # Default: 180 seconds => 3 minutes
-    'runtime_memory': 1024,  # Default memory: 256 MB
-    'max_workers': 1000,
+    'runtime_memory': 1024,  # Default memory: 1GB
     'worker_processes': 1,
     'container_vcpus': 0.5,
     'env_max_cpus': 10,
