@@ -301,6 +301,7 @@ class FunctionExecutor:
         reduce_function: Callable,
         chunksize: Optional[int] = None,
         extra_args: Optional[Union[List[Any], Tuple[Any, ...], Dict[str, Any]]] = None,
+        extra_args_reduce: Optional[Union[List[Any], Tuple[Any, ...], Dict[str, Any]]] = None,
         extra_env: Optional[Dict[str, str]] = None,
         map_runtime_memory: Optional[int] = None,
         reduce_runtime_memory: Optional[int] = None,
@@ -321,6 +322,7 @@ class FunctionExecutor:
         :param reduce_function: The function to reduce over the futures
         :param chunksize: Split map_iteradata in chunks of this size. Lithops spawns 1 worker per resulting chunk. Default 1
         :param extra_args: Additional arguments to pass to function activation. Default None
+        :param extra_args_reduce: Additional arguments to pass to the reduce function activation. Default None
         :param extra_env: Additional environment variables for action environment. Default None
         :param map_runtime_memory: Memory to use to run the map function. Default None (loaded from config)
         :param reduce_runtime_memory: Memory to use to run the reduce function. Default None (loaded from config)
@@ -386,6 +388,7 @@ class FunctionExecutor:
             map_futures=map_futures,
             runtime_meta=runtime_meta,
             runtime_memory=reduce_runtime_memory,
+            extra_args=extra_args_reduce,
             obj_reduce_by_key=obj_reduce_by_key,
             extra_env=extra_env,
             include_modules=include_modules,
