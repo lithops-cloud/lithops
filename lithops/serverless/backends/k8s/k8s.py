@@ -16,6 +16,7 @@
 
 import os
 import base64
+import hashlib
 import json
 import logging
 import copy
@@ -79,12 +80,11 @@ class KubernetesBackend:
         msg = COMPUTE_CLI_MSG.format('Kubernetes Job')
         logger.info(f"{msg} - Namespace: {self.namespace}")
 
-    def _format_job_name(self, runtime_name, runtime_memory):
-        runtime_name = runtime_name.replace('/', '--')
-        runtime_name = runtime_name.replace(':', '--')
-        runtime_name = runtime_name.replace('.', '')
-        runtime_name = runtime_name.replace('_', '-')
-        return f'{runtime_name}--{runtime_memory}mb'
+    def _format_job_name(self, runtime_name, runtime_memory, version=__version__):
+        name = f'{runtime_name}-{runtime_memory}-{version}'
+        name_hash = hashlib.sha1(name.encode("utf-8")).hexdigest()[:10]
+
+        return f'lithops-kubernetes-runtime-v{version.replace(".", "")}-{name_hash}'
 
     def _get_default_runtime_image_name(self):
         """
@@ -92,7 +92,7 @@ class KubernetesBackend:
         """
         revision = 'latest' if 'dev' in __version__ else __version__
         return utils.get_default_container_name(
-            self.name, self.k8s_config, 'lithops-k8s-default', revision
+            self.name, self.k8s_config, 'lithops-kubernetes-default', revision
         )
 
     def build_runtime(self, docker_image_name, dockerfile, extra_args=[]):
@@ -204,7 +204,7 @@ class KubernetesBackend:
 
         return runtime_meta
 
-    def delete_runtime(self, docker_image_name, memory):
+    def delete_runtime(self, docker_image_name, memory, version=__version__):
         """
         Deletes a runtime
         """
@@ -449,14 +449,14 @@ class KubernetesBackend:
 
         return runtime_meta
 
-    def get_runtime_key(self, docker_image_name, runtime_memory):
+    def get_runtime_key(self, docker_image_name, runtime_memory, version=__version__):
         """
         Method that creates and returns the runtime key.
         Runtime keys are used to uniquely identify runtimes within the storage,
         in order to know which runtimes are installed and which not.
         """
-        jobdef_name = self._format_job_name(docker_image_name, 256)
-        runtime_key = os.path.join(self.name, __version__, self.namespace, jobdef_name)
+        jobdef_name = self._format_job_name(docker_image_name, 256, version)
+        runtime_key = os.path.join(self.name, version, self.namespace, jobdef_name)
 
         return runtime_key
 

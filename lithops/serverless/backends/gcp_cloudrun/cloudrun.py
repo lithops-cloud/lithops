@@ -14,13 +14,14 @@
 # limitations under the License.
 #
 
-import logging
-import httplib2
 import os
 import time
 import json
 import urllib
 import yaml
+import hashlib
+import logging
+import httplib2
 import google.auth
 import google.oauth2.id_token
 from threading import Lock
@@ -59,16 +60,14 @@ class GCPCloudRunBackend:
         msg = COMPUTE_CLI_MSG.format('Google Cloud Run')
         logger.info(f"{msg} - Region: {self.region} - Project: {self.project_name}")
 
-    @staticmethod
-    def _format_service_name(runtime_name, runtime_memory):
+    def _format_service_name(self, runtime_name, runtime_memory, version=__version__):
         """
         Formats service name string from runtime name and memory
         """
-        runtime_name = runtime_name.replace('/', '--')
-        runtime_name = runtime_name.replace(':', '--')
-        runtime_name = runtime_name.replace('.', '')
-        runtime_name = runtime_name.replace('_', '-')
-        return f'{runtime_name}--{runtime_memory}mb'
+        name = f'{runtime_name}-{runtime_memory}-{version}'
+        name_hash = hashlib.sha1(name.encode("utf-8")).hexdigest()[:10]
+
+        return f'lithops-runtime-v{version.replace(".", "")}-{name_hash}'
 
     def _get_default_runtime_image_name(self):
         """
@@ -76,7 +75,7 @@ class GCPCloudRunBackend:
         """
         py_version = utils.CURRENT_PY_VERSION.replace('.', '')
         revision = 'latest' if 'dev' in __version__ else __version__
-        return f'lithops-cr-default-v{py_version}:{revision}'
+        return f'lithops-cloudrun-default-v{py_version}:{revision}'
 
     def _build_api_resource(self):
         """
@@ -254,8 +253,6 @@ class GCPCloudRunBackend:
         img_name = self._format_image_name(runtime_name)
         service_name = self._format_service_name(runtime_name, runtime_memory)
 
-        self.delete_runtime(runtime_name, runtime_memory)
-
         svc_res = yaml.safe_load(config.service_res)
         svc_res['metadata']['name'] = service_name
         svc_res['metadata']['namespace'] = self.project_name
@@ -267,6 +264,7 @@ class GCPCloudRunBackend:
         svc_res['spec']['template']['spec']['containerConcurrency'] = 1
         svc_res['spec']['template']['spec']['serviceAccountName'] = self.service_account
         svc_res['spec']['template']['metadata']['labels']['version'] = f'lithops_v{__version__}'.replace('.', '-')
+        svc_res['spec']['template']['metadata']['annotations']['autoscaling.knative.dev/minScale'] = str(self.cr_config['min_workers'])
         svc_res['spec']['template']['metadata']['annotations']['autoscaling.knative.dev/maxScale'] = str(self.cr_config['max_workers'])
 
         container = svc_res['spec']['template']['spec']['containers'][0]
@@ -278,12 +276,11 @@ class GCPCloudRunBackend:
         container['resources']['requests']['memory'] = f'{runtime_memory}Mi'
         container['resources']['requests']['cpu'] = str(self.cr_config['runtime_cpu'])
 
-        logger.info(f"Creating runtime: {runtime_name}")
+        logger.debug(f"Creating service: {service_name}")
         res = self._api_resource.namespaces().services().create(
             parent=f'namespaces/{self.project_name}', body=svc_res
         ).execute()
-
-        logger.debug(f'Ok -- created service {service_name}')
+        logger.debug(f'Ok -- service created {service_name}')
 
         # Wait until service is up
         ready = False
@@ -316,25 +313,22 @@ class GCPCloudRunBackend:
         runtime_meta = self._generate_runtime_meta(runtime_name, memory)
         return runtime_meta
 
-    def _wait_service_deleted(self, service_name):
-        # Wait until the service is completely deleted
-        while True:
-            try:
-                res = self._api_resource.namespaces().services().get(
-                    name=f'namespaces/{self.project_name}/services/{service_name}'
-                ).execute()
-                time.sleep(1)
-            except Exception as e:
-                break
-
-    def delete_runtime(self, runtime_name, memory):
-        service_name = self._format_service_name(runtime_name, memory)
+    def delete_runtime(self, runtime_name, memory, version=__version__):
+        service_name = self._format_service_name(runtime_name, memory, version)
         logger.info(f'Deleting runtime: {runtime_name} - {memory}MB')
         try:
             self._api_resource.namespaces().services().delete(
                 name=f'namespaces/{self.project_name}/services/{service_name}'
             ).execute()
-            self._wait_service_deleted(service_name)
+            # Wait until the service is completely deleted
+            while True:
+                try:
+                    self._api_resource.namespaces().services().get(
+                        name=f'namespaces/{self.project_name}/services/{service_name}'
+                    ).execute()
+                    time.sleep(1)
+                except Exception:
+                    break
             logger.debug(f'Ok -- deleted runtime {runtime_name}')
         except Exception:
             pass
@@ -344,7 +338,7 @@ class GCPCloudRunBackend:
 
         runtimes = self.list_runtimes()
         for img_name, memory, version in runtimes:
-            self.delete_runtime(img_name, memory)
+            self.delete_runtime(img_name, memory, version)
 
     def list_runtimes(self, runtime_name='all'):
         logger.debug('Listing runtimes')
@@ -372,9 +366,9 @@ class GCPCloudRunBackend:
 
         return runtimes
 
-    def get_runtime_key(self, runtime_name, memory):
-        service_name = self._format_service_name(runtime_name, memory)
-        runtime_key = os.path.join(self.name, __version__, self.project_name, self.region, service_name)
+    def get_runtime_key(self, runtime_name, memory, version=__version__):
+        service_name = self._format_service_name(runtime_name, memory, version)
+        runtime_key = os.path.join(self.name, version, self.project_name, self.region, service_name)
         logger.debug(f'Runtime key: {runtime_key}')
 
         return runtime_key

@@ -26,7 +26,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from lithops.future import ResponseFuture
 from lithops.config import extract_storage_config
-from lithops.version import __version__ as lithops_version
+from lithops.version import __version__
 from lithops.utils import verify_runtime_name, version_str, is_lithops_worker, iterchunks
 from lithops.constants import LOGGER_LEVEL, LOGS_DIR,\
     LOCALHOST, SERVERLESS, STANDALONE
@@ -107,7 +107,7 @@ class Invoker:
         msg = msg + '- {}MB'.format(runtime_memory) if runtime_memory else msg
         logger.info(msg)
 
-        runtime_key = self.compute_handler.get_runtime_key(self.runtime_name, runtime_memory)
+        runtime_key = self.compute_handler.get_runtime_key(self.runtime_name, runtime_memory, __version__)
         runtime_meta = self.internal_storage.get_runtime_meta(runtime_key)
 
         if not runtime_meta:
@@ -119,9 +119,9 @@ class Invoker:
             self.internal_storage.put_runtime_meta(runtime_key, runtime_meta)
 
         # Verify python version and lithops version
-        if lithops_version != runtime_meta['lithops_version']:
+        if __version__ != runtime_meta['lithops_version']:
             raise Exception("Lithops version mismatch. Host version: {} - Runtime version: {}"
-                            .format(lithops_version, runtime_meta['lithops_version']))
+                            .format(__version__, runtime_meta['lithops_version']))
 
         py_local_version = version_str(sys.version_info)
         py_remote_version = runtime_meta['python_version']
@@ -151,7 +151,7 @@ class Invoker:
                    'max_workers': self.max_workers,
                    'call_ids': None,
                    'host_submit_tstamp': time.time(),
-                   'lithops_version': lithops_version,
+                   'lithops_version': __version__,
                    'runtime_name': job.runtime_name,
                    'runtime_memory': job.runtime_memory,
                    'worker_processes': job.worker_processes}
@@ -486,7 +486,7 @@ def extend_runtime(job, compute_handler, internal_storage):
     # update job with new extended runtime name
     job.runtime_name = ext_runtime_name
 
-    runtime_key = compute_handler.get_runtime_key(job.runtime_name, job.runtime_memory)
+    runtime_key = compute_handler.get_runtime_key(job.runtime_name, job.runtime_memory, __version__)
     runtime_meta = internal_storage.get_runtime_meta(runtime_key)
 
     if not runtime_meta:
@@ -515,9 +515,9 @@ def extend_runtime(job, compute_handler, internal_storage):
         internal_storage.put_runtime_meta(runtime_key, runtime_meta)
 
     # Verify python version and lithops version
-    if lithops_version != runtime_meta['lithops_version']:
+    if __version__ != runtime_meta['lithops_version']:
         raise Exception("Lithops version mismatch. Host version: {} - Runtime version: {}"
-                        .format(lithops_version, runtime_meta['lithops_version']))
+                        .format(__version__, runtime_meta['lithops_version']))
 
     py_local_version = version_str(sys.version_info)
     py_remote_version = runtime_meta['python_version']

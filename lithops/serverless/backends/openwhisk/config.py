@@ -39,6 +39,9 @@ REQ_PARAMS = ('endpoint', 'namespace', 'api_key')
 
 def load_config(config_data):
 
+    if not config_data['openwhisk']:
+        raise Exception("'openwhisk' section is mandatory in the configuration")
+
     for param in REQ_PARAMS:
         if param not in config_data['openwhisk']:
             msg = f"{param} is mandatory under 'openwhisk' section of the configuration"

@@ -9,33 +9,6 @@ when you install Lithops through ``pip3 install lithops``.
 Lithops management
 ------------------
 
-``lithops clean``
-~~~~~~~~~~~~~~~~~
-
-Deletes all the information related to Lithops except the config file.
-It includes deployed runtimes and temporary data stored in the storage
-backend. Run this command is like *start from scratch* with Lithops. In
-some circumstances, when there is some inconsistency between the local
-machine and the cloud, it is convenient to run this command.
-
-+-----------------+------------------------------+
-| Parameter       | Description                  |
-+=================+==============================+
-| --config, -c    | Path to your config file     |
-+-----------------+------------------------------+
-| --backend, -b   | Compute backend name         |
-+-----------------+------------------------------+
-| --storage, -s   | Storage backend name         |
-+-----------------+------------------------------+
-| --debug, -d     | Activate debug logs (Flag)   |
-+-----------------+------------------------------+
-| --all, -a       | Delete all (Flag)            |
-+-----------------+------------------------------+
-| --force, -f     | Force delete all (Flag)      |
-+-----------------+------------------------------+
-
--  **Usage example**: ``lithops clean -b ibm_cf -s ibm_cos``
-
 ``lithops test``
 ~~~~~~~~~~~~~~~~
 
@@ -83,6 +56,32 @@ this page <testing.md>`__.
 
 -  **Usage example**: ``lithops verify -b ibm_cf -s ibm_cos -f``
 
+``lithops clean``
+~~~~~~~~~~~~~~~~~
+
+Deletes all the information related to Lithops except the config file.
+It includes deployed runtimes and temporary data stored in the storage
+backend. Run this command is like *start from scratch* with Lithops. In
+some circumstances, when there is some inconsistency between the local
+machine and the cloud, it is convenient to run this command.
+
++-----------------+------------------------------+
+| Parameter       | Description                  |
++=================+==============================+
+| --config, -c    | Path to your config file     |
++-----------------+------------------------------+
+| --backend, -b   | Compute backend name         |
++-----------------+------------------------------+
+| --storage, -s   | Storage backend name         |
++-----------------+------------------------------+
+| --debug, -d     | Activate debug logs (Flag)   |
++-----------------+------------------------------+
+| --all, -a       | Delete all (Flag)            |
++-----------------+------------------------------+
+| --force, -f     | Force delete all (Flag)      |
++-----------------+------------------------------+
+
+-  **Usage example**: ``lithops clean -b ibm_cf -s ibm_cos``
 
 ``lithops attach``
 ~~~~~~~~~~~~~~~~~~
@@ -220,19 +219,23 @@ matches the provided runtime-name. As an alternative, you can run
 ``lithops clean -b <backend-name>`` to delete not only the runtimes that
 match the provided runtime-name, but all them.
 
-+-----------------+------------------------------+
-| Parameter       | Description                  |
-+=================+==============================+
-| runtime-name    | Name of your runtime         |
-+-----------------+------------------------------+
-| --config, -c    | Path to your config file     |
-+-----------------+------------------------------+
-| --backend, -b   | Compute backend name         |
-+-----------------+------------------------------+
-| --storage, -s   | Storage backend name         |
-+-----------------+------------------------------+
-| --debug, -d     | Activate debug logs (Flag)   |
-+-----------------+------------------------------+
++-----------------+----------------------------------------------+
+| Parameter       | Description                                  |
++=================+==============================================+
+| runtime-name    | Name of your runtime                         |
++-----------------+----------------------------------------------+
+| --config, -c    | Path to your config file                     |
++-----------------+----------------------------------------------+
+| --memory, -m    | Memory size in MBs of the runtime to delete. |
++-----------------+----------------------------------------------+
+| --version, -v   | Lithops version of the runtime to delete.    |
++-----------------+----------------------------------------------+
+| --backend, -b   | Compute backend name                         |
++-----------------+----------------------------------------------+
+| --storage, -s   | Storage backend name                         |
++-----------------+----------------------------------------------+
+| --debug, -d     | Activate debug logs (Flag)                   |
++-----------------+----------------------------------------------+
 
 -  **Usage example**:
    ``lithops runtime delete -b ibm_cf -s ibm_cos lithopscloud/my-runtime-name-v39:01``

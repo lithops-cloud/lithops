@@ -4,12 +4,16 @@
 
 ### Added
 - [Config] Allow to store the config file in "/etc/lithops/config"
+- [CLI] Allow to specify 'memory' and 'version' in the 'lithops runtime delete' command
+- [GCP Cloudrun] Allow setting min_workers to the autoscaler
+- [Function Executor] Added additional arguments to pass to the reduce function in map_reduce()
 
 ### Changed
--  [Core] Include function result in the status.json file if it is < 8KB
+- [Core] Include function result in the status.json file if it is < 8KB
 
 ### Fixed
--
+- [Serverless] Allow to delete runtimes from different lithops versions
+- [AWS Batch] Fixed list_runtimes() method
 
 
 ## [v2.7.1]

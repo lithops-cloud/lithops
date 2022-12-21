@@ -72,11 +72,11 @@ class ServerlessHandler:
         """
         return self.backend.deploy_runtime(runtime_name, memory, timeout=timeout)
 
-    def delete_runtime(self, runtime_name, memory):
+    def delete_runtime(self, runtime_name, memory, version):
         """
         Wrapper method to delete a runtime in the compute backend
         """
-        self.backend.delete_runtime(runtime_name, memory)
+        self.backend.delete_runtime(runtime_name, memory, version)
 
     def clean(self, **kwargs):
         """
@@ -97,13 +97,13 @@ class ServerlessHandler:
         """
         return self.backend.list_runtimes(runtime_name)
 
-    def get_runtime_key(self, runtime_name, memory):
+    def get_runtime_key(self, runtime_name, memory, version):
         """
         Wrapper method that returns a formated string that represents the runtime key.
         Each backend has its own runtime key format. Used to store runtime metadata
         into the storage
         """
-        return self.backend.get_runtime_key(runtime_name, memory)
+        return self.backend.get_runtime_key(runtime_name, memory, version)
 
     def get_runtime_info(self):
         """

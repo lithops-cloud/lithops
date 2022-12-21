@@ -515,12 +515,12 @@ class IBMVPCBackend:
         worker.create(user_data=user_data)
         self.workers.append(worker)
 
-    def get_runtime_key(self, runtime_name):
+    def get_runtime_key(self, runtime_name, version=__version__):
         """
         Creates the runtime key
         """
         name = runtime_name.replace('/', '-').replace(':', '-')
-        runtime_key = os.path.join(self.name, __version__, self.vpc_data['instance_id'], name)
+        runtime_key = os.path.join(self.name, version, self.vpc_data['instance_id'], name)
         return runtime_key
 
 

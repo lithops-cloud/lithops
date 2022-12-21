@@ -17,6 +17,7 @@
 
 import os
 import base64
+import hashlib
 import json
 import time
 import logging
@@ -150,12 +151,11 @@ class CodeEngineBackend:
         configuration.api_key = {"authorization": "Bearer " + token}
         client.Configuration.set_default(configuration)
 
-    def _format_jobdef_name(self, runtime_name, runtime_memory):
-        runtime_name = runtime_name.replace('/', '--')
-        runtime_name = runtime_name.replace(':', '--')
-        runtime_name = runtime_name.replace('.', '')
-        runtime_name = runtime_name.replace('_', '-')
-        return f'{runtime_name}--{runtime_memory}mb'
+    def _format_jobdef_name(self, runtime_name, runtime_memory, version=__version__):
+        name = f'{runtime_name}-{runtime_memory}-{version}'
+        name_hash = hashlib.sha1(name.encode("utf-8")).hexdigest()[:10]
+
+        return f'lithops-runtime-v{version.replace(".", "")}-{name_hash}'
 
     def _get_default_runtime_image_name(self):
         """
@@ -163,7 +163,7 @@ class CodeEngineBackend:
         """
         revision = 'latest' if 'dev' in __version__ else __version__
         return utils.get_default_container_name(
-            self.name, self.ce_config, 'lithops-ce-default', revision
+            self.name, self.ce_config, 'lithops-codeenigne-default', revision
         )
 
     def build_runtime(self, docker_image_name, dockerfile, extra_args=[]):
@@ -229,31 +229,14 @@ class CodeEngineBackend:
 
         return runtime_meta
 
-    def delete_runtime(self, docker_image_name, memory):
+    def delete_runtime(self, runtime_name, memory, version=__version__):
         """
         Deletes a runtime
         We need to delete job definition
         """
-        def_id = self._format_jobdef_name(docker_image_name, memory)
-        self._job_def_cleanup(def_id)
-
-    def _job_run_cleanup(self, jobrun_name):
-        logger.debug(f"Deleting jobrun {jobrun_name}")
+        logger.info(f'Deleting runtime: {runtime_name} - {memory}MB')
         try:
-            self.custom_api.delete_namespaced_custom_object(
-                group=config.DEFAULT_GROUP,
-                version=config.DEFAULT_VERSION,
-                name=jobrun_name,
-                namespace=self.namespace,
-                plural="jobruns",
-                body=client.V1DeleteOptions(),
-            )
-        except ApiException as e:
-            logger.debug(f"Deleting a jobrun failed with {e.status} {e.reason}")
-
-    def _job_def_cleanup(self, jobdef_id):
-        logger.info(f"Deleting runtime: {jobdef_id}")
-        try:
+            jobdef_id = self._format_jobdef_name(runtime_name, memory, version)
             self.custom_api.delete_namespaced_custom_object(
                 group=config.DEFAULT_GROUP,
                 version=config.DEFAULT_VERSION,
@@ -272,7 +255,7 @@ class CodeEngineBackend:
         self.clear()
         runtimes = self.list_runtimes()
         for image_name, memory, version in runtimes:
-            self.delete_runtime(image_name, memory)
+            self.delete_runtime(image_name, memory, version)
 
         logger.debug('Deleting all lithops configmaps')
         configmaps = self.core_api.list_namespaced_config_map(namespace=self.namespace)
@@ -330,12 +313,19 @@ class CodeEngineBackend:
 
         jobs_to_delete = job_keys or self.jobs
         for job_key in jobs_to_delete:
-            jobrun_name = f'lithops-{job_key.lower()}'
             try:
-                self._job_run_cleanup(jobrun_name)
+                jobrun_name = f'lithops-{job_key.lower()}'
+                self.custom_api.delete_namespaced_custom_object(
+                    group=config.DEFAULT_GROUP,
+                    version=config.DEFAULT_VERSION,
+                    name=jobrun_name,
+                    namespace=self.namespace,
+                    plural="jobruns",
+                    body=client.V1DeleteOptions(),
+                )
                 self._delete_config_map(jobrun_name)
-            except Exception as e:
-                logger.debug(f"Deleting a jobrun failed with: {e}")
+            except ApiException as e:
+                logger.debug(f"Deleting a jobrun failed with {e.status} {e.reason}")
             try:
                 self.jobs.remove(job_key)
             except ValueError:
@@ -504,14 +494,14 @@ class CodeEngineBackend:
 
         return jobdef_name
 
-    def get_runtime_key(self, docker_image_name, runtime_memory):
+    def get_runtime_key(self, docker_image_name, runtime_memory, version=__version__):
         """
         Method that creates and returns the runtime key.
         Runtime keys are used to uniquely identify runtimes within the storage,
         in order to know which runtimes are installed and which not.
         """
-        jobdef_name = self._format_jobdef_name(docker_image_name, 256)
-        runtime_key = os.path.join(self.name, __version__, self.region, self.namespace, jobdef_name)
+        jobdef_name = self._format_jobdef_name(docker_image_name, 256, version)
+        runtime_key = os.path.join(self.name, version, self.region, self.namespace, jobdef_name)
 
         return runtime_key
 

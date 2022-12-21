@@ -114,7 +114,8 @@ def create_reduce_job(
     extra_env,
     include_modules,
     exclude_modules,
-    execution_timeout=None
+    execution_timeout=None,
+    extra_args=None
 ):
     """
     Wrapper to create a reduce job. Apply a function across all map futures.
@@ -137,7 +138,7 @@ def create_reduce_job(
         ext_env = extra_env.copy()
         ext_env.update(reduce_job_env)
 
-    iterdata = utils.verify_args(reduce_function, iterdata, None)
+    iterdata = utils.verify_args(reduce_function, iterdata, extra_args)
 
     return _create_job(
         config=config,

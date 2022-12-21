@@ -68,7 +68,8 @@ MAX_AGG_DATA_SIZE = 4  # 4MiB
 WORKER_PROCESSES_DEFAULT = 1
 
 TEMP_DIR = os.path.realpath(tempfile.gettempdir())
-LITHOPS_TEMP_DIR = os.path.join(TEMP_DIR, 'lithops-' + os.getenv("USER"))
+USER_TEMP_DIR = 'lithops-' + os.getenv("USER", "root")
+LITHOPS_TEMP_DIR = os.path.join(TEMP_DIR, USER_TEMP_DIR)
 JOBS_DIR = os.path.join(LITHOPS_TEMP_DIR, 'jobs')
 LOGS_DIR = os.path.join(LITHOPS_TEMP_DIR, 'logs')
 MODULES_DIR = os.path.join(LITHOPS_TEMP_DIR, 'modules')

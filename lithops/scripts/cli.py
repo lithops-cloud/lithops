@@ -27,6 +27,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import lithops
 from lithops import Storage
+from lithops.version import __version__
 from lithops.tests.tests_main import print_test_functions, print_test_groups, run_tests
 from lithops.utils import get_mode, setup_lithops_logger, verify_runtime_name, sizeof_fmt
 from lithops.config import default_config, extract_storage_config, \
@@ -45,15 +46,17 @@ logger = logging.getLogger(__name__)
 
 
 def set_config_ow(backend, storage=None, runtime_name=None):
-    config_ow = {'lithops': {}, 'backend': {}}
+    config_ow = {'lithops': {}}
 
     if storage:
         config_ow['lithops']['storage'] = storage
+
     if backend:
         config_ow['lithops']['backend'] = backend
         config_ow['lithops']['mode'] = get_mode(backend)
 
     if runtime_name:
+        config_ow['backend'] = {}
         config_ow['backend']['runtime'] = runtime_name
 
     return config_ow
@@ -428,10 +431,12 @@ def runtime(ctx):
 @click.option('--file', '-f', default=None, help='file needed to build the runtime')
 @click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
 @click.option('--backend', '-b', default=None, help='compute backend')
+@click.option('--debug', '-d', is_flag=True, default=True, help='debug mode')
 @click.pass_context
-def build(ctx, name, file, config, backend):
+def build(ctx, name, file, config, backend, debug):
     """ build a serverless runtime. """
-    setup_lithops_logger(logging.DEBUG)
+    log_level = logging.INFO if not debug else logging.DEBUG
+    setup_lithops_logger(log_level)
 
     verify_runtime_name(name)
 
@@ -454,16 +459,17 @@ def build(ctx, name, file, config, backend):
 
 
 @runtime.command('deploy')
-@click.argument('name', required=False)
+@click.argument('name', required=True)
 @click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
 @click.option('--backend', '-b', default=None, help='compute backend')
 @click.option('--storage', '-s', default=None, help='storage backend')
 @click.option('--memory', default=None, help='memory used by the runtime', type=int)
 @click.option('--timeout', default=None, help='runtime timeout', type=int)
-@click.option('--debug', '-d', is_flag=True, help='debug mode')
+@click.option('--debug', '-d', is_flag=True, default=True, help='debug mode')
 def deploy(name, storage, backend, memory, timeout, config, debug):
     """ deploy a serverless runtime """
-    setup_lithops_logger(logging.DEBUG)
+    log_level = logging.INFO if not debug else logging.DEBUG
+    setup_lithops_logger(log_level)
 
     verify_runtime_name(name)
 
@@ -486,7 +492,7 @@ def deploy(name, storage, backend, memory, timeout, config, debug):
     runtime_memory = memory or runtime_info['runtime_memory']
     runtime_timeout = timeout or runtime_info['runtime_timeout']
 
-    runtime_key = compute_handler.get_runtime_key(runtime_name, runtime_memory)
+    runtime_key = compute_handler.get_runtime_key(runtime_name, runtime_memory, __version__)
     runtime_meta = compute_handler.deploy_runtime(runtime_name, runtime_memory, runtime_timeout)
     runtime_meta['runtime_timeout'] = runtime_timeout
     internal_storage.put_runtime_meta(runtime_key, runtime_meta)
@@ -506,7 +512,7 @@ def list_runtimes(config, backend, storage, debug):
     if config:
         config = load_yaml_config(config)
 
-    config_ow = set_config_ow(backend, runtime_name='None')
+    config_ow = set_config_ow(backend)
     config = default_config(config, config_ow, load_storage_config=False)
 
     if config['lithops']['mode'] != SERVERLESS:
@@ -536,14 +542,15 @@ def list_runtimes(config, backend, storage, debug):
 
 
 @runtime.command('update')
-@click.argument('name', required=False)
+@click.argument('name', required=True)
 @click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
 @click.option('--backend', '-b', default=None, help='compute backend')
 @click.option('--storage', '-s', default=None, help='storage backend')
 @click.option('--debug', '-d', is_flag=True, help='debug mode')
 def update(name, config, backend, storage, debug):
     """ Update a serverless runtime """
-    setup_lithops_logger(logging.DEBUG)
+    log_level = logging.INFO if not debug else logging.DEBUG
+    setup_lithops_logger(log_level)
 
     verify_runtime_name(name)
 
@@ -570,28 +577,30 @@ def update(name, config, backend, storage, debug):
     runtimes = compute_handler.list_runtimes(runtime_name)
 
     for runtime in runtimes:
-        runtime_key = compute_handler.get_runtime_key(runtime[0], runtime[1])
-        runtime_meta = compute_handler.deploy_runtime(runtime[0], runtime[1], runtime_timeout)
-        internal_storage.put_runtime_meta(runtime_key, runtime_meta)
+        if runtime[2] == __version__:
+            runtime_key = compute_handler.get_runtime_key(runtime[0], runtime[1], runtime[2])
+            runtime_meta = compute_handler.deploy_runtime(runtime[0], runtime[1], runtime_timeout)
+            internal_storage.put_runtime_meta(runtime_key, runtime_meta)
 
     logger.info('Runtime updated')
 
 @runtime.command('delete')
-@click.argument('name', required=False)
+@click.argument('name', required=True)
 @click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
+@click.option('--memory', '-m', default=None, help='runtime memory')
+@click.option('--version', '-v', default=None, help='lithops version')
 @click.option('--backend', '-b', default=None, help='compute backend')
 @click.option('--storage', '-s', default=None, help='storage backend')
 @click.option('--debug', '-d', is_flag=True, help='debug mode')
-def delete(name, config, backend, storage, debug):
+def delete(name, config, memory, version, backend, storage, debug):
     """ delete a serverless runtime """
-    setup_lithops_logger(logging.DEBUG)
+    log_level = logging.INFO if not debug else logging.DEBUG
+    setup_lithops_logger(log_level)
 
     verify_runtime_name(name)
 
     if config:
         config = load_yaml_config(config)
-
-    setup_lithops_logger(logging.DEBUG)
 
     config_ow = set_config_ow(backend, storage, runtime_name=name)
     config = default_config(config, config_ow)
@@ -609,9 +618,15 @@ def delete(name, config, backend, storage, debug):
 
     runtimes = compute_handler.list_runtimes(runtime_name)
     for runtime in runtimes:
-        compute_handler.delete_runtime(runtime[0], runtime[1])
-        runtime_key = compute_handler.get_runtime_key(runtime[0], runtime[1])
-        internal_storage.delete_runtime_meta(runtime_key)
+        to_delete = True
+        if memory is not None and runtime[1] != int(memory):
+            to_delete = False
+        if version is not None and runtime[2] != version:
+            to_delete = False
+        if to_delete:
+            compute_handler.delete_runtime(runtime[0], runtime[1], runtime[2])
+            runtime_key = compute_handler.get_runtime_key(runtime[0], runtime[1], runtime[2])
+            internal_storage.delete_runtime_meta(runtime_key)
 
     logger.info('Runtime deleted')
 

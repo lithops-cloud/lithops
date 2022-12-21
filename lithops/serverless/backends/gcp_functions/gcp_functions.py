@@ -55,9 +55,8 @@ class GCPFunctionsBackend:
         msg = COMPUTE_CLI_MSG.format('Google Cloud Functions')
         logger.info(f"{msg} - Region: {self.region} - Project: {self.project_name}")
 
-    def _format_function_name(self, runtime_name, runtime_memory=None):
-        version = 'lithops_v' + __version__
-        runtime_name = (version + '_' + runtime_name).replace('.', '-')
+    def _format_function_name(self, runtime_name, runtime_memory=None, version=__version__):
+        runtime_name = ('lithops_v' + version + '_' + runtime_name).replace('.', '-')
 
         if runtime_memory:
             return f'{runtime_name}_{runtime_memory}MB'
@@ -286,8 +285,8 @@ class GCPFunctionsBackend:
 
         return runtime_meta
 
-    def delete_runtime(self, runtime_name, runtime_memory):
-        function_name = self._format_function_name(runtime_name, runtime_memory)
+    def delete_runtime(self, runtime_name, runtime_memory, version=__version__):
+        function_name = self._format_function_name(runtime_name, runtime_memory, version)
         function_location = self._get_function_location(function_name)
         logger.info(f'Deleting runtime: {runtime_name} - {runtime_memory}MB')
 
@@ -323,7 +322,7 @@ class GCPFunctionsBackend:
         logger.debug('Going to delete all deployed runtimes')
         runtimes = self.list_runtimes()
         for runtime_name, runtime_memory, version in runtimes:
-            self.delete_runtime(runtime_name, runtime_memory)
+            self.delete_runtime(runtime_name, runtime_memory, version)
 
     def list_runtimes(self, runtime_name='all'):
         logger.debug('Listing deployed runtimes')
@@ -383,9 +382,9 @@ class GCPFunctionsBackend:
         else:
             raise Exception(f'Error at retrieving runtime meta: {response}')
 
-    def get_runtime_key(self, runtime_name, runtime_memory):
-        function_name = self._format_function_name(runtime_name, runtime_memory)
-        runtime_key = os.path.join(self.name, __version__, self.project_name, self.region, function_name)
+    def get_runtime_key(self, runtime_name, runtime_memory, version=__version__):
+        function_name = self._format_function_name(runtime_name, runtime_memory, version)
+        runtime_key = os.path.join(self.name, version, self.project_name, self.region, function_name)
         logger.debug(f'Runtime key: {runtime_key}')
 
         return runtime_key

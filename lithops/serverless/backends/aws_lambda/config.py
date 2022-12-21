@@ -45,8 +45,13 @@ DEFAULT_CONFIG_KEYS = {
     'invoke_pool_threads': 64,
     'architecture': 'x86_64',
     'ephemeral_storage': 512,
-    'env_vars': {}
+    'env_vars': {},
+    'vpc': {'subnets': [], 'security_groups': []},
+    'efs': []
 }
+
+REQ_PARAMS1 = ('access_key_id', 'secret_access_key')
+REQ_PARAMS2 = ('execution_role', 'region_name')
 
 RUNTIME_TIMEOUT_MAX = 900  # Max. timeout: 900 s == 15 min
 RUNTIME_MEMORY_MIN = 128  # Max. memory: 128 MB
@@ -58,7 +63,20 @@ RUNTIME_TMP_SZ_MAX = 10240
 
 def load_config(config_data):
     if 'aws' not in config_data:
-        raise Exception("'aws' section are mandatory in the configuration")
+        raise Exception("'aws' section is mandatory in the configuration")
+
+    for param in REQ_PARAMS1:
+        if param not in config_data['aws']:
+            msg = f'"{param}" is mandatory in the "aws" section of the configuration'
+            raise Exception(msg)
+
+    if not config_data['aws_lambda']:
+        raise Exception("'aws_lambda' section is mandatory in the configuration")
+
+    for param in REQ_PARAMS2:
+        if param not in config_data['aws_lambda']:
+            msg = f'"{param}" is mandatory in the "aws_lambda" section of the configuration'
+            raise Exception(msg)
 
     for key in DEFAULT_CONFIG_KEYS:
         if key not in config_data['aws_lambda']:
@@ -79,20 +97,6 @@ def load_config(config_data):
                        "maximum amount".format(RUNTIME_TIMEOUT_MAX, config_data['aws_lambda']['runtime_timeout']))
         config_data['aws_lambda']['runtime_timeout'] = RUNTIME_TIMEOUT_MAX
 
-    # Auth, role and region config
-    if not {'access_key_id', 'secret_access_key'}.issubset(set(config_data['aws'])):
-        raise Exception("'access_key_id' and 'secret_access_key' are mandatory under 'aws' section")
-
-    if 'account_id' not in config_data['aws']:
-        config_data['aws']['account_id'] = None
-
-    if not {'execution_role', 'region_name'}.issubset(set(config_data['aws_lambda'])):
-        raise Exception("'execution_role' and 'region_name' are mandatory under 'aws_lambda' section")
-
-    # VPC config
-    if 'vpc' not in config_data['aws_lambda']:
-        config_data['aws_lambda']['vpc'] = {'subnets': [], 'security_groups': []}
-
     if not {'subnets', 'security_groups'}.issubset(set(config_data['aws_lambda']['vpc'])):
         raise Exception("'subnets' and 'security_groups' are mandatory sections under 'aws_lambda/vpc'")
 
@@ -102,12 +106,7 @@ def load_config(config_data):
 
     if not isinstance(config_data['aws_lambda']['vpc']['security_groups'], list):
         raise Exception("Unknown type {} for 'aws_lambda/"
-                        "vpc/security_groups' section".format(
-            type(config_data['aws_lambda']['vpc']['security_groups'])))
-
-    # EFS config
-    if 'efs' not in config_data['aws_lambda']:
-        config_data['aws_lambda']['efs'] = []
+                        "vpc/security_groups' section".format(type(config_data['aws_lambda']['vpc']['security_groups'])))
 
     if not isinstance(config_data['aws_lambda']['efs'], list):
         raise Exception("Unknown type {} for "
