@@ -24,7 +24,7 @@ install_requires = [
     'cloudpickle',
     'tblib',
     'ps-mem',
-    'urllib3 == 1.21.1 '
+    'urllib3 == 1.24.2'
 ]
 
 
