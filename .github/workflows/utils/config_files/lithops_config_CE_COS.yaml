@@ -1,6 +1,6 @@
 lithops:
     storage: ibm_cos
-    storage_bucket: ce-cos
+    storage_bucket: cloudbutton-de
     mode: serverless
     data_cleaner: False
 
