@@ -1,6 +1,6 @@
 lithops:
     storage: ibm_cos
-    storage_bucket: test-bucket-te
+    storage_bucket: cloudbutton-de
     data_cleaner: False
 
 
@@ -9,9 +9,9 @@ serverless:
 
 ibm_cf:
   endpoint    : https://eu-gb.functions.cloud.ibm.com
-  namespace   : Omer.Cohen@ibm.com_dev
+  namespace   : ayman.bourramouss@estudiants.urv.cat_dev
   api_key     : <cf_api_key>
-  runtime: cohenjomer/lithops-cf-<git-actor>
+  runtime: ayman321/lithops-cf-<git-actor>
 
 
 ibm_cos:
