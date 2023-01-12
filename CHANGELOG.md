@@ -6,7 +6,7 @@
 - [Config] Allow to store the config file in "/etc/lithops/config"
 - [CLI] Allow to specify 'memory' and 'version' in the 'lithops runtime delete' command
 - [GCP Cloudrun] Allow setting min_workers to the autoscaler
-- [GCP Cloud Functions] Added https trigger
+- [GCP Functions] Added https trigger
 - [Function Executor] Added additional arguments to pass to the reduce function in map_reduce()
 
 ### Changed

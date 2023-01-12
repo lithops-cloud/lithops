@@ -61,6 +61,8 @@ class GCPFunctionsBackend:
         self._api_endpoint = f'https://{self.region}-{self.project_name}.cloudfunctions.net/'
         self._api_token = None
 
+        logger.debug(f'Invocation trigger set to: {self.trigger}')
+
         msg = COMPUTE_CLI_MSG.format('Google Cloud Functions')
         logger.info(f"{msg} - Region: {self.region} - Project: {self.project_name}")
 

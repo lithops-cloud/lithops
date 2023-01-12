@@ -57,6 +57,8 @@ class AzureFunctionAppBackend:
         self.queue_service = QueueServiceClient(account_url=self.queue_service_url,
                                                 credential=self.storage_account_key)
 
+        logger.debug(f'Invocation trigger set to: {self.trigger}')
+
         msg = COMPUTE_CLI_MSG.format('Azure Functions')
         logger.info(f"{msg} - Location: {self.location}")
 
