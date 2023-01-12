@@ -156,7 +156,7 @@ class GCPCloudRunBackend:
         finally:
             os.remove(dockerfile)
 
-    def _generate_runtime_meta(self, runtime_name, memory):
+    def _generate_runtime_meta(self, runtime_name, runtime_memory):
         """
         Extract installed Python modules from docker image
         """
@@ -164,7 +164,7 @@ class GCPCloudRunBackend:
 
         try:
             runtime_meta = self.invoke(
-                runtime_name, memory,
+                runtime_name, runtime_memory,
                 {'service_route': '/metadata'},
                 return_result=True
             )
@@ -177,7 +177,7 @@ class GCPCloudRunBackend:
         logger.debug(f'Ok -- Extraced modules from {runtime_name}')
         return runtime_meta
 
-    def invoke(self, runtime_name, memory, payload, return_result=False):
+    def invoke(self, runtime_name, runtime_memory, payload, return_result=False):
         """
         Invoke a function as a POST request to the service
         """
@@ -186,7 +186,7 @@ class GCPCloudRunBackend:
         job_id = payload.get('job_id')
         route = payload.get("service_route", '/')
 
-        service_url, id_token = self._get_url_and_token(runtime_name, memory)
+        service_url, id_token = self._get_url_and_token(runtime_name, runtime_memory)
 
         if exec_id and job_id and call_id:
             logger.debug(f'ExecutorID {exec_id} | JobID {job_id} - Invoking function call {call_id}')

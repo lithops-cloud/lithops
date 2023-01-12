@@ -46,7 +46,7 @@ class AzureFunctionAppBackend:
         self.name = 'azure_functions'
         self.type = 'faas'
         self.af_config = af_config
-        self.invocation_type = af_config['invocation_type']
+        self.trigger = af_config['trigger']
         self.resource_group = af_config['resource_group']
         self.storage_account_name = af_config['storage_account_name']
         self.storage_account_key = af_config['storage_account_key']
@@ -57,18 +57,18 @@ class AzureFunctionAppBackend:
         self.queue_service = QueueServiceClient(account_url=self.queue_service_url,
                                                 credential=self.storage_account_key)
 
-        logger.debug(f'Invocation type set to: {self.invocation_type}')
+        logger.debug(f'Invocation trigger set to: {self.trigger}')
 
         msg = COMPUTE_CLI_MSG.format('Azure Functions')
         logger.info(f"{msg} - Location: {self.location}")
 
-    def _format_function_name(self, runtime_name, runtime_memory=None, version=__version__):
+    def _format_function_name(self, runtime_name, version=__version__):
         """
         Formates the function name
         """
-        inv_type = self.invocation_type
+        trigger = self.trigger.replace('/', '')
         ac_name = self.storage_account_name
-        function_name = f'{ac_name}-{runtime_name}-{version}-{inv_type}'
+        function_name = f'{ac_name}-{runtime_name}-{version}-{trigger}'
         function_name = function_name.replace('.', '-')
         function_name = function_name.replace('_', '-')
         return function_name.lower()
@@ -145,7 +145,7 @@ class AzureFunctionAppBackend:
             hstf.write(config.HOST_FILE)
 
         fn_file = os.path.join(action_dir, 'function.json')
-        if self.invocation_type == 'event':
+        if self.trigger == 'pub/sub':
             with open(fn_file, 'w') as fnf:
                 in_q_name = self._format_queue_name(function_name, config.IN_QUEUE)
                 config.BINDINGS_QUEUE['bindings'][0]['queueName'] = in_q_name
@@ -153,7 +153,7 @@ class AzureFunctionAppBackend:
                 config.BINDINGS_QUEUE['bindings'][1]['queueName'] = out_q_name
                 fnf.write(json.dumps(config.BINDINGS_QUEUE))
 
-        elif self.invocation_type == 'http':
+        elif self.trigger == 'https':
             with open(fn_file, 'w') as fnf:
                 fnf.write(json.dumps(config.BINDINGS_HTTP))
 
@@ -179,9 +179,9 @@ class AzureFunctionAppBackend:
         Create and publish an Azure Functions
         """
         logger.info(f'Creating Azure Function from runtime {runtime_name}')
-        function_name = self._format_function_name(runtime_name, memory)
+        function_name = self._format_function_name(runtime_name)
 
-        if self.invocation_type == 'event':
+        if self.trigger == 'pub/sub':
             try:
                 in_q_name = self._format_queue_name(function_name, config.IN_QUEUE)
                 logger.debug(f'Creating queue {in_q_name}')
@@ -235,7 +235,7 @@ class AzureFunctionAppBackend:
         Deletes a runtime
         """
         logger.info(f'Deleting runtime: {runtime_name} - {memory}MB')
-        function_name = self._format_function_name(runtime_name, memory, version)
+        function_name = self._format_function_name(runtime_name, version)
         cmd = f'az functionapp delete --name {function_name} --resource-group {self.resource_group}'
         utils.run_command(cmd)
 
@@ -254,9 +254,9 @@ class AzureFunctionAppBackend:
         """
         Invoke function
         """
-        function_name = self._format_function_name(runtime_name, memory)
+        function_name = self._format_function_name(runtime_name)
 
-        if self.invocation_type == 'event':
+        if self.trigger == 'pub/sub':
             in_q_name = self._format_queue_name(function_name, config.IN_QUEUE)
             in_queue = self.queue_service.get_queue_client(in_q_name)
             msg = in_queue.send_message(utils.dict_to_b64str(payload))
@@ -274,7 +274,7 @@ class AzureFunctionAppBackend:
 
             return activation_id
 
-        elif self.invocation_type == 'http':
+        elif self.trigger == 'https':
             endpoint = f"https://{function_name}.azurewebsites.net"
             parsed_url = urlparse(endpoint)
             ctx = ssl._create_unverified_context()
@@ -310,7 +310,7 @@ class AzureFunctionAppBackend:
         Runtime keys are used to uniquely identify runtimes within the storage,
         in order to know which runtimes are installed and which not.
         """
-        function_name = self._format_function_name(runtime_name, runtime_memory, version)
+        function_name = self._format_function_name(runtime_name, version)
         runtime_key = os.path.join(self.name, version, function_name)
 
         return runtime_key
@@ -359,9 +359,10 @@ class AzureFunctionAppBackend:
             if functionapp['Tags'] and 'type' in functionapp['Tags'] \
                and functionapp['Tags']['type'] == 'lithops-runtime':
                 version = functionapp['Tags']['lithops_version']
-                runtime = functionapp['Tags']['runtime_name']
+                name = functionapp['Tags']['runtime_name']
+                memory = config.DEFAULT_CONFIG_KEYS['runtime_memory']
                 if runtime_name == functionapp['Name'] or runtime_name == 'all':
-                    runtimes.append((runtime, 'shared', version))
+                    runtimes.append((name, memory, version))
 
         return runtimes
 
