@@ -88,7 +88,7 @@ python3 -m pip install lithops[azure]
 |azure_functions | worker_processes | 1 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker |
 |azure_functions| runtime |  |no | Runtime name already deployed in the service|
 |azure_functions | runtime_timeout | 300 |no | Runtime timeout in seconds. Default 5 minutes |
-|azure_functions| invocation_type | event  | no | One of 'http' or 'event'|
+|azure_functions| trigger | pub/sub  | no | One of 'https' or 'pub/sub'|
 |azure_functions | invoke_pool_threads | 100 |no | Number of concurrent threads used for invocation |
 
 

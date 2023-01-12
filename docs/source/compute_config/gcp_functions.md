@@ -60,6 +60,7 @@ python3 -m install lithops[gcp]
 |gcp_functions | runtime |  |no | Runtime name already deployed in the service |
 |gcp_functions | runtime_memory | 256 |no | Memory limit in MB. Default 256MB |
 |gcp_functions | runtime_timeout | 300 |no | Runtime timeout in seconds. Default 5 minutes |
+|gcp_functions | trigger | pub/sub  | no | One of 'https' or 'pub/sub'|
 |gcp_functions | invoke_pool_threads | 1000 |no | Number of concurrent threads used for invocation |
 
 
