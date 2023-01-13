@@ -12,55 +12,52 @@ python3 -m pip install lithops[azure]
 
 2. Install [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli?view=azure-cli-latest)
 
-3. Install the [Azure Functions core tools](https://github.com/Azure/azure-functions-core-tools)
-
-4. Sign in with the Azure CLI:
+3. Sign in with the Azure CLI:
 
 ```bash
-  az login
+az login
 ```
 
-5. Create a Resource Group and a Storage Account:
+4. Create a Resource Group and a Storage Account:
 
    Option 1:
 
-     1. Access to the [Azure portal Resource Groups](https://portal.azure.com/#blade/HubsExtension/BrowseResourceGroups) and create a new Resource group named **LithopsResourceGroup** (or similar) in your preferred region. If you already have a resource group, omit this step.
+     1. Access to the [Azure portal Resource Groups](https://portal.azure.com/#view/HubsExtension/BrowseResourceGroups) and create a new Resource group named **LithopsResourceGroup** (or similar) in your preferred region. If you already have a resource group, omit this step.
      
-     2. Access to the [Azure portal Storage Accounts](https://portal.azure.com/#blade/HubsExtension/BrowseResource/resourceType/Microsoft.Storage%2FStorageAccounts) and create a new Storage Account with a unique name, for example: **lithops0sa25s1**. If you already have a storage account, omit this step.
+     2. Access to the [Azure portal Storage Accounts](https://portal.azure.com/#view/HubsExtension/BrowseResource/resourceType/Microsoft.Storage%2FStorageAccounts) and create a new Storage Account with a unique name, for example: **lithops0sa25s1**. If you already have a storage account, omit this step.
 
    Option 2:
 
     1. Create a Resource Group in a specific location. If you already have a resource group, omit this step.
     
     ```bash
-      az group create --name LithopsResourceGroup --location westeurope
+    az group create --name LithopsResourceGroup --location westeurope
     ```
     
     2. Create a Storage Account with a unique name. If you already have a storage account, omit this step.
     
     ```bash
-      storage_account_name=lithops$(openssl rand -hex 3)
-      echo $storage_account_name
-      az storage account create --name $storage_account_name --location westeurope \
+    storage_account_name=lithops$(openssl rand -hex 3)
+    echo $storage_account_name
+    az storage account create --name $storage_account_name --location westeurope \
          --resource-group LithopsResourceGroup --sku Standard_LRS
     ```
 
-    3. Create a Container App environment named lithops.
-    ```bash
-      az extension add --name containerapp --upgrade
-      az provider register --namespace Microsoft.App
-      az provider register --namespace Microsoft.OperationalInsights
-      az containerapp env create --name lithops --resource-group LithopsResourceGroup --location westeurope
-    ```
-
+5. Create a Container App environment named `lithops`.
+```bash
+az extension add --name containerapp --upgrade
+az provider register --namespace Microsoft.App --wait
+az provider register --namespace Microsoft.OperationalInsights --wait
+az containerapp env create --name lithops --resource-group LithopsResourceGroup --location westeurope
+```
 
 ## Configuration
 
-6. Access to the [Storage Account](https://portal.azure.com/#blade/HubsExtension/BrowseResource/resourceType/Microsoft.Storage%2FStorageAccounts)
+1. Access to the [Storage Account](https://portal.azure.com/#view/HubsExtension/BrowseResource/resourceType/Microsoft.Storage%2FStorageAccounts)
 
-7. In the left menu, under the settings section, click on *Access Keys* and copy the *Key 1*
+2. In the left menu, under the *Security + networking* section, click on *Access Keys* and copy the *Key 1*
 
-8. Edit your lithops config and add the following keys:
+3. Edit your lithops config and add the following keys:
 
 ```yaml
   lithops:
@@ -77,19 +74,19 @@ python3 -m pip install lithops[azure]
 
 ## Summary of configuration keys for Azure
 
-## Azure
+### Azure Storage
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |azure_storage| storage_account_name | |yes |  The name generated in the step 5 of the installation |
 |azure_storage| storage_account_key |  | yes |  An Account Key, found in *Storage Accounts* > `account_name` > *Settings* > *Access Keys*|
 
-### Azure Functions
+### Azure Containers
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |azure_containers| resource_group | |yes | Name of the resource group used in the step 5 of the installation. |
-|azure_containers| location |  |yes | The location where you created the 'lithops' Container APP environment|
+|azure_containers| location |  |yes | The location where you created the `lithops` Container APP environment|
 |azure_containers| environment | lithops |no | The environemnt name you created in the step 5 of the installation |
 |azure_containers | docker_server | index.docker.io |no | Docker server URL |
 |azure_containers | docker_user | |no | Docker hub username |
@@ -99,7 +96,7 @@ python3 -m pip install lithops[azure]
 |azure_containers| runtime |  |no | Docker image name|
 |azure_containers | runtime_memory | 512 |no | Memory limit in MB. Default 512Mi |
 |azure_containers | runtime_timeout | 600 |no | Runtime timeout in seconds. Default 10 minutes |
-|azure_containers| invocation_type | event  | no | Currently it supports event invocation|
+|azure_containers| trigger | pub/sub  | no | Currently it supports pub/sub invocation|
 |azure_containers | invoke_pool_threads | 32 |no | Number of concurrent threads used for invocation |
 
 

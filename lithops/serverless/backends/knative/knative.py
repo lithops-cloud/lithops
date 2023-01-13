@@ -134,7 +134,7 @@ class KnativeServingBackend:
         name = f'{runtime_name}-{runtime_memory}-{version}'
         name_hash = hashlib.sha1(name.encode("utf-8")).hexdigest()[:10]
 
-        return f'lithops-knative-runtime-v{version.replace(".", "")}-{name_hash}'
+        return f'lithops-worker-v{version.replace(".", "")}-{name_hash}'
 
     def _get_default_runtime_image_name(self):
         """

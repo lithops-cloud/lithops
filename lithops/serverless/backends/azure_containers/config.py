@@ -26,7 +26,7 @@ DEFAULT_CONFIG_KEYS = {
     'max_workers': 1000,
     'worker_processes': 1,
     'invoke_pool_threads': 32,
-    'invocation_type': 'event',
+    'trigger': 'pub/sub',
     'environment': 'lithops',
     'docker_server': 'index.docker.io'
 }
@@ -70,11 +70,12 @@ CONTAINERAPP_JSON = {
                 "name": "dockerhubtoken",
                 "value": ""
             }],
+            "ingress": {},
             "registries": [{
                 "server": "",
                 "username": "",
                 "passwordSecretRef": "dockerhubtoken"
-            }],
+            }]
         },
         "template": {
             "containers": [
