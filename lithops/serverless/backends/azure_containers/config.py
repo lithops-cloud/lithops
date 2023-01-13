@@ -70,7 +70,6 @@ CONTAINERAPP_JSON = {
                 "name": "dockerhubtoken",
                 "value": ""
             }],
-            "ingress": {},
             "registries": [{
                 "server": "",
                 "username": "",
