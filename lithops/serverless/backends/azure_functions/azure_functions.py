@@ -75,7 +75,7 @@ class AzureFunctionAppBackend:
 
     def _format_queue_name(self, function_name, q_type):
         name_hash = hashlib.sha1(function_name.encode("utf-8")).hexdigest()[:10]
-        return f'lithops-fn-runtime-{name_hash}-{q_type}'
+        return f'lithops-fn-worker-{name_hash}-{q_type}'
 
     def _get_default_runtime_name(self):
         """

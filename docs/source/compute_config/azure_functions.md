@@ -19,42 +19,41 @@ python3 -m pip install lithops[azure]
 4. Sign in with the Azure CLI:
 
 ```bash
-  az login
+az login
 ```
 
 5. Create a Resource Group and a Storage Account:
 
    Option 1:
 
-     1. Access to the [Azure portal Resource Groups](https://portal.azure.com/#blade/HubsExtension/BrowseResourceGroups) and create a new Resource group named **LithopsResourceGroup** (or similar) in your preferred region. If you already have a resource group, omit this step.
+     1. Access to the [Azure portal Resource Groups](https://portal.azure.com/#view/HubsExtension/BrowseResourceGroups) and create a new Resource group named **LithopsResourceGroup** (or similar) in your preferred region. If you already have a resource group, omit this step.
      
-     2. Access to the [Azure portal Storage Accounts](https://portal.azure.com/#blade/HubsExtension/BrowseResource/resourceType/Microsoft.Storage%2FStorageAccounts) and create a new Storage Account with a unique name, for example: **lithops0sa25s1**. If you already have a storage account, omit this step.
+     2. Access to the [Azure portal Storage Accounts](https://portal.azure.com/#view/HubsExtension/BrowseResource/resourceType/Microsoft.Storage%2FStorageAccounts) and create a new Storage Account with a unique name, for example: **lithops0sa25s1**. If you already have a storage account, omit this step.
 
    Option 2:
 
     1. Create a Resource Group in a specific location. If you already have a resource group, omit this step.
     
     ```bash
-      az group create --name LithopsResourceGroup --location westeurope
+    az group create --name LithopsResourceGroup --location westeurope
     ```
     
     2. Create a Storage Account with a unique name. If you already have a storage account, omit this step.
     
     ```bash
-      storage_account_name=lithops$(openssl rand -hex 3)
-      echo $storage_account_name
-      az storage account create --name $storage_account_name --location westeurope \
+    storage_account_name=lithops$(openssl rand -hex 3)
+    echo $storage_account_name
+    az storage account create --name $storage_account_name --location westeurope \
         --resource-group LithopsResourceGroup --sku Standard_LRS
     ```
 
-
 ## Configuration
 
-6. Access to the [Storage Account](https://portal.azure.com/#blade/HubsExtension/BrowseResource/resourceType/Microsoft.Storage%2FStorageAccounts)
+1. Access to the [Storage Account](https://portal.azure.com/#view/HubsExtension/BrowseResource/resourceType/Microsoft.Storage%2FStorageAccounts)
 
-7. In the left menu, under the settings section, click on *Access Keys* and copy the *Key 1*
+2. In the left menu, under the *Security + networking* section, click on *Access Keys* and copy the *Key 1*
 
-8. Edit your lithops config and add the following keys:
+3. Edit your lithops config and add the following keys:
 
 ```yaml
   lithops:
