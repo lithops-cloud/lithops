@@ -50,10 +50,10 @@ lithops:
     backend: aws_lambda
 
 aws:
-    access_key_id: <ACCESS_KEY_ID>
-    secret_access_key: <SECRET_ACCESS_KEY>
-    session_token : <SESSION_TOKEN>  # Optional
-    #account_id: <ACCOUNT_ID>  # Optional
+    access_key_id: <AWS_ACCESS_KEY_ID>
+    secret_access_key: <AWS_SECRET_ACCESS_KEY>
+    #session_token: <AWS_SESSION_TOKEN>  # Optional
+    #account_id: <AWS_ACCOUNT_ID>  # Optional
 
 aws_lambda:
     execution_role: <EXECUTION_ROLE_ARN>

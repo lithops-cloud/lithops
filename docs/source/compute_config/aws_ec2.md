@@ -23,6 +23,17 @@ Any Virtual Machine (VM) need to define the instance’s operating system and ve
 
 - Option 2: Alternatively, you can use a pre-built custom image that will greatly improve VM creation time for Lithops jobs. To benefit from this approach, navigate to [runtime/aws_ec2](https://github.com/lithops-cloud/lithops/tree/master/runtime/aws_ec2), and follow the instructions.
 
+
+### Summary of configuration keys for AWS
+
+|Group|Key|Default|Mandatory|Additional info|
+|---|---|---|---|---|
+|aws | access_key_id | |yes | Account access key to AWS services. To find them, navigate to *My Security Credentials* and click *Create Access Key* if you don't already have one. |
+|aws | secret_access_key | |yes | Account secret access key to AWS services. To find them, navigate to *My Security Credentials* and click *Create Access Key* if you don't already have one. |
+|aws | session_token |None |no | Session token for temporary AWS credentials |
+|aws | account_id | |no | *This field will be used if present to retrieve the account ID instead of using AWS STS. The account ID is used to format full image names for container runtimes. |
+
+
 ## Lithops and the VM consume mode
 
 In this mode, Lithops can start and stop an existing VM, and deploy an entire job to that VM. The partition logic in this scenario is different from the create/reuse mode, since entire job executed in the same VM.
@@ -33,15 +44,16 @@ Edit your lithops config and add the relevant keys:
 
 ```yaml
 lithops:
-   backend: aws_ec2
+    backend: aws_ec2
 
 aws:
-   access_key_id: <ACCESS_KEY_ID>
-   secret_access_key: <SECRET_ACCESS_KEY>
+    access_key_id: <AWS_ACCESS_KEY_ID>
+    secret_access_key: <AWS_SECRET_ACCESS_KEY>
+    #session_token: <AWS_SESSION_TOKEN>  # Optional
 
 aws_ec2:
-   region_name : <REGION_NAME>
-   instance_id : <INSTANCE ID OF THE VM>
+    region_name : <REGION_NAME>
+    instance_id : <INSTANCE ID OF THE VM>
 ```
 
 ### Summary of the configuration keys for the consume mode
@@ -54,7 +66,6 @@ aws_ec2:
 |aws_ec2 | ssh_username | ubuntu |no | Username to access the VM |
 |aws_ec2 | ssh_key_filename | | no | Path to the ssh key file provided to create the VM. It will use the default path if not provided |
 |aws_ec2 | worker_processes | 2 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker. It is recommendable to set this value to the same number of CPUs of the VM. |
-
 
 
 ## Lithops and the VM auto create|reuse mode
@@ -73,8 +84,9 @@ standalone:
     exec_mode: create|reuse
 
 aws:
-   access_key_id: <ACCESS_KEY_ID>
-   secret_access_key: <SECRET_ACCESS_KEY>
+    access_key_id: <AWS_ACCESS_KEY_ID>
+    secret_access_key: <AWS_SECRET_ACCESS_KEY>
+    #session_token: <AWS_SESSION_TOKEN>  # Optional
 
 aws_ec2:
     region_name: <REGION_NAME>
