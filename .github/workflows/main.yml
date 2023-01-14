@@ -1,4 +1,4 @@
-name: "PR git-action"
+name: "On Pull Request"
 
 on:
   pull_request:
@@ -11,7 +11,7 @@ on:
 
 jobs:
 
-  LOCALHOST_TEST:
+  LOCALHOST_TESTS:
     if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
 
     runs-on: ubuntu-latest
@@ -197,12 +197,3 @@ jobs:
           LITHOPS_CONFIG_FILE: /tmp/lithops_config.yaml
         run: |
           lithops runtime delete ${{ secrets.DOCKER_USER }}/lithops-cf-gihub-ci:${{ github.run_id }} -b ibm_cf -s ibm_cos
-
-
-
-
-
-
-
-
-
