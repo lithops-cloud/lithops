@@ -32,7 +32,8 @@ DEFAULT_CONFIG_KEYS = {
     'env_max_cpus': 10,
     'env_type': 'FARGATE_SPOT',
     'assign_public_ip': True,
-    'subnets': []
+    'subnets': [],
+    'session_token': None
 }
 
 RUNTIME_TIMEOUT_MAX = 7200  # Max. timeout: 7200s == 2h

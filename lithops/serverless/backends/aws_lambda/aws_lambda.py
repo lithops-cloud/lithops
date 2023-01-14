@@ -67,6 +67,7 @@ class AWSLambdaBackend:
         self.aws_session = boto3.Session(
             aws_access_key_id=lambda_config['access_key_id'],
             aws_secret_access_key=lambda_config['secret_access_key'],
+            aws_session_token=lambda_config['session_token'],
             region_name=self.region_name
         )
 

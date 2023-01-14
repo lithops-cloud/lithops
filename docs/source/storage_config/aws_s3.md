@@ -26,6 +26,7 @@ Lithops with AWS S3 as storage backend.
     aws:
         access_key_id : <ACCESS_KEY_ID>
         secret_access_key : <SECRET_ACCESS_KEY>
+        session_token : <SESSION_TOKEN>  # Optional
 
     aws_s3:
         storage_bucket: <BUCKET_NAME>
@@ -41,6 +42,7 @@ Lithops with AWS S3 as storage backend.
 |---|---|---|---|---|
 |aws | access_key_id | |yes | Account access key to AWS services. To find them, navigate to *My Security Credentials* and click *Create Access Key* if you don't already have one. |
 |aws | secret_access_key | |yes | Account secret access key to AWS services. To find them, navigate to *My Security Credentials* and click *Create Access Key* if you don't already have one. |
+|aws | session_token |None |no | Session token for temporary AWS credentials |
 
 ### Summary of configuration keys for AWS S3:
 
