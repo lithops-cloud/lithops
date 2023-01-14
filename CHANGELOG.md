@@ -12,6 +12,7 @@
 
 ### Changed
 - [Core] Include function result in the status.json file if it is < 8KB
+- [Core] Include python version in the lithops worker name
 
 ### Fixed
 - [Serverless] Allow to delete runtimes from different lithops versions

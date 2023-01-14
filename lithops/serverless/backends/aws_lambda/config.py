@@ -47,8 +47,7 @@ DEFAULT_CONFIG_KEYS = {
     'ephemeral_storage': 512,
     'env_vars': {},
     'vpc': {'subnets': [], 'security_groups': []},
-    'efs': [],
-    'session_token': None
+    'efs': []
 }
 
 REQ_PARAMS1 = ('access_key_id', 'secret_access_key')

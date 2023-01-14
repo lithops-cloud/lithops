@@ -19,6 +19,7 @@ import os
 import logging
 import json
 import base64
+import hashlib
 import httplib2
 import zipfile
 import time
@@ -66,14 +67,6 @@ class GCPFunctionsBackend:
         msg = COMPUTE_CLI_MSG.format('Google Cloud Functions')
         logger.info(f"{msg} - Region: {self.region} - Project: {self.project_name}")
 
-    def _format_function_name(self, runtime_name, runtime_memory=None, version=__version__):
-        runtime_name = ('lithops_v' + version + '_' + runtime_name).replace('.', '-')
-
-        if runtime_memory:
-            return f'{runtime_name}_{runtime_memory}MB'
-        else:
-            return f'{runtime_name}'
-
     def _build_api_resource(self):
         """
         Setup Credentials and resources
@@ -105,12 +98,22 @@ class GCPFunctionsBackend:
             http=http, cache_discovery=False
         )
 
+        self.gcf_config['project_name'] = self.project_name
+        self.gcf_config['service_account'] = self.service_account
+
     @property
     def _default_location(self):
         return f'projects/{self.project_name}/locations/{self.region}'
 
-    def _format_topic_name(self, runtime_name, runtime_memory):
-        return self._format_function_name(runtime_name, runtime_memory) + '_' + self.region + '_topic'
+    def _format_function_name(self, runtime_name, runtime_memory=None, version=__version__):
+        py_version = utils.CURRENT_PY_VERSION.replace('.', '')
+        name = f'{runtime_name}-{runtime_memory}-{version}-{self.trigger}-{self.region}'
+        name_hash = hashlib.sha1(name.encode("utf-8")).hexdigest()[:10]
+
+        return f'lithops-worker-v{py_version}-{version.replace(".", "")}-{name_hash}'
+
+    def _format_topic_name(self, function_name):
+        return f'{function_name}-{self.region}'
 
     def _get_default_runtime_name(self):
         py_version = utils.CURRENT_PY_VERSION.replace('.', '')
@@ -129,20 +132,23 @@ class GCPFunctionsBackend:
     def _encode_payload(self, payload):
         return base64.b64encode(bytes(json.dumps(payload), 'utf-8')).decode('utf-8')
 
-    def _get_token(self, function_url):
+    def _get_token(self, function_name):
         """
         Generates a connection token
         """
         invoke_mutex.acquire()
-        if not self._api_token:
+
+        if not self._api_token or function_name not in self._function_url:
             logger.debug('Getting authentication token')
+            self._function_url = self._api_endpoint + function_name
             if self.credentials_path and os.path.isfile(self.credentials_path):
                 os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = self.credentials_path
             auth_req = google.auth.transport.requests.Request()
-            self._api_token = google.oauth2.id_token.fetch_id_token(auth_req, function_url)
+            self._api_token = google.oauth2.id_token.fetch_id_token(auth_req, self.function_url)
+
         invoke_mutex.release()
 
-        return self._api_token
+        return self._function_url, self._api_token
 
     def _list_built_runtimes(self, default_runtimes=True):
         """
@@ -179,9 +185,12 @@ class GCPFunctionsBackend:
         """
         Creates all the resources needed by a function
         """
+        function_name = self._format_function_name(runtime_name, memory)
+        function_location = self._get_function_location(function_name)
+
         # Create topic
         if self.trigger == 'pub/sub':
-            topic_name = self._format_topic_name(runtime_name, memory)
+            topic_name = self._format_topic_name(function_name)
             topic_location = self._get_topic_location(topic_name)
             logger.debug(f"Creating topic {topic_location}")
             topic_list_response = self._pub_client.list_topics(
@@ -192,9 +201,6 @@ class GCPFunctionsBackend:
                 self._pub_client.delete_topic(topic=topic_location)
             self._pub_client.create_topic(name=topic_location)
 
-        # Create the function
-        function_name = self._format_function_name(runtime_name, memory)
-        function_location = self._get_function_location(function_name)
         logger.debug(f"Creating function {function_location}")
 
         fn_list_response = self._api_resource.projects().locations().functions().list(
@@ -231,7 +237,7 @@ class GCPFunctionsBackend:
             cloud_function['httpsTrigger'] = {}
 
         elif self.trigger == 'pub/sub':
-            topic_name = self._format_topic_name(runtime_name, memory)
+            topic_name = self._format_topic_name(function_name)
             topic_location = self._get_topic_location(topic_name)
             cloud_function['eventTrigger'] = {
                 'eventType': 'providers/cloud.pubsub/eventTypes/topic.publish',
@@ -322,18 +328,19 @@ class GCPFunctionsBackend:
 
         self._wait_function_deleted(function_location)
 
-        # Delete Pub/Sub topic attached as trigger for the cloud function
-        logger.debug('Listing Pub/Sub topics')
-        topic_name = self._format_topic_name(runtime_name, runtime_memory)
-        topic_location = self._get_topic_location(topic_name)
-        topic_list_request = self._pub_client.list_topics(
-            request={'project': f'projects/{self.project_name}'}
-        )
-        topics = [topic.name for topic in topic_list_request]
-        if topic_location in topics:
-            logger.debug(f'Going to delete topic {topic_name}')
-            self._pub_client.delete_topic(topic=topic_location)
-            logger.debug(f'Ok - topic {topic_name} deleted')
+        if self.trigger == 'pub/sub':
+            # Delete Pub/Sub topic attached as trigger for the cloud function
+            logger.debug('Listing Pub/Sub topics')
+            topic_name = self._format_topic_name(function_name)
+            topic_location = self._get_topic_location(topic_name)
+            topic_list_request = self._pub_client.list_topics(
+                request={'project': f'projects/{self.project_name}'}
+            )
+            topics = [topic.name for topic in topic_list_request]
+            if topic_location in topics:
+                logger.debug(f'Going to delete topic {topic_name}')
+                self._pub_client.delete_topic(topic=topic_location)
+                logger.debug(f'Ok - topic {topic_name} deleted')
 
         # Delete user runtime from storage
         bin_location = self._get_runtime_bin_location(runtime_name)
@@ -398,7 +405,7 @@ class GCPFunctionsBackend:
                 else:
                     raise Exception(f'Error at retrieving runtime metadata: {response}')
             else:
-                topic_location = self._get_topic_location(self._format_topic_name(runtime_name, runtime_memory))
+                topic_location = self._get_topic_location(self._format_topic_name(function_name))
                 fut = self._pub_client.publish(
                     topic_location,
                     bytes(json.dumps(payload, default=str).encode('utf-8'))
@@ -406,8 +413,7 @@ class GCPFunctionsBackend:
                 invocation_id = fut.result()
 
         elif self.trigger == 'https':
-            function_url = self._api_endpoint + function_name
-            api_token = self._get_token(function_url)
+            function_url, api_token = self._get_token(function_name)
             req = urllib.request.Request(function_url, data=json.dumps(payload, default=str).encode('utf-8'))
             req.add_header("Authorization", f"Bearer {api_token}")
             res = urllib.request.urlopen(req)

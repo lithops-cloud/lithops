@@ -63,12 +63,13 @@ class AliyunFunctionComputeBackend:
         logger.info(f"{msg} - Region: {self.region}")
 
     def _format_function_name(self, runtime_name, runtime_memory, version=__version__):
-        runtime_name = ('lithops_v' + version + '_' + runtime_name).replace('.', '-')
+        runtime_name = f'lithops-worker-v{version}_{runtime_name}'.replace('.', '-')
+
         return f'{runtime_name}_{runtime_memory}MB'
 
     def _unformat_function_name(self, function_name):
         runtime_name, runtime_memory = function_name.rsplit('_', 1)
-        runtime_name = runtime_name.replace('lithops_v', '')
+        runtime_name = runtime_name.replace('lithops-worker-v', '')
         version, runtime_name = runtime_name.split('_', 1)
         version = version.replace('-', '.')
         return version, runtime_name, runtime_memory.replace('MB', '')
@@ -211,7 +212,7 @@ class AliyunFunctionComputeBackend:
 
         for function in functions:
             function_name = function['functionName']
-            if function_name.startswith('lithops_v'):
+            if function_name.startswith('lithops-worker-v'):
                 logger.info(f'Going to delete runtime {function_name}')
                 self.fc_client.delete_function(self.service_name, function_name)
 

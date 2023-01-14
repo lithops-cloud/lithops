@@ -63,18 +63,18 @@ class AzureContainerAppBackend:
         Formates the conatiner app name
         """
         ac_name = self.storage_account_name
+        py_version = utils.CURRENT_PY_VERSION.replace('.', '')
         name = f'{ac_name}-{runtime_name}-{self.trigger}-{runtime_memory}'
         name_hash = hashlib.sha1(name.encode("utf-8")).hexdigest()[:10]
 
-        return f'lithops-worker-v{version.replace(".", "")}-{name_hash}'
+        return f'lithops-worker-v{py_version}-{version.replace(".", "")}-{name_hash}'[:31]
 
     def _get_default_runtime_image_name(self):
         """
         Generates the default runtime image name
         """
-        revision = 'latest' if 'dev' in __version__ else __version__
         return utils.get_default_container_name(
-            self.name, self.ac_config, 'lithops-azurecontainers-default', revision
+            self.name, self.ac_config, 'lithops-azurecontainers-default'
         )
 
     def deploy_runtime(self, runtime_name, memory, timeout):

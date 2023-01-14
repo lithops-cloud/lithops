@@ -52,7 +52,7 @@ class CephStorageBackend:
         self.s3_client = boto3.client(
             's3', aws_access_key_id=ceph_config['access_key_id'],
             aws_secret_access_key=ceph_config['secret_access_key'],
-            aws_session_token=ceph_config['session_token'],
+            aws_session_token=ceph_config.get('session_token'),
             config=client_config,
             endpoint_url=service_endpoint
         )
@@ -207,7 +207,7 @@ class CephStorageBackend:
         max_keys_num = 1000
         for i in range(0, len(key_list), max_keys_num):
             delete_keys = {'Objects': []}
-            delete_keys['Objects'] = [{'Key': k} for k in key_list[i:i+max_keys_num]]
+            delete_keys['Objects'] = [{'Key': k} for k in key_list[i:i + max_keys_num]]
             result.append(self.s3_client.delete_objects(Bucket=bucket_name, Delete=delete_keys))
         return result
 

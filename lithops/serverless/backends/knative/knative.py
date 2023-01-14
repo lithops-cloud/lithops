@@ -131,18 +131,18 @@ class KnativeServingBackend:
         logger.info(f'{COMPUTE_CLI_MSG.format("Knative")} - Cluster: {self.cluster}')
 
     def _format_service_name(self, runtime_name, runtime_memory, version=__version__):
+        py_version = utils.CURRENT_PY_VERSION.replace('.', '')
         name = f'{runtime_name}-{runtime_memory}-{version}'
         name_hash = hashlib.sha1(name.encode("utf-8")).hexdigest()[:10]
 
-        return f'lithops-worker-v{version.replace(".", "")}-{name_hash}'
+        return f'lithops-worker-v{py_version}-{version.replace(".", "")}-{name_hash}'
 
     def _get_default_runtime_image_name(self):
         """
         Generates the default runtime image name
         """
-        revision = 'latest' if 'dev' in __version__ else __version__
         return utils.get_default_container_name(
-            self.name, self.kn_config, 'lithops-knative-default', revision
+            self.name, self.kn_config, 'lithops-knative-default'
         )
 
     def _get_service_host(self, service_name):
@@ -260,25 +260,25 @@ class KnativeServingBackend:
             body=task_def
         )
 
-    def _build_default_runtime_from_git(self, docker_image_name):
+    def _build_default_runtime_from_git(self, runtime_name):
         """
         Builds the default runtime and pushes it to the docker container registry
         """
-        if docker_image_name.count('/') > 1:
+        if runtime_name.count('/') > 1:
             # container registry is in the provided runtime name
-            cr, rn = docker_image_name.split('/', 1)
+            cr, rn = runtime_name.split('/', 1)
         else:
             cr = 'docker.io'
-            rn = docker_image_name
+            rn = runtime_name
 
         image_name, revision = rn.split(':')
 
         if cr == 'docker.io' and revision != 'latest':
             resp = requests.get('https://index.docker.io/v1/repositories/{}/tags/{}'
-                                .format(docker_image_name, revision))
+                                .format(runtime_name, revision))
             if resp.status_code == 200:
                 logger.debug('Docker image docker.io/{}:{} already exists in Dockerhub. '
-                             'Skipping build process.'.format(docker_image_name, revision))
+                             'Skipping build process.'.format(runtime_name, revision))
                 return
 
         logger.info("Building default Lithops runtime from git with Tekton")
@@ -430,14 +430,14 @@ class KnativeServingBackend:
             if e.status != 409:
                 raise e
 
-    def _create_service(self, docker_image_name, runtime_memory, timeout):
+    def _create_service(self, runtime_name, runtime_memory, timeout):
         """
-        Creates a service in knative based on the docker_image_name and the memory provided
+        Creates a service in knative based on the runtime_name and the memory provided
         """
         logger.debug("Creating Lithops runtime service in Knative")
         svc_res = yaml.safe_load(config.service_res)
 
-        service_name = self._format_service_name(docker_image_name, runtime_memory)
+        service_name = self._format_service_name(runtime_name, runtime_memory)
         svc_res['metadata']['name'] = service_name
         svc_res['metadata']['namespace'] = self.namespace
 
@@ -446,11 +446,11 @@ class KnativeServingBackend:
 
         svc_res['spec']['template']['spec']['timeoutSeconds'] = timeout
         svc_res['spec']['template']['spec']['containerConcurrency'] = 1
-        svc_res['spec']['template']['metadata']['labels']['version'] = f'lithops_v{__version__}'.replace('.', '-')
+        svc_res['spec']['template']['metadata']['labels']['lithops-version'] = __version__.replace('.', '-')
         svc_res['spec']['template']['metadata']['annotations']['autoscaling.knative.dev/maxScale'] = str(self.kn_config['max_workers'])
 
         container = svc_res['spec']['template']['spec']['containers'][0]
-        container['image'] = docker_image_name
+        container['image'] = runtime_name
         container['env'][0] = {'name': 'CONCURRENCY', 'value': '1'}
         container['env'][1] = {'name': 'TIMEOUT', 'value': str(timeout)}
         container['resources']['limits']['memory'] = f'{runtime_memory}Mi'
@@ -510,17 +510,17 @@ class KnativeServingBackend:
 
         return service_url
 
-    def _generate_runtime_meta(self, docker_image_name, memory):
+    def _generate_runtime_meta(self, runtime_name, memory):
         """
         Extract installed Python modules from docker image
         """
-        logger.info(f"Extracting metadata from: {docker_image_name}")
+        logger.info(f"Extracting metadata from: {runtime_name}")
         payload = {}
 
         payload['service_route'] = "/metadata"
 
         try:
-            runtime_meta = self.invoke(docker_image_name, memory, payload, return_result=True)
+            runtime_meta = self.invoke(runtime_name, memory, payload, return_result=True)
         except Exception as e:
             raise Exception(f"Unable to extract metadata from the runtime: {e}")
 
@@ -529,7 +529,7 @@ class KnativeServingBackend:
 
         return runtime_meta
 
-    def deploy_runtime(self, docker_image_name, memory, timeout):
+    def deploy_runtime(self, runtime_name, memory, timeout):
         """
         Deploys a new runtime into the knative default namespace from an already built Docker image.
         As knative does not have a default image already published in a docker registry, lithops
@@ -541,29 +541,29 @@ class KnativeServingBackend:
         except Exception:
             default_image_name = None
 
-        if docker_image_name == default_image_name:
-            self._build_default_runtime(docker_image_name)
+        if runtime_name == default_image_name:
+            self._build_default_runtime(runtime_name)
 
-        logger.info(f"Deploying runtime: {docker_image_name} - Memory: {memory} Timeout: {timeout}")
+        logger.info(f"Deploying runtime: {runtime_name} - Memory: {memory} Timeout: {timeout}")
         self._create_container_registry_secret()
-        self._create_service(docker_image_name, memory, timeout)
-        runtime_meta = self._generate_runtime_meta(docker_image_name, memory)
+        self._create_service(runtime_name, memory, timeout)
+        runtime_meta = self._generate_runtime_meta(runtime_name, memory)
 
         return runtime_meta
 
-    def build_runtime(self, docker_image_name, dockerfile, extra_args=[]):
+    def build_runtime(self, runtime_name, dockerfile, extra_args=[]):
         """
         Builds a new runtime from a Docker file and pushes it to the Docker hub
         """
-        logger.info(f'Building runtime {docker_image_name} from {dockerfile}')
+        logger.info(f'Building runtime {runtime_name} from {dockerfile}')
 
         docker_path = utils.get_docker_path()
 
         if dockerfile:
             assert os.path.isfile(dockerfile), f'Cannot locate "{dockerfile}"'
-            cmd = f'{docker_path} build -t {docker_image_name} -f {dockerfile} . '
+            cmd = f'{docker_path} build -t {runtime_name} -f {dockerfile} . '
         else:
-            cmd = f'{docker_path} build -t {docker_image_name} . '
+            cmd = f'{docker_path} build -t {runtime_name} . '
         cmd = cmd + ' '.join(extra_args)
 
         try:
@@ -573,17 +573,17 @@ class KnativeServingBackend:
         finally:
             os.remove(config.FH_ZIP_LOCATION)
 
-        logger.debug(f'Pushing runtime {docker_image_name} to container registry')
+        logger.debug(f'Pushing runtime {runtime_name} to container registry')
         if utils.is_podman(docker_path):
-            cmd = f'{docker_path} push {docker_image_name} --format docker --remove-signatures'
+            cmd = f'{docker_path} push {runtime_name} --format docker --remove-signatures'
         else:
-            cmd = f'{docker_path} push {docker_image_name}'
+            cmd = f'{docker_path} push {runtime_name}'
         utils.run_command(cmd)
 
         logger.debug('Building done!')
 
-    def delete_runtime(self, docker_image_name, memory, version=__version__):
-        service_name = self._format_service_name(docker_image_name, memory, version)
+    def delete_runtime(self, runtime_name, memory, version=__version__):
+        service_name = self._format_service_name(runtime_name, memory, version)
         logger.info(f'Deleting runtime: {service_name}')
         try:
             self.custom_api.delete_namespaced_custom_object(
@@ -605,10 +605,10 @@ class KnativeServingBackend:
         for img_name, memory, version in runtimes:
             self.delete_runtime(img_name, memory, version)
 
-    def list_runtimes(self, docker_image_name='all'):
+    def list_runtimes(self, runtime_name='all'):
         """
         List all the runtimes deployed in knative
-        return: list of tuples [docker_image_name, memory]
+        return: list of tuples [runtime_name, memory, version]
         """
         knative_services = self.custom_api.list_namespaced_custom_object(
             group=config.DEFAULT_GROUP,
@@ -621,26 +621,25 @@ class KnativeServingBackend:
         for service in knative_services['items']:
             try:
                 template = service['spec']['template']
-                if template['metadata']['labels']['type'] == 'lithops-runtime':
-                    version = template['metadata']['labels']['version']
-                    version = version.replace('lithops_v', '').replace('-', '.')
+                labels = template['metadata']['labels']
+                if labels and 'type' in labels and labels['type'] == 'lithops-runtime':
+                    version = labels['lithops-version'].replace('-', '.')
                     container = template['spec']['containers'][0]
-                    img_name = container['image']
                     memory = container['resources']['requests']['memory'].replace('Mi', '')
                     memory = int(memory.replace('Gi', '')) * 1024 if 'Gi' in memory else memory
-                    if docker_image_name == img_name or docker_image_name == 'all':
-                        runtimes.append((img_name, memory, version))
+                    if runtime_name in container['image'] or runtime_name == 'all':
+                        runtimes.append((container['image'], memory, version))
             except Exception:
                 # It is not a lithops runtime
                 pass
 
         return runtimes
 
-    def invoke(self, docker_image_name, memory, payload, return_result=False):
+    def invoke(self, runtime_name, memory, payload, return_result=False):
         """
         Invoke -- return information about this invocation
         """
-        service_name = self._format_service_name(docker_image_name, memory)
+        service_name = self._format_service_name(runtime_name, memory)
         if self.service_host_suffix:
             service_host = service_name + self.service_host_suffix
         else:
@@ -701,13 +700,13 @@ class KnativeServingBackend:
             logger.debug('ExecutorID {} | JobID {} - Function call {} failed ({}). Retrying request'
                          .format(exec_id, job_id, ', '.join(call_ids), resp_status))
 
-    def get_runtime_key(self, docker_image_name, runtime_memory, version=__version__):
+    def get_runtime_key(self, runtime_name, runtime_memory, version=__version__):
         """
         Method that creates and returns the runtime key.
         Runtime keys are used to uniquely identify runtimes within the storage,
         in order to know which runtimes are installed and which not.
         """
-        service_name = self._format_service_name(docker_image_name, runtime_memory, version)
+        service_name = self._format_service_name(runtime_name, runtime_memory, version)
         cluster = self.cluster.replace('https://', '').replace('http://', '')
         runtime_key = os.path.join(self.name, version, cluster, self.namespace, service_name)
 
