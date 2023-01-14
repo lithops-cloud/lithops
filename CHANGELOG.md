@@ -8,6 +8,7 @@
 - [GCP Cloudrun] Allow setting min_workers to the autoscaler
 - [GCP Functions] Added https trigger
 - [Function Executor] Added additional arguments to pass to the reduce function in map_reduce()
+- [AWS] Added session token as optional
 
 ### Changed
 - [Core] Include function result in the status.json file if it is < 8KB

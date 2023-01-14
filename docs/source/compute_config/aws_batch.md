@@ -27,10 +27,10 @@ python3 -m pip install lithops[aws]
 
 ```yaml
 aws:
-    access_key_id : <AWS_ACCESS_KEY_ID>
-    secret_access_key : <AWS_SECRET_ACCESS_KEY>
-    session_token : <AWS_SESSION_TOKEN>
-    account_id: <AWS_ACCOUNT_ID>
+    access_key_id: <AWS_ACCESS_KEY_ID>
+    secret_access_key: <AWS_SECRET_ACCESS_KEY>
+    #session_token: <AWS_SESSION_TOKEN>  # Optional
+    #account_id: <AWS_ACCOUNT_ID>  # Optional
 
 aws_batch:
     runtime : <RUNTIME_NAME>
