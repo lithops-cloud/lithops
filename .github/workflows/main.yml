@@ -1,4 +1,4 @@
-name: "On Pull Request"
+name: "on-pull-request"
 
 on:
   pull_request:
@@ -11,39 +11,16 @@ on:
 
 jobs:
 
-  LOCALHOST_TESTS:
+  determine_runnable_jobs:
     if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
 
     runs-on: ubuntu-latest
 
-    steps:
-      - name: print-github.action_path
-        run: echo $GITHUB_WORKSPACE
-
-      - name: Clone Lithops repository
-        uses: actions/checkout@v3
-
-      - name: Install Python 3.10
-        uses: actions/setup-python@v4
-        with:
-          python-version: 3.10
-          architecture: x64
-
-      - name: Install dependencies
-        run: |
-          python3 setup.py install
-
-      - name: Run Lithops tests
-        run: |
-          lithops verify -b localhost -s localhost
-
-
-  Determine_Runnable_Jobs:
-    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
-
-    runs-on: ubuntu-latest
+    env:
+       HAVE_LITHOPS_CONFIG: ${{ secrets.LITHOPS_CONFIG != '' }}
 
     outputs:
+      localhost: ${{ steps.script.outputs.localhost }}
       ibm_cf: ${{ steps.script.outputs.ibm_cf }}
       code_engine: ${{ steps.script.outputs.code_engine }}
 
@@ -57,28 +34,18 @@ jobs:
           python-version: 3.10
           architecture: x64
 
-      - name: Determine which jobs to run
+      - name: Set jobs to run
         id: script
         run: |
-          echo -n -e "${{ secrets.LITHOPS_CONFIG }}" > /tmp/lithops_config.yaml
-          if grep -Fxq "ibm_cf:" /tmp/lithops_config.yaml
-          then
-            echo "::set-output name=ibm_cf::true"
-          else
-            echo "::set-output name=ibm_cf::false"
-          fi
-          if grep -Fxq "code_engine:" /tmp/lithops_config.yaml
-          then
-            echo "::set-output name=code_engine::true"
-          else
-            echo "::set-output name=code_engine::false"
-          fi
+          echo "localhost=true" >> $GITHUB_OUTPUT
+          echo "ibm_cf=false" >> $GITHUB_OUTPUT
+          echo "code_engine=false" >> $GITHUB_OUTPUT
 
 
-  CE_COS_TESTS:
+  localhost_tests:
     runs-on: ubuntu-latest
-    needs: Determine_Runnable_Jobs
-    if: needs.Determine_Runnable_Jobs.outputs.code_engine == 'true'
+    needs: determine_runnable_jobs
+    if: needs.determine_runnable_jobs.outputs.localhost == 'true'
 
     steps:
       - name: print-github.action_path
@@ -93,7 +60,34 @@ jobs:
           python-version: 3.10
           architecture: x64
 
-      - name: Install dependencies
+      - name: Install Lithops
+        run: |
+          python3 setup.py install
+
+      - name: Run Lithops tests
+        run: |
+          lithops verify -b localhost -s localhost
+
+
+  ce_cos_tests:
+    runs-on: ubuntu-latest
+    needs: determine_runnable_jobs
+    if: needs.determine_runnable_jobs.outputs.code_engine == 'true'
+
+    steps:
+      - name: print-github.action_path
+        run: echo $GITHUB_WORKSPACE
+
+      - name: Clone Lithops repository
+        uses: actions/checkout@v3
+
+      - name: Install Python 3.10
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.10
+          architecture: x64
+
+      - name: Install Lithops
         run: |
           python3 setup.py install
 
@@ -106,7 +100,7 @@ jobs:
         env:
             LITHOPS_CONFIG_FILE: /tmp/lithops_config.yaml
         run: |
-          docker login -u "${{ secrets.DOCKER_USER }}" -p "${{ secrets.DOCKER_TOKEN }}"
+          docker login -u ${{ secrets.DOCKER_USER }} -p ${{ secrets.DOCKER_TOKEN }}
           cd runtime/code_engine
           lithops runtime build -f Dockerfile.githubci ${{ secrets.DOCKER_USER }}/lithops-ce-gihub-ci:${{ github.run_id }} -b code_engine
           sed -i '/runtime: lithops-ce/c\    runtime: '${{ secrets.DOCKER_USER }}'/lithops-ce-gihub-ci:'${{ github.run_id }} /tmp/lithops_config.yaml
@@ -117,11 +111,18 @@ jobs:
         run: |
           lithops verify -b code_engine -s ibm_cos -k
 
+      - name: Delete Lithops CE runtime
+        if: needs.determine_runnable_jobs.outputs.code_engine == 'true'
+        env:
+          LITHOPS_CONFIG_FILE: /tmp/lithops_config.yaml
+        run: |
+          lithops runtime delete ${{ secrets.DOCKER_USER }}/lithops-ce-gihub-ci:${{ github.run_id }} -b code_engine -s ibm_cos
 
-  CF_COS_TESTS:
+
+  cf_cos_tests:
     runs-on: ubuntu-latest
-    needs: Determine_Runnable_Jobs
-    if: needs.Determine_Runnable_Jobs.outputs.ibm_cf == 'true'
+    needs: determine_runnable_jobs
+    if: needs.determine_runnable_jobs.outputs.ibm_cf == 'true'
 
     steps:
       - name: print-github.action_path
@@ -136,7 +137,7 @@ jobs:
           python-version: 3.10
           architecture: x64
 
-      - name: Install dependencies
+      - name: Install Lithops
         run: |
           python3 setup.py install
 
@@ -149,10 +150,10 @@ jobs:
         env:
           LITHOPS_CONFIG_FILE: /tmp/lithops_config.yaml
         run: |
-          docker login -u "${{ secrets.DOCKER_USER }}" -p "${{ secrets.DOCKER_TOKEN }}"
-          cd runtime/code_engine
-          lithops runtime build -f Dockerfile.githubci ${{ secrets.DOCKER_USER }}/lithops-ce-gihub-ci:${{ github.run_id }} -b code_engine
-          sed -i '/runtime: lithops-ce/c\    runtime: '${{ secrets.DOCKER_USER }}'/lithops-ce-gihub-ci:'${{ github.run_id }} /tmp/lithops_config.yaml
+          docker login -u ${{ secrets.DOCKER_USER }} -p ${{ secrets.DOCKER_TOKEN }}
+          cd runtime/ibm_cf
+          lithops runtime build -f Dockerfile.githubci ${{ secrets.DOCKER_USER }}/lithops-cf-gihub-ci:${{ github.run_id }} -b ibm_cf
+          sed -i '/runtime: lithops-cf/c\    runtime: '${{ secrets.DOCKER_USER }}'/lithops-cf-gihub-ci:'${{ github.run_id }} /tmp/lithops_config.yaml
 
       - name: Run Python tests
         env:
@@ -160,39 +161,7 @@ jobs:
         run: |
           lithops verify -b ibm_cf -s ibm_cos -k
 
-
-  Clean:
-    if: always()  # this job will run regardless of the above job's status.
-    runs-on: ubuntu-latest
-    needs: [CE_COS, CF_COS]
-
-    steps:
-      - name: Clone Lithops repository
-        uses: actions/checkout@v3
-      
-      - name: Install Python 3.10
-        uses: actions/setup-python@v4
-        with:
-          python-version: 3.10
-          architecture: x64
-
-      - name: Install dependencies
-        run: |
-          python3 setup.py install
-          
-      - name: Install Lithops config
-        run: |
-          echo -n -e "${{ secrets.LITHOPS_CONFIG }}" > /tmp/lithops_config.yaml
-
-      - name: Delete Lithops CE runtime
-        if: needs.Determine_Runnable_Jobs.outputs.code_engine == 'true'
-        env:
-          LITHOPS_CONFIG_FILE: /tmp/lithops_config.yaml
-        run: |
-          lithops runtime delete ${{ secrets.DOCKER_USER }}/lithops-ce-gihub-ci:${{ github.run_id }} -b code_engine -s ibm_cos
-
       - name: Delete Lithops CF runtime
-        if: needs.Determine_Runnable_Jobs.outputs.ibm_cf == 'true'
         env:
           LITHOPS_CONFIG_FILE: /tmp/lithops_config.yaml
         run: |
