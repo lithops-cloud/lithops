@@ -52,6 +52,7 @@ class CephStorageBackend:
         self.s3_client = boto3.client(
             's3', aws_access_key_id=ceph_config['access_key_id'],
             aws_secret_access_key=ceph_config['secret_access_key'],
+            aws_session_token=ceph_config['session_token'],
             config=client_config,
             endpoint_url=service_endpoint
         )

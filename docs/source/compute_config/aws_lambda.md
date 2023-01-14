@@ -52,6 +52,7 @@ lithops:
 aws:
     access_key_id: <ACCESS_KEY_ID>
     secret_access_key: <SECRET_ACCESS_KEY>
+    session_token : <SESSION_TOKEN>  # Optional
     #account_id: <ACCOUNT_ID>  # Optional
 
 aws_lambda:
@@ -67,6 +68,7 @@ aws_lambda:
 |---|---|---|---|---|
 |aws | access_key_id | |yes | Account access key to AWS services. To find them, navigate to *My Security Credentials* and click *Create Access Key* if you don't already have one. |
 |aws | secret_access_key | |yes | Account secret access key to AWS services. To find them, navigate to *My Security Credentials* and click *Create Access Key* if you don't already have one. |
+|aws | session_token |None |no | Session token for temporary AWS credentials |
 |aws | account_id | |no | *This field will be used if present to retrieve the account ID instead of using AWS STS. The account ID is used to format full image names for container runtimes. |
 
 ### AWS Lambda
