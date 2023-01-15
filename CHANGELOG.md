@@ -17,6 +17,7 @@
 ### Fixed
 - [Serverless] Allow to delete runtimes from different lithops versions
 - [AWS Batch] Fixed list_runtimes() method
+- [localhost] Fixed localhost storage backend head method
 
 
 ## [v2.7.1]

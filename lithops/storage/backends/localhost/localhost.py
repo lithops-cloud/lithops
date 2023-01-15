@@ -214,7 +214,7 @@ class LocalhostStorageBackend:
         :param bucket_name: name of the bucket
         """
         if os.path.isdir(os.path.join(LITHOPS_TEMP_DIR, bucket_name)):
-            return {}
+            return {'ResponseMetadata': {'HTTPStatusCode': 200}}
         else:
             raise StorageNoSuchKeyError(os.path.join(LITHOPS_TEMP_DIR, bucket_name), '')
 
