@@ -15,10 +15,6 @@
 #
 
 
-DEFAULT_CONFIG_KEYS = {
-    'session_token': None
-}
-
 REQ_PARAMS = ('secret_access_key', 'access_key_id')
 ENDPOINT_URL = 'https://s3.{}.amazonaws.com'
 
@@ -51,7 +47,3 @@ def load_config(config_data):
 
     if 'storage_bucket' in config_data['aws_s3']:
         config_data['lithops']['storage_bucket'] = config_data['aws_s3']['storage_bucket']
-
-    for key in DEFAULT_CONFIG_KEYS:
-        if key not in config_data['aws_s3']:
-            config_data['aws_s3'][key] = DEFAULT_CONFIG_KEYS[key]

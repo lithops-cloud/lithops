@@ -39,9 +39,6 @@ from . import config
 
 logger = logging.getLogger(__name__)
 
-CLOUDRUN_API_VERSION = 'v1'
-SCOPES = ('https://www.googleapis.com/auth/cloud-platform',)
-
 
 class GCPCloudRunBackend:
 
@@ -50,6 +47,7 @@ class GCPCloudRunBackend:
         self.type = 'faas'
         self.cr_config = cloudrun_config
         self.region = cloudrun_config['region']
+        self.trigger = cloudrun_config['trigger']
         self.credentials_path = cloudrun_config.get('credentials_path')
 
         self._build_api_resource()
@@ -64,18 +62,29 @@ class GCPCloudRunBackend:
         """
         Formats service name string from runtime name and memory
         """
-        name = f'{runtime_name}-{runtime_memory}-{version}'
+        py_version = utils.CURRENT_PY_VERSION.replace('.', '')
+        name = f'{runtime_name}-{runtime_memory}-{version}-{self.trigger}-{self.region}'
         name_hash = hashlib.sha1(name.encode("utf-8")).hexdigest()[:10]
 
-        return f'lithops-worker-v{version.replace(".", "")}-{name_hash}'
+        return f'lithops-worker-v{py_version}-{version.replace(".", "")}-{name_hash}'
 
     def _get_default_runtime_image_name(self):
         """
         Generates the default runtime image name
         """
-        py_version = utils.CURRENT_PY_VERSION.replace('.', '')
-        revision = 'latest' if 'dev' in __version__ else __version__
-        return f'lithops-cloudrun-default-v{py_version}:{revision}'
+        return utils.get_default_container_name(
+            self.name, self.cr_config, 'lithops-cloudrun-default'
+        )
+
+    def _format_image_name(self, runtime_name):
+        """
+        Formats GCR image name from runtime name
+        """
+        if 'gcr.io' not in runtime_name:
+            country = self.region.split('-')[0]
+            return f'{country}.gcr.io/{self.project_name}/{runtime_name}'
+        else:
+            return runtime_name
 
     def _build_api_resource(self):
         """
@@ -83,34 +92,37 @@ class GCPCloudRunBackend:
         """
         if self.credentials_path and os.path.isfile(self.credentials_path):
             logger.debug(f'Getting GCP credentials from {self.credentials_path}')
-            cred = service_account.Credentials.from_service_account_file(self.credentials_path, scopes=SCOPES)
+            cred = service_account.Credentials.from_service_account_file(self.credentials_path, scopes=config.SCOPES)
             self.project_name = cred.project_id
             self.service_account = cred.service_account_email
         else:
             logger.debug('Getting GCP credentials from the environment')
-            cred, self.project_name = google.auth.default(scopes=SCOPES)
+            cred, self.project_name = google.auth.default(scopes=config.SCOPES)
             self.service_account = cred.service_account_email
 
         http = AuthorizedHttp(cred, http=httplib2.Http())
         self._api_resource = build(
-            'run', CLOUDRUN_API_VERSION,
+            'run', config.CLOUDRUN_API_VERSION,
             http=http, cache_discovery=False,
             client_options={
                 'api_endpoint': f'https://{self.region}-run.googleapis.com'
             }
         )
 
-    def _get_url_and_token(self, runtime_name, memory):
+        self.cr_config['project_name'] = self.project_name
+        self.cr_config['service_account'] = self.service_account
+
+    def _get_url_and_token(self, service_name):
         """
         Generates a connection token
         """
         invoke_mutex.acquire()
         request_token = False
-        if not self._service_url or (self._service_url and str(memory) not in self._service_url):
+
+        if not self._service_url or service_name not in self._service_url:
             logger.debug('Getting service endpoint')
-            svc_name = self._format_service_name(runtime_name, memory)
             res = self._api_resource.namespaces().services().get(
-                name=f'namespaces/{self.project_name}/services/{svc_name}'
+                name=f'namespaces/{self.project_name}/services/{service_name}'
             ).execute()
             self._service_url = res['status']['url']
             request_token = True
@@ -125,21 +137,6 @@ class GCPCloudRunBackend:
         invoke_mutex.release()
 
         return self._service_url, self._id_token
-
-    def _format_image_name(self, runtime_name):
-        """
-        Formats GCR image name from runtime name
-        """
-        country = self.region.split('-')[0]
-        return f'{country}.gcr.io/{self.project_name}/{runtime_name}'
-
-    def _unformat_image_name(self, image_name):
-        """
-        Parse service string name into runtime name and memory
-        :return: Tuple of (runtime_name, runtime_memory)
-        """
-        runtime_name = image_name.split('/', 2)[2]
-        return runtime_name
 
     def _build_default_runtime(self, runtime_name):
         """
@@ -186,7 +183,9 @@ class GCPCloudRunBackend:
         job_id = payload.get('job_id')
         route = payload.get("service_route", '/')
 
-        service_url, id_token = self._get_url_and_token(runtime_name, runtime_memory)
+        img_name = self._format_image_name(runtime_name)
+        service_name = self._format_service_name(img_name, runtime_memory)
+        service_url, id_token = self._get_url_and_token(service_name)
 
         if exec_id and job_id and call_id:
             logger.debug(f'ExecutorID {exec_id} | JobID {job_id} - Invoking function call {call_id}')
@@ -251,7 +250,7 @@ class GCPCloudRunBackend:
         logger.debug("Creating Lithops runtime service in Google Cloud Run")
 
         img_name = self._format_image_name(runtime_name)
-        service_name = self._format_service_name(runtime_name, runtime_memory)
+        service_name = self._format_service_name(img_name, runtime_memory)
 
         svc_res = yaml.safe_load(config.service_res)
         svc_res['metadata']['name'] = service_name
@@ -263,7 +262,7 @@ class GCPCloudRunBackend:
         svc_res['spec']['template']['spec']['timeoutSeconds'] = timeout
         svc_res['spec']['template']['spec']['containerConcurrency'] = 1
         svc_res['spec']['template']['spec']['serviceAccountName'] = self.service_account
-        svc_res['spec']['template']['metadata']['labels']['version'] = f'lithops_v{__version__}'.replace('.', '-')
+        svc_res['spec']['template']['metadata']['labels']['lithops-version'] = __version__.replace('.', '-')
         svc_res['spec']['template']['metadata']['annotations']['autoscaling.knative.dev/minScale'] = str(self.cr_config['min_workers'])
         svc_res['spec']['template']['metadata']['annotations']['autoscaling.knative.dev/maxScale'] = str(self.cr_config['max_workers'])
 
@@ -313,9 +312,14 @@ class GCPCloudRunBackend:
         runtime_meta = self._generate_runtime_meta(runtime_name, memory)
         return runtime_meta
 
-    def delete_runtime(self, runtime_name, memory, version=__version__):
-        service_name = self._format_service_name(runtime_name, memory, version)
-        logger.info(f'Deleting runtime: {runtime_name} - {memory}MB')
+    def delete_runtime(self, runtime_name, runtime_memory, version=__version__):
+        logger.info(f'Deleting runtime: {runtime_name} - {runtime_memory}MB')
+        img_name = self._format_image_name(runtime_name)
+        service_name = self._format_service_name(img_name, runtime_memory, version)
+        self._delete_service(service_name)
+
+    def _delete_service(self, service_name):
+        logger.debug(f'Deleting service {service_name}')
         try:
             self._api_resource.namespaces().services().delete(
                 name=f'namespaces/{self.project_name}/services/{service_name}'
@@ -329,16 +333,28 @@ class GCPCloudRunBackend:
                     time.sleep(1)
                 except Exception:
                     break
-            logger.debug(f'Ok -- deleted runtime {runtime_name}')
+            logger.debug(f'Ok -- service deleted {service_name}')
         except Exception:
-            pass
+            logger.debug(f'Error -- unable to delete service {service_name}')
 
     def clean(self):
-        logger.debug('Deleting all runtimes')
+        logger.debug('Going to delete all deployed runtimes')
 
-        runtimes = self.list_runtimes()
-        for img_name, memory, version in runtimes:
-            self.delete_runtime(img_name, memory, version)
+        res = self._api_resource.namespaces().services().list(
+            parent=f'namespaces/{self.project_name}',
+        ).execute()
+
+        if 'items' not in res:
+            return
+
+        for item in res['items']:
+            labels = item['spec']['template']['metadata']['labels']
+            if labels and 'type' in labels and labels['type'] == 'lithops-runtime':
+                container = item['spec']['template']['spec']['containers'][0]
+                memory = container['resources']['limits']['memory'].replace('Mi', '')
+                runtime_name = container['image']
+                logger.info(f'Deleting runtime: {runtime_name} - {memory}MB')
+                self._delete_service(item['metadata']['name'])
 
     def list_runtimes(self, runtime_name='all'):
         logger.debug('Listing runtimes')
@@ -350,24 +366,21 @@ class GCPCloudRunBackend:
         if 'items' not in res:
             return []
 
-        logger.debug(f'Ok -- {len(res["items"])} runtimes listed')
-
         runtimes = []
-
         for item in res['items']:
-            if item['spec']['template']['metadata']['labels']['type'] == 'lithops-runtime':
-                version = item['spec']['template']['metadata']['labels']['version']
-                version = version.replace('lithops_v', '').replace('-', '.')
+            labels = item['spec']['template']['metadata']['labels']
+            if labels and 'type' in labels and labels['type'] == 'lithops-runtime':
+                version = labels['lithops-version'].replace('-', '.')
                 container = item['spec']['template']['spec']['containers'][0]
-                img_name = self._unformat_image_name(container['image'])
                 memory = container['resources']['limits']['memory'].replace('Mi', '')
-                if runtime_name == img_name or runtime_name == 'all':
-                    runtimes.append((img_name, memory, version))
+                if runtime_name in container['image'] or runtime_name == 'all':
+                    runtimes.append((container['image'], memory, version))
 
         return runtimes
 
     def get_runtime_key(self, runtime_name, memory, version=__version__):
-        service_name = self._format_service_name(runtime_name, memory, version)
+        img_name = self._format_image_name(runtime_name)
+        service_name = self._format_service_name(img_name, memory, version)
         runtime_key = os.path.join(self.name, version, self.project_name, self.region, service_name)
         logger.debug(f'Runtime key: {runtime_key}')
 

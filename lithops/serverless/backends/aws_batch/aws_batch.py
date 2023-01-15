@@ -57,7 +57,7 @@ class AWSBatchBackend:
         logger.debug('Creating Boto3 AWS Session and Batch Client')
         self.aws_session = boto3.Session(aws_access_key_id=aws_batch_config['access_key_id'],
                                          aws_secret_access_key=aws_batch_config['secret_access_key'],
-                                         aws_session_token=aws_batch_config['session_token'],
+                                         aws_session_token=aws_batch_config.get('session_token'),
                                          region_name=self.region_name)
         self.batch_client = self.aws_session.client('batch', region_name=self.region_name)
 

@@ -81,18 +81,18 @@ class KubernetesBackend:
         logger.info(f"{msg} - Namespace: {self.namespace}")
 
     def _format_job_name(self, runtime_name, runtime_memory, version=__version__):
+        py_version = utils.CURRENT_PY_VERSION.replace('.', '')
         name = f'{runtime_name}-{runtime_memory}-{version}'
         name_hash = hashlib.sha1(name.encode("utf-8")).hexdigest()[:10]
 
-        return f'lithops-worker-v{version.replace(".", "")}-{name_hash}'
+        return f'lithops-worker-v{py_version}-{version.replace(".", "")}-{name_hash}'
 
     def _get_default_runtime_image_name(self):
         """
         Generates the default runtime image name
         """
-        revision = 'latest' if 'dev' in __version__ else __version__
         return utils.get_default_container_name(
-            self.name, self.k8s_config, 'lithops-kubernetes-default', revision
+            self.name, self.k8s_config, 'lithops-kubernetes-default'
         )
 
     def build_runtime(self, docker_image_name, dockerfile, extra_args=[]):

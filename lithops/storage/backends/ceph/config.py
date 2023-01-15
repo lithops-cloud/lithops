@@ -15,10 +15,6 @@
 #
 
 
-DEFAULT_CONFIG_KEYS = {
-    'session_token': None
-}
-
 REQ_PARAMS = ('endpoint', 'secret_access_key', 'access_key_id')
 
 
@@ -36,7 +32,3 @@ def load_config(config_data):
 
     if 'storage_bucket' in config_data['ceph']:
         config_data['lithops']['storage_bucket'] = config_data['ceph']['storage_bucket']
-
-    for key in DEFAULT_CONFIG_KEYS:
-        if key not in config_data['ceph']:
-            config_data['ceph'][key] = DEFAULT_CONFIG_KEYS[key]

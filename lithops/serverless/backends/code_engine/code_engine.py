@@ -83,9 +83,9 @@ class CodeEngineBackend:
         self.kubecfg_path = code_engine_config.get('kubecfg_path')
         self.user_agent = code_engine_config['user_agent']
 
-        self.iam_api_key = code_engine_config.get('iam_api_key', None)
-        self.namespace = code_engine_config.get('namespace', None)
-        self.region = code_engine_config.get('region', None)
+        self.iam_api_key = code_engine_config.get('iam_api_key')
+        self.namespace = code_engine_config.get('namespace')
+        self.region = code_engine_config.get('region')
 
         self.ibm_token_manager = None
         self.is_lithops_worker = utils.is_lithops_worker()
@@ -152,18 +152,18 @@ class CodeEngineBackend:
         client.Configuration.set_default(configuration)
 
     def _format_jobdef_name(self, runtime_name, runtime_memory, version=__version__):
+        py_version = utils.CURRENT_PY_VERSION.replace('.', '')
         name = f'{runtime_name}-{runtime_memory}-{version}'
         name_hash = hashlib.sha1(name.encode("utf-8")).hexdigest()[:10]
 
-        return f'lithops-worker-v{version.replace(".", "")}-{name_hash}'
+        return f'lithops-worker-v{py_version}-{version.replace(".", "")}-{name_hash}'
 
     def _get_default_runtime_image_name(self):
         """
         Generates the default runtime image name
         """
-        revision = 'latest' if 'dev' in __version__ else __version__
         return utils.get_default_container_name(
-            self.name, self.ce_config, 'lithops-codeenigne-default', revision
+            self.name, self.ce_config, 'lithops-codeenigne-default'
         )
 
     def build_runtime(self, docker_image_name, dockerfile, extra_args=[]):

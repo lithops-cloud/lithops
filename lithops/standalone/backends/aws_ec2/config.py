@@ -25,8 +25,7 @@ DEFAULT_CONFIG_KEYS = {
     'request_spot_instances': True,
     'delete_on_dismantle': True,
     'max_workers': 100,
-    'worker_processes': 2,
-    'session_token': None
+    'worker_processes': 2
 }
 
 
