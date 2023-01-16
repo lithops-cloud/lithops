@@ -71,7 +71,7 @@ class AzureFunctionAppBackend:
         name = f'{ac_name}-{runtime_name}-{self.trigger}'
         name_hash = hashlib.sha1(name.encode("utf-8")).hexdigest()[:10]
 
-        return f'lithops-worker-v{py_version}-{version}-{name_hash}'
+        return f'lithops-worker-v{py_version}-{version.replace(".", "")}-{name_hash}'
 
     def _format_queue_name(self, function_name, q_type):
         """

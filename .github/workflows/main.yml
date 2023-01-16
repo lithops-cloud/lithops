@@ -8,16 +8,15 @@ on:
   workflow_dispatch: 
   # this allows to run the workflow manually through the github dashboard
 
+env:
+  HAVE_LITHOPS_CONFIG: ${{ secrets.LITHOPS_CONFIG != '' }}
+  LITHOPS_CONFIG_FILE: /tmp/lithops_config.yaml
 
 jobs:
 
   determine_runnable_jobs:
-    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
-
     runs-on: ubuntu-latest
-
-    env:
-       HAVE_LITHOPS_CONFIG: ${{ secrets.LITHOPS_CONFIG != '' }}
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
 
     outputs:
       localhost: ${{ steps.script.outputs.localhost }}
@@ -56,7 +55,7 @@ jobs:
           lithops verify -b localhost -s localhost
 
 
-  ce_cos_tests:
+  ibm_ce_cos_tests:
     runs-on: ubuntu-latest
     needs: determine_runnable_jobs
     if: needs.determine_runnable_jobs.outputs.code_engine == 'true'
@@ -77,32 +76,26 @@ jobs:
       - name: Install Lithops config
         id: config
         run: |
-          echo -n -e "${{ secrets.LITHOPS_CONFIG }}" > /tmp/lithops_config.yaml
+          echo -n -e "${{ secrets.LITHOPS_CONFIG }}" > $LITHOPS_CONFIG_FILE
 
       - name: Build new runtime
-        env:
-            LITHOPS_CONFIG_FILE: /tmp/lithops_config.yaml
         run: |
           docker login -u ${{ secrets.DOCKER_USER }} -p ${{ secrets.DOCKER_TOKEN }}
           cd runtime/code_engine
           lithops runtime build -f Dockerfile.githubci ${{ secrets.DOCKER_USER }}/lithops-ce-gihub-ci:${{ github.run_id }} -b code_engine
-          sed -i '/runtime: lithops-ce/c\    runtime: '${{ secrets.DOCKER_USER }}'/lithops-ce-gihub-ci:'${{ github.run_id }} /tmp/lithops_config.yaml
+          sed -i '/runtime: lithops-ce/c\    runtime: '${{ secrets.DOCKER_USER }}'/lithops-ce-gihub-ci:'${{ github.run_id }} $LITHOPS_CONFIG_FILE
 
       - name: Run Lithops tests
-        env:
-          LITHOPS_CONFIG_FILE: /tmp/lithops_config.yaml
         run: |
           lithops verify -b code_engine -s ibm_cos -k
 
       - name: Delete Lithops CE runtime
         if: needs.determine_runnable_jobs.outputs.code_engine == 'true'
-        env:
-          LITHOPS_CONFIG_FILE: /tmp/lithops_config.yaml
         run: |
           lithops runtime delete ${{ secrets.DOCKER_USER }}/lithops-ce-gihub-ci:${{ github.run_id }} -b code_engine -s ibm_cos
 
 
-  cf_cos_tests:
+  ibm_cf_cos_tests:
     runs-on: ubuntu-latest
     needs: determine_runnable_jobs
     if: needs.determine_runnable_jobs.outputs.ibm_cf == 'true'
@@ -123,25 +116,19 @@ jobs:
       - name: Install Lithops config
         id: config
         run: |
-          echo -n -e "${{ secrets.LITHOPS_CONFIG }}" > /tmp/lithops_config.yaml
+          echo -n -e "${{ secrets.LITHOPS_CONFIG }}" > $LITHOPS_CONFIG_FILE
 
       - name: Build new runtime
-        env:
-          LITHOPS_CONFIG_FILE: /tmp/lithops_config.yaml
         run: |
           docker login -u ${{ secrets.DOCKER_USER }} -p ${{ secrets.DOCKER_TOKEN }}
           cd runtime/ibm_cf
           lithops runtime build -f Dockerfile.githubci ${{ secrets.DOCKER_USER }}/lithops-cf-gihub-ci:${{ github.run_id }} -b ibm_cf
-          sed -i '/runtime: lithops-cf/c\    runtime: '${{ secrets.DOCKER_USER }}'/lithops-cf-gihub-ci:'${{ github.run_id }} /tmp/lithops_config.yaml
+          sed -i '/runtime: lithops-cf/c\    runtime: '${{ secrets.DOCKER_USER }}'/lithops-cf-gihub-ci:'${{ github.run_id }} $LITHOPS_CONFIG_FILE
 
       - name: Run Lithops tests
-        env:
-          LITHOPS_CONFIG_FILE: /tmp/lithops_config.yaml
         run: |
           lithops verify -b ibm_cf -s ibm_cos -k
 
       - name: Delete Lithops CF runtime
-        env:
-          LITHOPS_CONFIG_FILE: /tmp/lithops_config.yaml
         run: |
           lithops runtime delete ${{ secrets.DOCKER_USER }}/lithops-cf-gihub-ci:${{ github.run_id }} -b ibm_cf -s ibm_cos
