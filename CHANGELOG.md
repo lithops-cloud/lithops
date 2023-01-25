@@ -1,6 +1,16 @@
 # Changelog
+## [v2.8.1.dev0]
 
-## [v2.7.2.dev0]
+### Added
+- 
+
+### Changed
+- 
+
+### Fixed
+- 
+
+## [v2.8.0]
 
 ### Added
 - [Config] Allow to store the config file in "/etc/lithops/config"
