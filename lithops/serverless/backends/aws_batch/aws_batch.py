@@ -320,7 +320,7 @@ class AWSBatchBackend:
 
         job_name = '{}_metadata'.format(self._format_jobdef_name(runtime_name, runtime_memory))
 
-        payload = copy.deepcopy(self.internal_storage.storage.storage_config)
+        payload = copy.deepcopy(self.internal_storage.storage.config)
         payload['runtime_name'] = runtime_name
         payload['log_level'] = logger.getEffectiveLevel()
 

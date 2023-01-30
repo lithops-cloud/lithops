@@ -437,7 +437,7 @@ class GCPFunctionsBackend:
         payload = {
             'get_metadata': {
                 'runtime_name': runtime_name,
-                'storage_config': self.internal_storage.storage.storage_config
+                'storage_config': self.internal_storage.storage.config
             },
             'trigger': self.trigger
         }
