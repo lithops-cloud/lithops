@@ -19,4 +19,4 @@ def load_config(config_data):
     if 'localhost' not in config_data:
         config_data['localhost'] = {}
 
-    config_data['lithops']['storage_bucket'] = 'storage'
+    config_data['localhost']['storage_bucket'] = 'storage'

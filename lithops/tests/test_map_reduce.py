@@ -59,7 +59,7 @@ class TestMapReduce(unittest.TestCase):
     def test_map_reduce_obj_bucket(self):
         logger.info('Testing map_reduce() over a bucket')
         sb = STORAGE_CONFIG['backend']
-        data_prefix = sb + '://' + STORAGE_CONFIG['bucket'] + '/' + DATASET_PREFIX + '/'
+        data_prefix = sb + '://' + STORAGE_CONFIG['storage_bucket'] + '/' + DATASET_PREFIX + '/'
         fexec = lithops.FunctionExecutor(config=CONFIG)
         fexec.map_reduce(my_map_function_obj, data_prefix,
                          my_reduce_function)
@@ -69,7 +69,7 @@ class TestMapReduce(unittest.TestCase):
     def test_map_reduce_obj_bucket_reduce_by_key(self):
         logger.info('Testing map_reduce() over a bucket with one reducer per object')
         sb = STORAGE_CONFIG['backend']
-        data_prefix = sb + '://' + STORAGE_CONFIG['bucket'] + '/' + DATASET_PREFIX + '/'
+        data_prefix = sb + '://' + STORAGE_CONFIG['storage_bucket'] + '/' + DATASET_PREFIX + '/'
         fexec = lithops.FunctionExecutor(config=CONFIG)
         fexec.map_reduce(my_map_function_obj, data_prefix,
                          my_reduce_function,
@@ -81,7 +81,7 @@ class TestMapReduce(unittest.TestCase):
     def test_map_reduce_obj_key(self):
         logger.info('Testing map_reduce() over object keys')
         sb = STORAGE_CONFIG['backend']
-        bucket_name = STORAGE_CONFIG['bucket']
+        bucket_name = STORAGE_CONFIG['storage_bucket']
         iterdata = [sb + '://' + bucket_name + '/' + key for key in list_dataset_keys(STORAGE, STORAGE_CONFIG)]
         fexec = lithops.FunctionExecutor(config=CONFIG)
         fexec.map_reduce(my_map_function_obj, iterdata,
@@ -92,7 +92,7 @@ class TestMapReduce(unittest.TestCase):
     def test_map_reduce_obj_key_reduce_by_key(self):
         logger.info('Testing map_reduce() over object keys with one reducer per object')
         sb = STORAGE_CONFIG['backend']
-        bucket_name = STORAGE_CONFIG['bucket']
+        bucket_name = STORAGE_CONFIG['storage_bucket']
         iterdata = [sb + '://' + bucket_name + '/' + key for key in list_dataset_keys(STORAGE, STORAGE_CONFIG)]
         fexec = lithops.FunctionExecutor(config=CONFIG)
         fexec.map_reduce(my_map_function_obj, iterdata,
@@ -120,7 +120,7 @@ class TestMapReduce(unittest.TestCase):
         activations = 0
 
         sb = STORAGE_CONFIG['backend']
-        data_prefix = sb + '://' + STORAGE_CONFIG['bucket'] + '/' + DATASET_PREFIX + '/'
+        data_prefix = sb + '://' + STORAGE_CONFIG['storage_bucket'] + '/' + DATASET_PREFIX + '/'
 
         fexec = lithops.FunctionExecutor(config=CONFIG)
         futures = fexec.map_reduce(my_map_function_obj, data_prefix,
@@ -154,7 +154,7 @@ class TestMapReduce(unittest.TestCase):
         activations = 0
 
         sb = STORAGE_CONFIG['backend']
-        data_prefix = sb + '://' + STORAGE_CONFIG['bucket'] + '/' + DATASET_PREFIX + '/'
+        data_prefix = sb + '://' + STORAGE_CONFIG['storage_bucket'] + '/' + DATASET_PREFIX + '/'
 
         fexec = lithops.FunctionExecutor(config=CONFIG)
         futures = fexec.map_reduce(my_map_function_obj, data_prefix,
@@ -175,4 +175,4 @@ class TestMapReduce(unittest.TestCase):
                                    obj_reduce_by_key=True)
         result = fexec.get_result(futures)
         self.assertEqual(sum(result), self.__class__.words_in_cos_files)
-        self.assertEqual(len(futures), len(TEST_FILES_URLS)*OBJ_CHUNK_NUMBER + len(TEST_FILES_URLS))  # + len(TEST_FILES_URLS) due to map_reduce activation per object
+        self.assertEqual(len(futures), len(TEST_FILES_URLS) * OBJ_CHUNK_NUMBER + len(TEST_FILES_URLS))  # + len(TEST_FILES_URLS) due to map_reduce activation per object

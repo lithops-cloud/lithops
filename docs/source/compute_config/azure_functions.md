@@ -75,7 +75,7 @@ az login
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |azure_storage| storage_account_name | |yes |  The name generated in the step 5 of the installation |
-|azure_storage| storage_account_key |  | yes |  An Account Key, found in *Storage Accounts* > `account_name` > *Settings* > *Access Keys*|
+|azure_storage| storage_account_key |  | yes |  An Account Key, found in *Storage Accounts* > `account_name` > *Security + networking* > *Access Keys*|
 
 ### Azure Functions
 

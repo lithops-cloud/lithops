@@ -36,8 +36,7 @@ class LocalhostStorageBackend:
         logger.debug("Creating Localhost storage client")
         self.localhost_config = localhost_config
 
-        msg = STORAGE_CLI_MSG.format('Localhost storage')
-        logger.info("{}".format(msg))
+        logger.info(STORAGE_CLI_MSG.format('Localhost storage'))
 
     def get_client(self):
         # Simulate boto3 client

@@ -39,6 +39,3 @@ def load_config(config_data=None):
 
     # Put credential keys to 'aws_lambda' dict entry
     config_data['aliyun_oss'].update(config_data['aliyun'])
-
-    if 'storage_bucket' in config_data['aliyun_oss']:
-        config_data['lithops']['storage_bucket'] = config_data['aliyun_oss']['storage_bucket']

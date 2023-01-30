@@ -33,10 +33,10 @@ class ServerlessHandler:
         self.backend = None
 
         try:
-            module_location = 'lithops.serverless.backends.{}'.format(self.backend_name)
+            module_location = f'lithops.serverless.backends.{self.backend_name}'
             sb_module = importlib.import_module(module_location)
             ServerlessBackend = getattr(sb_module, 'ServerlessBackend')
-            self.backend = ServerlessBackend(self.config[self.backend_name], internal_storage)
+            self.backend = ServerlessBackend(self.config, internal_storage)
 
         except Exception as e:
             logger.error("There was an error trying to create the {} "
@@ -114,10 +114,10 @@ class ServerlessHandler:
             return self.backend.get_runtime_info()
 
         runtime_info = {
-            'runtime_name': self.config[self.backend_name]['runtime'],
-            'runtime_memory': self.config[self.backend_name]['runtime_memory'],
-            'runtime_timeout': self.config[self.backend_name]['runtime_timeout'],
-            'max_workers': self.config[self.backend_name]['max_workers'],
+            'runtime_name': self.config['runtime'],
+            'runtime_memory': self.config['runtime_memory'],
+            'runtime_timeout': self.config['runtime_timeout'],
+            'max_workers': self.config['max_workers'],
         }
 
         return runtime_info

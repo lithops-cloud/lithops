@@ -50,7 +50,7 @@ def run_job():
     sys.stderr = log_file_stream
 
     job_filename = sys.argv[2]
-    logger.info('Got {} job file'.format(job_filename))
+    logger.info(f'Got {job_filename} job file')
 
     with open(job_filename, 'rb') as jf:
         job_payload = json.load(jf)
@@ -59,8 +59,7 @@ def run_job():
     job_id = job_payload['job_id']
     job_key = job_payload['job_key']
 
-    logger.info('ExecutorID {} | JobID {} - Starting execution'
-                .format(executor_id, job_id))
+    logger.info(f'ExecutorID {executor_id} | JobID {job_id} - Starting execution')
 
     act_id = str(uuid.uuid4()).replace('-', '')[:12]
     os.environ['__LITHOPS_ACTIVATION_ID'] = act_id
@@ -77,8 +76,7 @@ def run_job():
     if os.path.exists(job_filename):
         os.remove(job_filename)
 
-    logger.info('ExecutorID {} | JobID {} - Execution Finished'
-                .format(executor_id, job_id))
+    logger.info(f'ExecutorID {executor_id} | JobID {job_id} - Execution Finished')
 
 
 def extract_runtime_meta():

@@ -166,7 +166,7 @@ def _split_objects_from_urls(
 
         for partition in obj_partitions:
             partition['obj'].total_parts = obj_total_partitions
-        
+
         partitions.extend(obj_partitions)
         parts_per_object.append(obj_total_partitions)
 
@@ -251,7 +251,7 @@ def _split_objects_from_paths(
                 brange = (size, size+obj_chunk_size-1)
             elif size+obj_chunk_size < obj_size:
                 # common chunk
-                brange = (size-1 if size > 0 else 0, size+obj_chunk_size+CHUNK_THRESHOLD)
+                brange = (size-1 if size > 0 else 0, size + obj_chunk_size + CHUNK_THRESHOLD)
             else:
                 # last chunk
                 brange = (size-1 , obj_size-1)
@@ -271,7 +271,7 @@ def _split_objects_from_paths(
 
         for partition in obj_partitions:
             partition['obj'].total_parts = obj_total_partitions
-        
+
         partitions.extend(obj_partitions)
         parts_per_object.append(obj_total_partitions)
 
@@ -350,7 +350,7 @@ def _split_objects_from_object_storage(
         for bucket in buckets:
             logger.debug(f"Listing objects in {sb}://{bucket}")
             objects[bucket] = storage.list_objects(bucket)
-    
+
     logger.debug(f"Total objects found: {len(objects[bucket])}")
 
     if all([len(objects[bucket]) == 0 for bucket in objects]):

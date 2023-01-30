@@ -107,8 +107,8 @@ def clean(config, backend, storage, debug, all, force):
     storage = internal_storage.storage
     runtimes_path = RUNTIMES_PREFIX if all else RUNTIMES_PREFIX + '/' + backend
     jobs_path = JOBS_PREFIX
-    clean_bucket(storage, storage_config['bucket'], runtimes_path, sleep=1)
-    clean_bucket(storage, storage_config['bucket'], jobs_path, sleep=1)
+    clean_bucket(storage, storage_config['storage_bucket'], runtimes_path, sleep=1)
+    clean_bucket(storage, storage_config['storage_bucket'], jobs_path, sleep=1)
 
     # Clean localhost executor temp dirs
     shutil.rmtree(LITHOPS_TEMP_DIR, ignore_errors=True)

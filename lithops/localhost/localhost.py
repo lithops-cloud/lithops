@@ -223,7 +223,7 @@ class BaseEnv:
         Creates the job file that contains the job payload to be executed
         """
         job_key = job_payload['job_key']
-        storage_bucket = job_payload['config']['lithops']['storage_bucket']
+        storage_bucket = job_payload['config']['localhost']['storage_bucket']
 
         local_job_dir = os.path.join(LITHOPS_TEMP_DIR, storage_bucket, JOBS_PREFIX)
         docker_job_dir = f'/tmp/{USER_TEMP_DIR}/{storage_bucket}/{JOBS_PREFIX}'

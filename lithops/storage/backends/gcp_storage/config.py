@@ -37,6 +37,3 @@ def load_config(config_data=None):
         config_data['gcp']['credentials_path'] = os.path.expanduser(config_data['gcp']['credentials_path'])
 
     config_data['gcp_storage'].update(config_data['gcp'])
-
-    if 'storage_bucket' in config_data['gcp_storage']:
-        config_data['lithops']['storage_bucket'] = config_data['gcp_storage']['storage_bucket']

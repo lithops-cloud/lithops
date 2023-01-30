@@ -52,7 +52,7 @@ class StandaloneHandler:
         module_location = f'lithops.standalone.backends.{self.backend_name}'
         sb_module = importlib.import_module(module_location)
         StandaloneBackend = getattr(sb_module, 'StandaloneBackend')
-        self.backend = StandaloneBackend(self.config[self.backend_name], self.exec_mode)
+        self.backend = StandaloneBackend(self.config, self.exec_mode)
 
         self.jobs = []  # list to store executed jobs (job_keys)
         logger.debug("Standalone handler created successfully")
@@ -407,7 +407,7 @@ class StandaloneHandler:
             'runtime_name': self.config['runtime'],
             'runtime_memory': None,
             'runtime_timeout': self.config['hard_dismantle_timeout'],
-            'max_workers': self.config[self.backend_name]['max_workers'],
+            'max_workers': self.config['max_workers'],
         }
 
         return runtime_info

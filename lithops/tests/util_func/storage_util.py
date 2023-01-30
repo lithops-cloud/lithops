@@ -9,15 +9,15 @@ DATASET_PREFIX = PREFIX + '/dataset'
 def clean_tests(storage, storage_config, prefix=PREFIX):
     """removes datasets from storage"""
     def _list_test_keys(storage, storage_config, prefix):
-        return storage.list_keys(bucket=storage_config['bucket'], prefix=prefix + '/')
+        return storage.list_keys(bucket=storage_config['storage_bucket'], prefix=prefix + '/')
 
     for key in _list_test_keys(storage, storage_config, prefix):
-        storage.delete_object(bucket=storage_config['bucket'],
+        storage.delete_object(bucket=storage_config['storage_bucket'],
                               key=key)
 
 
 def list_dataset_keys(storage, storage_config, dataset_prefix=DATASET_PREFIX):
-    return storage.list_keys(bucket=storage_config['bucket'],
+    return storage.list_keys(bucket=storage_config['storage_bucket'],
                              prefix=dataset_prefix + '/')
 
 
@@ -35,7 +35,7 @@ def my_cloudobject_get(cloudobjects, storage):
 
 
 def my_map_function_storage(key_i, bucket_name, storage):
-    print('I am processing the object /{}/{}'.format(bucket_name, key_i))
+    print(f'I am processing the object /{bucket_name}/{key_i}')
     counter = {}
     data = storage.get_object(bucket_name, key_i)
     for line in data.splitlines():
@@ -52,7 +52,7 @@ def get_dataset_key_size(storage, storage_config, key_prefix=DATASET_PREFIX):
     prefixed by 'key_prefix' """
 
     sizes = []
-    bucket_name = storage_config['bucket']
+    bucket_name = storage_config['storage_bucket']
     keys = list_dataset_keys(storage, storage_config, key_prefix)
     for key in keys:
         sizes.append(float(storage.head_object(bucket_name, key)['content-length']))

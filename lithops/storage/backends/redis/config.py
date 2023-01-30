@@ -26,4 +26,4 @@ def load_config(config_data=None):
             msg = f"'{param}' is mandatory under 'redis' section of the configuration"
             raise Exception(msg)
 
-    config_data['lithops']['storage_bucket'] = 'storage'
+    config_data['redis']['storage_bucket'] = 'storage'

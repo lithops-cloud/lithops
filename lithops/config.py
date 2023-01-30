@@ -131,7 +131,7 @@ def default_config(config_data=None, config_overwrite={}, load_storage_config=Tr
     then checks LITHOPS_CONFIG_FILE environment variable
     then ~/.lithops/config
     """
-    logger.info('Lithops v{}'.format(__version__))
+    logger.info(f'Lithops v{__version__}')
 
     config_data = copy.deepcopy(config_data) or load_config()
 
@@ -183,8 +183,8 @@ def default_config(config_data=None, config_overwrite={}, load_storage_config=Tr
             config_data[backend]['runtime'] = c.LOCALHOST_RUNTIME_DEFAULT
 
     elif mode == c.SERVERLESS:
-        logger.debug("Loading Serverless backend module: {}".format(backend))
-        cb_config = importlib.import_module('lithops.serverless.backends.{}.config'.format(backend))
+        logger.debug(f"Loading Serverless backend module: {backend}")
+        cb_config = importlib.import_module(f'lithops.serverless.backends.{backend}.config')
         cb_config.load_config(config_data)
 
     elif mode == c.STANDALONE:
@@ -208,8 +208,8 @@ def default_config(config_data=None, config_overwrite={}, load_storage_config=Tr
         if 'hard_dismantle_timeout' not in config_data[c.STANDALONE]:
             config_data[c.STANDALONE]['hard_dismantle_timeout'] = c.SA_HARD_DISMANTLE_TIMEOUT
 
-        logger.debug("Loading Standalone backend module: {}".format(backend))
-        sb_config = importlib.import_module('lithops.standalone.backends.{}.config'.format(backend))
+        logger.debug(f"Loading Standalone backend module: {backend}")
+        sb_config = importlib.import_module(f'lithops.standalone.backends.{backend}.config')
         sb_config.load_config(config_data)
 
         if 'runtime' not in config_data[c.STANDALONE]:
@@ -248,29 +248,20 @@ def default_storage_config(config_data=None, backend=None):
         config_data['lithops']['storage'] = backend
 
     sb = config_data['lithops']['storage']
-    logger.debug("Loading Storage backend module: {}".format(sb))
-    sb_config = importlib.import_module('lithops.storage.backends.{}.config'.format(sb))
+    logger.debug(f"Loading Storage backend module: {sb}")
+    sb_config = importlib.import_module(f'lithops.storage.backends.{sb}.config')
     sb_config.load_config(config_data)
-
-    if 'storage_bucket' not in config_data['lithops']:
-        raise Exception("storage_bucket is mandatory in "
-                        "lithops section of the configuration")
 
     return config_data
 
 
 def extract_storage_config(config):
-    storage_config = {}
-    sb = config['lithops']['storage']
-    storage_config['backend'] = sb
-    storage_config['bucket'] = config['lithops']['storage_bucket']
-    storage_config[sb] = config[sb]
-    storage_config[sb]['user_agent'] = 'lithops/{}'.format(__version__)
+    backend = config['lithops']['storage']
+    s_config = config[backend] if backend in config and config[backend] else {}
+    s_config['backend'] = backend
+    s_config['user_agent'] = f'lithops/{__version__}'
 
-    if 'storage_region' in config['lithops']:
-        storage_config[sb]['region'] = config['lithops']['storage_region']
-
-    return storage_config
+    return s_config
 
 
 def extract_localhost_config(config):
@@ -280,21 +271,19 @@ def extract_localhost_config(config):
 
 
 def extract_serverless_config(config):
-    sl_config = {}
     backend = config['lithops']['backend']
+    sl_config = config[backend] if backend in config and config[backend] else {}
     sl_config['backend'] = backend
-    sl_config[backend] = config[backend] if backend in config and config[backend] else {}
-    sl_config[backend]['user_agent'] = 'lithops/{}'.format(__version__)
+    sl_config['user_agent'] = f'lithops/{__version__}'
 
     return sl_config
 
 
 def extract_standalone_config(config):
-    sa_config = config[c.STANDALONE].copy()
     backend = config['lithops']['backend']
+    sa_config = config[backend] if backend in config and config[backend] else {}
+    sa_config.update(config[c.STANDALONE])
     sa_config['backend'] = backend
-    sa_config[backend] = config[backend] if backend in config and config[backend] else {}
-    sa_config[backend]['runtime'] = sa_config['runtime']
-    sa_config[backend]['user_agent'] = 'lithops/{}'.format(__version__)
+    sa_config['user_agent'] = f'lithops/{__version__}'
 
     return sa_config

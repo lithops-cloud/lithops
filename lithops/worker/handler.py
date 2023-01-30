@@ -130,7 +130,8 @@ def process_runner(job_queue):
         job.call_id = call_id
         job.data = data
 
-        bucket = job.config['lithops']['storage_bucket']
+        storage_backend = job.config['lithops']['storage']
+        bucket = job.config[storage_backend]['storage_bucket']
         job.task_dir = os.path.join(LITHOPS_TEMP_DIR, bucket, JOBS_PREFIX, job.job_key, job.call_id)
         job.log_file = os.path.join(job.task_dir, 'execution.log')
         job.stats_file = os.path.join(job.task_dir, 'job_stats.txt')

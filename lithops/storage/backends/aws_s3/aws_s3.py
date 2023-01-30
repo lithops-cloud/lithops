@@ -17,6 +17,8 @@
 import os
 import logging
 import boto3
+from botocore import UNSIGNED
+from botocore.config import Config
 import botocore
 from lithops.storage.utils import StorageNoSuchKeyError
 from lithops.utils import sizeof_fmt
@@ -33,31 +35,41 @@ class S3Backend:
         logger.debug("Creating S3 client")
         self.s3_config = s3_config
         self.user_agent = s3_config['user_agent']
-        self.service_endpoint = s3_config['endpoint']
-        self.region = s3_config['region_name']
+        self.service_endpoint = s3_config.get('endpoint')
+        self.region = s3_config.get('region_name')
+        self.access_key_id = s3_config.get('access_key_id')
+        self.secret_access_key = s3_config.get('secret_access_key')
+        self.session_token = s3_config.get('session_token')
 
-        if 'http:' in self.service_endpoint:
-            logger.warning('Endpoint {} is insecure - it is recommended '
-                           'to change this to https://'.format(self.service_endpoint))
+        if self.access_key_id and self.secret_access_key:
+            if 'http:' in self.service_endpoint:
+                logger.warning(f'Endpoint {self.service_endpoint} is insecure -'
+                               ' it is recommended to change this to https://')
 
-        client_config = botocore.client.Config(
-            max_pool_connections=128,
-            user_agent_extra=self.user_agent,
-            connect_timeout=CONN_READ_TIMEOUT,
-            read_timeout=CONN_READ_TIMEOUT,
-            retries={'max_attempts': OBJ_REQ_RETRIES}
-        )
+            client_config = Config(
+                max_pool_connections=128,
+                user_agent_extra=self.user_agent,
+                connect_timeout=CONN_READ_TIMEOUT,
+                read_timeout=CONN_READ_TIMEOUT,
+                retries={'max_attempts': OBJ_REQ_RETRIES}
+            )
 
-        self.s3_client = boto3.client(
-            's3', aws_access_key_id=s3_config['access_key_id'],
-            aws_secret_access_key=s3_config['secret_access_key'],
-            aws_session_token=s3_config.get('session_token'),
-            config=client_config,
-            endpoint_url=self.service_endpoint
-        )
+            self.s3_client = boto3.client(
+                's3', aws_access_key_id=self.access_key_id,
+                aws_secret_access_key=self.secret_access_key,
+                aws_session_token=self.session_token,
+                config=client_config,
+                endpoint_url=self.service_endpoint
+            )
+        else:
+            client_config = Config(
+                signature_version=UNSIGNED,
+                user_agent_extra=self.user_agent
+            )
+            self.s3_client = boto3.client('s3', config=client_config)
 
         msg = STORAGE_CLI_MSG.format('S3')
-        logger.info("{} - Region: {}".format(msg, self.region))
+        logger.info(f"{msg} - Region: {self.region}")
 
     def get_client(self):
         '''
