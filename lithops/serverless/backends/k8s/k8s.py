@@ -371,7 +371,7 @@ class KubernetesBackend:
 
         logger.info(f"Extracting metadata from: {docker_image_name}")
 
-        payload = copy.deepcopy(self.internal_storage.storage.storage_config)
+        payload = copy.deepcopy(self.internal_storage.storage.config)
         payload['runtime_name'] = runtime_name
         payload['log_level'] = logger.getEffectiveLevel()
 

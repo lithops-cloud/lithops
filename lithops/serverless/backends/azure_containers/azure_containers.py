@@ -261,7 +261,7 @@ class AzureContainerAppBackend:
             'log_level': logger.getEffectiveLevel(),
             'get_metadata': True,
             'containerapp_name': containerapp_name,
-            'storage_config': self.internal_storage.storage.storage_config
+            'storage_config': self.internal_storage.storage.config
         }
 
         self.invoke(runtime_name, memory=memory, payload=payload)

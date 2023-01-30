@@ -550,7 +550,7 @@ class CodeEngineBackend:
         jobdef_name = self._format_jobdef_name(docker_image_name, memory)
         jobrun_name = 'lithops-runtime-metadata'
 
-        job_payload = copy.deepcopy(self.internal_storage.storage.storage_config)
+        job_payload = copy.deepcopy(self.internal_storage.storage.config)
         job_payload['log_level'] = logger.getEffectiveLevel()
         job_payload['runtime_name'] = jobdef_name
 
