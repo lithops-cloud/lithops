@@ -49,12 +49,11 @@ class Storage:
         if storage_config:
             self.storage_config = storage_config
         else:
-            storage_config = default_storage_config(config_data=config,
-                                                    backend=backend)
+            storage_config = default_storage_config(config_data=config, backend=backend)
             self.storage_config = extract_storage_config(storage_config)
 
         self.backend = self.storage_config['backend']
-        self.bucket = self.storage_config['bucket']
+        self.bucket = self.storage_config.get('bucket')
 
         try:
             module_location = 'lithops.storage.backends.{}'.format(self.backend)

@@ -229,6 +229,8 @@ def default_config(config_data=None, config_overwrite={}, load_storage_config=Tr
         if config_data['lithops']['storage'] == c.LOCALHOST \
            and backend != c.LOCALHOST:
             raise Exception(f'Localhost storage backend cannot be used with {backend}')
+        if 'storage_bucket' not in config_data['lithops']:
+            raise Exception("storage_bucket is mandatory in lithops section of the configuration")
 
     return config_data
 
@@ -248,13 +250,9 @@ def default_storage_config(config_data=None, backend=None):
         config_data['lithops']['storage'] = backend
 
     sb = config_data['lithops']['storage']
-    logger.debug("Loading Storage backend module: {}".format(sb))
-    sb_config = importlib.import_module('lithops.storage.backends.{}.config'.format(sb))
+    logger.debug(f"Loading Storage backend module: {sb}")
+    sb_config = importlib.import_module(f'lithops.storage.backends.{sb}.config')
     sb_config.load_config(config_data)
-
-    if 'storage_bucket' not in config_data['lithops']:
-        raise Exception("storage_bucket is mandatory in "
-                        "lithops section of the configuration")
 
     return config_data
 

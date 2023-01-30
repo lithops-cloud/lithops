@@ -2,7 +2,7 @@
 ## [v2.8.1.dev0]
 
 ### Added
-- 
+- [AWS S3] Allow to use a public bucket without credentials
 
 ### Changed
 - 
