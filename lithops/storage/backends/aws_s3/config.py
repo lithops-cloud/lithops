@@ -40,5 +40,3 @@ def load_config(config_data):
                 region = config_data['aws_s3']['endpoint'].split('.')[1]
                 config_data['aws_s3']['region_name'] = region
 
-            if 'storage_bucket' in config_data['aws_s3']:
-                config_data['lithops']['storage_bucket'] = config_data['aws_s3']['storage_bucket']

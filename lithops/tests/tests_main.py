@@ -113,8 +113,8 @@ def upload_data_sets():
         logger.info(f'Uploading dataset {param[1]}')
         i, url = param
         content = urllib.request.urlopen(url).read()
-        STORAGE.put_object(bucket=STORAGE_CONFIG['bucket'],
-                           key='{}/test{}'.format(DATASET_PREFIX, str(i)),
+        STORAGE.put_object(bucket=STORAGE_CONFIG['storage_bucket'],
+                           key=f'{DATASET_PREFIX}/test{str(i)}',
                            body=content)
         return len(content.split())
 

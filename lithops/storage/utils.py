@@ -165,7 +165,7 @@ def create_init_key(executor_id, job_id, call_id, act_id):
 
 
 def get_storage_path(storage_config):
-    storage_bucket = storage_config['bucket']
+    storage_bucket = storage_config['storage_bucket']
     storage_backend = storage_config['backend']
 
     return [storage_backend, storage_bucket]
