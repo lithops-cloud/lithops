@@ -193,11 +193,11 @@ class CodeEngineBackend:
         docker_password = self.ce_config.get("docker_password")
         docker_server = self.ce_config.get("docker_server")
 
-        logger.debug(f'Pushing runtime {docker_image_name} to container registry: {docker_server}')
+        logger.debug(f'Pushing runtime {docker_image_name} to container registry')
 
         if docker_user and docker_password:
             cmd = f'{docker_path} login -u {docker_user} --password-stdin {docker_server}'
-            subprocess.check_output(cmd.split(), input=bytes(docker_password, 'utf-8'))
+            utils.run_command(cmd, input=docker_password)
 
         if utils.is_podman(docker_path):
             cmd = f'{docker_path} push {docker_image_name} --format docker --remove-signatures'
