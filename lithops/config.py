@@ -256,10 +256,13 @@ def default_storage_config(config_data=None, backend=None):
 
 
 def extract_storage_config(config):
+    s_config = {}
     backend = config['lithops']['storage']
-    s_config = config[backend] if backend in config and config[backend] else {}
     s_config['backend'] = backend
-    s_config['user_agent'] = f'lithops/{__version__}'
+    s_config[backend] = config[backend] if backend in config and config[backend] else {}
+    s_config[backend]['user_agent'] = f'lithops/{__version__}'
+
+    s_config['bucket'] = s_config[backend].get('storage_bucket')
 
     return s_config
 
@@ -271,19 +274,18 @@ def extract_localhost_config(config):
 
 
 def extract_serverless_config(config):
+    sl_config = {}
     backend = config['lithops']['backend']
-    sl_config = config[backend] if backend in config and config[backend] else {}
     sl_config['backend'] = backend
-    sl_config['user_agent'] = f'lithops/{__version__}'
+    sl_config[backend] = config[backend] if backend in config and config[backend] else {}
+    sl_config[backend]['user_agent'] = f'lithops/{__version__}'
 
     return sl_config
 
 
 def extract_standalone_config(config):
+    sa_config = config[c.STANDALONE].copy()
     backend = config['lithops']['backend']
-    sa_config = config[backend] if backend in config and config[backend] else {}
-    sa_config.update(config[c.STANDALONE])
     sa_config['backend'] = backend
-    sa_config['user_agent'] = f'lithops/{__version__}'
-
-    return sa_config
+    sa_config[backend] = config[backend] if backend in config and config[backend] else {}
+    sa_config[backend]['user_agent'] = f'lithops/{__version__}'

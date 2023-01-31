@@ -76,7 +76,7 @@ Examples
 
 * Access the functions in your chosen backend storage class via "STORAGE", e.g. `STORAGE.put_object`.
 
-* Access your bucket via `STORAGE_CONFIG['storage_bucket']`.
+* Access your bucket via `STORAGE_CONFIG['bucket']`.
 
 * Pass on "CONFIG" to your function executor instance, to allow your test function to work with users that provided a path to the config file via a flag, e.g. `fexec = lithops.FunctionExecutor(config=CONFIG)`.
       
