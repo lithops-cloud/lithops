@@ -15,28 +15,22 @@
 #
 
 
-REQ_PARAMS = ('secret_access_key', 'access_key_id')
-ENDPOINT_URL = 'https://s3.{}.amazonaws.com'
+REQ_PARAMS1 = ('secret_access_key', 'access_key_id')
+REQ_PARAMS2 = ('region_name', )
 
 
 def load_config(config_data):
 
-    # Put credential keys to 'aws_s3' dict entry
     if 'aws' in config_data and 'aws_s3' in config_data:
+
+        for param in REQ_PARAMS1:
+            if param not in config_data['aws']:
+                msg = f"'{param}' is mandatory under 'aws' section of the configuration"
+                raise Exception(msg)
+
+        for param in REQ_PARAMS2:
+            if param not in config_data['aws_s3']:
+                msg = f"'{param}' is mandatory under 'aws_s3' section of the configuration"
+                raise Exception(msg)
+
         config_data['aws_s3'].update(config_data['aws'])
-
-        if set(REQ_PARAMS).issubset(set(config_data['aws_s3'])):
-            if 'endpoint' not in config_data['aws_s3'] and 'region_name' not in config_data['aws_s3']:
-                raise Exception("'endpoint' or 'region_name' is mandatory under 'aws_s3' section of the configuration")
-
-            if 'region_name' in config_data['aws_s3']:
-                region = config_data['aws_s3']['region_name']
-                config_data['aws_s3']['endpoint'] = ENDPOINT_URL.format(region)
-
-            if not config_data['aws_s3']['endpoint'].startswith('http'):
-                raise Exception('S3 endpoint must start with http:// or https://')
-
-            if 'region_name' not in config_data['aws_s3']:
-                region = config_data['aws_s3']['endpoint'].split('.')[1]
-                config_data['aws_s3']['region_name'] = region
-

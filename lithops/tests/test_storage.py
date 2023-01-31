@@ -52,7 +52,7 @@ class TestStorage(unittest.TestCase):
 
     def test_storage_handler(self):
         logger.info('Testing "storage" function arg')
-        iterdata = [(key, STORAGE_CONFIG['storage_bucket']) for key in list_dataset_keys(STORAGE, STORAGE_CONFIG)]
+        iterdata = [(key, STORAGE_CONFIG['bucket']) for key in list_dataset_keys(STORAGE, STORAGE_CONFIG)]
         fexec = lithops.FunctionExecutor(config=CONFIG)
         fexec.map_reduce(my_map_function_storage, iterdata,
                          my_reduce_function)
@@ -62,7 +62,7 @@ class TestStorage(unittest.TestCase):
     def test_cloudobject(self):
         logger.info('Testing cloudobjects')
         sb = STORAGE_CONFIG['backend']
-        data_prefix = sb + '://' + STORAGE_CONFIG['storage_bucket'] + '/' + DATASET_PREFIX + '/'
+        data_prefix = sb + '://' + STORAGE_CONFIG['bucket'] + '/' + DATASET_PREFIX + '/'
         with lithops.FunctionExecutor(config=CONFIG) as fexec:
             fexec.map(my_cloudobject_put, data_prefix)
             cloudobjects = fexec.get_result()
@@ -73,7 +73,7 @@ class TestStorage(unittest.TestCase):
 
     def test_storage_put_get_by_stream(self):
         logger.info('Testing Storage.put_object and get_object with streams')
-        bucket = STORAGE_CONFIG['storage_bucket']
+        bucket = STORAGE_CONFIG['bucket']
         bytes_data = b'123'
         bytes_key = PREFIX + '/bytes'
 
@@ -85,7 +85,7 @@ class TestStorage(unittest.TestCase):
 
     def test_storage_get_by_range(self):
         logger.info('Testing Storage.get_object with Range argument')
-        bucket = STORAGE_CONFIG['storage_bucket']
+        bucket = STORAGE_CONFIG['bucket']
         key = PREFIX + '/bytes'
         STORAGE.put_object(bucket, key, b'0123456789')
 
@@ -95,7 +95,7 @@ class TestStorage(unittest.TestCase):
 
     def test_storage_list_keys(self):
         logger.info('Testing Storage.list_keys')
-        bucket = STORAGE_CONFIG['storage_bucket']
+        bucket = STORAGE_CONFIG['bucket']
         test_keys = sorted([
             PREFIX + '/foo/baz',
             PREFIX + '/foo/bar/baz',
@@ -138,7 +138,7 @@ class TestStorage(unittest.TestCase):
 
     def test_storage_head_object(self):
         logger.info('Testing Storage.head_object')
-        bucket = STORAGE_CONFIG['storage_bucket']
+        bucket = STORAGE_CONFIG['bucket']
         data = b'123456789'
         STORAGE.put_object(bucket, PREFIX + '/data', data)
 
@@ -152,7 +152,7 @@ class TestStorage(unittest.TestCase):
 
     def test_storage_list_objects(self):
         logger.info('Testing Storage.list_objects')
-        bucket = STORAGE_CONFIG['storage_bucket']
+        bucket = STORAGE_CONFIG['bucket']
         test_keys = sorted([
             PREFIX + '/foo/baz',
             PREFIX + '/foo/bar/baz',
@@ -193,7 +193,7 @@ class TestStorage(unittest.TestCase):
 
     def test_storage_list_objects_size(self):
         logger.info('Testing Storage.list_objects_size')
-        bucket = STORAGE_CONFIG['storage_bucket']
+        bucket = STORAGE_CONFIG['bucket']
         isEqual = True
 
         test_keys = sorted([
@@ -217,7 +217,7 @@ class TestStorage(unittest.TestCase):
 
     def test_delete_object(self):
         logger.info('Testing Storage.delete_object')
-        bucket = STORAGE_CONFIG['storage_bucket']
+        bucket = STORAGE_CONFIG['bucket']
         test_keys = sorted([
             PREFIX + '/foo/baz',
             PREFIX + '/foo/bar/baz',
@@ -234,7 +234,7 @@ class TestStorage(unittest.TestCase):
 
     def test_delete_objects(self):
         logger.info('Testing Storage.delete_objects')
-        bucket = STORAGE_CONFIG['storage_bucket']
+        bucket = STORAGE_CONFIG['bucket']
         test_keys = sorted([
             PREFIX + '/foo/baz',
             PREFIX + '/foo/bar/baz',
@@ -258,14 +258,14 @@ class TestStorage(unittest.TestCase):
 
     def test_head_bucket(self):
         logger.info('Testing Storage.head_bucket')
-        bucket = STORAGE_CONFIG['storage_bucket']
+        bucket = STORAGE_CONFIG['bucket']
         result = STORAGE.head_bucket(bucket)
         self.assertEqual(result['ResponseMetadata']['HTTPStatusCode'], 200)
 
     def test_delete_cloudobject(self):
         logger.info('Testing Storage.delete_cloudobject')
         sb = STORAGE_CONFIG['backend']
-        bucket = STORAGE_CONFIG['storage_bucket']
+        bucket = STORAGE_CONFIG['bucket']
         test_keys = sorted([
             PREFIX + '/foo/baz',
             PREFIX + '/foo/bar/baz',
@@ -283,7 +283,7 @@ class TestStorage(unittest.TestCase):
     def test_delete_cloudobjects(self):
         logger.info('Testing Storage.delete_cloudobjects')
         sb = STORAGE_CONFIG['backend']
-        bucket = STORAGE_CONFIG['storage_bucket']
+        bucket = STORAGE_CONFIG['bucket']
         test_keys = sorted([
             PREFIX + '/foo/baz',
             PREFIX + '/foo/bar/baz',

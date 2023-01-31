@@ -35,17 +35,12 @@ class S3Backend:
         logger.debug("Creating S3 client")
         self.s3_config = s3_config
         self.user_agent = s3_config['user_agent']
-        self.service_endpoint = s3_config.get('endpoint')
-        self.region = s3_config.get('region_name')
+        self.region_name = s3_config.get('region_name')
         self.access_key_id = s3_config.get('access_key_id')
         self.secret_access_key = s3_config.get('secret_access_key')
         self.session_token = s3_config.get('session_token')
 
         if self.access_key_id and self.secret_access_key:
-            if 'http:' in self.service_endpoint:
-                logger.warning(f'Endpoint {self.service_endpoint} is insecure -'
-                               ' it is recommended to change this to https://')
-
             client_config = Config(
                 max_pool_connections=128,
                 user_agent_extra=self.user_agent,
@@ -53,13 +48,12 @@ class S3Backend:
                 read_timeout=CONN_READ_TIMEOUT,
                 retries={'max_attempts': OBJ_REQ_RETRIES}
             )
-
             self.s3_client = boto3.client(
                 's3', aws_access_key_id=self.access_key_id,
                 aws_secret_access_key=self.secret_access_key,
                 aws_session_token=self.session_token,
                 config=client_config,
-                endpoint_url=self.service_endpoint
+                region_name=self.region_name
             )
         else:
             client_config = Config(
@@ -69,7 +63,7 @@ class S3Backend:
             self.s3_client = boto3.client('s3', config=client_config)
 
         msg = STORAGE_CLI_MSG.format('S3')
-        logger.info(f"{msg} - Region: {self.region}")
+        logger.info(f"{msg} - Region: {self.region_name}")
 
     def get_client(self):
         '''
