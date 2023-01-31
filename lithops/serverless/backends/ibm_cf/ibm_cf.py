@@ -17,6 +17,7 @@
 import os
 import base64
 import logging
+import subprocess
 from threading import Lock
 
 from lithops import utils
@@ -121,15 +122,27 @@ class IBMCloudFunctionsBackend:
 
         if dockerfile:
             assert os.path.isfile(dockerfile), f'Cannot locate "{dockerfile}"'
-            cmd = f'{docker_path} build -t {docker_image_name} -f {dockerfile} . '
+            cmd = f'{docker_path} build --platform=linux/amd64 -t {docker_image_name} -f {dockerfile} . '
         else:
-            cmd = f'{docker_path} build -t {docker_image_name} . '
+            cmd = f'{docker_path} build --platform=linux/amd64 -t {docker_image_name} . '
 
         cmd = cmd + ' '.join(extra_args)
         utils.run_command(cmd)
 
-        logger.debug(f'Pushing runtime {docker_image_name} to container registry')
-        cmd = f'{docker_path} push {docker_image_name}'
+        docker_user = self.ce_config.get("docker_user")
+        docker_password = self.ce_config.get("docker_password")
+        docker_server = self.ce_config.get("docker_server")
+
+        logger.debug(f'Pushing runtime {docker_image_name} to container registry: {docker_server}')
+
+        if docker_user and docker_password:
+            cmd = f'{docker_path} login -u {docker_user} --password-stdin {docker_server}'
+            subprocess.check_output(cmd.split(), input=bytes(docker_password, 'utf-8'))
+
+        if utils.is_podman(docker_path):
+            cmd = f'{docker_path} push {docker_image_name} --format docker --remove-signatures'
+        else:
+            cmd = f'{docker_path} push {docker_image_name}'
         utils.run_command(cmd)
 
         logger.debug('Building done!')
