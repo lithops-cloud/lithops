@@ -700,17 +700,20 @@ class WrappedStreamingBodyPartition(WrappedStreamingBody):
         return retval
 
 
-def run_command(cmd, return_result=False):
+def run_command(cmd, return_result=False, input=None):
+    kwargs = {}
+
+    if logger.getEffectiveLevel() != logging.DEBUG:
+        kwargs['stderr'] = sp.DEVNULL
     if return_result:
-        if logger.getEffectiveLevel() != logging.DEBUG:
-            return sp.check_output(cmd.split(), encoding='UTF-8', stderr=sp.DEVNULL).strip().replace('"', '')
-        else:
-            return sp.check_output(cmd.split(), encoding='UTF-8').strip().replace('"', '')
-    else:
-        if logger.getEffectiveLevel() != logging.DEBUG:
-            sp.check_call(cmd.split(), stdout=sp.DEVNULL, stderr=sp.DEVNULL)
-        else:
-            sp.check_call(cmd.split())
+        kwargs['encoding'] = 'UTF-8'
+    if input:
+        kwargs['input'] = bytes(input, 'utf-8')
+
+    result = sp.check_output(cmd.split(), **kwargs)
+
+    if return_result:
+        return result.strip().replace('"', '')
 
 
 def is_podman(docker_path):
