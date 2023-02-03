@@ -14,6 +14,7 @@
 # limitations under the License.
 #
 
+import hashlib
 import os
 import sys
 import logging
@@ -63,20 +64,21 @@ class AliyunFunctionComputeBackend:
         logger.info(f"{msg} - Region: {self.region}")
 
     def _format_function_name(self, runtime_name, runtime_memory, version=__version__):
-        runtime_name = f'lithops-worker-v{version}_{runtime_name}'.replace('.', '-')
+        name = f'{runtime_name}-{runtime_memory}-{version}'
+        name_hash = hashlib.sha1(name.encode("utf-8")).hexdigest()[:10]
 
-        return f'{runtime_name}_{runtime_memory}MB'
+        return f'lithops-worker-{runtime_name}-v{version.replace(".", "-")}-{name_hash}'
 
     def _unformat_function_name(self, function_name):
-        runtime_name, runtime_memory = function_name.rsplit('_', 1)
-        runtime_name = runtime_name.replace('lithops-worker-v', '')
-        version, runtime_name = runtime_name.split('_', 1)
+        runtime_name, hash = function_name.rsplit('-', 1)
+        runtime_name = runtime_name.replace('lithops-worker-', '')
+        runtime_name, version = runtime_name.rsplit('-v', 1)
         version = version.replace('-', '.')
-        return version, runtime_name, runtime_memory.replace('MB', '')
+        return version, runtime_name
 
     def _get_default_runtime_name(self):
         py_version = utils.CURRENT_PY_VERSION.replace('.', '')
-        return f'lithops-default-runtime-v{py_version}'
+        return f'default-runtime-v{py_version}'
 
     def build_runtime(self, runtime_name, requirements_file, extra_args=[]):
         logger.info(f'Building runtime {runtime_name} from {requirements_file}')
@@ -212,7 +214,7 @@ class AliyunFunctionComputeBackend:
 
         for function in functions:
             function_name = function['functionName']
-            if function_name.startswith('lithops-worker-v'):
+            if function_name.startswith('lithops-worker'):
                 logger.info(f'Going to delete runtime {function_name}')
                 self.fc_client.delete_function(self.service_name, function_name)
 
@@ -232,8 +234,9 @@ class AliyunFunctionComputeBackend:
         functions = self.fc_client.list_functions(self.service_name).data['functions']
 
         for function in functions:
-            if function['functionName'].startswith('lithops_v'):
-                version, name, memory = self._unformat_function_name(function['functionName'])
+            if function['functionName'].startswith('lithops-worker'):
+                memory = function['memorySize']
+                version, name = self._unformat_function_name(function['functionName'])
                 if runtime_name == name or runtime_name == 'all':
                     runtimes.append((name, memory, version))
         return runtimes

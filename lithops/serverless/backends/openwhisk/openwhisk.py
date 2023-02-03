@@ -16,7 +16,6 @@
 
 import os
 import logging
-import subprocess
 
 from lithops import utils
 from lithops.version import __version__

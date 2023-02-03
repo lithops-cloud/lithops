@@ -17,7 +17,6 @@
 import os
 import base64
 import logging
-import subprocess
 from threading import Lock
 
 from lithops import utils

@@ -19,7 +19,6 @@ import os
 import base64
 import hashlib
 import json
-import subprocess
 import time
 import logging
 import urllib3
