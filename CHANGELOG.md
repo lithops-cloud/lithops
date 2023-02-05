@@ -3,6 +3,8 @@
 
 ### Added
 - [AWS S3] Allow to use a public bucket without credentials
+- [IBM] Automatically login to the container registry if the credentials are present in config
+- [IBM] Force --platform=linux/amd64 in the "docker build command"
 
 ### Changed
 - 

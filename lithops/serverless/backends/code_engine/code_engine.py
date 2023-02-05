@@ -152,11 +152,10 @@ class CodeEngineBackend:
         client.Configuration.set_default(configuration)
 
     def _format_jobdef_name(self, runtime_name, runtime_memory, version=__version__):
-        py_version = utils.CURRENT_PY_VERSION.replace('.', '')
         name = f'{runtime_name}-{runtime_memory}-{version}'
         name_hash = hashlib.sha1(name.encode("utf-8")).hexdigest()[:10]
 
-        return f'lithops-worker-v{py_version}-{version.replace(".", "")}-{name_hash}'
+        return f'lithops-worker-{version.replace(".", "")}-{name_hash}'
 
     def _get_default_runtime_image_name(self):
         """
@@ -176,9 +175,9 @@ class CodeEngineBackend:
 
         if dockerfile:
             assert os.path.isfile(dockerfile), f'Cannot locate "{dockerfile}"'
-            cmd = f'{docker_path} build -t {docker_image_name} -f {dockerfile} . '
+            cmd = f'{docker_path} build --platform=linux/amd64 -t {docker_image_name} -f {dockerfile} . '
         else:
-            cmd = f'{docker_path} build -t {docker_image_name} . '
+            cmd = f'{docker_path} build --platform=linux/amd64 -t {docker_image_name} . '
         cmd = cmd + ' '.join(extra_args)
 
         try:
@@ -188,7 +187,16 @@ class CodeEngineBackend:
         finally:
             os.remove(config.FH_ZIP_LOCATION)
 
+        docker_user = self.ce_config.get("docker_user")
+        docker_password = self.ce_config.get("docker_password")
+        docker_server = self.ce_config.get("docker_server")
+
         logger.debug(f'Pushing runtime {docker_image_name} to container registry')
+
+        if docker_user and docker_password:
+            cmd = f'{docker_path} login -u {docker_user} --password-stdin {docker_server}'
+            utils.run_command(cmd, input=docker_password)
+
         if utils.is_podman(docker_path):
             cmd = f'{docker_path} push {docker_image_name} --format docker --remove-signatures'
         else:

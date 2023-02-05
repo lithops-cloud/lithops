@@ -9,15 +9,15 @@ DATASET_PREFIX = PREFIX + '/dataset'
 def clean_tests(storage, storage_config, prefix=PREFIX):
     """removes datasets from storage"""
     def _list_test_keys(storage, storage_config, prefix):
-        return storage.list_keys(bucket=storage_config['storage_bucket'], prefix=prefix + '/')
+        return storage.list_keys(bucket=storage_config['bucket'], prefix=prefix + '/')
 
     for key in _list_test_keys(storage, storage_config, prefix):
-        storage.delete_object(bucket=storage_config['storage_bucket'],
+        storage.delete_object(bucket=storage_config['bucket'],
                               key=key)
 
 
 def list_dataset_keys(storage, storage_config, dataset_prefix=DATASET_PREFIX):
-    return storage.list_keys(bucket=storage_config['storage_bucket'],
+    return storage.list_keys(bucket=storage_config['bucket'],
                              prefix=dataset_prefix + '/')
 
 
@@ -52,7 +52,7 @@ def get_dataset_key_size(storage, storage_config, key_prefix=DATASET_PREFIX):
     prefixed by 'key_prefix' """
 
     sizes = []
-    bucket_name = storage_config['storage_bucket']
+    bucket_name = storage_config['bucket']
     keys = list_dataset_keys(storage, storage_config, key_prefix)
     for key in keys:
         sizes.append(float(storage.head_object(bucket_name, key)['content-length']))

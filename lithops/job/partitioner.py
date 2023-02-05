@@ -27,8 +27,7 @@ from lithops.utils import sizeof_fmt
 
 logger = logging.getLogger(__name__)
 
-CHUNK_SIZE_MIN = 0*1024  # 0MB
-CHUNK_THRESHOLD = 128*1024  # 128KB
+CHUNK_THRESHOLD = 128 * 1024  # 128KB
 
 
 def create_partitions(
@@ -75,7 +74,7 @@ def create_partitions(
     elif paths:
         # process objects from localhost paths.
         return _split_objects_from_paths(
-            paths, obj_chunk_size, 
+            paths, obj_chunk_size,
             obj_chunk_number, obj_newline
         )
 
@@ -143,13 +142,13 @@ def _split_objects_from_urls(
                 obj_chunk_size = obj_size
             elif obj_newline is None:
                 # partitions of the same size
-                brange = (size, size+obj_chunk_size-1)
-            elif size+obj_chunk_size < obj_size:
+                brange = (size, size + obj_chunk_size - 1)
+            elif size + obj_chunk_size < obj_size:
                 # common chunk
-                brange = (size-1 if size > 0 else 0, size+obj_chunk_size+CHUNK_THRESHOLD)
+                brange = (size - 1 if size > 0 else 0, size + obj_chunk_size + CHUNK_THRESHOLD)
             else:
                 # last chunk
-                brange = (size-1 , obj_size-1)
+                brange = (size - 1, obj_size - 1)
                 obj_chunk_size = obj_size - size
 
             obj_total_partitions += 1
@@ -162,7 +161,7 @@ def _split_objects_from_urls(
             partition['obj'].newline = obj_newline
             obj_partitions.append(partition)
 
-            size += obj_chunk_size   
+            size += obj_chunk_size
 
         for partition in obj_partitions:
             partition['obj'].total_parts = obj_total_partitions
@@ -248,13 +247,13 @@ def _split_objects_from_paths(
                 obj_chunk_size = obj_size
             elif obj_newline is None:
                 # partitions of the same size
-                brange = (size, size+obj_chunk_size-1)
-            elif size+obj_chunk_size < obj_size:
+                brange = (size, size + obj_chunk_size - 1)
+            elif size + obj_chunk_size < obj_size:
                 # common chunk
-                brange = (size-1 if size > 0 else 0, size + obj_chunk_size + CHUNK_THRESHOLD)
+                brange = (size - 1 if size > 0 else 0, size + obj_chunk_size + CHUNK_THRESHOLD)
             else:
                 # last chunk
-                brange = (size-1 , obj_size-1)
+                brange = (size - 1, obj_size - 1)
                 obj_chunk_size = obj_size - size
 
             obj_total_partitions += 1
@@ -267,7 +266,7 @@ def _split_objects_from_paths(
             partition['obj'].newline = obj_newline
             obj_partitions.append(partition)
 
-            size += obj_chunk_size   
+            size += obj_chunk_size
 
         for partition in obj_partitions:
             partition['obj'].total_parts = obj_total_partitions
@@ -420,13 +419,13 @@ def _split_objects_from_object_storage(
                 obj_chunk_size = obj_size
             elif obj_newline is None:
                 # partitions of the same size
-                brange = (size, size+obj_chunk_size-1)
-            elif size+obj_chunk_size < obj_size:
+                brange = (size, size + obj_chunk_size - 1)
+            elif size + obj_chunk_size < obj_size:
                 # common chunk
-                brange = (size-1 if size > 0 else 0, size+obj_chunk_size+CHUNK_THRESHOLD)
+                brange = (size - 1 if size > 0 else 0, size + obj_chunk_size + CHUNK_THRESHOLD)
             else:
                 # last chunk
-                brange = (size-1 , obj_size-1)
+                brange = (size - 1, obj_size - 1)
                 obj_chunk_size = obj_size - size
 
             obj_total_partitions += 1
@@ -443,7 +442,7 @@ def _split_objects_from_object_storage(
 
         for partition in obj_partitions:
             partition['obj'].total_parts = obj_total_partitions
-        
+
         partitions.extend(obj_partitions)
         parts_per_object.append(obj_total_partitions)
 

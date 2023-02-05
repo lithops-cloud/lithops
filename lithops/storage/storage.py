@@ -43,23 +43,25 @@ class Storage:
 
         :param config: lithops configuration dict
         :param backend: storage backend name
+        :param storage_config: storage configuration dict
+
         :return: Storage instance.
         """
 
         if storage_config:
             self.config = storage_config
         else:
-            storage_config = default_storage_config(config_data=config, backend=backend)
+            storage_config = default_storage_config(config, backend)
             self.config = extract_storage_config(storage_config)
 
         self.backend = self.config['backend']
-        self.bucket = self.config.get('storage_bucket')
+        self.bucket = self.config['bucket']
 
         try:
             module_location = f'lithops.storage.backends.{self.backend}'
             sb_module = importlib.import_module(module_location)
             StorageBackend = getattr(sb_module, 'StorageBackend')
-            self.storage_handler = StorageBackend(self.config)
+            self.storage_handler = StorageBackend(self.config[self.backend])
         except Exception as e:
             logger.error("An exception was produced trying to create the "
                          f"'{self.backend}' storage backend")
@@ -293,7 +295,8 @@ class InternalStorage:
         self.bucket = self.storage.bucket
 
         if not self.bucket:
-            raise Exception(f"'storage_bucket' is mandatory in the '{self.backend}' section of the configuration")
+            raise Exception(f"'storage_bucket' is mandatory under '{self.backend}'"
+                            " section of the configuration")
 
     def get_client(self):
         """

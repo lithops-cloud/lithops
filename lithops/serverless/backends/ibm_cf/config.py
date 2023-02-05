@@ -30,6 +30,7 @@ DEFAULT_CONFIG_KEYS = {
     'max_workers': 1200,
     'worker_processes': 1,
     'invoke_pool_threads': 500,
+    'docker_server': 'docker.io'
 }
 
 UNIT_PRICE = 0.000017
@@ -62,3 +63,9 @@ def load_config(config_data):
     for key in DEFAULT_CONFIG_KEYS:
         if key not in config_data['ibm_cf']:
             config_data['ibm_cf'][key] = DEFAULT_CONFIG_KEYS[key]
+
+    if 'runtime' in config_data['ibm_cf']:
+        runtime = config_data['ibm_cf']['runtime']
+        registry = config_data['ibm_cf']['docker_server']
+        if runtime.count('/') == 1 and registry not in runtime:
+            config_data['ibm_cf']['runtime'] = f'{registry}/{runtime}'
