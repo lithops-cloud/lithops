@@ -131,11 +131,10 @@ class KnativeServingBackend:
         logger.info(f'{COMPUTE_CLI_MSG.format("Knative")} - Cluster: {self.cluster}')
 
     def _format_service_name(self, runtime_name, runtime_memory, version=__version__):
-        py_version = utils.CURRENT_PY_VERSION.replace('.', '')
         name = f'{runtime_name}-{runtime_memory}-{version}'
         name_hash = hashlib.sha1(name.encode("utf-8")).hexdigest()[:10]
 
-        return f'lithops-worker-v{py_version}-{version.replace(".", "")}-{name_hash}'
+        return f'lithops-worker-{version.replace(".", "")}-{name_hash}'
 
     def _get_default_runtime_image_name(self):
         """

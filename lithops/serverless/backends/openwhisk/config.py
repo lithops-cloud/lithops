@@ -25,11 +25,12 @@ AVAILABLE_PY_RUNTIMES = {
 }
 
 DEFAULT_CONFIG_KEYS = {
-    'runtime_timeout': 300,  # Default: 600 seconds => 10 minutes
+    'runtime_timeout': 300,  # Default: 300 seconds => 5 minutes
     'runtime_memory': 256,  # Default memory: 256 MB
     'max_workers': 100,
     'worker_processes': 1,
     'invoke_pool_threads': 500,
+    'docker_server': 'docker.io'
 }
 
 FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_openwhisk.zip')
@@ -50,3 +51,9 @@ def load_config(config_data):
     for key in DEFAULT_CONFIG_KEYS:
         if key not in config_data['openwhisk']:
             config_data['openwhisk'][key] = DEFAULT_CONFIG_KEYS[key]
+
+    if 'runtime' in config_data['openwhisk']:
+        runtime = config_data['openwhisk']['runtime']
+        registry = config_data['openwhisk']['docker_server']
+        if runtime.count('/') == 1 and registry not in runtime:
+            config_data['openwhisk']['runtime'] = f'{registry}/{runtime}'

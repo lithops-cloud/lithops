@@ -63,11 +63,10 @@ class AzureContainerAppBackend:
         Formates the conatiner app name
         """
         ac_name = self.storage_account_name
-        py_version = utils.CURRENT_PY_VERSION.replace('.', '')
         name = f'{ac_name}-{runtime_name}-{self.trigger}-{runtime_memory}'
         name_hash = hashlib.sha1(name.encode("utf-8")).hexdigest()[:10]
 
-        return f'lithops-worker-v{py_version}-{version.replace(".", "")}-{name_hash}'[:31]
+        return f'lithops-worker-{version.replace(".", "")}-{name_hash}'[:31]
 
     def _get_default_runtime_image_name(self):
         """

@@ -106,18 +106,17 @@ class GCPFunctionsBackend:
         return f'projects/{self.project_name}/locations/{self.region}'
 
     def _format_function_name(self, runtime_name, runtime_memory=None, version=__version__):
-        py_version = utils.CURRENT_PY_VERSION.replace('.', '')
         name = f'{runtime_name}-{runtime_memory}-{version}-{self.trigger}-{self.region}'
         name_hash = hashlib.sha1(name.encode("utf-8")).hexdigest()[:10]
 
-        return f'lithops-worker-v{py_version}-{version.replace(".", "")}-{name_hash}'
+        return f'lithops-worker-{runtime_name}-{version.replace(".", "")}-{name_hash}'
 
     def _format_topic_name(self, function_name):
         return f'{function_name}-{self.region}'
 
     def _get_default_runtime_name(self):
         py_version = utils.CURRENT_PY_VERSION.replace('.', '')
-        return f'lithops-default-runtime-v{py_version}'
+        return f'default-runtime-v{py_version}'
 
     def _get_topic_location(self, topic_name):
         return f'projects/{self.project_name}/topics/{topic_name}'
