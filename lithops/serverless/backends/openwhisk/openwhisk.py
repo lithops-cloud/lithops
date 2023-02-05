@@ -96,9 +96,9 @@ class OpenWhiskBackend:
         cmd = cmd + ' '.join(extra_args)
         utils.run_command(cmd)
 
-        docker_user = self.ce_config.get("docker_user")
-        docker_password = self.ce_config.get("docker_password")
-        docker_server = self.ce_config.get("docker_server")
+        docker_user = self.ow_config.get("docker_user")
+        docker_password = self.ow_config.get("docker_password")
+        docker_server = self.ow_config.get("docker_server")
 
         logger.debug(f'Pushing runtime {docker_image_name} to container registry')
 
