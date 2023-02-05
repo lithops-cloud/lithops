@@ -230,7 +230,7 @@ class S3Backend:
             for page in page_iterator:
                 if 'Contents' in page:
                     for item in page['Contents']:
-                        if match_pattern is not None and match(match_pattern, item['Key']):
+                        if match_pattern is None or (match_pattern is not None and match(match_pattern, item['Key'])):
                             object_list.append(item)
             return object_list
         except botocore.exceptions.ClientError as e:

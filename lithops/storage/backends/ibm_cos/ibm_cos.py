@@ -23,6 +23,7 @@ from lithops.utils import sizeof_fmt, is_lithops_worker
 from lithops.util.ibm_token_manager import IBMTokenManager
 from lithops.constants import STORAGE_CLI_MSG
 from globber import match
+import math
 
 logger = logging.getLogger(__name__)
 
@@ -281,7 +282,7 @@ class IBMCloudObjectStorageBackend:
             for page in page_iterator:
                 if 'Contents' in page:
                     for item in page['Contents']:
-                        if match_pattern is not None and match(match_pattern, item['Key']):
+                        if match_pattern is None or (match_pattern is not None and match(match_pattern, item['Key'])):
                             object_list.append(item)
             return object_list
         except ibm_botocore.exceptions.ClientError as e:
