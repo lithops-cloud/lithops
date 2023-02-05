@@ -36,19 +36,19 @@ class IBMCloudFunctionsBackend:
     A wrap-up around IBM Cloud Functions backend.
     """
 
-    def __init__(self, ibm_cf_config, internal_storage):
+    def __init__(self, cf_config, internal_storage):
         logger.debug("Creating IBM Cloud Functions client")
         self.name = 'ibm_cf'
         self.type = 'faas'
-        self.config = ibm_cf_config
+        self.config = cf_config
         self.is_lithops_worker = utils.is_lithops_worker()
 
-        self.user_agent = ibm_cf_config['user_agent']
-        self.endpoint = ibm_cf_config['endpoint']
-        self.namespace = ibm_cf_config['namespace']
-        self.namespace_id = ibm_cf_config.get('namespace_id', None)
-        self.api_key = ibm_cf_config.get('api_key', None)
-        self.iam_api_key = ibm_cf_config.get('iam_api_key', None)
+        self.user_agent = cf_config['user_agent']
+        self.endpoint = cf_config['endpoint']
+        self.namespace = cf_config['namespace']
+        self.namespace_id = cf_config.get('namespace_id', None)
+        self.api_key = cf_config.get('api_key', None)
+        self.iam_api_key = cf_config.get('iam_api_key', None)
         self.region = self.endpoint.split('//')[1].split('.')[0]
 
         self.invoke_error = None
@@ -128,9 +128,9 @@ class IBMCloudFunctionsBackend:
         cmd = cmd + ' '.join(extra_args)
         utils.run_command(cmd)
 
-        docker_user = self.ce_config.get("docker_user")
-        docker_password = self.ce_config.get("docker_password")
-        docker_server = self.ce_config.get("docker_server")
+        docker_user = self.config.get("docker_user")
+        docker_password = self.config.get("docker_password")
+        docker_server = self.config.get("docker_server")
 
         logger.debug(f'Pushing runtime {docker_image_name} to container registry')
 
