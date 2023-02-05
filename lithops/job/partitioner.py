@@ -303,6 +303,7 @@ def _split_objects_from_object_storage(
     buckets = set()
     prefixes = set()
     obj_names = set()
+    bucket_json_locations = {}
 
     for elem in map_func_args_list:
         if type(elem['obj']) == CloudObject:
@@ -312,12 +313,13 @@ def _split_objects_from_object_storage(
             sb = internal_storage.backend
             elem['obj'] = f"{sb}://{elem['obj']}"
         if obj_name:
-            obj_names.add((bucket, prefix))
+            obj_names.add((bucket, prefix, obj_name))
         elif prefix:
             prefixes.add((bucket, prefix))
         else:
             buckets.add(bucket)
         sbs.add(sb)
+        bucket_json_locations[bucket] = elem['json_location']
 
     if len(sbs) > 1:
         raise Exception('Process objects from multiple storage backends is not supported. '
@@ -329,22 +331,52 @@ def _split_objects_from_object_storage(
         storage = Storage(config=config, backend=sb)
 
     objects = {}
+    partitions = []
+    parts_per_object = []
 
     if obj_names:
-        for bucket, prefix in obj_names:
-            logger.debug(f"Listing objects in {sb}://{'/'.join([bucket, prefix])}")
+        for bucket, prefix, obj_name in obj_names:
+            match_pattern = None
+            if sb in ['aws_s3', 'ibm_cos'] and (prefix.find('*') > -1 or obj_name.find('*') > -1):
+
+                match_pattern = os.path.join(prefix, obj_name)
+
+                if prefix.find('*') > -1:
+                    prefix = prefix[:prefix.index('*')]
+                else:
+                    prefix = os.path.join(prefix, obj_name[:obj_name.index('*')])
+
             if bucket not in objects:
                 objects[bucket] = []
             prefix = prefix + '/' if prefix else prefix
-            objects[bucket].extend(storage.list_objects(bucket, prefix))
+            if match_pattern is not None:
+                logger.debug(f"Listing objects with Globber {match_pattern} in {sb}://{'/'.join([bucket, prefix])}")
+                objects[bucket].extend(storage.list_objects(bucket, prefix, match_pattern))
+            else:
+                # this is wrong to list prefix only, as it may return more objects than requested
+                logger.debug(f"Head on object  {sb}://{'/'.join([bucket, prefix, obj_name])}")
+                head_md = storage.head_object(bucket, os.path.join(prefix, obj_name))
+                head_md['Key'] = os.path.join(prefix, obj_name)
+                head_md['Size'] = int(head_md['content-length'])
+                objects[bucket].append(head_md)
 
     elif prefixes:
         for bucket, prefix in prefixes:
-            logger.debug(f"Listing objects in {sb}://{'/'.join([bucket, prefix])}")
+            match_pattern = None
+            if sb in ['aws_s3', 'ibm_cos'] and prefix.find('*') > -1:
+
+                match_pattern = prefix
+                if prefix.find('*') > -1:
+                    prefix = prefix[:prefix.index('*')]
+
+                logger.debug(f"Listing prefixes with Globber {match_pattern} in {sb}://{'/'.join([bucket, prefix])}")
+            else:
+                logger.debug(f"Listing prefixes in {sb}://{'/'.join([bucket, prefix])}")
+
             if bucket not in objects:
                 objects[bucket] = []
             prefix = prefix + '/' if prefix else prefix
-            objects[bucket].extend(storage.list_objects(bucket, prefix))
+            objects[bucket].extend(storage.list_objects(bucket, prefix, match_pattern))
 
     elif buckets:
         for bucket in buckets:
@@ -356,22 +388,13 @@ def _split_objects_from_object_storage(
     if all([len(objects[bucket]) == 0 for bucket in objects]):
         raise Exception(f'No objects found in bucket: {", ".join(objects.keys())}')
 
-    keys_dict = {}
-    for bucket in objects:
-        keys_dict[bucket] = {}
-        for obj in objects[bucket]:
-            keys_dict[bucket][obj['Key']] = obj['Size']
-
-    partitions = []
-    parts_per_object = []
-
-    def _split(bucket, key, entry):
+    def _split(bucket, key, entry, obj_size):
 
         if key.endswith('/'):
             logger.debug(f'Discarding object "{key}" as it is a prefix folder (0.0B)')
             return
 
-        obj_size = keys_dict[bucket][key]
+        #obj_size = keys_dict[bucket][key]
 
         if chunk_number:
             chunk_rest = obj_size % chunk_number
@@ -424,16 +447,14 @@ def _split_objects_from_object_storage(
         partitions.extend(obj_partitions)
         parts_per_object.append(obj_total_partitions)
 
-    for entry in map_func_args_list:
-        sb, bucket, prefix, obj_name = utils.split_object_url(entry['obj'])
-
-        if obj_name:
-            # each entry is an object key
-            key = '/'.join([prefix, obj_name]) if prefix else obj_name
-            _split(bucket, key, entry)
-        else:
-            # each entry is a bucket
-            for key in keys_dict[bucket]:
-               _split(bucket, key, entry)
+    #keys_dict = {}
+    for bucket in objects:
+        logger.debug(f"Partitioner has discovered {len(objects[bucket])} in {bucket}")
+        #keys_dict[bucket] = {}
+        for obj in objects[bucket]:
+            key = obj['Key']
+            entry = {'obj' : f'{sb}://{bucket}/{key}', 'json_location' : bucket_json_locations[bucket]}
+            _split(bucket, key, entry, obj['Size'] )
+            #keys_dict[bucket][obj['Key']] = obj['Size']
 
     return partitions, parts_per_object

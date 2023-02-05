@@ -209,7 +209,7 @@ class AliyunObjectStorageServiceBackend:
         except oss2.exceptions.NoSuchBucket:
             raise StorageNoSuchKeyError(bucket_name, '')
 
-    def list_objects(self, bucket_name, prefix=None):
+    def list_objects(self, bucket_name, prefix=None, match_pattern = None):
         """
         Return a list of objects for the given bucket and prefix.
         :param bucket_name: name of the bucket.

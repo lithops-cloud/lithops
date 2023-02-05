@@ -178,7 +178,7 @@ class Storage:
         """
         return self.storage_handler.head_bucket(bucket)
 
-    def list_objects(self, bucket: str, prefix: Optional[str] = None) -> List[Tuple[str, int]]:
+    def list_objects(self, bucket: str, prefix: Optional[str] = None, match_pattern: Optional[str] = None) -> List[Tuple[str, int]]:
         """
         Returns all of the object keys in a bucket. For each object, the list contains the name
         of the object (key) and the size.
@@ -189,7 +189,7 @@ class Storage:
         :return: List of tuples containing the object key and size in bytes
         """
 
-        return self.storage_handler.list_objects(bucket, prefix)
+        return self.storage_handler.list_objects(bucket, prefix, match_pattern)
 
     def list_keys(self, bucket, prefix=None) -> List[str]:
         """

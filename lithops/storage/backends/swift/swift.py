@@ -229,7 +229,7 @@ class StorageBackend:
         url = '/'.join([self.endpoint, '?bulk-delete'])
         return self.session.delete(url, data=keys_to_delete, headers=headers)
 
-    def list_objects(self, container_name, prefix=''):
+    def list_objects(self, container_name, prefix='', match_pattern = None):
         """
         Lists the objects in a bucket. Throws StorageNoSuchKeyError if the given bucket does not exist.
         :param key: key of the object

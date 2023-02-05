@@ -182,7 +182,7 @@ class GCPStorageBackend:
         response['ResponseMetadata']['HTTPHeaders'].update(bucket._properties)
         return response
 
-    def list_objects(self, bucket_name, prefix=None):
+    def list_objects(self, bucket_name, prefix=None, match_pattern = None):
         try:
             bucket = self.client.get_bucket(bucket_name, timeout=TIMEOUT)
             page = bucket.list_blobs(prefix=prefix)
