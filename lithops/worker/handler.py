@@ -57,8 +57,7 @@ def function_handler(payload):
     setup_lithops_logger(job.log_level)
 
     processes = min(job.worker_processes, len(job.call_ids))
-    logger.info('Tasks received: {} - Concurrent processes: {}'
-                .format(len(job.call_ids), processes))
+    logger.info(f'Tasks received: {len(job.call_ids)} - Concurrent processes: {processes}')
 
     env = job.extra_env
     env['LITHOPS_WORKER'] = 'True'
