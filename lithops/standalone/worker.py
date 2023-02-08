@@ -107,8 +107,6 @@ def run_worker(master_ip, work_queue):
                 return
 
         job_payload = resp.json()
-        logger.debug(job_payload)
-        logger.debug('Got tasks {}'.format(', '.join(job_payload['call_ids'])))
 
         try:
             runtime = job_payload['runtime_name']

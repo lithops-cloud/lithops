@@ -152,10 +152,11 @@ class AWSEC2Backend:
                     ProductDescriptions=['Linux/UNIX (Amazon VPC)'],
                     StartTime=datetime.today()
                 )
+                spot_prices = []
                 for az in response['SpotPriceHistory']:
-                    spot_price = az['SpotPrice']
-                self.config["spot_price"] = spot_price
-                logger.debug(f'Current spot instance price for {wit} is ${spot_price}')
+                    spot_prices.append(float(az['SpotPrice']))
+                self.config["spot_price"] = max(spot_prices)
+                logger.debug(f'Current spot instance price for {wit} is ${self.config["spot_price"]}')
 
     def _delete_worker_vm_instances(self):
         """
@@ -413,39 +414,33 @@ class EC2Instance:
                 # Allow master VM to access workers trough ssh key or password
                 LaunchSpecification['UserData'] = b64s(user_data)
 
-            spot_requests = self.ec2_client.request_spot_instances(
+            spot_request = self.ec2_client.request_spot_instances(
                 SpotPrice=str(self.config['spot_price']),
                 InstanceCount=1,
-                LaunchSpecification=LaunchSpecification)['SpotInstanceRequests']
+                LaunchSpecification=LaunchSpecification)['SpotInstanceRequests'][0]
 
-            request_ids = [r['SpotInstanceRequestId'] for r in spot_requests]
-            pending_request_ids = request_ids
+            request_id = spot_request['SpotInstanceRequestId']
+            failures = ['price-too-low', 'capacity-not-available']
 
-            while pending_request_ids:
-                time.sleep(3)
-                spot_requests = self.ec2_client.describe_spot_instance_requests(
-                    SpotInstanceRequestIds=request_ids)['SpotInstanceRequests']
+            while spot_request['State'] == 'open':
+                time.sleep(5)
+                spot_request = self.ec2_client.describe_spot_instance_requests(
+                    SpotInstanceRequestIds=[request_id])['SpotInstanceRequests'][0]
 
-                failed_requests = [r for r in spot_requests if r['State'] == 'failed']
-                if failed_requests:
-                    failure_reasons = {r['Status']['Code'] for r in failed_requests}
-                    logger.debug(failure_reasons)
-                    raise Exception(
-                        "The spot request failed for the following reason{s}: {reasons}"
-                        .format(
-                            s='' if len(failure_reasons) == 1 else 's',
-                            reasons=', '.join(failure_reasons)))
-
-                pending_request_ids = [
-                    r['SpotInstanceRequestId'] for r in spot_requests
-                    if r['State'] == 'open']
+                if spot_request['State'] == 'failed' or spot_request['Status']['Code'] in failures:
+                    msg = "The spot request failed for the following reason: " + spot_request['Status']['Message']
+                    logger.debug(msg)
+                    self.ec2_client.cancel_spot_instance_requests(SpotInstanceRequestIds=[request_id])
+                    raise Exception(msg)
+                else:
+                    logger.debug("Waitting to get the spot instance: " + spot_request['Status']['Message'])
 
             self.ec2_client.create_tags(
-                Resources=[r['InstanceId'] for r in spot_requests],
+                Resources=[spot_request['InstanceId']],
                 Tags=[{'Key': 'Name', 'Value': self.name}]
             )
 
-            filters = [{'Name': 'instance-id', 'Values': [r['InstanceId'] for r in spot_requests]}]
+            filters = [{'Name': 'instance-id', 'Values': [spot_request['InstanceId']]}]
             resp = self.ec2_client.describe_instances(Filters=filters)['Reservations'][0]
 
         else:

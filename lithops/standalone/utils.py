@@ -4,7 +4,8 @@ from lithops.constants import (
     SA_INSTALL_DIR,
     SA_LOG_FILE,
     SA_CONFIG_FILE,
-    SA_DATA_FILE
+    SA_DATA_FILE,
+    SA_TMP_DIR
 )
 
 MASTER_SERVICE_NAME = 'lithops-master.service'
@@ -115,7 +116,7 @@ def get_host_setup_script(docker=True):
     """.format(SA_INSTALL_DIR, SA_LOG_FILE, str(docker).lower())
 
 def docker_login(config):
-    if all(k in config for k in ("docker_server","docker_user", "docker_password")):
+    if all(k in config for k in ("docker_server", "docker_user", "docker_password")):
         return f"""docker login -u {config['docker_user']} -p {config['docker_password']} {config['docker_server']} >> /tmp/kuku 2>&1
     """
     return ""
@@ -127,7 +128,7 @@ def get_master_setup_script(config, vm_data):
     script = f"""#!/bin/bash
     rm -R {SA_INSTALL_DIR};
     mkdir -p {SA_INSTALL_DIR};
-    mkdir -p /tmp/lithops;
+    mkdir -p {SA_TMP_DIR};
 
     setup_host(){{
     cp /tmp/lithops_standalone.zip {SA_INSTALL_DIR};
@@ -180,7 +181,7 @@ def get_worker_setup_script(config, vm_data):
     script = f"""#!/bin/bash
     rm -R {SA_INSTALL_DIR};
     mkdir -p {SA_INSTALL_DIR};
-    mkdir -p /tmp/lithops;
+    mkdir -p {SA_TMP_DIR};
     """
     script += get_host_setup_script()
 
