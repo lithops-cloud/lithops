@@ -705,15 +705,16 @@ def run_command(cmd, return_result=False, input=None):
 
     if logger.getEffectiveLevel() != logging.DEBUG:
         kwargs['stderr'] = sp.DEVNULL
-    if return_result:
-        kwargs['encoding'] = 'UTF-8'
     if input:
         kwargs['input'] = bytes(input, 'utf-8')
 
-    result = sp.check_output(cmd.split(), **kwargs)
-
     if return_result:
+        result = sp.check_output(cmd.split(), encoding='UTF-8', **kwargs)
         return result.strip().replace('"', '')
+    else:
+        if logger.getEffectiveLevel() != logging.DEBUG:
+            kwargs['stdout'] = sp.DEVNULL
+        sp.check_call(cmd.split(), **kwargs)
 
 
 def is_podman(docker_path):

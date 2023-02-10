@@ -8,7 +8,10 @@
 #FROM python:3.8-slim-buster
 
 # Python 3.9
-FROM python:3.9-slim-buster
+#FROM python:3.9-slim-buster
+
+# Python 3.10
+FROM python:3.10-slim-buster
 
 RUN apt-get update && apt-get install -y \
         zip \
