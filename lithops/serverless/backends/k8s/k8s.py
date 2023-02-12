@@ -408,7 +408,7 @@ class KubernetesBackend:
         done = False
         failed = False
 
-        while not done or failed:
+        while not (done or failed):
             try:
                 w = watch.Watch()
                 for event in w.stream(self.batch_api.list_namespaced_job,

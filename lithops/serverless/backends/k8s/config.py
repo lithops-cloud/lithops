@@ -40,6 +40,7 @@ RUN pip install --upgrade --ignore-installed setuptools six pip \
     && pip install --upgrade --no-cache-dir --ignore-installed \
         flask \
         pika \
+        boto3 \
         ibm-cos-sdk \
         redis \
         requests \
