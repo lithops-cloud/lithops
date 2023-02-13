@@ -11,7 +11,7 @@ By default, Lithops uses 256MB as runtime memory size and 0.5vCPU for the kubern
 
 ```yaml
 k8s:
-    runtime_memory=512
+    runtime_memory: 512
     runtime_cpu: 1
 ```
 
@@ -79,48 +79,6 @@ k8s:
     import lithops
     fexec = lithops.FunctionExecutor(runtime='lithopscloud/lithops-k8s-matplotlib:v39:01')
     ```
-
-## Runtime Management
-
-1. **Update an existing runtime**
-
-    If you are a developer, and modified the PyWeen source code, you need to deploy the changes before executing Lithops.
-
-    You can update default runtime by:
-
-        $ lithops runtime update default -b k8s
-
-    You can update any other runtime deployed in your namespace by specifying the docker image that the runtime depends on:
-
-        $ lithops runtime update docker_username/runtimename:tag -b k8s
-
-    For example, you can update an already created runtime based on the Docker image `lithopscloud/lithops-k8s-matplotlib-v39:01` by:
-
-        $ lithops runtime update lithopscloud/lithops-k8s-matplotlib-v39:01 -b k8s
-
-    Alternatively, you can update all the deployed runtimes at a time by:
-
-        $ lithops runtime update all -b k8s
-
-2. **Delete a runtime**
-
-    You can also delete existing runtimes in your namespace.
-
-    You can delete default runtime by:
-
-        $ lithops runtime delete default -b k8s
-
-    You can delete any other runtime deployed in your namespace by specifying the docker image that the runtime depends on:
-
-        $ lithops runtime delete docker_username/runtimename:tag -b k8s
-
-    For example, you can delete runtime based on the Docker image `lithopscloud/lithops-k8s-conda-v36:01` by:
-
-        $ lithops runtime delete lithopscloud/lithops-k8s-conda-v36:01 -b k8s
-
-    You can delete all the runtimes at a time by:
-
-        $ lithops runtime delete all -b k8s
 
 3. **Clean everything**
 
