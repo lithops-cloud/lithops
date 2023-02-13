@@ -572,7 +572,7 @@ class FunctionExecutor:
         :param fs: List of futures to clean
         :param cs: List of cloudobjects to clean
         :param clean_cloudobjects: Delete all cloudobjects created with this executor
-        :param clan_fn: Delete cached functions in this executor
+        :param clean_fn: Delete cached functions in this executor
         :param force: Clean all future objects even if they have not benn completed
         """
         global CLEANER_PROCESS
