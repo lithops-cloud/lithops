@@ -6,12 +6,14 @@
 - [AWS S3] Allow to use a public bucket without credentials
 - [IBM] Automatically login to the container registry if the credentials are present in config
 - [IBM] Force --platform=linux/amd64 in the "lithops runtime build" command
+- [k8s] Added boto3 as a dependency of the default runtime
 
 ### Changed
 - 
 
 ### Fixed
 - [AWS EC2] Fix spot instance price
+- [Cli] Fix wrong config in the "lithops runtime update" command
 
 
 ## [v2.8.0]

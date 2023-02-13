@@ -447,7 +447,7 @@ def build(ctx, name, file, config, backend, debug):
     config = default_config(config, config_ow, load_storage_config=False)
 
     if config['lithops']['mode'] != SERVERLESS:
-        raise Exception('"lithops build" command is only valid for serverless backends')
+        raise Exception('"lithops build" command is only available for serverless backends')
 
     compute_config = extract_serverless_config(config)
     compute_handler = ServerlessHandler(compute_config, None)
@@ -480,7 +480,7 @@ def deploy(name, storage, backend, memory, timeout, config, debug):
     config = default_config(config, config_ow)
 
     if config['lithops']['mode'] != SERVERLESS:
-        raise Exception('"lithops runtime deploy" command is only valid for serverless backends')
+        raise Exception('"lithops runtime deploy" command is only available for serverless backends')
 
     storage_config = extract_storage_config(config)
     internal_storage = InternalStorage(storage_config)
@@ -516,7 +516,7 @@ def list_runtimes(config, backend, storage, debug):
     config = default_config(config, config_ow, load_storage_config=False)
 
     if config['lithops']['mode'] != SERVERLESS:
-        raise Exception('"lithops runtime list" command is only valid for serverless backends')
+        raise Exception('"lithops runtime list" command is only available for serverless backends')
 
     compute_config = extract_serverless_config(config)
     compute_handler = ServerlessHandler(compute_config, None)
@@ -561,7 +561,7 @@ def update(name, config, backend, storage, debug):
     config = default_config(config, config_ow)
 
     if config['lithops']['mode'] != SERVERLESS:
-        raise Exception('"lithops runtime update" command is only valid for serverless backends')
+        raise Exception('"lithops runtime update" command is only available for serverless backends')
 
     storage_config = extract_storage_config(config)
     internal_storage = InternalStorage(storage_config)
@@ -570,7 +570,7 @@ def update(name, config, backend, storage, debug):
 
     runtime_info = compute_handler.get_runtime_info()
     runtime_name = runtime_info['runtime_name']
-    runtime_timeout = runtime_info['runtime_memory']
+    runtime_timeout = runtime_info['runtime_timeout']
 
     logger.info(f'Updating runtime: {runtime_name}')
 
@@ -606,7 +606,7 @@ def delete(name, config, memory, version, backend, storage, debug):
     config = default_config(config, config_ow)
 
     if config['lithops']['mode'] != SERVERLESS:
-        raise Exception('"lithops runtime delete" command is only valid for serverless backends')
+        raise Exception('"lithops runtime delete" command is only available for serverless backends')
 
     storage_config = extract_storage_config(config)
     internal_storage = InternalStorage(storage_config)
