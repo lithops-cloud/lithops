@@ -54,16 +54,17 @@ class IBMVPCBackend:
 
         self.endpoint = self.config['endpoint']
         self.region = self.endpoint.split('//')[1].split('.')[0]
-        self.vpc_name = self.config.get('vpc_name')
         self.cache_dir = os.path.join(CACHE_DIR, self.name)
+        self.custom_image = self.config.get('custom_lithops_image')
 
-        logger.debug('Setting VPC endpoint to: {}'.format(self.endpoint))
+        logger.debug(f'Setting VPC endpoint to: {self.endpoint}')
 
         self.master = None
         self.workers = []
 
         iam_api_key = self.config.get('iam_api_key')
-        self.custom_image = self.config.get('custom_lithops_image')
+        self.vpc_name = self.config.get('vpc_name', 'lithops-vpc-' + iam_api_key[:4].lower())
+        logger.debug(f'Setting VPC name to: {self.vpc_name}')
 
         authenticator = IAMAuthenticator(iam_api_key, url=self.config.get('iam_endpoint'))
         self.ibm_vpc_client = VpcV1(VPC_API_VERSION, authenticator=authenticator)
@@ -171,12 +172,13 @@ class IBMVPCBackend:
         if not subnet_data:
             logger.debug('Creating Subnet {}'.format(subnet_name))
             subnet_prototype = {}
-            subnet_prototype['zone'] = {'name': self.config['zone_name']}
+            subnet_prototype['zone'] = {'name': self.region + '-2'}
             subnet_prototype['ip_version'] = 'ipv4'
             subnet_prototype['name'] = subnet_name
             subnet_prototype['resource_group'] = {'id': self.config['resource_group_id']}
             subnet_prototype['vpc'] = {'id': self.config['vpc_id']}
-            subnet_prototype['ipv4_cidr_block'] = '10.241.64.0/22'
+            subnet_prototype['total_ipv4_address_count'] = 256
+            # subnet_prototype['ipv4_cidr_block'] = '10.241.64.0/22'
             response = self.ibm_vpc_client.create_subnet(subnet_prototype)
             subnet_data = response.result
 
@@ -684,7 +686,7 @@ class IBMVPCInstance:
             'volume': boot_volume_data
         }
 
-        key_identity_model = {'id': self.config['key_id']}
+        key_identity_model = {'id': self.config['ssh_key_id']}
 
         instance_prototype = {}
         instance_prototype['name'] = self.name

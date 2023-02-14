@@ -17,20 +17,8 @@
 import uuid
 
 MANDATORY_PARAMETERS_1 = ('endpoint',
-                          'vpc_name',
                           'resource_group_id',
-                          'key_id',
                           'iam_api_key')
-
-MANDATORY_PARAMETERS_2 = ('endpoint',
-                          'image_id',
-                          'vpc_id',
-                          'resource_group_id',
-                          'key_id',
-                          'subnet_id',
-                          'security_group_id',
-                          'iam_api_key')
-
 
 MANDATORY_PARAMETERS_3 = ('endpoint',
                           'instance_id',
@@ -47,7 +35,7 @@ DEFAULT_CONFIG_KEYS = {
     'delete_on_dismantle': True,
     'max_workers': 100,
     'worker_processes': 2,
-    'boot_volume_capacity' : 100
+    'boot_volume_capacity': 100
 }
 
 
@@ -61,7 +49,7 @@ def load_config(config_data):
 
     if 'exec_mode' in config_data['standalone'] \
        and config_data['standalone']['exec_mode'] in ['create', 'reuse']:
-        params_to_check = MANDATORY_PARAMETERS_2
+        params_to_check = MANDATORY_PARAMETERS_1
     else:
         params_to_check = MANDATORY_PARAMETERS_3
         config_data['ibm_vpc']['max_workers'] = 1
