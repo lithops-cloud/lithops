@@ -1,5 +1,6 @@
 #
-# Copyright Cloudlab URV 2020
+# (C) Copyright Cloudlab URV 2020
+# (C) Copyright IBM Corp. 2023
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -252,6 +253,22 @@ class IBMVPCBackend:
         self.config['floating_ip'] = floating_ip_data['address']
         self.config['floating_ip_id'] = floating_ip_data['id']
 
+    def _create_master_instance(self):
+        """
+        Creates the master VM insatnce
+        """
+        name = f'lithops-master-{self.vpc_key}'
+        self.master = IBMVPCInstance(name, self.config, self.ibm_vpc_client, public=True)
+        self.master.public_ip = self.config['floating_ip']
+        self.master.profile_name = self.config['master_profile_name']
+        self.master.delete_on_dismantle = False
+        self.master.ssh_credentials.pop('password')
+
+        instance_data = self.master.get_instance_data()
+        if instance_data:
+            self.master.private_ip = instance_data['primary_network_interface']['primary_ipv4_address']
+            self.master.instance_id = instance_data['id']
+
     def init(self):
         """
         Initialize the VPC
@@ -296,19 +313,8 @@ class IBMVPCBackend:
             self._create_gateway(self.vpc_data)
             # Create a new floating IP if not exists
             self._create_floating_ip(self.vpc_data)
-
-            # create the master VM insatnce
-            name = f'lithops-master-{self.vpc_key}'
-            self.master = IBMVPCInstance(name, self.config, self.ibm_vpc_client, public=True)
-            self.master.public_ip = self.config['floating_ip']
-            self.master.profile_name = self.config['master_profile_name']
-            self.master.delete_on_dismantle = False
-            self.master.ssh_credentials.pop('password')
-
-            instance_data = self.master.get_instance_data()
-            if instance_data:
-                self.master.private_ip = instance_data['primary_network_interface']['primary_ipv4_address']
-                self.master.instance_id = instance_data['id']
+            # Create the master VM instance
+            self._create_master_instance()
 
             self.vpc_data = {
                 'mode': self.mode,
@@ -325,7 +331,7 @@ class IBMVPCBackend:
 
             dump_yaml_config(vpc_data_filename, self.vpc_data)
 
-    def _delete_vm_instances(self, delete_master=False, force=False):
+    def _delete_vm_instances(self, all=False):
         """
         Deletes all VM instances in the VPC
         """
@@ -344,11 +350,9 @@ class IBMVPCBackend:
                 else:
                     raise err
 
-        LITHOPS_MASTER = 'lithops-master-'
-
         vms_prefixes = ('lithops-worker',)
-        if delete_master:
-            vms_prefixes = vms_prefixes + (LITHOPS_MASTER, )
+        if all:
+            vms_prefixes = vms_prefixes + ('lithops-master-', )
 
         deleted_instances = set()
         while True:
@@ -359,15 +363,6 @@ class IBMVPCBackend:
                     ins_to_dlete = (ins['name'], ins['id'])
                     if ins_to_dlete not in deleted_instances:
                         instances_to_delete.add(ins_to_dlete)
-                    if ins['name'].startswith(LITHOPS_MASTER):
-                        if force:
-                            # forced clean all been triggered, delete also master floating IP
-                            interface_id = ins['network_interfaces'][0]['id']
-                            fips = self.ibm_vpc_client.list_instance_network_interface_floating_ips(
-                                ins['id'], interface_id).get_result()['floating_ips']
-                            if fips:
-                                fip = fips[0]['id']
-                                self.ibm_vpc_client.delete_floating_ip(fip)
 
             if instances_to_delete:
                 with ThreadPoolExecutor(len(instances_to_delete)) as executor:
@@ -375,7 +370,6 @@ class IBMVPCBackend:
                 deleted_instances.update(instances_to_delete)
             else:
                 break
-        # time.sleep(5)
 
     def _delete_subnet(self, vpc_data):
         """
@@ -393,8 +387,9 @@ class IBMVPCBackend:
             logger.info(f'Deleting subnet {subnet_name}')
             try:
                 self.ibm_vpc_client.delete_subnet(vpc_data['subnet_id'])
+                time.sleep(5)
             except ApiException as err:
-                if err.code == 404:
+                if err.code == 404 or err.code == 400:
                     pass
                 else:
                     raise err
@@ -415,15 +410,22 @@ class IBMVPCBackend:
         if 'gateway_id' in vpc_data:
             logger.info(f'Deleting gateway {gateway_name}')
             try:
-                self.ibm_vpc_client.delete_public_gateway(vpc_data['gateway_id'])
+                self.ibm_vpc_client.unset_subnet_public_gateway(vpc_data['gateway_id'])
+                time.sleep(5)
             except ApiException as err:
-                if err.code == 404:
-                    pass
-                elif err.code == 400:
+                if err.code == 404 or err.code == 400:
                     pass
                 else:
                     raise err
-            time.sleep(5)
+
+            try:
+                self.ibm_vpc_client.delete_public_gateway(vpc_data['gateway_id'])
+                time.sleep(5)
+            except ApiException as err:
+                if err.code == 404 or err.code == 400:
+                    pass
+                else:
+                    raise err
 
     def _delete_vpc(self, vpc_data):
         """
@@ -440,23 +442,28 @@ class IBMVPCBackend:
             try:
                 self.ibm_vpc_client.delete_vpc(vpc_data['vpc_id'])
             except ApiException as err:
-                if err.code == 404:
+                if err.code == 404 or err.code == 400:
                     pass
                 else:
                     raise err
 
-    def clean(self, delete_master=False, force=False):
+    def clean(self, all=False):
         """
         Clean all the backend resources
         The gateway public IP and the floating IP are never deleted
         """
         logger.debug('Cleaning IBM VPC resources')
 
-        self._delete_vm_instances(delete_master=delete_master, force=force)
+        self._delete_vm_instances(all=all)
 
-        if force:
+        if all:
             vpc_data_filename = os.path.join(self.cache_dir, 'data')
             vpc_data = load_yaml_config(vpc_data_filename)
+            if not (vpc_data):
+                logger.error(f'Could not find local VPC data file in {vpc_data_filename}')
+                return
+            self.vpc_key = vpc_data['vpc_id'].split('-')[2]
+            time.sleep(5)
             self._delete_gateway(vpc_data)
             self._delete_subnet(vpc_data)
             self._delete_vpc(vpc_data)
@@ -920,7 +927,7 @@ def vpc_retry_on_except(func):
     SLEEP_FACTOR = 1.5
     MAX_SLEEP = 30
 
-    IGNORED_404_METHODS = ['delete_instance', 'delete_subnet', 'delete_public_gateway', 'delete_vpc', 'create_instance_action']
+    IGNORED_404_METHODS = ['delete_instance', 'delete_public_gateway', 'delete_vpc', 'create_instance_action']
 
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
