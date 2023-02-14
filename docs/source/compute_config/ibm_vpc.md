@@ -73,15 +73,12 @@ ibm:
     iam_api_key: <iam-api-key>
 
 standalone:
-    exec_mode: create
+    exec_mode: reuse
 
 ibm_vpc:
     endpoint: <REGION_ENDPOINT>
-    vpc_id: <VPC_ID>
     resource_group_id: <RESOURCE_GROUP_ID>
-    security_group_id: <SECURITY_GROUP_ID>
-    subnet_id: <SUBNET_ID>
-    key_id: <PUBLIC_KEY_ID>
+    ssh_key_id: <PUBLIC_KEY_ID>
     image_id: <UBUNTU_22_04_IMAGE_ID>
 ```
 
@@ -129,12 +126,14 @@ This will create 4 different VM instance and execute `my_map_function` in the ea
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |ibm_vpc | endpoint | |yes | Endpoint of your subnet region |
-|ibm_vpc | vpc_id | | yes | VPC id |
 |ibm_vpc | resource_group_id | | yes | Resource group id |
-|ibm_vpc | security_group_id | | yes | Security group id |
-|ibm_vpc | subnet_id | | yes | Subnet id |
-|ibm_vpc | key_id | | yes | Ssh public key id |
 |ibm_vpc | image_id | | yes | Virtual machine image id |
+|ibm_vpc | vpc_id | | no | VPC id |
+|ibm_vpc | vpc_name | | no | VPC name instead of vpc_id |
+|ibm_vpc | security_group_id | | no | Security group id |
+|ibm_vpc | subnet_id | | no | Subnet id |
+|ibm_vpc | ssh_key_id | | no | Ssh public key id |
+|ibm_vpc | image_id | | no | Virtual machine image id |
 |ibm_vpc | ssh_username | root |no | Username to access the VPC |
 |ibm_vpc | ssh_password |  |no | Password for accessing the worker VMs. If not provided, it is created randomly|
 |ibm_vpc | ssh_key_filename | | no | Path to the ssh key file provided to access the VPC. It will use the default path if not provided |
