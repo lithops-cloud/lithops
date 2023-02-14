@@ -167,7 +167,7 @@ class ResponseFuture:
 
         :param check_only: Return None immediately if job is not complete. Default False.
         :param throw_except: Reraise exception if call raised. Default true.
-        :param storage_handler: Storage handler to poll cloud storage. Default None.
+        :param internal_storage: Storage handler to poll cloud storage. Default None.
         :return: Result of the call.
         :raises CancelledError: If the job is cancelled before completed.
         :raises TimeoutError: If job is not complete after `timeout` seconds.
