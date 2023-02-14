@@ -103,7 +103,7 @@ class IBMVPCBackend:
                 vpc_info = vpc
 
         if not vpc_info:
-            logger.debug('Creating VPC {}'.format(self.vpc_name))
+            logger.debug(f'Creating VPC {self.vpc_name}')
             vpc_prototype = {}
             vpc_prototype['address_prefix_management'] = 'auto'
             vpc_prototype['classic_access'] = False
@@ -171,7 +171,7 @@ class IBMVPCBackend:
                 subnet_data = sn
 
         if not subnet_data:
-            logger.debug('Creating Subnet {}'.format(subnet_name))
+            logger.debug(f'Creating Subnet {subnet_name}')
             subnet_prototype = {}
             subnet_prototype['zone'] = {'name': self.region + '-1'}
             subnet_prototype['ip_version'] = 'ipv4'
@@ -206,7 +206,7 @@ class IBMVPCBackend:
                 gateway_data = gw
 
         if not gateway_data:
-            logger.debug('Creating Gateway {}'.format(gateway_name))
+            logger.debug(f'Creating Gateway {gateway_name}')
             gateway_prototype = {}
             gateway_prototype['vpc'] = {'id': self.config['vpc_id']}
             gateway_prototype['zone'] = {'name': self.config['zone_name']}
@@ -242,7 +242,7 @@ class IBMVPCBackend:
                 floating_ip_data = fip
 
         if not floating_ip_data:
-            logger.debug('Creating floating IP {}'.format(floating_ip_name))
+            logger.debug(f'Creating floating IP {floating_ip_name}')
             floating_ip_prototype = {}
             floating_ip_prototype['name'] = floating_ip_name
             floating_ip_prototype['zone'] = {'name': self.config['zone_name']}
@@ -253,10 +253,18 @@ class IBMVPCBackend:
         self.config['floating_ip'] = floating_ip_data['address']
         self.config['floating_ip_id'] = floating_ip_data['id']
 
-    def _create_master_instance(self):
+    def _create_master_instance(self, vpc_data):
         """
         Creates the master VM insatnce
         """
+        if 'image_id' in vpc_data:
+            self.config['image_id'] = vpc_data['image_id']
+
+        if 'image_id' not in self.config:
+            for image in self.ibm_vpc_client.list_images().result['images']:
+                if 'ubuntu-22' in image['name']:
+                    self.config['image_id'] = image['id']
+
         name = f'lithops-master-{self.vpc_key}'
         self.master = IBMVPCInstance(name, self.config, self.ibm_vpc_client, public=True)
         self.master.public_ip = self.config['floating_ip']
@@ -314,7 +322,7 @@ class IBMVPCBackend:
             # Create a new floating IP if not exists
             self._create_floating_ip(self.vpc_data)
             # Create the master VM instance
-            self._create_master_instance()
+            self._create_master_instance(self.vpc_data)
 
             self.vpc_data = {
                 'mode': self.mode,
@@ -326,7 +334,8 @@ class IBMVPCBackend:
                 'floating_ip': self.config['floating_ip'],
                 'floating_ip_id': self.config['floating_ip_id'],
                 'gateway_id': self.config['gateway_id'],
-                'zone_name': self.config['zone_name']
+                'zone_name': self.config['zone_name'],
+                'image_id': self.config['image_id']
             }
 
             dump_yaml_config(vpc_data_filename, self.vpc_data)
@@ -390,7 +399,7 @@ class IBMVPCBackend:
                 time.sleep(5)
             except ApiException as err:
                 if err.code == 404 or err.code == 400:
-                    pass
+                    logger.debug(err)
                 else:
                     raise err
             time.sleep(5)
@@ -410,11 +419,11 @@ class IBMVPCBackend:
         if 'gateway_id' in vpc_data:
             logger.info(f'Deleting gateway {gateway_name}')
             try:
-                self.ibm_vpc_client.unset_subnet_public_gateway(vpc_data['gateway_id'])
+                self.ibm_vpc_client.unset_subnet_public_gateway(vpc_data['subnet_id'])
                 time.sleep(5)
             except ApiException as err:
                 if err.code == 404 or err.code == 400:
-                    pass
+                    logger.debug(err)
                 else:
                     raise err
 
@@ -423,7 +432,7 @@ class IBMVPCBackend:
                 time.sleep(5)
             except ApiException as err:
                 if err.code == 404 or err.code == 400:
-                    pass
+                    logger.debug(err)
                 else:
                     raise err
 
@@ -443,7 +452,7 @@ class IBMVPCBackend:
                 self.ibm_vpc_client.delete_vpc(vpc_data['vpc_id'])
             except ApiException as err:
                 if err.code == 404 or err.code == 400:
-                    pass
+                    logger.debug(err)
                 else:
                     raise err
 

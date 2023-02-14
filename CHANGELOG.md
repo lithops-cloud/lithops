@@ -7,6 +7,7 @@
 - [IBM] Automatically login to the container registry if the credentials are present in config
 - [IBM] Force --platform=linux/amd64 in the "lithops runtime build" command
 - [k8s] Added boto3 as a dependency of the default runtime
+- [IBM VPC] Automatically get the ubuntu image ID
 
 ### Changed
 - [IBM VPC] Reduced the number of mandatory config parameters
