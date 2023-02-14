@@ -39,6 +39,8 @@ DEFAULT_CONFIG_KEYS = {
     'boot_volume_capacity': 100
 }
 
+VPC_ENDPOINT = "https://{}.iaas.cloud.ibm.com"
+
 
 def load_config(config_data):
     if 'ibm' in config_data and config_data['ibm'] is not None:
