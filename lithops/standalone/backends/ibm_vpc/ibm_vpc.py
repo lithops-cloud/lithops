@@ -172,13 +172,12 @@ class IBMVPCBackend:
         if not subnet_data:
             logger.debug('Creating Subnet {}'.format(subnet_name))
             subnet_prototype = {}
-            subnet_prototype['zone'] = {'name': self.region + '-2'}
+            subnet_prototype['zone'] = {'name': self.region + '-1'}
             subnet_prototype['ip_version'] = 'ipv4'
             subnet_prototype['name'] = subnet_name
             subnet_prototype['resource_group'] = {'id': self.config['resource_group_id']}
             subnet_prototype['vpc'] = {'id': self.config['vpc_id']}
             subnet_prototype['total_ipv4_address_count'] = 256
-            # subnet_prototype['ipv4_cidr_block'] = '10.241.64.0/22'
             response = self.ibm_vpc_client.create_subnet(subnet_prototype)
             subnet_data = response.result
 
@@ -452,13 +451,15 @@ class IBMVPCBackend:
         The gateway public IP and the floating IP are never deleted
         """
         logger.debug('Cleaning IBM VPC resources')
-        # vpc_data_filename = os.path.join(self.cache_dir, 'data')
-        # vpc_data = load_yaml_config(vpc_data_filename)
 
         self._delete_vm_instances(delete_master=delete_master, force=force)
-        # self._delete_gateway(vpc_data)
-        # self._delete_subnet(vpc_data)
-        # self._delete_vpc(vpc_data)
+
+        if force:
+            vpc_data_filename = os.path.join(self.cache_dir, 'data')
+            vpc_data = load_yaml_config(vpc_data_filename)
+            self._delete_gateway(vpc_data)
+            self._delete_subnet(vpc_data)
+            self._delete_vpc(vpc_data)
 
     def clear(self, job_keys=None):
         """
@@ -752,13 +753,13 @@ class IBMVPCInstance:
         """
         Returns the instance ID
         """
-        instance_data = self.get_instance_data()
-        if instance_data:
-            self.instance_id = instance_data['id']
-            return self.instance_id
-
-        logger.debug('VM instance {} does not exists'.format(self.name))
-        return None
+        if not self.instance_id:
+            instance_data = self.get_instance_data()
+            if instance_data:
+                self.instance_id = instance_data['id']
+            else:
+                logger.debug(f'VM instance {self.name} does not exists')
+        return self.instance_id
 
     def get_private_ip(self):
         """

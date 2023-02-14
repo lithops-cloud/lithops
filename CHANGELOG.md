@@ -9,11 +9,13 @@
 - [k8s] Added boto3 as a dependency of the default runtime
 
 ### Changed
-- 
+- [IBM VPC] Reduced the number of mandatory config parameters
 
 ### Fixed
 - [AWS EC2] Fix spot instance price
 - [Cli] Fix wrong config in the "lithops runtime update" command
+- [Standalone] Fix missing private IP address
+- [VM] Fix VM standalone backend
 
 
 ## [v2.8.0]
