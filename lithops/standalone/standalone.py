@@ -436,8 +436,8 @@ class StandaloneHandler:
         os.remove(handler_zip)
 
         vm_data = {'name': self.backend.master.name,
-                   'instance_id': self.backend.master.instance_id,
-                   'private_ip': self.backend.master.private_ip,
+                   'instance_id': self.backend.master.get_instance_id(),
+                   'private_ip': self.backend.master.get_private_ip(),
                    'delete_on_dismantle': self.backend.master.delete_on_dismantle,
                    'lithops_version': __version__}
 
