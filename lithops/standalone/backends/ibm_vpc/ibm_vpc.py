@@ -82,7 +82,6 @@ class IBMVPCBackend:
 
     def _create_ssh_key(self):
 
-        DEFAULT_KEY_NAME = "default-ssh-key"
         def _generate_keypair(keyname):
             """Returns newly generated public ssh-key's contents and private key's path"""
             home = str(Path.home())
@@ -109,7 +108,7 @@ class IBMVPCBackend:
 
         def _register_ssh_key(ibm_vpc_client, resource_group_id):
 
-            keyname = DEFAULT_KEY_NAME
+            keyname = self.vpc_name
 
             ssh_key_data, ssh_key_path = _generate_keypair(keyname)
 
@@ -119,8 +118,8 @@ class IBMVPCBackend:
             except ApiException as e:
                 logger.error(e)
 
-                if "Key with name already exists" in e.message and keyname == DEFAULT_KEY_NAME:
-                    key = _get_ssh_key(ibm_vpc_client, DEFAULT_KEY_NAME)
+                if "Key with name already exists" in e.message:
+                    key = _get_ssh_key(ibm_vpc_client, keyname)
                     ibm_vpc_client.delete_key(id=key["id"])
                     response = ibm_vpc_client.create_key(
                         public_key=ssh_key_data, name=keyname, resource_group={"id": resource_group_id}, type="rsa"
