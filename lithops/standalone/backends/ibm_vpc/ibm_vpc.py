@@ -34,6 +34,7 @@ from lithops.constants import COMPUTE_CLI_MSG, CACHE_DIR
 from lithops.config import load_yaml_config, dump_yaml_config
 from lithops.standalone.utils import CLOUD_CONFIG_WORKER, CLOUD_CONFIG_WORKER_PK
 from lithops.standalone.standalone import LithopsValidationError
+from lithops.standalone.backends.ibm_vpc.ssh_key import create_default_ssh_key
 
 
 logger = logging.getLogger(__name__)
@@ -565,6 +566,12 @@ class IBMVPCInstance:
         self.private_ip = None
         self.public_ip = None
         self.home_dir = '/root'
+
+        if 'ssh_key_id' not in self.config['ssh_key_id']:
+            gen_key_id, gen_ssh_key_path, gen_ssh_user = create_default_ssh_key(self.ibm_vpc_client, self.config['resource_group_id'] )
+            self.config['ssh_key_id'] = gen_key_id
+            self.config['ssh_key_filename'] = gen_ssh_key_path
+            self.config['ssh_username'] = gen_ssh_user
 
         self.ssh_credentials = {
             'username': self.config['ssh_username'],
