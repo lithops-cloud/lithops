@@ -19,6 +19,7 @@ import functools
 import inspect
 import re
 import os
+from pathlib import Path
 import paramiko
 import time
 import logging
@@ -34,8 +35,6 @@ from lithops.constants import COMPUTE_CLI_MSG, CACHE_DIR
 from lithops.config import load_yaml_config, dump_yaml_config
 from lithops.standalone.utils import CLOUD_CONFIG_WORKER, CLOUD_CONFIG_WORKER_PK
 from lithops.standalone.standalone import LithopsValidationError
-from lithops.standalone.backends.ibm_vpc.ssh_key import create_default_ssh_key
-
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +79,66 @@ class IBMVPCBackend:
 
         msg = COMPUTE_CLI_MSG.format('IBM VPC')
         logger.info(f"{msg} - Region: {self.region}")
+
+    def _create_ssh_key(self):
+
+        DEFAULT_KEY_NAME = "default-ssh-key"
+        def _generate_keypair(keyname):
+            """Returns newly generated public ssh-key's contents and private key's path"""
+            home = str(Path.home())
+            filename = f"{home}{os.sep}.ssh{os.sep}id.rsa.{keyname}"
+            try:
+                os.remove(filename)
+            except Exception:
+                pass
+
+            os.system(f'ssh-keygen -b 2048 -t rsa -f {filename} -q -N ""')
+            logger.debug(f"\n\n\033[92mSSH key pair been generated\n")
+            logger.debug(f"private key: {os.path.abspath(filename)}")
+            logger.debug(f"public key {os.path.abspath(filename)}.pub\033[0m")
+            with open(f"{filename}.pub", "r") as file:
+                ssh_key_data = file.read()
+            ssh_key_path = os.path.abspath(filename)
+            return ssh_key_data, ssh_key_path
+
+        def _get_ssh_key(ibm_vpc_client, name):
+            """Returns ssh key matching specified name, stored in the VPC associated with the vpc_client"""
+            for key in ibm_vpc_client.list_keys().result["keys"]:
+                if key["name"] == name:
+                    return key
+
+        def _register_ssh_key(ibm_vpc_client, resource_group_id):
+
+            keyname = DEFAULT_KEY_NAME
+
+            ssh_key_data, ssh_key_path = _generate_keypair(keyname)
+
+            response = None
+            try:  # regardless of the above, try registering an ssh-key
+                response = ibm_vpc_client.create_key(public_key=ssh_key_data, name=keyname, resource_group={"id": resource_group_id}, type="rsa")
+            except ApiException as e:
+                logger.error(e)
+
+                if "Key with name already exists" in e.message and keyname == DEFAULT_KEY_NAME:
+                    key = _get_ssh_key(ibm_vpc_client, DEFAULT_KEY_NAME)
+                    ibm_vpc_client.delete_key(id=key["id"])
+                    response = ibm_vpc_client.create_key(
+                        public_key=ssh_key_data, name=keyname, resource_group={"id": resource_group_id}, type="rsa"
+                    )
+                else:
+                    if "Key with fingerprint already exists" in e.message:
+                        logger.error("Can't register an SSH key with the same fingerprint")
+                    raise  (e)# can't continue the configuration process without a valid ssh key
+
+            logger.debug(f"\033[92mnew SSH key {keyname} been registered in vpc\033[0m")
+
+            result = response.get_result()
+            return result["name"], result["id"], ssh_key_path
+
+        _, key_id, ssh_key_path = _register_ssh_key(self.ibm_vpc_client,
+                                                    self.config['resource_group_id'])
+
+        return key_id, ssh_key_path, "root"
 
     def _create_vpc(self, vpc_data):
         """
@@ -312,6 +371,17 @@ class IBMVPCBackend:
                 # invalidate cached data
                 self.vpc_data = {}
 
+            if 'ssh_key_id' in self.vpc_data:
+                self.config['ssh_key_id'] = self.vpc_data['ssh_key_id']
+                self.config['ssh_key_filename'] = self.vpc_data['ssh_key_filename']
+
+            if 'ssh_key_id' not in self.config:
+                gen_key_id, gen_ssh_key_path, gen_ssh_user = self._create_ssh_key()
+                self.config['ssh_key_id'] = gen_key_id
+                self.config['ssh_key_filename'] = gen_ssh_key_path
+                self.config['ssh_username'] = gen_ssh_user
+                self.config['ssh_key_filename'] = gen_ssh_key_path
+
             # Create the VPC if not exists
             self._create_vpc(self.vpc_data)
             # Set the prefix used for the VPC resources
@@ -336,7 +406,9 @@ class IBMVPCBackend:
                 'floating_ip_id': self.config['floating_ip_id'],
                 'gateway_id': self.config['gateway_id'],
                 'zone_name': self.config['zone_name'],
-                'image_id': self.config['image_id']
+                'image_id': self.config['image_id'],
+                'ssh_key_id': self.config['ssh_key_id'],
+                'ssh_key_filename': self.config['ssh_key_filename']
             }
 
             dump_yaml_config(vpc_data_filename, self.vpc_data)
@@ -566,12 +638,6 @@ class IBMVPCInstance:
         self.private_ip = None
         self.public_ip = None
         self.home_dir = '/root'
-
-        if 'ssh_key_id' not in self.config['ssh_key_id']:
-            gen_key_id, gen_ssh_key_path, gen_ssh_user = create_default_ssh_key(self.ibm_vpc_client, self.config['resource_group_id'] )
-            self.config['ssh_key_id'] = gen_key_id
-            self.config['ssh_key_filename'] = gen_ssh_key_path
-            self.config['ssh_username'] = gen_ssh_user
 
         self.ssh_credentials = {
             'username': self.config['ssh_username'],
