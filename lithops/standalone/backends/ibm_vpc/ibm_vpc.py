@@ -379,8 +379,6 @@ class IBMVPCBackend:
                 gen_key_id, gen_ssh_key_path, gen_ssh_user = self._create_ssh_key()
                 self.config['ssh_key_id'] = gen_key_id
                 self.config['ssh_key_filename'] = gen_ssh_key_path
-                self.config['ssh_username'] = gen_ssh_user
-                self.config['ssh_key_filename'] = gen_ssh_key_path
 
             # Create the VPC if not exists
             self._create_vpc(self.vpc_data)
