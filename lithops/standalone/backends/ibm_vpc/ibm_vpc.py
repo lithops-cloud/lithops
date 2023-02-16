@@ -91,7 +91,7 @@ class IBMVPCBackend:
 
         vpc_info = None
 
-        host_id = str(uuid.getnode())[-4:]
+        host_id = str(uuid.getnode())[-6:]
         iam_id = self.iam_api_key[:4].lower()
         self.vpc_name = self.config.get('vpc_name', f'lithops-vpc-{iam_id}-{host_id}')
         logger.debug(f'Setting VPC name to: {self.vpc_name}')
@@ -157,21 +157,15 @@ class IBMVPCBackend:
             self.config['ssh_key_filename'] = vpc_data['ssh_key_filename']
             return
 
-        host_id = str(uuid.getnode())[-4:]
-        vpc_id = self.config["vpc_id"].split("-")[1]
-        keyname = f'lithops-key-{vpc_id}-{host_id}'
-
-        logger.debug("Generating new ssh key pair")
+        keyname = f'lithops-key-{str(uuid.getnode())[-6:]}'
 
         filename = os.path.join(".ssh", f"id.rsa.{keyname}")
         key_filename = os.path.abspath(os.path.expanduser(filename))
 
-        if os.path.isfile(key_filename):
-            os.remove(key_filename)
-
-        os.system(f'ssh-keygen -b 2048 -t rsa -f {key_filename} -q -N ""')
-
-        logger.debug(f"SHH key pair generated: {key_filename}")
+        if not os.path.isfile(key_filename):
+            logger.debug("Generating new ssh key pair")
+            os.system(f'ssh-keygen -b 2048 -t rsa -f {key_filename} -q -N ""')
+            logger.debug(f"SHH key pair generated: {key_filename}")
 
         with open(f"{key_filename}.pub", "r") as file:
             ssh_key_data = file.read()
@@ -185,30 +179,27 @@ class IBMVPCBackend:
                 if key["name"] == keyname:
                     return key
 
-        response = None
         try:  # regardless of the above, try registering an ssh-key
-            response = self.ibm_vpc_client.create_key(
+            result = self.ibm_vpc_client.create_key(
                 public_key=ssh_key_data, name=keyname, type="rsa",
                 resource_group={"id": self.config['resource_group_id']}
-            )
+            ).get_result()
         except ApiException as e:
             logger.error(e)
 
             if "Key with name already exists" in e.message:
                 key = _get_ssh_key()
                 self.ibm_vpc_client.delete_key(id=key["id"])
-                response = self.ibm_vpc_client.create_key(
+                result = self.ibm_vpc_client.create_key(
                     public_key=ssh_key_data, name=keyname, type="rsa",
                     resource_group={"id": self.config['resource_group_id']},
-                )
+                ).get_result()
             else:
                 if "Key with fingerprint already exists" in e.message:
                     logger.error("Can't register an SSH key with the same fingerprint")
                 raise e  # can't continue the configuration process without a valid ssh key
 
         logger.debug(f"New SSH key {keyname} registered in {self.vpc_name} VPC")
-
-        result = response.get_result()
 
         self.config['ssh_key_id'] = result["id"]
         self.config['ssh_key_filename'] = key_filename
@@ -513,7 +504,7 @@ class IBMVPCBackend:
                     vpc_data['vpc_id'] = vpc['id']
 
         if 'vpc_id' in vpc_data:
-            logger.info(f'Deleting VPC {self.vpc_name}')
+            logger.info(f'Deleting VPC {vpc_data["vpc_id"]}')
             try:
                 self.ibm_vpc_client.delete_vpc(vpc_data['vpc_id'])
             except ApiException as err:
