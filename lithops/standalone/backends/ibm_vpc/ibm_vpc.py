@@ -19,7 +19,6 @@ import functools
 import inspect
 import re
 import os
-from pathlib import Path
 import paramiko
 import time
 import logging
@@ -50,6 +49,7 @@ class IBMVPCBackend:
         self.config = ibm_vpc_config
         self.mode = mode
 
+        self.vpc_name = None
         self.vpc_data = None
         self.vpc_key = None
 
@@ -63,11 +63,8 @@ class IBMVPCBackend:
         self.master = None
         self.workers = []
 
-        iam_api_key = self.config.get('iam_api_key')
-        self.vpc_name = self.config.get('vpc_name', 'lithops-vpc-' + iam_api_key[:4].lower())
-        logger.debug(f'Setting VPC name to: {self.vpc_name}')
-
-        authenticator = IAMAuthenticator(iam_api_key, url=self.config.get('iam_endpoint'))
+        self.iam_api_key = self.config.get('iam_api_key')
+        authenticator = IAMAuthenticator(self.iam_api_key, url=self.config.get('iam_endpoint'))
         self.ibm_vpc_client = VpcV1(VPC_API_VERSION, authenticator=authenticator)
         self.ibm_vpc_client.set_service_url(self.config['endpoint'] + '/v1')
 
@@ -79,65 +76,6 @@ class IBMVPCBackend:
 
         msg = COMPUTE_CLI_MSG.format('IBM VPC')
         logger.info(f"{msg} - Region: {self.region}")
-
-    def _create_ssh_key(self):
-
-        def _generate_keypair(keyname):
-            """Returns newly generated public ssh-key's contents and private key's path"""
-            home = str(Path.home())
-            filename = f"{home}{os.sep}.ssh{os.sep}id.rsa.{keyname}"
-            try:
-                os.remove(filename)
-            except Exception:
-                pass
-
-            os.system(f'ssh-keygen -b 2048 -t rsa -f {filename} -q -N ""')
-            logger.debug(f"\n\n\033[92mSSH key pair been generated\n")
-            logger.debug(f"private key: {os.path.abspath(filename)}")
-            logger.debug(f"public key {os.path.abspath(filename)}.pub\033[0m")
-            with open(f"{filename}.pub", "r") as file:
-                ssh_key_data = file.read()
-            ssh_key_path = os.path.abspath(filename)
-            return ssh_key_data, ssh_key_path
-
-        def _get_ssh_key(ibm_vpc_client, name):
-            """Returns ssh key matching specified name, stored in the VPC associated with the vpc_client"""
-            for key in ibm_vpc_client.list_keys().result["keys"]:
-                if key["name"] == name:
-                    return key
-
-        def _register_ssh_key(ibm_vpc_client, resource_group_id):
-
-            keyname = self.vpc_name
-
-            ssh_key_data, ssh_key_path = _generate_keypair(keyname)
-
-            response = None
-            try:  # regardless of the above, try registering an ssh-key
-                response = ibm_vpc_client.create_key(public_key=ssh_key_data, name=keyname, resource_group={"id": resource_group_id}, type="rsa")
-            except ApiException as e:
-                logger.error(e)
-
-                if "Key with name already exists" in e.message:
-                    key = _get_ssh_key(ibm_vpc_client, keyname)
-                    ibm_vpc_client.delete_key(id=key["id"])
-                    response = ibm_vpc_client.create_key(
-                        public_key=ssh_key_data, name=keyname, resource_group={"id": resource_group_id}, type="rsa"
-                    )
-                else:
-                    if "Key with fingerprint already exists" in e.message:
-                        logger.error("Can't register an SSH key with the same fingerprint")
-                    raise  (e)# can't continue the configuration process without a valid ssh key
-
-            logger.debug(f"\033[92mnew SSH key {keyname} been registered in vpc\033[0m")
-
-            result = response.get_result()
-            return result["name"], result["id"], ssh_key_path
-
-        _, key_id, ssh_key_path = _register_ssh_key(self.ibm_vpc_client,
-                                                    self.config['resource_group_id'])
-
-        return key_id, ssh_key_path, "root"
 
     def _create_vpc(self, vpc_data):
         """
@@ -152,6 +90,11 @@ class IBMVPCBackend:
             return
 
         vpc_info = None
+
+        host_id = str(uuid.getnode())[-6:]
+        iam_id = self.iam_api_key[:4].lower()
+        self.vpc_name = self.config.get('vpc_name', f'lithops-vpc-{iam_id}-{host_id}')
+        logger.debug(f'Setting VPC name to: {self.vpc_name}')
 
         assert re.match("^[a-z0-9-:-]*$", self.vpc_name),\
             'VPC name "{}" not valid'.format(self.vpc_name)
@@ -203,6 +146,62 @@ class IBMVPCBackend:
         if deploy_icmp_rule:
             self.ibm_vpc_client.create_security_group_rule(self.config['security_group_id'],
                                                            sg_rule_prototype_icmp)
+
+    def _create_ssh_key(self, vpc_data):
+
+        if 'ssh_key_id' in self.config:
+            return
+
+        if 'ssh_key_id' in vpc_data:
+            self.config['ssh_key_id'] = vpc_data['ssh_key_id']
+            self.config['ssh_key_filename'] = vpc_data['ssh_key_filename']
+            return
+
+        keyname = f'lithops-key-{str(uuid.getnode())[-6:]}'
+        filename = os.path.join(".ssh", f"{keyname}.id_rsa")
+        key_filename = os.path.abspath(os.path.expanduser(filename))
+
+        if not os.path.isfile(key_filename):
+            logger.debug("Generating new ssh key pair")
+            os.system(f'ssh-keygen -b 2048 -t rsa -f {key_filename} -q -N ""')
+            logger.debug(f"SHH key pair generated: {key_filename}")
+
+        with open(f"{key_filename}.pub", "r") as file:
+            ssh_key_data = file.read()
+
+        def _get_ssh_key():
+            """
+            Returns ssh key matching specified name, stored in the
+            VPC associated with the vpc_client
+            """
+            for key in self.ibm_vpc_client.list_keys().result["keys"]:
+                if key["name"] == keyname:
+                    return key
+
+        try:  # regardless of the above, try registering an ssh-key
+            result = self.ibm_vpc_client.create_key(
+                public_key=ssh_key_data, name=keyname, type="rsa",
+                resource_group={"id": self.config['resource_group_id']}
+            ).get_result()
+        except ApiException as e:
+            logger.error(e)
+
+            if "Key with name already exists" in e.message:
+                key = _get_ssh_key()
+                self.ibm_vpc_client.delete_key(id=key["id"])
+                result = self.ibm_vpc_client.create_key(
+                    public_key=ssh_key_data, name=keyname, type="rsa",
+                    resource_group={"id": self.config['resource_group_id']},
+                ).get_result()
+            else:
+                if "Key with fingerprint already exists" in e.message:
+                    logger.error("Can't register an SSH key with the same fingerprint")
+                raise e  # can't continue the configuration process without a valid ssh key
+
+        logger.debug(f"SSH key {keyname} registered in VPC")
+
+        self.config['ssh_key_id'] = result["id"]
+        self.config['ssh_key_filename'] = key_filename
 
     def _create_subnet(self, vpc_data):
         """
@@ -370,17 +369,10 @@ class IBMVPCBackend:
                 # invalidate cached data
                 self.vpc_data = {}
 
-            if 'ssh_key_id' in self.vpc_data:
-                self.config['ssh_key_id'] = self.vpc_data['ssh_key_id']
-                self.config['ssh_key_filename'] = self.vpc_data['ssh_key_filename']
-
-            if 'ssh_key_id' not in self.config:
-                gen_key_id, gen_ssh_key_path, gen_ssh_user = self._create_ssh_key()
-                self.config['ssh_key_id'] = gen_key_id
-                self.config['ssh_key_filename'] = gen_ssh_key_path
-
             # Create the VPC if not exists
             self._create_vpc(self.vpc_data)
+            # Create the ssh key pair if not exists
+            self._create_ssh_key(self.vpc_data)
             # Set the prefix used for the VPC resources
             self.vpc_key = self.config['vpc_id'].split('-')[2]
             # Create a new subnaet if not exists
@@ -429,19 +421,22 @@ class IBMVPCBackend:
                 else:
                     raise err
 
-        vms_prefixes = ('lithops-worker',)
-        if all:
-            vms_prefixes = vms_prefixes + ('lithops-master-', )
+        vms_prefixes = ('lithops-worker', 'lithops-master') if all else ('lithops-worker',)
+
+        def get_instances():
+            instances = set()
+            instances_info = self.ibm_vpc_client.list_instances().get_result()
+            for ins in instances_info['instances']:
+                if ins['name'].startswith(vms_prefixes):
+                    instances.add((ins['name'], ins['id']))
+            return instances
 
         deleted_instances = set()
         while True:
             instances_to_delete = set()
-            instances_info = self.ibm_vpc_client.list_instances().get_result()
-            for ins in instances_info['instances']:
-                if ins['name'].startswith(vms_prefixes):
-                    ins_to_dlete = (ins['name'], ins['id'])
-                    if ins_to_dlete not in deleted_instances:
-                        instances_to_delete.add(ins_to_dlete)
+            for ins_to_delete in get_instances():
+                if ins_to_delete not in deleted_instances:
+                    instances_to_delete.add(ins_to_delete)
 
             if instances_to_delete:
                 with ThreadPoolExecutor(len(instances_to_delete)) as executor:
@@ -450,10 +445,17 @@ class IBMVPCBackend:
             else:
                 break
 
+        # Wait until all instances are deleted
+        while get_instances():
+            time.sleep(1)
+
     def _delete_subnet(self, vpc_data):
         """
         Deletes all VM instances in the VPC
         """
+        if 'subnet_id' in self.config:
+            return
+
         subnet_name = f'lithops-subnet-{self.vpc_key}'
         if 'subnet_id' not in vpc_data:
             subnets_info = self.ibm_vpc_client.list_subnets().get_result()
@@ -466,18 +468,19 @@ class IBMVPCBackend:
             logger.info(f'Deleting subnet {subnet_name}')
             try:
                 self.ibm_vpc_client.delete_subnet(vpc_data['subnet_id'])
-                time.sleep(5)
             except ApiException as err:
                 if err.code == 404 or err.code == 400:
                     logger.debug(err)
                 else:
                     raise err
-            time.sleep(5)
 
     def _delete_gateway(self, vpc_data):
         """
         Deletes the public gateway
         """
+        if 'gateway_id' in self.config:
+            return
+
         gateway_name = f'lithops-gateway-{self.vpc_key}'
         if 'gateway_id' not in vpc_data:
             gateways_info = self.ibm_vpc_client.list_public_gateways().get_result()
@@ -490,7 +493,6 @@ class IBMVPCBackend:
             logger.info(f'Deleting gateway {gateway_name}')
             try:
                 self.ibm_vpc_client.unset_subnet_public_gateway(vpc_data['subnet_id'])
-                time.sleep(5)
             except ApiException as err:
                 if err.code == 404 or err.code == 400:
                     logger.debug(err)
@@ -499,7 +501,37 @@ class IBMVPCBackend:
 
             try:
                 self.ibm_vpc_client.delete_public_gateway(vpc_data['gateway_id'])
-                time.sleep(5)
+            except ApiException as err:
+                if err.code == 404 or err.code == 400:
+                    logger.debug(err)
+                else:
+                    raise err
+
+    def _delete_ssh_key(self, vpc_data):
+        """
+        Deletes the ssh key
+        """
+        if 'ssh_key_id' in self.config:
+            return
+
+        keyname = f'lithops-key-{str(uuid.getnode())[-6:]}'
+        filename = os.path.join(".ssh", f"{keyname}.id_rsa")
+        key_filename = os.path.abspath(os.path.expanduser(filename))
+
+        if os.path.isfile(key_filename):
+            os.remove(key_filename)
+        if os.path.isfile(f"{key_filename}.pub"):
+            os.remove(f"{key_filename}.pub")
+
+        if 'ssh_key_id' not in vpc_data:
+            for key in self.ibm_vpc_client.list_keys().result["keys"]:
+                if key["name"] == keyname:
+                    vpc_data['ssh_key_id'] = key['id']
+
+        if 'ssh_key_id' in vpc_data:
+            logger.info(f'Deleting SSH key {keyname}')
+            try:
+                self.ibm_vpc_client.delete_key(id=vpc_data['ssh_key_id'])
             except ApiException as err:
                 if err.code == 404 or err.code == 400:
                     logger.debug(err)
@@ -510,6 +542,9 @@ class IBMVPCBackend:
         """
         Deletes the VPC
         """
+        if 'vpc_id' in self.config:
+            return
+
         if 'vpc_id' not in vpc_data:
             vpcs_info = self.ibm_vpc_client.list_vpcs().get_result()
             for vpc in vpcs_info['vpcs']:
@@ -517,7 +552,7 @@ class IBMVPCBackend:
                     vpc_data['vpc_id'] = vpc['id']
 
         if 'vpc_id' in vpc_data:
-            logger.info(f'Deleting VPC {self.vpc_name}')
+            logger.info(f'Deleting VPC {vpc_data["vpc_id"]}')
             try:
                 self.ibm_vpc_client.delete_vpc(vpc_data['vpc_id'])
             except ApiException as err:
@@ -539,12 +574,12 @@ class IBMVPCBackend:
             vpc_data_filename = os.path.join(self.cache_dir, 'data')
             vpc_data = load_yaml_config(vpc_data_filename)
             if not (vpc_data):
-                logger.error(f'Could not find local VPC data file in {vpc_data_filename}')
+                logger.debug(f'Could not find local VPC data file in {vpc_data_filename}')
                 return
             self.vpc_key = vpc_data['vpc_id'].split('-')[2]
-            time.sleep(5)
             self._delete_gateway(vpc_data)
             self._delete_subnet(vpc_data)
+            self._delete_ssh_key(vpc_data)
             self._delete_vpc(vpc_data)
 
     def clear(self, job_keys=None):
