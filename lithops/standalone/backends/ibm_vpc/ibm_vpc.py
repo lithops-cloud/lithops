@@ -423,15 +423,20 @@ class IBMVPCBackend:
 
         vms_prefixes = ('lithops-worker', 'lithops-master') if all else ('lithops-worker',)
 
-        deleted_instances = set()
-        while True:
-            instances_to_delete = set()
+        def get_instances():
+            instances = set()
             instances_info = self.ibm_vpc_client.list_instances().get_result()
             for ins in instances_info['instances']:
                 if ins['name'].startswith(vms_prefixes):
-                    ins_to_dlete = (ins['name'], ins['id'])
-                    if ins_to_dlete not in deleted_instances:
-                        instances_to_delete.add(ins_to_dlete)
+                    instances.add((ins['name'], ins['id']))
+            return instances
+
+        deleted_instances = set()
+        while True:
+            instances_to_delete = set()
+            for ins_to_delete in get_instances():
+                if ins_to_delete not in deleted_instances:
+                    instances_to_delete.add(ins_to_delete)
 
             if instances_to_delete:
                 with ThreadPoolExecutor(len(instances_to_delete)) as executor:
@@ -439,6 +444,10 @@ class IBMVPCBackend:
                 deleted_instances.update(instances_to_delete)
             else:
                 break
+
+        # Wait until all instances are deleted
+        while get_instances():
+            time.sleep(1)
 
     def _delete_subnet(self, vpc_data):
         """
@@ -511,8 +520,8 @@ class IBMVPCBackend:
 
         if os.path.isfile(key_filename):
             os.remove(key_filename)
-        if os.path.isfile(key_filename + '.pub'):
-            os.remove(key_filename + '.pub')
+        if os.path.isfile(f"{key_filename}.pub"):
+            os.remove(f"{key_filename}.pub")
 
         if 'ssh_key_id' not in vpc_data:
             for key in self.ibm_vpc_client.list_keys().result["keys"]:
@@ -565,9 +574,8 @@ class IBMVPCBackend:
             vpc_data_filename = os.path.join(self.cache_dir, 'data')
             vpc_data = load_yaml_config(vpc_data_filename)
             if not (vpc_data):
-                logger.error(f'Could not find local VPC data file in {vpc_data_filename}')
+                logger.debug(f'Could not find local VPC data file in {vpc_data_filename}')
                 return
-            time.sleep(5)
             self.vpc_key = vpc_data['vpc_id'].split('-')[2]
             self._delete_gateway(vpc_data)
             self._delete_subnet(vpc_data)
