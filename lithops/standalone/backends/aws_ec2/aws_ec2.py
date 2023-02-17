@@ -28,7 +28,7 @@ from lithops.version import __version__
 from lithops.util.ssh_client import SSHClient
 from lithops.constants import COMPUTE_CLI_MSG, CACHE_DIR
 from lithops.config import load_yaml_config, dump_yaml_config
-from lithops.standalone.utils import CLOUD_CONFIG_WORKER, CLOUD_CONFIG_WORKER_PK
+from lithops.standalone.utils import CLOUD_CONFIG_WORKER, CLOUD_CONFIG_WORKER_PK, ExecMode
 from lithops.standalone.standalone import LithopsValidationError
 
 
@@ -88,7 +88,7 @@ class AWSEC2Backend:
 
         logger.debug(f'Initializing AWS EC2 backend ({self.mode} mode)')
 
-        if self.mode == 'consume':
+        if self.mode == ExecMode.CONSUME.value:
             ins_id = self.config['instance_id']
 
             if self.mode != cahced_mode or ins_id != cahced_instance_id:
@@ -112,7 +112,7 @@ class AWSEC2Backend:
             self.master.delete_on_dismantle = False
             self.master.ssh_credentials.pop('password')
 
-        elif self.mode in ['create', 'reuse']:
+        elif self.mode in [ExecMode.CREATE.value, ExecMode.REUSE.value]:
             if self.mode != cahced_mode:
                 # invalidate cached data
                 self.ec2_data = {}
@@ -192,7 +192,6 @@ class AWSEC2Backend:
         Delete all the workers
         """
         # clear() is automatically called after get_result(),
-        # so no need to stop the master VM.
         self.dismantle(include_master=False)
 
     def dismantle(self, include_master=True):
@@ -204,7 +203,7 @@ class AWSEC2Backend:
                 ex.map(lambda worker: worker.stop(), self.workers)
             self.workers = []
 
-        if include_master and self.mode in ['consume']:
+        if include_master and self.mode == ExecMode.CONSUME.value:
             # in consume mode master VM is a worker
             self.master.stop()
 

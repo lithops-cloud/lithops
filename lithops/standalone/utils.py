@@ -1,4 +1,5 @@
 import json
+from enum import Enum
 
 from lithops.constants import (
     SA_INSTALL_DIR,
@@ -7,6 +8,16 @@ from lithops.constants import (
     SA_DATA_FILE,
     SA_TMP_DIR
 )
+
+
+class ExecMode(Enum):
+    """
+    Mode of execution
+    """
+    CONSUME = "consume"
+    CREATE = "create"
+    REUSE = "reuse"
+
 
 MASTER_SERVICE_NAME = 'lithops-master.service'
 MASTER_SERVICE_FILE = f"""

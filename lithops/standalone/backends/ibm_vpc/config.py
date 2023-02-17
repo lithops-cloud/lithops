@@ -23,7 +23,7 @@ MANDATORY_PARAMETERS_1 = ('endpoint',
 
 MANDATORY_PARAMETERS_3 = ('endpoint',
                           'instance_id',
-                          'ip_address',
+                          'floating_ip',
                           'iam_api_key')
 
 DEFAULT_CONFIG_KEYS = {
