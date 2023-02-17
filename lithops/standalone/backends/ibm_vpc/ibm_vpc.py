@@ -183,30 +183,40 @@ class IBMVPCBackend:
         filename = os.path.join(".ssh", f"{keyname}.id_rsa")
         key_filename = os.path.abspath(os.path.expanduser(filename))
 
+        key_info = None
+
+        def _get_ssh_key():
+            for key in self.ibm_vpc_client.list_keys().result["keys"]:
+                if key["name"] == keyname:
+                    return key
+
         if not os.path.isfile(key_filename):
             logger.debug("Generating new ssh key pair")
             os.system(f'ssh-keygen -b 2048 -t rsa -f {key_filename} -q -N ""')
             logger.debug(f"SHH key pair generated: {key_filename}")
-
-        with open(f"{key_filename}.pub", "r") as file:
-            ssh_key_data = file.read()
-
-        for key in self.ibm_vpc_client.list_keys().result["keys"]:
-            if key["name"] == keyname:
-                key_info = key
+        else:
+            key_info = _get_ssh_key()
 
         if not key_info:
+            with open(f"{key_filename}.pub", "r") as file:
+                ssh_key_data = file.read()
             try:
                 key_info = self.ibm_vpc_client.create_key(
                     public_key=ssh_key_data, name=keyname, type="rsa",
                     resource_group={"id": self.config['resource_group_id']}
                 ).get_result()
-                logger.debug(f"SSH key {keyname} registered in VPC")
             except ApiException as e:
                 logger.error(e)
-                if "Key with fingerprint already exists" in e.message:
-                    logger.error("Can't register an SSH key with the same fingerprint")
-                raise e  # can't continue the configuration process without a valid ssh key
+                if "Key with name already exists" in e.message:
+                    self.ibm_vpc_client.delete_key(id=_get_ssh_key()["id"])
+                    key_info = self.ibm_vpc_client.create_key(
+                        public_key=ssh_key_data, name=keyname, type="rsa",
+                        resource_group={"id": self.config['resource_group_id']},
+                    ).get_result()
+                else:
+                    if "Key with fingerprint already exists" in e.message:
+                        logger.error("Can't register an SSH key with the same fingerprint")
+                    raise e  # can't continue the configuration process without a valid ssh key
 
         self.config['ssh_key_id'] = key_info["id"]
         self.config['ssh_key_filename'] = key_filename
