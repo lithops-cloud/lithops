@@ -191,38 +191,24 @@ class IBMVPCBackend:
         with open(f"{key_filename}.pub", "r") as file:
             ssh_key_data = file.read()
 
-        def _get_ssh_key():
-            """
-            Returns ssh key matching specified name, stored in the
-            VPC associated with the vpc_client
-            """
-            for key in self.ibm_vpc_client.list_keys().result["keys"]:
-                if key["name"] == keyname:
-                    return key
+        for key in self.ibm_vpc_client.list_keys().result["keys"]:
+            if key["name"] == keyname:
+                key_info = key
 
-        try:  # regardless of the above, try registering an ssh-key
-            result = self.ibm_vpc_client.create_key(
-                public_key=ssh_key_data, name=keyname, type="rsa",
-                resource_group={"id": self.config['resource_group_id']}
-            ).get_result()
-        except ApiException as e:
-            logger.error(e)
-
-            if "Key with name already exists" in e.message:
-                key = _get_ssh_key()
-                self.ibm_vpc_client.delete_key(id=key["id"])
-                result = self.ibm_vpc_client.create_key(
+        if not key_info:
+            try:
+                key_info = self.ibm_vpc_client.create_key(
                     public_key=ssh_key_data, name=keyname, type="rsa",
-                    resource_group={"id": self.config['resource_group_id']},
+                    resource_group={"id": self.config['resource_group_id']}
                 ).get_result()
-            else:
+                logger.debug(f"SSH key {keyname} registered in VPC")
+            except ApiException as e:
+                logger.error(e)
                 if "Key with fingerprint already exists" in e.message:
                     logger.error("Can't register an SSH key with the same fingerprint")
                 raise e  # can't continue the configuration process without a valid ssh key
 
-        logger.debug(f"SSH key {keyname} registered in VPC")
-
-        self.config['ssh_key_id'] = result["id"]
+        self.config['ssh_key_id'] = key_info["id"]
         self.config['ssh_key_filename'] = key_filename
 
     def _create_subnet(self):
@@ -338,10 +324,7 @@ class IBMVPCBackend:
         Creates the master VM insatnce
         """
         if self.mode in [ExecMode.CREATE.value, ExecMode.REUSE.value]:
-            if 'image_id' in self.config:
-                return
-
-            if 'image_id' in self.vpc_data:
+            if 'image_id' not in self.config and 'image_id' in self.vpc_data:
                 self.config['image_id'] = self.vpc_data['image_id']
 
             if 'image_id' not in self.config:
