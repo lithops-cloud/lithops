@@ -68,22 +68,22 @@ standalone:
     exec_mode: reuse
 
 ibm_vpc:
-    endpoint: <REGION_ENDPOINT>
+    region: <REGION>
     resource_group_id: <RESOURCE_GROUP_ID>
-    ssh_key_id: <PUBLIC_KEY_ID>
 ```
 
 ### Summary of the configuration keys for the *create* and *reuse* mode
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|ibm_vpc | endpoint | |yes | Endpoint of your VPC region. For example: https://eu-gb.iaas.cloud.ibm.com |
+|ibm_vpc | region | |yes | VPC Region. For example `us-south`. Choose one region from [here](https://cloud.ibm.com/docs/vpc?topic=vpc-service-endpoints-for-vpc) |
 |ibm_vpc | resource_group_id | | yes | Resource group id from your IBM Cloud account. Get it from https://cloud.ibm.com/account/resource-groups |
 |ibm_vpc | vpc_id | | no | VPC id of an existing VPC. Get it from https://cloud.ibm.com/vpc-ext/network/vpcs |
 |ibm_vpc | vpc_name | | no | VPC name of an existing VPC (if `vpc_id` is not provided) |
 |ibm_vpc | security_group_id | | no | Security group id of an existing VPC. Get it from https://cloud.ibm.com/vpc-ext/network/securityGroups|
 |ibm_vpc | subnet_id | | no | Subnet id of an existing VPC. Get it from https://cloud.ibm.com/vpc-ext/network/subnets|
 |ibm_vpc | ssh_key_id | | no | SSH public key id. Get it from https://cloud.ibm.com/vpc-ext/compute/sshKeys|
+|ibm_vpc | gateway_id | | no | Gateway id. Get it from https://cloud.ibm.com/vpc-ext/network/publicGateways|
 |ibm_vpc | image_id | | no | Virtual machine image id |
 |ibm_vpc | ssh_username | root |no | Username to access the VPC |
 |ibm_vpc | ssh_password |  |no | Password for accessing the worker VMs. If not provided, it is created randomly|
@@ -113,9 +113,9 @@ Edit your lithops config and add the relevant keys:
 	  iam_api_key: <iam-api-key>
 
    ibm_vpc:
-      endpoint   : <REGION_ENDPOINT>
+      region   : <REGION>
       instance_id : <INSTANCE ID OF THE VM>
-      ip_address  : <FLOATING IP ADDRESS OF THE VM>
+      floating_ip  : <FLOATING IP ADDRESS OF THE VM>
    ```
 
 If you need to create new VM, then follow the steps to create and update Lithops configuration:
@@ -130,9 +130,9 @@ If you need to create new VM, then follow the steps to create and update Lithops
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|ibm_vpc | endpoint | |yes | Endpoint of your subnet region |
+|ibm_vpc | region | |yes | VPC Region. For example `us-south`. Choose one region from [here](https://cloud.ibm.com/docs/vpc?topic=vpc-service-endpoints-for-vpc) |
 |ibm_vpc | instance_id | | yes | virtual server instance ID |
-|ibm_vpc | ip_address | | yes | Floatting IP address atached to your Vm instance|
+|ibm_vpc | floating_ip | | yes | Floatting IP address atached to your VM instance|
 |ibm_vpc | ssh_key_filename | | no | Path to the ssh key file provided to create the VM. It will use the default path if not provided |
 |ibm_vpc | worker_processes | 2 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker. It is recommendable to set this value to the same number of CPUs of the VM. |
 

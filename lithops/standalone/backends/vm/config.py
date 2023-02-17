@@ -14,6 +14,8 @@
 # limitations under the License.
 #
 
+REQ_PARAMETERS = ('ip_address', 'ssh_username')
+
 
 def load_config(config_data):
 
@@ -22,12 +24,9 @@ def load_config(config_data):
     if 'worker_processes' not in config_data['vm']:
         config_data['vm']['worker_processes'] = 1
 
-    if 'ip_address' not in config_data['vm']:
-        msg = 'ip_address is mandatory in "vm" section of the configuration'
-        raise Exception(msg)
-
-    if 'ssh_username' not in config_data['vm']:
-        msg = 'ssh_username is mandatory in "vm" section of the configuration'
-        raise Exception(msg)
+    for param in REQ_PARAMETERS:
+        if param not in config_data['vm']:
+            msg = f"'{param}' is mandatory in 'vm' section of the configuration"
+            raise Exception(msg)
 
     config_data['standalone']['auto_dismantle'] = False

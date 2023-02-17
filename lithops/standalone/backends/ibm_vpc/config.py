@@ -17,12 +17,10 @@
 
 import uuid
 
-MANDATORY_PARAMETERS_1 = ('endpoint',
-                          'resource_group_id',
+MANDATORY_PARAMETERS_1 = ('resource_group_id',
                           'iam_api_key')
 
-MANDATORY_PARAMETERS_3 = ('endpoint',
-                          'instance_id',
+MANDATORY_PARAMETERS_3 = ('instance_id',
                           'floating_ip',
                           'iam_api_key')
 
@@ -41,6 +39,7 @@ DEFAULT_CONFIG_KEYS = {
 
 VPC_ENDPOINT = "https://{}.iaas.cloud.ibm.com"
 
+REGIONS = ["jp-tok", "jp-osa", "au-syd", "eu-gb", "eu-de", "us-south", "us-east", "br-sao", "ca-tor"]
 
 def load_config(config_data):
     if 'ibm' in config_data and config_data['ibm'] is not None:
@@ -61,5 +60,16 @@ def load_config(config_data):
         if param not in config_data['ibm_vpc']:
             msg = f"'{param}' is mandatory in 'ibm_vpc' section of the configuration"
             raise Exception(msg)
+
+    if "region" not in config_data['ibm_vpc'] and "endpoint" not in config_data['ibm_vpc']:
+        msg = "'region' or 'endpoint' parameter is mandatory in 'ibm_vpc' section of the configuration"
+        raise Exception(msg)
+
+    if "region" in config_data['ibm_vpc']:
+        region = config_data['ibm_vpc']['region']
+        if region not in REGIONS:
+            msg = f"'region' conig parameter in 'ibm_vpc' section must be one of {REGIONS}"
+            raise Exception(msg)
+        config_data['ibm_vpc']['endpoint'] = VPC_ENDPOINT.format(region)
 
     config_data['ibm_vpc']['endpoint'] = config_data['ibm_vpc']['endpoint'].replace('/v1', '')

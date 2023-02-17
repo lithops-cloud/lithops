@@ -375,8 +375,8 @@ class IBMVPCBackend:
 
         if self.mode == ExecMode.CONSUME.value:
 
-            if not self.vpc_data or self.config['instance_id'] != self.vpc_data.get('instance_id'):
-                ins_id = self.config['instance_id']
+            ins_id = self.config['instance_id']
+            if not self.vpc_data or ins_id != self.vpc_data.get('instance_id'):
                 self.config['instance_name'] = self.ibm_vpc_client.get_instance(ins_id).get_result()['name']
 
             # Create the master VM instance
