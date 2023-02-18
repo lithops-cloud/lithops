@@ -8,6 +8,9 @@
 - [IBM] Force --platform=linux/amd64 in the "lithops runtime build" command
 - [k8s] Added boto3 as a dependency of the default runtime
 - [IBM VPC] Automatically get the ubuntu image ID
+- [IBM VPC] Allowed to reuse floating IPs
+- [IBM VPC] Automatically create resources if not provided in config
+- [IBM VPC] Added 'region' config parameter
 
 ### Changed
 - [IBM VPC] Reduced the number of mandatory config parameters

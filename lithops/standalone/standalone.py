@@ -26,7 +26,7 @@ import concurrent.futures as cf
 
 from lithops.utils import is_lithops_worker, create_handler_zip
 from lithops.constants import SA_SERVICE_PORT, SA_INSTALL_DIR, TEMP_DIR
-from lithops.standalone.utils import get_master_setup_script
+from lithops.standalone.utils import ExecMode, get_master_setup_script
 from lithops.version import __version__
 
 logger = logging.getLogger(__name__)
@@ -234,7 +234,7 @@ class StandaloneHandler:
         chunksize = job_payload['chunksize']
 
         total_required_workers = (total_calls // chunksize + (total_calls % chunksize > 0)
-                                  if self.exec_mode in ['create', 'reuse'] else 1)
+                                  if self.exec_mode in [ExecMode.CREATE.value, ExecMode.REUSE.value] else 1)
 
         def create_workers(workers_to_create):
             current_workers_old = set(self.backend.workers)
@@ -265,14 +265,14 @@ class StandaloneHandler:
 
         new_workers = []
 
-        if self.exec_mode == 'consume':
+        if self.exec_mode == ExecMode.CONSUME.value:
             total_workers = total_required_workers
 
-        elif self.exec_mode == 'create':
+        elif self.exec_mode == ExecMode.CREATE.value:
             new_workers = create_workers(total_required_workers)
             total_workers = len(new_workers)
 
-        elif self.exec_mode == 'reuse':
+        elif self.exec_mode == ExecMode.REUSE.value:
             workers = self._get_workers_on_master()
             total_workers = len(workers)
             logger.debug(f"Found {total_workers} free workers "
@@ -387,7 +387,7 @@ class StandaloneHandler:
         except Exception:
             pass
 
-        if self.exec_mode != 'reuse':
+        if self.exec_mode != ExecMode.REUSE.value:
             self.backend.clear(job_keys)
 
     def get_runtime_key(self, runtime_name, runtime_memory, version=__version__):
