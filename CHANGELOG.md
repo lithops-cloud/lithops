@@ -1,16 +1,27 @@
 # Changelog
+
 ## [v2.8.1.dev0]
 
 ### Added
 - [AWS S3] Allow to use a public bucket without credentials
 - [IBM] Automatically login to the container registry if the credentials are present in config
-- [IBM] Force --platform=linux/amd64 in the "docker build command"
+- [IBM] Force --platform=linux/amd64 in the "lithops runtime build" command
+- [k8s] Added boto3 as a dependency of the default runtime
+- [IBM VPC] Automatically get the ubuntu image ID
+- [IBM VPC] Allowed to reuse floating IPs
+- [IBM VPC] Automatically create resources if not provided in config
+- [IBM VPC] Added 'region' config parameter
 
 ### Changed
-- 
+- [IBM VPC] Reduced the number of mandatory config parameters
+- [IBM VPC] Renamed profile_name config param to worker_profile_name
 
 ### Fixed
-- 
+- [AWS EC2] Fix spot instance price
+- [Cli] Fix wrong config in the "lithops runtime update" command
+- [Standalone] Fix missing private IP address
+- [VM] Fix VM standalone backend
+
 
 ## [v2.8.0]
 

@@ -1,29 +1,37 @@
-# Define custom function directory
+# Python 3.6
+#FROM python:3.6-slim-buster
+
+# Python 3.7
+#FROM python:3.7-slim-buster
+
+# Python 3.8
+#FROM python:3.8-slim-buster
+
+# Python 3.9
+#FROM python:3.9-slim-buster
+
+# Python 3.10
+FROM python:3.10-slim-buster
+
+RUN apt-get update \
+    # Install aws-lambda-cpp build dependencies
+    && apt-get install -y \
+      g++ \
+      make \
+      cmake \
+      unzip \
+    # cleanup package lists, they are not used anymore in this image
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-cache search linux-headers-generic
+
 ARG FUNCTION_DIR="/function"
-
-FROM python:3.9-buster as build-image
-
-# Include global arg in this stage of the build
-ARG FUNCTION_DIR
-
-# Install aws-lambda-cpp build dependencies
-RUN apt-get update && \
-  apt-get install -y \
-  g++ \
-  make \
-  cmake \
-  unzip \
-  libcurl4-openssl-dev
 
 # Copy function code
 RUN mkdir -p ${FUNCTION_DIR}
 
 # Update pip
-RUN pip install --upgrade --ignore-installed pip wheel six setuptools
-
-# Install the function's dependencies
-RUN pip install --upgrade --no-cache-dir --ignore-installed\
-    --target ${FUNCTION_DIR} \
+RUN pip install --upgrade --ignore-installed pip wheel six setuptools \
+    && pip install --upgrade --no-cache-dir --ignore-installed \
         awslambdaric \
         boto3 \
         redis \
@@ -38,16 +46,8 @@ RUN pip install --upgrade --no-cache-dir --ignore-installed\
         ps-mem \
         tblib
 
-
-FROM python:3.9-buster
-
-# Include global arg in this stage of the build
-ARG FUNCTION_DIR
 # Set working directory to function root directory
 WORKDIR ${FUNCTION_DIR}
-
-# Copy in the built dependencies
-COPY --from=build-image ${FUNCTION_DIR} ${FUNCTION_DIR}
 
 # Add Lithops
 COPY lithops_lambda.zip ${FUNCTION_DIR}

@@ -115,9 +115,9 @@ class Storage:
         """
         Upload a file to a bucket of the storage backend. (Multipart upload)
 
+        :param file_name: Name of the file to upload
         :param bucket: Name of the bucket
         :param key: Key of the object
-        :param body: Object data
         :param extra_args: Extra get arguments to be passed to the underlying backend implementation (dict).
         """
         return self.storage_handler.upload_file(file_name, bucket, key, extra_args)
@@ -129,7 +129,7 @@ class Storage:
 
         :param bucket: Name of the bucket
         :param key: Key of the object
-        :param stream: Get the object data or a file-like object
+        :param file_name: Name of the file to save the object data
         :param extra_args: Extra get arguments to be passed to the underlying backend implementation (dict).
 
         :return: Object, as a binary array or as a file-like stream if parameter `stream` is enabled
