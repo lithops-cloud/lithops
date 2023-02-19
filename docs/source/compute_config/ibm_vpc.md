@@ -90,7 +90,7 @@ ibm_vpc:
 |ibm_vpc | ssh_key_filename | | no | Path to the ssh key file provided to access the VPC. It will use the default path if not provided |
 |ibm_vpc | boot_volume_profile | general-purpose | no | Virtual machine boot volume profile |
 |ibm_vpc | boot_volume_capacity | 100 | no | Virtual machine boot volume capacity in GB. Set it to 10 if using a custom image. |
-|ibm_vpc | profile_name | cx2-2x4 | no | Profile name for the worker VMs |
+|ibm_vpc | worker_profile_name | cx2-2x4 | no | Profile name for the worker VMs |
 |ibm_vpc | master_profile_name | cx2-2x4 | no | Profile name for the master VM |
 |ibm_vpc | delete_on_dismantle | True | no | Delete the worekr VMs when they are stopped |
 |ibm_vpc | max_workers | 100 | no | Max number of workers per `FunctionExecutor()`|

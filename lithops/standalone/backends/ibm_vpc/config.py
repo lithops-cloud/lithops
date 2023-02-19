@@ -26,7 +26,7 @@ MANDATORY_PARAMETERS_3 = ('instance_id',
 
 DEFAULT_CONFIG_KEYS = {
     'master_profile_name': 'cx2-2x4',
-    'profile_name': 'cx2-2x4',
+    'worker_profile_name': 'cx2-2x4',
     'boot_volume_profile': 'general-purpose',
     'ssh_username': 'root',
     'ssh_password': str(uuid.uuid4()),
@@ -60,6 +60,9 @@ def load_config(config_data):
         if param not in config_data['ibm_vpc']:
             msg = f"'{param}' is mandatory in 'ibm_vpc' section of the configuration"
             raise Exception(msg)
+
+    if "profile_name" in config_data['ibm_vpc']:
+        config_data['worker_profile_name'] = config_data['profile_name']
 
     if "region" not in config_data['ibm_vpc'] and "endpoint" not in config_data['ibm_vpc']:
         msg = "'region' or 'endpoint' parameter is mandatory in 'ibm_vpc' section of the configuration"

@@ -14,6 +14,7 @@
 
 ### Changed
 - [IBM VPC] Reduced the number of mandatory config parameters
+- [IBM VPC] Renamed profile_name config param to worker_profile_name
 
 ### Fixed
 - [AWS EC2] Fix spot instance price
