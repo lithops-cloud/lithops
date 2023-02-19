@@ -491,9 +491,6 @@ class IBMVPCBackend:
         """
         Deletes all VM instances in the VPC
         """
-        if 'subnet_id' in self.config:
-            return
-
         subnet_name = f'lithops-subnet-{self.vpc_key}'
         if 'subnet_id' not in self.vpc_data:
             subnets_info = self.vpc_cli.list_subnets().get_result()
@@ -525,9 +522,6 @@ class IBMVPCBackend:
         """
         Deletes the public gateway
         """
-        if 'gateway_id' in self.config:
-            return
-
         gateway_name = f'lithops-gateway-{self.vpc_key}'
         if 'gateway_id' not in self.vpc_data:
             gateways_info = self.vpc_cli.list_public_gateways().get_result()
@@ -550,9 +544,6 @@ class IBMVPCBackend:
         """
         Deletes the ssh key
         """
-        if 'ssh_key_id' in self.config:
-            return
-
         keyname = f'lithops-key-{str(uuid.getnode())[-6:]}'
         filename = os.path.join("~", ".ssh", f"{keyname}.id_rsa")
         key_filename = os.path.expanduser(filename)
@@ -581,9 +572,6 @@ class IBMVPCBackend:
         """
         Deletes the VPC
         """
-        if 'vpc_id' in self.config:
-            return
-
         if 'vpc_id' not in self.vpc_data:
             vpcs_info = self.vpc_cli.list_vpcs().get_result()
             for vpc in vpcs_info['vpcs']:
