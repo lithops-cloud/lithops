@@ -26,7 +26,7 @@ MANDATORY_PARAMETERS_3 = ('instance_id',
 
 DEFAULT_CONFIG_KEYS = {
     'master_profile_name': 'cx2-2x4',
-    'profile_name': 'cx2-2x4',
+    'worker_profile_name': 'cx2-2x4',
     'boot_volume_profile': 'general-purpose',
     'ssh_username': 'root',
     'ssh_password': str(uuid.uuid4()),

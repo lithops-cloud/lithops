@@ -85,7 +85,7 @@ class IBMVPCBackend:
         self.vpc_data = load_yaml_config(vpc_data_filename)
 
         if not self.vpc_data:
-            logger.debug(f'Could not find local VPC data file in {vpc_data_filename}')
+            logger.debug(f'Could not find VPC cache data in {vpc_data_filename}')
         elif 'vpc_id' in self.vpc_data:
             self.vpc_key = self.vpc_data['vpc_id'].split('-')[2]
 
@@ -193,7 +193,7 @@ class IBMVPCBackend:
 
         keyname = f'lithops-key-{str(uuid.getnode())[-6:]}'
         filename = os.path.join("~", ".ssh", f"{keyname}.id_rsa")
-        key_filename = os.path.abspath(os.path.expanduser(filename))
+        key_filename = os.path.expanduser(filename)
 
         key_info = None
 
@@ -554,8 +554,8 @@ class IBMVPCBackend:
             return
 
         keyname = f'lithops-key-{str(uuid.getnode())[-6:]}'
-        filename = os.path.join(".ssh", f"{keyname}.id_rsa")
-        key_filename = os.path.abspath(os.path.expanduser(filename))
+        filename = os.path.join("~", ".ssh", f"{keyname}.id_rsa")
+        key_filename = os.path.expanduser(filename)
 
         if os.path.isfile(key_filename):
             os.remove(key_filename)
@@ -692,7 +692,7 @@ class IBMVPCInstance:
         self.config = ibm_vpc_config
 
         self.delete_on_dismantle = self.config['delete_on_dismantle']
-        self.profile_name = self.config['profile_name']
+        self.profile_name = self.config['worker_profile_name']
 
         self.vpc_cli = ibm_vpc_client or self._create_vpc_client()
         self.public = public
