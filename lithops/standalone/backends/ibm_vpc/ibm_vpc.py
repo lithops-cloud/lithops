@@ -192,7 +192,7 @@ class IBMVPCBackend:
                 pass
 
         keyname = f'lithops-key-{str(uuid.getnode())[-6:]}'
-        filename = os.path.join(".ssh", f"{keyname}.id_rsa")
+        filename = os.path.join("~", ".ssh", f"{keyname}.id_rsa")
         key_filename = os.path.abspath(os.path.expanduser(filename))
 
         key_info = None
