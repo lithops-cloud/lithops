@@ -23,8 +23,7 @@ install_requires = [
     'ibm-vpc',
     'cloudpickle',
     'tblib',
-    'ps-mem',
-    'globber'
+    'ps-mem'
 ]
 
 
