@@ -305,13 +305,21 @@ def _split_objects_from_object_storage(
         if type(elem['obj']) == CloudObject:
             elem['obj'] = f"{elem['obj'].backend}://{elem['obj'].bucket}/{elem['obj'].key}"
         sb, bucket, prefix, obj_name = utils.split_object_url(elem['obj'])
+        if sb is None:
+            sb = internal_storage.backend
+            elem['obj'] = f"{sb}://{elem['obj']}"
+
         sbs.add(sb)
 
     if len(sbs) > 1:
         raise Exception('Process objects from multiple storage backends is not supported. '
                         f'Current storage backends: {sbs}')
 
-
+    sb = sbs.pop()
+    if sb == internal_storage.backend:
+        storage = internal_storage.storage
+    else:
+        storage = Storage(config=config, backend=sb)
     partitions = []
     parts_per_object = []
 
@@ -382,12 +390,6 @@ def _split_objects_from_object_storage(
         if type(elem['obj']) == CloudObject:
             elem['obj'] = f"{elem['obj'].backend}://{elem['obj'].bucket}/{elem['obj'].key}"
         sb, bucket, prefix, obj_name = utils.split_object_url(elem['obj'])
-        if sb is None:
-            sb = internal_storage.backend
-            elem['obj'] = f"{sb}://{elem['obj']}"
-            storage = internal_storage.storage
-        else:
-            storage = Storage(config=config, backend=sb)
 
         if obj_name:
             match_pattern = None
