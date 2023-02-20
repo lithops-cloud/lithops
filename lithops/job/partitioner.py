@@ -299,93 +299,21 @@ def _split_objects_from_object_storage(
         logger.debug('Chunk size and chunk number not set')
 
     sbs = set()
-    buckets = set()
-    prefixes = set()
-    obj_names = set()
-    bucket_json_locations = {}
 
+    # check that only one schemma provided. Throw exception if more than one provided
     for elem in map_func_args_list:
         if type(elem['obj']) == CloudObject:
             elem['obj'] = f"{elem['obj'].backend}://{elem['obj'].bucket}/{elem['obj'].key}"
         sb, bucket, prefix, obj_name = utils.split_object_url(elem['obj'])
-        if sb is None:
-            sb = internal_storage.backend
-            elem['obj'] = f"{sb}://{elem['obj']}"
-        if obj_name:
-            obj_names.add((bucket, prefix, obj_name))
-        elif prefix:
-            prefixes.add((bucket, prefix))
-        else:
-            buckets.add(bucket)
         sbs.add(sb)
-        bucket_json_locations[bucket] = elem['json_location']
 
     if len(sbs) > 1:
         raise Exception('Process objects from multiple storage backends is not supported. '
                         f'Current storage backends: {sbs}')
-    sb = sbs.pop()
-    if sb == internal_storage.backend:
-        storage = internal_storage.storage
-    else:
-        storage = Storage(config=config, backend=sb)
 
-    objects = {}
+
     partitions = []
     parts_per_object = []
-
-    if obj_names:
-        for bucket, prefix, obj_name in obj_names:
-            match_pattern = None
-            if sb in ['aws_s3', 'ibm_cos'] and (prefix.find('*') > -1 or obj_name.find('*') > -1):
-
-                match_pattern = os.path.join(prefix, obj_name)
-
-                if prefix.find('*') > -1:
-                    prefix = prefix[:prefix.index('*')]
-                else:
-                    prefix = os.path.join(prefix, obj_name[:obj_name.index('*')])
-
-            if bucket not in objects:
-                objects[bucket] = []
-            prefix = prefix + '/' if prefix else prefix
-            if match_pattern is not None:
-                logger.debug(f"Listing objects with Globber {match_pattern} in {sb}://{'/'.join([bucket, prefix])}")
-                objects[bucket].extend(storage.list_objects(bucket, prefix, match_pattern))
-            else:
-                # this is wrong to list prefix only, as it may return more objects than requested
-                logger.debug(f"Head on object  {sb}://{'/'.join([bucket, prefix, obj_name])}")
-                head_md = storage.head_object(bucket, os.path.join(prefix, obj_name))
-                head_md['Key'] = os.path.join(prefix, obj_name)
-                head_md['Size'] = int(head_md['content-length'])
-                objects[bucket].append(head_md)
-
-    elif prefixes:
-        for bucket, prefix in prefixes:
-            match_pattern = None
-            if sb in ['aws_s3', 'ibm_cos'] and prefix.find('*') > -1:
-
-                match_pattern = prefix
-                if prefix.find('*') > -1:
-                    prefix = prefix[:prefix.index('*')]
-
-                logger.debug(f"Listing prefixes with Globber {match_pattern} in {sb}://{'/'.join([bucket, prefix])}")
-            else:
-                logger.debug(f"Listing prefixes in {sb}://{'/'.join([bucket, prefix])}")
-
-            if bucket not in objects:
-                objects[bucket] = []
-            prefix = prefix + '/' if prefix else prefix
-            objects[bucket].extend(storage.list_objects(bucket, prefix, match_pattern))
-
-    elif buckets:
-        for bucket in buckets:
-            logger.debug(f"Listing objects in {sb}://{bucket}")
-            objects[bucket] = storage.list_objects(bucket)
-
-    logger.debug(f"Total objects found: {len(objects[bucket])}")
-
-    if all([len(objects[bucket]) == 0 for bucket in objects]):
-        raise Exception(f'No objects found in bucket: {", ".join(objects.keys())}')
 
     def _split(bucket, key, entry, obj_size):
 
@@ -446,14 +374,74 @@ def _split_objects_from_object_storage(
         partitions.extend(obj_partitions)
         parts_per_object.append(obj_total_partitions)
 
-    #keys_dict = {}
-    for bucket in objects:
-        logger.debug(f"Partitioner has discovered {len(objects[bucket])} in {bucket}")
-        #keys_dict[bucket] = {}
-        for obj in objects[bucket]:
-            key = obj['Key']
-            entry = {'obj' : f'{sb}://{bucket}/{key}', 'json_location' : bucket_json_locations[bucket]}
-            _split(bucket, key, entry, obj['Size'] )
-            #keys_dict[bucket][obj['Key']] = obj['Size']
+    total_objects = int(0)
+    for elem in map_func_args_list:
+        objects = []
+        exclude = {'obj'}
+        params = {k: elem[k] for k in set(list(elem.keys())) - set(exclude)}
+        if type(elem['obj']) == CloudObject:
+            elem['obj'] = f"{elem['obj'].backend}://{elem['obj'].bucket}/{elem['obj'].key}"
+        sb, bucket, prefix, obj_name = utils.split_object_url(elem['obj'])
+        if sb is None:
+            sb = internal_storage.backend
+            elem['obj'] = f"{sb}://{elem['obj']}"
+            storage = internal_storage.storage
+        else:
+            storage = Storage(config=config, backend=sb)
+
+        if obj_name:
+            match_pattern = None
+            if sb in ['aws_s3', 'ibm_cos'] and (prefix.find('*') > -1 or obj_name.find('*') > -1):
+
+                match_pattern = os.path.join(prefix, obj_name)
+
+                if prefix.find('*') > -1:
+                    prefix = prefix[:prefix.index('*')]
+                else:
+                    prefix = '/'.join(prefix, obj_name[:obj_name.index('*')])
+
+            prefix = prefix + '/' if prefix else prefix
+            if match_pattern is not None:
+                logger.debug(f"Listing objects with Globber {match_pattern} in {sb}://{'/'.join([bucket, prefix])}")
+                objects = storage.list_objects(bucket, prefix, match_pattern)
+            else:
+                # this is wrong to list prefix only, as it may return more objects than requested
+                logger.debug(f"Head on object  {sb}://{'/'.join([bucket, prefix, obj_name])}")
+                head_md = storage.head_object(bucket, os.path.join(prefix, obj_name))
+                head_md['Key'] = os.path.join(prefix, obj_name)
+                head_md['Size'] = int(head_md['content-length'])
+                objects.append(head_md)
+
+        elif prefix:
+            match_pattern = None
+            if sb in ['aws_s3', 'ibm_cos'] and prefix.find('*') > -1:
+
+                match_pattern = prefix
+                if prefix.find('*') > -1:
+                    prefix = prefix[:prefix.index('*')]
+
+                logger.debug(f"Listing prefixes with Globber {match_pattern} in {sb}://{'/'.join([bucket, prefix])}")
+            else:
+                logger.debug(f"Listing prefixes in {sb}://{'/'.join([bucket, prefix])}")
+
+            prefix = prefix + '/' if prefix else prefix
+            objects = storage.list_objects(bucket, prefix, match_pattern)
+        else:
+            logger.debug(f"Listing objects in {sb}://{bucket}")
+            objects = storage.list_objects(bucket)
+
+        total_objects = total_objects + len(objects)
+        for dobj in objects:
+            key = dobj['Key']
+            entry = {'obj' : f'{sb}://{bucket}/{key}'}
+            entry.update(params)
+            _split(bucket, key, entry, dobj['Size'] )
+
+
+    logger.debug(f"Total objects found: {total_objects}")
+    if total_objects == 0 :
+        raise Exception(f'No objects found')
+
+
 
     return partitions, parts_per_object
