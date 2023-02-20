@@ -23,7 +23,7 @@ import botocore
 from lithops.storage.utils import StorageNoSuchKeyError
 from lithops.utils import sizeof_fmt
 from lithops.constants import STORAGE_CLI_MSG
-from globber import match
+from lithops.libs.globber import match
 
 logger = logging.getLogger(__name__)
 
