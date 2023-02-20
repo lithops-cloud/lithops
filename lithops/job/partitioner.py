@@ -387,8 +387,6 @@ def _split_objects_from_object_storage(
         objects = []
         exclude = {'obj'}
         params = {k: elem[k] for k in set(list(elem.keys())) - set(exclude)}
-        if type(elem['obj']) == CloudObject:
-            elem['obj'] = f"{elem['obj'].backend}://{elem['obj'].bucket}/{elem['obj'].key}"
         sb, bucket, prefix, obj_name = utils.split_object_url(elem['obj'])
 
         if obj_name:
