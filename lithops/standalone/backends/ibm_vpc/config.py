@@ -62,7 +62,7 @@ def load_config(config_data):
             raise Exception(msg)
 
     if "profile_name" in config_data['ibm_vpc']:
-        config_data['worker_profile_name'] = config_data['profile_name']
+        config_data['ibm_vpc']['worker_profile_name'] = config_data['ibm_vpc']['profile_name']
 
     if "region" not in config_data['ibm_vpc'] and "endpoint" not in config_data['ibm_vpc']:
         msg = "'region' or 'endpoint' parameter is mandatory in 'ibm_vpc' section of the configuration"
