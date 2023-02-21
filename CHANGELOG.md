@@ -1,6 +1,15 @@
 # Changelog
 
-## [v2.8.1.dev0]
+## [v2.9.1.dev0]
+
+### Added
+
+### Changed
+
+### Fixed
+
+
+## [v2.9.0]
 
 ### Added
 - [AWS S3] Allow to use a public bucket without credentials
@@ -11,10 +20,12 @@
 - [IBM VPC] Allowed to reuse floating IPs
 - [IBM VPC] Automatically create resources if not provided in config
 - [IBM VPC] Added 'region' config parameter
+- [Partitioner] Allow wildcards in the object reference
 
 ### Changed
 - [IBM VPC] Reduced the number of mandatory config parameters
 - [IBM VPC] Renamed profile_name config param to worker_profile_name
+- [IBM VPC] Renamed ip_address config param to floating_ip
 
 ### Fixed
 - [AWS EC2] Fix spot instance price
