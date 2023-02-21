@@ -194,7 +194,7 @@ class InfinispanHotrodBackend:
         """
         raise NotImplementedError
 
-    def list_objects(self, bucket_name, prefix=None):
+    def list_objects(self, bucket_name, prefix=None, match_pattern = None):
         """
         Return a list of objects for the given bucket and prefix.
         :param bucket_name: Name of the bucket.

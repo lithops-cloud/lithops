@@ -22,6 +22,7 @@ from lithops.storage.utils import StorageNoSuchKeyError
 from lithops.utils import sizeof_fmt, is_lithops_worker
 from lithops.util.ibm_token_manager import IBMTokenManager
 from lithops.constants import STORAGE_CLI_MSG
+from lithops.libs.globber import match
 
 logger = logging.getLogger(__name__)
 
@@ -263,7 +264,7 @@ class IBMCloudObjectStorageBackend:
             else:
                 raise e
 
-    def list_objects(self, bucket_name, prefix=None):
+    def list_objects(self, bucket_name, prefix=None, match_pattern = None):
         """
         Return a list of objects for the given bucket and prefix.
         :param bucket_name: Name of the bucket.
@@ -280,7 +281,8 @@ class IBMCloudObjectStorageBackend:
             for page in page_iterator:
                 if 'Contents' in page:
                     for item in page['Contents']:
-                        object_list.append(item)
+                        if match_pattern is None or (match_pattern is not None and match(match_pattern, item['Key'])):
+                            object_list.append(item)
             return object_list
         except ibm_botocore.exceptions.ClientError as e:
             if e.response['Error']['Code'] == '404':
