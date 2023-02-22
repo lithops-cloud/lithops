@@ -30,7 +30,7 @@ DEFAULT_CONFIG_KEYS = {
 
 
 REQ_PARAMS_1 = ('instance_id', 'region_name')
-REQ_PARAMS_2 = ('region_name', 'vpc_id', 'iam_role', 'key_name', 'security_group_id')
+REQ_PARAMS_2 = ('region_name', 'vpc_id', 'iam_role', 'ssh_key_name', 'security_group_id')
 
 
 def load_config(config_data):
@@ -50,7 +50,7 @@ def load_config(config_data):
 
     for param in params_to_check:
         if param not in config_data['aws_ec2']:
-            msg = "'{}' is mandatory in 'aws_ec2' section of the configuration".format(param)
+            msg = f"'{param}' is mandatory in 'aws_ec2' section of the configuration"
             raise Exception(msg)
 
     for key in DEFAULT_CONFIG_KEYS:

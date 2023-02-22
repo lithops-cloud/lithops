@@ -51,7 +51,7 @@ class IBMVPCBackend:
 
         self.vpc_name = None
         self.vpc_data = None
-        self.vpc_key = None
+        self.vpc_key = self.config['vpc_id'].split('-')[2] if 'vpc_id' in self.config else None
 
         self.endpoint = self.config['endpoint']
         self.region = self.endpoint.split('//')[1].split('.')[0]
@@ -374,12 +374,6 @@ class IBMVPCBackend:
         self.master.delete_on_dismantle = False
         self.master.ssh_credentials.pop('password')
 
-        if self.mode in [ExecMode.CREATE.value, ExecMode.REUSE.value]:
-            instance_data = self.master.get_instance_data()
-            if instance_data:
-                self.master.private_ip = instance_data['primary_network_interface']['primary_ipv4_address']
-                self.master.instance_id = instance_data['id']
-
     def init(self):
         """
         Initialize the VPC
@@ -403,7 +397,7 @@ class IBMVPCBackend:
                 'mode': self.mode,
                 'instance_id': self.config['instance_id'],
                 'instance_name': self.config['instance_name'],
-                'floating_ip': self.config['ip_address']
+                'floating_ip': self.config['floating_ip']
             }
 
         elif self.mode in [ExecMode.CREATE.value, ExecMode.REUSE.value]:
@@ -750,9 +744,11 @@ class IBMVPCInstance:
                 raise LithopsValidationError(
                     f"No public key from keys: {names} on master {self} not a pair for private ssh key {key_filename}")
 
-        if self.private_ip or self.public_ip:
-            if not self.ssh_client:
-                self.ssh_client = SSHClient(self.public_ip or self.private_ip, self.ssh_credentials)
+        if not self.ssh_client:
+            if self.public and self.public_ip:
+                self.ssh_client = SSHClient(self.public_ip, self.ssh_credentials)
+            elif self.private_ip:
+                self.ssh_client = SSHClient(self.private_ip, self.ssh_credentials)
 
         return self.ssh_client
 
@@ -791,10 +787,7 @@ class IBMVPCInstance:
 
         start = time.time()
 
-        if self.public:
-            self.get_public_ip()
-        else:
-            self.get_private_ip()
+        self.get_public_ip() if self.public else self.get_private_ip()
 
         while (time.time() - start < timeout):
             if self.is_ready():
@@ -809,7 +802,7 @@ class IBMVPCInstance:
         """
         Creates a new VM instance
         """
-        logger.debug("Creating new VM instance {}".format(self.name))
+        logger.debug(f"Creating new VM instance {self.name}")
 
         security_group_identity_model = {'id': self.config['security_group_id']}
         subnet_identity_model = {'id': self.config['subnet_id']}
@@ -857,9 +850,12 @@ class IBMVPCInstance:
                              .format(self.name, str(err.code), err.message))
             raise err
 
-        logger.debug("VM instance {} created successfully ".format(self.name))
+        self.instance_data = resp.result
+        self.instance_id = self.instance_data['id']
 
-        return resp.result
+        logger.debug(f"VM instance {self.name} created successfully")
+
+        return self.instance_data
 
     def _attach_floating_ip(self, instance):
         """
@@ -885,12 +881,10 @@ class IBMVPCInstance:
         """
         Returns the instance information
         """
-        # if self.instance_id:
-        #    self.instance_data = self.vpc_cli.get_instance(self.instance_id).get_result()
-
         instances_data = self.vpc_cli.list_instances(name=self.name).get_result()
         if len(instances_data['instances']) > 0:
             self.instance_data = instances_data['instances'][0]
+            self.instance_id = self.instance_data['id']
 
         return self.instance_data
 
@@ -898,22 +892,32 @@ class IBMVPCInstance:
         """
         Returns the instance ID
         """
+        if not self.instance_id and self.instance_data:
+            self.instance_id = self.instance_data['id']
+
         if not self.instance_id:
             instance_data = self.get_instance_data()
             if instance_data:
                 self.instance_id = instance_data['id']
             else:
                 logger.debug(f'VM instance {self.name} does not exists')
+
         return self.instance_id
 
     def get_private_ip(self):
         """
         Requests the private IP address
         """
+        if not self.private_ip and self.instance_data:
+            self.private_ip = self.instance_data['primary_network_interface']['primary_ipv4_address']
+
         while not self.private_ip or self.private_ip == '0.0.0.0':
-            time.sleep(1)
             instance_data = self.get_instance_data()
-            self.private_ip = instance_data['primary_network_interface']['primary_ipv4_address']
+            private_ip = instance_data['primary_network_interface']['primary_ipv4_address']
+            if private_ip != '0.0.0.0':
+                self.private_ip = private_ip
+            else:
+                time.sleep(1)
 
         return self.private_ip
 
@@ -921,6 +925,9 @@ class IBMVPCInstance:
         """
         Requests the public IP address
         """
+        if not self.public:
+            return None
+
         return self.public_ip
 
     def create(self, check_if_exists=False, user_data=None):
@@ -931,20 +938,15 @@ class IBMVPCInstance:
         vsi_exists = True if self.instance_id else False
 
         if check_if_exists and not vsi_exists:
-            logger.debug('Checking if VM instance {} already exists'.format(self.name))
+            logger.debug(f'Checking if VM instance {self.name} already exists')
             instances_data = self.get_instance_data()
             if instances_data:
-                logger.debug('VM instance {} already exists'.format(self.name))
+                logger.debug(f'VM instance {self.name} already exists')
                 vsi_exists = True
-                self.instance_id = instances_data['id']
 
-        if not vsi_exists:
-            instance = self._create_instance(user_data=user_data)
-            self.instance_id = instance['id']
-        else:
-            self.start()
+        instance = self._create_instance(user_data=user_data) if not vsi_exists else self.start()
 
-        if self.public and instance:
+        if instance and self.public:
             self._attach_floating_ip(instance)
 
         return self.instance_id
@@ -953,7 +955,7 @@ class IBMVPCInstance:
         """
         Starts the VM instance
         """
-        logger.debug("Starting VM instance {}".format(self.name))
+        logger.debug(f"Starting VM instance {self.name}")
 
         try:
             self.vpc_cli.create_instance_action(self.instance_id, 'start')
@@ -963,13 +965,13 @@ class IBMVPCInstance:
             else:
                 raise err
 
-        logger.debug("VM instance {} started successfully".format(self.name))
+        logger.debug(f"VM instance {self.name} started successfully")
 
     def _delete_instance(self):
         """
         Deletes the VM instacne and the associated volume
         """
-        logger.debug("Deleting VM instance {}".format(self.name))
+        logger.debug(f"Deleting VM instance {self.name}")
         try:
             self.vpc_cli.delete_instance(self.instance_id)
         except ApiException as err:
@@ -977,6 +979,8 @@ class IBMVPCInstance:
                 pass
             else:
                 raise err
+
+        self.instance_data = None
         self.instance_id = None
         self.private_ip = None
         self.del_ssh_client()
@@ -985,7 +989,7 @@ class IBMVPCInstance:
         """
         Stops the VM instance
         """
-        logger.debug("Stopping VM instance {}".format(self.name))
+        logger.debug(f"Stopping VM instance {self.name}")
         try:
             self.vpc_cli.create_instance_action(self.instance_id, 'stop')
         except ApiException as err:
