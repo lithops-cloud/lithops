@@ -20,7 +20,7 @@ import uuid
 MANDATORY_PARAMETERS_1 = ('resource_group_id',
                           'iam_api_key')
 
-MANDATORY_PARAMETERS_3 = ('instance_id',
+MANDATORY_PARAMETERS_2 = ('instance_id',
                           'floating_ip',
                           'iam_api_key')
 
@@ -53,7 +53,7 @@ def load_config(config_data):
        and config_data['standalone']['exec_mode'] in ['create', 'reuse']:
         params_to_check = MANDATORY_PARAMETERS_1
     else:
-        params_to_check = MANDATORY_PARAMETERS_3
+        params_to_check = MANDATORY_PARAMETERS_2
         config_data['ibm_vpc']['max_workers'] = 1
 
     for param in params_to_check:

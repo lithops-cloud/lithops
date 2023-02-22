@@ -77,17 +77,17 @@ ibm_vpc:
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |ibm_vpc | region | |yes | VPC Region. For example `us-south`. Choose one region from [here](https://cloud.ibm.com/docs/vpc?topic=vpc-service-endpoints-for-vpc) |
-|ibm_vpc | resource_group_id | | yes | Resource group id from your IBM Cloud account. Get it from https://cloud.ibm.com/account/resource-groups |
-|ibm_vpc | vpc_id | | no | VPC id of an existing VPC. Get it from https://cloud.ibm.com/vpc-ext/network/vpcs |
+|ibm_vpc | resource_group_id | | yes | Resource group id from your IBM Cloud account. Get it from [here](https://cloud.ibm.com/account/resource-groups) |
+|ibm_vpc | vpc_id | | no | VPC id of an existing VPC. Get it from [here](https://cloud.ibm.com/vpc-ext/network/vpcs) |
 |ibm_vpc | vpc_name | | no | VPC name of an existing VPC (if `vpc_id` is not provided) |
-|ibm_vpc | security_group_id | | no | Security group id of an existing VPC. Get it from https://cloud.ibm.com/vpc-ext/network/securityGroups|
-|ibm_vpc | subnet_id | | no | Subnet id of an existing VPC. Get it from https://cloud.ibm.com/vpc-ext/network/subnets|
-|ibm_vpc | ssh_key_id | | no | SSH public key id. Get it from https://cloud.ibm.com/vpc-ext/compute/sshKeys|
-|ibm_vpc | gateway_id | | no | Gateway id. Get it from https://cloud.ibm.com/vpc-ext/network/publicGateways|
+|ibm_vpc | security_group_id | | no | Security group id of an existing VPC. Get it from [here](https://cloud.ibm.com/vpc-ext/network/securityGroups)|
+|ibm_vpc | subnet_id | | no | Subnet id of an existing VPC. Get it from [here](https://cloud.ibm.com/vpc-ext/network/subnets)|
+|ibm_vpc | ssh_key_id | | no | SSH public key id. Get it from [here](https://cloud.ibm.com/vpc-ext/compute/sshKeys)|
+|ibm_vpc | gateway_id | | no | Gateway id. Get it from [here](https://cloud.ibm.com/vpc-ext/network/publicGateways)|
 |ibm_vpc | image_id | | no | Virtual machine image id |
-|ibm_vpc | ssh_username | root |no | Username to access the VPC |
+|ibm_vpc | ssh_username | root |no | Username to access the VM |
 |ibm_vpc | ssh_password |  |no | Password for accessing the worker VMs. If not provided, it is created randomly|
-|ibm_vpc | ssh_key_filename | | no | Path to the ssh key file provided to access the VPC. It will use the default path if not provided |
+|ibm_vpc | ssh_key_filename | ~/.ssh/id_rsa | no | Path to the ssh key file provided to access the VPC. It will use the default path if not provided |
 |ibm_vpc | boot_volume_profile | general-purpose | no | Virtual machine boot volume profile |
 |ibm_vpc | boot_volume_capacity | 100 | no | Virtual machine boot volume capacity in GB. Set it to 10 if using a custom image. |
 |ibm_vpc | worker_profile_name | cx2-2x4 | no | Profile name for the worker VMs |
@@ -133,7 +133,8 @@ If you need to create new VM, then follow the steps to create and update Lithops
 |ibm_vpc | region | |yes | VPC Region. For example `us-south`. Choose one region from [here](https://cloud.ibm.com/docs/vpc?topic=vpc-service-endpoints-for-vpc) |
 |ibm_vpc | instance_id | | yes | virtual server instance ID |
 |ibm_vpc | floating_ip | | yes | Floatting IP address atached to your VM instance|
-|ibm_vpc | ssh_key_filename | | no | Path to the ssh key file provided to create the VM. It will use the default path if not provided |
+|ibm_vpc | ssh_username | root |no | Username to access the VM |
+|ibm_vpc | ssh_key_filename | ~/.ssh/id_rsa | no | Path to the ssh key file provided to create the VM. It will use the default path if not provided |
 |ibm_vpc | worker_processes | 2 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker. It is recommendable to set this value to the same number of CPUs of the VM. |
 
 
