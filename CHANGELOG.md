@@ -3,10 +3,13 @@
 ## [v2.9.1.dev0]
 
 ### Added
+- [Executor] Allow to set all the compute backend params programatically in the FunctionExecutor()
 
 ### Changed
+-
 
 ### Fixed
+-
 
 
 ## [v2.9.0]

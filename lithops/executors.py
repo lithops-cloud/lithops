@@ -65,8 +65,8 @@ class FunctionExecutor:
     :param monitoring: Monitoring system implementation. One of: storage, rabbitmq
     :param max_workers: Max number of parallel workers
     :param worker_processes: Worker granularity, number of concurrent/parallel processes in each worker
-    :param remote_invoker: Spawn a function that will perform the actual job invocation (True/False)
     :param log_level: Log level printing (INFO, DEBUG, ...). Set it to None to hide all logs. If this is param is set, all logging params in config are disabled
+    :param kwargs: Any parameter that can be set in the compute backend section of the config file, can be set here
     """
 
     def __init__(
@@ -80,8 +80,8 @@ class FunctionExecutor:
         monitoring: Optional[str] = None,
         max_workers: Optional[int] = None,
         worker_processes: Optional[int] = None,
-        remote_invoker: Optional[bool] = None,
-        log_level: Optional[str] = False
+        log_level: Optional[str] = False,
+        **kwargs: Optional[Dict[str, Any]]
     ):
         self.is_lithops_worker = is_lithops_worker()
         self.executor_id = create_executor_id()
@@ -105,12 +105,12 @@ class FunctionExecutor:
             config_ow['backend']['runtime'] = runtime
         if runtime_memory is not None:
             config_ow['backend']['runtime_memory'] = int(runtime_memory)
-        if remote_invoker is not None:
-            config_ow['backend']['remote_invoker'] = remote_invoker
         if worker_processes is not None:
             config_ow['backend']['worker_processes'] = worker_processes
         if max_workers is not None:
             config_ow['backend']['max_workers'] = max_workers
+        for key, value in kwargs.items():
+            config_ow['backend'][key] = value
 
         if mode is not None:
             config_ow['lithops']['mode'] = mode
@@ -760,8 +760,8 @@ class ServerlessExecutor(FunctionExecutor):
         max_workers: Optional[int] = None,
         worker_processes: Optional[int] = None,
         monitoring: Optional[str] = None,
-        remote_invoker: Optional[bool] = None,
-        log_level: Optional[str] = False
+        log_level: Optional[str] = False,
+        **kwargs: Optional[Dict[str, Any]]
     ):
         super().__init__(
             config=config,
@@ -774,7 +774,7 @@ class ServerlessExecutor(FunctionExecutor):
             worker_processes=worker_processes,
             monitoring=monitoring,
             log_level=log_level,
-            remote_invoker=remote_invoker
+            kwargs=kwargs
         )
 
 
@@ -801,7 +801,8 @@ class StandaloneExecutor(FunctionExecutor):
         max_workers: Optional[int] = None,
         worker_processes: Optional[int] = None,
         monitoring: Optional[str] = None,
-        log_level: Optional[str] = False
+        log_level: Optional[str] = False,
+        **kwargs: Optional[Dict[str, Any]]
     ):
         super().__init__(
             config=config,
@@ -812,5 +813,6 @@ class StandaloneExecutor(FunctionExecutor):
             max_workers=max_workers,
             worker_processes=worker_processes,
             monitoring=monitoring,
-            log_level=log_level
+            log_level=log_level,
+            kwargs=kwargs,
         )
