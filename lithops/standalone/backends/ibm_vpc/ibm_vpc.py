@@ -459,7 +459,8 @@ class IBMVPCBackend:
             instances = set()
             instances_info = self.vpc_cli.list_instances().get_result()
             for ins in instances_info['instances']:
-                if ins['name'].startswith(vms_prefixes):
+                if ins['name'].startswith(vms_prefixes) \
+                   and ins['vpc']['id'] == self.vpc_data['vpc_id']:
                     instances.add((ins['name'], ins['id']))
             return instances
 
@@ -589,10 +590,10 @@ class IBMVPCBackend:
         """
         logger.debug('Cleaning IBM VPC resources')
 
+        self._load_vpc_data()
         self._delete_vm_instances(all=all)
 
         if all:
-            self._load_vpc_data()
             self._delete_subnet()
             self._delete_gateway()
             self._delete_ssh_key()
