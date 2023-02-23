@@ -9,7 +9,8 @@
 -
 
 ### Fixed
--
+- [IBM VPC] Make sure only VMs from the given VPC are deleted
+- [AWS EC2] Make sure only VMs from the given VPC are deleted
 
 
 ## [v2.9.0]

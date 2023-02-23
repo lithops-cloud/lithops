@@ -189,19 +189,22 @@ class AWSEC2Backend:
 
         self._dump_ec2_data()
 
-    def _delete_worker_vm_instances(self):
+    def _delete_vm_instances(self, all=False):
         """
         Deletes all worker VM instances
         """
         logger.info('Deleting all Lithops worker VMs in EC2')
 
+        vms_prefixes = ('lithops-worker', 'lithops-master') if all else ('lithops-worker',)
+
         ins_to_delete = []
         response = self.ec2_client.describe_instances()
         for res in response['Reservations']:
             for ins in res['Instances']:
-                if ins['State']['Name'] != 'terminated' and 'Tags' in ins:
+                if ins['State']['Name'] != 'terminated' and 'Tags' in ins \
+                   and self.config['vpc_id'] == ins['VpcId']:
                     for tag in ins['Tags']:
-                        if tag['Key'] == 'Name' and tag['Value'].startswith('lithops-worker'):
+                        if tag['Key'] == 'Name' and tag['Value'].startswith(vms_prefixes):
                             ins_to_delete.append(ins['InstanceId'])
                             logger.info(f"Going to delete VM instance {tag['Value']}")
 
@@ -214,9 +217,8 @@ class AWSEC2Backend:
         The gateway public IP and the floating IP are never deleted
         """
         logger.debug('Cleaning AWS EC2 resources')
-        self._delete_worker_vm_instances()
-        if all:
-            self.master.delete()
+        self._load_ec2_data()
+        self._delete_vm_instances(all)
 
     def clear(self, job_keys=None):
         """
