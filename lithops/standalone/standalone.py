@@ -103,11 +103,8 @@ class StandaloneHandler:
         cmd = f'cat {SA_INSTALL_DIR}/access.data'
         res = ssh_client.run_remote_command(cmd)
         if not res:
-            self.dismantle()
-            raise LithopsValidationError(
-                f"Lithops service not installed on {self.backend.master}, "
-                "consider using 'lithops clean' to delete runtime metadata "
-                "or 'lithops clean --all' to delete master instance as well")
+            self._setup_master_service()
+            self._wait_master_service_ready()
 
         master_lithops_version = json.loads(res).get('lithops_version')
         if master_lithops_version != __version__:
