@@ -118,17 +118,7 @@ class AWSEC2Backend:
         self.master.profile_name = self.config['master_instance_type']
         self.master.delete_on_dismantle = False
         self.master.ssh_credentials.pop('password')
-
-        if self.mode in [ExecMode.CREATE.value, ExecMode.REUSE.value]:
-            instance_data = self.master.get_instance_data()
-            if instance_data:
-                if 'InstanceId' in instance_data:
-                    self.master.instance_id = instance_data['InstanceId']
-                if 'PrivateIpAddress' in instance_data:
-                    self.master.private_ip = instance_data['PrivateIpAddress']
-                if instance_data['State']['Name'] == 'running' and \
-                   'PublicIpAddress' in instance_data:
-                    self.master.public_ip = instance_data['PublicIpAddress']
+        self.master.get_instance_data()
 
     def _request_spot_price(self):
         """
@@ -507,32 +497,30 @@ class EC2Instance:
         """
         Returns the instance information
         """
+        instance_data = None
+
         if self.instance_id:
-            instances = self.ec2_client.describe_instances(InstanceIds=[self.instance_id])
-            instances = instances['Reservations'][0]['Instances']
-            if len(instances) > 0:
-                self.instance_data = instances[0]
-                self.instance_id = self.instance_data['InstanceId']
-                return self.instance_data
+            res = self.ec2_client.describe_instances(InstanceIds=[self.instance_id])
+            instance_data = res['Reservations'][0]['Instances'][0]
         else:
             filters = [{'Name': 'tag:Name', 'Values': [self.name]}]
-            resp = self.ec2_client.describe_instances(Filters=filters)
-            if len(resp['Reservations']) > 0:
-                for res in resp['Reservations']:
-                    instance_data = res['Instances'][0]
-                    if instance_data['State']['Name'] != 'terminated':
-                        self.instance_data = instance_data
-                        self.instance_id = instance_data['InstanceId']
-                        return self.instance_data
+            res = self.ec2_client.describe_instances(Filters=filters)
+            instance_data = res['Reservations'][0]['Instances'][0]
 
-        return None
+        if instance_data and instance_data['State']['Name'] != 'terminated':
+            self.instance_data = instance_data
+            self.instance_id = instance_data['InstanceId']
+            self.private_ip = self.instance_data.get('PrivateIpAddress')
+            self.public_ip = self.instance_data.get('PublicIpAddress')
+
+        return self.instance_data
 
     def get_instance_id(self):
         """
         Returns the instance ID
         """
         if not self.instance_id and self.instance_data:
-            self.instance_id = self.instance_data['InstanceId']
+            self.instance_id = self.instance_data.get('InstanceId')
 
         if not self.instance_id:
             instance_data = self.get_instance_data()
@@ -565,6 +553,9 @@ class EC2Instance:
         """
         if not self.public:
             return None
+
+        if not self.public_ip and self.instance_data:
+            self.public_ip = self.instance_data.get('PublicIpAddress')
 
         while not self.public_ip or self.public_ip == '0.0.0.0':
             instance_data = self.get_instance_data()

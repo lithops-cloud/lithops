@@ -100,14 +100,10 @@ class StandaloneHandler:
 
         ssh_client = self.backend.master.get_ssh_client()
 
-        cmd = f'cat {SA_INSTALL_DIR}/access.data'
-        res = ssh_client.run_remote_command(cmd)
+        res = ssh_client.run_remote_command(f'cat {SA_INSTALL_DIR}/access.data')
         if not res:
-            self.dismantle()
-            raise LithopsValidationError(
-                f"Lithops service not installed on {self.backend.master}, "
-                "consider using 'lithops clean' to delete runtime metadata "
-                "or 'lithops clean --all' to delete master instance as well")
+            self._setup_master_service()
+            return
 
         master_lithops_version = json.loads(res).get('lithops_version')
         if master_lithops_version != __version__:
@@ -133,8 +129,6 @@ class StandaloneHandler:
         """
         Waits until the proxy is ready to receive http connections
         """
-        self._validate_master_service_setup()
-
         logger.info(f'Waiting Lithops service to become ready on {self.backend.master}')
 
         start = time.time()
@@ -239,10 +233,7 @@ class StandaloneHandler:
         def create_workers(workers_to_create):
             current_workers_old = set(self.backend.workers)
             futures = []
-            with cf.ThreadPoolExecutor(min(workers_to_create + 1, 48)) as ex:
-                if not self._is_master_service_ready():
-                    futures.append(ex.submit(lambda: self.backend.master.create(check_if_exists=True)))
-
+            with cf.ThreadPoolExecutor(min(workers_to_create, 48)) as ex:
                 for vm_n in range(workers_to_create):
                     worker_id = "{:04d}".format(vm_n)
                     name = f'lithops-worker-{executor_id}-{job_id}-{worker_id}'
@@ -291,9 +282,12 @@ class StandaloneHandler:
                      f'activations in {min(total_workers, total_required_workers)} workers')
 
         logger.debug(f"Checking if {self.backend.master} is ready")
-        if not self._is_master_service_ready():
+        if self._is_master_service_ready():
+            self._validate_master_service_setup()
+        else:
             self.backend.master.create(check_if_exists=True)
             self.backend.master.wait_ready()
+            self._validate_master_service_setup()
             self._wait_master_service_ready()
 
         job_payload['worker_instances'] = [
@@ -431,7 +425,7 @@ class StandaloneHandler:
         master_path = os.path.join(os.path.dirname(__file__), 'master.py')
         create_handler_zip(handler_zip, [master_path, worker_path])
 
-        logger.debug('Uploading lithops files to {}'.format(self.backend.master))
+        logger.debug(f'Uploading lithops files to {self.backend.master}')
         ssh_client.upload_local_file(handler_zip, '/tmp/lithops_standalone.zip')
         os.remove(handler_zip)
 
@@ -441,7 +435,7 @@ class StandaloneHandler:
                    'delete_on_dismantle': self.backend.master.delete_on_dismantle,
                    'lithops_version': __version__}
 
-        logger.debug('Executing lithops installation process on {}'.format(self.backend.master))
+        logger.debug(f'Executing lithops installation process on {self.backend.master}')
         logger.debug('Be patient, initial installation process may take up to 3 minutes')
 
         remote_script = "/tmp/install_lithops.sh"
