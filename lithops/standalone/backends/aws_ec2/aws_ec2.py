@@ -234,7 +234,7 @@ class AWSEC2Backend:
                 ex.map(lambda worker: worker.stop(), self.workers)
             self.workers = []
 
-        if include_master and self.mode == ExecMode.CONSUME.value:
+        if include_master or self.mode == ExecMode.CONSUME.value:
             # in consume mode master VM is a worker
             self.master.stop()
 

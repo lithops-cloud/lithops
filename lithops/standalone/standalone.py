@@ -81,7 +81,7 @@ class StandaloneHandler:
                 if data['response'] == __version__:
                     return True
                 else:
-                    self.dismantle()
+                    self.dismantle(include_master=False)
                     raise LithopsValidationError(
                         f"Lithops version {data['response']} on {self.backend.master}, "
                         f"doesn't match local lithops version {__version__}, consider "
@@ -96,34 +96,22 @@ class StandaloneHandler:
         """
         Checks the master VM is correctly installed
         """
-        logger.debug(f'Validating lithops version installed on master matches {__version__}')
+        logger.debug(f'Validating lithops master service is installed on {self.backend.master}')
 
         ssh_client = self.backend.master.get_ssh_client()
-
         res = ssh_client.run_remote_command(f'cat {SA_INSTALL_DIR}/access.data')
         if not res:
             self._setup_master_service()
             return
 
-        master_lithops_version = json.loads(res).get('lithops_version')
-        if master_lithops_version != __version__:
-            self.dismantle()
-            raise LithopsValidationError(
-                f"Lithops version {master_lithops_version} on {self.backend.master}, "
-                f"doesn't match local lithops version {__version__}, consider "
-                "running 'lithops clean' to delete runtime  metadata leftovers or "
-                "'lithops clean --all' to delete master instance as well")
-
-        logger.debug("Validating lithops lithops master service is "
-                     f"running on {self.backend.master}")
+        logger.debug(f"Validating lithops master service is running on {self.backend.master}")
         res = ssh_client.run_remote_command("service lithops-master status")
         if not res or 'Active: active (running)' not in res:
             self.dismantle()
             raise LithopsValidationError(
                 f"Lithops master service not active on {self.backend.master}, "
-                f"consider to delete master instance and metadata using "
-                "'lithops clean --all'", res)
-        # self.backend.master.del_ssh_client()  # Client is deleted in clear()
+                "consider to delete master instance and metadata using "
+                "'lithops clean --all'")
 
     def _wait_master_service_ready(self):
         """
@@ -282,9 +270,7 @@ class StandaloneHandler:
                      f'activations in {min(total_workers, total_required_workers)} workers')
 
         logger.debug(f"Checking if {self.backend.master} is ready")
-        if self._is_master_service_ready():
-            self._validate_master_service_setup()
-        else:
+        if not self._is_master_service_ready():
             self.backend.master.create(check_if_exists=True)
             self.backend.master.wait_ready()
             self._validate_master_service_setup()
@@ -350,11 +336,11 @@ class StandaloneHandler:
 
         return runtime_meta
 
-    def dismantle(self):
+    def dismantle(self, **kwargs):
         """
         Stop all VM instances
         """
-        self.backend.dismantle()
+        self.backend.dismantle(**kwargs)
 
     def clean(self, **kwargs):
         """
