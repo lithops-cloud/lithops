@@ -499,15 +499,15 @@ class EC2Instance:
         """
         Returns the instance information
         """
-        instance_data = None
-
         if self.instance_id:
             res = self.ec2_client.describe_instances(InstanceIds=[self.instance_id])
-            instance_data = res['Reservations'][0]['Instances'][0]
+            reserv = res['Reservations']
         else:
             filters = [{'Name': 'tag:Name', 'Values': [self.name]}]
             res = self.ec2_client.describe_instances(Filters=filters)
-            instance_data = res['Reservations'][0]['Instances'][0]
+            reserv = res['Reservations']
+
+        instance_data = reserv[0]['Instances'][0] if len(reserv) > 0 else None
 
         if instance_data and instance_data['State']['Name'] != 'terminated':
             self.instance_data = instance_data
