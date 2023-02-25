@@ -116,9 +116,8 @@ class IBMVPCBackend:
 
         vpc_info = None
 
-        host_id = str(uuid.getnode())[-6:]
         iam_id = self.iam_api_key[:4].lower()
-        self.vpc_name = self.config.get('vpc_name', f'lithops-vpc-{iam_id}-{host_id}')
+        self.vpc_name = self.config.get('vpc_name', f'lithops-vpc-{iam_id}-{str(uuid.uuid4())[-6:]}')
         logger.debug(f'Setting VPC name to: {self.vpc_name}')
 
         assert re.match("^[a-z0-9-:-]*$", self.vpc_name),\
@@ -193,7 +192,7 @@ class IBMVPCBackend:
             except ApiException:
                 pass
 
-        keyname = f'lithops-key-{str(uuid.getnode())[-6:]}'
+        keyname = f'lithops-key-{self.vpc_key}'
         filename = os.path.join("~", ".ssh", f"{keyname}.{self.name}.id_rsa")
         key_filename = os.path.expanduser(filename)
 

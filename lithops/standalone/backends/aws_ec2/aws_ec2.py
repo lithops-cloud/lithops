@@ -114,8 +114,7 @@ class AWSEC2Backend:
                 self.config['vpc_id'] = self.ec2_data['vpc_id']
                 return
 
-        host_id = str(uuid.getnode())[-6:]
-        self.vpc_name = self.config.get('vpc_name', f'lithops-vpc-{self.user_key}-{host_id}')
+        self.vpc_name = self.config.get('vpc_name', f'lithops-vpc-{self.user_key}-{str(uuid.uuid4())[-6:]}')
         logger.debug(f'Setting VPC name to: {self.vpc_name}')
 
         assert re.match("^[a-z0-9-:-]*$", self.vpc_name),\
@@ -253,7 +252,7 @@ class AWSEC2Backend:
                 self.config['ssh_key_filename'] = self.ec2_data['ssh_key_filename']
                 return
 
-        keyname = f'lithops-key-{str(uuid.getnode())[-6:]}'
+        keyname = f'lithops-key-{self.vpc_key}'
         filename = os.path.join("~", ".ssh", f"{keyname}.{self.name}.id_rsa")
         key_filename = os.path.expanduser(filename)
 
