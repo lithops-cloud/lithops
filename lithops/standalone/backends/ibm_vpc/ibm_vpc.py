@@ -545,6 +545,9 @@ class IBMVPCBackend:
         """
         Deletes the ssh key
         """
+        if not self.vpc_data:
+            return
+
         if self.vpc_data['ssh_data_type'] == 'provided':
             return
 
@@ -573,6 +576,9 @@ class IBMVPCBackend:
         """
         Deletes the VPC
         """
+        if not self.vpc_data:
+            return
+
         if self.vpc_data['vpc_data_type'] == 'provided':
             return
 

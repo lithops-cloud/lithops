@@ -411,6 +411,9 @@ class AWSEC2Backend:
         if ins_to_delete:
             self.ec2_client.terminate_instances(InstanceIds=ins_to_delete)
 
+        if not self.ec2_data:
+            return
+
         if self.ec2_data['vpc_data_type'] == 'provided':
             return
 
@@ -431,6 +434,9 @@ class AWSEC2Backend:
         """
         Deletes the ssh key
         """
+        if not self.ec2_data:
+            return
+
         if self.ec2_data['ssh_data_type'] == 'provided':
             return
 
@@ -455,37 +461,59 @@ class AWSEC2Backend:
         """
         Deletes all the VPC resources
         """
+        if not self.ec2_data:
+            return
+
         if self.ec2_data['vpc_data_type'] == 'provided':
             return
 
         logger.info('Deleting Lithops VPC on AWS EC2')
 
+        total_correct = 0
+
         try:
             self.ec2_client.delete_security_group(
                 GroupId=self.ec2_data['security_group_id']
             )
+            total_correct += 1
         except ClientError as e:
-            logger.debug(e)
+            if e.response['ResponseMetadata']['HTTPStatusCode'] == 400:
+                total_correct += 1
+            logger.debug(e.response['Error']['Message'])
         try:
             self.ec2_client.delete_subnet(SubnetId=self.ec2_data['subnet_id'])
+            total_correct += 1
         except ClientError as e:
-            logger.debug(e)
+            if e.response['ResponseMetadata']['HTTPStatusCode'] == 400:
+                total_correct += 1
+            logger.debug(e.response['Error']['Message'])
         try:
             self.ec2_client.detach_internet_gateway(
                 InternetGatewayId=self.ec2_data['internet_gateway_id'],
                 VpcId=self.ec2_data['vpc_id'])
+            total_correct += 1
         except ClientError as e:
-            logger.debug(e)
+            if e.response['ResponseMetadata']['HTTPStatusCode'] == 400:
+                total_correct += 1
+            logger.debug(e.response['Error']['Message'])
         try:
             self.ec2_client.delete_internet_gateway(
                 InternetGatewayId=self.ec2_data['internet_gateway_id']
             )
+            total_correct += 1
         except ClientError as e:
-            logger.debug(e)
+            if e.response['ResponseMetadata']['HTTPStatusCode'] == 400:
+                total_correct += 1
+            logger.debug(e.response['Error']['Message'])
         try:
             self.ec2_client.delete_vpc(VpcId=self.ec2_data['vpc_id'])
+            total_correct += 1
         except ClientError as e:
-            logger.debug(e)
+            if e.response['ResponseMetadata']['HTTPStatusCode'] == 400:
+                total_correct += 1
+            logger.debug(e.response['Error']['Message'])
+
+        assert total_correct == 5, "Couldn't delete all the VPC resources, try againg in a few seconds"
 
     def clean(self, all=False):
         """
