@@ -49,7 +49,6 @@ lithops:
 aws:
     access_key_id: <AWS_ACCESS_KEY_ID>
     secret_access_key: <AWS_SECRET_ACCESS_KEY>
-    #session_token: <AWS_SESSION_TOKEN>  # Optional
 
 aws_ec2:
     region_name : <REGION_NAME>
@@ -86,14 +85,10 @@ standalone:
 aws:
     access_key_id: <AWS_ACCESS_KEY_ID>
     secret_access_key: <AWS_SECRET_ACCESS_KEY>
-    #session_token: <AWS_SESSION_TOKEN>  # Optional
 
 aws_ec2:
     region_name: <REGION_NAME>
-    vpc_id: <VPC_ID>
     iam_role: <IAM_ROLE>
-    key_name: <SSH_KEY_NAME>
-    security_group_id: <SECURITY_GROUP_ID>
 ```
 
 ###  Important information
@@ -106,10 +101,11 @@ aws_ec2:
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |aws_ec2 | region_name | |yes | Region name, for example: `eu-west-1` |
-|aws_ec2 | vpc_id | | yes | VPC id. You can find all the available VPCs in the [VPC Console page](https://console.aws.amazon.com/vpc/home) |
 |aws_ec2 | iam_role | | yes | IAM EC2 role name. You can find it in the [IAM Console page](https://console.aws.amazon.com/iamv2/home#/roles). Create a new EC2 role if it does not exist|
-|aws_ec2 | security_group_id | | yes | Security group ID. You can find the available security groups in the [EC2 console page](https://console.aws.amazon.com/ec2/v2/home#SecurityGroups:). The security group must have ports 22 and 8080 open |
-|aws_ec2 | ssh_key_name | | yes | SSH Key name. You can find the available keys in the [EC2 console page](https://console.aws.amazon.com/ec2/v2/home#KeyPairs:). Create a new one or upload your own key if it does not exist|
+|aws_ec2 | vpc_id | | no | VPC id. You can find all the available VPCs in the [VPC Console page](https://console.aws.amazon.com/vpc/v2/home#vpcs:) |
+|aws_ec2 | subnet_id | | no | Subnet id. You can find all the available Subnets in the [VPC Console page](https://console.aws.amazon.com/vpc/v2/home#subnets:) |
+|aws_ec2 | security_group_id | | no | Security group ID. You can find the available security groups in the [VPC console page](https://console.aws.amazon.com/vpc/v2/home#SecurityGroups:). The security group must have ports 22 and 8080 open |
+|aws_ec2 | ssh_key_name | | no | SSH Key name. You can find the available keys in the [EC2 console page](https://console.aws.amazon.com/ec2/v2/home#KeyPairs:). Create a new one or upload your own key if it does not exist|
 |aws_ec2 | ssh_username | ubuntu |no | Username to access the VM |
 |aws_ec2 | ssh_password |  |no | Password for accessing the worker VMs. If not provided, it is created randomly|
 |aws_ec2 | ssh_key_filename | ~/.ssh/id_rsa | no | Path to the ssh key file provided to access the VPC. It will use the default path if not provided |

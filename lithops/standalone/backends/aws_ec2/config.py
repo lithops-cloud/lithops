@@ -30,7 +30,7 @@ DEFAULT_CONFIG_KEYS = {
 
 
 REQ_PARAMS_1 = ('instance_id', 'region_name')
-REQ_PARAMS_2 = ('region_name', 'vpc_id', 'iam_role', 'ssh_key_name', 'security_group_id')
+REQ_PARAMS_2 = ('region_name', 'iam_role')
 
 
 def load_config(config_data):

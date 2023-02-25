@@ -19,6 +19,7 @@ import functools
 import inspect
 import re
 import os
+import shutil
 import paramiko
 import time
 import logging
@@ -52,10 +53,13 @@ class IBMVPCBackend:
         self.vpc_name = None
         self.vpc_data = None
         self.vpc_key = self.config['vpc_id'].split('-')[2] if 'vpc_id' in self.config else None
+        self.vpc_data_type = 'provided' if 'vpc_id' in self.config else 'created'
+        self.ssh_data_type = 'provided' if 'ssh_key_id' in self.config else 'created'
 
         self.endpoint = self.config['endpoint']
         self.region = self.endpoint.split('//')[1].split('.')[0]
         self.cache_dir = os.path.join(CACHE_DIR, self.name)
+        self.cache_file = os.path.join(self.cache_dir, self.region + '_data')
         self.custom_image = self.config.get('custom_lithops_image')
 
         logger.debug(f'Setting VPC endpoint to: {self.endpoint}')
@@ -81,11 +85,10 @@ class IBMVPCBackend:
         """
         Loads VPC data from local cache
         """
-        vpc_data_filename = os.path.join(self.cache_dir, 'data')
-        self.vpc_data = load_yaml_config(vpc_data_filename)
+        self.vpc_data = load_yaml_config(self.cache_file)
 
         if not self.vpc_data:
-            logger.debug(f'Could not find VPC cache data in {vpc_data_filename}')
+            logger.debug(f'Could not find VPC cache data in {self.cache_file}')
         elif 'vpc_id' in self.vpc_data:
             self.vpc_key = self.vpc_data['vpc_id'].split('-')[2]
 
@@ -93,8 +96,7 @@ class IBMVPCBackend:
         """
         Dumps VPC data to local cache
         """
-        vpc_data_filename = os.path.join(self.cache_dir, 'data')
-        dump_yaml_config(vpc_data_filename, self.vpc_data)
+        dump_yaml_config(self.cache_file, self.vpc_data)
 
     def _create_vpc(self):
         """
@@ -192,7 +194,7 @@ class IBMVPCBackend:
                 pass
 
         keyname = f'lithops-key-{str(uuid.getnode())[-6:]}'
-        filename = os.path.join("~", ".ssh", f"{keyname}.id_rsa")
+        filename = os.path.join("~", ".ssh", f"{keyname}.{self.name}.id_rsa")
         key_filename = os.path.expanduser(filename)
 
         key_info = None
@@ -395,6 +397,8 @@ class IBMVPCBackend:
 
             self.vpc_data = {
                 'mode': self.mode,
+                'vpc_data_type': 'provided',
+                'ssh_data_type': 'provided',
                 'instance_id': self.config['instance_id'],
                 'instance_name': self.config['instance_name'],
                 'floating_ip': self.config['floating_ip']
@@ -418,6 +422,8 @@ class IBMVPCBackend:
 
             self.vpc_data = {
                 'mode': self.mode,
+                'vpc_data_type': self.vpc_data_type,
+                'ssh_data_type': self.ssh_data_type,
                 'instance_name': self.master.name,
                 'instance_id': '0af1',
                 'vpc_id': self.config['vpc_id'],
@@ -539,21 +545,21 @@ class IBMVPCBackend:
         """
         Deletes the ssh key
         """
-        keyname = f'lithops-key-{str(uuid.getnode())[-6:]}'
-        filename = os.path.join("~", ".ssh", f"{keyname}.id_rsa")
-        key_filename = os.path.expanduser(filename)
+        if self.vpc_data['ssh_data_type'] == 'provided':
+            return
 
-        if os.path.isfile(key_filename):
-            os.remove(key_filename)
-        if os.path.isfile(f"{key_filename}.pub"):
-            os.remove(f"{key_filename}.pub")
+        if 'ssh_key_filename' not in self.vpc_data:
+            return
 
-        if 'ssh_key_id' not in self.vpc_data:
-            for key in self.vpc_cli.list_keys().result["keys"]:
-                if key["name"] == keyname:
-                    self.vpc_data['ssh_key_id'] = key['id']
+        key_filename = self.vpc_data['ssh_key_filename']
+        if "lithops-key-" in key_filename:
+            if os.path.isfile(key_filename):
+                os.remove(key_filename)
+            if os.path.isfile(f"{key_filename}.pub"):
+                os.remove(f"{key_filename}.pub")
 
         if 'ssh_key_id' in self.vpc_data:
+            keyname = key_filename.split('/')[-1].split('.')[0]
             logger.info(f'Deleting SSH key {keyname}')
             try:
                 self.vpc_cli.delete_key(id=self.vpc_data['ssh_key_id'])
@@ -567,6 +573,12 @@ class IBMVPCBackend:
         """
         Deletes the VPC
         """
+        if self.vpc_data['vpc_data_type'] == 'provided':
+            return
+
+        self._delete_subnet()
+        self._delete_gateway()
+
         if 'vpc_id' not in self.vpc_data:
             vpcs_info = self.vpc_cli.list_vpcs().get_result()
             for vpc in vpcs_info['vpcs']:
@@ -588,16 +600,13 @@ class IBMVPCBackend:
         Clean all the backend resources
         The gateway public IP and the floating IP are never deleted
         """
-        logger.debug('Cleaning IBM VPC resources')
+        logger.info('Cleaning IBM VPC resources')
 
         self._load_vpc_data()
         self._delete_vm_instances(all=all)
-
-        if all:
-            self._delete_subnet()
-            self._delete_gateway()
-            self._delete_ssh_key()
-            self._delete_vpc()
+        self._delete_ssh_key() if all else None
+        self._delete_vpc() if all else None
+        shutil.rmtree(self.cache_dir, ignore_errors=True) if all else None
 
     def clear(self, job_keys=None):
         """
