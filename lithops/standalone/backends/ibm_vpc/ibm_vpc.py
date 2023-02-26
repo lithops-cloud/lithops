@@ -486,9 +486,6 @@ class IBMVPCBackend:
             else:
                 break
 
-        if not self.vpc_data:
-            return
-
         master_pk = os.path.join(self.cache_dir, f"{self.vpc_data['master_name']}-id_rsa.pub")
         if os.path.isfile(master_pk):
             os.remove(master_pk)
@@ -553,46 +550,16 @@ class IBMVPCBackend:
                 else:
                     raise err
 
-    def _delete_ssh_key(self):
-        """
-        Deletes the ssh key
-        """
-        if not self.vpc_data:
-            return
-
-        if self.vpc_data['ssh_data_type'] == 'provided':
-            return
-
-        if 'ssh_key_filename' not in self.vpc_data:
-            return
-
-        key_filename = self.vpc_data['ssh_key_filename']
-        if "lithops-key-" in key_filename:
-            if os.path.isfile(key_filename):
-                os.remove(key_filename)
-            if os.path.isfile(f"{key_filename}.pub"):
-                os.remove(f"{key_filename}.pub")
-
-        if 'ssh_key_id' in self.vpc_data:
-            keyname = key_filename.split('/')[-1].split('.')[0]
-            logger.debug(f'Deleting SSH key {keyname}')
-            try:
-                self.vpc_cli.delete_key(id=self.vpc_data['ssh_key_id'])
-            except ApiException as err:
-                if err.code == 404 or err.code == 400:
-                    logger.debug(err)
-                else:
-                    raise err
-
     def _delete_vpc(self):
         """
         Deletes the VPC
         """
-        if not self.vpc_data:
-            return
-
         if self.vpc_data['vpc_data_type'] == 'provided':
             return
+
+        msg = (f'Deleting all Lithops VPC resources from {self.vpc_name}'
+               if self.vpc_name else 'Deleting all Lithops VPC resources')
+        logger.info(msg)
 
         self._delete_subnet()
         self._delete_gateway()
@@ -613,6 +580,31 @@ class IBMVPCBackend:
                 else:
                     raise err
 
+    def _delete_ssh_key(self):
+        """
+        Deletes the ssh key
+        """
+        if self.vpc_data['ssh_data_type'] == 'provided':
+            return
+
+        key_filename = self.vpc_data['ssh_key_filename']
+        if "lithops-key-" in key_filename:
+            if os.path.isfile(key_filename):
+                os.remove(key_filename)
+            if os.path.isfile(f"{key_filename}.pub"):
+                os.remove(f"{key_filename}.pub")
+
+        if 'ssh_key_id' in self.vpc_data:
+            keyname = key_filename.split('/')[-1].split('.')[0]
+            logger.debug(f'Deleting SSH key {keyname}')
+            try:
+                self.vpc_cli.delete_key(id=self.vpc_data['ssh_key_id'])
+            except ApiException as err:
+                if err.code == 404 or err.code == 400:
+                    logger.debug(err)
+                else:
+                    raise err
+
     def clean(self, all=False):
         """
         Clean all the backend resources
@@ -621,12 +613,19 @@ class IBMVPCBackend:
         logger.info('Cleaning IBM VPC resources')
 
         self._load_vpc_data()
-        self._delete_vm_instances(all=all)
-        self._delete_ssh_key() if all else None
-        self._delete_vpc() if all else None
 
-        if all and os.path.exists(self.cache_file):
-            os.remove(self.cache_file)
+        if not self.vpc_data:
+            return
+
+        if self.vpc_data['mode'] == ExecMode.CONSUME.value:
+            if os.path.exists(self.cache_file):
+                os.remove(self.cache_file)
+        else:
+            self._delete_vm_instances(all=all)
+            self._delete_vpc() if all else None
+            self._delete_ssh_key() if all else None
+            if all and os.path.exists(self.cache_file):
+                os.remove(self.cache_file)
 
     def clear(self, job_keys=None):
         """

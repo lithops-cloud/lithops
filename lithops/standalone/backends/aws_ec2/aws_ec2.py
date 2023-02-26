@@ -414,9 +414,6 @@ class AWSEC2Backend:
         if ins_to_delete:
             self.ec2_client.terminate_instances(InstanceIds=ins_to_delete)
 
-        if not self.ec2_data:
-            return
-
         master_pk = os.path.join(self.cache_dir, f"{self.ec2_data['master_name']}-id_rsa.pub")
         if os.path.isfile(master_pk):
             os.remove(master_pk)
@@ -437,40 +434,10 @@ class AWSEC2Backend:
             else:
                 time.sleep(8)
 
-    def _delete_ssh_key(self):
-        """
-        Deletes the ssh key
-        """
-        if not self.ec2_data:
-            return
-
-        if self.ec2_data['ssh_data_type'] == 'provided':
-            return
-
-        if 'ssh_key_filename' not in self.ec2_data:
-            return
-
-        key_filename = self.ec2_data['ssh_key_filename']
-        if "lithops-key-" in key_filename:
-            if os.path.isfile(key_filename):
-                os.remove(key_filename)
-            if os.path.isfile(f"{key_filename}.pub"):
-                os.remove(f"{key_filename}.pub")
-
-        if 'ssh_key_name' in self.ec2_data:
-            logger.info(f"Deleting SSH key {self.ec2_data['ssh_key_name']}")
-            try:
-                self.ec2_client.delete_key_pair(KeyName=self.ec2_data['ssh_key_name'])
-            except ClientError as e:
-                logger.debug(e)
-
     def _delete_vpc(self):
         """
         Deletes all the VPC resources
         """
-        if not self.ec2_data:
-            return
-
         if self.ec2_data['vpc_data_type'] == 'provided':
             return
 
@@ -528,20 +495,47 @@ class AWSEC2Backend:
 
         assert total_correct == 5, "Couldn't delete all the VPC resources, try againg in a few seconds"
 
+    def _delete_ssh_key(self):
+        """
+        Deletes the ssh key
+        """
+        if self.ec2_data['ssh_data_type'] == 'provided':
+            return
+
+        key_filename = self.ec2_data['ssh_key_filename']
+        if "lithops-key-" in key_filename:
+            if os.path.isfile(key_filename):
+                os.remove(key_filename)
+            if os.path.isfile(f"{key_filename}.pub"):
+                os.remove(f"{key_filename}.pub")
+
+        if 'ssh_key_name' in self.ec2_data:
+            logger.debug(f"Deleting SSH key {self.ec2_data['ssh_key_name']}")
+            try:
+                self.ec2_client.delete_key_pair(KeyName=self.ec2_data['ssh_key_name'])
+            except ClientError as e:
+                logger.debug(e)
+
     def clean(self, all=False):
         """
-        Clean all the backend resources
-        The gateway public IP and the floating IP are never deleted
+        Clean all the VPC resources
         """
         logger.info('Cleaning AWS EC2 resources')
 
         self._load_ec2_data()
-        self._delete_vm_instances(all)
-        self._delete_ssh_key() if all else None
-        self._delete_vpc() if all else None
 
-        if all and os.path.exists(self.cache_file):
-            os.remove(self.cache_file)
+        if not self.ec2_data:
+            return
+
+        if self.ec2_data['mode'] == ExecMode.CONSUME.value:
+            if os.path.exists(self.cache_file):
+                os.remove(self.cache_file)
+        else:
+            self._delete_vm_instances(all=all)
+            self._delete_vpc() if all else None
+            self._delete_ssh_key() if all else None
+            if all and os.path.exists(self.cache_file):
+                os.remove(self.cache_file)
 
     def clear(self, job_keys=None):
         """
