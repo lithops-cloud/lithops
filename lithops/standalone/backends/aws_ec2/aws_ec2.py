@@ -62,6 +62,7 @@ class AWSEC2Backend:
         self.ssh_data_type = 'provided' if 'ssh_key_name' in ec2_config else 'created'
 
         self.ec2_data = None
+        self.vpc_name = None
         self.vpc_key = ec2_config['vpc_id'][-4:] if 'vpc_id' in ec2_config else None
         self.user_key = ec2_config['access_key_id'][-4:].lower()
 
@@ -93,6 +94,7 @@ class AWSEC2Backend:
             logger.debug(f'Could not find EC2 cache data in {self.cache_file}')
         elif 'vpc_id' in self.ec2_data:
             self.vpc_key = self.ec2_data['vpc_id'][-4:]
+            self.vpc_name = self.ec2_data['vpc_name']
 
     def _dump_ec2_data(self):
         """
@@ -375,6 +377,7 @@ class AWSEC2Backend:
                 'ssh_data_type': self.ssh_data_type,
                 'master_name': self.master.name,
                 'master_id': self.vpc_key,
+                'vpc_name': self.vpc_name,
                 'vpc_id': self.config['vpc_id'],
                 'iam_role': self.config['iam_role'],
                 'target_ami': self.config['target_ami'],
@@ -391,7 +394,9 @@ class AWSEC2Backend:
         """
         Deletes all worker VM instances
         """
-        logger.info('Deleting all Lithops worker VMs in EC2')
+        msg = (f'Deleting all Lithops worker VMs from {self.vpc_name}'
+               if self.vpc_name else 'Deleting all Lithops worker VMs')
+        logger.info(msg)
 
         vms_prefixes = ('lithops-worker', 'lithops-master') if all else ('lithops-worker',)
 
@@ -404,7 +409,7 @@ class AWSEC2Backend:
                     for tag in ins['Tags']:
                         if tag['Key'] == 'Name' and tag['Value'].startswith(vms_prefixes):
                             ins_to_delete.append(ins['InstanceId'])
-                            logger.info(f"Going to delete VM instance {tag['Value']}")
+                            logger.debug(f"Going to delete VM instance {tag['Value']}")
 
         if ins_to_delete:
             self.ec2_client.terminate_instances(InstanceIds=ins_to_delete)
@@ -420,7 +425,7 @@ class AWSEC2Backend:
             return
 
         while all and ins_to_delete:
-            logger.info('Waiting for VM instances to be terminated')
+            logger.debug('Waiting for VM instances to be terminated')
             status = set()
             response = self.ec2_client.describe_instances()
             for res in response['Reservations']:
@@ -469,7 +474,9 @@ class AWSEC2Backend:
         if self.ec2_data['vpc_data_type'] == 'provided':
             return
 
-        logger.info('Deleting Lithops VPC on AWS EC2')
+        msg = (f'Deleting all Lithops VPC resources from {self.vpc_name}'
+               if self.vpc_name else 'Deleting all Lithops VPC resources')
+        logger.info(msg)
 
         total_correct = 0
 

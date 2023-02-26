@@ -91,6 +91,7 @@ class IBMVPCBackend:
             logger.debug(f'Could not find VPC cache data in {self.cache_file}')
         elif 'vpc_id' in self.vpc_data:
             self.vpc_key = self.vpc_data['vpc_id'].split('-')[2]
+            self.vpc_name = self.vpc_data['vpc_name']
 
     def _dump_vpc_data(self):
         """
@@ -426,6 +427,7 @@ class IBMVPCBackend:
                 'ssh_data_type': self.ssh_data_type,
                 'master_name': self.master.name,
                 'master_id': self.vpc_key,
+                'vpc_name': self.vpc_name,
                 'vpc_id': self.config['vpc_id'],
                 'subnet_id': self.config['subnet_id'],
                 'security_group_id': self.config['security_group_id'],
@@ -444,14 +446,14 @@ class IBMVPCBackend:
         """
         Deletes all VM instances in the VPC
         """
-        msg = (f'Deleting all Lithops worker VMs in {self.vpc_name}'
+        msg = (f'Deleting all Lithops worker VMs from {self.vpc_name}'
                if self.vpc_name else 'Deleting all Lithops worker VMs')
         logger.info(msg)
 
         def delete_instance(instance_info):
             ins_name, ins_id = instance_info
             try:
-                logger.info(f'Deleting instance {ins_name}')
+                logger.debug(f'Deleting instance {ins_name}')
                 self.vpc_cli.delete_instance(ins_id)
             except ApiException as err:
                 if err.code == 404:
@@ -602,7 +604,7 @@ class IBMVPCBackend:
                     self.vpc_data['vpc_id'] = vpc['id']
 
         if 'vpc_id' in self.vpc_data:
-            logger.debug(f'Deleting VPC {self.vpc_data["vpc_id"]}')
+            logger.debug(f'Deleting VPC {self.vpc_data["vpc_name"]}')
             try:
                 self.vpc_cli.delete_vpc(self.vpc_data['vpc_id'])
             except ApiException as err:
