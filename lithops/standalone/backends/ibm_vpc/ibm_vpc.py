@@ -500,7 +500,7 @@ class IBMVPCBackend:
                     self.vpc_data['subnet_id'] = subn['id']
 
         if 'subnet_id' in self.vpc_data:
-            logger.info(f'Deleting subnet {subnet_name}')
+            logger.debug(f'Deleting subnet {subnet_name}')
 
             try:
                 self.vpc_cli.unset_subnet_public_gateway(self.vpc_data['subnet_id'])
@@ -531,7 +531,7 @@ class IBMVPCBackend:
                     self.vpc_data['gateway_id'] = gw['id']
 
         if 'gateway_id' in self.vpc_data:
-            logger.info(f'Deleting gateway {gateway_name}')
+            logger.debug(f'Deleting gateway {gateway_name}')
             try:
                 self.vpc_cli.delete_public_gateway(self.vpc_data['gateway_id'])
             except ApiException as err:
@@ -562,7 +562,7 @@ class IBMVPCBackend:
 
         if 'ssh_key_id' in self.vpc_data:
             keyname = key_filename.split('/')[-1].split('.')[0]
-            logger.info(f'Deleting SSH key {keyname}')
+            logger.debug(f'Deleting SSH key {keyname}')
             try:
                 self.vpc_cli.delete_key(id=self.vpc_data['ssh_key_id'])
             except ApiException as err:
@@ -591,7 +591,7 @@ class IBMVPCBackend:
                     self.vpc_data['vpc_id'] = vpc['id']
 
         if 'vpc_id' in self.vpc_data:
-            logger.info(f'Deleting VPC {self.vpc_data["vpc_id"]}')
+            logger.debug(f'Deleting VPC {self.vpc_data["vpc_id"]}')
             try:
                 self.vpc_cli.delete_vpc(self.vpc_data['vpc_id'])
             except ApiException as err:
@@ -611,7 +611,9 @@ class IBMVPCBackend:
         self._delete_vm_instances(all=all)
         self._delete_ssh_key() if all else None
         self._delete_vpc() if all else None
-        shutil.rmtree(self.cache_dir, ignore_errors=True) if all else None
+
+        if all and os.path.exists(self.cache_file):
+            os.remove(self.cache_file)
 
     def clear(self, job_keys=None):
         """

@@ -16,7 +16,6 @@
 
 import os
 import re
-import shutil
 import time
 import uuid
 import logging
@@ -520,11 +519,14 @@ class AWSEC2Backend:
         The gateway public IP and the floating IP are never deleted
         """
         logger.info('Cleaning AWS EC2 resources')
+
         self._load_ec2_data()
         self._delete_vm_instances(all)
         self._delete_ssh_key() if all else None
         self._delete_vpc() if all else None
-        shutil.rmtree(self.cache_dir, ignore_errors=True) if all else None
+
+        if all and os.path.exists(self.cache_file):
+            os.remove(self.cache_file)
 
     def clear(self, job_keys=None):
         """
