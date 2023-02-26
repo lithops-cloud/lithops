@@ -336,7 +336,7 @@ class AWSEC2Backend:
             if not self.ec2_data or ins_id != self.ec2_data.get('instance_id'):
                 instances = self.ec2_client.describe_instances(InstanceIds=[ins_id])
                 instance_data = instances['Reservations'][0]['Instances'][0]
-                self.config['master_name'] = f'lithops-consume-{self.vpc_key}'
+                self.config['master_name'] = 'lithops-consume'
                 for tag in instance_data['Tags']:
                     if tag['Key'] == 'Name':
                         self.config['master_name'] = tag['Value']
