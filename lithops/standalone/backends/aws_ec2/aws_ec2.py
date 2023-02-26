@@ -481,6 +481,7 @@ class AWSEC2Backend:
         total_correct = 0
 
         try:
+            logger.debug(f"Deleting security group {self.ec2_data['security_group_id']}")
             self.ec2_client.delete_security_group(
                 GroupId=self.ec2_data['security_group_id']
             )
@@ -490,6 +491,7 @@ class AWSEC2Backend:
                 total_correct += 1
             logger.debug(e.response['Error']['Message'])
         try:
+            logger.debug(f"Deleting {self.ec2_data['subnet_id']}")
             self.ec2_client.delete_subnet(SubnetId=self.ec2_data['subnet_id'])
             total_correct += 1
         except ClientError as e:
@@ -497,6 +499,7 @@ class AWSEC2Backend:
                 total_correct += 1
             logger.debug(e.response['Error']['Message'])
         try:
+            logger.debug(f"Deleting internet gateway {self.ec2_data['internet_gateway_id']}")
             self.ec2_client.detach_internet_gateway(
                 InternetGatewayId=self.ec2_data['internet_gateway_id'],
                 VpcId=self.ec2_data['vpc_id'])
@@ -515,6 +518,7 @@ class AWSEC2Backend:
                 total_correct += 1
             logger.debug(e.response['Error']['Message'])
         try:
+            logger.debug(f"Deleting VPC {self.ec2_data['vpc_id']}")
             self.ec2_client.delete_vpc(VpcId=self.ec2_data['vpc_id'])
             total_correct += 1
         except ClientError as e:
