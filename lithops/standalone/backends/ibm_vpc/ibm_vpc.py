@@ -367,7 +367,7 @@ class IBMVPCBackend:
                     if 'ubuntu-22' in image['name']:
                         self.config['image_id'] = image['id']
 
-        name = self.config.get('instance_name') or f'lithops-master-{self.vpc_key}'
+        name = self.config.get('master_name') or f'lithops-master-{self.vpc_key}'
         self.master = IBMVPCInstance(name, self.config, self.vpc_cli, public=True)
         self.master.public_ip = self.config['floating_ip']
         self.master.instance_id = self.config['instance_id'] if self.mode == ExecMode.CONSUME.value else None
@@ -389,7 +389,8 @@ class IBMVPCBackend:
 
             ins_id = self.config['instance_id']
             if not self.vpc_data or ins_id != self.vpc_data.get('instance_id'):
-                self.config['instance_name'] = self.vpc_cli.get_instance(ins_id).get_result()['name']
+                name = self.vpc_cli.get_instance(ins_id).get_result()['name']
+                self.config['master_name'] = name
 
             # Create the master VM instance
             self._create_master_instance()
@@ -398,8 +399,8 @@ class IBMVPCBackend:
                 'mode': self.mode,
                 'vpc_data_type': 'provided',
                 'ssh_data_type': 'provided',
-                'instance_id': self.config['instance_id'],
-                'instance_name': self.config['instance_name'],
+                'master_name': self.config['master_name'],
+                'master_id': self.config['instance_id'],
                 'floating_ip': self.config['floating_ip']
             }
 
@@ -423,8 +424,8 @@ class IBMVPCBackend:
                 'mode': self.mode,
                 'vpc_data_type': self.vpc_data_type,
                 'ssh_data_type': self.ssh_data_type,
-                'instance_name': self.master.name,
-                'instance_id': '0af1',
+                'master_name': self.master.name,
+                'master_id': self.vpc_key,
                 'vpc_id': self.config['vpc_id'],
                 'subnet_id': self.config['subnet_id'],
                 'security_group_id': self.config['security_group_id'],
@@ -482,6 +483,16 @@ class IBMVPCBackend:
                 deleted_instances.update(instances_to_delete)
             else:
                 break
+
+        if not self.vpc_data:
+            return
+
+        master_pk = os.path.join(self.cache_dir, f"{self.vpc_data['master_name']}-id_rsa.pub")
+        if os.path.isfile(master_pk):
+            os.remove(master_pk)
+
+        if self.vpc_data['vpc_data_type'] == 'provided':
+            return
 
         # Wait until all instances are deleted
         while get_instances():
@@ -676,7 +687,7 @@ class IBMVPCBackend:
         Creates the runtime key
         """
         name = runtime_name.replace('/', '-').replace(':', '-')
-        runtime_key = os.path.join(self.name, version, self.vpc_data['instance_id'], name)
+        runtime_key = os.path.join(self.name, version, self.vpc_data['master_id'], name)
         return runtime_key
 
 

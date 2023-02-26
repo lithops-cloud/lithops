@@ -293,7 +293,7 @@ class AWSEC2Backend:
 
                 self.config['target_ami'] = response['Images'][0]['ImageId']
 
-        name = self.config.get('instance_name') or f'lithops-master-{self.vpc_key}'
+        name = self.config.get('master_name') or f'lithops-master-{self.vpc_key}'
         self.master = EC2Instance(name, self.config, self.ec2_client, public=True)
         self.master.instance_id = self.config['instance_id'] if self.mode == ExecMode.CONSUME.value else None
         self.master.profile_name = self.config['master_instance_type']
@@ -334,10 +334,10 @@ class AWSEC2Backend:
             if not self.ec2_data or ins_id != self.ec2_data.get('instance_id'):
                 instances = self.ec2_client.describe_instances(InstanceIds=[ins_id])
                 instance_data = instances['Reservations'][0]['Instances'][0]
-                self.config['instance_name'] = 'lithops-consume'
+                self.config['master_name'] = f'lithops-consume-{self.vpc_key}'
                 for tag in instance_data['Tags']:
                     if tag['Key'] == 'Name':
-                        self.config['instance_name'] = tag['Value']
+                        self.config['master_name'] = tag['Value']
 
             # Create the master VM instance
             self._create_master_instance()
@@ -346,8 +346,8 @@ class AWSEC2Backend:
                 'mode': self.mode,
                 'vpc_data_type': 'provided',
                 'ssh_data_type': 'provided',
-                'instance_id': self.config['instance_id'],
-                'instance_name': self.config['instance_name']
+                'master_name': self.config['master_name'],
+                'master_id': self.config['instance_id']
             }
 
         elif self.mode in [ExecMode.CREATE.value, ExecMode.REUSE.value]:
@@ -373,8 +373,8 @@ class AWSEC2Backend:
                 'mode': self.mode,
                 'vpc_data_type': self.vpc_data_type,
                 'ssh_data_type': self.ssh_data_type,
-                'instance_name': self.master.name,
-                'instance_id': '0af1',
+                'master_name': self.master.name,
+                'master_id': self.vpc_key,
                 'vpc_id': self.config['vpc_id'],
                 'iam_role': self.config['iam_role'],
                 'target_ami': self.config['target_ami'],
@@ -411,6 +411,10 @@ class AWSEC2Backend:
 
         if not self.ec2_data:
             return
+
+        master_pk = os.path.join(self.cache_dir, f"{self.ec2_data['master_name']}-id_rsa.pub")
+        if os.path.isfile(master_pk):
+            os.remove(master_pk)
 
         if self.ec2_data['vpc_data_type'] == 'provided':
             return
@@ -589,7 +593,7 @@ class AWSEC2Backend:
         Creates the runtime key
         """
         name = runtime_name.replace('/', '-').replace(':', '-')
-        runtime_key = os.path.join(self.name, version, self.ec2_data['instance_id'], name)
+        runtime_key = os.path.join(self.name, version, self.ec2_data['master_id'], name)
         return runtime_key
 
 
