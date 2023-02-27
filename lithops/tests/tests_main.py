@@ -173,7 +173,7 @@ def run_tests(tests, config=None, group=None, backend=None, storage=None, fail_f
     if backend:
         config_ow['lithops']['backend'] = backend
 
-    CONFIG = default_config(config, config_ow)
+    CONFIG = default_config(config_data=config, config_overwrite=config_ow)
     STORAGE_CONFIG = extract_storage_config(CONFIG)
     STORAGE = Storage(storage_config=STORAGE_CONFIG)
     init_test_variables()

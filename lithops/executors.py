@@ -58,6 +58,7 @@ class FunctionExecutor:
 
     :param mode: Execution mode. One of: localhost, serverless or standalone
     :param config: Settings passed in here will override those in lithops_config
+    :param config_file: Path to the lithops config file
     :param backend: Compute backend to run the functions
     :param storage: Storage backend to store Lithops data
     :param runtime: Name of the runtime to run the functions
@@ -73,6 +74,7 @@ class FunctionExecutor:
         self,
         mode: Optional[str] = None,
         config: Optional[Dict[str, Any]] = None,
+        config_file: Optional[str] = None,
         backend: Optional[str] = None,
         storage: Optional[str] = None,
         runtime: Optional[str] = None,
@@ -122,7 +124,11 @@ class FunctionExecutor:
             config_ow['lithops']['monitoring'] = monitoring
 
         # Load configuration
-        self.config = default_config(copy.deepcopy(config), config_ow)
+        self.config = default_config(
+            config_file=config_file,
+            config_data=copy.deepcopy(config),
+            config_overwrite=config_ow
+        )
 
         self.data_cleaner = self.config['lithops'].get('data_cleaner', True)
         if self.data_cleaner and not self.is_lithops_worker:
@@ -707,6 +713,7 @@ class LocalhostExecutor(FunctionExecutor):
     Initialize a LocalhostExecutor class.
 
     :param config: Settings passed in here will override those in config file.
+    :param config_file: Path to the lithops config file
     :param runtime: Runtime name to use.
     :param storage: Name of the storage backend to use.
     :param worker_processes: Worker granularity, number of concurrent/parallel processes in each worker
@@ -717,6 +724,7 @@ class LocalhostExecutor(FunctionExecutor):
     def __init__(
         self,
         config: Optional[Dict[str, Any]] = None,
+        config_file: Optional[str] = None,
         runtime: Optional[int] = None,
         storage: Optional[str] = None,
         worker_processes: Optional[int] = None,
@@ -726,6 +734,7 @@ class LocalhostExecutor(FunctionExecutor):
         super().__init__(
             backend=LOCALHOST,
             config=config,
+            config_file=config_file,
             runtime=runtime,
             storage=storage or LOCALHOST,
             log_level=log_level,
@@ -739,6 +748,7 @@ class ServerlessExecutor(FunctionExecutor):
     Initialize a ServerlessExecutor class.
 
     :param config: Settings passed in here will override those in config file
+    :param config_file: Path to the lithops config file
     :param runtime: Runtime name to use
     :param runtime_memory: memory to use in the runtime
     :param backend: Name of the serverless compute backend to use
@@ -753,6 +763,7 @@ class ServerlessExecutor(FunctionExecutor):
     def __init__(
         self,
         config: Optional[Dict[str, Any]] = None,
+        config_file: Optional[str] = None,
         runtime: Optional[str] = None,
         runtime_memory: Optional[int] = None,
         backend: Optional[str] = None,
@@ -765,6 +776,7 @@ class ServerlessExecutor(FunctionExecutor):
     ):
         super().__init__(
             config=config,
+            config_file=config_file,
             mode='serverless',
             runtime=runtime,
             runtime_memory=runtime_memory,
@@ -783,6 +795,7 @@ class StandaloneExecutor(FunctionExecutor):
     Initialize a StandaloneExecutor class.
 
     :param config: Settings passed in here will override those in config file
+    :param config_file: Path to the lithops config file
     :param runtime: Runtime name to use
     :param backend: Name of the standalone compute backend to use
     :param storage: Name of the storage backend to use
@@ -795,6 +808,7 @@ class StandaloneExecutor(FunctionExecutor):
     def __init__(
         self,
         config: Optional[Dict[str, Any]] = None,
+        config_file: Optional[str] = None,
         runtime: Optional[str] = None,
         backend: Optional[str] = None,
         storage: Optional[str] = None,
@@ -806,6 +820,7 @@ class StandaloneExecutor(FunctionExecutor):
     ):
         super().__init__(
             config=config,
+            config_file=config_file,
             mode='standalone',
             runtime=runtime,
             backend=backend,

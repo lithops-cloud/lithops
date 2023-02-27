@@ -83,7 +83,7 @@ def clean(config, backend, storage, debug, all):
     logger.info('Cleaning all Lithops information')
 
     config_ow = set_config_ow(backend, storage)
-    config = default_config(config, config_ow)
+    config = default_config(config_data=config, config_overwrite=config_ow)
     storage_config = extract_storage_config(config)
     internal_storage = InternalStorage(storage_config)
 
@@ -196,7 +196,7 @@ def attach(config, backend, start, debug):
     setup_lithops_logger(log_level)
 
     config_ow = set_config_ow(backend)
-    config = default_config(config, config_ow)
+    config = default_config(config_data=config, config_overwrite=config_ow)
 
     if config['lithops']['mode'] != STANDALONE:
         raise Exception('lithops attach method is only available for standalone backends')
@@ -443,7 +443,7 @@ def build(ctx, name, file, config, backend, debug):
         config = load_yaml_config(config)
 
     config_ow = set_config_ow(backend, runtime_name=name)
-    config = default_config(config, config_ow, load_storage_config=False)
+    config = default_config(config_data=config, config_overwrite=config_ow, load_storage_config=False)
 
     if config['lithops']['mode'] != SERVERLESS:
         raise Exception('"lithops build" command is only available for serverless backends')
@@ -476,7 +476,7 @@ def deploy(name, storage, backend, memory, timeout, config, debug):
         config = load_yaml_config(config)
 
     config_ow = set_config_ow(backend, storage, runtime_name=name)
-    config = default_config(config, config_ow)
+    config = default_config(config_data=config, config_overwrite=config_ow)
 
     if config['lithops']['mode'] != SERVERLESS:
         raise Exception('"lithops runtime deploy" command is only available for serverless backends')
@@ -512,7 +512,7 @@ def list_runtimes(config, backend, storage, debug):
         config = load_yaml_config(config)
 
     config_ow = set_config_ow(backend)
-    config = default_config(config, config_ow, load_storage_config=False)
+    config = default_config(config_data=config, config_overwrite=config_ow, load_storage_config=False)
 
     if config['lithops']['mode'] != SERVERLESS:
         raise Exception('"lithops runtime list" command is only available for serverless backends')
@@ -557,7 +557,7 @@ def update(name, config, backend, storage, debug):
         config = load_yaml_config(config)
 
     config_ow = set_config_ow(backend, storage, runtime_name=name)
-    config = default_config(config, config_ow)
+    config = default_config(config_data=config, config_overwrite=config_ow)
 
     if config['lithops']['mode'] != SERVERLESS:
         raise Exception('"lithops runtime update" command is only available for serverless backends')
@@ -602,7 +602,7 @@ def delete(name, config, memory, version, backend, storage, debug):
         config = load_yaml_config(config)
 
     config_ow = set_config_ow(backend, storage, runtime_name=name)
-    config = default_config(config, config_ow)
+    config = default_config(config_data=config, config_overwrite=config_ow)
 
     if config['lithops']['mode'] != SERVERLESS:
         raise Exception('"lithops runtime delete" command is only available for serverless backends')

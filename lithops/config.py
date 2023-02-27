@@ -79,10 +79,16 @@ def get_default_config_filename():
     return config_filename
 
 
-def load_config(log=True):
+def load_config(config_file=None, log=True):
     """ Load the configuration """
     config_data = None
-    if 'LITHOPS_CONFIG' in os.environ:
+    if config_file:
+        if log:
+            logger.debug(f"Loading configuration from {config_file}")
+        if not os.path.exists(os.path.expanduser(config_file)):
+            raise FileNotFoundError(f"Config file {config_file} doesn't exist")
+        config_data = load_yaml_config(os.path.expanduser(config_file))
+    elif 'LITHOPS_CONFIG' in os.environ:
         if log:
             logger.debug("Loading configuration from env LITHOPS_CONFIG")
         config_data = json.loads(os.environ.get('LITHOPS_CONFIG'))
@@ -90,16 +96,14 @@ def load_config(log=True):
         config_filename = get_default_config_filename()
         if config_filename:
             if log:
-                logger.debug("Loading configuration from {}".format(config_filename))
+                logger.debug(f"Loading configuration from {config_filename}")
             config_data = load_yaml_config(config_filename)
 
     if not config_data:
         # Set to Localhost mode
         if log:
-            logger.debug("Config file not found")
-        config_data = {'lithops': {'mode': c.LOCALHOST,
-                                   'backend': c.LOCALHOST,
-                                   'storage': c.LOCALHOST}}
+            logger.debug("Config file not found. Setting lithops to Localhost")
+        config_data = {'lithops': {'mode': c.LOCALHOST, 'backend': c.LOCALHOST, 'storage': c.LOCALHOST}}
 
     return config_data
 
@@ -125,7 +129,7 @@ def get_log_info(config_data=None):
     return cl['log_level'], cl['log_format'], cl['log_stream'], cl['log_filename']
 
 
-def default_config(config_data=None, config_overwrite={}, load_storage_config=True):
+def default_config(config_file=None, config_data=None, config_overwrite={}, load_storage_config=True):
     """
     First checks .lithops_config
     then checks LITHOPS_CONFIG_FILE environment variable
@@ -133,7 +137,7 @@ def default_config(config_data=None, config_overwrite={}, load_storage_config=Tr
     """
     logger.info(f'Lithops v{__version__}')
 
-    config_data = copy.deepcopy(config_data) or load_config()
+    config_data = copy.deepcopy(config_data) or load_config(config_file)
 
     if 'lithops' not in config_data or not config_data['lithops']:
         config_data['lithops'] = {}
