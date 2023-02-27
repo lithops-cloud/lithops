@@ -6,6 +6,7 @@
 - [Executor] Allow to set all the compute backend params programatically in the FunctionExecutor()
 - [AWS EC2] Allow to automatically create the VPC and all the necessary resources
 - [IBM VPC & AWS EC2] General fixes and Improvements
+- [Executor] Allow to pass the config file location in the FunctionExecutor()
 
 ### Changed
 - [AWS EC2] Reduced number of mandatory parameters
