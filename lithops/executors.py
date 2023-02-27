@@ -99,7 +99,7 @@ class FunctionExecutor:
                 setup_lithops_logger(log_level)
             elif log_level is False and logger.getEffectiveLevel() == logging.WARNING:
                 # Set default logging from config
-                setup_lithops_logger(*get_log_info(config))
+                setup_lithops_logger(*get_log_info(config_file=config_file, config_data=config))
 
         # overwrite user-provided parameters
         config_ow = {'lithops': {}, 'backend': {}}
@@ -124,11 +124,7 @@ class FunctionExecutor:
             config_ow['lithops']['monitoring'] = monitoring
 
         # Load configuration
-        self.config = default_config(
-            config_file=config_file,
-            config_data=copy.deepcopy(config),
-            config_overwrite=config_ow
-        )
+        self.config = default_config(config_file=config_file, config_data=config, config_overwrite=config_ow)
 
         self.data_cleaner = self.config['lithops'].get('data_cleaner', True)
         if self.data_cleaner and not self.is_lithops_worker:

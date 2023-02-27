@@ -51,7 +51,7 @@ class Storage:
         if storage_config:
             self.config = storage_config
         else:
-            storage_config = default_storage_config(config, backend)
+            storage_config = default_storage_config(config_data=config, backend=backend)
             self.config = extract_storage_config(storage_config)
 
         self.backend = self.config['backend']

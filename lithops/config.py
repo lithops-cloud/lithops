@@ -108,9 +108,9 @@ def load_config(config_file=None, log=True):
     return config_data
 
 
-def get_log_info(config_data=None):
+def get_log_info(config_file=None, config_data=None):
     """ Return lithops logging information set in configuration """
-    config_data = copy.deepcopy(config_data) or load_config(log=False)
+    config_data = copy.deepcopy(config_data) or load_config(config_file, log=False)
 
     if 'lithops' not in config_data or not config_data['lithops']:
         config_data['lithops'] = {}
@@ -229,7 +229,7 @@ def default_config(config_file=None, config_data=None, config_overwrite={}, load
         config_data['lithops']['chunksize'] = config_data[backend]['worker_processes']
 
     if load_storage_config:
-        config_data = default_storage_config(config_data)
+        config_data = default_storage_config(config_data=config_data)
         if config_data['lithops']['storage'] == c.LOCALHOST \
            and backend != c.LOCALHOST:
             raise Exception(f'Localhost storage backend cannot be used with {backend}')
@@ -237,10 +237,10 @@ def default_config(config_file=None, config_data=None, config_overwrite={}, load
     return config_data
 
 
-def default_storage_config(config_data=None, backend=None):
+def default_storage_config(config_file=None, config_data=None, backend=None):
     """ Function to load default storage config """
 
-    config_data = copy.deepcopy(config_data) or load_config()
+    config_data = copy.deepcopy(config_data) or load_config(config_file)
 
     if 'lithops' not in config_data or not config_data['lithops']:
         config_data['lithops'] = {}
