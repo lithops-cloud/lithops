@@ -20,11 +20,9 @@ Lithops with Ceph storage backend.
         storage: ceph
 
     ceph:
-        storage_bucket: <BUCKET_NAME>
         endpoint: <ENDPOINT_URL>
         access_key_id: <ACCESS_KEY>
         secret_access_key: <SECRET_ACCESS_KEY>
-        session_token : <SESSION_TOKEN>  # Optional
 ```
 
  

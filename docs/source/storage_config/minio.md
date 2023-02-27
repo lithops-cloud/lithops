@@ -20,11 +20,9 @@ Lithops with MinIO storage backend.
         storage: minio
 
     minio:
-        storage_bucket: <BUCKET_NAME>
         endpoint: <ENDPOINT_URL>
         access_key_id: <ACCESS_KEY>
         secret_access_key: <SECRET_ACCESS_KEY>
-        session_token: <SESSION_TOKEN>  # Optional
 ```
 
 ## Summary of configuration keys for MinIO
@@ -35,4 +33,4 @@ Lithops with MinIO storage backend.
 |minio | access_key_id | |yes | Account user access key |
 |minio | secret_access_key | |yes | Account user secret access key |
 |minio | session_token | |no | Session token for temporary AWS credentials |
-|minio | storage_bucket | | yes | The name of a bucket that exists in you account. This will be used by Lithops for intermediate data |
+|minio | storage_bucket | | no | The name of a bucket that exists in you account. This will be used by Lithops for intermediate data |

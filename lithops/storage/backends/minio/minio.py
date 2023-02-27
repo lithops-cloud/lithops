@@ -57,27 +57,8 @@ class MinioStorageBackend:
             endpoint_url=service_endpoint
         )
 
-        self._create_bucket()
-
         msg = STORAGE_CLI_MSG.format('MinIO')
         logger.info(f"{msg} - Endpoint: {service_endpoint}")
-
-    def _create_bucket(self):
-        """
-        Creates an storage bucket if not provided in the config
-        """
-        bucket = self.config.get('storage_bucket')
-
-        try:
-            self.s3_client.head_bucket(Bucket=bucket)
-        except botocore.exceptions.ClientError as e:
-            print(e.response['ResponseMetadata']['HTTPStatusCode'])
-            if e.response['ResponseMetadata']['HTTPStatusCode'] == 404:
-                logger.debug(f"Could not find the bucket {bucket} in the MinIO storage backend")
-                logger.debug(f"Creating new bucket {bucket} in the MinIO storage backend")
-                self.s3_client.create_bucket(Bucket=bucket)
-            else:
-                raise e
 
     def get_client(self):
         """
@@ -85,6 +66,21 @@ class MinioStorageBackend:
         :return: ibm_boto3 client
         """
         return self.s3_client
+
+    def create_bucket(self, bucket_name):
+        """
+        Create a bucket if not exists
+        """
+        try:
+            self.s3_client.head_bucket(Bucket=bucket_name)
+        except botocore.exceptions.ClientError as e:
+            print(e.response['ResponseMetadata']['HTTPStatusCode'])
+            if e.response['ResponseMetadata']['HTTPStatusCode'] == 404:
+                logger.debug(f"Could not find the bucket {bucket_name} in the MinIO storage backend")
+                logger.debug(f"Creating new bucket {bucket_name} in the MinIO storage backend")
+                self.s3_client.create_bucket(Bucket=bucket_name)
+            else:
+                raise e
 
     def put_object(self, bucket_name, key, data):
         """

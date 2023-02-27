@@ -31,7 +31,6 @@ Lithops with IBM COS as storage backend.
         storage: ibm_cos
        
     ibm_cos:
-        storage_bucket: <BUCKET_NAME>
         region   : <REGION>
         api_key  : <API_KEY>
     ```
@@ -55,7 +54,6 @@ Lithops with IBM COS as storage backend.
         storage: ibm_cos
        
     ibm_cos:
-        storage_bucket: <BUCKET_NAME>
         region : <REGION>  
         access_key  : <ACCESS_KEY_ID>
         secret_key  : <SECRET_KEY_ID>
@@ -79,7 +77,6 @@ Lithops with IBM COS as storage backend.
         iam_api_key: <IAM_API_KEY>
        
     ibm_cos:
-        storage_bucket: <BUCKET_NAME>
         region : <REGION>
     ```
 

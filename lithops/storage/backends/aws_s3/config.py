@@ -38,4 +38,4 @@ def load_config(config_data):
         if 'storage_bucket' not in config_data['aws_s3']:
             key = config_data['aws_s3']['access_key_id']
             region = config_data['aws_s3']['region_name']
-            config_data['aws_s3']['storage_bucket'] = f'lithops-bucket-{region}-{key[:6].lower()}'
+            config_data['aws_s3']['storage_bucket'] = f'lithops-{region}-{key[:6].lower()}'

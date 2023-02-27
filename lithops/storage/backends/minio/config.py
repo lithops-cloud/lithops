@@ -36,4 +36,4 @@ def load_config(config_data):
     if 'storage_bucket' not in config_data['minio']:
         key = config_data['minio']['access_key_id']
         endpoint = hashlib.sha1(config_data['minio']['endpoint'].encode()).hexdigest()[:6]
-        config_data['minio']['storage_bucket'] = f'lithops-bucket-{endpoint}-{key[:6].lower()}'
+        config_data['minio']['storage_bucket'] = f'lithops-{endpoint}-{key[:6].lower()}'

@@ -85,6 +85,14 @@ class Storage:
         """
         return self.config
 
+    def create_bucket(self, bucket: str):
+        """
+        Creates a bucket if not exists.
+
+        :param bucket: Name of the bucket
+        """
+        return self.storage_handler.create_bucket(bucket)
+
     def put_object(self, bucket: str, key: str, body: Union[str, bytes, TextIO, BinaryIO]):
         """
         Adds an object to a bucket of the storage backend.
@@ -297,6 +305,8 @@ class InternalStorage:
         if not self.bucket:
             raise Exception(f"'storage_bucket' is mandatory under '{self.backend}'"
                             " section of the configuration")
+
+        self.storage.create_bucket(self.bucket)
 
     def get_client(self):
         """

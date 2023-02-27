@@ -64,27 +64,8 @@ class S3Backend:
             )
             self.s3_client = boto3.client('s3', config=client_config)
 
-        self._create_bucket()
-
         msg = STORAGE_CLI_MSG.format('S3')
         logger.info(f"{msg} - Region: {self.region_name}")
-
-    def _create_bucket(self):
-        """
-        Creates an storage bucket if not provided in the config
-        """
-        bucket = self.config.get('storage_bucket')
-
-        try:
-            self.s3_client.head_bucket(Bucket=bucket)
-        except botocore.exceptions.ClientError as e:
-            if e.response['ResponseMetadata']['HTTPStatusCode'] == 404:
-                logger.debug(f"Could not find the bucket {bucket} in the AWS S3 storage backend")
-                logger.debug(f"Creating new bucket {bucket} in the AWS S3 storage backend")
-                bucket_config = {'LocationConstraint': self.region_name}
-                self.s3_client.create_bucket(Bucket=bucket, CreateBucketConfiguration=bucket_config)
-            else:
-                raise e
 
     def get_client(self):
         '''
@@ -92,6 +73,21 @@ class S3Backend:
         :return: boto3 client
         '''
         return self.s3_client
+
+    def create_bucket(self, bucket_name):
+        """
+        Create a bucket if not exists
+        """
+        try:
+            self.s3_client.head_bucket(Bucket=bucket_name)
+        except botocore.exceptions.ClientError as e:
+            if e.response['ResponseMetadata']['HTTPStatusCode'] == 404:
+                logger.debug(f"Could not find the bucket {bucket_name} in the AWS S3 storage backend")
+                logger.debug(f"Creating new bucket {bucket_name} in the AWS S3 storage backend")
+                bucket_config = {'LocationConstraint': self.region_name}
+                self.s3_client.create_bucket(Bucket=bucket_name, CreateBucketConfiguration=bucket_config)
+            else:
+                raise e
 
     def put_object(self, bucket_name, key, data):
         '''

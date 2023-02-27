@@ -96,26 +96,8 @@ class IBMCloudObjectStorageBackend:
                                                config=client_config,
                                                endpoint_url=service_endpoint)
 
-        self._create_bucket()
-
         msg = STORAGE_CLI_MSG.format('IBM COS')
         logger.info(f"{msg} - Region: {self.region}")
-
-    def _create_bucket(self):
-        """
-        Creates an storage bucket if not provided in the config
-        """
-        bucket = self.config.get('storage_bucket')
-
-        try:
-            self.cos_client.head_bucket(Bucket=bucket)
-        except ibm_botocore.exceptions.ClientError as e:
-            if e.response['ResponseMetadata']['HTTPStatusCode'] == 404:
-                logger.debug(f"Could not find the bucket {bucket} in the IBM COS storage backend")
-                logger.debug(f"Creating new bucket {bucket} in the IBM COS storage backend")
-                self.cos_client.create_bucket(Bucket=bucket)
-            else:
-                raise e
 
     def get_client(self):
         """
@@ -123,6 +105,20 @@ class IBMCloudObjectStorageBackend:
         :return: ibm_boto3 client
         """
         return self.cos_client
+
+    def create_bucket(self, bucket_name):
+        """
+        Create a bucket if not exists
+        """
+        try:
+            self.cos_client.head_bucket(Bucket=bucket_name)
+        except ibm_botocore.exceptions.ClientError as e:
+            if e.response['ResponseMetadata']['HTTPStatusCode'] == 404:
+                logger.debug(f"Could not find the bucket {bucket_name} in the IBM COS storage backend")
+                logger.debug(f"Creating new bucket {bucket_name} in the IBM COS storage backend")
+                self.cos_client.create_bucket(Bucket=bucket_name)
+            else:
+                raise e
 
     def put_object(self, bucket_name, key, data):
         """
