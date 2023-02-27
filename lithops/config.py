@@ -82,16 +82,20 @@ def get_default_config_filename():
 def load_config(config_file=None, log=True):
     """ Load the configuration """
     config_data = None
+
     if config_file:
+        config_filename = os.path.expanduser(config_file)
         if log:
-            logger.debug(f"Loading configuration from {config_file}")
-        if not os.path.exists(os.path.expanduser(config_file)):
-            raise FileNotFoundError(f"Config file {config_file} doesn't exist")
-        config_data = load_yaml_config(os.path.expanduser(config_file))
+            logger.debug(f"Loading configuration from {config_filename}")
+        if not os.path.exists(config_filename):
+            raise FileNotFoundError(f"Config file {config_filename} doesn't exist")
+        config_data = load_yaml_config(config_filename)
+
     elif 'LITHOPS_CONFIG' in os.environ:
         if log:
             logger.debug("Loading configuration from env LITHOPS_CONFIG")
         config_data = json.loads(os.environ.get('LITHOPS_CONFIG'))
+
     else:
         config_filename = get_default_config_filename()
         if config_filename:
@@ -99,10 +103,9 @@ def load_config(config_file=None, log=True):
                 logger.debug(f"Loading configuration from {config_filename}")
             config_data = load_yaml_config(config_filename)
 
-    if not config_data:
-        # Set to Localhost mode
+    if not config_data:  # Set Lithops to Localhost mode
         if log:
-            logger.debug("Config file not found. Setting lithops to Localhost")
+            logger.debug("Config file not found. Setting Lithops to Localhost mode")
         config_data = {'lithops': {'mode': c.LOCALHOST, 'backend': c.LOCALHOST, 'storage': c.LOCALHOST}}
 
     return config_data
