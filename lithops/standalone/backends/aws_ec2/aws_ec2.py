@@ -62,6 +62,7 @@ class AWSEC2Backend:
         self.ssh_data_type = 'provided' if 'ssh_key_name' in ec2_config else 'created'
 
         self.ec2_data = None
+        self.vpc_name = None
         self.vpc_key = ec2_config['vpc_id'][-4:] if 'vpc_id' in ec2_config else None
         self.user_key = ec2_config['access_key_id'][-4:].lower()
 
@@ -93,6 +94,7 @@ class AWSEC2Backend:
             logger.debug(f'Could not find EC2 cache data in {self.cache_file}')
         elif 'vpc_id' in self.ec2_data:
             self.vpc_key = self.ec2_data['vpc_id'][-4:]
+            self.vpc_name = self.ec2_data['vpc_name']
 
     def _dump_ec2_data(self):
         """
@@ -293,7 +295,7 @@ class AWSEC2Backend:
 
                 self.config['target_ami'] = response['Images'][0]['ImageId']
 
-        name = self.config.get('instance_name') or f'lithops-master-{self.vpc_key}'
+        name = self.config.get('master_name') or f'lithops-master-{self.vpc_key}'
         self.master = EC2Instance(name, self.config, self.ec2_client, public=True)
         self.master.instance_id = self.config['instance_id'] if self.mode == ExecMode.CONSUME.value else None
         self.master.profile_name = self.config['master_instance_type']
@@ -334,10 +336,10 @@ class AWSEC2Backend:
             if not self.ec2_data or ins_id != self.ec2_data.get('instance_id'):
                 instances = self.ec2_client.describe_instances(InstanceIds=[ins_id])
                 instance_data = instances['Reservations'][0]['Instances'][0]
-                self.config['instance_name'] = 'lithops-consume'
+                self.config['master_name'] = 'lithops-consume'
                 for tag in instance_data['Tags']:
                     if tag['Key'] == 'Name':
-                        self.config['instance_name'] = tag['Value']
+                        self.config['master_name'] = tag['Value']
 
             # Create the master VM instance
             self._create_master_instance()
@@ -346,8 +348,8 @@ class AWSEC2Backend:
                 'mode': self.mode,
                 'vpc_data_type': 'provided',
                 'ssh_data_type': 'provided',
-                'instance_id': self.config['instance_id'],
-                'instance_name': self.config['instance_name']
+                'master_name': self.config['master_name'],
+                'master_id': self.config['instance_id']
             }
 
         elif self.mode in [ExecMode.CREATE.value, ExecMode.REUSE.value]:
@@ -373,8 +375,9 @@ class AWSEC2Backend:
                 'mode': self.mode,
                 'vpc_data_type': self.vpc_data_type,
                 'ssh_data_type': self.ssh_data_type,
-                'instance_name': self.master.name,
-                'instance_id': '0af1',
+                'master_name': self.master.name,
+                'master_id': self.vpc_key,
+                'vpc_name': self.vpc_name,
                 'vpc_id': self.config['vpc_id'],
                 'iam_role': self.config['iam_role'],
                 'target_ami': self.config['target_ami'],
@@ -391,7 +394,9 @@ class AWSEC2Backend:
         """
         Deletes all worker VM instances
         """
-        logger.info('Deleting all Lithops worker VMs in EC2')
+        msg = (f'Deleting all Lithops worker VMs from {self.vpc_name}'
+               if self.vpc_name else 'Deleting all Lithops worker VMs')
+        logger.info(msg)
 
         vms_prefixes = ('lithops-worker', 'lithops-master') if all else ('lithops-worker',)
 
@@ -404,19 +409,20 @@ class AWSEC2Backend:
                     for tag in ins['Tags']:
                         if tag['Key'] == 'Name' and tag['Value'].startswith(vms_prefixes):
                             ins_to_delete.append(ins['InstanceId'])
-                            logger.info(f"Going to delete VM instance {tag['Value']}")
+                            logger.debug(f"Going to delete VM instance {tag['Value']}")
 
         if ins_to_delete:
             self.ec2_client.terminate_instances(InstanceIds=ins_to_delete)
 
-        if not self.ec2_data:
-            return
+        master_pk = os.path.join(self.cache_dir, f"{self.ec2_data['master_name']}-id_rsa.pub")
+        if os.path.isfile(master_pk):
+            os.remove(master_pk)
 
         if self.ec2_data['vpc_data_type'] == 'provided':
             return
 
         while all and ins_to_delete:
-            logger.info('Waiting for VM instances to be terminated')
+            logger.debug('Waiting for VM instances to be terminated')
             status = set()
             response = self.ec2_client.describe_instances()
             for res in response['Reservations']:
@@ -428,48 +434,21 @@ class AWSEC2Backend:
             else:
                 time.sleep(8)
 
-    def _delete_ssh_key(self):
-        """
-        Deletes the ssh key
-        """
-        if not self.ec2_data:
-            return
-
-        if self.ec2_data['ssh_data_type'] == 'provided':
-            return
-
-        if 'ssh_key_filename' not in self.ec2_data:
-            return
-
-        key_filename = self.ec2_data['ssh_key_filename']
-        if "lithops-key-" in key_filename:
-            if os.path.isfile(key_filename):
-                os.remove(key_filename)
-            if os.path.isfile(f"{key_filename}.pub"):
-                os.remove(f"{key_filename}.pub")
-
-        if 'ssh_key_name' in self.ec2_data:
-            logger.info(f"Deleting SSH key {self.ec2_data['ssh_key_name']}")
-            try:
-                self.ec2_client.delete_key_pair(KeyName=self.ec2_data['ssh_key_name'])
-            except ClientError as e:
-                logger.debug(e)
-
     def _delete_vpc(self):
         """
         Deletes all the VPC resources
         """
-        if not self.ec2_data:
-            return
-
         if self.ec2_data['vpc_data_type'] == 'provided':
             return
 
-        logger.info('Deleting Lithops VPC on AWS EC2')
+        msg = (f'Deleting all Lithops VPC resources from {self.vpc_name}'
+               if self.vpc_name else 'Deleting all Lithops VPC resources')
+        logger.info(msg)
 
         total_correct = 0
 
         try:
+            logger.debug(f"Deleting security group {self.ec2_data['security_group_id']}")
             self.ec2_client.delete_security_group(
                 GroupId=self.ec2_data['security_group_id']
             )
@@ -479,6 +458,7 @@ class AWSEC2Backend:
                 total_correct += 1
             logger.debug(e.response['Error']['Message'])
         try:
+            logger.debug(f"Deleting {self.ec2_data['subnet_id']}")
             self.ec2_client.delete_subnet(SubnetId=self.ec2_data['subnet_id'])
             total_correct += 1
         except ClientError as e:
@@ -486,6 +466,7 @@ class AWSEC2Backend:
                 total_correct += 1
             logger.debug(e.response['Error']['Message'])
         try:
+            logger.debug(f"Deleting internet gateway {self.ec2_data['internet_gateway_id']}")
             self.ec2_client.detach_internet_gateway(
                 InternetGatewayId=self.ec2_data['internet_gateway_id'],
                 VpcId=self.ec2_data['vpc_id'])
@@ -504,6 +485,7 @@ class AWSEC2Backend:
                 total_correct += 1
             logger.debug(e.response['Error']['Message'])
         try:
+            logger.debug(f"Deleting VPC {self.ec2_data['vpc_id']}")
             self.ec2_client.delete_vpc(VpcId=self.ec2_data['vpc_id'])
             total_correct += 1
         except ClientError as e:
@@ -513,20 +495,47 @@ class AWSEC2Backend:
 
         assert total_correct == 5, "Couldn't delete all the VPC resources, try againg in a few seconds"
 
+    def _delete_ssh_key(self):
+        """
+        Deletes the ssh key
+        """
+        if self.ec2_data['ssh_data_type'] == 'provided':
+            return
+
+        key_filename = self.ec2_data['ssh_key_filename']
+        if "lithops-key-" in key_filename:
+            if os.path.isfile(key_filename):
+                os.remove(key_filename)
+            if os.path.isfile(f"{key_filename}.pub"):
+                os.remove(f"{key_filename}.pub")
+
+        if 'ssh_key_name' in self.ec2_data:
+            logger.debug(f"Deleting SSH key {self.ec2_data['ssh_key_name']}")
+            try:
+                self.ec2_client.delete_key_pair(KeyName=self.ec2_data['ssh_key_name'])
+            except ClientError as e:
+                logger.debug(e)
+
     def clean(self, all=False):
         """
-        Clean all the backend resources
-        The gateway public IP and the floating IP are never deleted
+        Clean all the VPC resources
         """
         logger.info('Cleaning AWS EC2 resources')
 
         self._load_ec2_data()
-        self._delete_vm_instances(all)
-        self._delete_ssh_key() if all else None
-        self._delete_vpc() if all else None
 
-        if all and os.path.exists(self.cache_file):
-            os.remove(self.cache_file)
+        if not self.ec2_data:
+            return
+
+        if self.ec2_data['mode'] == ExecMode.CONSUME.value:
+            if os.path.exists(self.cache_file):
+                os.remove(self.cache_file)
+        else:
+            self._delete_vm_instances(all=all)
+            self._delete_vpc() if all else None
+            self._delete_ssh_key() if all else None
+            if all and os.path.exists(self.cache_file):
+                os.remove(self.cache_file)
 
     def clear(self, job_keys=None):
         """
@@ -589,7 +598,7 @@ class AWSEC2Backend:
         Creates the runtime key
         """
         name = runtime_name.replace('/', '-').replace(':', '-')
-        runtime_key = os.path.join(self.name, version, self.ec2_data['instance_id'], name)
+        runtime_key = os.path.join(self.name, version, self.ec2_data['master_id'], name)
         return runtime_key
 
 

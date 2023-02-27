@@ -4,14 +4,14 @@
 
 ### Added
 - [Executor] Allow to set all the compute backend params programatically in the FunctionExecutor()
-- [AWS EC2] Allow to automatically create the VPC and all the resources
+- [AWS EC2] Allow to automatically create the VPC and all the necessary resources
+- [IBM VPC & AWS EC2] General fixes and Improvements
 
 ### Changed
 - [AWS EC2] Reduced number of mandatory parameters
 
 ### Fixed
-- [IBM VPC] Make sure only VMs from the given VPC are deleted
-- [AWS EC2] Make sure only VMs from the given VPC are deleted
+- [IBM VPC & AWS EC2] Make sure only VMs from the given VPC are removed
 
 
 ## [v2.9.0]
