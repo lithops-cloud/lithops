@@ -45,6 +45,6 @@ $ python3 -m pip install lithops[aliyun]
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|aliyun_oss | storage_bucket | | yes | The name of a bucket that exists in you account. This will be used by Lithops for intermediate data.|
+|aliyun_oss | storage_bucket | | yes | The name of a bucket that exists in you account. This will be used by Lithops for intermediate data|
 |aliyun_oss | public_endpoint | |yes | public endpoint (URL) to the service. OSS and FC endpoints are different |
 |aliyun_oss | internal_endpoint | | yes | internal endpoint (URL) to the service. Provides cost-free inbound and outbound traffic among services from the same intranet (region)|

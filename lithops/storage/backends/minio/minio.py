@@ -35,11 +35,11 @@ class MinioStorageBackend:
 
     def __init__(self, minio_config):
         logger.debug("Creating MinIO client")
-        self.minio_config = minio_config
+        self.config = minio_config
         user_agent = minio_config['user_agent']
         service_endpoint = minio_config['endpoint']
 
-        logger.debug("Setting MinIO endpoint to {}".format(service_endpoint))
+        logger.debug(f"Setting MinIO endpoint to {service_endpoint}")
 
         client_config = botocore.client.Config(
             max_pool_connections=128,
@@ -57,8 +57,27 @@ class MinioStorageBackend:
             endpoint_url=service_endpoint
         )
 
+        self._create_bucket()
+
         msg = STORAGE_CLI_MSG.format('MinIO')
-        logger.info("{} - Endpoint: {}".format(msg, service_endpoint))
+        logger.info(f"{msg} - Endpoint: {service_endpoint}")
+
+    def _create_bucket(self):
+        """
+        Creates an storage bucket if not provided in the config
+        """
+        bucket = self.config.get('storage_bucket')
+
+        try:
+            self.s3_client.head_bucket(Bucket=bucket)
+        except botocore.exceptions.ClientError as e:
+            print(e.response['ResponseMetadata']['HTTPStatusCode'])
+            if e.response['ResponseMetadata']['HTTPStatusCode'] == 404:
+                logger.debug(f"Could not find the bucket {bucket} in the MinIO storage backend")
+                logger.debug(f"Creating new bucket {bucket} in the MinIO storage backend")
+                self.s3_client.create_bucket(Bucket=bucket)
+            else:
+                raise e
 
     def get_client(self):
         """
@@ -226,7 +245,7 @@ class MinioStorageBackend:
             else:
                 raise e
 
-    def list_objects(self, bucket_name, prefix=None, match_pattern = None):
+    def list_objects(self, bucket_name, prefix=None, match_pattern=None):
         """
         Return a list of objects for the given bucket and prefix.
         :param bucket_name: Name of the bucket.

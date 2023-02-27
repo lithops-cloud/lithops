@@ -26,10 +26,8 @@ Lithops with AWS S3 as storage backend.
     aws:
         access_key_id : <ACCESS_KEY_ID>
         secret_access_key : <SECRET_ACCESS_KEY>
-        session_token : <SESSION_TOKEN>  # Optional
 
     aws_s3:
-        storage_bucket: <BUCKET_NAME>
         region_name : <S3_BUCKET_REGION>
     ```
 
@@ -48,5 +46,6 @@ Lithops with AWS S3 as storage backend.
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|aws_s3 | storage_bucket | | yes | The name of a bucket that exists in you account. This will be used by Lithops for intermediate data. If set, this will overwrite the `storage_bucket` set in `lithops` section |
 |aws_s3 | region_name | |yes | Region of your Bcuket. e.g us-east-1, eu-west-1, etc |
+|aws_s3 | storage_bucket | | no | The name of a bucket that exists in you account. This will be used by Lithops for intermediate data |
+

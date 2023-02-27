@@ -20,6 +20,7 @@ import boto3
 from botocore import UNSIGNED
 from botocore.config import Config
 import botocore
+
 from lithops.storage.utils import StorageNoSuchKeyError
 from lithops.utils import sizeof_fmt
 from lithops.constants import STORAGE_CLI_MSG
@@ -34,7 +35,7 @@ CONN_READ_TIMEOUT = 10
 class S3Backend:
     def __init__(self, s3_config):
         logger.debug("Creating S3 client")
-        self.s3_config = s3_config
+        self.config = s3_config
         self.user_agent = s3_config['user_agent']
         self.region_name = s3_config.get('region_name')
         self.access_key_id = s3_config.get('access_key_id')
@@ -63,8 +64,27 @@ class S3Backend:
             )
             self.s3_client = boto3.client('s3', config=client_config)
 
+        self._create_bucket()
+
         msg = STORAGE_CLI_MSG.format('S3')
         logger.info(f"{msg} - Region: {self.region_name}")
+
+    def _create_bucket(self):
+        """
+        Creates an storage bucket if not provided in the config
+        """
+        bucket = self.config.get('storage_bucket')
+
+        try:
+            self.s3_client.head_bucket(Bucket=bucket)
+        except botocore.exceptions.ClientError as e:
+            if e.response['ResponseMetadata']['HTTPStatusCode'] == 404:
+                logger.debug(f"Could not find the bucket {bucket} in the AWS S3 storage backend")
+                logger.debug(f"Creating new bucket {bucket} in the AWS S3 storage backend")
+                bucket_config = {'LocationConstraint': self.region_name}
+                self.s3_client.create_bucket(Bucket=bucket, CreateBucketConfiguration=bucket_config)
+            else:
+                raise e
 
     def get_client(self):
         '''
@@ -207,7 +227,7 @@ class S3Backend:
             else:
                 raise e
 
-    def list_objects(self, bucket_name, prefix=None, match_pattern = None):
+    def list_objects(self, bucket_name, prefix=None, match_pattern=None):
         '''
         Return a list of objects for the given bucket and prefix.
         :param bucket_name: Name of the bucket.

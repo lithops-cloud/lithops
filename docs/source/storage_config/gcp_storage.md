@@ -56,5 +56,5 @@ $ python3 -m pip install lithops[gcp]
 ### Google Cloud Storage
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|gcp_storage | storage_bucket | | yes | The name of a bucket that exists in your account. This will be used by Lithops for intermediate data. If set, this will overwrite the `storage_bucket` set in `lithops` section |
+|gcp_storage | storage_bucket | | yes | The name of a bucket that exists in your account. This will be used by Lithops for intermediate data|
  

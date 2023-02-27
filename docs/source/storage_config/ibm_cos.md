@@ -125,10 +125,10 @@ Alternative to using region, you can configure the public and private endpoints 
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|ibm_cos | storage_bucket | | yes | The name of a bucket that exists in you account. This will be used by Lithops for intermediate data. If set, this will overwrite the `storage_bucket` set in `lithops` section |
-|ibm_cos | region | |no | Region of your bucket. **Mandatory** if no endpoint. For example: us-east, us-south, eu-gb, eu-de, etc..|
-|ibm_cos | endpoint | |no | Endpoint to your COS account. **Mandatory** if no region. Make sure to use the full path with 'https://' as prefix. |
-|ibm_cos | private_endpoint | |no | Private endpoint to your COS account. **Mandatory** if no region. Make sure to use the full path with 'https://' or http:// as prefix. |
+|ibm_cos | region | |yes | Region of your bucket. For example: us-east, us-south, eu-gb, eu-de, etc..|
+|ibm_cos | storage_bucket | | no | The name of a bucket that exists in you account. This will be used by Lithops for intermediate data |
+|ibm_cos | endpoint | |no | Endpoint to your COS account. **Mandatory** if no region. Make sure to use the full path with 'https://' as prefix |
+|ibm_cos | private_endpoint | |no | Private endpoint to your COS account. **Mandatory** if no region. Make sure to use the full path with 'https://' or http:// as prefix |
 |ibm_cos | api_key | |no | API Key to your COS account. **Mandatory** if no access_key and secret_key. Not needed if using IAM API Key|
 |ibm_cos | access_key | |no | HMAC Credentials. **Mandatory** if no api_key. Not needed if using IAM API Key|
 |ibm_cos | secret_key | |no | HMAC Credentials. **Mandatory** if no api_key. Not needed if using IAM API Key|
