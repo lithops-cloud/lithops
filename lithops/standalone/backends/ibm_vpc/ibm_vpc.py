@@ -305,11 +305,13 @@ class IBMVPCBackend:
 
         if not gateway_data:
             logger.debug(f'Creating Gateway {gateway_name}')
+            fip, fip_id = self._create_floating_ip()
             gateway_prototype = {}
             gateway_prototype['vpc'] = {'id': self.config['vpc_id']}
             gateway_prototype['zone'] = {'name': self.config['zone_name']}
             gateway_prototype['name'] = gateway_name
             gateway_prototype['resource_group'] = {'id': self.config['resource_group_id']}
+            gateway_prototype['floating_ip'] = {'id': fip_id}
             response = self.vpc_cli.create_public_gateway(**gateway_prototype)
             gateway_data = response.result
 
@@ -323,6 +325,29 @@ class IBMVPCBackend:
         """
         Creates a new floating IP address
         """
+        fip_data = None
+
+        floating_ips_info = self.vpc_cli.list_floating_ips().get_result()
+        for fip in floating_ips_info['floating_ips']:
+            if fip['name'].startswith("lithops-recyclable") and 'target' not in fip:
+                fip_data = fip
+
+        if not fip_data:
+            floating_ip_name = f'lithops-recyclable-{str(uuid.uuid4())[-4:]}'
+            logger.debug(f'Creating floating IP {floating_ip_name}')
+            floating_ip_prototype = {}
+            floating_ip_prototype['name'] = floating_ip_name
+            floating_ip_prototype['zone'] = {'name': self.config['zone_name']}
+            floating_ip_prototype['resource_group'] = {'id': self.config['resource_group_id']}
+            response = self.vpc_cli.create_floating_ip(floating_ip_prototype)
+            fip_data = response.result
+
+        return fip_data['address'], fip_data['id']
+
+    def _create_master_floating_ip(self):
+        """
+        Creates the master VM floating IP address
+        """
         if 'floating_ip_id' in self.config:
             return
 
@@ -335,39 +360,30 @@ class IBMVPCBackend:
             except ApiException:
                 pass
 
-        floating_ip_data = None
+        if 'floating_ip_id' not in self.config:
+            fip, fip_id = self._create_floating_ip()
+            self.config['floating_ip'] = fip
+            self.config['floating_ip_id'] = fip_id
 
-        floating_ips_info = self.vpc_cli.list_floating_ips().get_result()
-        for fip in floating_ips_info['floating_ips']:
-            if fip['name'].startswith("lithops-recyclable") and fip['status'] == 'available':
-                floating_ip_data = fip
+    def _request_image_id(self):
+        """
+        Requests the Ubuntu Image ID
+        """
+        if 'image_id' in self.config:
+            return
 
-        if not floating_ip_data:
-            floating_ip_name = f'lithops-recyclable-{str(uuid.uuid1())[-4:]}'
-            logger.debug(f'Creating floating IP {floating_ip_name}')
-            floating_ip_prototype = {}
-            floating_ip_prototype['name'] = floating_ip_name
-            floating_ip_prototype['zone'] = {'name': self.config['zone_name']}
-            floating_ip_prototype['resource_group'] = {'id': self.config['resource_group_id']}
-            response = self.vpc_cli.create_floating_ip(floating_ip_prototype)
-            floating_ip_data = response.result
+        if 'image_id' in self.vpc_data:
+            self.config['image_id'] = self.vpc_data['image_id']
 
-        self.config['floating_ip'] = floating_ip_data['address']
-        self.config['floating_ip_id'] = floating_ip_data['id']
+        if 'image_id' not in self.config:
+            for image in self.vpc_cli.list_images().result['images']:
+                if 'ubuntu-22' in image['name']:
+                    self.config['image_id'] = image['id']
 
     def _create_master_instance(self):
         """
         Creates the master VM insatnce
         """
-        if self.mode in [ExecMode.CREATE.value, ExecMode.REUSE.value]:
-            if 'image_id' not in self.config and 'image_id' in self.vpc_data:
-                self.config['image_id'] = self.vpc_data['image_id']
-
-            if 'image_id' not in self.config:
-                for image in self.vpc_cli.list_images().result['images']:
-                    if 'ubuntu-22' in image['name']:
-                        self.config['image_id'] = image['id']
-
         name = self.config.get('master_name') or f'lithops-master-{self.vpc_key}'
         self.master = IBMVPCInstance(name, self.config, self.vpc_cli, public=True)
         self.master.public_ip = self.config['floating_ip']
@@ -415,8 +431,10 @@ class IBMVPCBackend:
             self._create_subnet()
             # Create a new gateway if not exists
             self._create_gateway()
-            # Create a new floating IP if not exists
-            self._create_floating_ip()
+            # Create the master VM floating IP address
+            self._create_master_floating_ip()
+            # Requests the Ubuntu image ID
+            self._request_image_id()
 
             # Create the master VM instance
             self._create_master_instance()
@@ -901,7 +919,7 @@ class IBMVPCInstance:
 
         if instance_primary_ni['primary_ipv4_address'] and instance_primary_ni['id'] == fip_id:
             # floating ip already atteched. do nothing
-            logger.debug('Floating IP {} already attached to eth0'.format(fip))
+            logger.debug(f'Floating IP {fip} already attached to eth0')
         else:
             self.vpc_cli.add_instance_network_interface_floating_ip(
                 instance['id'], instance['network_interfaces'][0]['id'], fip_id)
