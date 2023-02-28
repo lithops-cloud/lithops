@@ -14,6 +14,7 @@
 # limitations under the License.
 #
 
+import copy
 import os
 
 AVAILABLE_PY_RUNTIMES = {
@@ -56,7 +57,9 @@ def load_config(config_data):
             raise Exception(msg)
 
     if 'ibm' in config_data and config_data['ibm'] is not None:
+        temp = copy.deepcopy(config_data['ibm_cf'])
         config_data['ibm_cf'].update(config_data['ibm'])
+        config_data['ibm_cf'].update(temp)
 
     if not all(elem in config_data['ibm_cf'] for elem in OPT_PARAMS_1) and \
        not all(elem in config_data['ibm_cf'] for elem in OPT_PARAMS_2):
@@ -90,5 +93,6 @@ def load_config(config_data):
 
     if 'ibm' not in config_data or config_data['ibm'] is None:
         config_data['ibm'] = {}
+
     if 'region' not in config_data['ibm']:
         config_data['ibm']['region'] = config_data['ibm_cf']['region']

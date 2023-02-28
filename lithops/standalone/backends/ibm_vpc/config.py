@@ -15,6 +15,7 @@
 # limitations under the License.
 #
 
+import copy
 import uuid
 
 MANDATORY_PARAMETERS_1 = ('resource_group_id',
@@ -42,8 +43,11 @@ VPC_ENDPOINT = "https://{}.iaas.cloud.ibm.com"
 REGIONS = ["jp-tok", "jp-osa", "au-syd", "eu-gb", "eu-de", "us-south", "us-east", "br-sao", "ca-tor"]
 
 def load_config(config_data):
+
     if 'ibm' in config_data and config_data['ibm'] is not None:
+        temp = copy.deepcopy(config_data['ibm_vpc'])
         config_data['ibm_vpc'].update(config_data['ibm'])
+        config_data['ibm_vpc'].update(temp)
 
     for key in DEFAULT_CONFIG_KEYS:
         if key not in config_data['ibm_vpc']:
@@ -68,7 +72,11 @@ def load_config(config_data):
         msg = "'region' or 'endpoint' parameter is mandatory in 'ibm_vpc' section of the configuration"
         raise Exception(msg)
 
-    if "region" in config_data['ibm_vpc']:
+    if 'endpoint' in config_data['ibm_vpc']:
+        endpoint = config_data['ibm_vpc']['endpoint']
+        config_data['ibm_vpc']['region'] = endpoint.split('//')[1].split('.')[0]
+
+    elif "region" in config_data['ibm_vpc']:
         region = config_data['ibm_vpc']['region']
         if region not in REGIONS:
             msg = f"'region' conig parameter in 'ibm_vpc' section must be one of {REGIONS}"
@@ -76,3 +84,9 @@ def load_config(config_data):
         config_data['ibm_vpc']['endpoint'] = VPC_ENDPOINT.format(region)
 
     config_data['ibm_vpc']['endpoint'] = config_data['ibm_vpc']['endpoint'].replace('/v1', '')
+
+    if 'ibm' not in config_data or config_data['ibm'] is None:
+        config_data['ibm'] = {}
+
+    if region and 'region' not in config_data['ibm']:
+        config_data['ibm']['region'] = config_data['ibm_vpc']['region']
