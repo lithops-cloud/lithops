@@ -148,7 +148,7 @@ code_engine:
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |code_engine | namespace |  |no | Namespace name|
-|code_engine | region |  | no | Cluster region. One of *us-south*, *jp-tok*, *eu-de*, *eu-gb* |
+|code_engine | region |  | no | Cluster region. One of: `eu-gb`, `eu-de`, `us-south`, `us-east`, `br-sao`, `ca-tor`, `jp-tok`, `jp-osa`, `au-syd` |
 |code_engine | kubecfg_path | |no | **Mandatory** if no namepsace and no region. Path to kubecfg file. Only set if config file not in `~/.kube/config` or KUBECONFIG env var not present|
 |code_engine | docker_server | docker.io |no | Docker server URL |
 |code_engine | docker_user | |no | Docker hub username |

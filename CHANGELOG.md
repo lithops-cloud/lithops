@@ -8,6 +8,7 @@
 - [IBM VPC & AWS EC2] General fixes and Improvements
 - [Executor] Allow to pass the config file location in the FunctionExecutor()
 - [Storage] Automatically create the storage bucket if not provided in the config
+- [IBM CF] Allow to configure CF using "region" parameter
 
 ### Changed
 - [AWS EC2] Reduced number of mandatory parameters

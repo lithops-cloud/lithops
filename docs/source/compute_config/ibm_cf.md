@@ -30,16 +30,14 @@ By default, the IBM Cloud account provides an automatically created CloudFoundry
 
 10. Copy the full **current namespace** name and the **API key**. Usually, namepsace names in free accounts looks like *your.name@myemail.com_dev*, e.g, *james.braun@gmail.com_dev*
 
-11. From the same page, check the **Location** of your namespace and select the appropriate endpoint [from the table below](#ibm-cloud-functions-namespace-endpoints).
-
-12. Edit your lithops config and add the following keys:
+11. Edit your lithops config and add the following keys:
 
     ```yaml
     lithops:
         backend: ibm_cf
        
     ibm_cf:
-        endpoint    : <REGION_ENDPOINT>
+        region    : <REGION>
         namespace   : <NAMESPACE>
         api_key     : <API_KEY>
     ```
@@ -77,23 +75,11 @@ By default, the IBM Cloud account provides an automatically created CloudFoundry
         iam_api_key: <IAM_API_KEY>
        
     ibm_cf:
-        endpoint     : <REGION_ENDPOINT>
+        region       : <REGION>
         namespace    : <NAMESPACE>
         namespace_id : <GUID>
     ```
-    
-### IBM Cloud Functions Namespace Endpoints
 
-|Location| Endpoint|
-|---|---|
-|Washington DC | https://us-east.functions.cloud.ibm.com |
-|Dallas | https://us-south.functions.cloud.ibm.com |
-|London | https://eu-gb.functions.cloud.ibm.com |
-|Frankfur | https://eu-de.functions.cloud.ibm.com |
-|Tokyo | https://jp-tok.functions.cloud.ibm.com |
-|Sydney | https://au-syd.functions.cloud.ibm.com |
-
-    
 ## Summary of configuration keys for IBM Cloud:
 
 ### IBM IAM:
@@ -106,8 +92,9 @@ By default, the IBM Cloud account provides an automatically created CloudFoundry
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|ibm_cf| endpoint | |yes | IBM Cloud Functions endpoint. Make sure to use https:// prefix, for example: https://us-east.functions.cloud.ibm.com |
 |ibm_cf| namespace | |yes | Value of CURRENT NAMESPACE from [here](https://cloud.ibm.com/functions/namespace-settings) |
+|ibm_cf | region | |yes | VPC Region. One of: `jp-tok`, `au-syd`, `eu-gb`, `eu-de`, `us-south`, `us-east` |
+|ibm_cf| endpoint | |no | IBM Cloud Functions endpoint (if region not provided). Make sure to use https:// prefix, for example: https://us-east.functions.cloud.ibm.com |
 |ibm_cf| api_key |  | no | **Mandatory** if using Cloud Foundry-based namespace. Value of 'KEY' from [here](https://cloud.ibm.com/functions/namespace-settings)|
 |ibm_cf| namespace_id |  |no | **Mandatory** if using IAM-based namespace with IAM API Key. Value of 'GUID' from [here](https://cloud.ibm.com/functions/namespace-settings)|
 |ibm_cf | max_workers | 1200 | no | Max number of workers per `FunctionExecutor()`|
