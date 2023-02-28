@@ -57,7 +57,7 @@ class IBMVPCBackend:
         self.ssh_data_type = 'provided' if 'ssh_key_id' in self.config else 'created'
 
         self.endpoint = self.config['endpoint']
-        self.region = self.endpoint.split('//')[1].split('.')[0]
+        self.region = self.config['region']
         self.cache_dir = os.path.join(CACHE_DIR, self.name)
         self.cache_file = os.path.join(self.cache_dir, self.region + '_data')
         self.custom_image = self.config.get('custom_lithops_image')

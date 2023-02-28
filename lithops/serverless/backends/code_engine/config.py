@@ -14,6 +14,7 @@
 # limitations under the License.
 #
 
+import copy
 import os
 
 DEFAULT_CONFIG_KEYS = {
@@ -143,7 +144,9 @@ spec:
 def load_config(config_data):
 
     if 'ibm' in config_data and config_data['ibm'] is not None:
+        temp = copy.deepcopy(config_data['code_engine'])
         config_data['code_engine'].update(config_data['ibm'])
+        config_data['code_engine'].update(temp)
 
     for key in DEFAULT_CONFIG_KEYS:
         if key not in config_data['code_engine']:
@@ -169,3 +172,9 @@ def load_config(config_data):
         registry = config_data['code_engine']['docker_server']
         if runtime.count('/') == 1 and registry not in runtime:
             config_data['code_engine']['runtime'] = f'{registry}/{runtime}'
+
+    if 'ibm' not in config_data or config_data['ibm'] is None:
+        config_data['ibm'] = {}
+
+    if region and 'region' not in config_data['ibm']:
+        config_data['ibm']['region'] = config_data['code_engine']['region']

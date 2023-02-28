@@ -71,7 +71,3 @@ Once local image is ready you need to upload it to COS. The best would be to use
     ```
     $ lithops clean -b ibm_vpc --all
     ```
-    In order to delete also master floating ip VM add `--force` flag
-    ```
-    $ lithops clean -b ibm_vpc --all --force
-    ```

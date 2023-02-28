@@ -24,9 +24,14 @@ def load_config(config_data):
     if 'ibm_cos' not in config_data:
         raise Exception("ibm_cos section is mandatory in the configuration")
 
+    if 'ibm' in config_data and config_data['ibm'] is not None:
+        temp = copy.deepcopy(config_data['ibm_cos'])
+        config_data['ibm_cos'].update(config_data['ibm'])
+        config_data['ibm_cos'].update(temp)
+
     compute_backend = config_data['lithops'].get('backend')
 
-    if 'region' in config_data['ibm_cos']:
+    if 'endpoint' not in config_data['ibm_cos'] and 'region' in config_data['ibm_cos']:
         region = config_data['ibm_cos']['region']
         config_data['ibm_cos']['endpoint'] = PUBLIC_ENDPOINT.format(region)
 
@@ -71,12 +76,6 @@ def load_config(config_data):
     required_keys_1 = ('endpoint', 'api_key')
     required_keys_2 = ('endpoint', 'secret_key', 'access_key')
     required_keys_3 = ('endpoint', 'ibm:iam_api_key')
-
-    if 'ibm' in config_data and config_data['ibm'] is not None:
-        # in order to support sepparate api keys for cos and for compute
-        temp = copy.deepcopy(config_data['ibm_cos'])
-        config_data['ibm_cos'].update(config_data['ibm'])
-        config_data['ibm_cos'].update(temp)
 
     if not set(required_keys_1) <= set(config_data['ibm_cos']) and \
        not set(required_keys_2) <= set(config_data['ibm_cos']) and \

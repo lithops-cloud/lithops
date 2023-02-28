@@ -14,6 +14,7 @@
 # limitations under the License.
 #
 
+import copy
 import os
 
 AVAILABLE_PY_RUNTIMES = {
@@ -56,7 +57,9 @@ def load_config(config_data):
             raise Exception(msg)
 
     if 'ibm' in config_data and config_data['ibm'] is not None:
+        temp = copy.deepcopy(config_data['ibm_cf'])
         config_data['ibm_cf'].update(config_data['ibm'])
+        config_data['ibm_cf'].update(temp)
 
     if not all(elem in config_data['ibm_cf'] for elem in OPT_PARAMS_1) and \
        not all(elem in config_data['ibm_cf'] for elem in OPT_PARAMS_2):
@@ -77,9 +80,19 @@ def load_config(config_data):
         msg = "'region' or 'endpoint' parameter is mandatory in 'ibm_cf' section of the configuration"
         raise Exception(msg)
 
-    if "region" in config_data['ibm_cf']:
+    if 'endpoint' in config_data['ibm_cf']:
+        endpoint = config_data['ibm_cf']['endpoint']
+        config_data['ibm_cf']['region'] = endpoint.split('//')[1].split('.')[0]
+
+    elif "region" in config_data['ibm_cf']:
         region = config_data['ibm_cf']['region']
         if region not in REGIONS:
             msg = f"'region' conig parameter in 'ibm_cf' section must be one of {REGIONS}"
             raise Exception(msg)
         config_data['ibm_cf']['endpoint'] = CF_ENDPOINT.format(region)
+
+    if 'ibm' not in config_data or config_data['ibm'] is None:
+        config_data['ibm'] = {}
+
+    if 'region' not in config_data['ibm']:
+        config_data['ibm']['region'] = config_data['ibm_cf']['region']
