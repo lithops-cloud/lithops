@@ -18,11 +18,13 @@
 import copy
 import uuid
 
-MANDATORY_PARAMETERS_1 = ('resource_group_id',
+from lithops.constants import SA_DEFAULT_CONFIG_KEYS
+
+MANDATORY_PARAMETERS_1 = ('instance_id',
+                          'floating_ip',
                           'iam_api_key')
 
-MANDATORY_PARAMETERS_2 = ('instance_id',
-                          'floating_ip',
+MANDATORY_PARAMETERS_2 = ('resource_group_id',
                           'iam_api_key')
 
 DEFAULT_CONFIG_KEYS = {
@@ -53,12 +55,17 @@ def load_config(config_data):
         if key not in config_data['ibm_vpc']:
             config_data['ibm_vpc'][key] = DEFAULT_CONFIG_KEYS[key]
 
-    if 'exec_mode' in config_data['standalone'] \
-       and config_data['standalone']['exec_mode'] in ['create', 'reuse']:
+    for key in SA_DEFAULT_CONFIG_KEYS:
+        if key in config_data['ibm_vpc']:
+            config_data['standalone'][key] = config_data['ibm_vpc'].pop(key)
+        elif key not in config_data['standalone']:
+            config_data['standalone'][key] = SA_DEFAULT_CONFIG_KEYS[key]
+
+    if config_data['standalone']['exec_mode'] == 'consume':
         params_to_check = MANDATORY_PARAMETERS_1
+        config_data['ibm_vpc']['max_workers'] = 1
     else:
         params_to_check = MANDATORY_PARAMETERS_2
-        config_data['ibm_vpc']['max_workers'] = 1
 
     for param in params_to_check:
         if param not in config_data['ibm_vpc']:

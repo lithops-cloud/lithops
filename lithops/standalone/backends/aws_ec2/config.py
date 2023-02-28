@@ -14,7 +14,10 @@
 # limitations under the License.
 #
 
+import copy
 import uuid
+
+from lithops.constants import SA_DEFAULT_CONFIG_KEYS
 
 DEFAULT_CONFIG_KEYS = {
     'master_instance_type': 't2.micro',
@@ -28,21 +31,36 @@ DEFAULT_CONFIG_KEYS = {
     'worker_processes': 2
 }
 
-
-REQ_PARAMS_1 = ('instance_id', 'region_name')
-REQ_PARAMS_2 = ('region_name', 'iam_role')
+REQ_PARAMS_1 = ('instance_id',)
+REQ_PARAMS_2 = ('iam_role',)
 
 
 def load_config(config_data):
 
     if 'aws' not in config_data:
-        raise Exception("'aws' section are mandatory in the configuration")
+        raise Exception("'aws' section is mandatory in the configuration")
 
     if not {'access_key_id', 'secret_access_key'}.issubset(set(config_data['aws'])):
         raise Exception("'access_key_id' and 'secret_access_key' are mandatory under 'aws' section")
 
-    if 'exec_mode' not in config_data['standalone'] \
-       or config_data['standalone']['exec_mode'] == 'consume':
+    if not config_data['aws_ec2']:
+        raise Exception("'aws_ec2' section is mandatory in the configuration")
+
+    temp = copy.deepcopy(config_data['aws_ec2'])
+    config_data['aws_ec2'].update(config_data['aws'])
+    config_data['aws_ec2'].update(temp)
+
+    for key in DEFAULT_CONFIG_KEYS:
+        if key not in config_data['aws_ec2']:
+            config_data['aws_ec2'][key] = DEFAULT_CONFIG_KEYS[key]
+
+    for key in SA_DEFAULT_CONFIG_KEYS:
+        if key in config_data['ibm_vpc']:
+            config_data['standalone'][key] = config_data['ibm_vpc'].pop(key)
+        elif key not in config_data['standalone']:
+            config_data['standalone'][key] = SA_DEFAULT_CONFIG_KEYS[key]
+
+    if config_data['standalone']['exec_mode'] == 'consume':
         params_to_check = REQ_PARAMS_1
         config_data['aws_ec2']['max_workers'] = 1
     else:
@@ -53,8 +71,7 @@ def load_config(config_data):
             msg = f"'{param}' is mandatory in 'aws_ec2' section of the configuration"
             raise Exception(msg)
 
-    for key in DEFAULT_CONFIG_KEYS:
-        if key not in config_data['aws_ec2']:
-            config_data['aws_ec2'][key] = DEFAULT_CONFIG_KEYS[key]
-
-    config_data['aws_ec2'].update(config_data['aws'])
+    if 'region_name' not in config_data['aws_ec2']:
+        raise Exception('"region_name" is mandatory under the "aws_ec2" or "aws" section of the configuration')
+    elif 'region_name' not in config_data['aws']:
+        config_data['aws']['region_name'] = config_data['aws_ec2']['region_name']

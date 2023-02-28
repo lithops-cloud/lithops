@@ -50,12 +50,12 @@ lithops:
     backend: aws_lambda
 
 aws:
+    region_name: <REGION_NAME>
     access_key_id: <AWS_ACCESS_KEY_ID>
     secret_access_key: <AWS_SECRET_ACCESS_KEY>
 
 aws_lambda:
     execution_role: <EXECUTION_ROLE_ARN>
-    region_name: <REGION_NAME>
 ```
 
 ## Summary of configuration keys for AWS
@@ -64,6 +64,7 @@ aws_lambda:
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
+|aws | region_name | |yes | AWS Region. For example `us-east-1` |
 |aws | access_key_id | |yes | Account access key to AWS services. To find them, navigate to *My Security Credentials* and click *Create Access Key* if you don't already have one. |
 |aws | secret_access_key | |yes | Account secret access key to AWS services. To find them, navigate to *My Security Credentials* and click *Create Access Key* if you don't already have one. |
 |aws | session_token | |no | Session token for temporary AWS credentials |
@@ -73,8 +74,8 @@ aws_lambda:
 
 | Group      | Key                 | Default | Mandatory | Additional info                                                                                                                                                                    |
 |------------|---------------------|---------|-----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| aws_lambda | region_name         |         | yes       | Region where the S3 bucket is located and where Lambda functions will be invoked (e.g. `us-east-1`)                                                                                |
 | aws_lambda | execution_role      |         | yes       | ARN of the execution role created at step 3. You can find it in the Role page at the *Roles* list in the *IAM* section (e.g. `arn:aws:iam::1234567890:role/lithops-execution-role` |
+| aws_lambda | region_name         |         | no       | Region where the S3 bucket is located and where Lambda functions will be invoked (e.g. `us-east-1`). Lithops will use the region set under the `aws` section if it is not set here |
 | aws_lambda | max_workers         | 1000    | no        | Max number of workers per `FunctionExecutor()`                                                                                                                                     |
 | aws_lambda | worker_processes    | 1       | no        | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker                                                            |
 | aws_lambda | runtime             |         | no        | Docker image name                                                                                                                                                                  |

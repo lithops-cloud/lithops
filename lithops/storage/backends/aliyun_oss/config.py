@@ -14,11 +14,17 @@
 # limitations under the License.
 #
 
+import hashlib
+
+
 CONNECTION_POOL_SIZE = 300
 
 REQ_PARAMS_1 = ('access_key_id', 'access_key_secret')
-REQ_PARAMS_2 = ('public_endpoint', 'internal_endpoint')
+REQ_PARAMS_2 = ('region',)
 
+
+PUBLIC_ENDPOINT = "{}.aliyuncs.com"
+INTERNAL_ENDPOINT = "{}-internal.aliyuncs.com"
 
 def load_config(config_data=None):
     if 'aliyun' not in config_data:
@@ -26,6 +32,8 @@ def load_config(config_data=None):
 
     if 'aliyun_oss' not in config_data:
         raise Exception("'aliyun_oss' section is mandatory in the configuration")
+
+    config_data['aliyun_oss'].update(config_data['aliyun'])
 
     for param in REQ_PARAMS_1:
         if param not in config_data['aliyun']:
@@ -37,5 +45,12 @@ def load_config(config_data=None):
             msg = f'"{param}" is mandatory under "aliyun_oss" section of the configuration'
             raise Exception(msg)
 
-    # Put credential keys to 'aws_lambda' dict entry
-    config_data['aliyun_oss'].update(config_data['aliyun'])
+    region = config_data['aliyun_oss']['region']
+    config_data['aliyun_oss']['public_endpoint'] = PUBLIC_ENDPOINT.format(region)
+    config_data['aliyun_oss']['internal_endpoint'] = INTERNAL_ENDPOINT.format(region)
+
+    if 'storage_bucket' not in config_data['aliyun_oss']:
+        ossc = config_data['aliyun_oss']
+        key = ossc['access_key_id']
+        endpoint = hashlib.sha1(ossc['public_endpoint'].encode()).hexdigest()[:6]
+        config_data['aliyun_oss']['storage_bucket'] = f'lithops-{endpoint}-{key[:6].lower()}'

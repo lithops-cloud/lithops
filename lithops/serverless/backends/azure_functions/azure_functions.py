@@ -67,7 +67,7 @@ class AzureFunctionAppBackend:
         Formates the function name
         """
         ac_name = self.storage_account_name
-        name = f'{ac_name}-{runtime_name}-{self.trigger}'
+        name = f'{ac_name}-{runtime_name}-{version}-{self.trigger}'
         name_hash = hashlib.sha1(name.encode("utf-8")).hexdigest()[:10]
 
         return f'lithops-worker-{runtime_name}-{version.replace(".", "")}-{name_hash}'
@@ -76,7 +76,8 @@ class AzureFunctionAppBackend:
         """
         Generates the queue name
         """
-        return f'{function_name}-{q_type}'
+        hash = function_name.rsplit("-", 1)[-1]
+        return f'lithops-worker-{hash}-{q_type}'
 
     def _get_default_runtime_name(self):
         """

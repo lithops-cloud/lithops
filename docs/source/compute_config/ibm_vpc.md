@@ -2,41 +2,6 @@
 
 The IBM VPC client of Lithops can provide a truely serverless user experience on top of IBM VPC where Lithops creates new VSIs (Virtual Server Instance) dynamically in runtime, and scale Lithops jobs against them. Alternatively Lithops can start and stop an existing VSI instances.
 
-Note that IBM VPC is a **standalone backend**, and as such, you can configure extra parameters in the 'standalone' section of the configuration:
-
-|Group|Key|Default|Mandatory|Additional info|
-|---|---|---|---|---|
-|standalone | runtime | python3 | no | Runtime name to run the functions. Can be a Docker image name |
-|standalone | auto_dismantle | True |no | If False then the VM is not stopped automatically.|
-|standalone | soft_dismantle_timeout | 300 |no| Time in seconds to stop the VM instance after a job **completed** its execution |
-|standalone | hard_dismantle_timeout | 3600 | no | Time in seconds to stop the VM instance after a job **started** its execution |
-|standalone | exec_mode | consume | no | One of: **consume**, **create** or **reuse**. If set to  **create**, Lithops will automatically create new VMs for each map() call based on the number of elements in iterdata. If set to **reuse** will try to reuse running workers if exist |
-|standalone | pull_runtime | False | no | If set to True, Lithops will execute the command `docker pull <runtime_name>` in each VSI before executing the a job (in case of using a docker runtime)|
-|standalone | workers_policy | permissive | no | One of: **permissive**, **strict**. If set to **strict** will force creation of required workers number |
-|standalone | gpu | False | no | If True docker started with gpu support. Requires host to have neccessary hardware and software preconfigured and docker image runtime with gpu support specified |
-
-## Configure a Container registry
-To configure Lithops to access a private container registry, you need to add the following keys to the **standalone** section in config:
-
-```yaml
-standalone:
-    ....
-    docker_server    : <Container registry server>
-    docker_user      : <Container registry username>
-    docker_password  : <Container registry access token>
-```
-
-### Configure IBM Container Registry
-To configure Lithops to access to a private docker repository in your IBM Container Registry, you need to extend the **standalone** config and add the following keys:
-
-```yaml
-standalone:
-    ....
-    docker_server    : us.icr.io  # Change-me if you have the CR in another region
-    docker_user      : iamapikey
-    docker_password  : <IBM IAM API KEY>
-```
-
 ## IBM VPC
 The assumption that you already familiar with IBM Cloud, have your IBM IAM API key created (you can create new keys [here](https://cloud.ibm.com/iam/apikeys)), have valid IBM COS account, region and resource group.
 
@@ -64,13 +29,34 @@ lithops:
 ibm:
     iam_api_key: <iam-api-key>
 
-standalone:
-    exec_mode: reuse
-
 ibm_vpc:
     region: <REGION>
     resource_group_id: <RESOURCE_GROUP_ID>
+    exec_mode: reuse
 ```
+
+## Configure a Container registry
+To configure Lithops to access a private container registry, you need to add the following keys to the **standalone** section in config:
+
+```yaml
+ibm_vpc:
+    ....
+    docker_server    : <Container registry server>
+    docker_user      : <Container registry username>
+    docker_password  : <Container registry access token>
+```
+
+### Configure IBM Container Registry
+To configure Lithops to access to a private docker repository in your IBM Container Registry, you need to extend the **standalone** config and add the following keys:
+
+```yaml
+ibm_vpc:
+    ....
+    docker_server    : us.icr.io  # Change-me if you have the CR in another region
+    docker_user      : iamapikey
+    docker_password  : <IBM IAM API KEY>
+```
+
 
 ## Summary of configuration keys for IBM Cloud:
 
@@ -78,10 +64,10 @@ ibm_vpc:
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|ibm | iam_api_key | |no | IBM Cloud IAM API key to authenticate against IBM COS and IBM Cloud Functions. Obtain the key [here](https://cloud.ibm.com/iam/apikeys) |
+|ibm | iam_api_key | |no | IBM Cloud IAM API key to authenticate against IBM services. Obtain the key [here](https://cloud.ibm.com/iam/apikeys) |
 |ibm | region | |no | IBM Region.  One of: `eu-gb`, `eu-de`, `us-south`, `us-east`, `br-sao`, `ca-tor`, `jp-tok`, `jp-osa`, `au-syd` |
 
-### VPC *create* and *reuse* mode
+### VPC Create and Reuse mode
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
@@ -105,6 +91,14 @@ ibm_vpc:
 |ibm_vpc | max_workers | 100 | no | Max number of workers per `FunctionExecutor()`|
 |ibm_vpc | worker_processes | 2 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker. It is recommendable to set this value to the same number of CPUs of a worker VM. |
 |ibm_vpc | singlesocket | False | no | Try to allocate workers with single socket CPU. If eventually running on multiple socket, a warning message printed to user. Is **True** standalone **workers_policy** must be set to **strict** to trace workers states|
+|ibm_vpc | runtime | python3 | no | Runtime name to run the functions. Can be a container image name. If not set Lithops will use the defeuv python3 interpreter of the VM |
+|ibm_vpc | auto_dismantle | True |no | If False then the VM is not stopped automatically.|
+|ibm_vpc | soft_dismantle_timeout | 300 |no| Time in seconds to stop the VM instance after a job **completed** its execution |
+|ibm_vpc | hard_dismantle_timeout | 3600 | no | Time in seconds to stop the VM instance after a job **started** its execution |
+|ibm_vpc | exec_mode | consume | no | One of: **consume**, **create** or **reuse**. If set to  **create**, Lithops will automatically create new VMs for each map() call based on the number of elements in iterdata. If set to **reuse** will try to reuse running workers if exist |
+|ibm_vpc | pull_runtime | False | no | If set to True, Lithops will execute the command `docker pull <runtime_name>` in each VSI before executing the a job (in case of using a docker runtime)|
+|ibm_vpc | workers_policy | permissive | no | One of: **permissive**, **strict**. If set to **strict** will force creation of required workers number |
+|ibm_vpc | gpu | False | no | If True docker started with gpu support. Requires host to have neccessary hardware and software preconfigured and docker image runtime with gpu support specified |
 
 ## Lithops and the VSI consume mode
 
@@ -154,6 +148,11 @@ If you need to create new VM, then follow the steps to create and update Lithops
 |ibm_vpc | ssh_username | root |no | Username to access the VM |
 |ibm_vpc | ssh_key_filename | ~/.ssh/id_rsa | no | Path to the ssh key file provided to create the VM. It will use the default path if not provided |
 |ibm_vpc | worker_processes | 2 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker. It is recommendable to set this value to the same number of CPUs of the VM. |
+|ibm_vpc | runtime | python3 | no | Runtime name to run the functions. Can be a container image name. If not set Lithops will use the defeuv python3 interpreter of the VM |
+|ibm_vpc | auto_dismantle | True |no | If False then the VM is not stopped automatically.|
+|ibm_vpc | soft_dismantle_timeout | 300 |no| Time in seconds to stop the VM instance after a job **completed** its execution |
+|ibm_vpc | hard_dismantle_timeout | 3600 | no | Time in seconds to stop the VM instance after a job **started** its execution |
+|ibm_vpc | pull_runtime | False | no | If set to True, Lithops will execute the command `docker pull <runtime_name>` in each VSI before executing the a job (in case of using a docker runtime)|
 
 
 ## Test Lithops

@@ -32,20 +32,35 @@ logger = logging.getLogger(__name__)
 TIMEOUT = 5
 
 class GCPStorageBackend:
+
     def __init__(self, gcp_storage_config):
         logger.debug("Creating GCP Storage client")
         self.credentials_path = gcp_storage_config.get('credentials_path')
-        if self.credentials_path and os.path.isfile(self.credentials_path): 
+        self.region = gcp_storage_config['region']
+
+        if self.credentials_path and os.path.isfile(self.credentials_path):
             logger.debug(f'Getting GCP credentials from {self.credentials_path}')
             self.client = storage.Client.from_service_account_json(self.credentials_path)
         else:
-            logger.debug(f'Getting GCP credentials from the environment')
+            logger.debug('Getting GCP credentials from the environment')
             self.client = storage.Client()
+
         msg = STORAGE_CLI_MSG.format('Google Cloud Storage')
-        logger.info("{}".format(msg))
+        logger.info(f"{msg} - Region: {self.region}")
 
     def get_client(self):
         return self.client
+
+    def create_bucket(self, bucket_name):
+        """
+        Create a bucket if not exists
+        """
+        try:
+            bucket = self.client.bucket(bucket_name)
+            bucket.storage_class = "STANDARD"
+            self.client.create_bucket(bucket, location=self.region)
+        except google_exceptions.Conflict:
+            pass
 
     def put_object(self, bucket_name, key, data):
         done = False
@@ -174,21 +189,20 @@ class GCPStorageBackend:
         bucket = self.client.get_bucket(bucket_name, timeout=TIMEOUT)
         response = {
             'ResponseMetadata':
-                {'HTTPStatusCode': 200, 
-                'HTTPHeaders': {'content-type': 'application/xml', 
-                                'server': 'GoogleStorage'}
-                }
+                {'HTTPStatusCode': 200,
+                 'HTTPHeaders': {'content-type': 'application/xml',
+                                 'server': 'GoogleStorage'}}
         }
         response['ResponseMetadata']['HTTPHeaders'].update(bucket._properties)
         return response
 
-    def list_objects(self, bucket_name, prefix=None, match_pattern = None):
+    def list_objects(self, bucket_name, prefix=None, match_pattern=None):
         try:
             bucket = self.client.get_bucket(bucket_name, timeout=TIMEOUT)
             page = bucket.list_blobs(prefix=prefix)
         except google_exceptions.ClientError:
             raise StorageNoSuchKeyError(bucket_name, '')
-        return [{'Key': blob.name, 'Size': blob.size, 'LastModified': blob.updated } for blob in page]
+        return [{'Key': blob.name, 'Size': blob.size, 'LastModified': blob.updated} for blob in page]
 
     def list_keys(self, bucket_name, prefix=None):
         try:

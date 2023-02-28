@@ -14,21 +14,15 @@
 # limitations under the License.
 #
 
+import copy
+import hashlib
 import os
-
-
-REQ_PARAMS = ('region', )
 
 
 def load_config(config_data=None):
     if 'gcp' not in config_data:
         raise Exception("gcp section is mandatory in the configuration")
 
-    for param in REQ_PARAMS:
-        if param not in config_data['gcp']:
-            msg = f"'{param}' is mandatory under 'gcp' section of the configuration"
-            raise Exception(msg)
-    
     if 'credentials_path' not in config_data['gcp']:
         if 'GOOGLE_APPLICATION_CREDENTIALS' in os.environ:
             config_data['gcp']['credentials_path'] = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
@@ -36,4 +30,18 @@ def load_config(config_data=None):
     if 'credentials_path' in config_data['gcp']:
         config_data['gcp']['credentials_path'] = os.path.expanduser(config_data['gcp']['credentials_path'])
 
+    if 'gcp_storage' not in config_data:
+        config_data['gcp_storage'] = {}
+
+    temp = copy.deepcopy(config_data['gcp_storage'])
     config_data['gcp_storage'].update(config_data['gcp'])
+    config_data['gcp_storage'].update(temp)
+
+    if 'region' not in config_data['gcp_storage']:
+        raise Exception("'region' parameter is mandatory under 'gcp_storage' or 'gcp' section of the configuration")
+
+    if 'storage_bucket' not in config_data['gcp_storage']:
+        gcps = config_data['gcp_storage']
+        region = gcps['region']
+        key = hashlib.sha1(gcps['credentials_path'].encode()).hexdigest()[:6]
+        config_data['gcp_storage']['storage_bucket'] = f'lithops-{region}-{key[:6].lower()}'

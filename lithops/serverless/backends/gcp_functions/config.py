@@ -14,6 +14,7 @@
 # limitations under the License.
 #
 
+import copy
 import os
 
 from lithops.constants import TEMP_DIR
@@ -39,8 +40,6 @@ AVAILABLE_PY_RUNTIMES = {
 }
 
 USER_RUNTIMES_PREFIX = 'lithops.user_runtimes'
-
-REQ_PARAMS = ('region', )
 
 DEFAULT_CONFIG_KEYS = {
     'runtime_timeout': 300,  # Default: 5 minutes
@@ -86,17 +85,19 @@ def load_config(config_data=None):
     if 'gcp' not in config_data:
         raise Exception("'gcp' section is mandatory in the configuration")
 
-    for param in REQ_PARAMS:
-        if param not in config_data['gcp']:
-            msg = f"{param} is mandatory under 'gcp' section of the configuration"
-            raise Exception(msg)
-
     if 'credentials_path' not in config_data['gcp']:
         if 'GOOGLE_APPLICATION_CREDENTIALS' in os.environ:
             config_data['gcp']['credentials_path'] = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
 
     if 'credentials_path' in config_data['gcp']:
         config_data['gcp']['credentials_path'] = os.path.expanduser(config_data['gcp']['credentials_path'])
+
+    temp = copy.deepcopy(config_data['gcp_functions'])
+    config_data['gcp_functions'].update(config_data['gcp'])
+    config_data['gcp_functions'].update(temp)
+
+    if 'region' not in config_data['gcp_functions']:
+        raise Exception("'region' parameter is mandatory under 'gcp_functions' or 'gcp' section of the configuration")
 
     for key in DEFAULT_CONFIG_KEYS:
         if key not in config_data['gcp_functions']:
@@ -112,4 +113,5 @@ def load_config(config_data=None):
     config_data['gcp_functions']['retries'] = RETRIES
     config_data['gcp_functions']['retry_sleep'] = RETRY_SLEEP
 
-    config_data['gcp_functions'].update(config_data['gcp'])
+    if 'region' not in config_data['gcp']:
+        config_data['gcp']['region'] = config_data['gcp_functions']['region']

@@ -14,6 +14,7 @@
 # limitations under the License.
 #
 
+import copy
 import os
 import logging
 
@@ -21,8 +22,6 @@ logger = logging.getLogger(__name__)
 
 CLOUDRUN_API_VERSION = 'v1'
 SCOPES = ('https://www.googleapis.com/auth/cloud-platform',)
-
-REQ_PARAMS = ('region', )
 
 DEFAULT_CONFIG_KEYS = {
     'runtime_timeout': 300,  # Default: 300 seconds => 5 minutes
@@ -133,17 +132,19 @@ def load_config(config_data):
     if 'gcp' not in config_data:
         raise Exception("'gcp' section is mandatory in the configuration")
 
-    for param in REQ_PARAMS:
-        if param not in config_data['gcp']:
-            msg = f"{param} is mandatory under 'gcp' section of the configuration"
-            raise Exception(msg)
-
     if 'credentials_path' not in config_data['gcp']:
         if 'GOOGLE_APPLICATION_CREDENTIALS' in os.environ:
             config_data['gcp']['credentials_path'] = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
 
     if 'credentials_path' in config_data['gcp']:
         config_data['gcp']['credentials_path'] = os.path.expanduser(config_data['gcp']['credentials_path'])
+
+    temp = copy.deepcopy(config_data['gcp_cloudrun'])
+    config_data['gcp_cloudrun'].update(config_data['gcp'])
+    config_data['gcp_cloudrun'].update(temp)
+
+    if 'region' not in config_data['gcp_cloudrun']:
+        raise Exception("'region' parameter is mandatory under 'gcp_cloudrun' or 'gcp' section of the configuration")
 
     for key in DEFAULT_CONFIG_KEYS:
         if key not in config_data['gcp_cloudrun']:
@@ -171,4 +172,5 @@ def load_config(config_data):
         raise Exception('For {} vCPUs, runtime memory must be at least 4096 MiB'
                         .format(config_data['gcp_cloudrun']['runtime_cpu']))
 
-    config_data['gcp_cloudrun'].update(config_data['gcp'])
+    if 'region' not in config_data['gcp']:
+        config_data['gcp']['region'] = config_data['gcp_cloudrun']['region']

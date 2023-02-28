@@ -59,6 +59,13 @@ class AliyunObjectStorageServiceBackend:
     def get_client(self):
         return self
 
+    def create_bucket(self, bucket_name):
+        """
+        Create a bucket if not exists
+        """
+        bucket = self._connect_bucket(bucket_name)
+        bucket.create_bucket()
+
     def put_object(self, bucket_name, key, data):
         """
         Put an object in OSS. Override the object if the key already exists.
@@ -209,7 +216,7 @@ class AliyunObjectStorageServiceBackend:
         except oss2.exceptions.NoSuchBucket:
             raise StorageNoSuchKeyError(bucket_name, '')
 
-    def list_objects(self, bucket_name, prefix=None, match_pattern = None):
+    def list_objects(self, bucket_name, prefix=None, match_pattern=None):
         """
         Return a list of objects for the given bucket and prefix.
         :param bucket_name: name of the bucket.

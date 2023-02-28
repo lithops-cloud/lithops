@@ -21,8 +21,9 @@ DIRECT_ENDPOINT = 'https://s3.direct.{}.cloud-object-storage.appdomain.cloud'
 
 
 def load_config(config_data):
+
     if 'ibm_cos' not in config_data:
-        raise Exception("ibm_cos section is mandatory in the configuration")
+        config_data['ibm_cos'] = {}
 
     if 'ibm' in config_data and config_data['ibm'] is not None:
         temp = copy.deepcopy(config_data['ibm_cos'])

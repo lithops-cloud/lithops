@@ -91,7 +91,8 @@ class Storage:
 
         :param bucket: Name of the bucket
         """
-        return self.storage_handler.create_bucket(bucket)
+        if hasattr(self.storage_handler, 'create_bucket'):
+            return self.storage_handler.create_bucket(bucket)
 
     def put_object(self, bucket: str, key: str, body: Union[str, bytes, TextIO, BinaryIO]):
         """

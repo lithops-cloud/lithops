@@ -99,7 +99,7 @@ Test if Lithops is working properly:
 import lithops
 
 def hello_world(name):
-    return 'Hello {}!'.format(name)
+    return f'Hello {name}!'
 
 if __name__ == '__main__':
     fexec = lithops.FunctionExecutor()
@@ -115,16 +115,15 @@ import lithops
 
 config = {'lithops': {'backend': 'ibm_cf', 'storage': 'ibm_cos'},
 
-          'ibm_cf':  {'endpoint': 'ENDPOINT',
+          'ibm_cf':  {'region': 'REGION',
                       'namespace': 'NAMESPACE',
                       'api_key': 'API_KEY'},
 
-          'ibm_cos': {'storage_bucket': 'BUCKET_NAME',
-                      'region': 'REGION',
+          'ibm_cos': {'region': 'REGION',
                       'api_key': 'API_KEY'}}
 
 def hello_world(name):
-    return 'Hello {}!'.format(name)
+    return f'Hello {name}!'
 
 if __name__ == '__main__':
     fexec = lithops.FunctionExecutor(config=config)

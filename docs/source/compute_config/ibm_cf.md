@@ -86,7 +86,7 @@ By default, the IBM Cloud account provides an automatically created CloudFoundry
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|ibm | iam_api_key | |no | IBM Cloud IAM API key to authenticate against IBM COS and IBM Cloud Functions. Obtain the key [here](https://cloud.ibm.com/iam/apikeys) |
+|ibm | iam_api_key | |no | IBM Cloud IAM API key to authenticate against IBM services. Obtain the key [here](https://cloud.ibm.com/iam/apikeys) |
 |ibm | region | |no | IBM Region.  One of: `eu-gb`, `eu-de`, `us-south`, `us-east`, `br-sao`, `ca-tor`, `jp-tok`, `jp-osa`, `au-syd` |
 
 ### IBM Cloud Functions:

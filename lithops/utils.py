@@ -705,8 +705,9 @@ def run_command(cmd, return_result=False, input=None):
 
     if logger.getEffectiveLevel() != logging.DEBUG:
         kwargs['stderr'] = sp.DEVNULL
+
     if input:
-        kwargs['input'] = bytes(input, 'utf-8')
+        return sp.check_output(cmd.split(), input=bytes(input, 'utf-8'), **kwargs)
 
     if return_result:
         result = sp.check_output(cmd.split(), encoding='UTF-8', **kwargs)
