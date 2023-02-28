@@ -37,9 +37,12 @@ UNIT_PRICE = 0.000017
 
 FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_ibmcf.zip')
 
-REQ_PARAMS = ['endpoint', 'namespace']
+REQ_PARAMS = ['namespace']
 OPT_PARAMS_1 = ['api_key']
 OPT_PARAMS_2 = ['namespace_id', 'iam_api_key']
+
+CF_ENDPOINT = "https://{}.functions.cloud.ibm.com"
+REGIONS = ["jp-tok", "au-syd", "eu-gb", "eu-de", "us-south", "us-east"]
 
 
 def load_config(config_data):
@@ -69,3 +72,14 @@ def load_config(config_data):
         registry = config_data['ibm_cf']['docker_server']
         if runtime.count('/') == 1 and registry not in runtime:
             config_data['ibm_cf']['runtime'] = f'{registry}/{runtime}'
+
+    if "region" not in config_data['ibm_cf'] and "endpoint" not in config_data['ibm_cf']:
+        msg = "'region' or 'endpoint' parameter is mandatory in 'ibm_cf' section of the configuration"
+        raise Exception(msg)
+
+    if "region" in config_data['ibm_cf']:
+        region = config_data['ibm_cf']['region']
+        if region not in REGIONS:
+            msg = f"'region' conig parameter in 'ibm_cf' section must be one of {REGIONS}"
+            raise Exception(msg)
+        config_data['ibm_cf']['endpoint'] = CF_ENDPOINT.format(region)
