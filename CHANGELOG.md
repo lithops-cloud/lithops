@@ -14,7 +14,7 @@
 
 ### Fixed
 - [IBM VPC & AWS EC2] Make sure only VMs from the given VPC are removed
-
+- [IBM VPC] Reuse floating IPs for public gateways
 
 ## [v2.9.0]
 
