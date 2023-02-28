@@ -74,7 +74,6 @@ class MinioStorageBackend:
         try:
             self.s3_client.head_bucket(Bucket=bucket_name)
         except botocore.exceptions.ClientError as e:
-            print(e.response['ResponseMetadata']['HTTPStatusCode'])
             if e.response['ResponseMetadata']['HTTPStatusCode'] == 404:
                 logger.debug(f"Could not find the bucket {bucket_name} in the MinIO storage backend")
                 logger.debug(f"Creating new bucket {bucket_name} in the MinIO storage backend")

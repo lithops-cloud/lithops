@@ -8,7 +8,10 @@
 - [IBM VPC & AWS EC2] General fixes and Improvements
 - [Executor] Allow to pass the config file location in the FunctionExecutor()
 - [Storage] Automatically create the storage bucket if not provided in the config
-- [IBM CF] Allow to configure CF using "region" parameter
+- [IBM] Allow to set "region" under "ibm" section
+- [AWS] Allow to set "region_name" under "aws" section
+- [Azure Functions] Allow to use a python 3.10 runtime
+- [Aliyun Functions] Allow to use a python 3.10 runtime
 
 ### Changed
 - [AWS EC2] Reduced number of mandatory parameters
@@ -16,6 +19,7 @@
 ### Fixed
 - [IBM VPC & AWS EC2] Make sure only VMs from the given VPC are removed
 - [IBM VPC] Reuse floating IPs for public gateways
+
 
 ## [v2.9.0]
 

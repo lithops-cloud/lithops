@@ -24,11 +24,9 @@ Lithops with AWS S3 as storage backend.
         storage: aws_s3
 
     aws:
+        region_name : <REGION>
         access_key_id : <ACCESS_KEY_ID>
         secret_access_key : <SECRET_ACCESS_KEY>
-
-    aws_s3:
-        region_name : <S3_BUCKET_REGION>
     ```
 
  
@@ -38,6 +36,7 @@ Lithops with AWS S3 as storage backend.
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
+|aws | region_name | |yes | AWS Region. For example `us-east-1` |
 |aws | access_key_id | |yes | Account access key to AWS services. To find them, navigate to *My Security Credentials* and click *Create Access Key* if you don't already have one. |
 |aws | secret_access_key | |yes | Account secret access key to AWS services. To find them, navigate to *My Security Credentials* and click *Create Access Key* if you don't already have one. |
 |aws | session_token | |no | Session token for temporary AWS credentials |
@@ -46,6 +45,6 @@ Lithops with AWS S3 as storage backend.
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|aws_s3 | region_name | |yes | Region of your Bcuket. e.g us-east-1, eu-west-1, etc |
+|aws_s3 | region_name | |no | Region of your Bcuket. e.g `us-east-1`, `eu-west-1`, etc. Lithops will use the region set under the `aws` section if it is not set here |
 |aws_s3 | storage_bucket | | no | The name of a bucket that exists in you account. This will be used by Lithops for intermediate data. Lithops will automatically create a new one if it is not provided |
 

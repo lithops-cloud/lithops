@@ -127,8 +127,12 @@ def get_host_setup_script(docker=True):
     """.format(SA_INSTALL_DIR, SA_LOG_FILE, str(docker).lower())
 
 def docker_login(config):
-    if all(k in config for k in ("docker_server", "docker_user", "docker_password")):
-        return f"""docker login -u {config['docker_user']} -p {config['docker_password']} {config['docker_server']} >> /tmp/kuku 2>&1
+    backend = config['backend']
+    if all(k in config[backend] for k in ("docker_server", "docker_user", "docker_password")):
+        user = config[backend]['docker_user']
+        passwd = config[backend]['docker_password']
+        server = config[backend]['docker_server']
+        return f"""docker login -u {user} -p {passwd} {server} >> /tmp/kuku 2>&1
     """
     return ""
 

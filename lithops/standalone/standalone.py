@@ -298,7 +298,7 @@ class StandaloneHandler:
             self.backend.master.get_ssh_client().run_remote_command(cmd)
             # self.backend.master.del_ssh_client()  # Client is deleted in clear()
 
-        logger.debug('Job invoked on {}'.format(self.backend.master))
+        logger.debug(f'Job invoked on {self.backend.master}')
 
         self.jobs.append(job_payload['job_key'])
 

@@ -195,32 +195,9 @@ def default_config(config_file=None, config_data=None, config_overwrite={}, load
         cb_config.load_config(config_data)
 
     elif mode == c.STANDALONE:
-        if c.STANDALONE not in config_data or \
-           config_data[c.STANDALONE] is None:
-            config_data[c.STANDALONE] = {}
-
-        if 'runtime' in config_data[backend]:
-            config_data[c.STANDALONE]['runtime'] = config_data[backend]['runtime']
-
-        if 'exec_mode' not in config_data[c.STANDALONE]:
-            config_data[c.STANDALONE]['exec_mode'] = c.SA_EXEC_MODE
-        if 'start_timeout' not in config_data[c.STANDALONE]:
-            config_data[c.STANDALONE]['start_timeout'] = c.SA_START_TIMEOUT
-        if 'pull_runtime' not in config_data[c.STANDALONE]:
-            config_data[c.STANDALONE]['pull_runtime'] = c.SA_PULL_RUNTIME
-        if 'auto_dismantle' not in config_data[c.STANDALONE]:
-            config_data[c.STANDALONE]['auto_dismantle'] = c.SA_AUTO_DISMANTLE
-        if 'soft_dismantle_timeout' not in config_data[c.STANDALONE]:
-            config_data[c.STANDALONE]['soft_dismantle_timeout'] = c.SA_SOFT_DISMANTLE_TIMEOUT
-        if 'hard_dismantle_timeout' not in config_data[c.STANDALONE]:
-            config_data[c.STANDALONE]['hard_dismantle_timeout'] = c.SA_HARD_DISMANTLE_TIMEOUT
-
         logger.debug(f"Loading Standalone backend module: {backend}")
         sb_config = importlib.import_module(f'lithops.standalone.backends.{backend}.config')
         sb_config.load_config(config_data)
-
-        if 'runtime' not in config_data[c.STANDALONE]:
-            config_data[c.STANDALONE]['runtime'] = c.SA_RUNTIME
 
     if 'monitoring' not in config_data['lithops']:
         config_data['lithops']['monitoring'] = c.MONITORING_DEFAULT

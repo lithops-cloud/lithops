@@ -323,7 +323,7 @@ class GCPFunctionsBackend:
         self._api_resource.projects().locations().functions().delete(
             name=function_location,
         ).execute(num_retries=self.num_retries)
-        logger.debug('Request Ok - Waiting until function is completely deleted')
+        logger.debug('Request Ok - Waiting until the function is completely deleted')
 
         self._wait_function_deleted(function_location)
 

@@ -278,23 +278,29 @@ class AWSEC2Backend:
 
         self.config['ssh_key_filename'] = key_filename
 
+    def _request_image_id(self):
+        """
+        Requests the default image ID if not provided
+        """
+        if 'target_ami' in self.config:
+            return
+
+        if 'target_ami' in self.ec2_data:
+            self.config['target_ami'] = self.ec2_data['target_ami']
+
+        if 'target_ami' not in self.config:
+            response = self.ec2_client.describe_images(Filters=[
+                {
+                    'Name': 'name',
+                    'Values': [DEFAULT_UBUNTU_IMAGE]
+                }], Owners=['099720109477'])
+
+            self.config['target_ami'] = response['Images'][0]['ImageId']
+
     def _create_master_instance(self):
         """
         Creates the master VM insatnce
         """
-        if self.mode in [ExecMode.CREATE.value, ExecMode.REUSE.value]:
-            if 'target_ami' not in self.config and 'target_ami' in self.ec2_data:
-                self.config['target_ami'] = self.ec2_data['target_ami']
-
-            if 'target_ami' not in self.config:
-                response = self.ec2_client.describe_images(Filters=[
-                    {
-                        'Name': 'name',
-                        'Values': [DEFAULT_UBUNTU_IMAGE]
-                    }], Owners=['099720109477'])
-
-                self.config['target_ami'] = response['Images'][0]['ImageId']
-
         name = self.config.get('master_name') or f'lithops-master-{self.vpc_key}'
         self.master = EC2Instance(name, self.config, self.ec2_client, public=True)
         self.master.instance_id = self.config['instance_id'] if self.mode == ExecMode.CONSUME.value else None
@@ -364,12 +370,13 @@ class AWSEC2Backend:
             self._create_security_group()
             # Create the ssh key pair if not exists
             self._create_ssh_key()
+            # Requests the Ubuntu image ID
+            self._request_image_id()
+            # Request SPOT price
+            self._request_spot_price()
 
             # Create the master VM instance
             self._create_master_instance()
-
-            # Request SPOT price
-            self._request_spot_price()
 
             self.ec2_data = {
                 'mode': self.mode,

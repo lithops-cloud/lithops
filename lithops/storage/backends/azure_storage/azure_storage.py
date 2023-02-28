@@ -19,7 +19,7 @@ import shutil
 import logging
 from io import BytesIO
 from azure.storage.blob import BlobServiceClient
-from azure.core.exceptions import ResourceNotFoundError
+from azure.core.exceptions import ResourceNotFoundError, ResourceExistsError
 from lithops.storage.utils import StorageNoSuchKeyError
 from lithops.constants import STORAGE_CLI_MSG
 
@@ -45,6 +45,15 @@ class AzureBlobStorageBackend:
         :rtype: azure.storage.blob.BlobServiceClient
         """
         return self.blob_client
+
+    def create_bucket(self, bucket_name):
+        """
+        Create a bucket if not exists
+        """
+        try:
+            self.blob_client.create_container(bucket_name)
+        except ResourceExistsError:
+            pass
 
     def put_object(self, bucket_name, key, data):
         """
@@ -167,7 +176,7 @@ class AzureBlobStorageBackend:
         """
         try:
             container_client = self.blob_client.get_container_client(bucket_name)
-            composite_list = [key_list[x:x+50] for x in range(0, len(key_list), 50)]
+            composite_list = [key_list[x:x + 50] for x in range(0, len(key_list), 50)]
             for key_sublist in composite_list:
                 container_client.delete_blobs(*key_sublist, delete_snapshots="include")
         except ResourceNotFoundError:
@@ -185,7 +194,7 @@ class AzureBlobStorageBackend:
         except Exception:
             raise StorageNoSuchKeyError(bucket_name, '')
 
-    def list_objects(self, bucket_name, prefix=None, match_pattern = None):
+    def list_objects(self, bucket_name, prefix=None, match_pattern=None):
         """
         Return a list of objects for the given bucket and prefix.
         :param bucket_name: Name of the bucket.
