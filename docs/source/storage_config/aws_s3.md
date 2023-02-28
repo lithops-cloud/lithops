@@ -47,5 +47,5 @@ Lithops with AWS S3 as storage backend.
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |aws_s3 | region_name | |yes | Region of your Bcuket. e.g us-east-1, eu-west-1, etc |
-|aws_s3 | storage_bucket | | no | The name of a bucket that exists in you account. This will be used by Lithops for intermediate data |
+|aws_s3 | storage_bucket | | no | The name of a bucket that exists in you account. This will be used by Lithops for intermediate data. Lithops will automatically create a new one if it is not provided |
 

@@ -49,7 +49,7 @@ class IBMCloudFunctionsBackend:
         self.namespace_id = cf_config.get('namespace_id', None)
         self.api_key = cf_config.get('api_key', None)
         self.iam_api_key = cf_config.get('iam_api_key', None)
-        self.region = self.endpoint.split('//')[1].split('.')[0]
+        self.region = cf_config['region']
 
         self.invoke_error = None
 

@@ -87,13 +87,14 @@ By default, the IBM Cloud account provides an automatically created CloudFoundry
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |ibm | iam_api_key | |no | IBM Cloud IAM API key to authenticate against IBM COS and IBM Cloud Functions. Obtain the key [here](https://cloud.ibm.com/iam/apikeys) |
+|ibm | region | |no | IBM Region.  One of: `eu-gb`, `eu-de`, `us-south`, `us-east`, `br-sao`, `ca-tor`, `jp-tok`, `jp-osa`, `au-syd` |
 
 ### IBM Cloud Functions:
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |ibm_cf| namespace | |yes | Value of CURRENT NAMESPACE from [here](https://cloud.ibm.com/functions/namespace-settings) |
-|ibm_cf | region | |yes | VPC Region. One of: `jp-tok`, `au-syd`, `eu-gb`, `eu-de`, `us-south`, `us-east` |
+|ibm_cf | region | |yes | Service region. One of: `jp-tok`, `au-syd`, `eu-gb`, `eu-de`, `us-south`, `us-east`. Lithops will use the region set under the `ibm` section if it is not set here |
 |ibm_cf| endpoint | |no | IBM Cloud Functions endpoint (if region not provided). Make sure to use https:// prefix, for example: https://us-east.functions.cloud.ibm.com |
 |ibm_cf| api_key |  | no | **Mandatory** if using Cloud Foundry-based namespace. Value of 'KEY' from [here](https://cloud.ibm.com/functions/namespace-settings)|
 |ibm_cf| namespace_id |  |no | **Mandatory** if using IAM-based namespace with IAM API Key. Value of 'GUID' from [here](https://cloud.ibm.com/functions/namespace-settings)|

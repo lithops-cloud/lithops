@@ -77,9 +77,18 @@ def load_config(config_data):
         msg = "'region' or 'endpoint' parameter is mandatory in 'ibm_cf' section of the configuration"
         raise Exception(msg)
 
-    if "region" in config_data['ibm_cf']:
+    if 'endpoint' in config_data['ibm_cf']:
+        endpoint = config_data['ibm_cf']['endpoint']
+        config_data['ibm_cf']['region'] = endpoint.split('//')[1].split('.')[0]
+
+    elif "region" in config_data['ibm_cf']:
         region = config_data['ibm_cf']['region']
         if region not in REGIONS:
             msg = f"'region' conig parameter in 'ibm_cf' section must be one of {REGIONS}"
             raise Exception(msg)
         config_data['ibm_cf']['endpoint'] = CF_ENDPOINT.format(region)
+
+    if 'ibm' not in config_data or config_data['ibm'] is None:
+        config_data['ibm'] = {}
+    if 'region' not in config_data['ibm']:
+        config_data['ibm']['region'] = config_data['ibm_cf']['region']

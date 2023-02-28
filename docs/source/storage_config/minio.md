@@ -33,4 +33,4 @@ Lithops with MinIO storage backend.
 |minio | access_key_id | |yes | Account user access key |
 |minio | secret_access_key | |yes | Account user secret access key |
 |minio | session_token | |no | Session token for temporary AWS credentials |
-|minio | storage_bucket | | no | The name of a bucket that exists in you account. This will be used by Lithops for intermediate data |
+|minio | storage_bucket | | no | The name of a bucket that exists in you account. This will be used by Lithops for intermediate data. Lithops will automatically create a new one if it is not provided |

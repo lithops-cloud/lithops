@@ -72,11 +72,20 @@ ibm_vpc:
     resource_group_id: <RESOURCE_GROUP_ID>
 ```
 
-### Summary of the configuration keys for the *create* and *reuse* mode
+## Summary of configuration keys for IBM Cloud:
+
+### IBM IAM:
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|ibm_vpc | region | |yes | VPC Region. For example `us-south`. Choose one region from [here](https://cloud.ibm.com/docs/vpc?topic=vpc-service-endpoints-for-vpc) |
+|ibm | iam_api_key | |no | IBM Cloud IAM API key to authenticate against IBM COS and IBM Cloud Functions. Obtain the key [here](https://cloud.ibm.com/iam/apikeys) |
+|ibm | region | |no | IBM Region.  One of: `eu-gb`, `eu-de`, `us-south`, `us-east`, `br-sao`, `ca-tor`, `jp-tok`, `jp-osa`, `au-syd` |
+
+### VPC *create* and *reuse* mode
+
+|Group|Key|Default|Mandatory|Additional info|
+|---|---|---|---|---|
+|ibm_vpc | region | |yes | VPC Region. For example `us-south`. Choose one region from [here](https://cloud.ibm.com/docs/vpc?topic=vpc-service-endpoints-for-vpc). Lithops will use the region set under the `ibm` section if it is not set here |
 |ibm_vpc | resource_group_id | | yes | Resource group id from your IBM Cloud account. Get it from [here](https://cloud.ibm.com/account/resource-groups) |
 |ibm_vpc | vpc_id | | no | VPC id of an existing VPC. Get it from [here](https://cloud.ibm.com/vpc-ext/network/vpcs) |
 |ibm_vpc | vpc_name | | no | VPC name of an existing VPC (if `vpc_id` is not provided) |
@@ -126,11 +135,20 @@ If you need to create new VM, then follow the steps to create and update Lithops
 4. Get the endpoint of your subnet region, endpoint URLs list can be found [here](https://cloud.ibm.com/apidocs/vpc#endpoint-url).
 5. Get the virtual server instance ID by selecting on your instance in [IBM VPC virtual server instances UI](https://cloud.ibm.com/vpc-ext/compute/vs) and then extracting from the instance's details.
 
-### Summary of the configuration keys for the consume mode
+## Summary of configuration keys for IBM Cloud:
+
+### IBM IAM:
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|ibm_vpc | region | |yes | VPC Region. For example `us-south`. Choose one region from [here](https://cloud.ibm.com/docs/vpc?topic=vpc-service-endpoints-for-vpc) |
+|ibm | iam_api_key | |no | IBM Cloud IAM API key to authenticate against IBM COS and IBM Cloud Functions. Obtain the key [here](https://cloud.ibm.com/iam/apikeys) |
+|ibm | region | |no | IBM Region.  One of: `eu-gb`, `eu-de`, `us-south`, `us-east`, `br-sao`, `ca-tor`, `jp-tok`, `jp-osa`, `au-syd` |
+
+### VPC Consume Mode
+
+|Group|Key|Default|Mandatory|Additional info|
+|---|---|---|---|---|
+|ibm_vpc | region | |yes | VPC Region. For example `us-south`. Choose one region from [here](https://cloud.ibm.com/docs/vpc?topic=vpc-service-endpoints-for-vpc). Lithops will use the region set under the `ibm` section if it is not set here |
 |ibm_vpc | instance_id | | yes | virtual server instance ID |
 |ibm_vpc | floating_ip | | yes | Floatting IP address atached to your VM instance|
 |ibm_vpc | ssh_username | root |no | Username to access the VM |
