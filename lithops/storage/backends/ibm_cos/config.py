@@ -61,7 +61,7 @@ def load_config(config_data):
         if 'private_endpoint' not in config_data['ibm_cos']:
             raise Exception('You must provide the private_endpoint to access to IBM COS')
         elif 'direct' not in config_data['ibm_cos']['private_endpoint']:
-            raise Exception('The private_endpoint you provided to access to IBM COS is not valid')
+            raise Exception('The private_endpoint you provided to access to IBM COS is not valid. You must use the "direct" endpoint')
         if not config_data['ibm_cos']['private_endpoint'].startswith('http'):
             raise Exception('IBM COS Private Endpoint must start with http:// or https://')
 
@@ -91,3 +91,9 @@ def load_config(config_data):
     if 'region' not in config_data['ibm_cos']:
         endpoint = config_data['ibm_cos']['endpoint']
         config_data['ibm_cos']['region'] = endpoint.split('//')[1].split('.')[1]
+
+    if 'storage_bucket' not in config_data['ibm_cos']:
+        cosc = config_data['ibm_cos']
+        key = cosc.get('access_key') or cosc.get('api_key') or cosc.get('iam_api_key')
+        region = config_data['ibm_cos']['region']
+        config_data['ibm_cos']['storage_bucket'] = f'lithops-{region}-{key[:6].lower()}'

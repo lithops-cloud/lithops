@@ -15,6 +15,9 @@
 #
 
 
+import hashlib
+
+
 REQ_PARAMS = ('endpoint', 'secret_access_key', 'access_key_id')
 
 
@@ -29,3 +32,8 @@ def load_config(config_data):
 
     if not config_data['ceph']['endpoint'].startswith('http'):
         raise Exception('Ceph endpoint must start with http:// or https://')
+
+    if 'storage_bucket' not in config_data['ceph']:
+        key = config_data['ceph']['access_key_id']
+        endpoint = hashlib.sha1(config_data['ceph']['endpoint'].encode()).hexdigest()[:6]
+        config_data['ceph']['storage_bucket'] = f'lithops-{endpoint}-{key[:6].lower()}'

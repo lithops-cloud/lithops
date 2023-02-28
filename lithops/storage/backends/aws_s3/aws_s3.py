@@ -20,6 +20,7 @@ import boto3
 from botocore import UNSIGNED
 from botocore.config import Config
 import botocore
+
 from lithops.storage.utils import StorageNoSuchKeyError
 from lithops.utils import sizeof_fmt
 from lithops.constants import STORAGE_CLI_MSG
@@ -34,7 +35,7 @@ CONN_READ_TIMEOUT = 10
 class S3Backend:
     def __init__(self, s3_config):
         logger.debug("Creating S3 client")
-        self.s3_config = s3_config
+        self.config = s3_config
         self.user_agent = s3_config['user_agent']
         self.region_name = s3_config.get('region_name')
         self.access_key_id = s3_config.get('access_key_id')
@@ -72,6 +73,21 @@ class S3Backend:
         :return: boto3 client
         '''
         return self.s3_client
+
+    def create_bucket(self, bucket_name):
+        """
+        Create a bucket if not exists
+        """
+        try:
+            self.s3_client.head_bucket(Bucket=bucket_name)
+        except botocore.exceptions.ClientError as e:
+            if e.response['ResponseMetadata']['HTTPStatusCode'] == 404:
+                logger.debug(f"Could not find the bucket {bucket_name} in the AWS S3 storage backend")
+                logger.debug(f"Creating new bucket {bucket_name} in the AWS S3 storage backend")
+                bucket_config = {'LocationConstraint': self.region_name}
+                self.s3_client.create_bucket(Bucket=bucket_name, CreateBucketConfiguration=bucket_config)
+            else:
+                raise e
 
     def put_object(self, bucket_name, key, data):
         '''
@@ -207,7 +223,7 @@ class S3Backend:
             else:
                 raise e
 
-    def list_objects(self, bucket_name, prefix=None, match_pattern = None):
+    def list_objects(self, bucket_name, prefix=None, match_pattern=None):
         '''
         Return a list of objects for the given bucket and prefix.
         :param bucket_name: Name of the bucket.

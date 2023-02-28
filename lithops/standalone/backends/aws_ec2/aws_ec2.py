@@ -405,7 +405,7 @@ class AWSEC2Backend:
         for res in response['Reservations']:
             for ins in res['Instances']:
                 if ins['State']['Name'] != 'terminated' and 'Tags' in ins \
-                   and self.ec2_data['vpc_id'] == ins['VpcId']:
+                   and 'VpcId' in ins and self.ec2_data['vpc_id'] == ins['VpcId']:
                     for tag in ins['Tags']:
                         if tag['Key'] == 'Name' and tag['Value'].startswith(vms_prefixes):
                             ins_to_delete.append(ins['InstanceId'])
