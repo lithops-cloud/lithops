@@ -649,12 +649,14 @@ def image(ctx):
 @click.option('--backend', '-b', default=None, help='compute backend')
 @click.option('--region', '-r', default=None, help='compute backend region')
 @click.option('--debug', '-d', is_flag=True, default=True, help='debug mode')
+@click.option('--overwrite', '-o', is_flag=True, default=False, help='overwrite the image if it already exists')
 @click.pass_context
-def build_image(ctx, name, file, config, backend, region, debug):
+def build_image(ctx, name, file, config, backend, region, debug, overwrite):
     """ build a VM image """
     log_level = logging.INFO if not debug else logging.DEBUG
     setup_lithops_logger(log_level)
 
+    name = "lithops-worker-default" if not name else name
     verify_runtime_name(name)
 
     if config:
@@ -668,7 +670,7 @@ def build_image(ctx, name, file, config, backend, region, debug):
 
     compute_config = extract_standalone_config(config)
     compute_handler = StandaloneHandler(compute_config)
-    compute_handler.build_image(name, file, ctx.args)
+    compute_handler.build_image(name, file, overwrite, ctx.args)
 
     logger.info('VM Image built')
 

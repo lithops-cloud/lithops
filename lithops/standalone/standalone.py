@@ -63,11 +63,11 @@ class StandaloneHandler:
         """
         self.backend.init()
 
-    def build_image(self, image_name, script_file, extra_args=[]):
+    def build_image(self, image_name, script_file, overwrite, extra_args=[]):
         """
         Builds a new VM Image
         """
-        self.backend.build_image(image_name, script_file, extra_args)
+        self.backend.build_image(image_name, script_file, overwrite, extra_args)
 
     def _is_master_service_ready(self):
         """

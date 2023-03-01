@@ -398,7 +398,7 @@ class AWSEC2Backend:
 
         self._dump_ec2_data()
 
-    def build_image(self, image_name, script_file, extra_args=[]):
+    def build_image(self, image_name, script_file, overwrite, extra_args=[]):
         """
         Builds a new VM Image
         """

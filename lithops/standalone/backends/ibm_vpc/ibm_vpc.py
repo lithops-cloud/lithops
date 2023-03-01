@@ -379,9 +379,13 @@ class IBMVPCBackend:
             self.config['image_id'] = self.vpc_data['image_id']
 
         if 'image_id' not in self.config:
-            for image in self.vpc_cli.list_images().result['images']:
-                if 'ubuntu-22' in image['name']:
-                    self.config['image_id'] = image['id']
+            images = self.vpc_cli.list_images(name='lithops-worker-default').result['images']
+            if len(images) > 0:
+                self.config['image_id'] = images[0]['id']
+            else:
+                for image in self.vpc_cli.list_images().result['images']:
+                    if 'ubuntu-22' in image['name']:
+                        self.config['image_id'] = image['id']
 
     def _create_master_instance(self):
         """
@@ -463,19 +467,20 @@ class IBMVPCBackend:
 
         self._dump_vpc_data()
 
-    def build_image(self, image_name, script_file, extra_args=[]):
+    def build_image(self, image_name, script_file, overwrite, extra_args=[]):
         """
         Builds a new VM Image
         """
         images = self.vpc_cli.list_images(name=image_name).result['images']
         if len(images) > 0:
-            if any(ext in extra_args for ext in ["--overwrite", "-o"]):
+            image_id = images[0]['id']
+            if overwrite:
                 logger.debug(f"Deleting existing VM Image '{image_name}'")
-                self.vpc_cli.delete_image(id=images[0]['id'])
+                self.vpc_cli.delete_image(id=image_id)
                 while len(self.vpc_cli.list_images(name=image_name).result['images']) > 0:
                     time.sleep(2)
             else:
-                raise Exception(f"The image with name '{image_name}' already exists."
+                raise Exception(f"The image with name '{image_name}' already exists with ID: '{image_id}'."
                                 " Use '--overwrite' or '-o' if you want ot overwrite it")
 
         initial_vpc_data = self._load_vpc_data()
@@ -522,7 +527,7 @@ class IBMVPCBackend:
         image_prototype['resource_group'] = {'id': self.config['resource_group_id']}
         self.vpc_cli.create_image(image_prototype)
 
-        logger.debug("Be patient, VM imaging can take up to 5 minutes")
+        logger.debug("Be patient, VM imaging can take up to 6 minutes")
 
         while True:
             image = self.vpc_cli.list_images(name=image_name).result['images'][0]
@@ -536,7 +541,7 @@ class IBMVPCBackend:
         if not initial_vpc_data:
             self.clean(all)
 
-        logger.info(f"VM Image created. Use this ID in your config file: {image['id']}")
+        logger.info(f"VM Image created. Image ID: {image['id']}")
 
     def _delete_vm_instances(self, all=False):
         """
