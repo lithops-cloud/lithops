@@ -375,17 +375,26 @@ class IBMVPCBackend:
         if 'image_id' in self.config:
             return
 
+        images = self.vpc_cli.list_images().result['images']
+
         if 'image_id' in self.vpc_data:
-            self.config['image_id'] = self.vpc_data['image_id']
+            for image in images:
+                if image['id'] == self.vpc_data['image_id']:
+                    if not image['name'].startswith('ibm-ubuntu-22'):
+                        self.config['image_id'] = self.vpc_data['image_id']
+                        break
 
         if 'image_id' not in self.config:
-            images = self.vpc_cli.list_images(name='lithops-worker-default').result['images']
-            if len(images) > 0:
-                self.config['image_id'] = images[0]['id']
-            else:
-                for image in self.vpc_cli.list_images().result['images']:
-                    if 'ubuntu-22' in image['name']:
-                        self.config['image_id'] = image['id']
+            for image in images:
+                if image['name'] == self.config['image_name']:
+                    self.config['image_id'] = image['id']
+                    break
+
+        if 'image_id' not in self.config:
+            for image in images:
+                if image['name'].startswith('ibm-ubuntu-22'):
+                    self.config['image_id'] = image['id']
+                    break
 
     def _create_master_instance(self):
         """
@@ -503,7 +512,7 @@ class IBMVPCBackend:
         script = get_host_setup_script()
         build_vm.get_ssh_client().upload_data_to_file(script, remote_script)
         logger.debug("Executing installation script. Be patient, this process can take up to 3 minutes")
-        build_vm.get_ssh_client().run_remote_command(f"chmod 777 {remote_script}; sudo {remote_script};")
+        build_vm.get_ssh_client().run_remote_command(f"chmod 777 {remote_script}; sudo {remote_script}; rm {remote_script};")
         logger.debug("Installation script finsihed")
 
         if script_file:
@@ -512,7 +521,7 @@ class IBMVPCBackend:
             remote_script = "/tmp/install_user_lithops.sh"
             build_vm.get_ssh_client().upload_local_file(script, remote_script)
             logger.debug("Executing user script. Be patient, this process can take long")
-            build_vm.get_ssh_client().run_remote_command(f"chmod 777 {remote_script}; sudo {remote_script};")
+            build_vm.get_ssh_client().run_remote_command(f"chmod 777 {remote_script}; sudo {remote_script}; rm {remote_script};")
             logger.debug("User script finsihed")
 
         build_vm.stop()

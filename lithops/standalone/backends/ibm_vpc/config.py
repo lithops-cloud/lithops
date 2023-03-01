@@ -18,7 +18,7 @@
 import copy
 import uuid
 
-from lithops.constants import SA_DEFAULT_CONFIG_KEYS
+from lithops.constants import SA_DEFAULT_CONFIG_KEYS, SA_IMAGE_NAME_DEFAULT
 
 MANDATORY_PARAMETERS_1 = ('instance_id',
                           'floating_ip',
@@ -30,6 +30,7 @@ MANDATORY_PARAMETERS_2 = ('resource_group_id',
 DEFAULT_CONFIG_KEYS = {
     'master_profile_name': 'cx2-2x4',
     'worker_profile_name': 'cx2-2x4',
+    'image_name': SA_IMAGE_NAME_DEFAULT,
     'boot_volume_profile': 'general-purpose',
     'ssh_username': 'root',
     'ssh_password': str(uuid.uuid4()),
@@ -95,5 +96,5 @@ def load_config(config_data):
     if 'ibm' not in config_data or config_data['ibm'] is None:
         config_data['ibm'] = {}
 
-    if region and 'region' not in config_data['ibm']:
+    if 'region' not in config_data['ibm']:
         config_data['ibm']['region'] = config_data['ibm_vpc']['region']

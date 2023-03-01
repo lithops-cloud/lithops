@@ -169,7 +169,7 @@ def default_config(config_file=None, config_data=None, config_overwrite={}, load
     if backend not in config_data or config_data[backend] is None:
         config_data[backend] = {}
 
-    if 'backend' in config_overwrite:
+    if 'backend' in config_overwrite and config_overwrite['backend']:
         config_data[backend].update(config_overwrite['backend'])
 
     if mode == c.LOCALHOST:

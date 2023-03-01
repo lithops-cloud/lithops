@@ -34,7 +34,7 @@ from lithops.config import default_config, extract_storage_config, \
     extract_serverless_config, extract_standalone_config, \
     extract_localhost_config, load_yaml_config
 from lithops.constants import CACHE_DIR, LITHOPS_TEMP_DIR, RUNTIMES_PREFIX, \
-    JOBS_PREFIX, LOCALHOST, SERVERLESS, STANDALONE, LOGS_DIR, FN_LOG_FILE
+    JOBS_PREFIX, LOCALHOST, SA_IMAGE_NAME_DEFAULT, SERVERLESS, STANDALONE, LOGS_DIR, FN_LOG_FILE
 from lithops.storage import InternalStorage
 from lithops.serverless import ServerlessHandler
 from lithops.storage.utils import clean_bucket
@@ -45,8 +45,8 @@ from lithops.localhost.localhost import LocalhostHandler
 logger = logging.getLogger(__name__)
 
 
-def set_config_ow(backend, storage=None, runtime_name=None):
-    config_ow = {'lithops': {}}
+def set_config_ow(backend, storage=None, runtime_name=None, region=None):
+    config_ow = {'lithops': {}, 'backend': {}}
 
     if storage:
         config_ow['lithops']['storage'] = storage
@@ -56,8 +56,10 @@ def set_config_ow(backend, storage=None, runtime_name=None):
         config_ow['lithops']['mode'] = get_mode(backend)
 
     if runtime_name:
-        config_ow['backend'] = {}
         config_ow['backend']['runtime'] = runtime_name
+
+    if region:
+        config_ow['backend']['region'] = region
 
     return config_ow
 
@@ -73,8 +75,9 @@ def lithops_cli():
 @click.option('--backend', '-b', default=None, help='compute backend')
 @click.option('--storage', '-s', default=None, help='storage backend')
 @click.option('--debug', '-d', is_flag=True, help='debug mode')
+@click.option('--region', '-r', default=None, help='compute backend region')
 @click.option('--all', '-a', is_flag=True, help='delete all, including master VM in case of standalone')
-def clean(config, backend, storage, debug, all):
+def clean(config, backend, storage, debug, region, all):
     if config:
         config = load_yaml_config(config)
 
@@ -82,7 +85,7 @@ def clean(config, backend, storage, debug, all):
     setup_lithops_logger(log_level)
     logger.info('Cleaning all Lithops information')
 
-    config_ow = set_config_ow(backend, storage)
+    config_ow = set_config_ow(backend=backend, storage=storage, region=region)
     config = default_config(config_data=config, config_overwrite=config_ow)
     storage_config = extract_storage_config(config)
     internal_storage = InternalStorage(storage_config)
@@ -122,6 +125,7 @@ def clean(config, backend, storage, debug, all):
 @click.option('--backend', '-b', default=None, help='Compute backend')
 @click.option('--storage', '-s', default=None, help='Storage backend')
 @click.option('--debug', '-d', is_flag=True, help='Debug mode')
+@click.option('--region', '-r', default=None, help='compute backend region')
 @click.option('--test', '-t', default='all', help='Run a specific tester. To avoid running similarly named tests '
                                                   'you may prefix the tester with its test class, '
                                                   'e.g. TestClass.test_name. '
@@ -131,7 +135,7 @@ def clean(config, backend, storage, debug, all):
 @click.option('--fail_fast', '-f', is_flag=True, help='Stops test run upon first occurrence of a failed test')
 @click.option('--keep_datasets', '-k', is_flag=True, help='keeps datasets in storage after the test run. '
                                                           'Meant to serve some use-cases in github workflow.')
-def verify(test, config, backend, groups, storage, debug, fail_fast, keep_datasets):
+def verify(test, config, backend, groups, storage, debug, region, fail_fast, keep_datasets):
     if config:
         config = load_yaml_config(config)
 
@@ -155,7 +159,8 @@ def verify(test, config, backend, groups, storage, debug, fail_fast, keep_datase
 @click.option('--backend', '-b', default=None, help='compute backend')
 @click.option('--storage', '-s', default=None, help='storage backend')
 @click.option('--debug', '-d', is_flag=True, help='debug mode')
-def test_function(config, backend, storage, debug):
+@click.option('--region', '-r', default=None, help='compute backend region')
+def test_function(config, backend, storage, debug, region):
     if config:
         config = load_yaml_config(config)
 
@@ -171,7 +176,10 @@ def test_function(config, backend, storage, debug):
     def hello(name):
         return 'Hello {}!'.format(name)
 
-    fexec = lithops.FunctionExecutor(config=config, backend=backend, storage=storage)
+    config_ow = set_config_ow(backend=backend, storage=storage, region=region)
+    config = default_config(config_data=config, config_overwrite=config_ow)
+
+    fexec = lithops.FunctionExecutor(config=config)
     fexec.call_async(hello, username)
     result = fexec.get_result()
     print()
@@ -187,7 +195,8 @@ def test_function(config, backend, storage, debug):
 @click.option('--backend', '-b', default=None, help='compute backend')
 @click.option("--start", is_flag=True, default=False, help="Start the master VM if needed.")
 @click.option('--debug', '-d', is_flag=True, help='debug mode')
-def attach(config, backend, start, debug):
+@click.option('--region', '-r', default=None, help='compute backend region')
+def attach(config, backend, start, debug, region):
     """Create or attach to a SSH session on Lithops master VM"""
     if config:
         config = load_yaml_config(config)
@@ -195,7 +204,7 @@ def attach(config, backend, start, debug):
     log_level = logging.INFO if not debug else logging.DEBUG
     setup_lithops_logger(log_level)
 
-    config_ow = set_config_ow(backend)
+    config_ow = set_config_ow(backend=backend, region=region)
     config = default_config(config_data=config, config_overwrite=config_ow)
 
     if config['lithops']['mode'] != STANDALONE:
@@ -442,7 +451,7 @@ def build(ctx, name, file, config, backend, debug):
     if config:
         config = load_yaml_config(config)
 
-    config_ow = set_config_ow(backend, runtime_name=name)
+    config_ow = set_config_ow(backend=backend, runtime_name=name)
     config = default_config(config_data=config, config_overwrite=config_ow, load_storage_config=False)
 
     if config['lithops']['mode'] != SERVERLESS:
@@ -475,7 +484,7 @@ def deploy(name, storage, backend, memory, timeout, config, debug):
     if config:
         config = load_yaml_config(config)
 
-    config_ow = set_config_ow(backend, storage, runtime_name=name)
+    config_ow = set_config_ow(backend=backend, storage=storage, runtime_name=name)
     config = default_config(config_data=config, config_overwrite=config_ow)
 
     if config['lithops']['mode'] != SERVERLESS:
@@ -511,7 +520,7 @@ def list_runtimes(config, backend, storage, debug):
     if config:
         config = load_yaml_config(config)
 
-    config_ow = set_config_ow(backend)
+    config_ow = set_config_ow(backend=backend)
     config = default_config(config_data=config, config_overwrite=config_ow, load_storage_config=False)
 
     if config['lithops']['mode'] != SERVERLESS:
@@ -556,7 +565,7 @@ def update(name, config, backend, storage, debug):
     if config:
         config = load_yaml_config(config)
 
-    config_ow = set_config_ow(backend, storage, runtime_name=name)
+    config_ow = set_config_ow(backend=backend, storage=storage, runtime_name=name)
     config = default_config(config_data=config, config_overwrite=config_ow)
 
     if config['lithops']['mode'] != SERVERLESS:
@@ -601,7 +610,7 @@ def delete(name, config, memory, version, backend, storage, debug):
     if config:
         config = load_yaml_config(config)
 
-    config_ow = set_config_ow(backend, storage, runtime_name=name)
+    config_ow = set_config_ow(backend=backend, storage=storage, runtime_name=name)
     config = default_config(config_data=config, config_overwrite=config_ow)
 
     if config['lithops']['mode'] != SERVERLESS:
@@ -656,13 +665,14 @@ def build_image(ctx, name, file, config, backend, region, debug, overwrite):
     log_level = logging.INFO if not debug else logging.DEBUG
     setup_lithops_logger(log_level)
 
-    name = "lithops-worker-default" if not name else name
+    name = SA_IMAGE_NAME_DEFAULT if not name else name
     verify_runtime_name(name)
 
     if config:
         config = load_yaml_config(config)
 
-    config_ow = set_config_ow(backend, runtime_name=name)
+    config_ow = set_config_ow(backend=backend, region=region)
+
     config = default_config(config_data=config, config_overwrite=config_ow, load_storage_config=False)
 
     if config['lithops']['mode'] != STANDALONE:
