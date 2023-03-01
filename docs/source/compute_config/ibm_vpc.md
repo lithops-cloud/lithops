@@ -79,6 +79,7 @@ ibm_vpc:
 |ibm_vpc | subnet_id | | no | Subnet id of an existing VPC. Get it from [here](https://cloud.ibm.com/vpc-ext/network/subnets)|
 |ibm_vpc | ssh_key_id | | no | SSH public key id. Get it from [here](https://cloud.ibm.com/vpc-ext/compute/sshKeys)|
 |ibm_vpc | gateway_id | | no | Gateway id. Get it from [here](https://cloud.ibm.com/vpc-ext/network/publicGateways)|
+|ibm_vpc | image_name | lithops-worker-default | no | Virtual machine image name |
 |ibm_vpc | image_id | | no | Virtual machine image id |
 |ibm_vpc | ssh_username | root |no | Username to access the VM |
 |ibm_vpc | ssh_password |  |no | Password for accessing the worker VMs. If not provided, it is created randomly|

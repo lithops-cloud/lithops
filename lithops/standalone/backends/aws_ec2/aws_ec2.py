@@ -90,9 +90,10 @@ class AWSEC2Backend:
         """
         self.ec2_data = load_yaml_config(self.cache_file)
 
-        if not self.ec2_data:
-            logger.debug(f'Could not find EC2 cache data in {self.cache_file}')
-        elif 'vpc_id' in self.ec2_data:
+        if self.ec2_data:
+            logger.debug(f'EC2 data loaded from {self.cache_file}')
+
+        if 'vpc_id' in self.ec2_data:
             self.vpc_key = self.ec2_data['vpc_id'][-4:]
             self.vpc_name = self.ec2_data['vpc_name']
 
@@ -396,6 +397,12 @@ class AWSEC2Backend:
             }
 
         self._dump_ec2_data()
+
+    def build_image(self, image_name, script_file, overwrite, extra_args=[]):
+        """
+        Builds a new VM Image
+        """
+        pass
 
     def _delete_vm_instances(self, all=False):
         """

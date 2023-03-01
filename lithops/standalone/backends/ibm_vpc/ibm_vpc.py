@@ -33,7 +33,7 @@ from lithops.version import __version__
 from lithops.util.ssh_client import SSHClient
 from lithops.constants import COMPUTE_CLI_MSG, CACHE_DIR
 from lithops.config import load_yaml_config, dump_yaml_config
-from lithops.standalone.utils import CLOUD_CONFIG_WORKER, CLOUD_CONFIG_WORKER_PK, ExecMode
+from lithops.standalone.utils import CLOUD_CONFIG_WORKER, CLOUD_CONFIG_WORKER_PK, ExecMode, get_host_setup_script
 from lithops.standalone.standalone import LithopsValidationError
 
 logger = logging.getLogger(__name__)
@@ -51,7 +51,7 @@ class IBMVPCBackend:
         self.mode = mode
 
         self.vpc_name = None
-        self.vpc_data = None
+        self.vpc_data = {}
         self.vpc_key = self.config['vpc_id'].split('-')[2] if 'vpc_id' in self.config else None
         self.vpc_data_type = 'provided' if 'vpc_id' in self.config else 'created'
         self.ssh_data_type = 'provided' if 'ssh_key_id' in self.config else 'created'
@@ -87,11 +87,14 @@ class IBMVPCBackend:
         """
         self.vpc_data = load_yaml_config(self.cache_file)
 
-        if not self.vpc_data:
-            logger.debug(f'Could not find VPC cache data in {self.cache_file}')
-        elif 'vpc_id' in self.vpc_data:
+        if self.vpc_data:
+            logger.debug(f'VPC data loaded from {self.cache_file}')
+
+        if 'vpc_id' in self.vpc_data:
             self.vpc_key = self.vpc_data['vpc_id'].split('-')[2]
             self.vpc_name = self.vpc_data['vpc_name']
+
+        return self.vpc_data
 
     def _dump_vpc_data(self):
         """
@@ -305,7 +308,7 @@ class IBMVPCBackend:
 
         if not gateway_data:
             logger.debug(f'Creating Gateway {gateway_name}')
-            fip, fip_id = self._create_floating_ip()
+            fip, fip_id = self._get_or_create_floating_ip()
             gateway_prototype = {}
             gateway_prototype['vpc'] = {'id': self.config['vpc_id']}
             gateway_prototype['zone'] = {'name': self.config['zone_name']}
@@ -321,7 +324,7 @@ class IBMVPCBackend:
         self.vpc_cli.set_subnet_public_gateway(
             self.config['subnet_id'], {'id': self.config['gateway_id']})
 
-    def _create_floating_ip(self):
+    def _get_or_create_floating_ip(self):
         """
         Creates a new floating IP address
         """
@@ -361,7 +364,7 @@ class IBMVPCBackend:
                 pass
 
         if 'floating_ip_id' not in self.config:
-            fip, fip_id = self._create_floating_ip()
+            fip, fip_id = self._get_or_create_floating_ip()
             self.config['floating_ip'] = fip
             self.config['floating_ip_id'] = fip_id
 
@@ -372,13 +375,26 @@ class IBMVPCBackend:
         if 'image_id' in self.config:
             return
 
+        images = self.vpc_cli.list_images().result['images']
+
         if 'image_id' in self.vpc_data:
-            self.config['image_id'] = self.vpc_data['image_id']
+            for image in images:
+                if image['id'] == self.vpc_data['image_id']:
+                    if not image['name'].startswith('ibm-ubuntu-22'):
+                        self.config['image_id'] = self.vpc_data['image_id']
+                        break
 
         if 'image_id' not in self.config:
-            for image in self.vpc_cli.list_images().result['images']:
-                if 'ubuntu-22' in image['name']:
+            for image in images:
+                if image['name'] == self.config['image_name']:
                     self.config['image_id'] = image['id']
+                    break
+
+        if 'image_id' not in self.config:
+            for image in images:
+                if image['name'].startswith('ibm-ubuntu-22'):
+                    self.config['image_id'] = image['id']
+                    break
 
     def _create_master_instance(self):
         """
@@ -459,6 +475,82 @@ class IBMVPCBackend:
             }
 
         self._dump_vpc_data()
+
+    def build_image(self, image_name, script_file, overwrite, extra_args=[]):
+        """
+        Builds a new VM Image
+        """
+        images = self.vpc_cli.list_images(name=image_name).result['images']
+        if len(images) > 0:
+            image_id = images[0]['id']
+            if overwrite:
+                logger.debug(f"Deleting existing VM Image '{image_name}'")
+                self.vpc_cli.delete_image(id=image_id)
+                while len(self.vpc_cli.list_images(name=image_name).result['images']) > 0:
+                    time.sleep(2)
+            else:
+                raise Exception(f"The image with name '{image_name}' already exists with ID: '{image_id}'."
+                                " Use '--overwrite' or '-o' if you want ot overwrite it")
+
+        initial_vpc_data = self._load_vpc_data()
+
+        self.init()
+
+        fip, fip_id = self._get_or_create_floating_ip()
+        self.config['floating_ip'] = fip
+        self.config['floating_ip_id'] = fip_id
+
+        build_vm = IBMVPCInstance(image_name, self.config, self.vpc_cli, public=True)
+        build_vm.public_ip = self.config['floating_ip']
+        build_vm.profile_name = self.config['master_profile_name']
+        build_vm.delete_on_dismantle = False
+        build_vm.create()
+        build_vm.wait_ready()
+
+        logger.debug(f"Uploading installation script to {build_vm}")
+        remote_script = "/tmp/install_lithops.sh"
+        script = get_host_setup_script()
+        build_vm.get_ssh_client().upload_data_to_file(script, remote_script)
+        logger.debug("Executing installation script. Be patient, this process can take up to 3 minutes")
+        build_vm.get_ssh_client().run_remote_command(f"chmod 777 {remote_script}; sudo {remote_script}; rm {remote_script};")
+        logger.debug("Installation script finsihed")
+
+        if script_file:
+            script = os.path.expanduser(script_file)
+            logger.debug(f"Uploading user script {script_file} to {build_vm}")
+            remote_script = "/tmp/install_user_lithops.sh"
+            build_vm.get_ssh_client().upload_local_file(script, remote_script)
+            logger.debug("Executing user script. Be patient, this process can take long")
+            build_vm.get_ssh_client().run_remote_command(f"chmod 777 {remote_script}; sudo {remote_script}; rm {remote_script};")
+            logger.debug("User script finsihed")
+
+        build_vm.stop()
+        build_vm.wait_stopped()
+
+        vm_data = build_vm.get_instance_data()
+        volume_id = vm_data['boot_volume_attachment']['volume']['id']
+
+        image_prototype = {}
+        image_prototype['name'] = image_name
+        image_prototype['source_volume'] = {'id': volume_id}
+        image_prototype['resource_group'] = {'id': self.config['resource_group_id']}
+        self.vpc_cli.create_image(image_prototype)
+
+        logger.debug("Be patient, VM imaging can take up to 6 minutes")
+
+        while True:
+            image = self.vpc_cli.list_images(name=image_name).result['images'][0]
+            logger.debug(f"VM Image is being created. Current status: {image['status']}")
+            if image['status'] == 'available':
+                break
+            time.sleep(30)
+
+        build_vm.delete()
+
+        if not initial_vpc_data:
+            self.clean(all)
+
+        logger.info(f"VM Image created. Image ID: {image['id']}")
 
     def _delete_vm_instances(self, all=False):
         """
@@ -912,7 +1004,7 @@ class IBMVPCInstance:
         fip = self.config['floating_ip']
         fip_id = self.config['floating_ip_id']
 
-        # logger.debug('Attaching floating IP {} to VM instance {}'.format(fip, instance['id']))
+        logger.debug(f"Attaching floating IP {fip} to {self}")
 
         # we need to check if floating ip is not attached already. if not, attach it to instance
         instance_primary_ni = instance['primary_network_interface']
@@ -1031,6 +1123,30 @@ class IBMVPCInstance:
         self.instance_id = None
         self.private_ip = None
         self.del_ssh_client()
+
+    def is_stopped(self):
+        """
+        Checks if the VM instance is stoped
+        """
+        data = self.get_instance_data()
+        if data['status'] == 'stopped':
+            return True
+        return False
+
+    def wait_stopped(self, timeout=INSTANCE_START_TIMEOUT):
+        """
+        Waits until the VM instance is stoped
+        """
+        logger.debug(f'Waiting {self} to become stopped')
+
+        start = time.time()
+
+        while (time.time() - start < timeout):
+            if self.is_stopped():
+                return True
+            time.sleep(3)
+
+        raise TimeoutError(f'Stop probe expired on {self}')
 
     def _stop_instance(self):
         """
