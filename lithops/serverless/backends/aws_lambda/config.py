@@ -66,7 +66,7 @@ def load_config(config_data):
         raise Exception("'aws' section is mandatory in the configuration")
 
     if not {'access_key_id', 'secret_access_key'}.issubset(set(config_data['aws'])):
-        raise Exception("'access_key_id' and 'secret_access_key' are mandatory under 'aws' section")
+        raise Exception("'access_key_id' and 'secret_access_key' are mandatory under the 'aws' section of the configuration")
 
     if not config_data['aws_lambda']:
         raise Exception("'aws_lambda' section is mandatory in the configuration")
@@ -126,7 +126,10 @@ def load_config(config_data):
             or config_data['aws_lambda']['ephemeral_storage'] > RUNTIME_TMP_SZ_MAX:
         raise Exception(f'Ephemeral storage value must be between {RUNTIME_TMP_SZ_MIN} and {RUNTIME_TMP_SZ_MAX}')
 
-    if 'region_name' not in config_data['aws_lambda']:
-        raise Exception('"region_name" is mandatory under the "aws_lambda" or "aws" section of the configuration')
-    elif 'region_name' not in config_data['aws']:
-        config_data['aws']['region_name'] = config_data['aws_lambda']['region_name']
+    if 'region_name' in config_data['aws_lambda']:
+        config_data['aws_lambda']['region'] = config_data['aws_lambda'].pop('region_name')
+
+    if 'region' not in config_data['aws_lambda']:
+        raise Exception('"region" is mandatory under the "aws_lambda" or "aws" section of the configuration')
+    elif 'region' not in config_data['aws']:
+        config_data['aws']['region'] = config_data['aws_lambda']['region']

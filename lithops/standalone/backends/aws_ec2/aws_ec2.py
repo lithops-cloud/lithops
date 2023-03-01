@@ -55,9 +55,9 @@ class AWSEC2Backend:
         self.name = 'aws_ec2'
         self.config = ec2_config
         self.mode = mode
-        self.region = ec2_config['region_name']
+        self.region_name = ec2_config['region']
         self.cache_dir = os.path.join(CACHE_DIR, self.name)
-        self.cache_file = os.path.join(self.cache_dir, self.region + '_data')
+        self.cache_file = os.path.join(self.cache_dir, self.region_name + '_data')
         self.vpc_data_type = 'provided' if 'vpc_id' in ec2_config else 'created'
         self.ssh_data_type = 'provided' if 'ssh_key_name' in ec2_config else 'created'
 
@@ -75,14 +75,14 @@ class AWSEC2Backend:
             aws_secret_access_key=ec2_config['secret_access_key'],
             aws_session_token=ec2_config.get('session_token'),
             config=client_config,
-            region_name=self.region
+            region_name=self.region_name
         )
 
         self.master = None
         self.workers = []
 
         msg = COMPUTE_CLI_MSG.format('AWS EC2')
-        logger.info(f"{msg} - Region: {self.region}")
+        logger.info(f"{msg} - Region: {self.region_name}")
 
     def _load_ec2_data(self):
         """
@@ -628,7 +628,7 @@ class EC2Instance:
 
         self.delete_on_dismantle = self.config['delete_on_dismantle']
         self.instance_type = self.config['worker_instance_type']
-        self.region = self.config['region_name']
+        self.region_name = self.config['region']
         self.spot_instance = self.config['request_spot_instances']
 
         self.ec2_client = ec2_client or self._create_ec2_client()
@@ -669,7 +669,7 @@ class EC2Instance:
             aws_secret_access_key=self.config['secret_access_key'],
             aws_session_token=self.config.get('session_token'),
             config=client_config,
-            region_name=self.region
+            region_name=self.region_name
         )
 
         return ec2_client

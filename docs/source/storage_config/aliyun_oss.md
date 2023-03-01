@@ -25,17 +25,19 @@ $ python3 -m pip install lithops[aliyun]
     storage: aliyun_oss
 
   aliyun:
+    account_id: <ACCOUNT_ID>
     access_key_id: <ACCESS_KEY_ID>
     access_key_secret: <ACCESS_KEY_SECRET>
 
   aliyun_oss:
-    region: <REGION>
+    region : <REGION_NAME>
 ```
 
 ## Summary of configuration keys for Aliyun
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
+|aliyun | account_id | |yes |  Alibaba Cloud Account ID |
 |aliyun | access_key_id | |yes |  Access Key Id |
 |aliyun | access_key_secret | |yes | Access Key Secret |
 
@@ -43,5 +45,5 @@ $ python3 -m pip install lithops[aliyun]
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|aliyun_oss | region | | yes | Region ID from [here](https://www.alibabacloud.com/help/en/object-storage-service/latest/regions-and-endpoints)|
+|aliyun_oss | region | | yes | Region Name from [here](https://www.alibabacloud.com/help/en/object-storage-service/latest/regions-and-endpoints). Ommit the `oss-` prefix. For example: `eu-west-1` |
 |aliyun_oss | storage_bucket | | no | The name of a bucket that exists in you account. This will be used by Lithops for intermediate data. Lithops will automatically create a new one if it is not provided|

@@ -77,7 +77,7 @@ def load_config(config_data):
         raise Exception("'aws' section is mandatory in the configuration")
 
     if not {'access_key_id', 'secret_access_key'}.issubset(set(config_data['aws'])):
-        raise Exception("'access_key_id' and 'secret_access_key' are mandatory under 'aws' section")
+        raise Exception("'access_key_id' and 'secret_access_key' are mandatory under the 'aws' section of the configuration")
 
     if not config_data['aws_batch']:
         raise Exception("'aws_batch' section is mandatory in the configuration")
@@ -129,7 +129,10 @@ def load_config(config_data):
 
     assert isinstance(config_data['aws_batch']['assign_public_ip'], bool)
 
-    if 'region_name' not in config_data['aws_batch']:
-        raise Exception('"region_name" is mandatory under the "aws_batch" or "aws" section of the configuration')
-    elif 'region_name' not in config_data['aws']:
-        config_data['aws']['region_name'] = config_data['aws_batch']['region_name']
+    if 'region_name' in config_data['aws_batch']:
+        config_data['aws_batch']['region'] = config_data['aws_batch'].pop('region_name')
+
+    if 'region' not in config_data['aws_batch']:
+        raise Exception('"region" is mandatory under the "aws_batch" or "aws" section of the configuration')
+    elif 'region' not in config_data['aws']:
+        config_data['aws']['region'] = config_data['aws_batch']['region']

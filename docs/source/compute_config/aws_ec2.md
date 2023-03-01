@@ -25,7 +25,7 @@ lithops:
     backend: aws_ec2
 
 aws:
-    region_name : <REGION_NAME>
+    region : <REGION_NAME>
     access_key_id: <AWS_ACCESS_KEY_ID>
     secret_access_key: <AWS_SECRET_ACCESS_KEY>
 
@@ -38,7 +38,7 @@ aws_ec2:
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|aws | region_name | |yes | AWS Region. For example `us-east-1` |
+|aws | region | |yes | AWS Region. For example `us-east-1` |
 |aws | access_key_id | |yes | Account access key to AWS services. To find them, navigate to *My Security Credentials* and click *Create Access Key* if you don't already have one. |
 |aws | secret_access_key | |yes | Account secret access key to AWS services. To find them, navigate to *My Security Credentials* and click *Create Access Key* if you don't already have one. |
 |aws | session_token | |no | Session token for temporary AWS credentials |
@@ -49,7 +49,7 @@ aws_ec2:
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |aws_ec2 | instance_id | | yes | virtual server instance ID |
-|aws_ec2 | region_name | |no | Region name of the VPC. For example `us-east-1`. Lithops will use the region set under the `aws` section if it is not set here |
+|aws_ec2 | region | |no | Region name of the VPC. For example `us-east-1`. Lithops will use the region set under the `aws` section if it is not set here |
 |aws_ec2 | ssh_username | ubuntu |no | Username to access the VM |
 |aws_ec2 | ssh_key_filename | ~/.ssh/id_rsa | no | Path to the ssh key file provided to create the VM. It will use the default path if not provided |
 |aws_ec2 | worker_processes | 2 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker. It is recommendable to set this value to the same number of CPUs of the VM. |
@@ -74,9 +74,9 @@ lithops:
 aws:
     access_key_id: <AWS_ACCESS_KEY_ID>
     secret_access_key: <AWS_SECRET_ACCESS_KEY>
+    region: <REGION_NAME>
 
 aws_ec2:
-    region_name: <REGION_NAME>
     iam_role: <IAM_ROLE>
     exec_mode: reuse
 ```
@@ -86,6 +86,7 @@ aws_ec2:
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
+|aws | region | |yes | AWS Region. For example `us-east-1` |
 |aws | access_key_id | |yes | Account access key to AWS services. To find them, navigate to *My Security Credentials* and click *Create Access Key* if you don't already have one. |
 |aws | secret_access_key | |yes | Account secret access key to AWS services. To find them, navigate to *My Security Credentials* and click *Create Access Key* if you don't already have one. |
 |aws | session_token | |no | Session token for temporary AWS credentials |
@@ -95,7 +96,7 @@ aws_ec2:
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|aws_ec2 | region_name | |yes | Region name, for example: `eu-west-1` |
+|aws_ec2 | region | |yes | Region name, for example: `eu-west-1` |
 |aws_ec2 | iam_role | | yes | IAM EC2 role name. You can find it in the [IAM Console page](https://console.aws.amazon.com/iamv2/home#/roles). Create a new EC2 role if it does not exist|
 |aws_ec2 | vpc_id | | no | VPC id. You can find all the available VPCs in the [VPC Console page](https://console.aws.amazon.com/vpc/v2/home#vpcs:) |
 |aws_ec2 | subnet_id | | no | Subnet id. You can find all the available Subnets in the [VPC Console page](https://console.aws.amazon.com/vpc/v2/home#subnets:) |

@@ -112,7 +112,8 @@ class FunctionExecutor:
         if max_workers is not None:
             config_ow['backend']['max_workers'] = max_workers
         for key, value in kwargs.items():
-            config_ow['backend'][key] = value
+            if value is not None:
+                config_ow['backend'][key] = value
 
         if mode is not None:
             config_ow['lithops']['mode'] = mode
