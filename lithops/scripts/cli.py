@@ -427,7 +427,7 @@ def runtime(ctx):
 
 @runtime.command('build', context_settings=dict(ignore_unknown_options=True, allow_extra_args=True))
 @click.argument('name', required=False)
-@click.option('--file', '-f', default=None, help='file needed to build the runtime')
+@click.option('--file', '-f', default=None, help='file needed to build the runtime', type=click.Path(exists=True))
 @click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
 @click.option('--backend', '-b', default=None, help='compute backend')
 @click.option('--debug', '-d', is_flag=True, default=True, help='debug mode')
@@ -446,7 +446,7 @@ def build(ctx, name, file, config, backend, debug):
     config = default_config(config_data=config, config_overwrite=config_ow, load_storage_config=False)
 
     if config['lithops']['mode'] != SERVERLESS:
-        raise Exception('"lithops build" command is only available for serverless backends')
+        raise Exception('"lithops runtime build" command is only available for serverless backends')
 
     compute_config = extract_serverless_config(config)
     compute_handler = ServerlessHandler(compute_config, None)
@@ -629,7 +629,52 @@ def delete(name, config, memory, version, backend, storage, debug):
 
     logger.info('Runtime deleted')
 
+
+# /---------------------------------------------------------------------------/
+#
+# lithops image
+#
+# /---------------------------------------------------------------------------/
+
+@click.group('image')
+@click.pass_context
+def image(ctx):
+    pass
+
+
+@image.command('build', context_settings=dict(ignore_unknown_options=True, allow_extra_args=True))
+@click.argument('name', required=False)
+@click.option('--file', '-f', default=None, help='file needed to build the image', type=click.Path(exists=True))
+@click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
+@click.option('--backend', '-b', default=None, help='compute backend')
+@click.option('--region', '-r', default=None, help='compute backend region')
+@click.option('--debug', '-d', is_flag=True, default=True, help='debug mode')
+@click.pass_context
+def build_image(ctx, name, file, config, backend, region, debug):
+    """ build a VM image """
+    log_level = logging.INFO if not debug else logging.DEBUG
+    setup_lithops_logger(log_level)
+
+    verify_runtime_name(name)
+
+    if config:
+        config = load_yaml_config(config)
+
+    config_ow = set_config_ow(backend, runtime_name=name)
+    config = default_config(config_data=config, config_overwrite=config_ow, load_storage_config=False)
+
+    if config['lithops']['mode'] != STANDALONE:
+        raise Exception('"lithops image build" command is only available for standalone backends')
+
+    compute_config = extract_standalone_config(config)
+    compute_handler = StandaloneHandler(compute_config)
+    compute_handler.build_image(name, file, ctx.args)
+
+    logger.info('VM Image built')
+
+
 lithops_cli.add_command(runtime)
+lithops_cli.add_command(image)
 lithops_cli.add_command(logs)
 lithops_cli.add_command(storage)
 

@@ -12,6 +12,8 @@
 - [AWS] Allow to set "region_name" under "aws" section
 - [Azure Functions] Allow to use a python 3.10 runtime
 - [Aliyun Functions] Allow to use a python 3.10 runtime
+- [IBM VPC] Added build_image method
+- [Cli] Added build_image method
 
 ### Changed
 - [AWS EC2] Reduced number of mandatory parameters
