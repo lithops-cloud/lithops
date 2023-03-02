@@ -14,6 +14,7 @@
 # limitations under the License.
 #
 
+import copy
 import os
 from lithops.constants import TEMP_DIR
 
@@ -44,8 +45,10 @@ cloudpickle
 ps-mem
 """
 
-REQ_PARAMS_1 = ('access_key_id', 'access_key_secret')
-REQ_PARAMS_2 = ('public_endpoint', 'role_arn')
+REQ_PARAMS_1 = ('account_id', 'access_key_id', 'access_key_secret')
+REQ_PARAMS_2 = ('role_arn', )
+
+ENDPOINT = "{0}.{1}.fc.aliyuncs.com"
 
 
 def load_config(config_data=None):
@@ -66,12 +69,19 @@ def load_config(config_data=None):
             msg = f'"{param}" is mandatory in the "aliyun_fc" section of the configuration'
             raise Exception(msg)
 
-    pe = config_data['aliyun_fc']['public_endpoint'].replace('https://', '')
-    config_data['aliyun_fc']['public_endpoint'] = pe
+    temp = copy.deepcopy(config_data['aliyun_fc'])
+    config_data['aliyun_fc'].update(config_data['aliyun'])
+    config_data['aliyun_fc'].update(temp)
 
     for key in DEFAULT_CONFIG_KEYS:
         if key not in config_data['aliyun_fc']:
             config_data['aliyun_fc'][key] = DEFAULT_CONFIG_KEYS[key]
 
-    # Put credential keys to 'aliyun_fc' dict entry
-    config_data['aliyun_fc'].update(config_data['aliyun'])
+    if 'region' not in config_data['aliyun_fc']:
+        raise Exception('"region" is mandatory under the "aliyun_fc" or "aliyun" section of the configuration')
+    elif 'region' not in config_data['aliyun']:
+        config_data['aliyun']['region'] = config_data['aliyun_fc']['region']
+
+    account_id = config_data['aliyun_fc']['account_id']
+    region = config_data['aliyun_fc']['region']
+    config_data['aliyun_fc']['public_endpoint'] = ENDPOINT.format(account_id, region)

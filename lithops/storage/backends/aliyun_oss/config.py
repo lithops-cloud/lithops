@@ -14,36 +14,36 @@
 # limitations under the License.
 #
 
+import copy
 import hashlib
 
 
 CONNECTION_POOL_SIZE = 300
 
 REQ_PARAMS_1 = ('access_key_id', 'access_key_secret')
-REQ_PARAMS_2 = ('region',)
 
+PUBLIC_ENDPOINT = "oss-{}.aliyuncs.com"
+INTERNAL_ENDPOINT = "oss-{}-internal.aliyuncs.com"
 
-PUBLIC_ENDPOINT = "{}.aliyuncs.com"
-INTERNAL_ENDPOINT = "{}-internal.aliyuncs.com"
 
 def load_config(config_data=None):
     if 'aliyun' not in config_data:
         raise Exception("'aliyun' section is mandatory in the configuration")
 
     if 'aliyun_oss' not in config_data:
-        raise Exception("'aliyun_oss' section is mandatory in the configuration")
-
-    config_data['aliyun_oss'].update(config_data['aliyun'])
+        config_data['aliyun_oss'] = {}
 
     for param in REQ_PARAMS_1:
         if param not in config_data['aliyun']:
             msg = f'"{param}" is mandatory under "aliyun" section of the configuration'
             raise Exception(msg)
 
-    for param in REQ_PARAMS_2:
-        if param not in config_data['aliyun_oss']:
-            msg = f'"{param}" is mandatory under "aliyun_oss" section of the configuration'
-            raise Exception(msg)
+    temp = copy.deepcopy(config_data['aliyun_oss'])
+    config_data['aliyun_oss'].update(config_data['aliyun'])
+    config_data['aliyun_oss'].update(temp)
+
+    if 'region' not in config_data['aliyun_oss']:
+        raise Exception('"region" is mandatory under the "aliyun_oss" or "aliyun" section of the configuration')
 
     region = config_data['aliyun_oss']['region']
     config_data['aliyun_oss']['public_endpoint'] = PUBLIC_ENDPOINT.format(region)

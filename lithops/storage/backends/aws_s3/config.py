@@ -35,10 +35,10 @@ def load_config(config_data):
         if 'region_name' in config_data['aws_s3']:
             config_data['aws_s3']['region'] = config_data['aws_s3'].pop('region_name')
 
+        if 'region' not in config_data['aws_s3']:
+            raise Exception("'region' is mandatory under 'aws_s3' or 'aws' section of the configuration")
+
         if 'storage_bucket' not in config_data['aws_s3']:
             key = config_data['aws_s3']['access_key_id']
             region = config_data['aws_s3']['region']
             config_data['aws_s3']['storage_bucket'] = f'lithops-{region}-{key[:6].lower()}'
-
-        if 'region' not in config_data['aws_s3']:
-            raise Exception("'region' is mandatory under 'aws_s3' or 'aws' section of the configuration")

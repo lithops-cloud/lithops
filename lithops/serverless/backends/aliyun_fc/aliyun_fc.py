@@ -41,14 +41,14 @@ class AliyunFunctionComputeBackend:
         logger.debug("Creating Aliyun Function Compute client")
         self.name = 'aliyun_fc'
         self.type = 'faas'
-        self.afc_config = afc_config
+        self.config = afc_config
         self.user_agent = afc_config['user_agent']
 
         self.endpoint = afc_config['public_endpoint']
         self.access_key_id = afc_config['access_key_id']
         self.access_key_secret = afc_config['access_key_secret']
         self.role_arn = afc_config['role_arn']
-        self.region = self.endpoint.split('.')[1]
+        self.region = afc_config['region']
 
         self.default_service_name = f'{config.SERVICE_NAME}_{self.access_key_id[0:4].lower()}'
         self.service_name = afc_config.get('service', self.default_service_name)
@@ -305,14 +305,14 @@ class AliyunFunctionComputeBackend:
                 f'Functions. Please use one of {list(config.AVAILABLE_PY_RUNTIMES.keys())}'
             )
 
-        if 'runtime' not in self.afc_config or self.afc_config['runtime'] == 'default':
-            self.afc_config['runtime'] = self._get_default_runtime_name()
+        if 'runtime' not in self.config or self.config['runtime'] == 'default':
+            self.config['runtime'] = self._get_default_runtime_name()
 
         runtime_info = {
-            'runtime_name': self.afc_config['runtime'],
-            'runtime_memory': self.afc_config['runtime_memory'],
-            'runtime_timeout': self.afc_config['runtime_timeout'],
-            'max_workers': self.afc_config['max_workers'],
+            'runtime_name': self.config['runtime'],
+            'runtime_memory': self.config['runtime_memory'],
+            'runtime_timeout': self.config['runtime_timeout'],
+            'max_workers': self.config['max_workers'],
         }
 
         return runtime_info
