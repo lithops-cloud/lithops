@@ -48,7 +48,7 @@ class AWSBatchBackend:
 
         self.user_key = aws_batch_config['access_key_id'][-4:]
         self.package = f'lithops_v{__version__.replace(".", "-")}_{self.user_key}'
-        self.region_name = aws_batch_config['region_name']
+        self.region_name = aws_batch_config['region']
 
         self._env_type = self.aws_batch_config['env_type']
         self._queue_name = f'{self.package}_{self._env_type.replace("_", "-")}_queue'

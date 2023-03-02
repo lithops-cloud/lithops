@@ -9,14 +9,16 @@
 - [Executor] Allow to pass the config file location in the FunctionExecutor()
 - [Storage] Automatically create the storage bucket if not provided in the config
 - [IBM] Allow to set "region" under "ibm" section
-- [AWS] Allow to set "region_name" under "aws" section
+- [AWS] Allow to set "region" under "aws" section
 - [Azure Functions] Allow to use a python 3.10 runtime
 - [Aliyun Functions] Allow to use a python 3.10 runtime
-- [IBM VPC] Added build_image method
-- [Cli] Added build_image method
+- [IBM VPC] Added build_image() method for automatically building VM images
+- [Cli] Added new 'lithops image build' entrypoint
 
 ### Changed
 - [AWS EC2] Reduced number of mandatory parameters
+- [AWS] Allow 'region' config parameter instead of 'region_name' for compatibility
+- [Aliyun] Changed 'endpoint' config parameters to 'region' for compatibility
 
 ### Fixed
 - [IBM VPC & AWS EC2] Make sure only VMs from the given VPC are removed

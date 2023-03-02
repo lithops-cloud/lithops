@@ -23,7 +23,7 @@ def load_config(config_data):
     if 'aws' in config_data:
 
         if not {'access_key_id', 'secret_access_key'}.issubset(set(config_data['aws'])):
-            raise Exception("'access_key_id' and 'secret_access_key' are mandatory under 'aws' section")
+            raise Exception("'access_key_id' and 'secret_access_key' are mandatory under the 'aws' section of the configuration")
 
         if 'aws_s3' not in config_data:
             config_data['aws_s3'] = {}
@@ -32,10 +32,13 @@ def load_config(config_data):
         config_data['aws_s3'].update(config_data['aws'])
         config_data['aws_s3'].update(temp)
 
+        if 'region_name' in config_data['aws_s3']:
+            config_data['aws_s3']['region'] = config_data['aws_s3'].pop('region_name')
+
+        if 'region' not in config_data['aws_s3']:
+            raise Exception("'region' is mandatory under 'aws_s3' or 'aws' section of the configuration")
+
         if 'storage_bucket' not in config_data['aws_s3']:
             key = config_data['aws_s3']['access_key_id']
-            region = config_data['aws_s3']['region_name']
+            region = config_data['aws_s3']['region']
             config_data['aws_s3']['storage_bucket'] = f'lithops-{region}-{key[:6].lower()}'
-
-        if 'region_name' not in config_data['aws_s3']:
-            raise Exception("'region_name' is mandatory under 'aws_s3' or 'aws' section")

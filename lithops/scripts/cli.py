@@ -160,7 +160,7 @@ def verify(test, config, backend, groups, storage, debug, region, fail_fast, kee
 @click.option('--storage', '-s', default=None, help='storage backend')
 @click.option('--debug', '-d', is_flag=True, help='debug mode')
 @click.option('--region', '-r', default=None, help='compute backend region')
-def test_function(config, backend, storage, debug, region):
+def hello(config, backend, storage, debug, region):
     if config:
         config = load_yaml_config(config)
 
@@ -174,16 +174,16 @@ def test_function(config, backend, storage, debug, region):
         username = 'World'
 
     def hello(name):
-        return 'Hello {}!'.format(name)
+        return f'Hello {name}!'
 
-    config_ow = set_config_ow(backend=backend, storage=storage, region=region)
-    config = default_config(config_data=config, config_overwrite=config_ow)
-
-    fexec = lithops.FunctionExecutor(config=config)
+    fexec = lithops.FunctionExecutor(
+        config=config, backend=backend,
+        storage=storage, region=region
+    )
     fexec.call_async(hello, username)
     result = fexec.get_result()
     print()
-    if result == 'Hello {}!'.format(username):
+    if result == f'Hello {username}!':
         print(result, 'Lithops is working as expected :)')
     else:
         print(result, 'Something went wrong :(')

@@ -82,7 +82,7 @@ az login
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |azure_functions| resource_group | |yes | Name of the resource group used in the step 5 of the installation. |
-|azure_functions| location |  |yes | The location of the consumption plan for the runtime. Use `az functionapp list-consumption-locations` to view the available locations.|
+|azure_functions| location |  |yes | The location of the consumption plan for the runtime. Use `az functionapp list-consumption-locations` to view the available locations. For example: `westeurope`|
 |azure_functions | max_workers | 1000 | no | Max number of parallel workers. Altough Azure limits the number of workrs to 200, it is convenient to keep this value high|
 |azure_functions | worker_processes | 1 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker |
 |azure_functions| runtime |  |no | Runtime name already deployed in the service|

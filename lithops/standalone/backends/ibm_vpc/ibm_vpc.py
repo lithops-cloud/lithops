@@ -19,7 +19,6 @@ import functools
 import inspect
 import re
 import os
-import shutil
 import paramiko
 import time
 import logging

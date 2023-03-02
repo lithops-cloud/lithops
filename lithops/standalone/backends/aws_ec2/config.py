@@ -41,7 +41,7 @@ def load_config(config_data):
         raise Exception("'aws' section is mandatory in the configuration")
 
     if not {'access_key_id', 'secret_access_key'}.issubset(set(config_data['aws'])):
-        raise Exception("'access_key_id' and 'secret_access_key' are mandatory under 'aws' section")
+        raise Exception("'access_key_id' and 'secret_access_key' are mandatory under the 'aws' section of the configuration")
 
     if not config_data['aws_ec2']:
         raise Exception("'aws_ec2' section is mandatory in the configuration")
@@ -71,7 +71,10 @@ def load_config(config_data):
             msg = f"'{param}' is mandatory in 'aws_ec2' section of the configuration"
             raise Exception(msg)
 
-    if 'region_name' not in config_data['aws_ec2']:
-        raise Exception('"region_name" is mandatory under the "aws_ec2" or "aws" section of the configuration')
-    elif 'region_name' not in config_data['aws']:
-        config_data['aws']['region_name'] = config_data['aws_ec2']['region_name']
+    if 'region_name' in config_data['aws_ec2']:
+        config_data['aws_ec2']['region'] = config_data['aws_ec2'].pop('region_name')
+
+    if 'region' not in config_data['aws_ec2']:
+        raise Exception('"region" is mandatory under the "aws_ec2" or "aws" section of the configuration')
+    elif 'region' not in config_data['aws']:
+        config_data['aws']['region'] = config_data['aws_ec2']['region']

@@ -38,9 +38,9 @@ UNIT_PRICE = 0.000017
 
 FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_ibmcf.zip')
 
-REQ_PARAMS = ['namespace']
-OPT_PARAMS_1 = ['api_key']
-OPT_PARAMS_2 = ['namespace_id', 'iam_api_key']
+REQ_PARAMS = ('namespace',)
+OPT_PARAMS_1 = ('api_key',)
+OPT_PARAMS_2 = ('namespace_id', 'iam_api_key',)
 
 CF_ENDPOINT = "https://{}.functions.cloud.ibm.com"
 REGIONS = ["jp-tok", "au-syd", "eu-gb", "eu-de", "us-south", "us-east"]

@@ -37,7 +37,7 @@ class S3Backend:
         logger.debug("Creating S3 client")
         self.config = s3_config
         self.user_agent = s3_config['user_agent']
-        self.region_name = s3_config.get('region_name')
+        self.region_name = s3_config.get('region')
         self.access_key_id = s3_config.get('access_key_id')
         self.secret_access_key = s3_config.get('secret_access_key')
         self.session_token = s3_config.get('session_token')

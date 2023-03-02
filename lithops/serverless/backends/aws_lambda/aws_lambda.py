@@ -59,7 +59,7 @@ class AWSLambdaBackend:
 
         self.user_key = lambda_config['access_key_id'][-4:].lower()
         self.package = f'lithops_v{__version__.replace(".", "-")}_{self.user_key}'
-        self.region_name = lambda_config['region_name']
+        self.region_name = lambda_config['region']
         self.role_arn = lambda_config['execution_role']
 
         logger.debug('Creating Boto3 AWS Session and Lambda Client')

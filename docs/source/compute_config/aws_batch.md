@@ -27,7 +27,7 @@ python3 -m pip install lithops[aws]
 
 ```yaml
 aws:
-    region_name: <REGION_NAME>
+    region: <REGION_NAME>
     access_key_id: <AWS_ACCESS_KEY_ID>
     secret_access_key: <AWS_SECRET_ACCESS_KEY>
 
@@ -58,7 +58,7 @@ aws_batch:
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|aws | region_name | |yes | AWS Region. For example `us-east-1` |
+|aws | region | |yes | AWS region name. For example `us-east-1` |
 |aws | access_key_id | |yes | Account access key to AWS services. To find them, navigate to *My Security Credentials* and click *Create Access Key* if you don't already have one. |
 |aws | secret_access_key | |yes | Account secret access key to AWS services. To find them, navigate to *My Security Credentials* and click *Create Access Key* if you don't already have one. |
 |aws | session_token | |no | Session token for temporary AWS credentials |
@@ -72,7 +72,7 @@ aws_batch:
 | aws_batch  | instance_role    |  | yes | ARN of the execution role used to execute AWS Batch tasks on ECS for EC2 environments |
 | aws_batch  | security_groups  |  | yes | List of Security groups to attach for ECS task containers. By default, you can use a security group that accepts all outbound traffic but blocks all inbound traffic. |
 | aws_batch  | subnets          |  | yes | List of subnets from a VPC where to deploy the ECS task containers. Note that if you are using a **private subnet**, you can set `assing_public_ip` to `false` but make sure containers can reach other AWS services like ECR, Secrets service, etc., by, for example, using a NAT gateway. If you are using a **public subnet** you must set `assing_public_ip` to `true` |
-| aws_batch  | region_name      |  | no | Region name (like `us-east-1`) where to deploy the ECS cluster. Lithops will use the region set under the `aws` section if it is not set here |
+| aws_batch  | region      |  | no | Region name (like `us-east-1`) where to deploy the ECS cluster. Lithops will use the region set under the `aws` section if it is not set here |
 | aws_batch  | assign_public_ip | `true` | no | Assing public IPs to ECS task containers. Set to `true` if the tasks are being deployed in a public subnet. Set to `false` when deploying on a private subnet. |
 | aws_batch  | runtime          | `default_runtime-v3X` | no | Runtime name |
 | aws_batch  | runtime_timeout  | 180 | no | Runtime timeout |
