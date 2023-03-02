@@ -51,16 +51,19 @@ class SerializeIndependent:
         if not include_modules:
             self._modulemgr.ignore(exclude_modules)
 
+        # Inspect modules
         strs = []
-        mods = []
+        modules = set()
+
         for obj in list_of_objs:
-            mods.extend(self._module_inspect(obj))
+            modules.update(self._module_inspect(obj))
             strs.append(cloudpickle.dumps(obj))
 
         # Add modules
         direct_modules = set()
-        mod_paths = set()
-        for module_name in mods:
+        mods_paths = set()
+
+        for module_name in modules:
             if module_name in ['__main__', None]:
                 continue
             try:
@@ -72,7 +75,7 @@ class SerializeIndependent:
             if origin and origin.endswith('.so'):
                 if origin not in exclude_modules and \
                    os.path.basename(origin) not in exclude_modules:
-                    mod_paths.add(origin)
+                    mods_paths.add(origin)
             else:
                 self._modulemgr.add(module_name)
 
@@ -90,10 +93,10 @@ class SerializeIndependent:
                 for im in include_modules:
                     for mp in tent_mod_paths:
                         if im in mp:
-                            mod_paths.add(mp)
+                            mods_paths.add(mp)
                             break
             else:
-                mod_paths = mod_paths.union(tent_mod_paths)
+                mod_paths = mods_paths.union(tent_mod_paths)
 
         logger.debug("Modules to transmit: {}".format(None if
                      not mod_paths else ", ".join(mod_paths)))
@@ -181,8 +184,7 @@ class SerializeIndependent:
                     elif inspect.iscode(v):
                         codeworklist.append(v)
 
-        result = list(mods)
-        return result
+        return mods
 
     def _inner_module_inspect(self, inst):
         """

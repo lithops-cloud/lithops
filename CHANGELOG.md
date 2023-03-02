@@ -23,7 +23,7 @@
 ### Fixed
 - [IBM VPC & AWS EC2] Make sure only VMs from the given VPC are removed
 - [IBM VPC] Reuse floating IPs for public gateways
-
+- [Serializer] Prevent analyzing the same module multiple times
 
 ## [v2.9.0]
 
