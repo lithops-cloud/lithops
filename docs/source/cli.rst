@@ -21,6 +21,8 @@ Runs a *hello-world* test function.
 +-----------------+------------------------------+
 | --backend, -b   | Compute backend name         |
 +-----------------+------------------------------+
+| --region, -r    | Compute backend region       |
++-----------------+------------------------------+
 | --storage, -s   | Storage backend name         |
 +-----------------+------------------------------+
 | --debug, -d     | Activate debug logs (Flag)   |
@@ -40,6 +42,8 @@ this page <testing.md>`__.
 | --config, -c           | Path to your config file                                       |
 +------------------------+----------------------------------------------------------------+
 | --backend, -b          | Compute backend name                                           |
++------------------------+----------------------------------------------------------------+
+| --region, -r           | Compute backend region                                         |
 +------------------------+----------------------------------------------------------------+
 | --storage, -s          | Storage backend name                                           |
 +------------------------+----------------------------------------------------------------+
@@ -72,6 +76,8 @@ machine and the cloud, it is convenient to run this command.
 +-----------------+------------------------------+
 | --backend, -b   | Compute backend name         |
 +-----------------+------------------------------+
+| --region, -r    | Compute backend region       |
++-----------------+------------------------------+
 | --storage, -s   | Storage backend name         |
 +-----------------+------------------------------+
 | --debug, -d     | Activate debug logs (Flag)   |
@@ -92,6 +98,8 @@ Open an ssh connection to the master VM (Only available for standalone backends)
 | --config, -c           | Path to your config file                                       |
 +------------------------+----------------------------------------------------------------+
 | --backend, -b          | Compute backend name                                           |
++------------------------+----------------------------------------------------------------+
+| --region, -r           | Compute backend region                                         |
 +------------------------+----------------------------------------------------------------+
 | --start                | Start the master VM if needed                                  |
 +------------------------+----------------------------------------------------------------+
@@ -237,6 +245,58 @@ match the provided runtime-name, but all them.
 
 -  **Usage example**:
    ``lithops runtime delete -b ibm_cf -s ibm_cos lithopscloud/my-runtime-name-v39:01``
+
+
+VM Images management
+--------------------
+
+``lithops image build <image-name>``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Build a new VM image.
+
++-----------------+-----------------------------------+
+| Parameter       | Description                       |
++=================+===================================+
+| image-name      | Name of the VM image              |
++-----------------+-----------------------------------+
+| --file, -f      | Path to custom requirements.sh    |
++-----------------+-----------------------------------+
+| --config, -c    | Path to your config file          |
++-----------------+-----------------------------------+
+| --backend, -b   | Compute backend name              |
++-----------------+-----------------------------------+
+| --region, -r    | Compute backend region            |
++-----------------+-----------------------------------+
+| --overwrite, -o | Overwrite the VM image if exists  |
++-----------------+-----------------------------------+
+| --debug, -d     | Activate debug logs (Flag)        |
++-----------------+-----------------------------------+
+
+-  **Usage example**:
+   ``lithops image build -b ibm_vpc``
+
+
+``lithops image list``
+~~~~~~~~~~~~~~~~~~~~~~
+
+Lists all Ubuntu 22 VM images.
+
++-----------------+-----------------------------------+
+| Parameter       | Description                       |
++=================+===================================+
+| --config, -c    | Path to your config file          |
++-----------------+-----------------------------------+
+| --backend, -b   | Compute backend name              |
++-----------------+-----------------------------------+
+| --region, -r    | Compute backend region            |
++-----------------+-----------------------------------+
+| --debug, -d     | Activate debug logs (Flag)        |
++-----------------+-----------------------------------+
+
+-  **Usage example**:
+   ``lithops image list -b ibm_vpc``
+
 
 Logs management
 ---------------

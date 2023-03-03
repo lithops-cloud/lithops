@@ -78,8 +78,7 @@ def lithops_cli():
 @click.option('--region', '-r', default=None, help='compute backend region')
 @click.option('--all', '-a', is_flag=True, help='delete all, including master VM in case of standalone')
 def clean(config, backend, storage, debug, region, all):
-    if config:
-        config = load_yaml_config(config)
+    config = load_yaml_config(config) if config else None
 
     log_level = logging.INFO if not debug else logging.DEBUG
     setup_lithops_logger(log_level)
@@ -136,8 +135,7 @@ def clean(config, backend, storage, debug, region, all):
 @click.option('--keep_datasets', '-k', is_flag=True, help='keeps datasets in storage after the test run. '
                                                           'Meant to serve some use-cases in github workflow.')
 def verify(test, config, backend, groups, storage, debug, region, fail_fast, keep_datasets):
-    if config:
-        config = load_yaml_config(config)
+    config = load_yaml_config(config) if config else None
 
     log_level = logging.INFO if not debug else logging.DEBUG
     setup_lithops_logger(log_level)
@@ -149,9 +147,8 @@ def verify(test, config, backend, groups, storage, debug, region, fail_fast, kee
         print_test_functions()
     elif groups == 'help':
         print_test_groups()
-
     else:
-        run_tests(test, config, groups, backend, storage, fail_fast, keep_datasets)
+        run_tests(test, config, groups, backend, storage, region, fail_fast, keep_datasets)
 
 
 @lithops_cli.command('test')
@@ -161,8 +158,7 @@ def verify(test, config, backend, groups, storage, debug, region, fail_fast, kee
 @click.option('--debug', '-d', is_flag=True, help='debug mode')
 @click.option('--region', '-r', default=None, help='compute backend region')
 def hello(config, backend, storage, debug, region):
-    if config:
-        config = load_yaml_config(config)
+    config = load_yaml_config(config) if config else None
 
     log_level = logging.INFO if not debug else logging.DEBUG
     setup_lithops_logger(log_level)
@@ -198,8 +194,7 @@ def hello(config, backend, storage, debug, region):
 @click.option('--region', '-r', default=None, help='compute backend region')
 def attach(config, backend, start, debug, region):
     """Create or attach to a SSH session on Lithops master VM"""
-    if config:
-        config = load_yaml_config(config)
+    config = load_yaml_config(config) if config else None
 
     log_level = logging.INFO if not debug else logging.DEBUG
     setup_lithops_logger(log_level)
@@ -256,8 +251,7 @@ def storage(ctx):
 @click.option('--debug', '-d', is_flag=True, help='debug mode')
 @click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
 def upload_file(filename, bucket, key, backend, debug, config):
-    if config:
-        config = load_yaml_config(config)
+    config = load_yaml_config(config) if config else None
 
     log_level = logging.INFO if not debug else logging.DEBUG
     setup_lithops_logger(log_level)
@@ -288,8 +282,7 @@ def upload_file(filename, bucket, key, backend, debug, config):
 @click.option('--debug', '-d', is_flag=True, help='debug mode')
 @click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
 def download_file(bucket, key, out, backend, debug, config):
-    if config:
-        config = load_yaml_config(config)
+    config = load_yaml_config(config) if config else None
 
     log_level = logging.INFO if not debug else logging.DEBUG
     setup_lithops_logger(log_level)
@@ -320,8 +313,7 @@ def download_file(bucket, key, out, backend, debug, config):
 @click.option('--debug', '-d', is_flag=True, help='debug mode')
 @click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
 def delete_object(bucket, key, prefix, backend, debug, config):
-    if config:
-        config = load_yaml_config(config)
+    config = load_yaml_config(config) if config else None
     log_level = logging.INFO if not debug else logging.DEBUG
     setup_lithops_logger(log_level)
     storage = Storage(config=config, backend=backend)
@@ -344,8 +336,7 @@ def delete_object(bucket, key, prefix, backend, debug, config):
 @click.option('--debug', '-d', is_flag=True, help='debug mode')
 @click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
 def list_bucket(prefix, bucket, backend, debug, config):
-    if config:
-        config = load_yaml_config(config)
+    config = load_yaml_config(config) if config else None
     log_level = logging.INFO if not debug else logging.DEBUG
     setup_lithops_logger(log_level)
     storage = Storage(config=config, backend=backend)
@@ -448,9 +439,7 @@ def build(ctx, name, file, config, backend, debug):
 
     verify_runtime_name(name)
 
-    if config:
-        config = load_yaml_config(config)
-
+    config = load_yaml_config(config) if config else None
     config_ow = set_config_ow(backend=backend, runtime_name=name)
     config = default_config(config_data=config, config_overwrite=config_ow, load_storage_config=False)
 
@@ -481,9 +470,7 @@ def deploy(name, storage, backend, memory, timeout, config, debug):
 
     verify_runtime_name(name)
 
-    if config:
-        config = load_yaml_config(config)
-
+    config = load_yaml_config(config) if config else None
     config_ow = set_config_ow(backend=backend, storage=storage, runtime_name=name)
     config = default_config(config_data=config, config_overwrite=config_ow)
 
@@ -517,9 +504,7 @@ def list_runtimes(config, backend, storage, debug):
     log_level = logging.INFO if not debug else logging.DEBUG
     setup_lithops_logger(log_level)
 
-    if config:
-        config = load_yaml_config(config)
-
+    config = load_yaml_config(config) if config else None
     config_ow = set_config_ow(backend=backend)
     config = default_config(config_data=config, config_overwrite=config_ow, load_storage_config=False)
 
@@ -562,9 +547,7 @@ def update(name, config, backend, storage, debug):
 
     verify_runtime_name(name)
 
-    if config:
-        config = load_yaml_config(config)
-
+    config = load_yaml_config(config) if config else None
     config_ow = set_config_ow(backend=backend, storage=storage, runtime_name=name)
     config = default_config(config_data=config, config_overwrite=config_ow)
 
@@ -607,9 +590,7 @@ def delete(name, config, memory, version, backend, storage, debug):
 
     verify_runtime_name(name)
 
-    if config:
-        config = load_yaml_config(config)
-
+    config = load_yaml_config(config) if config else None
     config_ow = set_config_ow(backend=backend, storage=storage, runtime_name=name)
     config = default_config(config_data=config, config_overwrite=config_ow)
 
@@ -668,11 +649,8 @@ def build_image(ctx, name, file, config, backend, region, debug, overwrite):
     name = SA_IMAGE_NAME_DEFAULT if not name else name
     verify_runtime_name(name)
 
-    if config:
-        config = load_yaml_config(config)
-
+    config = load_yaml_config(config) if config else None
     config_ow = set_config_ow(backend=backend, region=region)
-
     config = default_config(config_data=config, config_overwrite=config_ow, load_storage_config=False)
 
     if config['lithops']['mode'] != STANDALONE:
@@ -683,6 +661,46 @@ def build_image(ctx, name, file, config, backend, region, debug, overwrite):
     compute_handler.build_image(name, file, overwrite, ctx.args)
 
     logger.info('VM Image built')
+
+
+@image.command('list', context_settings=dict(ignore_unknown_options=True, allow_extra_args=True))
+@click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
+@click.option('--backend', '-b', default=None, help='compute backend')
+@click.option('--region', '-r', default=None, help='compute backend region')
+@click.option('--debug', '-d', is_flag=True, default=False, help='debug mode')
+def list_images(config, backend, region, debug):
+    """ List VM images """
+    log_level = logging.INFO if not debug else logging.DEBUG
+    setup_lithops_logger(log_level)
+
+    config = load_yaml_config(config) if config else None
+    config_ow = set_config_ow(backend=backend, region=region)
+    config = default_config(config_data=config, config_overwrite=config_ow, load_storage_config=False)
+
+    if config['lithops']['mode'] != STANDALONE:
+        raise Exception('"lithops image build" command is only available for standalone backends')
+
+    compute_config = extract_standalone_config(config)
+    compute_handler = StandaloneHandler(compute_config)
+
+    logger.info('Listing Ubuntu Linux 22.04 VM Images')
+    images = compute_handler.list_images()
+
+    if images:
+        width1 = max([len(img[0]) for img in images])
+        width2 = max([len(img[1]) for img in images])
+
+        print('\n{:{width1}} \t {:{width2}}'.format('Image Name', 'Image ID', width1=width1, width2=width2))
+        print('-' * width1, '\t', '-' * width2)
+        for image in images:
+            print('{:{width1}} \t {:{width2}}'.format(image[0], image[1], width1=width1, width2=width2))
+        print()
+        print(f'Total VM images: {len(images)}')
+    else:
+        width = 14
+        print('\n{:{width}} \t {}'.format('Image Name', 'Image ID', width=width))
+        print('-' * width, '\t', '-' * width)
+        print('\nNo VM Images found')
 
 
 lithops_cli.add_command(runtime)

@@ -404,6 +404,12 @@ class AWSEC2Backend:
         """
         pass
 
+    def list_images(self):
+        """
+        List VM Images
+        """
+        pass
+
     def _delete_vm_instances(self, all=False):
         """
         Deletes all worker VM instances

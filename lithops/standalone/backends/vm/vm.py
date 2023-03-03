@@ -38,8 +38,7 @@ class VMBackend:
         self.mode = mode
         self.master = None
 
-        msg = COMPUTE_CLI_MSG.format('Virtual Machine')
-        logger.info("{}".format(msg))
+        logger.info(COMPUTE_CLI_MSG.format('Virtual Machine'))
 
     def init(self):
         """
@@ -50,6 +49,12 @@ class VMBackend:
             self.master = VMInstance(self.config)
         else:
             raise Exception(f'{self.mode} mode is not allowed in the VM backend')
+
+    def build_image(self, **kwargs):
+        pass
+
+    def list_images(self, **kwargs):
+        pass
 
     def clean(self, **kwargs):
         pass
@@ -82,14 +87,13 @@ class VMInstance:
         """
         Creates an ssh client against the VM only if the Instance is the master
         """
-        self.ssh_credentials = {
-            'username': self.config.get('ssh_user', 'root'),
-            'password': self.config.get('ssh_password', None),
-            'key_filename': self.config.get('ssh_key_filename', '~/.ssh/id_rsa')
-        }
-
         if self.public_ip and not self.ssh_client:
-            self.ssh_client = SSHClient(self.public_ip, self.ssh_credentials)
+            ssh_credentials = {
+                'username': self.config.get('ssh_user', 'root'),
+                'password': self.config.get('ssh_password', None),
+                'key_filename': self.config.get('ssh_key_filename', '~/.ssh/id_rsa')
+            }
+            self.ssh_client = SSHClient(self.public_ip, ssh_credentials)
         return self.ssh_client
 
     def del_ssh_client(self):
@@ -132,6 +136,12 @@ class VMInstance:
             time.sleep(5)
 
         raise TimeoutError(f'Readiness probe expired on {self}')
+
+    def get_instance_data(self):
+        """
+        Returns the instance information
+        """
+        return {'id': '0af1', 'public_ip': self.public_ip}
 
     def get_instance_id(self):
         """

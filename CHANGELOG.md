@@ -13,7 +13,8 @@
 - [Azure Functions] Allow to use a python 3.10 runtime
 - [Aliyun Functions] Allow to use a python 3.10 runtime
 - [IBM VPC] Added build_image() method for automatically building VM images
-- [Cli] Added new 'lithops image build' entrypoint
+- [Cli] Added new 'lithops image build' command for standalone backends
+- [Cli] Added new 'lithops image list' command for standalone backends
 
 ### Changed
 - [AWS EC2] Reduced number of mandatory parameters
