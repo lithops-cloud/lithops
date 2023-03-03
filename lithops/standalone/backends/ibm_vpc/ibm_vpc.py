@@ -551,6 +551,24 @@ class IBMVPCBackend:
 
         logger.info(f"VM Image created. Image ID: {image['id']}")
 
+    def list_images(self):
+        """
+        List VM Images
+        """
+        images = self.vpc_cli.list_images().result['images']
+
+        result = []
+
+        for img in images:
+            if img['operating_system']['family'] == 'Ubuntu Linux':
+                opsys = img['operating_system']['display_name']
+                image_name = img['name']
+                image_id = img['id']
+                if '22' in opsys:
+                    result.append((image_name, image_id, opsys))
+
+        return result
+
     def _delete_vm_instances(self, all=False):
         """
         Deletes all VM instances in the VPC

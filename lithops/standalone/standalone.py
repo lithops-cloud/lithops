@@ -69,6 +69,12 @@ class StandaloneHandler:
         """
         self.backend.build_image(image_name, script_file, overwrite, extra_args)
 
+    def list_images(self):
+        """
+        Lists VM Images
+        """
+        return self.backend.list_images()
+
     def _is_master_service_ready(self):
         """
         Checks if the proxy is ready to receive http connections
