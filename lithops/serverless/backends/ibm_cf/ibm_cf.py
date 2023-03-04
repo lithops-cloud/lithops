@@ -18,12 +18,14 @@ import os
 import base64
 import logging
 from threading import Lock
+from datetime import datetime, timezone
+from ibm_cloud_sdk_core.authenticators import IAMAuthenticator
 
 from lithops import utils
 from lithops.version import __version__
+from lithops.config import dump_yaml_config, load_yaml_config
 from lithops.libs.openwhisk.client import OpenWhiskClient
-from lithops.util.ibm_token_manager import IBMTokenManager
-from lithops.constants import COMPUTE_CLI_MSG
+from lithops.constants import CACHE_DIR, COMPUTE_CLI_MSG
 
 from . import config
 
@@ -45,11 +47,17 @@ class IBMCloudFunctionsBackend:
 
         self.user_agent = cf_config['user_agent']
         self.endpoint = cf_config['endpoint']
-        self.namespace = cf_config['namespace']
-        self.namespace_id = cf_config.get('namespace_id', None)
-        self.api_key = cf_config.get('api_key', None)
-        self.iam_api_key = cf_config.get('iam_api_key', None)
         self.region = cf_config['region']
+
+        self.namespace = cf_config.get('namespace')
+        self.namespace_id = cf_config.get('namespace_id')
+        self.api_key = cf_config.get('api_key')
+        self.iam_api_key = cf_config.get('iam_api_key')
+        self.resource_group_id = cf_config.get('resource_group_id')
+
+        self.cache_dir = os.path.join(CACHE_DIR, self.name)
+        self.cache_file = os.path.join(self.cache_dir, self.region + '_data')
+        self.cf_data = {}
 
         self.invoke_error = None
 
@@ -72,18 +80,13 @@ class IBMCloudFunctionsBackend:
             )
 
         elif self.iam_api_key:
-            api_key_type = 'IAM'
-            token = self.config.get('token', None)
-            token_expiry_time = self.config.get('token_expiry_time', None)
-            self.ibm_token_manager = IBMTokenManager(self.iam_api_key,
-                                                     api_key_type, token,
-                                                     token_expiry_time)
-            token, token_expiry_time = self.ibm_token_manager.get_token()
+            self.cf_data = load_yaml_config(self.cache_file)
+
+            token, expiry_time = self._get_iam_token()
+            auth = 'Bearer ' + token
 
             self.config['token'] = token
-            self.config['token_expiry_time'] = token_expiry_time
-
-            auth = 'Bearer ' + token
+            self.config['token_expiry_time'] = expiry_time
 
             self.cf_client = OpenWhiskClient(
                 endpoint=self.endpoint,
@@ -92,8 +95,52 @@ class IBMCloudFunctionsBackend:
                 user_agent=self.user_agent
             )
 
+            self._init_namespace()
+
+            dump_yaml_config(self.cache_file, self.cf_data)
+
         msg = COMPUTE_CLI_MSG.format('IBM CF')
         logger.info(f"{msg} - Region: {self.region} - Namespace: {self.namespace}")
+
+    def _get_iam_token(self):
+        """
+        Gets a new IAM token
+        """
+        token = self.cf_data.get('token')
+        expiry_time = self.cf_data.get('token_expiry_time')
+        minute_left = 0
+
+        if expiry_time:
+            et = datetime.fromtimestamp(self.cf_data['token_expiry_time'], tz=timezone.utc)
+            minute_left = max(0, int((et - datetime.now(timezone.utc)).total_seconds() / 60.0))
+            logger.debug(f"Reusing token from local cache. Token expiry time: {et} - Minutes left: {minute_left}")
+
+        if minute_left < 20:
+            logger.debug("Requesting new IAM token")
+            auth = IAMAuthenticator(self.iam_api_key, url=self.config.get('iam_endpoint'))
+            token = auth.token_manager.get_token()
+            expiry_time = auth.token_manager.expire_time
+
+        self.cf_data['token'] = token
+        self.cf_data['token_expiry_time'] = expiry_time
+
+        return token, expiry_time
+
+    def _init_namespace(self):
+        """
+        Creates a new IAM namepsace if not exists
+        """
+        self.namespace = self.config.get('namespace', f'lithops-{self.region}-{self.user_key}')
+        self.namespace_id = self.namespace_id or self.cf_data.get('namespace_id')
+
+        if not self.namespace_id:
+            logger.debug(f"Creating new Cloud Functions namespace '{self.namespace}'")
+            self.namespace_id = self.cf_client.create_namespace(self.namespace, self.resource_group_id)
+        else:
+            self.cf_client.namespace = self.namespace_id
+
+        self.cf_data['namespace'] = self.namespace
+        self.cf_data['namespace_id'] = self.namespace_id
 
     def _format_function_name(self, runtime_name, runtime_memory, version=__version__):
         runtime_name = runtime_name.replace('/', '_').replace(':', '_')
@@ -181,7 +228,7 @@ class IBMCloudFunctionsBackend:
         action_name = self._format_function_name(docker_image_name, memory, version)
         self.cf_client.delete_action(self.package, action_name)
 
-    def clean(self):
+    def clean(self, all=False):
         """
         Deletes all runtimes from all packages
         """
@@ -195,6 +242,11 @@ class IBMCloudFunctionsBackend:
                         self.cf_client.delete_action(pkg['name'], action['name'])
                     actions = self.cf_client.list_actions(pkg['name'])
                 self.cf_client.delete_package(pkg['name'])
+
+        if all and os.path.exists(self.cache_file):
+            if self.iam_api_key:
+                self.cf_client.delete_namespace(self.namespace_id)
+            os.remove(self.cache_file)
 
     def list_runtimes(self, docker_image_name='all'):
         """
@@ -228,15 +280,17 @@ class IBMCloudFunctionsBackend:
             # unauthorized. Probably token expired if using IAM auth
             if self.iam_api_key and not self.is_lithops_worker:
                 invoke_mutex.acquire()
-                token, token_expiry_time = self.ibm_token_manager.get_token()
+                token, expiry_time = self._get_iam_token()
                 if token != self.config['token']:
                     self.config['token'] = token
-                    self.config['token_expiry_time'] = token_expiry_time
+                    self.config['token_expiry_time'] = expiry_time
                     auth = 'Bearer ' + token
-                    self.cf_client = OpenWhiskClient(endpoint=self.endpoint,
-                                                     namespace=self.namespace_id,
-                                                     auth=auth,
-                                                     user_agent=self.user_agent)
+                    self.cf_client = OpenWhiskClient(
+                        endpoint=self.endpoint,
+                        namespace=self.namespace_id,
+                        auth=auth,
+                        user_agent=self.user_agent
+                    )
                 invoke_mutex.release()
                 return self.invoke(docker_image_name, runtime_memory, payload)
             else:

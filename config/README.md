@@ -115,12 +115,10 @@ import lithops
 
 config = {'lithops': {'backend': 'ibm_cf', 'storage': 'ibm_cos'},
 
-          'ibm_cf':  {'region': 'REGION',
-                      'namespace': 'NAMESPACE',
-                      'api_key': 'API_KEY'},
-
-          'ibm_cos': {'region': 'REGION',
-                      'api_key': 'API_KEY'}}
+          'ibm': {'region': 'REGION',
+                  'iam_api_key': 'IAM_API_KEY',
+                  'resource_group_id': 'RESOURCE_GROUP_ID'}
+}
 
 def hello_world(name):
     return f'Hello {name}!'

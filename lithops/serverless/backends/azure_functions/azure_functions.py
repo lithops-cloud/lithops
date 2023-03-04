@@ -317,7 +317,7 @@ class AzureFunctionAppBackend:
 
         return runtime_key
 
-    def clean(self):
+    def clean(self, **kwargs):
         """
         Deletes all Lithops Azure Function Apps runtimes
         """

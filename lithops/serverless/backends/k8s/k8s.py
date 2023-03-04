@@ -209,7 +209,7 @@ class KubernetesBackend:
         """
         pass
 
-    def clean(self, force=True):
+    def clean(self, all=False, **kwargs):
         """
         Deletes all jobs
         """
@@ -219,7 +219,7 @@ class KubernetesBackend:
             jobs = self.batch_api.list_namespaced_job(namespace=self.namespace)
             for job in jobs.items:
                 if job.metadata.labels['type'] == 'lithops-runtime'\
-                   and (job.status.completion_time is not None or force):
+                   and (job.status.completion_time is not None or all):
                     job_name = job.metadata.name
                     logger.debug(f'Deleting job {job_name}')
                     try:

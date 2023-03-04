@@ -28,10 +28,10 @@ lithops:
 
 ibm:
     iam_api_key: <iam-api-key>
-
-ibm_vpc:
     region: <REGION>
     resource_group_id: <RESOURCE_GROUP_ID>
+
+ibm_vpc:
     exec_mode: reuse
 ```
 
@@ -60,19 +60,19 @@ ibm_vpc:
 
 ## Summary of configuration keys for IBM Cloud:
 
-### IBM IAM:
+### IBM:
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|ibm | iam_api_key | |no | IBM Cloud IAM API key to authenticate against IBM services. Obtain the key [here](https://cloud.ibm.com/iam/apikeys) |
-|ibm | region | |no | IBM Region.  One of: `eu-gb`, `eu-de`, `us-south`, `us-east`, `br-sao`, `ca-tor`, `jp-tok`, `jp-osa`, `au-syd` |
+|ibm | iam_api_key | |yes | IBM Cloud IAM API key to authenticate against IBM services. Obtain the key [here](https://cloud.ibm.com/iam/apikeys) |
+|ibm | region | |yes | IBM Region.  One of: `eu-gb`, `eu-de`, `us-south`, `us-east`, `br-sao`, `ca-tor`, `jp-tok`, `jp-osa`, `au-syd` |
+|ibm | resource_group_id | | yes | Resource group id from your IBM Cloud account. Get it from [here](https://cloud.ibm.com/account/resource-groups) |
 
 ### VPC Create and Reuse mode
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|ibm_vpc | region | |yes | VPC Region. For example `us-south`. Choose one region from [here](https://cloud.ibm.com/docs/vpc?topic=vpc-service-endpoints-for-vpc). Lithops will use the region set under the `ibm` section if it is not set here |
-|ibm_vpc | resource_group_id | | yes | Resource group id from your IBM Cloud account. Get it from [here](https://cloud.ibm.com/account/resource-groups) |
+|ibm_vpc | region | |no | VPC Region. For example `us-south`. Choose one region from [here](https://cloud.ibm.com/docs/vpc?topic=vpc-service-endpoints-for-vpc). Lithops will use the region set under the `ibm` section if it is not set here |
 |ibm_vpc | vpc_id | | no | VPC id of an existing VPC. Get it from [here](https://cloud.ibm.com/vpc-ext/network/vpcs) |
 |ibm_vpc | vpc_name | | no | VPC name of an existing VPC (if `vpc_id` is not provided) |
 |ibm_vpc | security_group_id | | no | Security group id of an existing VPC. Get it from [here](https://cloud.ibm.com/vpc-ext/network/securityGroups)|

@@ -336,7 +336,7 @@ class GCPCloudRunBackend:
         except Exception:
             logger.debug(f'Error -- unable to delete service {service_name}')
 
-    def clean(self):
+    def clean(self, **kwargs):
         logger.debug('Going to delete all deployed runtimes')
 
         res = self._api_resource.namespaces().services().list(

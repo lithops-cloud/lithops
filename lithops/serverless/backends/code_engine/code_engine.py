@@ -256,7 +256,7 @@ class CodeEngineBackend:
         except ApiException as e:
             logger.debug(f"Deleting a jobdef failed with {e.status} {e.reason}")
 
-    def clean(self):
+    def clean(self, **kwargs):
         """
         Deletes all runtimes from all packages
         """

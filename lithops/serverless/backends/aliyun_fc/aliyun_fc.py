@@ -202,7 +202,7 @@ class AliyunFunctionComputeBackend:
         function_name = self._format_function_name(runtime_name, memory, version)
         self.fc_client.delete_function(self.service_name, function_name)
 
-    def clean(self):
+    def clean(self, **kwargs):
         """"
         Deletes all runtimes from the current service
         """

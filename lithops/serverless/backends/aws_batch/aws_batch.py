@@ -429,7 +429,7 @@ class AWSBatchBackend:
             logger.error(res)
             raise Exception('Could not deregister job definition {}'.format(job_def['jobDefinitionArn']))
 
-    def clean(self):
+    def clean(self, **kwargs):
         # Delete Job Definition
         job_defs = self._get_job_def()
         for job_def in job_defs:

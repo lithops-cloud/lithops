@@ -573,7 +573,7 @@ class AWSLambdaBackend:
                 layer = self._format_layer_name(runtime_name, version)
                 self._delete_layer(layer)
 
-    def clean(self):
+    def clean(self, **kwargs):
         """
         Deletes all Lithops lambda runtimes for this user
         """
