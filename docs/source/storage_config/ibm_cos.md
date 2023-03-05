@@ -59,6 +59,27 @@ Lithops with IBM COS as storage backend.
         secret_key  : <SECRET_KEY_ID>
     ```
 
+
+### Option 3 (IBM IAM API Key):
+
+2. If you don't have an IAM API key created, navigate to the [IBM IAM dashboard](https://cloud.ibm.com/iam/apikeys)
+
+3. Click `Create an IBM Cloud API Key` and provide the necessary information.
+
+4. Copy the generated IAM API key (You can only see the key the first time you create it, so make sure to copy it).
+
+5. Edit your lithops config file and add the following keys:
+
+    ```yaml
+    lithops:
+        storage_backend: ibm_cos
+    ibm:
+        iam_api_key: <IAM_API_KEY>
+       
+    ibm_cos:
+        region : <REGION>
+    ```
+
 ## Lithops COS Endpoint configuration
 
 ### Using region
@@ -69,7 +90,7 @@ The easiest apporach is to let Lithops to choose the right endpoint by itself. T
         region   : <REGION>
 ```
 
-Valid region names are: us-east, us-south, eu-gb, eu-de, etc..
+Valid region names are: `us-east`, `us-south`, `eu-gb`, `eu-de`, etc..
 
 ### Using endpoints path
 

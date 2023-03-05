@@ -48,55 +48,39 @@ class IBMCloudFunctionsBackend:
         self.user_agent = cf_config['user_agent']
         self.endpoint = cf_config['endpoint']
         self.region = cf_config['region']
-
-        self.namespace = cf_config.get('namespace')
-        self.namespace_id = cf_config.get('namespace_id')
-        self.api_key = cf_config.get('api_key')
-        self.iam_api_key = cf_config.get('iam_api_key')
+        self.iam_api_key = cf_config['iam_api_key']
         self.resource_group_id = cf_config.get('resource_group_id')
+
+        self.user_key = self.iam_api_key[:4].lower()
+        self.package = f'lithops_{self.user_key}'
+
+        self.namespace = cf_config.get('namespace', f'lithops-{self.region}-{self.user_key}')
+        self.namespace_id = cf_config.get('namespace_id')
 
         self.cache_dir = os.path.join(CACHE_DIR, self.name)
         self.cache_file = os.path.join(self.cache_dir, self.region + '_data')
-        self.cf_data = {}
 
         self.invoke_error = None
 
-        logger.debug(f"Set IBM CF Namespace to {self.namespace}")
         logger.debug(f"Set IBM CF Endpoint to {self.endpoint}")
 
-        self.user_key = self.api_key.split(':')[1][:4] if self.api_key else self.iam_api_key[:4]
-        self.package = f'lithops_{self.user_key}'
+        self.cf_data = load_yaml_config(self.cache_file) if not self.is_lithops_worker else {}
 
-        if self.api_key:
-            enc_api_key = str.encode(self.api_key)
-            auth_token = base64.encodebytes(enc_api_key).replace(b'\n', b'')
-            auth = 'Basic %s' % auth_token.decode('UTF-8')
+        token, expiry_time = self._get_iam_token()
+        auth = 'Bearer ' + token
 
-            self.cf_client = OpenWhiskClient(
-                endpoint=self.endpoint,
-                namespace=self.namespace,
-                auth=auth,
-                user_agent=self.user_agent
-            )
+        self.config['token'] = token
+        self.config['token_expiry_time'] = expiry_time
 
-        elif self.iam_api_key:
-            self.cf_data = load_yaml_config(self.cache_file)
+        self.cf_client = OpenWhiskClient(
+            endpoint=self.endpoint,
+            namespace=self.namespace_id,
+            auth=auth,
+            user_agent=self.user_agent
+        )
 
-            token, expiry_time = self._get_iam_token()
-            auth = 'Bearer ' + token
-
-            self.config['token'] = token
-            self.config['token_expiry_time'] = expiry_time
-
-            self.cf_client = OpenWhiskClient(
-                endpoint=self.endpoint,
-                namespace=self.namespace_id,
-                auth=auth,
-                user_agent=self.user_agent
-            )
-
+        if not self.is_lithops_worker:
             self._init_namespace()
-
             dump_yaml_config(self.cache_file, self.cf_data)
 
         msg = COMPUTE_CLI_MSG.format('IBM CF')
@@ -106,20 +90,28 @@ class IBMCloudFunctionsBackend:
         """
         Gets a new IAM token
         """
-        token = self.cf_data.get('token')
-        expiry_time = self.cf_data.get('token_expiry_time')
-        minute_left = 0
+        token = self.config.get('token') or self.cf_data.get('token')
+        expiry_time = self.config.get('token_expiry_time') or self.cf_data.get('token_expiry_time')
+        minutes_left = 0
 
-        if expiry_time:
-            et = datetime.fromtimestamp(self.cf_data['token_expiry_time'], tz=timezone.utc)
-            minute_left = max(0, int((et - datetime.now(timezone.utc)).total_seconds() / 60.0))
-            logger.debug(f"Reusing token from local cache. Token expiry time: {et} - Minutes left: {minute_left}")
+        def calc_minutes_left(token_expiry_time):
+            et = datetime.fromtimestamp(token_expiry_time, tz=timezone.utc)
+            minutes_left = max(0, int((et - datetime.now(timezone.utc)).total_seconds() / 60.0))
+            return minutes_left
 
-        if minute_left < 20:
+        minutes_left = calc_minutes_left(expiry_time) if expiry_time else 0
+
+        if minutes_left < 20 and not self.is_lithops_worker:
             logger.debug("Requesting new IAM token")
-            auth = IAMAuthenticator(self.iam_api_key, url=self.config.get('iam_endpoint'))
+            auth = IAMAuthenticator(self.iam_api_key)
             token = auth.token_manager.get_token()
             expiry_time = auth.token_manager.expire_time
+        else:
+            logger.debug("Reusing IAM token from local cache")
+
+        et = datetime.fromtimestamp(expiry_time, tz=timezone.utc)
+        minutes_left = calc_minutes_left(expiry_time)
+        logger.debug(f"IAM Token expiry time: {et} - Minutes left: {minutes_left}")
 
         self.cf_data['token'] = token
         self.cf_data['token_expiry_time'] = expiry_time
@@ -130,7 +122,7 @@ class IBMCloudFunctionsBackend:
         """
         Creates a new IAM namepsace if not exists
         """
-        self.namespace = self.config.get('namespace', f'lithops-{self.region}-{self.user_key}')
+        
         self.namespace_id = self.namespace_id or self.cf_data.get('namespace_id')
 
         if not self.namespace_id:

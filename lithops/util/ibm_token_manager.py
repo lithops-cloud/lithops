@@ -42,7 +42,7 @@ class IBMTokenManager:
         """
         Checks if a token already expired
         """
-        return self._get_token_minutes_diff() < 1
+        return self._get_token_minutes_diff() < 5
 
     def _get_token_minutes_diff(self):
         """
