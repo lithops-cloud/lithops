@@ -387,7 +387,7 @@ class AWSEC2Backend:
                 'master_id': self.vpc_key,
                 'vpc_name': self.vpc_name,
                 'vpc_id': self.config['vpc_id'],
-                'execution_role': self.config['execution_role'],
+                'iam_role': self.config['iam_role'],
                 'target_ami': self.config['target_ami'],
                 'ssh_key_name': self.config['ssh_key_name'],
                 'ssh_key_filename': self.config['ssh_key_filename'],
@@ -762,7 +762,7 @@ class EC2Instance:
             "ImageId": self.config['target_ami'],
             "InstanceType": self.instance_type,
             "EbsOptimized": False,
-            "IamInstanceProfile": {'Name': self.config['execution_role']},
+            "IamInstanceProfile": {'Name': self.config['iam_role']},
             "Monitoring": {'Enabled': False},
             'KeyName': self.config['ssh_key_name']
         }
