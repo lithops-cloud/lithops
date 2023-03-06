@@ -50,9 +50,6 @@ Storage Backends
 <b>Serverless Backends:</b>
 - [IBM Cloud Functions](../docs/source/compute_config/ibm_cf.md)
 - [IBM Code Engine](../docs/source/compute_config/code_engine.md)
-- [Kubernetes Jobs](../docs/source/compute_config/k8s_job.md)
-- [Knative](../docs/source/compute_config/knative.md)
-- [OpenWhisk](../docs/source/compute_config/openwhisk.md)
 - [AWS Lambda](../docs/source/compute_config/aws_lambda.md)
 - [AWS Batch](../docs/source/compute_config/aws_batch.md)
 - [Google Cloud Functions](../docs/source/compute_config/gcp_functions.md)
@@ -60,6 +57,9 @@ Storage Backends
 - [Azure Functions](../docs/source/compute_config/azure_functions.md)
 - [Azure Container APPs](../docs/source/compute_config/azure_containers.md)
 - [Aliyun functions](../docs/source/compute_config/aliyun_functions.md)
+- [Kubernetes Jobs](../docs/source/compute_config/k8s_job.md)
+- [Knative](../docs/source/compute_config/knative.md)
+- [OpenWhisk](../docs/source/compute_config/openwhisk.md)
 	</p>
 <b>Standalone Backends:</b>
 - [Virtual Machine](../docs/source/compute_config/vm.md)
@@ -119,7 +119,8 @@ config = {'lithops': {'backend': 'ibm_cf', 'storage': 'ibm_cos'},
                   'iam_api_key': 'IAM_API_KEY',
                   'resource_group_id': 'RESOURCE_GROUP_ID'}
 
-          'ibm_cos': {'api_key': 'API_KEY'}
+          'ibm_cos': {'access_key_id': 'ACCESS_KEY_ID',
+                      'secret_access_key': 'SECRET_ACCESS_KEY',}
 }
 
 def hello_world(name):

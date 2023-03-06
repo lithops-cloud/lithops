@@ -123,7 +123,7 @@ class OpenWhiskClient:
         cfexec['code'] = base64.b64encode(code).decode("utf-8") if is_binary else code
         data['exec'] = cfexec
 
-        logger.debug('Creating function action: {}'.format(action_name))
+        logger.debug(f'Creating function action: {action_name}')
         url = '/'.join([self.url, self.namespace, 'actions', package,
                         action_name + "?overwrite=" + str(overwrite)])
 
@@ -131,16 +131,16 @@ class OpenWhiskClient:
         resp_text = res.json()
 
         if res.status_code == 200:
-            logger.debug("OK --> Created action {}".format(action_name))
+            logger.debug(f"OK --> Created action {action_name}")
         else:
-            msg = 'An error occurred creating/updating action {}: {}'.format(action_name, resp_text['error'])
+            msg = f'An error occurred creating/updating action {action_name}: {resp_text["error"]}'
             raise Exception(msg)
 
     def get_action(self, package, action_name):
         """
         Get an WSK action
         """
-        logger.debug("Getting cloud function action: {}".format(action_name))
+        logger.debug(f"Getting cloud function action: {action_name}")
         url = '/'.join([self.url, self.namespace, 'actions', package, action_name])
         res = self.session.get(url)
         return res.json()
@@ -149,7 +149,7 @@ class OpenWhiskClient:
         """
         List all WSK actions in a package
         """
-        logger.debug("Listing all actions from: {}".format(package))
+        logger.debug(f"Listing all actions from: {package}")
         url = '/'.join([self.url, self.namespace, 'actions', package, ''])
         res = self.session.get(url)
         if res.status_code == 200:
@@ -161,16 +161,16 @@ class OpenWhiskClient:
         """
         Delete an WSK function
         """
-        logger.debug("Deleting cloud function action: {}".format(action_name))
+        logger.debug(f"Deleting cloud function action: {action_name}")
         url = '/'.join([self.url, self.namespace, 'actions', package, action_name])
         res = self.session.delete(url)
         resp_text = res.json()
 
         if res.status_code != 200:
-            logger.debug('An error occurred deleting action {}: {}'.format(action_name, resp_text['error']))
+            logger.debug(f'An error occurred deleting action {action_name}: {resp_text["error"]}')
 
     def update_memory(self, package, action_name, memory):
-        logger.debug('Updating memory of the {} action to {}'.format(action_name, memory))
+        logger.debug(f'Updating memory of the {action_name} action to {memory}')
         url = '/'.join([self.url, self.namespace, 'actions', package, action_name + "?overwrite=True"])
 
         data = {"limits": {"memory": memory}}
@@ -178,9 +178,9 @@ class OpenWhiskClient:
         resp_text = res.json()
 
         if res.status_code != 200:
-            logger.debug('An error occurred updating action {}: {}'.format(action_name, resp_text['error']))
+            logger.debug(f'An error occurred updating action {action_name}: {resp_text["error"]}')
         else:
-            logger.debug("OK --> Updated action memory {}".format(action_name))
+            logger.debug(f"OK --> Updated action memory {action_name}")
 
     def list_packages(self):
         """
@@ -200,7 +200,7 @@ class OpenWhiskClient:
         """
         Delete an WSK package
         """
-        logger.debug("Deleting functions package: {}".format(package))
+        logger.debug(f"Deleting functions package: {package}")
         url = '/'.join([self.url, self.namespace, 'packages', package])
         res = self.session.delete(url)
         resp_text = res.json()
@@ -208,13 +208,13 @@ class OpenWhiskClient:
         if res.status_code == 200:
             return resp_text
         else:
-            logger.debug('An error occurred deleting the package {}: {}'.format(package, resp_text['error']))
+            logger.debug(f'An error occurred deleting the package {package}: {resp_text["error"]}')
 
     def create_package(self, package):
         """
         Create a WSK package
         """
-        logger.debug('Creating functions package {}'.format(package))
+        logger.debug(f'Creating functions package {package}')
         url = '/'.join([self.url, self.namespace, 'packages', package + "?overwrite=False"])
 
         data = {"name": package}
@@ -222,9 +222,9 @@ class OpenWhiskClient:
         resp_text = res.json()
 
         if res.status_code != 200:
-            logger.debug('Package {}: {}'.format(package, resp_text['error']))
+            logger.debug(f'Package {package}: {resp_text["error"]}')
         else:
-            logger.debug("OK --> Created package {}".format(package))
+            logger.debug(f"OK --> Created package {package}")
 
     def invoke(self, package, action_name, payload={}, is_ow_action=False, self_invoked=False):
         """
@@ -249,7 +249,7 @@ class OpenWhiskClient:
                 data = json.loads(resp.read().decode("utf-8"))
                 conn.close()
         except Exception as e:
-            logger.debug('Invocation Failed: {}. Doing reinvocation'.format(str(e)))
+            logger.debug(f'Invocation Failed: {str(e)}. Doing reinvocation')
             if not is_ow_action:
                 conn.close()
             if self_invoked:

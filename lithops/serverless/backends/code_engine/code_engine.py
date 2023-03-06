@@ -31,7 +31,7 @@ from kubernetes.client.rest import ApiException
 from lithops import utils
 from lithops.version import __version__
 from lithops.constants import COMPUTE_CLI_MSG, JOBS_PREFIX
-from lithops.util.ibm_token_manager import IBMTokenManager
+from lithops.util.ibm_token_manager import IAMTokenManager
 
 from . import config
 
@@ -104,10 +104,8 @@ class CodeEngineBackend:
                 current_context = contexts[1].get('context')
                 self.namespace = current_context.get('namespace')
                 self.cluster = current_context.get('cluster')
-
                 if self.iam_api_key:
                     self._get_iam_token()
-
             except Exception:
                 logger.debug('Loading incluster kubecfg')
                 load_incluster_config()
@@ -137,19 +135,26 @@ class CodeEngineBackend:
         if self.namespace and self.region:
             configuration.host = self.cluster
 
-        if not self.ibm_token_manager:
-            token = self.ce_config.get('token', None)
-            token_expiry_time = self.ce_config.get('token_expiry_time', None)
-            self.ibm_token_manager = IBMTokenManager(self.iam_api_key,
-                                                     'IAM', token,
-                                                     token_expiry_time)
+        token = self.ce_config.get('token')
+        expiry_time = self.ce_config.get('token_expiry_time')
 
-        token, token_expiry_time = self.ibm_token_manager.get_token()
+        token_manager = IAMTokenManager(self.iam_api_key, token, expiry_time)
+        token, expiry_time = token_manager.get_token()
+
         self.ce_config['token'] = token
-        self.ce_config['token_expiry_time'] = token_expiry_time
+        self.ce_config['token_expiry_time'] = expiry_time
 
         configuration.api_key = {"authorization": "Bearer " + token}
         client.Configuration.set_default(configuration)
+
+    def _refresh_iam_token(self):
+        """
+        Try to refresh the IAM token if expired
+        """
+        if self.iam_api_key and not self.is_lithops_worker:
+            self._get_iam_token()
+            self.custom_api = client.CustomObjectsApi()
+            self.core_api = client.CoreV1Api()
 
     def _format_jobdef_name(self, runtime_name, runtime_memory, version=__version__):
         name = f'{runtime_name}-{runtime_memory}-{version}'
@@ -281,7 +286,6 @@ class CodeEngineBackend:
         List all the runtimes
         return: list of tuples (docker_image_name, memory)
         """
-
         runtimes = []
         try:
             jobdefs = self.custom_api.list_namespaced_custom_object(
@@ -313,12 +317,7 @@ class CodeEngineBackend:
         """
         Clean all completed jobruns in the current executor
         """
-        if self.iam_api_key and not self.is_lithops_worker:
-            # try to refresh the token
-            self._get_iam_token()
-            self.custom_api = client.CustomObjectsApi()
-            self.core_api = client.CoreV1Api()
-
+        self._refresh_iam_token()
         jobs_to_delete = job_keys or self.jobs
         for job_key in jobs_to_delete:
             try:
@@ -344,11 +343,7 @@ class CodeEngineBackend:
         Invoke -- return information about this invocation
         For array jobs only remote_invocator is allowed
         """
-        if self.iam_api_key and not self.is_lithops_worker:
-            # try to refresh the token
-            self._get_iam_token()
-            self.custom_api = client.CustomObjectsApi()
-            self.core_api = client.CoreV1Api()
+        self._refresh_iam_token()
 
         executor_id = job_payload['executor_id']
         job_id = job_payload['job_id']
@@ -533,7 +528,7 @@ class CodeEngineBackend:
 
     @retry_on_except
     def _job_def_exists(self, jobdef_name):
-        logger.debug(f"Check if job_definition {jobdef_name} exists")
+        logger.debug(f"Checking if job_definition {jobdef_name} already exists")
         try:
             self.custom_api.get_namespaced_custom_object(
                 group=config.DEFAULT_GROUP,

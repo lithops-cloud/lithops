@@ -15,13 +15,11 @@
 #
 
 import os
-import base64
 import logging
 from threading import Lock
-from datetime import datetime, timezone
-from ibm_cloud_sdk_core.authenticators import IAMAuthenticator
 
 from lithops import utils
+from lithops.util.ibm_token_manager import IAMTokenManager
 from lithops.version import __version__
 from lithops.config import dump_yaml_config, load_yaml_config
 from lithops.libs.openwhisk.client import OpenWhiskClient
@@ -64,8 +62,6 @@ class IBMCloudFunctionsBackend:
 
         logger.debug(f"Set IBM CF Endpoint to {self.endpoint}")
 
-        self.cf_data = load_yaml_config(self.cache_file) if not self.is_lithops_worker else {}
-
         token, expiry_time = self._get_iam_token()
         auth = 'Bearer ' + token
 
@@ -81,7 +77,6 @@ class IBMCloudFunctionsBackend:
 
         if not self.is_lithops_worker:
             self._init_namespace()
-            dump_yaml_config(self.cache_file, self.cf_data)
 
         msg = COMPUTE_CLI_MSG.format('IBM CF')
         logger.info(f"{msg} - Region: {self.region} - Namespace: {self.namespace}")
@@ -90,31 +85,11 @@ class IBMCloudFunctionsBackend:
         """
         Gets a new IAM token
         """
-        token = self.config.get('token') or self.cf_data.get('token')
-        expiry_time = self.config.get('token_expiry_time') or self.cf_data.get('token_expiry_time')
-        minutes_left = 0
+        token = self.config.get('token')
+        expiry_time = self.config.get('token_expiry_time')
 
-        def calc_minutes_left(token_expiry_time):
-            et = datetime.fromtimestamp(token_expiry_time, tz=timezone.utc)
-            minutes_left = max(0, int((et - datetime.now(timezone.utc)).total_seconds() / 60.0))
-            return minutes_left
-
-        minutes_left = calc_minutes_left(expiry_time) if expiry_time else 0
-
-        if minutes_left < 20 and not self.is_lithops_worker:
-            logger.debug("Requesting new IAM token")
-            auth = IAMAuthenticator(self.iam_api_key)
-            token = auth.token_manager.get_token()
-            expiry_time = auth.token_manager.expire_time
-        else:
-            logger.debug("Reusing IAM token from local cache")
-
-        et = datetime.fromtimestamp(expiry_time, tz=timezone.utc)
-        minutes_left = calc_minutes_left(expiry_time)
-        logger.debug(f"IAM Token expiry time: {et} - Minutes left: {minutes_left}")
-
-        self.cf_data['token'] = token
-        self.cf_data['token_expiry_time'] = expiry_time
+        token_manager = IAMTokenManager(self.iam_api_key, token, expiry_time)
+        token, expiry_time = token_manager.get_token()
 
         return token, expiry_time
 
@@ -122,8 +97,8 @@ class IBMCloudFunctionsBackend:
         """
         Creates a new IAM namepsace if not exists
         """
-        
-        self.namespace_id = self.namespace_id or self.cf_data.get('namespace_id')
+        cf_data = load_yaml_config(self.cache_file)
+        self.namespace_id = self.namespace_id or cf_data.get('namespace_id')
 
         if not self.namespace_id:
             logger.debug(f"Creating new Cloud Functions namespace '{self.namespace}'")
@@ -131,8 +106,13 @@ class IBMCloudFunctionsBackend:
         else:
             self.cf_client.namespace = self.namespace_id
 
-        self.cf_data['namespace'] = self.namespace
-        self.cf_data['namespace_id'] = self.namespace_id
+        self.config['namespace'] = self.namespace
+        self.config['namespace_id'] = self.namespace_id
+
+        cf_data['namespace'] = self.namespace
+        cf_data['namespace_id'] = self.namespace_id
+
+        dump_yaml_config(self.cache_file, cf_data)
 
     def _format_function_name(self, runtime_name, runtime_memory, version=__version__):
         runtime_name = runtime_name.replace('/', '_').replace(':', '_')
@@ -236,8 +216,7 @@ class IBMCloudFunctionsBackend:
                 self.cf_client.delete_package(pkg['name'])
 
         if all and os.path.exists(self.cache_file):
-            if self.iam_api_key:
-                self.cf_client.delete_namespace(self.namespace_id)
+            self.cf_client.delete_namespace(self.namespace_id)
             os.remove(self.cache_file)
 
     def list_runtimes(self, docker_image_name='all'):

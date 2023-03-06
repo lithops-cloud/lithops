@@ -21,7 +21,7 @@
 - [AWS EC2] Reduced number of mandatory parameters
 - [AWS] Allow 'region' config parameter instead of 'region_name' for compatibility
 - [Aliyun] Changed 'endpoint' config parameters to 'region' for compatibility
-- [IBM CF] Cloud-foundry namespaces has been deporected in IBM Cloud. From now all the users must use an IAM-based namespace
+- [IBM CF] Cloud-foundry namespaces have been deprecated in IBM Cloud. From now all the users must use an IAM-based namespace
 
 ### Fixed
 - [IBM VPC & AWS EC2] Make sure only VMs from the given VPC are removed
