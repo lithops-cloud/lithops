@@ -15,11 +15,13 @@
 - [IBM VPC] Added build_image() method for automatically building VM images
 - [Cli] Added new 'lithops image build' command for standalone backends
 - [Cli] Added new 'lithops image list' command for standalone backends
+- [IBM CF] Automatically create a CF namespace if not provided in config
 
 ### Changed
 - [AWS EC2] Reduced number of mandatory parameters
 - [AWS] Allow 'region' config parameter instead of 'region_name' for compatibility
 - [Aliyun] Changed 'endpoint' config parameters to 'region' for compatibility
+- [IBM CF] Cloud-foundry namespaces have been deprecated in IBM Cloud. From now all the users must use an IAM-based namespace
 
 ### Fixed
 - [IBM VPC & AWS EC2] Make sure only VMs from the given VPC are removed

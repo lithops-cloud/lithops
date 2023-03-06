@@ -18,18 +18,14 @@
     #runtime: python3
     #worker_processes: CPU_COUNT
 
-#vm:
-    #ip_address: <IP_ADDRESS>
-    #ssh_user: <SSH_USERNAME>
-    #ssh_password: <SSH_PASSWORD>
-    #runtime : <RUNTIME_NAME>
-    #worker_processes: <WORKER_GRANULARITY> Default is 1
 
 #ibm:
     #iam_api_key: <IAM KEY>
-    #iam_endpoint: <IAM URL>
+    #region : <REGION>
+    #resource_group_id: <RESOURCE_GROUP_ID>
 
 #ibm_cf:
+    #region : <REGION>
     #endpoint : <REGION_ENDPOINT>
     #namespace : <NAMESPACE>
     #api_key : <API_KEY>
@@ -56,7 +52,25 @@
     #worker_processes: <WORKER_GRANULARITY> Default is 1
     #connection_retries: <RETRIES_NUMBER>
 
-#standalone:
+#ibm_vpc:
+    #region : <REGION>
+    #endpoint: <REGION_ENDPOINT>
+    #vpc_id: <VPC_ID>
+    #resource_group_id: <RESOURCE_GROUP_ID>
+    #security_group_id: <SECURITY_GROUP_ID>
+    #subnet_id: <SUBNET_ID>
+    #key_id: <PUBLIC_KEY_ID>
+    #image_id: <IMAGE_ID_FOR_VMs> # Default is ubuntu 20.04
+    #ssh_username : <SSH_USER_FOR_VPC> # Default is 'root'
+    #ssh_password : <SSH_PASS_FOR_WORKER_VMS> # Default is randomly generated
+    #ssh_key_filename : <PATH_TO_SSH_KEYFILE_FOR_MASTER_VM> # Default path in OS
+    #worker_profile_name: <PROFILE_NAME> # Default is 'cx2-2x4'
+    #master_profile_name:  <PROFILE_NAME> # Default is 'cx2-2x4'
+    #delete_on_dismantle: <True/False> # Default is 'True
+    #max_workers: <MAX_WORKERS> Default is 100
+    #worker_processes: <WORKER_GRANULARITY> Default is 2
+    #singlesocket: <True/False> # Optional, default is False
+
     #runtime: <RUNTIME_NAME>
     #exec_mode: consume
     #auto_dismantle: True
@@ -68,33 +82,15 @@
     #docker_user: <registry username>
     #docker_password: <registry password>
 
-#ibm_vpc:
-    #endpoint: <REGION_ENDPOINT>
-    #vpc_id: <VPC_ID>
-    #resource_group_id: <RESOURCE_GROUP_ID>
-    #security_group_id: <SECURITY_GROUP_ID>
-    #subnet_id: <SUBNET_ID>
-    #key_id: <PUBLIC_KEY_ID>
-    #image_id: <IMAGE_ID_FOR_VMs> # Default is ubuntu 20.04
-    #ssh_user : <SSH_USER_FOR_VPC> # Default is 'root'
-    #ssh_password : <SSH_PASS_FOR_WORKER_VMS> # Default is randomly generated
-    #ssh_key_filename : <PATH_TO_SSH_KEYFILE_FOR_MASTER_VM> # Default path in OS
-    #profile_name: <PROFILE_NAME> # Default is 'cx2-2x4'
-    #master_profile_name:  <PROFILE_NAME> # Default is 'cx2-2x4'
-    #delete_on_dismantle: <True/False> # Default is 'True
-    #max_workers: <MAX_WORKERS> Default is 100
-    #worker_processes: <WORKER_GRANULARITY> Default is 2
-    #singlesocket: <True/False> # Optional, default is False
-
 #aws_ec2:
     #region: <REGION_NAME>
     #vpc_id: <VPC_ID>
-    #iam_role: <IAM_ROLE>
+    #execution_role: <IAM_ROLE>
     #key_name: <SSH_KEY_NAME>
     #security_group_id: <SECURITY_GROUP_ID>
     #master_instance_type: t2.micro
     #worker_instance_type: t2.medium
-    #ssh_user : <SSH_USER_FOR_VPC> # Default is 'ubuntu'
+    #ssh_username : <SSH_USER_FOR_VPC> # Default is 'ubuntu'
     #ssh_password : <SSH_PASS_FOR_WORKER_VMS> # Default is randomly generated
     #ssh_key_filename : <PATH_TO_SSH_KEYFILE_FOR_MASTER_VM> # Default path in OS
     #target_ami: <TARGET_AMI>  # Default is Ubuntu 20.04
@@ -102,6 +98,25 @@
     #delete_on_dismantle: <True/False> # Default is 'True
     #max_workers: <MAX_WORKERS> Default is 100
     #worker_processes: <WORKER_GRANULARITY> Default is 2
+
+    #runtime: <RUNTIME_NAME>
+    #exec_mode: consume
+    #auto_dismantle: True
+    #pull_runtime: <false, true>
+    #hard_dismantle_timeout: 3600
+    #soft_dismantle_timeout: 300
+    #workers_policy: <Workers create policy> # Optional, strict/permissive. Default is 'permissive'
+    #docker_server: <registry server url>
+    #docker_user: <registry username>
+    #docker_password: <registry password>
+
+#vm:
+    #ip_address: <IP_ADDRESS>
+    #ssh_user: <SSH_USERNAME>
+    #ssh_password: <SSH_PASSWORD>
+    #ssh_key_filename : <PATH_TO_SSH_KEYFILE_FOR_MASTER_VM> # Default path in OS
+    #runtime : <RUNTIME_NAME>
+    #worker_processes: <WORKER_GRANULARITY> Default is 1
 
 #knative:
    #istio_endpoint  : <ISTIO_INGRESS_ENDPOINT>
@@ -115,11 +130,11 @@
    #worker_processes: <WORKER_GRANULARITY> Default is 1
 
 #openwhisk:
-    #endpoint    : <OW_ENDPOINT>
-    #namespace   : <NAMESPACE>
-    #api_key     : <AUTH_KEY>
-    #insecure    : <True/False>
-    #runtime : <RUNTIME_NAME>
+    #endpoint: <OW_ENDPOINT>
+    #namespace: <NAMESPACE>
+    #api_key: <AUTH_KEY>
+    #insecure: <True/False>
+    #runtime: <RUNTIME_NAME>
     #runtime_timeout: 600
     #runtime_memory: 256
     #max_workers: <MAX_WORKERS> Default is 100
@@ -127,13 +142,12 @@
 
 #ibm_cos:
     #storage_bucket: <BUCKET_NAME>
-    #region : <REGION>
-    #endpoint    : <REGION_ENDPOINT>
+    #region: <REGION>
+    #endpoint: <REGION_ENDPOINT>
     #private_endpoint: <PRIVATE_REGION_ENDPOINT>
-    #api_key     : <API_KEY>
-    #access_key : <ACCESS_KEY>  # Optional
-    #secret_key : <SECRET_KEY>  # Optional
-    #iam_api_key : <IAM KEY>
+    #api_key: <API_KEY>
+    #access_key_id: <ACCESS_KEY>  # Optional
+    #secret_access_key: <SECRET_KEY>  # Optional
 
 #swift:
     #storage_bucket: <BUCKET_NAME>

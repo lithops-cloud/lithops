@@ -37,34 +37,28 @@ DEFAULT_CONFIG_KEYS = {
 UNIT_PRICE = 0.000017
 
 FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_ibmcf.zip')
-
-REQ_PARAMS = ('namespace',)
-OPT_PARAMS_1 = ('api_key',)
-OPT_PARAMS_2 = ('namespace_id', 'iam_api_key',)
-
 CF_ENDPOINT = "https://{}.functions.cloud.ibm.com"
 REGIONS = ["jp-tok", "au-syd", "eu-gb", "eu-de", "us-south", "us-east"]
 
 
 def load_config(config_data):
 
+    if 'ibm' not in config_data or config_data['ibm'] is None:
+        raise Exception("'ibm' section is mandatory in the configuration")
+
+    if 'iam_api_key' not in config_data['ibm']:
+        raise Exception("'iam_api_key' parameter is mandatory under the 'ibm' section of the configuration")
+
     if not config_data['ibm_cf']:
-        raise Exception("'ibm_cf' section is mandatory in the configuration")
+        config_data['ibm_cf'] = {}
 
-    for param in REQ_PARAMS:
-        if param not in config_data['ibm_cf']:
-            msg = f"{param} is mandatory in 'ibm_cf' section of the configuration"
-            raise Exception(msg)
+    temp = copy.deepcopy(config_data['ibm_cf'])
+    config_data['ibm_cf'].update(config_data['ibm'])
+    config_data['ibm_cf'].update(temp)
 
-    if 'ibm' in config_data and config_data['ibm'] is not None:
-        temp = copy.deepcopy(config_data['ibm_cf'])
-        config_data['ibm_cf'].update(config_data['ibm'])
-        config_data['ibm_cf'].update(temp)
-
-    if not all(elem in config_data['ibm_cf'] for elem in OPT_PARAMS_1) and \
-       not all(elem in config_data['ibm_cf'] for elem in OPT_PARAMS_2):
-        raise Exception('You must provide either {}, or {} in {} section of the configuration'
-                        .format(OPT_PARAMS_1, OPT_PARAMS_2, 'ibm_cf'))
+    if "region" not in config_data['ibm_cf'] and "endpoint" not in config_data['ibm_cf']:
+        msg = "'region' or 'endpoint' parameter is mandatory under 'ibm_cf' section of the configuration"
+        raise Exception(msg)
 
     for key in DEFAULT_CONFIG_KEYS:
         if key not in config_data['ibm_cf']:
@@ -76,10 +70,6 @@ def load_config(config_data):
         if runtime.count('/') == 1 and registry not in runtime:
             config_data['ibm_cf']['runtime'] = f'{registry}/{runtime}'
 
-    if "region" not in config_data['ibm_cf'] and "endpoint" not in config_data['ibm_cf']:
-        msg = "'region' or 'endpoint' parameter is mandatory under 'ibm_cf' section of the configuration"
-        raise Exception(msg)
-
     if 'endpoint' in config_data['ibm_cf']:
         endpoint = config_data['ibm_cf']['endpoint']
         config_data['ibm_cf']['region'] = endpoint.split('//')[1].split('.')[0]
@@ -90,9 +80,6 @@ def load_config(config_data):
             msg = f"'region' conig parameter under 'ibm_cf' section must be one of {REGIONS}"
             raise Exception(msg)
         config_data['ibm_cf']['endpoint'] = CF_ENDPOINT.format(region)
-
-    if 'ibm' not in config_data or config_data['ibm'] is None:
-        config_data['ibm'] = {}
 
     if 'region' not in config_data['ibm']:
         config_data['ibm']['region'] = config_data['ibm_cf']['region']

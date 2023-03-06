@@ -82,7 +82,7 @@ class ServerlessHandler:
         """
         Wrapper method to clean the compute backend
         """
-        self.backend.clean()
+        self.backend.clean(**kwargs)
 
     def clear(self, job_keys=None):
         """

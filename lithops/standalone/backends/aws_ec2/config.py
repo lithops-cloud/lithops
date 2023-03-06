@@ -32,7 +32,7 @@ DEFAULT_CONFIG_KEYS = {
 }
 
 REQ_PARAMS_1 = ('instance_id',)
-REQ_PARAMS_2 = ('iam_role',)
+REQ_PARAMS_2 = ('execution_role',)
 
 
 def load_config(config_data):
@@ -55,8 +55,8 @@ def load_config(config_data):
             config_data['aws_ec2'][key] = DEFAULT_CONFIG_KEYS[key]
 
     for key in SA_DEFAULT_CONFIG_KEYS:
-        if key in config_data['ibm_vpc']:
-            config_data['standalone'][key] = config_data['ibm_vpc'].pop(key)
+        if key in config_data['aws_ec2']:
+            config_data['standalone'][key] = config_data['aws_ec2'].pop(key)
         elif key not in config_data['standalone']:
             config_data['standalone'][key] = SA_DEFAULT_CONFIG_KEYS[key]
 
@@ -68,7 +68,7 @@ def load_config(config_data):
 
     for param in params_to_check:
         if param not in config_data['aws_ec2']:
-            msg = f"'{param}' is mandatory in 'aws_ec2' section of the configuration"
+            msg = f"'{param}' is mandatory in the 'aws_ec2' section of the configuration"
             raise Exception(msg)
 
     if 'region_name' in config_data['aws_ec2']:

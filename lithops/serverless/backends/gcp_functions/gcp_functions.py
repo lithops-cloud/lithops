@@ -348,7 +348,7 @@ class GCPFunctionsBackend:
             self.internal_storage.storage.delete_object(
                 self.internal_storage.bucket, bin_location)
 
-    def clean(self):
+    def clean(self, **kwargs):
         logger.debug('Going to delete all deployed runtimes')
         runtimes = self.list_runtimes()
         for runtime_name, runtime_memory, version in runtimes:

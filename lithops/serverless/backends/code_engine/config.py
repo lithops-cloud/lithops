@@ -49,6 +49,7 @@ RUN pip install --upgrade --ignore-installed setuptools six pip \
         flask \
         gevent \
         ibm-cos-sdk \
+        ibm-vpc \
         redis \
         requests \
         PyYAML \

@@ -33,6 +33,7 @@ Lithops with IBM COS as storage backend.
     ibm_cos:
         region   : <REGION>
         api_key  : <API_KEY>
+        storage_bucket: <BUCKET_NAME>
     ```
 
 ### Option 2 (COS HMAC credentials):
@@ -47,17 +48,20 @@ Lithops with IBM COS as storage backend.
 
 6. Click `View credentials` and copy the *access_key_id* and *secret_access_key* values.
 
-7. Edit your lithops config file and add the following keys:
+7. When using HMAC credentials, you can omit providing an storage bucket, since Lithops will be able to create it automatically.
+
+8. Edit your lithops config file and add the following keys:
 
     ```yaml
     lithops:
         storage: ibm_cos
        
     ibm_cos:
-        region : <REGION>  
-        access_key  : <ACCESS_KEY_ID>
-        secret_key  : <SECRET_KEY_ID>
+        region: <REGION>  
+        access_key_id: <ACCESS_KEY_ID>
+        secret_access_key: <SECRET_ACCESS_KEY_ID>
     ```
+
 
 ### Option 3 (IBM IAM API Key):
 
@@ -72,14 +76,13 @@ Lithops with IBM COS as storage backend.
     ```yaml
     lithops:
         storage_backend: ibm_cos
-
     ibm:
         iam_api_key: <IAM_API_KEY>
-       
-    ibm_cos:
-        region : <REGION>
-    ```
 
+    ibm_cos:
+        region: <REGION>
+        storage_bucket: <BUCKET_NAME>
+    ```
 
 ## Lithops COS Endpoint configuration
 
@@ -91,7 +94,7 @@ The easiest apporach is to let Lithops to choose the right endpoint by itself. T
         region   : <REGION>
 ```
 
-Valid region names are: us-east, us-south, eu-gb, eu-de, etc..
+Valid region names are: `us-east`, `us-south`, `eu-gb`, `eu-de`, etc..
 
 ### Using endpoints path
 
@@ -116,16 +119,16 @@ Alternative to using region, you can configure the public and private endpoints 
 |---|---|---|---|---|
 |ibm | iam_api_key | |no | IBM Cloud IAM API key to authenticate against IBM services. Obtain the key [here](https://cloud.ibm.com/iam/apikeys) |
 |ibm | region | |no | IBM Region.  One of: `eu-gb`, `eu-de`, `us-south`, `us-east`, `br-sao`, `ca-tor`, `jp-tok`, `jp-osa`, `au-syd` |
+|ibm | resource_group_id | | no | Resource group id from your IBM Cloud account. Get it from [here](https://cloud.ibm.com/account/resource-groups) |
 
 ### IBM Cloud Object Storage:
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |ibm_cos | region | |yes | Region of your bucket. One of: `eu-gb`, `eu-de`, `us-south`, `us-east`, `br-sao`, `ca-tor`, `jp-tok`, `jp-osa`, `au-syd`. Lithops will use the region set under the `ibm` section if it is not set here|
-|ibm_cos | storage_bucket | | no | The name of a bucket that exists in you account. This will be used by Lithops for intermediate data. Lithops will automatically create a new one if it is not provided |
+|ibm_cos | api_key | |yes | API Key to your COS account. Not needed if using IAM API Key|
+|ibm_cos | access_key_id | |no | HMAC Credentials. **Mandatory** if no api_key. Not needed if using IAM API Key|
+|ibm_cos | secret_access_key | |no | HMAC Credentials. **Mandatory** if no api_key. Not needed if using IAM API Key|
 |ibm_cos | endpoint | |no | Endpoint to your COS account. **Mandatory** if no region. Make sure to use the full path with 'https://' as prefix |
 |ibm_cos | private_endpoint | |no | Private endpoint to your COS account. **Mandatory** if no region. Make sure to use the full path with 'https://' or http:// as prefix |
-|ibm_cos | api_key | |no | API Key to your COS account. **Mandatory** if no access_key and secret_key. Not needed if using IAM API Key|
-|ibm_cos | access_key | |no | HMAC Credentials. **Mandatory** if no api_key. Not needed if using IAM API Key|
-|ibm_cos | secret_key | |no | HMAC Credentials. **Mandatory** if no api_key. Not needed if using IAM API Key|
-|ibm_cos | iam_api_key | |no | IBM Cloud IAM API key to authenticate against IBM COS. **Used** in case separate authorization for storage and compute required|
+|ibm_cos | storage_bucket | | no | The name of a bucket that exists in you account. This will be used by Lithops for intermediate data. Lithops will automatically create a new one if it is not provided. You must provide HMAC Credentials if you want the bucket to be automatically created |

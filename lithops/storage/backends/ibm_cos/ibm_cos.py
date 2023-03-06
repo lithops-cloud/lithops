@@ -21,7 +21,7 @@ import ibm_botocore
 
 from lithops.storage.utils import StorageNoSuchKeyError
 from lithops.utils import sizeof_fmt, is_lithops_worker
-from lithops.util.ibm_token_manager import IBMTokenManager
+from lithops.util.ibm_token_manager import COSTokenManager, IAMTokenManager
 from lithops.constants import STORAGE_CLI_MSG
 from lithops.libs.globber import match
 
@@ -41,60 +41,70 @@ class IBMCloudObjectStorageBackend:
         self.config = ibm_cos_config
         self.region = self.config['region']
         self.is_lithops_worker = is_lithops_worker()
-        user_agent = self.config['user_agent']
-
-        api_key = None
-        if 'api_key' in self.config:
-            api_key = self.config.get('api_key')
-            api_key_type = 'COS'
-        elif 'iam_api_key' in self.config:
-            api_key = self.config.get('iam_api_key')
-            api_key_type = 'IAM'
+        self.user_agent = self.config['user_agent']
+        self.api_key = self.config.get('api_key')
+        self.iam_api_key = self.config.get('iam_api_key')
 
         service_endpoint = self.config.get('endpoint').replace('http:', 'https:')
         if self.is_lithops_worker and 'private_endpoint' in self.config:
             service_endpoint = self.config.get('private_endpoint')
-            if api_key:
+            if self.api_key:
                 service_endpoint = service_endpoint.replace('http:', 'https:')
 
         logger.debug(f"Set IBM COS Endpoint to {service_endpoint}")
 
-        if {'secret_key', 'access_key'} <= set(self.config):
-            logger.debug("Using access_key and secret_key")
-            access_key = self.config.get('access_key')
-            secret_key = self.config.get('secret_key')
-            client_config = ibm_botocore.client.Config(max_pool_connections=128,
-                                                       user_agent_extra=user_agent,
-                                                       connect_timeout=CONN_READ_TIMEOUT,
-                                                       read_timeout=CONN_READ_TIMEOUT,
-                                                       retries={'max_attempts': OBJ_REQ_RETRIES})
+        if {'access_key_id', 'secret_access_key'}.issubset(ibm_cos_config):
+            logger.debug("Using access_key_id and secret_access_key for COS authentication")
+            access_key_id = self.config['access_key_id']
+            secret_access_key = self.config['secret_access_key']
+            client_config = ibm_botocore.client.Config(
+                max_pool_connections=128,
+                user_agent_extra=self.user_agent,
+                connect_timeout=CONN_READ_TIMEOUT,
+                read_timeout=CONN_READ_TIMEOUT,
+                retries={'max_attempts': OBJ_REQ_RETRIES}
+            )
 
-            self.cos_client = ibm_boto3.client('s3',
-                                               aws_access_key_id=access_key,
-                                               aws_secret_access_key=secret_key,
-                                               config=client_config,
-                                               endpoint_url=service_endpoint)
+            self.cos_client = ibm_boto3.client(
+                's3',
+                aws_access_key_id=access_key_id,
+                aws_secret_access_key=secret_access_key,
+                config=client_config,
+                endpoint_url=service_endpoint
+            )
 
-        elif api_key is not None:
-            client_config = ibm_botocore.client.Config(signature_version='oauth',
-                                                       max_pool_connections=128,
-                                                       user_agent_extra=user_agent,
-                                                       connect_timeout=CONN_READ_TIMEOUT,
-                                                       read_timeout=CONN_READ_TIMEOUT,
-                                                       retries={'max_attempts': OBJ_REQ_RETRIES})
+        else:
+            logger.debug("Using IBM API key for COS authentication")
+            client_config = ibm_botocore.client.Config(
+                signature_version='oauth',
+                max_pool_connections=128,
+                user_agent_extra=self.user_agent,
+                connect_timeout=CONN_READ_TIMEOUT,
+                read_timeout=CONN_READ_TIMEOUT,
+                retries={'max_attempts': OBJ_REQ_RETRIES}
+            )
 
-            token = self.config.get('token', None)
-            token_expiry_time = self.config.get('token_expiry_time', None)
+            token = self.config.get('token')
+            expiry_time = self.config.get('token_expiry_time')
 
-            iam_token_manager = IBMTokenManager(api_key, api_key_type, token, token_expiry_time)
-            token, token_expiry_time = iam_token_manager.get_token()
+            if self.api_key:
+                token_manager = COSTokenManager(self.api_key, token, expiry_time)
+            elif self.iam_api_key:
+                token_manager = IAMTokenManager(self.iam_api_key, token, expiry_time)
+
+            token, expiry_time = token_manager.get_token()
 
             self.config['token'] = token
-            self.config['token_expiry_time'] = token_expiry_time
+            self.config['token_expiry_time'] = expiry_time
 
-            self.cos_client = ibm_boto3.client('s3', token_manager=iam_token_manager._token_manager,
-                                               config=client_config,
-                                               endpoint_url=service_endpoint)
+            self.cos_client = ibm_boto3.client(
+                's3',
+                aws_access_key_id="",
+                aws_secret_access_key="",
+                aws_session_token=token,
+                config=client_config,
+                endpoint_url=service_endpoint
+            )
 
         msg = STORAGE_CLI_MSG.format('IBM COS')
         logger.info(f"{msg} - Region: {self.region}")

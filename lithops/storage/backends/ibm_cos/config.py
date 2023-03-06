@@ -46,7 +46,6 @@ def load_config(config_data):
             config_data['ibm_cos']['private_endpoint'] = DIRECT_ENDPOINT.format(region)
 
     if compute_backend == 'ibm_cf':
-        # Private endpoint is mandatory when using IBM CF
         if 'private_endpoint' not in config_data['ibm_cos']:
             raise Exception('You must provide the private_endpoint to access to IBM COS')
         elif 'private' not in config_data['ibm_cos']['private_endpoint']:
@@ -55,7 +54,6 @@ def load_config(config_data):
             raise Exception('IBM COS Private Endpoint must start with http:// or https://')
 
     elif compute_backend == 'code_engine':
-        # Private endpoint is mandatory when using IBM CF
         if 'private_endpoint' not in config_data['ibm_cos']:
             raise Exception('You must provide the private_endpoint to access to IBM COS')
         elif 'direct' not in config_data['ibm_cos']['private_endpoint']:
@@ -74,17 +72,6 @@ def load_config(config_data):
     elif 'private_endpoint' in config_data['ibm_cos']:
         del config_data['ibm_cos']['private_endpoint']
 
-    required_keys_1 = ('endpoint', 'api_key')
-    required_keys_2 = ('endpoint', 'secret_key', 'access_key')
-    required_keys_3 = ('endpoint', 'ibm:iam_api_key')
-
-    if not set(required_keys_1) <= set(config_data['ibm_cos']) and \
-       not set(required_keys_2) <= set(config_data['ibm_cos']) and \
-       ('endpoint' not in config_data['ibm_cos'] or 'iam_api_key' not in config_data['ibm_cos']
-       or config_data['ibm_cos']['iam_api_key'] is None):
-        raise Exception('You must provide {}, {} or {} to access to IBM COS'
-                        .format(required_keys_1, required_keys_2, required_keys_3))
-
     if not config_data['ibm_cos']['endpoint'].startswith('http'):
         raise Exception('IBM COS Endpoint must start with http:// or https://')
 
@@ -92,8 +79,17 @@ def load_config(config_data):
         endpoint = config_data['ibm_cos']['endpoint']
         config_data['ibm_cos']['region'] = endpoint.split('//')[1].split('.')[1]
 
+    if 'access_key' in config_data['ibm_cos']:
+        config_data['ibm_cos']['access_key_id'] = config_data['ibm_cos'].pop('access_key')
+    if 'secret_key' in config_data['ibm_cos']:
+        config_data['ibm_cos']['secret_access_key'] = config_data['ibm_cos'].pop('secret_key')
+
     if 'storage_bucket' not in config_data['ibm_cos']:
+        if not {'access_key_id', 'secret_access_key'}.issubset(config_data['ibm_cos']):
+            msg = "'storage_bucket' parameter not found in config. "
+            msg += "You must provide HMAC Credentials if you want the bucket to be automatically created"
+            raise Exception(msg)
         cosc = config_data['ibm_cos']
-        key = cosc.get('access_key') or cosc.get('api_key') or cosc.get('iam_api_key')
+        key = cosc.get('access_key_id') or cosc.get('api_key') or cosc.get('iam_api_key')
         region = config_data['ibm_cos']['region']
         config_data['ibm_cos']['storage_bucket'] = f'lithops-{region}-{key[:6].lower()}'

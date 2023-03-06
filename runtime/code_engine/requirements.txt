@@ -39,6 +39,7 @@ Pillow
 #cloudant
 #watson-developer-cloud
 ibm-cos-sdk
+ibm-vpc
 #ibmcloudsql
 
 # Compose Libs
