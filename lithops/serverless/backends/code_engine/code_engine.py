@@ -87,14 +87,14 @@ class CodeEngineBackend:
         self.namespace = code_engine_config.get('namespace')
         self.region = code_engine_config.get('region')
 
-        self.ibm_token_manager = None
+        self.token_manager = None
         self.is_lithops_worker = utils.is_lithops_worker()
 
         if self.namespace and self.region:
             self.cluster = config.CLUSTER_URL.format(self.region)
 
         if self.iam_api_key and not self.is_lithops_worker:
-            self._get_iam_token()
+            self._init_k8s_iam_client()
 
         else:
             try:
@@ -105,7 +105,7 @@ class CodeEngineBackend:
                 self.namespace = current_context.get('namespace')
                 self.cluster = current_context.get('cluster')
                 if self.iam_api_key:
-                    self._get_iam_token()
+                    self._init_k8s_iam_client()
             except Exception:
                 logger.debug('Loading incluster kubecfg')
                 load_incluster_config()
@@ -128,18 +128,21 @@ class CodeEngineBackend:
         msg = COMPUTE_CLI_MSG.format('IBM Code Engine')
         logger.info(f"{msg} - Region: {self.region}")
 
-    @retry_on_except
-    def _get_iam_token(self):
-        """ Requests an IBM IAM token """
+    def _init_k8s_iam_client(self):
+        """
+        Creates the k8s client with a new IAM token
+        """
         configuration = client.Configuration.get_default_copy()
         if self.namespace and self.region:
             configuration.host = self.cluster
 
-        token = self.ce_config.get('token')
-        expiry_time = self.ce_config.get('token_expiry_time')
-
-        token_manager = IAMTokenManager(self.iam_api_key, token, expiry_time)
-        token, expiry_time = token_manager.get_token()
+        if not self.token_manager:
+            old_token = self.ce_config.get('token')
+            old_expiry_time = self.ce_config.get('token_expiry_time')
+            self.token_manager = IAMTokenManager(self.iam_api_key, old_token, old_expiry_time)
+            token, expiry_time = self.token_manager.get_token()
+        else:
+            token, expiry_time = self.token_manager.refresh_token()
 
         self.ce_config['token'] = token
         self.ce_config['token_expiry_time'] = expiry_time
@@ -147,12 +150,12 @@ class CodeEngineBackend:
         configuration.api_key = {"authorization": "Bearer " + token}
         client.Configuration.set_default(configuration)
 
-    def _refresh_iam_token(self):
+    def _refresh_k8s_iam_client(self):
         """
-        Try to refresh the IAM token if expired
+        Refresh the k8s client with a new token if necessary
         """
         if self.iam_api_key and not self.is_lithops_worker:
-            self._get_iam_token()
+            self._init_k8s_iam_client()
             self.custom_api = client.CustomObjectsApi()
             self.core_api = client.CoreV1Api()
 
@@ -237,6 +240,7 @@ class CodeEngineBackend:
             self._build_default_runtime(docker_image_name)
 
         logger.debug(f"Deploying runtime: {docker_image_name} - Memory: {memory} Timeout: {timeout}")
+        self._refresh_k8s_iam_client()
         self._create_job_definition(docker_image_name, memory, timeout)
         runtime_meta = self._generate_runtime_meta(docker_image_name, memory)
 
@@ -248,6 +252,7 @@ class CodeEngineBackend:
         We need to delete job definition
         """
         logger.info(f'Deleting runtime: {runtime_name} - {memory}MB')
+        self._refresh_k8s_iam_client()
         try:
             jobdef_id = self._format_jobdef_name(runtime_name, memory, version)
             self.custom_api.delete_namespaced_custom_object(
@@ -265,6 +270,7 @@ class CodeEngineBackend:
         """
         Deletes all runtimes from all packages
         """
+        self._refresh_k8s_iam_client()
         self.clear()
         runtimes = self.list_runtimes()
         for image_name, memory, version in runtimes:
@@ -286,6 +292,7 @@ class CodeEngineBackend:
         List all the runtimes
         return: list of tuples (docker_image_name, memory)
         """
+        self._refresh_k8s_iam_client()
         runtimes = []
         try:
             jobdefs = self.custom_api.list_namespaced_custom_object(
@@ -317,7 +324,7 @@ class CodeEngineBackend:
         """
         Clean all completed jobruns in the current executor
         """
-        self._refresh_iam_token()
+        self._refresh_k8s_iam_client()
         jobs_to_delete = job_keys or self.jobs
         for job_key in jobs_to_delete:
             try:
@@ -343,7 +350,7 @@ class CodeEngineBackend:
         Invoke -- return information about this invocation
         For array jobs only remote_invocator is allowed
         """
-        self._refresh_iam_token()
+        self._refresh_k8s_iam_client()
 
         executor_id = job_payload['executor_id']
         job_id = job_payload['job_id']
