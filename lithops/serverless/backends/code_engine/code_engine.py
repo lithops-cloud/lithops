@@ -140,9 +140,8 @@ class CodeEngineBackend:
             old_token = self.ce_config.get('token')
             old_expiry_time = self.ce_config.get('token_expiry_time')
             self.token_manager = IAMTokenManager(self.iam_api_key, old_token, old_expiry_time)
-            token, expiry_time = self.token_manager.get_token()
-        else:
-            token, expiry_time = self.token_manager.refresh_token()
+
+        token, expiry_time = self.token_manager.get_token()
 
         self.ce_config['token'] = token
         self.ce_config['token_expiry_time'] = expiry_time

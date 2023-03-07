@@ -27,7 +27,14 @@ from ibm_cloud_sdk_core.authenticators import IAMAuthenticator
 logger = logging.getLogger(__name__)
 
 
+# The token will be considered expired 20 minutes before its actual expiration time
+EXPIRY_MINUTES = 20
+
+
 class IBMTokenManager:
+
+    TOEKN_FILE = None
+    TYPE = None
 
     def __init__(self, ibm_api_key, token=None, token_expiry_time=None):
         self.ibm_api_key = ibm_api_key
@@ -35,16 +42,20 @@ class IBMTokenManager:
         self.expiry_time = token_expiry_time
         self.is_lithops_worker = is_lithops_worker()
 
-        self._init()
+        if not self.token and os.path.exists(self.TOEKN_FILE):
+            token_cache = load_yaml_config(self.TOEKN_FILE)
+            self.token = token_cache.get('token')
+            self.expiry_time = token_cache.get('expiry_time')
 
-    def _init(self):
-        pass
+        if not self._is_token_expired():
+            logger.debug(f"Reusing {self.TYPE} token from local cache")
+            self._print_remaining_time()
 
     def _is_token_expired(self):
         """
         Checks if a token already expired
         """
-        return self._get_token_minutes_left() < 20
+        return self._get_token_minutes_left() < EXPIRY_MINUTES
 
     def _get_token_minutes_left(self):
         """
@@ -56,29 +67,25 @@ class IBMTokenManager:
         return max(0, int((expiry_time - datetime.now(timezone.utc)).total_seconds() / 60.0))
 
     def _generate_new_token(self):
-        pass
+        """
+        Generates a new token
+        """
+        raise NotImplementedError()
 
-    def _refresh_token(self):
-        pass
+    def _print_remaining_time(self):
+        minutes_left = self._get_token_minutes_left()
+        expiry_time = datetime.fromtimestamp(self.expiry_time)
+        logger.debug(f"{self.TYPE} token expiry time: {expiry_time} - Minutes left: {minutes_left}")
 
     def get_token(self):
         """
-        Gets the current token
-        """
-        minutes_left = self._get_token_minutes_left()
-        expiry_time = datetime.fromtimestamp(self.expiry_time)
-        logger.debug(f"Token expiry time: {expiry_time} - Minutes left: {minutes_left}")
-        return self.token, self.expiry_time
-
-    def refresh_token(self):
-        """
-        Refresh the IAM token
+        Gets a new token if expired
         """
         if self._is_token_expired() and not self.is_lithops_worker:
-            self._refresh_token()
-            minutes_left = self._get_token_minutes_left()
-            expiry_time = datetime.fromtimestamp(self.expiry_time)
-            logger.debug(f"Token expiry time: {expiry_time} - Minutes left: {minutes_left}")
+            self._generate_new_token()
+            token_data = {'token': self.token, 'expiry_time': self.expiry_time}
+            dump_yaml_config(self.TOEKN_FILE, token_data)
+            self._print_remaining_time()
 
         return self.token, self.expiry_time
 
@@ -86,46 +93,22 @@ class IBMTokenManager:
 class COSTokenManager(IBMTokenManager):
 
     TOEKN_FILE = os.path.join(CACHE_DIR, 'ibm_cos', 'token')
+    TYPE = 'COS'
 
     def _generate_new_token(self):
         """
-        generates a new token
+        Generates a new COS token
         """
         logger.debug("Requesting new COS token")
         token_manager = DefaultTokenManager(api_key_id=self.ibm_api_key)
         self.token = token_manager.get_token()
         self.expiry_time = int(token_manager._expiry_time.timestamp())
 
-    def _init(self):
-        """
-        Inits the COS token
-        """
-        if not self.token and os.path.exists(self.TOEKN_FILE):
-            token_cache = load_yaml_config(self.TOEKN_FILE)
-            self.token = token_cache.get('token')
-            self.expiry_time = token_cache.get('expiry_time')
-
-        if self._is_token_expired() and not self.is_lithops_worker:
-            self._generate_new_token()
-            token_data = {'token': self.token, 'expiry_time': self.expiry_time}
-            dump_yaml_config(self.TOEKN_FILE, token_data)
-        else:
-            logger.debug("Reusing COS token from local cache")
-
-    def _refresh_token(self):
-        """
-        Force refresh the current COS token
-        """
-        self._generate_new_token()
-        token_data = {'token': self.token, 'expiry_time': self.expiry_time}
-        dump_yaml_config(self.TOEKN_FILE, token_data)
-
-        return self.token, self.expiry_time
-
 
 class IAMTokenManager(IBMTokenManager):
 
     TOEKN_FILE = os.path.join(CACHE_DIR, 'ibm_iam', 'token')
+    TYPE = 'IAM'
 
     def _generate_new_token(self):
         """
@@ -135,26 +118,3 @@ class IAMTokenManager(IBMTokenManager):
         auth = IAMAuthenticator(self.ibm_api_key)
         self.token = auth.token_manager.get_token()
         self.expiry_time = auth.token_manager.expire_time
-
-    def _init(self):
-        if not self.token and os.path.exists(self.TOEKN_FILE):
-            token_cache = load_yaml_config(self.TOEKN_FILE)
-            self.token = token_cache.get('token')
-            self.expiry_time = token_cache.get('expiry_time')
-
-        if self._is_token_expired() and not self.is_lithops_worker:
-            self._generate_new_token()
-            token_data = {'token': self.token, 'expiry_time': self.expiry_time}
-            dump_yaml_config(self.TOEKN_FILE, token_data)
-        else:
-            logger.debug("Reusing IAM token from local cache")
-
-    def _refresh_token(self):
-        """
-        Force refresh the current IAM token
-        """
-        self._generate_new_token()
-        token_data = {'token': self.token, 'expiry_time': self.expiry_time}
-        dump_yaml_config(self.TOEKN_FILE, token_data)
-
-        return self.token, self.expiry_time

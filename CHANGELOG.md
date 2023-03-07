@@ -23,7 +23,8 @@
 - [Aliyun] Changed 'endpoint' config parameters to 'region' for compatibility
 - [IBM CF] Cloud-foundry namespaces have been deprecated in IBM Cloud. From now all the users must use an IAM-based namespace
 - [IBM COS] Changed 'access_key' config parameter to 'access_key_id' for compatibility
-- [AWS COS] Changed 'secret_key' config parameter to 'secret_access_key' for compatibility
+- [IBM COS] Changed 'secret_key' config parameter to 'secret_access_key' for compatibility
+- [IBM] Improved token manager
 
 ### Fixed
 - [IBM VPC & AWS EC2] Make sure only VMs from the given VPC are removed

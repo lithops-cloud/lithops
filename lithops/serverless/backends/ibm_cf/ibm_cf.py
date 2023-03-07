@@ -96,7 +96,7 @@ class IBMCloudFunctionsBackend:
         Refresh the OW client if necessary
         """
         if not self.is_lithops_worker:
-            token, expiry_time = self.token_manager.refresh_token()
+            token, expiry_time = self.token_manager.get_token()
 
             if expiry_time != self.config['token_expiry_time']:
                 self.config['token'] = token
