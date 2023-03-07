@@ -119,8 +119,8 @@ config = {'lithops': {'backend': 'ibm_cf', 'storage': 'ibm_cos'},
                   'iam_api_key': 'IAM_API_KEY',
                   'resource_group_id': 'RESOURCE_GROUP_ID'}
 
-          'ibm_cos': {'access_key_id': 'ACCESS_KEY_ID',
-                      'secret_access_key': 'SECRET_ACCESS_KEY',}
+          'ibm_cos': {'api_key': 'API_KEY',
+                      'storage_bucket': 'STORAGE_BUCKET',}
 }
 
 def hello_world(name):
