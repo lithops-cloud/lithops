@@ -63,7 +63,7 @@ class AWSEC2Backend:
 
         self.ec2_data = None
         self.vpc_name = None
-        self.vpc_key = ec2_config['vpc_id'][-4:] if 'vpc_id' in ec2_config else None
+        self.vpc_key = None
         self.user_key = ec2_config['access_key_id'][-4:].lower()
 
         client_config = botocore.client.Config(
@@ -94,7 +94,7 @@ class AWSEC2Backend:
             logger.debug(f'EC2 data loaded from {self.cache_file}')
 
         if 'vpc_id' in self.ec2_data:
-            self.vpc_key = self.ec2_data['vpc_id'][-4:]
+            self.vpc_key = self.ec2_data['vpc_id'][-8:]
             self.vpc_name = self.ec2_data['vpc_name']
 
     def _dump_ec2_data(self):
@@ -116,7 +116,7 @@ class AWSEC2Backend:
                 self.config['vpc_id'] = self.ec2_data['vpc_id']
                 return
 
-        self.vpc_name = self.config.get('vpc_name', f'lithops-vpc-{self.user_key}-{str(uuid.uuid4())[-6:]}')
+        self.vpc_name = self.config.get('vpc_name', f'lithops-vpc-{self.user_key}-{str(uuid.uuid4())[-8:]}')
         logger.debug(f'Setting VPC name to: {self.vpc_name}')
 
         assert re.match("^[a-z0-9-:-]*$", self.vpc_name),\
@@ -126,7 +126,6 @@ class AWSEC2Backend:
         vpcs_info = self.ec2_client.describe_vpcs(Filters=filter)['Vpcs']
         if len(vpcs_info) > 0:
             self.config['vpc_id'] = vpcs_info[0]['VpcId']
-            self.vpc_key = self.config['vpc_id'][-4:]
 
         if 'vpc_id' not in self.config:
             logger.debug(f'Creating VPC {self.vpc_name}')
@@ -135,7 +134,6 @@ class AWSEC2Backend:
             self.ec2_client.create_tags(Resources=[response['Vpc']['VpcId']], Tags=tags)
 
             self.config['vpc_id'] = response['Vpc']['VpcId']
-            self.vpc_key = response['Vpc']['VpcId'][-4:]
 
     def _create_internet_gateway(self):
         """
@@ -363,6 +361,10 @@ class AWSEC2Backend:
 
             # Create the VPC if not exists
             self._create_vpc()
+
+            # Set the suffix used for the VPC resources
+            self.vpc_key = self.config['vpc_id'][-8:]
+
             # Create the internet gateway if not exists
             self. _create_internet_gateway()
             # Create the Subnet if not exists

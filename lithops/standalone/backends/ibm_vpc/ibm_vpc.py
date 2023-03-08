@@ -51,7 +51,8 @@ class IBMVPCBackend:
 
         self.vpc_name = None
         self.vpc_data = {}
-        self.vpc_key = self.config['vpc_id'].split('-')[2] if 'vpc_id' in self.config else None
+        self.vpc_key = None
+
         self.vpc_data_type = 'provided' if 'vpc_id' in self.config else 'created'
         self.ssh_data_type = 'provided' if 'ssh_key_id' in self.config else 'created'
 
@@ -90,7 +91,7 @@ class IBMVPCBackend:
             logger.debug(f'VPC data loaded from {self.cache_file}')
 
         if 'vpc_id' in self.vpc_data:
-            self.vpc_key = self.vpc_data['vpc_id'].split('-')[2]
+            self.vpc_key = self.vpc_data['vpc_id'][-8:]
             self.vpc_name = self.vpc_data['vpc_name']
 
         return self.vpc_data
@@ -120,7 +121,7 @@ class IBMVPCBackend:
         vpc_info = None
 
         iam_id = self.iam_api_key[:4].lower()
-        self.vpc_name = self.config.get('vpc_name', f'lithops-vpc-{iam_id}-{str(uuid.uuid4())[-6:]}')
+        self.vpc_name = self.config.get('vpc_name', f'lithops-vpc-{iam_id}-{str(uuid.uuid4())[-8:]}')
         logger.debug(f'Setting VPC name to: {self.vpc_name}')
 
         assert re.match("^[a-z0-9-:-]*$", self.vpc_name),\
@@ -143,9 +144,6 @@ class IBMVPCBackend:
 
         self.config['vpc_id'] = vpc_info['id']
         self.config['security_group_id'] = vpc_info['default_security_group']['id']
-
-        # Set the prefix used for the VPC resources
-        self.vpc_key = self.config['vpc_id'].split('-')[2]
 
         deloy_ssh_rule = True
         deploy_icmp_rule = True
@@ -440,6 +438,10 @@ class IBMVPCBackend:
 
             # Create the VPC if not exists
             self._create_vpc()
+
+            # Set the suffix used for the VPC resources
+            self.vpc_key = self.config['vpc_id'][-8:]
+
             # Create the ssh key pair if not exists
             self._create_ssh_key()
             # Create a new subnaet if not exists
