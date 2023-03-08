@@ -47,9 +47,6 @@ In this step you are required to install IBM Cloud CLI tool, Code Engine plugin 
   
 ## Configuration
 
-Choose one option:
-
-### Option 1 (IBM IAM):
 1. If you don't have an IAM API key created, navigate to the [IBM IAM dashboard](https://cloud.ibm.com/iam/apikeys).
 
 2. Click `Create an IBM Cloud API Key` and provide the necessary information.
@@ -76,30 +73,6 @@ Choose one option:
     code_engine:
         namespace  : <NAMESPACE>
         region     : <REGION>
-    ```
-
-### Option 2 (KUBECONFIG file):
-
-1. Locate the kubernetes config file using the IBM CLoud CLI:
-
-   ```bash
-   ibmcloud ce project current
-   ```
-
-2. Set or copy the KUBECONFIG environment variable as printed in the previous step:
-
-   ```bash
-   export KUBECONFIG=<PATH TO YAML FILE>
-   ```
-
-3. Edit your lithops config and add the following keys:
-
-    ```yaml
-    lithops:
-        backend: code_engine
-       
-    code_engine:
-        kubecfg_path: <PATH TO CONFIG YAML FILE>
     ```
 
 ## Runtime
@@ -150,7 +123,7 @@ code_engine:
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|ibm | iam_api_key | |no | IBM Cloud IAM API key to authenticate against IBM services. Obtain the key [here](https://cloud.ibm.com/iam/apikeys) |
+|ibm | iam_api_key | |yes | IBM Cloud IAM API key to authenticate against IBM services. Obtain the key [here](https://cloud.ibm.com/iam/apikeys) |
 |ibm | region | |no | IBM Region.  One of: `eu-gb`, `eu-de`, `us-south`, `us-east`, `br-sao`, `ca-tor`, `jp-tok`, `jp-osa`, `au-syd` |
 |ibm | resource_group_id | | no | Resource group id from your IBM Cloud account. Get it from [here](https://cloud.ibm.com/account/resource-groups) |
 
@@ -194,14 +167,3 @@ You can view the function executions logs in your local machine using the *litho
 lithops logs poll
 ```
 
-###  Troubleshooting
-
-#### Fault
-Lithops throws exception with 'Missing access token parameter'
-
-##### Cause / Remedy
-This likely occurs when you were logout from ibmcloud or the kubectl token can't re-generate new authentication token. To resolve this login into ibmcloud and re-create kubectl file
-
-    ibmcloud login -r <CE Project Region>
-    ibmcloud target -g <GROUP> -o <ORG>
-    ibmcloud ce project select --name <CPROJECT NAME> --kubecfg

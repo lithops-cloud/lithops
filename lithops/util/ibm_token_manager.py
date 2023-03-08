@@ -40,16 +40,15 @@ class IBMTokenManager:
         self.ibm_api_key = ibm_api_key
         self.token = token
         self.expiry_time = token_expiry_time
-        self.is_lithops_worker = is_lithops_worker()
 
         if not self.token and os.path.exists(self.TOEKN_FILE):
-            token_cache = load_yaml_config(self.TOEKN_FILE)
-            self.token = token_cache.get('token')
-            self.expiry_time = token_cache.get('expiry_time')
+            token_data = load_yaml_config(self.TOEKN_FILE)
+            self.token = token_data.get('token')
+            self.expiry_time = token_data.get('expiry_time')
 
         if not self._is_token_expired():
             logger.debug(f"Reusing {self.TYPE} token from local cache")
-            self._print_remaining_time()
+            self._log_remaining_time()
 
     def _is_token_expired(self):
         """
@@ -72,20 +71,37 @@ class IBMTokenManager:
         """
         raise NotImplementedError()
 
-    def _print_remaining_time(self):
+    def _log_remaining_time(self):
+        """
+        Logs the remaining time of the token
+        """
         minutes_left = self._get_token_minutes_left()
         expiry_time = datetime.fromtimestamp(self.expiry_time)
         logger.debug(f"{self.TYPE} token expiry time: {expiry_time} - Minutes left: {minutes_left}")
 
+    def _dump_token_data(self):
+        """
+        Dumps the token into a local cache file
+        """
+        token_data = {'token': self.token, 'expiry_time': self.expiry_time}
+        dump_yaml_config(self.TOEKN_FILE, token_data)
+
+    def refresh_token(self):
+        """
+        Forces to create a new token
+        """
+        self._generate_new_token()
+        self._dump_token_data()
+        self._log_remaining_time()
+
+        return self.token, self.expiry_time
+
     def get_token(self):
         """
-        Gets a new token if expired
+        Gets the current token or creates a new one if expired
         """
-        if self._is_token_expired() and not self.is_lithops_worker:
-            self._generate_new_token()
-            token_data = {'token': self.token, 'expiry_time': self.expiry_time}
-            dump_yaml_config(self.TOEKN_FILE, token_data)
-            self._print_remaining_time()
+        if self._is_token_expired():
+            self.refresh_token()
 
         return self.token, self.expiry_time
 
