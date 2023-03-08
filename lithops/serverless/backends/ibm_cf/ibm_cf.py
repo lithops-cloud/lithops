@@ -28,7 +28,7 @@ from lithops.constants import CACHE_DIR, COMPUTE_CLI_MSG
 from . import config
 
 logger = logging.getLogger(__name__)
-invoke_mutex = Lock()
+cf_mutex = Lock()
 
 
 class IBMCloudFunctionsBackend:
@@ -96,6 +96,7 @@ class IBMCloudFunctionsBackend:
         Refresh the OW client if necessary
         """
         if not self.is_lithops_worker:
+            cf_mutex.acquire()
             token, expiry_time = self.token_manager.get_token()
 
             if expiry_time != self.config['token_expiry_time']:
@@ -108,6 +109,7 @@ class IBMCloudFunctionsBackend:
                     auth='Bearer ' + token,
                     user_agent=self.user_agent
                 )
+            cf_mutex.release()
 
     def _init_namespace(self):
         """
@@ -261,30 +263,33 @@ class IBMCloudFunctionsBackend:
         """
         Invoke -- return information about this invocation
         """
-        self._refresh_ow_client()
-
         action_name = self._format_function_name(docker_image_name, runtime_memory)
 
-        activation_id = self.cf_client.invoke(package=self.package,
-                                              action_name=action_name,
-                                              payload=payload,
-                                              is_ow_action=self.is_lithops_worker)
+        activation_id = self.cf_client.invoke(
+            package=self.package,
+            action_name=action_name,
+            payload=payload,
+            is_ow_action=self.is_lithops_worker
+        )
 
         if activation_id == 401:
-            raise Exception('Unauthorized. Review your API key')
+            # Token expired
+            self._refresh_ow_client()
+            return self.invoke(docker_image_name, runtime_memory, payload)
 
         elif activation_id == 404:
             # Runtime not deployed
             if self.invoke_error is None:
                 self.invoke_error = 404
-
-            invoke_mutex.acquire()
+            cf_mutex.acquire()
             if self.invoke_error == 404:
                 logger.debug('Runtime not found')
-                self.deploy_runtime(docker_image_name, runtime_memory,
-                                    self.config['runtime_timeout'])
+                self.deploy_runtime(
+                    docker_image_name, runtime_memory,
+                    self.config['runtime_timeout']
+                )
                 self.invoke_error = None
-            invoke_mutex.release()
+            cf_mutex.release()
             return self.invoke(docker_image_name, runtime_memory, payload)
 
         return activation_id
