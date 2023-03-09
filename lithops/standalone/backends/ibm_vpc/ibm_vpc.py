@@ -91,7 +91,7 @@ class IBMVPCBackend:
             logger.debug(f'VPC data loaded from {self.cache_file}')
 
         if 'vpc_id' in self.vpc_data:
-            self.vpc_key = self.vpc_data['vpc_id'][-8:]
+            self.vpc_key = self.vpc_data['vpc_id'][-6:]
             self.vpc_name = self.vpc_data['vpc_name']
 
         return self.vpc_data
@@ -121,7 +121,7 @@ class IBMVPCBackend:
         vpc_info = None
 
         iam_id = self.iam_api_key[:4].lower()
-        self.vpc_name = self.config.get('vpc_name', f'lithops-vpc-{iam_id}-{str(uuid.uuid4())[-8:]}')
+        self.vpc_name = self.config.get('vpc_name', f'lithops-vpc-{iam_id}-{str(uuid.uuid4())[-6:]}')
         logger.debug(f'Setting VPC name to: {self.vpc_name}')
 
         assert re.match("^[a-z0-9-:-]*$", self.vpc_name),\
@@ -193,7 +193,7 @@ class IBMVPCBackend:
             except ApiException:
                 pass
 
-        keyname = f'lithops-key-{self.vpc_key}'
+        keyname = f'lithops-key-{str(uuid.uuid4())[-8:]}'
         filename = os.path.join("~", ".ssh", f"{keyname}.{self.name}.id_rsa")
         key_filename = os.path.expanduser(filename)
 
@@ -440,7 +440,7 @@ class IBMVPCBackend:
             self._create_vpc()
 
             # Set the suffix used for the VPC resources
-            self.vpc_key = self.config['vpc_id'][-8:]
+            self.vpc_key = self.config['vpc_id'][-6:]
 
             # Create the ssh key pair if not exists
             self._create_ssh_key()
@@ -631,13 +631,6 @@ class IBMVPCBackend:
         Deletes all VM instances in the VPC
         """
         subnet_name = f'lithops-subnet-{self.vpc_key}'
-        if 'subnet_id' not in self.vpc_data:
-            subnets_info = self.vpc_cli.list_subnets().get_result()
-
-            for subn in subnets_info['subnets']:
-                if subn['name'] == subnet_name:
-                    self.vpc_data['subnet_id'] = subn['id']
-
         if 'subnet_id' in self.vpc_data:
             logger.debug(f'Deleting subnet {subnet_name}')
 
@@ -662,13 +655,6 @@ class IBMVPCBackend:
         Deletes the public gateway
         """
         gateway_name = f'lithops-gateway-{self.vpc_key}'
-        if 'gateway_id' not in self.vpc_data:
-            gateways_info = self.vpc_cli.list_public_gateways().get_result()
-
-            for gw in gateways_info['public_gateways']:
-                if ['name'] == gateway_name:
-                    self.vpc_data['gateway_id'] = gw['id']
-
         if 'gateway_id' in self.vpc_data:
             logger.debug(f'Deleting gateway {gateway_name}')
             try:
@@ -686,18 +672,11 @@ class IBMVPCBackend:
         if self.vpc_data['vpc_data_type'] == 'provided':
             return
 
-        msg = (f'Deleting all Lithops VPC resources from {self.vpc_name}'
-               if self.vpc_name else 'Deleting all Lithops VPC resources')
+        msg = (f'Deleting all Lithops VPC resources from {self.vpc_name}')
         logger.info(msg)
 
         self._delete_subnet()
         self._delete_gateway()
-
-        if 'vpc_id' not in self.vpc_data:
-            vpcs_info = self.vpc_cli.list_vpcs().get_result()
-            for vpc in vpcs_info['vpcs']:
-                if vpc['name'] == self.vpc_name:
-                    self.vpc_data['vpc_id'] = vpc['id']
 
         if 'vpc_id' in self.vpc_data:
             logger.debug(f'Deleting VPC {self.vpc_data["vpc_name"]}')

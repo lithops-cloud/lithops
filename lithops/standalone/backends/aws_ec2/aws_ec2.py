@@ -94,7 +94,7 @@ class AWSEC2Backend:
             logger.debug(f'EC2 data loaded from {self.cache_file}')
 
         if 'vpc_id' in self.ec2_data:
-            self.vpc_key = self.ec2_data['vpc_id'][-8:]
+            self.vpc_key = self.ec2_data['vpc_id'][-6:]
             self.vpc_name = self.ec2_data['vpc_name']
 
     def _dump_ec2_data(self):
@@ -116,7 +116,7 @@ class AWSEC2Backend:
                 self.config['vpc_id'] = self.ec2_data['vpc_id']
                 return
 
-        self.vpc_name = self.config.get('vpc_name', f'lithops-vpc-{self.user_key}-{str(uuid.uuid4())[-8:]}')
+        self.vpc_name = self.config.get('vpc_name', f'lithops-vpc-{self.user_key}-{str(uuid.uuid4())[-6:]}')
         logger.debug(f'Setting VPC name to: {self.vpc_name}')
 
         assert re.match("^[a-z0-9-:-]*$", self.vpc_name),\
@@ -252,7 +252,7 @@ class AWSEC2Backend:
                 self.config['ssh_key_filename'] = self.ec2_data['ssh_key_filename']
                 return
 
-        keyname = f'lithops-key-{self.vpc_key}'
+        keyname = f'lithops-key-{str(uuid.uuid4())[-8:]}'
         filename = os.path.join("~", ".ssh", f"{keyname}.{self.name}.id_rsa")
         key_filename = os.path.expanduser(filename)
 
@@ -363,7 +363,7 @@ class AWSEC2Backend:
             self._create_vpc()
 
             # Set the suffix used for the VPC resources
-            self.vpc_key = self.config['vpc_id'][-8:]
+            self.vpc_key = self.config['vpc_id'][-6:]
 
             # Create the internet gateway if not exists
             self. _create_internet_gateway()
