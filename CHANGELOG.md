@@ -30,6 +30,7 @@
 - [IBM VPC & AWS EC2] Make sure only VMs from the given VPC are removed
 - [IBM VPC] Reuse floating IPs for public gateways
 - [Serializer] Prevent analyzing the same module multiple times
+- [SSH Cli] Fix issue with RSA keys
 
 
 ## [v2.9.0]

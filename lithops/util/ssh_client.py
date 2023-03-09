@@ -14,7 +14,7 @@ class SSHClient():
         self.ssh_client = None
 
         if 'key_filename' in self.ssh_credentials:
-            fpath = os.path.abspath(os.path.expanduser(self.ssh_credentials['key_filename']))
+            fpath = os.path.expanduser(self.ssh_credentials['key_filename'])
             if not os.path.exists(fpath):
                 raise LithopsValidationError(f"Private key file {fpath} doesn't exist")
             self.ssh_credentials['key_filename'] = fpath
@@ -33,11 +33,23 @@ class SSHClient():
         try:
             self.ssh_client = paramiko.SSHClient()
             self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            self.ssh_client.connect(self.ip_address, **self.ssh_credentials,
-                                    timeout=timeout, banner_timeout=200,
-                                    allow_agent=False, look_for_keys=False)
 
-            logger.debug("{} ssh client created".format(self.ip_address))
+            user = self.ssh_credentials.get('username')
+            password = self.ssh_credentials.get('password')
+            pkey = None
+
+            if self.ssh_credentials.get('key_filename'):
+                with open(self.ssh_credentials['key_filename']) as f:
+                    pkey = paramiko.RSAKey.from_private_key(f)
+
+            self.ssh_client.connect(
+                self.ip_address, username=user,
+                password=password, pkey=pkey,
+                timeout=timeout, banner_timeout=200,
+                allow_agent=False, look_for_keys=False
+            )
+
+            logger.debug(f"{self.ip_address} ssh client created")
         except Exception as e:
             pk = self.ssh_credentials.get('key_filename')
             if pk and str(e) == 'Authentication failed.':
