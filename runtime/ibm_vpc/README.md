@@ -2,8 +2,35 @@
 
 In IBM VPC, you can run functions by using a Virtual machine (VM). In the VM, functions run using parallel processes. In this case, it is not needed to install anything in the remote VMs since Lithops does this process automatically the first time you use them. However, use a custom VM it is a preferable approach, since using a pre-built custom image will greatly improve the overall execution time. To benefit from this approach, follow the following steps:
 
-## Build the custom image
-For building the VM image that contains all dependencies required by Lithops, execute the [build script](build_lithops_runtime.sh) located in this folder. The best is to use vanilla Ubuntu machine to run this script and this script will use a base image based on **ubuntu-20.04-server-cloudimg-amd64**. There is need to have sudo privileges to run this script. We advice to create a new VSI in VPC with minimal setup, like `cx2-2x4`, setup floating IP for this machine and use it to build custom image. Once you accessed the machine, download the script
+## Option 1:
+For building the default VM image that contains all dependencies required by Lithops, execute:
+
+```
+lithops image build -b ibm_vpc
+```
+
+This command will create an image called "lithops-worker-default" in the target region.
+If the image already exists, and you want to updete it, use the '--overwrite' or '-o' flag:
+
+```
+lithops image build -b ibm_vpc --overwrite
+```
+
+Note that if you want to use this default image, there is no need to provide the image ID in the config, since Lithops will automatically look for it.
+
+For creating a custom VM image, you can provide an `.sh` script with all the desired commands as an input of the previous command, and you can also provide a custom name:
+
+```
+lithops image build -b ibm_vpc -f myscript.sh custom-lithops-runtime
+```
+
+In this case, if you use a custom name, you must provide the Image ID printed at the end of the build command in your lithops config.
+
+
+## Option 2:
+
+For building the VM image that contains all dependencies required by Lithops, execute the [build script](build_lithops_runtime.sh) located in this folder. The best is to use vanilla Ubuntu machine to run this script and this script will use a base image based on **ubuntu-20.04-server-cloudimg-amd64**. There is need to have sudo privileges to run this script.
+Once you accessed the machine, download the script
 
     wget https://raw.githubusercontent.com/lithops-cloud/lithops/master/runtime/ibm_vpc/build_lithops_vm_image.sh
 
@@ -37,7 +64,7 @@ Alternative is to build a VM image without a Docker runtime. This approach is ma
 In this example the script generates a VM image named `lithops-ubuntu-20.04.qcow2` that contains all dependencies required by Lithops.
 
 
-## Deploy the image
+### Deploy the image
 
 Once local image is ready you need to upload it to COS. The best would be to use the `lithops storage` CLI:
 
