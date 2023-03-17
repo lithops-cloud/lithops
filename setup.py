@@ -23,8 +23,7 @@ install_requires = [
     'ibm-vpc',
     'cloudpickle',
     'tblib',
-    'ps-mem',
-    'urllib3 == 1.26.13'
+    'ps-mem'
 ]
 
 
@@ -42,6 +41,9 @@ extras_require = {
     'aliyun': [
         'aliyun-fc2',
         'oss2'
+    ],
+    'oracle': [
+        'oci'
     ],
     'azure': [
         'azure-storage-blob',

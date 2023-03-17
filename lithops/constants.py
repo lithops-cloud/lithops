@@ -101,6 +101,7 @@ SERVERLESS_BACKENDS = [
     'azure_functions',
     'azure_containers',
     'aliyun_fc',
+    'oracle_f',
     'k8s'
 ]
 
@@ -120,7 +121,8 @@ FAAS_BACKENDS = [
     'cloudrun',
     'azure_functions',
     'azure_containers',
-    'aliyun_fc'
+    'aliyun_fc',
+    'oracle_f'
 ]
 
 BATCH_BACKENDS = [
