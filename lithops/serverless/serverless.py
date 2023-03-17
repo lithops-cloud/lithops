@@ -33,7 +33,7 @@ class ServerlessHandler:
         self.backend = None
 
         try:
-            module_location = 'lithops.serverless.backends.{}'.format(self.backend_name)
+            module_location = f'lithops.serverless.backends.{self.backend_name}'
             sb_module = importlib.import_module(module_location)
             ServerlessBackend = getattr(sb_module, 'ServerlessBackend')
             self.backend = ServerlessBackend(self.config[self.backend_name], internal_storage)
@@ -82,7 +82,7 @@ class ServerlessHandler:
         """
         Wrapper method to clean the compute backend
         """
-        self.backend.clean()
+        self.backend.clean(**kwargs)
 
     def clear(self, job_keys=None):
         """
@@ -110,17 +110,7 @@ class ServerlessHandler:
         Wrapper method that returns a dictionary with all the runtime information
         set in config
         """
-        if hasattr(self.backend, 'get_runtime_info'):
-            return self.backend.get_runtime_info()
-
-        runtime_info = {
-            'runtime_name': self.config[self.backend_name]['runtime'],
-            'runtime_memory': self.config[self.backend_name]['runtime_memory'],
-            'runtime_timeout': self.config[self.backend_name]['runtime_timeout'],
-            'max_workers': self.config[self.backend_name]['max_workers'],
-        }
-
-        return runtime_info
+        return self.backend.get_runtime_info()
 
     def get_backend_type(self):
         """

@@ -18,10 +18,12 @@ import os
 import logging
 import ibm_boto3
 import ibm_botocore
+
 from lithops.storage.utils import StorageNoSuchKeyError
 from lithops.utils import sizeof_fmt, is_lithops_worker
-from lithops.util.ibm_token_manager import IBMTokenManager
+from lithops.util.ibm_token_manager import COSTokenManager, IAMTokenManager
 from lithops.constants import STORAGE_CLI_MSG
+from lithops.libs.globber import match
 
 logger = logging.getLogger(__name__)
 
@@ -36,66 +38,76 @@ class IBMCloudObjectStorageBackend:
 
     def __init__(self, ibm_cos_config):
         logger.debug("Creating IBM COS client")
-        self.ibm_cos_config = ibm_cos_config
-        self.region = self.ibm_cos_config['region']
+        self.config = ibm_cos_config
+        self.region = self.config['region']
         self.is_lithops_worker = is_lithops_worker()
-        user_agent = self.ibm_cos_config['user_agent']
+        self.user_agent = self.config['user_agent']
+        self.api_key = self.config.get('api_key')
+        self.iam_api_key = self.config.get('iam_api_key')
 
-        api_key = None
-        if 'api_key' in self.ibm_cos_config:
-            api_key = self.ibm_cos_config.get('api_key')
-            api_key_type = 'COS'
-        elif 'iam_api_key' in self.ibm_cos_config:
-            api_key = self.ibm_cos_config.get('iam_api_key')
-            api_key_type = 'IAM'
-
-        service_endpoint = self.ibm_cos_config.get('endpoint').replace('http:', 'https:')
-        if self.is_lithops_worker and 'private_endpoint' in self.ibm_cos_config:
-            service_endpoint = self.ibm_cos_config.get('private_endpoint')
-            if api_key:
+        service_endpoint = self.config.get('endpoint').replace('http:', 'https:')
+        if self.is_lithops_worker and 'private_endpoint' in self.config:
+            service_endpoint = self.config.get('private_endpoint')
+            if self.api_key:
                 service_endpoint = service_endpoint.replace('http:', 'https:')
 
-        logger.debug("Set IBM COS Endpoint to {}".format(service_endpoint))
+        logger.debug(f"Set IBM COS Endpoint to {service_endpoint}")
 
-        if {'secret_key', 'access_key'} <= set(self.ibm_cos_config):
-            logger.debug("Using access_key and secret_key")
-            access_key = self.ibm_cos_config.get('access_key')
-            secret_key = self.ibm_cos_config.get('secret_key')
-            client_config = ibm_botocore.client.Config(max_pool_connections=128,
-                                                       user_agent_extra=user_agent,
-                                                       connect_timeout=CONN_READ_TIMEOUT,
-                                                       read_timeout=CONN_READ_TIMEOUT,
-                                                       retries={'max_attempts': OBJ_REQ_RETRIES})
+        if {'access_key_id', 'secret_access_key'}.issubset(ibm_cos_config):
+            logger.debug("Using access_key_id and secret_access_key for COS authentication")
+            access_key_id = self.config['access_key_id']
+            secret_access_key = self.config['secret_access_key']
+            client_config = ibm_botocore.client.Config(
+                max_pool_connections=128,
+                user_agent_extra=self.user_agent,
+                connect_timeout=CONN_READ_TIMEOUT,
+                read_timeout=CONN_READ_TIMEOUT,
+                retries={'max_attempts': OBJ_REQ_RETRIES}
+            )
 
-            self.cos_client = ibm_boto3.client('s3',
-                                               aws_access_key_id=access_key,
-                                               aws_secret_access_key=secret_key,
-                                               config=client_config,
-                                               endpoint_url=service_endpoint)
+            self.cos_client = ibm_boto3.client(
+                's3',
+                aws_access_key_id=access_key_id,
+                aws_secret_access_key=secret_access_key,
+                config=client_config,
+                endpoint_url=service_endpoint
+            )
 
-        elif api_key is not None:
-            client_config = ibm_botocore.client.Config(signature_version='oauth',
-                                                       max_pool_connections=128,
-                                                       user_agent_extra=user_agent,
-                                                       connect_timeout=CONN_READ_TIMEOUT,
-                                                       read_timeout=CONN_READ_TIMEOUT,
-                                                       retries={'max_attempts': OBJ_REQ_RETRIES})
+        else:
+            logger.debug("Using IBM API key for COS authentication")
+            client_config = ibm_botocore.client.Config(
+                signature_version='oauth',
+                max_pool_connections=128,
+                user_agent_extra=self.user_agent,
+                connect_timeout=CONN_READ_TIMEOUT,
+                read_timeout=CONN_READ_TIMEOUT,
+                retries={'max_attempts': OBJ_REQ_RETRIES}
+            )
 
-            token = self.ibm_cos_config.get('token', None)
-            token_expiry_time = self.ibm_cos_config.get('token_expiry_time', None)
+            token = self.config.get('token')
+            expiry_time = self.config.get('token_expiry_time')
 
-            iam_token_manager = IBMTokenManager(api_key, api_key_type, token, token_expiry_time)
-            token, token_expiry_time = iam_token_manager.get_token()
+            if self.api_key:
+                token_manager = COSTokenManager(self.api_key, token, expiry_time)
+            elif self.iam_api_key:
+                token_manager = IAMTokenManager(self.iam_api_key, token, expiry_time)
 
-            self.ibm_cos_config['token'] = token
-            self.ibm_cos_config['token_expiry_time'] = token_expiry_time
+            token, expiry_time = token_manager.get_token()
 
-            self.cos_client = ibm_boto3.client('s3', token_manager=iam_token_manager._token_manager,
-                                               config=client_config,
-                                               endpoint_url=service_endpoint)
+            self.config['token'] = token
+            self.config['token_expiry_time'] = expiry_time
+
+            self.cos_client = ibm_boto3.client(
+                's3',
+                aws_access_key_id="",
+                aws_secret_access_key="",
+                aws_session_token=token,
+                config=client_config,
+                endpoint_url=service_endpoint
+            )
 
         msg = STORAGE_CLI_MSG.format('IBM COS')
-        logger.info("{} - Region: {}".format(msg, self.region))
+        logger.info(f"{msg} - Region: {self.region}")
 
     def get_client(self):
         """
@@ -103,6 +115,20 @@ class IBMCloudObjectStorageBackend:
         :return: ibm_boto3 client
         """
         return self.cos_client
+
+    def create_bucket(self, bucket_name):
+        """
+        Create a bucket if not exists
+        """
+        try:
+            self.cos_client.head_bucket(Bucket=bucket_name)
+        except ibm_botocore.exceptions.ClientError as e:
+            if e.response['ResponseMetadata']['HTTPStatusCode'] == 404:
+                logger.debug(f"Could not find the bucket {bucket_name} in the IBM COS storage backend")
+                logger.debug(f"Creating new bucket {bucket_name} in the IBM COS storage backend")
+                self.cos_client.create_bucket(Bucket=bucket_name)
+            else:
+                raise e
 
     def put_object(self, bucket_name, key, data):
         """
@@ -119,9 +145,9 @@ class IBMCloudObjectStorageBackend:
                 res = self.cos_client.put_object(Bucket=bucket_name, Key=key, Body=data)
                 status = 'OK' if res['ResponseMetadata']['HTTPStatusCode'] == 200 else 'Error'
                 try:
-                    logger.debug('PUT Object {} - Size: {} - {}'.format(key, sizeof_fmt(len(data)), status))
+                    logger.debug(f'PUT Object {key} - Size: {sizeof_fmt(len(data))} - {status}')
                 except Exception:
-                    logger.debug('PUT Object {} {}'.format(key, status))
+                    logger.debug(f'PUT Object {key} {status}')
             except ibm_botocore.exceptions.ClientError as e:
                 if e.response['Error']['Code'] == "NoSuchKey":
                     raise StorageNoSuchKeyError(bucket_name, key)
@@ -244,7 +270,7 @@ class IBMCloudObjectStorageBackend:
         max_keys_num = 1000
         for i in range(0, len(key_list), max_keys_num):
             delete_keys = {'Objects': []}
-            delete_keys['Objects'] = [{'Key': k} for k in key_list[i:i+max_keys_num]]
+            delete_keys['Objects'] = [{'Key': k} for k in key_list[i:i + max_keys_num]]
             result.append(self.cos_client.delete_objects(Bucket=bucket_name, Delete=delete_keys))
         return result
 
@@ -263,7 +289,7 @@ class IBMCloudObjectStorageBackend:
             else:
                 raise e
 
-    def list_objects(self, bucket_name, prefix=None):
+    def list_objects(self, bucket_name, prefix=None, match_pattern=None):
         """
         Return a list of objects for the given bucket and prefix.
         :param bucket_name: Name of the bucket.
@@ -280,7 +306,8 @@ class IBMCloudObjectStorageBackend:
             for page in page_iterator:
                 if 'Contents' in page:
                     for item in page['Contents']:
-                        object_list.append(item)
+                        if match_pattern is None or (match_pattern is not None and match(match_pattern, item['Key'])):
+                            object_list.append(item)
             return object_list
         except ibm_botocore.exceptions.ClientError as e:
             if e.response['Error']['Code'] == '404':

@@ -66,7 +66,7 @@ def wait(fs: Union[ResponseFuture, FuturesList, List[ResponseFuture]],
     :param return_when: Percentage of done futures
     :param download_results: Download results. Default false (Only get statuses)
     :param timeout: Timeout of waiting for results.
-    :param threadpool_zise: Number of threads to use. Default 64
+    :param threadpool_size: Number of threads to use. Default 64
     :param wait_dur_sec: Time interval between each check.
     :param show_progressbar: whether or not to show the progress bar.
 

@@ -42,7 +42,7 @@ class AzureContainerAppBackend:
         self.type = 'faas'
         self.ac_config = ac_config
         self.internal_storage = internal_storage
-        self.invocation_type = ac_config['invocation_type']
+        self.trigger = ac_config['trigger']
         self.resource_group = ac_config['resource_group']
         self.storage_account_name = ac_config['storage_account_name']
         self.storage_account_key = ac_config['storage_account_key']
@@ -53,7 +53,7 @@ class AzureContainerAppBackend:
         self.queue_service = QueueServiceClient(account_url=self.queue_service_url,
                                                 credential=self.storage_account_key)
 
-        logger.debug(f'Invocation type set to: {self.invocation_type}')
+        logger.debug(f'Invocation trigger set to: {self.trigger}')
 
         msg = COMPUTE_CLI_MSG.format('Azure Container Apps')
         logger.info(f"{msg} - Location: {self.location}")
@@ -62,20 +62,18 @@ class AzureContainerAppBackend:
         """
         Formates the conatiner app name
         """
-        inv_type = self.invocation_type
         ac_name = self.storage_account_name
-        name = f'{ac_name}-{runtime_name}-{version}-{inv_type}-{runtime_memory}'
+        name = f'{ac_name}-{runtime_name}-{self.trigger}-{runtime_memory}'
         name_hash = hashlib.sha1(name.encode("utf-8")).hexdigest()[:10]
 
-        return f'lithops-runtime-v{version.replace(".", "")}-{name_hash}'
+        return f'lithops-worker-{version.replace(".", "")}-{name_hash}'[:31]
 
     def _get_default_runtime_image_name(self):
         """
         Generates the default runtime image name
         """
-        revision = 'latest' if 'dev' in __version__ else __version__
         return utils.get_default_container_name(
-            self.name, self.ac_config, 'lithops-azurecontainers-default', revision
+            self.name, self.ac_config, 'lithops-azurecontainers-default'
         )
 
     def deploy_runtime(self, runtime_name, memory, timeout):
@@ -96,7 +94,7 @@ class AzureContainerAppBackend:
         """
         Builds the default runtime
         """
-        logger.debug(f'Building default {runtime_name} runtime')
+        logger.debug('Building default runtime')
         # Build default runtime using local dokcer
         dockerfile = "Dockefile.default-az-runtime"
         with open(dockerfile, 'w') as f:
@@ -145,7 +143,7 @@ class AzureContainerAppBackend:
         logger.info(f'Creating Azure Container App from runtime {runtime_name}')
         containerapp_name = self._format_containerapp_name(runtime_name, memory)
 
-        if self.invocation_type == 'event':
+        if self.trigger == 'pub/sub':
             try:
                 logger.debug(f'Creating queue {containerapp_name}')
                 self.queue_service.create_queue(containerapp_name)
@@ -195,7 +193,6 @@ class AzureContainerAppBackend:
 
         cmd = (f'az containerapp create --name {containerapp_name} '
                f'--resource-group {self.resource_group} '
-               f'--environment {self.environment} '
                f'--yaml {config.CA_JSON_LOCATION}')
 
         try:
@@ -223,7 +220,7 @@ class AzureContainerAppBackend:
         """
         containerapp_name = self._format_containerapp_name(runtime_name, memory)
 
-        if self.invocation_type == 'event':
+        if self.trigger == 'pub/sub':
             in_queue = self.queue_service.get_queue_client(containerapp_name)
             msg = in_queue.send_message(utils.dict_to_b64str(payload))
             activation_id = msg.id
@@ -241,7 +238,7 @@ class AzureContainerAppBackend:
 
         return runtime_key
 
-    def clean(self):
+    def clean(self, **kwargs):
         """
         Deletes all Lithops Azure Function Apps runtimes
         """
@@ -263,7 +260,7 @@ class AzureContainerAppBackend:
             'log_level': logger.getEffectiveLevel(),
             'get_metadata': True,
             'containerapp_name': containerapp_name,
-            'storage_config': self.internal_storage.storage.storage_config
+            'storage_config': self.internal_storage.storage.config
         }
 
         self.invoke(runtime_name, memory=memory, payload=payload)

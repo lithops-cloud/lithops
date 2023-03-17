@@ -20,12 +20,6 @@ vm:
 
 The virtual machine backend can run functions both using the default ``python3`` interpreter of the VM, or by using a ``docker container`` within the VM. The environment is automatically chosen depending on if you provided a Docker image as a runtime or not.
 
-In both cases, you can view the executions logs in your local machine using the ``lithops client``:
-
-```bash
-$ lithops logs poll
-```
-
 ### Default Environment
 The default environment runs the functions in the same ``python3`` interpreter that you ran the Lithops script. It does not require any extra configuration. You must ensure that your VM contains the same ``python3`` interpreter, and all the dependencies required by your Lithops app. So, once the backend is configured in the config file, you only need to create a ``FunctionExecutor`` to work with it:
 
@@ -58,8 +52,8 @@ In this backend, you can use any docker image that contains all the required dep
 |vm | ssh_username   | | yes | SSH username for accessing the VM |
 |vm | ssh_password | | no | SSH password for accessing the VM |
 |vm | ssh_key_filename | | no | Path to SSH key |
-|vm | runtime |  python3  |no | Docker image name |
-|vm | worker_processes | 1 | no | Number of Lithops processes within the VM. This can be used to parallelize function activations within a worker. It is recommendable to set it with the same number CPUs of the VM |
+|vm | runtime |  python3  |no | `python3` or a docker image name |
+|vm | worker_processes | 1 | no | Number of Lithops processes within the VM. This can be used to parallelize function activations within the VM. It is recommendable to set it with the same number CPUs of the VM |
 
 ## Test Lithops
 

@@ -36,8 +36,7 @@ class LocalhostStorageBackend:
         logger.debug("Creating Localhost storage client")
         self.localhost_config = localhost_config
 
-        msg = STORAGE_CLI_MSG.format('Localhost storage')
-        logger.info("{}".format(msg))
+        logger.info(STORAGE_CLI_MSG.format('Localhost storage'))
 
     def get_client(self):
         # Simulate boto3 client
@@ -214,11 +213,11 @@ class LocalhostStorageBackend:
         :param bucket_name: name of the bucket
         """
         if os.path.isdir(os.path.join(LITHOPS_TEMP_DIR, bucket_name)):
-            return {}
+            return {'ResponseMetadata': {'HTTPStatusCode': 200}}
         else:
             raise StorageNoSuchKeyError(os.path.join(LITHOPS_TEMP_DIR, bucket_name), '')
 
-    def list_objects(self, bucket_name, prefix=None):
+    def list_objects(self, bucket_name, prefix=None, match_pattern = None):
         """
         Return a list of objects for the prefix.
         :param bucket_name: Name of the bucket.

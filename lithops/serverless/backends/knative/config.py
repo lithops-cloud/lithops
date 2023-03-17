@@ -182,7 +182,7 @@ spec:
     metadata:
       labels:
         type: lithops-runtime
-        version: lithops_vX.X.X
+        lithops-version: x.y.z
       annotations:
         autoscaling.knative.dev/target: "1"
         autoscaling.knative.dev/minScale: "0"

@@ -14,6 +14,7 @@
 # limitations under the License.
 #
 
+import copy
 import logging
 
 logger = logging.getLogger(__name__)
@@ -38,8 +39,7 @@ DEFAULT_CONFIG_KEYS = {
 RUNTIME_TIMEOUT_MAX = 7200  # Max. timeout: 7200s == 2h
 RUNTIME_MEMORY_MAX = 30720  # Max. memory: 30720 MB
 
-REQ_PARAMS1 = ('access_key_id', 'secret_access_key')
-REQ_PARAMS2 = ('execution_role', 'instance_role', 'region_name', 'security_groups')
+REQ_PARAMS = ('execution_role', 'instance_role', 'security_groups')
 
 DOCKERFILE_DEFAULT = """
 RUN apt-get update && apt-get install -y \
@@ -76,15 +76,17 @@ def load_config(config_data):
     if 'aws' not in config_data:
         raise Exception("'aws' section is mandatory in the configuration")
 
-    for param in REQ_PARAMS1:
-        if param not in config_data['aws']:
-            msg = f'"{param}" is mandatory in the "aws" section of the configuration'
-            raise Exception(msg)
+    if not {'access_key_id', 'secret_access_key'}.issubset(set(config_data['aws'])):
+        raise Exception("'access_key_id' and 'secret_access_key' are mandatory under the 'aws' section of the configuration")
 
     if not config_data['aws_batch']:
         raise Exception("'aws_batch' section is mandatory in the configuration")
 
-    for param in REQ_PARAMS2:
+    temp = copy.deepcopy(config_data['aws_batch'])
+    config_data['aws_batch'].update(config_data['aws'])
+    config_data['aws_batch'].update(temp)
+
+    for param in REQ_PARAMS:
         if param not in config_data['aws_batch']:
             msg = f'"{param}" is mandatory in the "aws_batch" section of the configuration'
             raise Exception(msg)
@@ -127,5 +129,10 @@ def load_config(config_data):
 
     assert isinstance(config_data['aws_batch']['assign_public_ip'], bool)
 
-    # Put credential keys to 'aws_batch' dict entry
-    config_data['aws_batch'].update(config_data['aws'])
+    if 'region_name' in config_data['aws_batch']:
+        config_data['aws_batch']['region'] = config_data['aws_batch'].pop('region_name')
+
+    if 'region' not in config_data['aws_batch']:
+        raise Exception('"region" is mandatory under the "aws_batch" or "aws" section of the configuration')
+    elif 'region' not in config_data['aws']:
+        config_data['aws']['region'] = config_data['aws_batch']['region']

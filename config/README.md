@@ -50,9 +50,6 @@ Storage Backends
 <b>Serverless Backends:</b>
 - [IBM Cloud Functions](../docs/source/compute_config/ibm_cf.md)
 - [IBM Code Engine](../docs/source/compute_config/code_engine.md)
-- [Kubernetes Jobs](../docs/source/compute_config/k8s_job.md)
-- [Knative](../docs/source/compute_config/knative.md)
-- [OpenWhisk](../docs/source/compute_config/openwhisk.md)
 - [AWS Lambda](../docs/source/compute_config/aws_lambda.md)
 - [AWS Batch](../docs/source/compute_config/aws_batch.md)
 - [Google Cloud Functions](../docs/source/compute_config/gcp_functions.md)
@@ -60,9 +57,12 @@ Storage Backends
 - [Azure Functions](../docs/source/compute_config/azure_functions.md)
 - [Azure Container APPs](../docs/source/compute_config/azure_containers.md)
 - [Aliyun functions](../docs/source/compute_config/aliyun_functions.md)
+- [Kubernetes Jobs](../docs/source/compute_config/k8s_job.md)
+- [Knative](../docs/source/compute_config/knative.md)
+- [OpenWhisk](../docs/source/compute_config/openwhisk.md)
 	</p>
 <b>Standalone Backends:</b>
-- [Remote Virtual Machine](../docs/source/compute_config/vm.md)
+- [Virtual Machine](../docs/source/compute_config/vm.md)
 - [IBM Virtual Private Cloud](../docs/source/compute_config/ibm_vpc.md)
 - [AWS Elastic Compute Cloud (EC2)](../docs/source/compute_config/aws_ec2.md)
 
@@ -99,7 +99,7 @@ Test if Lithops is working properly:
 import lithops
 
 def hello_world(name):
-    return 'Hello {}!'.format(name)
+    return f'Hello {name}!'
 
 if __name__ == '__main__':
     fexec = lithops.FunctionExecutor()
@@ -115,16 +115,16 @@ import lithops
 
 config = {'lithops': {'backend': 'ibm_cf', 'storage': 'ibm_cos'},
 
-          'ibm_cf':  {'endpoint': 'ENDPOINT',
-                      'namespace': 'NAMESPACE',
-                      'api_key': 'API_KEY'},
+          'ibm': {'region': 'REGION',
+                  'iam_api_key': 'IAM_API_KEY',
+                  'resource_group_id': 'RESOURCE_GROUP_ID'}
 
-          'ibm_cos': {'storage_bucket': 'BUCKET_NAME',
-                      'region': 'REGION',
-                      'api_key': 'API_KEY'}}
+          'ibm_cos': {'api_key': 'API_KEY',
+                      'storage_bucket': 'STORAGE_BUCKET',}
+}
 
 def hello_world(name):
-    return 'Hello {}!'.format(name)
+    return f'Hello {name}!'
 
 if __name__ == '__main__':
     fexec = lithops.FunctionExecutor(config=config)

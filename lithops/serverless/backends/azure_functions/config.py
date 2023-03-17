@@ -25,17 +25,17 @@ FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_azure_fa.zip')
 
 DEFAULT_CONFIG_KEYS = {
     'runtime_timeout': 300,  # Default: 300 seconds => 5 minutes
-    'runtime_memory': 256,  # Default memory: 256 MB
+    'runtime_memory': 1536,  # Default memory: 1536 MB
     'max_workers': 1000,
     'worker_processes': 1,
     'invoke_pool_threads': 10,
-    'functions_version': 3,
-    'invocation_type': 'event'
+    'functions_version': 4,
+    'trigger': 'pub/sub'
 }
 
 REQ_PARAMS = ('location', 'resource_group')
 
-AVAILABLE_PY_RUNTIMES = ['3.6', '3.7', '3.8', '3.9']
+AVAILABLE_PY_RUNTIMES = ['3.7', '3.8', '3.9', '3.10']
 
 REQUIRED_AZURE_STORAGE_PARAMS = ['storage_account_name', 'storage_account_key']
 REQUIRED_AZURE_FUNCTIONS_PARAMS = ['resource_group', 'location']
@@ -118,7 +118,7 @@ HOST_FILE = """
     },
     "extensionBundle": {
         "id": "Microsoft.Azure.Functions.ExtensionBundle",
-        "version": "[1.*, 2.0.0)"
+        "version": "[2.*, 3.0.0)"
     }
 }
 """

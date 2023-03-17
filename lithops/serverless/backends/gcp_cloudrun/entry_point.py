@@ -45,7 +45,7 @@ def run():
 
     setup_lithops_logger(message['log_level'])
 
-    act_id = str(uuid.uuid4()).replace('-', '')[:12]
+    act_id = uuid.uuid4().hex
     os.environ['__LITHOPS_ACTIVATION_ID'] = act_id
     os.environ['__LITHOPS_BACKEND'] = 'Google Cloud Run'
 

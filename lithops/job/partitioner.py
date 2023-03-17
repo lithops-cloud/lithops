@@ -27,8 +27,7 @@ from lithops.utils import sizeof_fmt
 
 logger = logging.getLogger(__name__)
 
-CHUNK_SIZE_MIN = 0*1024  # 0MB
-CHUNK_THRESHOLD = 128*1024  # 128KB
+CHUNK_THRESHOLD = 128 * 1024  # 128KB
 
 
 def create_partitions(
@@ -75,7 +74,7 @@ def create_partitions(
     elif paths:
         # process objects from localhost paths.
         return _split_objects_from_paths(
-            paths, obj_chunk_size, 
+            paths, obj_chunk_size,
             obj_chunk_number, obj_newline
         )
 
@@ -143,13 +142,13 @@ def _split_objects_from_urls(
                 obj_chunk_size = obj_size
             elif obj_newline is None:
                 # partitions of the same size
-                brange = (size, size+obj_chunk_size-1)
-            elif size+obj_chunk_size < obj_size:
+                brange = (size, size + obj_chunk_size - 1)
+            elif size + obj_chunk_size < obj_size:
                 # common chunk
-                brange = (size-1 if size > 0 else 0, size+obj_chunk_size+CHUNK_THRESHOLD)
+                brange = (size - 1 if size > 0 else 0, size + obj_chunk_size + CHUNK_THRESHOLD)
             else:
                 # last chunk
-                brange = (size-1 , obj_size-1)
+                brange = (size - 1, obj_size - 1)
                 obj_chunk_size = obj_size - size
 
             obj_total_partitions += 1
@@ -162,11 +161,11 @@ def _split_objects_from_urls(
             partition['obj'].newline = obj_newline
             obj_partitions.append(partition)
 
-            size += obj_chunk_size   
+            size += obj_chunk_size
 
         for partition in obj_partitions:
             partition['obj'].total_parts = obj_total_partitions
-        
+
         partitions.extend(obj_partitions)
         parts_per_object.append(obj_total_partitions)
 
@@ -248,13 +247,13 @@ def _split_objects_from_paths(
                 obj_chunk_size = obj_size
             elif obj_newline is None:
                 # partitions of the same size
-                brange = (size, size+obj_chunk_size-1)
-            elif size+obj_chunk_size < obj_size:
+                brange = (size, size + obj_chunk_size - 1)
+            elif size + obj_chunk_size < obj_size:
                 # common chunk
-                brange = (size-1 if size > 0 else 0, size+obj_chunk_size+CHUNK_THRESHOLD)
+                brange = (size - 1 if size > 0 else 0, size + obj_chunk_size + CHUNK_THRESHOLD)
             else:
                 # last chunk
-                brange = (size-1 , obj_size-1)
+                brange = (size - 1, obj_size - 1)
                 obj_chunk_size = obj_size - size
 
             obj_total_partitions += 1
@@ -267,11 +266,11 @@ def _split_objects_from_paths(
             partition['obj'].newline = obj_newline
             obj_partitions.append(partition)
 
-            size += obj_chunk_size   
+            size += obj_chunk_size
 
         for partition in obj_partitions:
             partition['obj'].total_parts = obj_total_partitions
-        
+
         partitions.extend(obj_partitions)
         parts_per_object.append(obj_total_partitions)
 
@@ -300,10 +299,8 @@ def _split_objects_from_object_storage(
         logger.debug('Chunk size and chunk number not set')
 
     sbs = set()
-    buckets = set()
-    prefixes = set()
-    obj_names = set()
 
+    # check that only one schemma provided. Throw exception if more than one provided
     for elem in map_func_args_list:
         if type(elem['obj']) == CloudObject:
             elem['obj'] = f"{elem['obj'].backend}://{elem['obj'].bucket}/{elem['obj'].key}"
@@ -311,67 +308,28 @@ def _split_objects_from_object_storage(
         if sb is None:
             sb = internal_storage.backend
             elem['obj'] = f"{sb}://{elem['obj']}"
-        if obj_name:
-            obj_names.add((bucket, prefix))
-        elif prefix:
-            prefixes.add((bucket, prefix))
-        else:
-            buckets.add(bucket)
+
         sbs.add(sb)
 
     if len(sbs) > 1:
         raise Exception('Process objects from multiple storage backends is not supported. '
                         f'Current storage backends: {sbs}')
+
     sb = sbs.pop()
     if sb == internal_storage.backend:
         storage = internal_storage.storage
     else:
         storage = Storage(config=config, backend=sb)
-
-    objects = {}
-
-    if obj_names:
-        for bucket, prefix in obj_names:
-            logger.debug(f"Listing objects in {sb}://{'/'.join([bucket, prefix])}")
-            if bucket not in objects:
-                objects[bucket] = []
-            prefix = prefix + '/' if prefix else prefix
-            objects[bucket].extend(storage.list_objects(bucket, prefix))
-
-    elif prefixes:
-        for bucket, prefix in prefixes:
-            logger.debug(f"Listing objects in {sb}://{'/'.join([bucket, prefix])}")
-            if bucket not in objects:
-                objects[bucket] = []
-            prefix = prefix + '/' if prefix else prefix
-            objects[bucket].extend(storage.list_objects(bucket, prefix))
-
-    elif buckets:
-        for bucket in buckets:
-            logger.debug(f"Listing objects in {sb}://{bucket}")
-            objects[bucket] = storage.list_objects(bucket)
-    
-    logger.debug(f"Total objects found: {len(objects[bucket])}")
-
-    if all([len(objects[bucket]) == 0 for bucket in objects]):
-        raise Exception(f'No objects found in bucket: {", ".join(objects.keys())}')
-
-    keys_dict = {}
-    for bucket in objects:
-        keys_dict[bucket] = {}
-        for obj in objects[bucket]:
-            keys_dict[bucket][obj['Key']] = obj['Size']
-
     partitions = []
     parts_per_object = []
 
-    def _split(bucket, key, entry):
+    def _split(bucket, key, entry, obj_size):
 
         if key.endswith('/'):
             logger.debug(f'Discarding object "{key}" as it is a prefix folder (0.0B)')
             return
 
-        obj_size = keys_dict[bucket][key]
+        #obj_size = keys_dict[bucket][key]
 
         if chunk_number:
             chunk_rest = obj_size % chunk_number
@@ -397,13 +355,13 @@ def _split_objects_from_object_storage(
                 obj_chunk_size = obj_size
             elif obj_newline is None:
                 # partitions of the same size
-                brange = (size, size+obj_chunk_size-1)
-            elif size+obj_chunk_size < obj_size:
+                brange = (size, size + obj_chunk_size - 1)
+            elif size + obj_chunk_size < obj_size:
                 # common chunk
-                brange = (size-1 if size > 0 else 0, size+obj_chunk_size+CHUNK_THRESHOLD)
+                brange = (size - 1 if size > 0 else 0, size + obj_chunk_size + CHUNK_THRESHOLD)
             else:
                 # last chunk
-                brange = (size-1 , obj_size-1)
+                brange = (size - 1, obj_size - 1)
                 obj_chunk_size = obj_size - size
 
             obj_total_partitions += 1
@@ -420,20 +378,70 @@ def _split_objects_from_object_storage(
 
         for partition in obj_partitions:
             partition['obj'].total_parts = obj_total_partitions
-        
+
         partitions.extend(obj_partitions)
         parts_per_object.append(obj_total_partitions)
 
-    for entry in map_func_args_list:
-        sb, bucket, prefix, obj_name = utils.split_object_url(entry['obj'])
+    total_objects = int(0)
+    for elem in map_func_args_list:
+        objects = []
+        exclude = {'obj'}
+        params = {k: elem[k] for k in set(list(elem.keys())) - set(exclude)}
+        sb, bucket, prefix, obj_name = utils.split_object_url(elem['obj'])
 
         if obj_name:
-            # each entry is an object key
-            key = '/'.join([prefix, obj_name]) if prefix else obj_name
-            _split(bucket, key, entry)
+            match_pattern = None
+            if sb in ['aws_s3', 'ibm_cos'] and (prefix.find('*') > -1 or obj_name.find('*') > -1):
+
+                match_pattern = os.path.join(prefix, obj_name)
+
+                if prefix.find('*') > -1:
+                    prefix = prefix[:prefix.index('*')]
+                else:
+                    prefix = '/'.join(prefix, obj_name[:obj_name.index('*')])
+
+            prefix = prefix + '/' if prefix else prefix
+            if match_pattern is not None:
+                logger.debug(f"Listing objects with Globber {match_pattern} in {sb}://{'/'.join([bucket, prefix])}")
+                objects = storage.list_objects(bucket, prefix, match_pattern)
+            else:
+                # this is wrong to list prefix only, as it may return more objects than requested
+                logger.debug(f"Head on object  {sb}://{'/'.join([bucket, prefix, obj_name])}")
+                head_md = storage.head_object(bucket, os.path.join(prefix, obj_name))
+                head_md['Key'] = os.path.join(prefix, obj_name)
+                head_md['Size'] = int(head_md['content-length'])
+                objects.append(head_md)
+
+        elif prefix:
+            match_pattern = None
+            if sb in ['aws_s3', 'ibm_cos'] and prefix.find('*') > -1:
+
+                match_pattern = prefix
+                if prefix.find('*') > -1:
+                    prefix = prefix[:prefix.index('*')]
+
+                logger.debug(f"Listing prefixes with Globber {match_pattern} in {sb}://{'/'.join([bucket, prefix])}")
+            else:
+                logger.debug(f"Listing prefixes in {sb}://{'/'.join([bucket, prefix])}")
+
+            prefix = prefix + '/' if prefix else prefix
+            objects = storage.list_objects(bucket, prefix, match_pattern)
         else:
-            # each entry is a bucket
-            for key in keys_dict[bucket]:
-               _split(bucket, key, entry)
+            logger.debug(f"Listing objects in {sb}://{bucket}")
+            objects = storage.list_objects(bucket)
+
+        total_objects = total_objects + len(objects)
+        for dobj in objects:
+            key = dobj['Key']
+            entry = {'obj' : f'{sb}://{bucket}/{key}'}
+            entry.update(params)
+            _split(bucket, key, entry, dobj['Size'] )
+
+
+    logger.debug(f"Total objects found: {total_objects}")
+    if total_objects == 0 :
+        raise Exception(f'No objects found')
+
+
 
     return partitions, parts_per_object

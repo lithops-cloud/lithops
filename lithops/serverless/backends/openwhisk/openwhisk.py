@@ -90,14 +90,26 @@ class OpenWhiskBackend:
 
         if dockerfile:
             assert os.path.isfile(dockerfile), f'Cannot locate "{dockerfile}"'
-            cmd = f'{docker_path} build -t {docker_image_name} -f {dockerfile} . '
+            cmd = f'{docker_path} build --platform=linux/amd64 -t {docker_image_name} -f {dockerfile} . '
         else:
-            cmd = f'{docker_path} build -t {docker_image_name} . '
+            cmd = f'{docker_path} build --platform=linux/amd64 -t {docker_image_name} . '
         cmd = cmd + ' '.join(extra_args)
         utils.run_command(cmd)
 
+        docker_user = self.ow_config.get("docker_user")
+        docker_password = self.ow_config.get("docker_password")
+        docker_server = self.ow_config.get("docker_server")
+
         logger.debug(f'Pushing runtime {docker_image_name} to container registry')
-        cmd = f'{docker_path} push {docker_image_name}'
+
+        if docker_user and docker_password:
+            cmd = f'{docker_path} login -u {docker_user} --password-stdin {docker_server}'
+            utils.run_command(cmd, input=docker_password)
+
+        if utils.is_podman(docker_path):
+            cmd = f'{docker_path} push {docker_image_name} --format docker --remove-signatures'
+        else:
+            cmd = f'{docker_path} push {docker_image_name}'
         utils.run_command(cmd)
 
         logger.debug('Building done!')
@@ -135,7 +147,7 @@ class OpenWhiskBackend:
         action_name = self._format_function_name(docker_image_name, memory, version)
         self.cf_client.delete_action(self.package, action_name)
 
-    def clean(self):
+    def clean(self, **kwargs):
         """
         Deletes all runtimes from all packages
         """

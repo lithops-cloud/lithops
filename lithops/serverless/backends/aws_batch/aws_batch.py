@@ -48,7 +48,7 @@ class AWSBatchBackend:
 
         self.user_key = aws_batch_config['access_key_id'][-4:]
         self.package = f'lithops_v{__version__.replace(".", "-")}_{self.user_key}'
-        self.region_name = aws_batch_config['region_name']
+        self.region_name = aws_batch_config['region']
 
         self._env_type = self.aws_batch_config['env_type']
         self._queue_name = f'{self.package}_{self._env_type.replace("_", "-")}_queue'
@@ -57,6 +57,7 @@ class AWSBatchBackend:
         logger.debug('Creating Boto3 AWS Session and Batch Client')
         self.aws_session = boto3.Session(aws_access_key_id=aws_batch_config['access_key_id'],
                                          aws_secret_access_key=aws_batch_config['secret_access_key'],
+                                         aws_session_token=aws_batch_config.get('session_token'),
                                          region_name=self.region_name)
         self.batch_client = self.aws_session.client('batch', region_name=self.region_name)
 
@@ -319,7 +320,7 @@ class AWSBatchBackend:
 
         job_name = '{}_metadata'.format(self._format_jobdef_name(runtime_name, runtime_memory))
 
-        payload = copy.deepcopy(self.internal_storage.storage.storage_config)
+        payload = copy.deepcopy(self.internal_storage.storage.config)
         payload['runtime_name'] = runtime_name
         payload['log_level'] = logger.getEffectiveLevel()
 
@@ -428,7 +429,7 @@ class AWSBatchBackend:
             logger.error(res)
             raise Exception('Could not deregister job definition {}'.format(job_def['jobDefinitionArn']))
 
-    def clean(self):
+    def clean(self, **kwargs):
         # Delete Job Definition
         job_defs = self._get_job_def()
         for job_def in job_defs:

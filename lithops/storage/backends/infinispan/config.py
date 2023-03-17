@@ -26,4 +26,4 @@ def load_config(config_data):
             msg = f"'{param}' is mandatory under 'infinispan' section of the configuration"
             raise Exception(msg)
 
-    config_data['lithops']['storage_bucket'] = 'storage'
+    config_data['infinispan']['storage_bucket'] = 'storage'

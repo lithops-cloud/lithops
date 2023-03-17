@@ -1,112 +1,134 @@
-
-name: Daily Lithops Test
+name: "on-pull-request"
 
 on:
-  push:
-    branches: [ "master" ]
+  pull_request:
+    branches:
+      - master
+  
+  workflow_dispatch: 
+  # this allows to run the workflow manually through the github dashboard
 
+env:
+  HAVE_LITHOPS_CONFIG: ${{ secrets.LITHOPS_CONFIG != '' }}
+  LITHOPS_CONFIG_FILE: /tmp/lithops_config.yaml
 
 jobs:
 
-  Determine_Runnable_Jobs:
+  determine_runnable_jobs:
     runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+
     outputs:
-      jobs_to_run: ${{ steps.script.outputs.string }}
+      localhost: ${{ steps.script.outputs.localhost }}
+      ibm_cf: ${{ steps.script.outputs.ibm_cf }}
+      code_engine: ${{ steps.script.outputs.code_engine }}
+
     steps:
-      - name: Clone Lithops repository
-        uses: actions/checkout@v2
-      - name: Install Python 3.8
-        uses: actions/setup-python@v2
-        with:
-          python-version: 3.8
-          architecture: x64
-      - name: Determine which jobs to run
+      - name: Set jobs to run
         id: script
         run: |
-          value=$(python3 ./.github/workflows/utils/check_job_on_list.py "${GITHUB_WORKFLOW}")
-          echo "::set-output name=string::$value"
-  CE_COS:
-    runs-on: ubuntu-latest
-    needs: Determine_Runnable_Jobs
-    if: contains(needs.Determine_Runnable_Jobs.outputs.jobs_to_run,'CE_COS')
+          echo "localhost=true" >> $GITHUB_OUTPUT
+          echo "ibm_cf=false" >> $GITHUB_OUTPUT
+          echo "code_engine=false" >> $GITHUB_OUTPUT
 
-    steps:
-      - name: print-github.action_path
-        run: echo $GITHUB_WORKSPACE
-      - name: Clone Lithops repository
-        uses: actions/checkout@v2
-      - name: Install Python 3.8
-        uses: actions/setup-python@v2
-        with:
-          python-version: 3.8
-          architecture: x64
-      - name: Install dependencies
-        run: |
-          python3 setup.py develop
-      - name: install secrets in lithops config
-        run: python3 ./.github/workflows/utils/config_fill_secrets.py "CE_COS" "${GITHUB_ACTOR,,}" "${{secrets.IAMAPIKEY }}" "${{secrets.CE_COS_API }}"
-      - name: Clean CE's dedicated bucket
-        run: lithops clean -c .github/workflows/utils/config_files/lithops_config_CE_COS.yaml
-      - name: build new runtime
-        env:
-            LITHOPS_CONFIG_FILE: ${{ github.workspace }}/.github/workflows/utils/config_files/lithops_config_CE_COS.yaml
-        run: |
-         docker login -u cohenjomer -p "${{ secrets.DOCKER_TOKEN }}"
-         cd runtime/code_engine
-         lithops runtime build cohenjomer/lithops-ce-"${GITHUB_ACTOR,,}" -b code_engine
-      - name: Run Python tests
-        run: |
-         lithops verify -k -c .github/workflows/utils/config_files/lithops_config_CE_COS.yaml
-  CF_COS:
+
+  localhost_tests:
     runs-on: ubuntu-latest
-    needs: Determine_Runnable_Jobs
-    if: contains(needs.Determine_Runnable_Jobs.outputs.jobs_to_run,'CF_COS')
+    needs: determine_runnable_jobs
+    if: needs.determine_runnable_jobs.outputs.localhost == 'true'
 
     steps:
       - name: Clone Lithops repository
-        uses: actions/checkout@v2
-      - name: Install Python 3.8
-        uses: actions/setup-python@v2
+        uses: actions/checkout@v3
+
+      - name: Install Python 3.10
+        uses: actions/setup-python@v4
         with:
-          python-version: 3.8
-          architecture: x64
-      - name: Install dependencies
+          python-version: '3.10'
+
+      - name: Install Lithops
         run: |
-          python3 setup.py develop
-      - name: install secrets in lithops config
-        run: python3 ./.github/workflows/utils/config_fill_secrets.py "CF_COS" "${GITHUB_ACTOR,,}" "${{ secrets.IAMAPIKEY }}" "${{ secrets.CF_COS_API }}" "${{ secrets.CF_API_KEY }}"
-      - name: Clean CF's dedicated bucket
-        run: lithops clean -c .github/workflows/utils/config_files/lithops_config_CF_COS.yaml
-      - name: build new runtime
-        env:
-          LITHOPS_CONFIG_FILE: ${{ github.workspace }}/.github/workflows/utils/config_files/lithops_config_CF_COS.yaml
+          pip3 install -U .
+
+      - name: Run Lithops tests
         run: |
-          docker login -u cohenjomer -p "${{ secrets.DOCKER_TOKEN }}"
+          lithops verify -b localhost -s localhost
+
+
+  ibm_ce_cos_tests:
+    runs-on: ubuntu-latest
+    needs: determine_runnable_jobs
+    if: needs.determine_runnable_jobs.outputs.code_engine == 'true'
+
+    steps:
+      - name: Clone Lithops repository
+        uses: actions/checkout@v3
+
+      - name: Install Python 3.10
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install Lithops
+        run: |
+          pip3 install -U .
+
+      - name: Install Lithops config
+        id: config
+        run: |
+          echo -n -e "${{ secrets.LITHOPS_CONFIG }}" > $LITHOPS_CONFIG_FILE
+
+      - name: Build new runtime
+        run: |
+          docker login -u ${{ secrets.DOCKER_USER }} -p ${{ secrets.DOCKER_TOKEN }}
+          cd runtime/code_engine
+          lithops runtime build -f Dockerfile.githubci ${{ secrets.DOCKER_USER }}/lithops-ce-gihub-ci:${{ github.run_id }} -b code_engine
+          sed -i '/runtime: lithops-ce/c\    runtime: '${{ secrets.DOCKER_USER }}'/lithops-ce-gihub-ci:'${{ github.run_id }} $LITHOPS_CONFIG_FILE
+
+      - name: Run Lithops tests
+        run: |
+          lithops verify -b code_engine -s ibm_cos -k
+
+      - name: Delete Lithops CE runtime
+        if: needs.determine_runnable_jobs.outputs.code_engine == 'true'
+        run: |
+          lithops runtime delete ${{ secrets.DOCKER_USER }}/lithops-ce-gihub-ci:${{ github.run_id }} -b code_engine -s ibm_cos
+
+
+  ibm_cf_cos_tests:
+    runs-on: ubuntu-latest
+    needs: determine_runnable_jobs
+    if: needs.determine_runnable_jobs.outputs.ibm_cf == 'true'
+
+    steps:
+      - name: Clone Lithops repository
+        uses: actions/checkout@v3
+
+      - name: Install Python 3.10
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install Lithops
+        run: |
+          pip3 install -U .
+
+      - name: Install Lithops config
+        id: config
+        run: |
+          echo -n -e "${{ secrets.LITHOPS_CONFIG }}" > $LITHOPS_CONFIG_FILE
+
+      - name: Build new runtime
+        run: |
+          docker login -u ${{ secrets.DOCKER_USER }} -p ${{ secrets.DOCKER_TOKEN }}
           cd runtime/ibm_cf
-          lithops runtime build -f Dockerfile.python38 cohenjomer/lithops-cf-"${GITHUB_ACTOR,,}"
-      - name: Run Python tests
-        run: |
-          lithops verify -k -c .github/workflows/utils/config_files/lithops_config_CF_COS.yaml
-  LOCAL_HOST:
-    runs-on: ubuntu-latest
-    needs: Determine_Runnable_Jobs
-    if: contains(needs.Determine_Runnable_Jobs.outputs.jobs_to_run,'LOCAL_HOST')
+          lithops runtime build -f Dockerfile.githubci ${{ secrets.DOCKER_USER }}/lithops-cf-gihub-ci:${{ github.run_id }} -b ibm_cf
+          sed -i '/runtime: lithops-cf/c\    runtime: '${{ secrets.DOCKER_USER }}'/lithops-cf-gihub-ci:'${{ github.run_id }} $LITHOPS_CONFIG_FILE
 
-    steps:
-      - name: Clone Lithops repository
-        uses: actions/checkout@v2
-      - name: Install Python 3.8
-        uses: actions/setup-python@v2
-        with:
-          python-version: 3.8
-          architecture: x64
-      - name: Install dependencies
+      - name: Run Lithops tests
         run: |
-          python3 setup.py develop
-      - name: Run Python tests
-        env:
-          LITHOPS_CONFIG_FILE: ${{ github.workspace }}/.github/workflows/utils/config_files/lithops_config_LOCAL.yaml
+          lithops verify -b ibm_cf -s ibm_cos -k
+
+      - name: Delete Lithops CF runtime
         run: |
-          lithops verify
-
-
+          lithops runtime delete ${{ secrets.DOCKER_USER }}/lithops-cf-gihub-ci:${{ github.run_id }} -b ibm_cf -s ibm_cos

@@ -25,6 +25,3 @@ def load_config(config_data):
         if param not in config_data['swift']:
             msg = f"'{param}' is mandatory under 'swift' section of the configuration"
             raise Exception(msg)
-
-    if 'storage_bucket' in config_data['swift']:
-        config_data['lithops']['storage_bucket'] = config_data['swift']['storage_bucket']

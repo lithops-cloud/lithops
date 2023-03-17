@@ -35,7 +35,7 @@ def my_cloudobject_get(cloudobjects, storage):
 
 
 def my_map_function_storage(key_i, bucket_name, storage):
-    print('I am processing the object /{}/{}'.format(bucket_name, key_i))
+    print(f'I am processing the object /{bucket_name}/{key_i}')
     counter = {}
     data = storage.get_object(bucket_name, key_i)
     for line in data.splitlines():

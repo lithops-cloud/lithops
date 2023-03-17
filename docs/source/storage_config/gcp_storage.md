@@ -39,9 +39,6 @@ $ python3 -m pip install lithops[gcp]
     gcp:
         region : <REGION_NAME>
         credentials_path : <FULL_PATH_TO_CREDENTIALS_JSON>
-
-    gcp_storage:
-        storage_bucket: <BUCKET_NAME>
 ```
  
 ## Summary of configuration keys for Google:
@@ -56,5 +53,6 @@ $ python3 -m pip install lithops[gcp]
 ### Google Cloud Storage
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|gcp_storage | storage_bucket | | yes | The name of a bucket that exists in your account. This will be used by Lithops for intermediate data. If set, this will overwrite the `storage_bucket` set in `lithops` section |
+|gcp_storage | region | |no | Region Name (e.g. `us-east1`). Lithops will use the region set under the `gcp` section if it is not set here |
+|gcp_storage | storage_bucket | | no | The name of a bucket that exists in your account. This will be used by Lithops for intermediate data. Lithops will automatically create a new one if it is not provided|
  

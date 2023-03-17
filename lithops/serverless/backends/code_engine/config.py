@@ -14,6 +14,7 @@
 # limitations under the License.
 #
 
+import copy
 import os
 
 DEFAULT_CONFIG_KEYS = {
@@ -36,6 +37,8 @@ VALID_REGIONS = ['us-south', 'us-east', 'ca-tor', 'eu-de', 'eu-gb', 'jp-osa', 'j
 
 CLUSTER_URL = 'https://proxy.{}.codeengine.cloud.ibm.com'
 
+REQ_PARAMS = ('namespace',)
+
 DOCKERFILE_DEFAULT = """
 RUN apt-get update && apt-get install -y \
         zip \
@@ -48,6 +51,7 @@ RUN pip install --upgrade --ignore-installed setuptools six pip \
         flask \
         gevent \
         ibm-cos-sdk \
+        ibm-vpc \
         redis \
         requests \
         PyYAML \
@@ -142,8 +146,29 @@ spec:
 
 def load_config(config_data):
 
-    if 'ibm' in config_data and config_data['ibm'] is not None:
-        config_data['code_engine'].update(config_data['ibm'])
+    if 'ibm' not in config_data or config_data['ibm'] is None:
+        raise Exception("'ibm' section is mandatory in the configuration")
+
+    if 'iam_api_key' not in config_data['ibm']:
+        raise Exception("'iam_api_key' parameter is mandatory under the 'ibm' section of the configuration")
+
+    temp = copy.deepcopy(config_data['code_engine'])
+    config_data['code_engine'].update(config_data['ibm'])
+    config_data['code_engine'].update(temp)
+
+    for param in REQ_PARAMS:
+        if param not in config_data['code_engine']:
+            msg = f'"{param}" is mandatory in the "code_engine" section of the configuration'
+            raise Exception(msg)
+
+    if 'region' not in config_data['code_engine']:
+        msg = "'region' parameter is mandatory under the 'ibm' or 'code_engine' section of the configuration"
+        raise Exception(msg)
+
+    region = config_data['code_engine']['region']
+    if region not in VALID_REGIONS:
+        raise Exception('{} is an invalid region name. Set one of: '
+                        '{}'.format(region, VALID_REGIONS))
 
     for key in DEFAULT_CONFIG_KEYS:
         if key not in config_data['code_engine']:
@@ -159,13 +184,11 @@ def load_config(config_data):
         raise Exception('{} is an invalid runtime memory value in MB. Set one of: '
                         '{}'.format(runtime_memory, VALID_MEMORY_VALUES))
 
-    region = config_data['code_engine'].get('region')
-    if region and region not in VALID_REGIONS:
-        raise Exception('{} is an invalid region name. Set one of: '
-                        '{}'.format(region, VALID_REGIONS))
-
     if 'runtime' in config_data['code_engine']:
         runtime = config_data['code_engine']['runtime']
         registry = config_data['code_engine']['docker_server']
         if runtime.count('/') == 1 and registry not in runtime:
             config_data['code_engine']['runtime'] = f'{registry}/{runtime}'
+
+    if region and 'region' not in config_data['ibm']:
+        config_data['ibm']['region'] = config_data['code_engine']['region']

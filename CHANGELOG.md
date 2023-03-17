@@ -1,19 +1,81 @@
 # Changelog
 
-## [v2.7.2.dev0]
+## [v2.9.1.dev0]
+
+### Added
+- [Executor] Allow to set all the compute backend params programatically in the FunctionExecutor()
+- [AWS EC2] Allow to automatically create the VPC and all the necessary resources
+- [IBM VPC & AWS EC2] General fixes and Improvements
+- [Executor] Allow to pass the config file location in the FunctionExecutor()
+- [Storage] Automatically create the storage bucket if not provided in the config
+- [IBM] Allow to set "region" under "ibm" section
+- [AWS] Allow to set "region" under "aws" section
+- [Azure Functions] Allow to use a python 3.10 runtime
+- [Aliyun Functions] Allow to use a python 3.10 runtime
+- [IBM VPC] Added build_image() method for automatically building VM images
+- [Cli] Added new 'lithops image build' command for standalone backends
+- [Cli] Added new 'lithops image list' command for standalone backends
+- [IBM CF] Automatically create a CF namespace if not provided in config
+
+### Changed
+- [AWS EC2] Reduced number of mandatory parameters
+- [AWS] Allow 'region' config parameter instead of 'region_name' for compatibility
+- [Aliyun] Changed 'endpoint' config parameters to 'region' for compatibility
+- [IBM CF] Cloud-foundry namespaces have been deprecated in IBM Cloud. From now all the users must use an IAM-based namespace
+- [IBM COS] Changed 'access_key' config parameter to 'access_key_id' for compatibility
+- [IBM COS] Changed 'secret_key' config parameter to 'secret_access_key' for compatibility
+- [IBM] Improved token manager
+
+### Fixed
+- [IBM VPC & AWS EC2] Make sure only VMs from the given VPC are removed
+- [IBM VPC] Reuse floating IPs for public gateways
+- [Serializer] Prevent analyzing the same module multiple times
+- [SSH Cli] Fix issue with RSA keys
+
+
+## [v2.9.0]
+
+### Added
+- [AWS S3] Allow to use a public bucket without credentials
+- [IBM] Automatically login to the container registry if the credentials are present in config
+- [IBM] Force --platform=linux/amd64 in the "lithops runtime build" command
+- [k8s] Added boto3 as a dependency of the default runtime
+- [IBM VPC] Automatically get the ubuntu image ID
+- [IBM VPC] Allowed to reuse floating IPs
+- [IBM VPC] Automatically create resources if not provided in config
+- [IBM VPC] Added 'region' config parameter
+- [Partitioner] Allow wildcards in the object reference
+
+### Changed
+- [IBM VPC] Reduced the number of mandatory config parameters
+- [IBM VPC] Renamed profile_name config param to worker_profile_name
+- [IBM VPC] Renamed ip_address config param to floating_ip
+
+### Fixed
+- [AWS EC2] Fix spot instance price
+- [Cli] Fix wrong config in the "lithops runtime update" command
+- [Standalone] Fix missing private IP address
+- [VM] Fix VM standalone backend
+
+
+## [v2.8.0]
 
 ### Added
 - [Config] Allow to store the config file in "/etc/lithops/config"
 - [CLI] Allow to specify 'memory' and 'version' in the 'lithops runtime delete' command
 - [GCP Cloudrun] Allow setting min_workers to the autoscaler
+- [GCP Functions] Added https trigger
 - [Function Executor] Added additional arguments to pass to the reduce function in map_reduce()
+- [AWS] Added session token as optional
 
 ### Changed
 - [Core] Include function result in the status.json file if it is < 8KB
+- [Core] Include python version in the lithops worker name
 
 ### Fixed
 - [Serverless] Allow to delete runtimes from different lithops versions
 - [AWS Batch] Fixed list_runtimes() method
+- [localhost] Fixed localhost storage backend head method
 
 
 ## [v2.7.1]

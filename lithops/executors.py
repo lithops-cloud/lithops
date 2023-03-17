@@ -58,6 +58,7 @@ class FunctionExecutor:
 
     :param mode: Execution mode. One of: localhost, serverless or standalone
     :param config: Settings passed in here will override those in lithops_config
+    :param config_file: Path to the lithops config file
     :param backend: Compute backend to run the functions
     :param storage: Storage backend to store Lithops data
     :param runtime: Name of the runtime to run the functions
@@ -65,14 +66,15 @@ class FunctionExecutor:
     :param monitoring: Monitoring system implementation. One of: storage, rabbitmq
     :param max_workers: Max number of parallel workers
     :param worker_processes: Worker granularity, number of concurrent/parallel processes in each worker
-    :param remote_invoker: Spawn a function that will perform the actual job invocation (True/False)
     :param log_level: Log level printing (INFO, DEBUG, ...). Set it to None to hide all logs. If this is param is set, all logging params in config are disabled
+    :param kwargs: Any parameter that can be set in the compute backend section of the config file, can be set here
     """
 
     def __init__(
         self,
         mode: Optional[str] = None,
         config: Optional[Dict[str, Any]] = None,
+        config_file: Optional[str] = None,
         backend: Optional[str] = None,
         storage: Optional[str] = None,
         runtime: Optional[str] = None,
@@ -80,8 +82,8 @@ class FunctionExecutor:
         monitoring: Optional[str] = None,
         max_workers: Optional[int] = None,
         worker_processes: Optional[int] = None,
-        remote_invoker: Optional[bool] = None,
-        log_level: Optional[str] = False
+        log_level: Optional[str] = False,
+        **kwargs: Optional[Dict[str, Any]]
     ):
         self.is_lithops_worker = is_lithops_worker()
         self.executor_id = create_executor_id()
@@ -97,7 +99,7 @@ class FunctionExecutor:
                 setup_lithops_logger(log_level)
             elif log_level is False and logger.getEffectiveLevel() == logging.WARNING:
                 # Set default logging from config
-                setup_lithops_logger(*get_log_info(config))
+                setup_lithops_logger(*get_log_info(config_file=config_file, config_data=config))
 
         # overwrite user-provided parameters
         config_ow = {'lithops': {}, 'backend': {}}
@@ -105,12 +107,13 @@ class FunctionExecutor:
             config_ow['backend']['runtime'] = runtime
         if runtime_memory is not None:
             config_ow['backend']['runtime_memory'] = int(runtime_memory)
-        if remote_invoker is not None:
-            config_ow['backend']['remote_invoker'] = remote_invoker
         if worker_processes is not None:
             config_ow['backend']['worker_processes'] = worker_processes
         if max_workers is not None:
             config_ow['backend']['max_workers'] = max_workers
+        for key, value in kwargs.items():
+            if value is not None:
+                config_ow['backend'][key] = value
 
         if mode is not None:
             config_ow['lithops']['mode'] = mode
@@ -122,7 +125,7 @@ class FunctionExecutor:
             config_ow['lithops']['monitoring'] = monitoring
 
         # Load configuration
-        self.config = default_config(copy.deepcopy(config), config_ow)
+        self.config = default_config(config_file=config_file, config_data=config, config_overwrite=config_ow)
 
         self.data_cleaner = self.config['lithops'].get('data_cleaner', True)
         if self.data_cleaner and not self.is_lithops_worker:
@@ -572,7 +575,7 @@ class FunctionExecutor:
         :param fs: List of futures to clean
         :param cs: List of cloudobjects to clean
         :param clean_cloudobjects: Delete all cloudobjects created with this executor
-        :param clan_fn: Delete cached functions in this executor
+        :param clean_fn: Delete cached functions in this executor
         :param force: Clean all future objects even if they have not benn completed
         """
         global CLEANER_PROCESS
@@ -707,6 +710,7 @@ class LocalhostExecutor(FunctionExecutor):
     Initialize a LocalhostExecutor class.
 
     :param config: Settings passed in here will override those in config file.
+    :param config_file: Path to the lithops config file
     :param runtime: Runtime name to use.
     :param storage: Name of the storage backend to use.
     :param worker_processes: Worker granularity, number of concurrent/parallel processes in each worker
@@ -717,6 +721,7 @@ class LocalhostExecutor(FunctionExecutor):
     def __init__(
         self,
         config: Optional[Dict[str, Any]] = None,
+        config_file: Optional[str] = None,
         runtime: Optional[int] = None,
         storage: Optional[str] = None,
         worker_processes: Optional[int] = None,
@@ -726,6 +731,7 @@ class LocalhostExecutor(FunctionExecutor):
         super().__init__(
             backend=LOCALHOST,
             config=config,
+            config_file=config_file,
             runtime=runtime,
             storage=storage or LOCALHOST,
             log_level=log_level,
@@ -739,6 +745,7 @@ class ServerlessExecutor(FunctionExecutor):
     Initialize a ServerlessExecutor class.
 
     :param config: Settings passed in here will override those in config file
+    :param config_file: Path to the lithops config file
     :param runtime: Runtime name to use
     :param runtime_memory: memory to use in the runtime
     :param backend: Name of the serverless compute backend to use
@@ -753,6 +760,7 @@ class ServerlessExecutor(FunctionExecutor):
     def __init__(
         self,
         config: Optional[Dict[str, Any]] = None,
+        config_file: Optional[str] = None,
         runtime: Optional[str] = None,
         runtime_memory: Optional[int] = None,
         backend: Optional[str] = None,
@@ -760,11 +768,12 @@ class ServerlessExecutor(FunctionExecutor):
         max_workers: Optional[int] = None,
         worker_processes: Optional[int] = None,
         monitoring: Optional[str] = None,
-        remote_invoker: Optional[bool] = None,
-        log_level: Optional[str] = False
+        log_level: Optional[str] = False,
+        **kwargs: Optional[Dict[str, Any]]
     ):
         super().__init__(
             config=config,
+            config_file=config_file,
             mode='serverless',
             runtime=runtime,
             runtime_memory=runtime_memory,
@@ -774,7 +783,7 @@ class ServerlessExecutor(FunctionExecutor):
             worker_processes=worker_processes,
             monitoring=monitoring,
             log_level=log_level,
-            remote_invoker=remote_invoker
+            kwargs=kwargs
         )
 
 
@@ -783,6 +792,7 @@ class StandaloneExecutor(FunctionExecutor):
     Initialize a StandaloneExecutor class.
 
     :param config: Settings passed in here will override those in config file
+    :param config_file: Path to the lithops config file
     :param runtime: Runtime name to use
     :param backend: Name of the standalone compute backend to use
     :param storage: Name of the storage backend to use
@@ -795,16 +805,19 @@ class StandaloneExecutor(FunctionExecutor):
     def __init__(
         self,
         config: Optional[Dict[str, Any]] = None,
+        config_file: Optional[str] = None,
         runtime: Optional[str] = None,
         backend: Optional[str] = None,
         storage: Optional[str] = None,
         max_workers: Optional[int] = None,
         worker_processes: Optional[int] = None,
         monitoring: Optional[str] = None,
-        log_level: Optional[str] = False
+        log_level: Optional[str] = False,
+        **kwargs: Optional[Dict[str, Any]]
     ):
         super().__init__(
             config=config,
+            config_file=config_file,
             mode='standalone',
             runtime=runtime,
             backend=backend,
@@ -812,5 +825,6 @@ class StandaloneExecutor(FunctionExecutor):
             max_workers=max_workers,
             worker_processes=worker_processes,
             monitoring=monitoring,
-            log_level=log_level
+            log_level=log_level,
+            kwargs=kwargs,
         )

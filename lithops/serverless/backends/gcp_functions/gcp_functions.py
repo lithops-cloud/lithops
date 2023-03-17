@@ -1,5 +1,6 @@
 #
-# Copyright Cloudlab URV 2020
+# (C) Copyright Cloudlab URV 2020
+# (C) Copyright IBM Corp. 2023
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,10 +19,14 @@ import os
 import logging
 import json
 import base64
+import hashlib
 import httplib2
 import zipfile
 import time
+import urllib
 import google.auth
+import google.oauth2.id_token
+from threading import Lock
 from google.cloud import pubsub_v1
 from google.oauth2 import service_account
 from google_auth_httplib2 import AuthorizedHttp
@@ -31,6 +36,8 @@ from google.auth import jwt
 from lithops import utils
 from lithops.version import __version__
 from lithops.constants import COMPUTE_CLI_MSG, JOBS_PREFIX, TEMP_DIR
+
+invoke_mutex = Lock()
 
 from . import config
 
@@ -52,23 +59,13 @@ class GCPFunctionsBackend:
 
         self._build_api_resource()
 
+        self._api_endpoint = f'https://{self.region}-{self.project_name}.cloudfunctions.net/'
+        self._api_token = None
+
+        logger.debug(f'Invocation trigger set to: {self.trigger}')
+
         msg = COMPUTE_CLI_MSG.format('Google Cloud Functions')
         logger.info(f"{msg} - Region: {self.region} - Project: {self.project_name}")
-
-    def _format_function_name(self, runtime_name, runtime_memory=None, version=__version__):
-        runtime_name = ('lithops_v' + version + '_' + runtime_name).replace('.', '-')
-
-        if runtime_memory:
-            return f'{runtime_name}_{runtime_memory}MB'
-        else:
-            return f'{runtime_name}'
-
-    def _unformat_function_name(self, function_name):
-        runtime_name, runtime_memory = function_name.rsplit('_', 1)
-        runtime_name = runtime_name.replace('lithops_v', '')
-        version, runtime_name = runtime_name.split('_', 1)
-        version = version.replace('-', '.')
-        return version, runtime_name, runtime_memory.replace('MB', '')
 
     def _build_api_resource(self):
         """
@@ -101,16 +98,25 @@ class GCPFunctionsBackend:
             http=http, cache_discovery=False
         )
 
+        self.gcf_config['project_name'] = self.project_name
+        self.gcf_config['service_account'] = self.service_account
+
     @property
     def _default_location(self):
         return f'projects/{self.project_name}/locations/{self.region}'
 
-    def _format_topic_name(self, runtime_name, runtime_memory):
-        return self._format_function_name(runtime_name, runtime_memory) + '_' + self.region + '_topic'
+    def _format_function_name(self, runtime_name, runtime_memory=None, version=__version__):
+        name = f'{runtime_name}-{runtime_memory}-{version}-{self.trigger}-{self.region}'
+        name_hash = hashlib.sha1(name.encode("utf-8")).hexdigest()[:10]
+
+        return f'lithops-worker-{runtime_name}-{version.replace(".", "")}-{name_hash}'
+
+    def _format_topic_name(self, function_name):
+        return f'{function_name}-{self.region}'
 
     def _get_default_runtime_name(self):
         py_version = utils.CURRENT_PY_VERSION.replace('.', '')
-        return f'lithops-default-runtime-v{py_version}'
+        return f'default-runtime-v{py_version}'
 
     def _get_topic_location(self, topic_name):
         return f'projects/{self.project_name}/topics/{topic_name}'
@@ -124,6 +130,24 @@ class GCPFunctionsBackend:
 
     def _encode_payload(self, payload):
         return base64.b64encode(bytes(json.dumps(payload), 'utf-8')).decode('utf-8')
+
+    def _get_token(self, function_name):
+        """
+        Generates a connection token
+        """
+        invoke_mutex.acquire()
+
+        if not self._api_token or function_name not in self._function_url:
+            logger.debug('Getting authentication token')
+            self._function_url = self._api_endpoint + function_name
+            if self.credentials_path and os.path.isfile(self.credentials_path):
+                os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = self.credentials_path
+            auth_req = google.auth.transport.requests.Request()
+            self._api_token = google.oauth2.id_token.fetch_id_token(auth_req, self.function_url)
+
+        invoke_mutex.release()
+
+        return self._function_url, self._api_token
 
     def _list_built_runtimes(self, default_runtimes=True):
         """
@@ -160,22 +184,23 @@ class GCPFunctionsBackend:
         """
         Creates all the resources needed by a function
         """
-        # Create topic
-        topic_name = self._format_topic_name(runtime_name, memory)
-        topic_location = self._get_topic_location(topic_name)
-        logger.debug(f"Creating topic {topic_location}")
-        topic_list_response = self._pub_client.list_topics(
-            request={'project': f'projects/{self.project_name}'})
-        topics = [topic.name for topic in topic_list_response]
-        if topic_location in topics:
-            logger.debug(f"Topic {topic_location} already exists - Restarting queue")
-            self._pub_client.delete_topic(topic=topic_location)
-        self._pub_client.create_topic(name=topic_location)
-
-        # Create the function
         function_name = self._format_function_name(runtime_name, memory)
         function_location = self._get_function_location(function_name)
-        logger.debug(f"Creating function {topic_location}")
+
+        # Create topic
+        if self.trigger == 'pub/sub':
+            topic_name = self._format_topic_name(function_name)
+            topic_location = self._get_topic_location(topic_name)
+            logger.debug(f"Creating topic {topic_location}")
+            topic_list_response = self._pub_client.list_topics(
+                request={'project': f'projects/{self.project_name}'})
+            topics = [topic.name for topic in topic_list_response]
+            if topic_location in topics:
+                logger.debug(f"Topic {topic_location} already exists - Restarting queue")
+                self._pub_client.delete_topic(topic=topic_location)
+            self._pub_client.create_topic(name=topic_location)
+
+        logger.debug(f"Creating function {function_location}")
 
         fn_list_response = self._api_resource.projects().locations().functions().list(
             parent=self._default_location
@@ -199,14 +224,19 @@ class GCPFunctionsBackend:
             'availableMemoryMb': memory,
             'serviceAccountEmail': self.service_account,
             'maxInstances': 0,
-            'sourceArchiveUrl': f'gs://{self.internal_storage.bucket}/{bin_location}'
+            'sourceArchiveUrl': f'gs://{self.internal_storage.bucket}/{bin_location}',
+            'labels': {
+                'type': 'lithops-runtime',
+                'lithops_version': __version__.replace('.', '-'),
+                'runtime_name': runtime_name
+            },
         }
 
-        if self.trigger == 'http':
+        if self.trigger == 'https':
             cloud_function['httpsTrigger'] = {}
 
         elif self.trigger == 'pub/sub':
-            topic_name = self._format_topic_name(runtime_name, memory)
+            topic_name = self._format_topic_name(function_name)
             topic_location = self._get_topic_location(topic_name)
             cloud_function['eventTrigger'] = {
                 'eventType': 'providers/cloud.pubsub/eventTypes/topic.publish',
@@ -214,13 +244,12 @@ class GCPFunctionsBackend:
                 'failurePolicy': {}
             }
 
-        logger.debug(f'Creating function {function_location}')
         response = self._api_resource.projects().locations().functions().create(
             location=self._default_location,
             body=cloud_function
         ).execute(num_retries=self.num_retries)
 
-        # Wait until function is completely deployed
+        # Wait until the function is completely deployed
         logger.info('Waiting for the function to be deployed')
         while True:
             response = self._api_resource.projects().locations().functions().get(
@@ -264,7 +293,7 @@ class GCPFunctionsBackend:
             os.remove(requirements_file)
 
     def deploy_runtime(self, runtime_name, memory, timeout):
-        logger.info(f"Deploying runtime: {runtime_name} - Memory: {memory} Timeout: {timeout}")
+        logger.info(f"Deploying runtime: {runtime_name} - Memory: {memory} - Timeout: {timeout}")
 
         if runtime_name == self._get_default_runtime_name():
             self._build_default_runtime(runtime_name)
@@ -294,22 +323,23 @@ class GCPFunctionsBackend:
         self._api_resource.projects().locations().functions().delete(
             name=function_location,
         ).execute(num_retries=self.num_retries)
-        logger.debug('Request Ok - Waiting until function is completely deleted')
+        logger.debug('Request Ok - Waiting until the function is completely deleted')
 
         self._wait_function_deleted(function_location)
 
-        # Delete Pub/Sub topic attached as trigger for the cloud function
-        logger.debug('Listing Pub/Sub topics')
-        topic_name = self._format_topic_name(runtime_name, runtime_memory)
-        topic_location = self._get_topic_location(topic_name)
-        topic_list_request = self._pub_client.list_topics(
-            request={'project': f'projects/{self.project_name}'}
-        )
-        topics = [topic.name for topic in topic_list_request]
-        if topic_location in topics:
-            logger.debug(f'Going to delete topic {topic_name}')
-            self._pub_client.delete_topic(topic=topic_location)
-            logger.debug(f'Ok - topic {topic_name} deleted')
+        if self.trigger == 'pub/sub':
+            # Delete Pub/Sub topic attached as trigger for the cloud function
+            logger.debug('Listing Pub/Sub topics')
+            topic_name = self._format_topic_name(function_name)
+            topic_location = self._get_topic_location(topic_name)
+            topic_list_request = self._pub_client.list_topics(
+                request={'project': f'projects/{self.project_name}'}
+            )
+            topics = [topic.name for topic in topic_list_request]
+            if topic_location in topics:
+                logger.debug(f'Going to delete topic {topic_name}')
+                self._pub_client.delete_topic(topic=topic_location)
+                logger.debug(f'Ok - topic {topic_name} deleted')
 
         # Delete user runtime from storage
         bin_location = self._get_runtime_bin_location(runtime_name)
@@ -318,7 +348,7 @@ class GCPFunctionsBackend:
             self.internal_storage.storage.delete_object(
                 self.internal_storage.bucket, bin_location)
 
-    def clean(self):
+    def clean(self, **kwargs):
         logger.debug('Going to delete all deployed runtimes')
         runtimes = self.list_runtimes()
         for runtime_name, runtime_memory, version in runtimes:
@@ -330,57 +360,100 @@ class GCPFunctionsBackend:
             parent=self._default_location
         ).execute(num_retries=self.num_retries)
 
-        deployed_runtimes = [f['name'].split('/')[-1] for f in response.get('functions', [])]
         runtimes = []
-        for func_runtime in deployed_runtimes:
-            if 'lithops_v' in func_runtime:
-                version, fn_name, memory = self._unformat_function_name(func_runtime)
-                if runtime_name == fn_name or runtime_name == 'all':
-                    runtimes.append((fn_name, memory, version))
+        for func in response.get('functions', []):
+            if func['labels'] and 'type' in func['labels'] \
+               and func['labels']['type'] == 'lithops-runtime':
+                version = func['labels']['lithops_version'].replace('-', '.')
+                name = func['labels']['runtime_name']
+                memory = func['availableMemoryMb']
+                if runtime_name == name or runtime_name == 'all':
+                    runtimes.append((name, memory, version))
 
         return runtimes
 
-    def invoke(self, runtime_name, runtime_memory, payload={}):
-        topic_location = self._get_topic_location(self._format_topic_name(runtime_name, runtime_memory))
+    def invoke(self, runtime_name, runtime_memory, payload={}, return_result=False):
+        """
+        Invoke a function
+        """
+        exec_id = payload.get('executor_id')
+        call_id = payload.get('call_id')
+        job_id = payload.get('job_id')
 
-        fut = self._pub_client.publish(
-            topic_location,
-            bytes(json.dumps(payload, default=str).encode('utf-8'))
-        )
-        invocation_id = fut.result()
+        if exec_id and job_id and call_id:
+            logger.debug(f'ExecutorID {exec_id} | JobID {job_id} - Invoking function call {call_id}')
+        elif exec_id and job_id:
+            logger.debug(f'ExecutorID {exec_id} | JobID {job_id} - Invoking function')
+        else:
+            logger.debug('Invoking function')
+
+        function_name = self._format_function_name(runtime_name, runtime_memory)
+
+        if self.trigger == 'pub/sub':
+            if return_result:
+                function_location = self._get_function_location(function_name)
+                response = self._api_resource.projects().locations().functions().call(
+                    name=function_location,
+                    body={'data': json.dumps({'data': self._encode_payload(payload)})}
+                ).execute(num_retries=self.num_retries)
+                if 'result' in response and response['result'] == 'OK':
+                    object_key = '/'.join([JOBS_PREFIX, runtime_name + '.meta'])
+                    runtime_meta = json.loads(self.internal_storage.get_data(object_key))
+                    self.internal_storage.storage.delete_object(self.internal_storage.bucket, object_key)
+                    return runtime_meta
+                else:
+                    raise Exception(f'Error at retrieving runtime metadata: {response}')
+            else:
+                topic_location = self._get_topic_location(self._format_topic_name(function_name))
+                fut = self._pub_client.publish(
+                    topic_location,
+                    bytes(json.dumps(payload, default=str).encode('utf-8'))
+                )
+                invocation_id = fut.result()
+
+        elif self.trigger == 'https':
+            function_url, api_token = self._get_token(function_name)
+            req = urllib.request.Request(function_url, data=json.dumps(payload, default=str).encode('utf-8'))
+            req.add_header("Authorization", f"Bearer {api_token}")
+            res = urllib.request.urlopen(req)
+
+            if res.getcode() in (200, 202):
+                data = json.loads(res.read())
+                if return_result:
+                    return data
+                return data["activationId"]
+            else:
+                raise Exception(res.text)
 
         return invocation_id
 
-    def _generate_runtime_meta(self, runtime_name, memory):
+    def _generate_runtime_meta(self, runtime_name, runtime_memory):
+        """
+        Extract metadata from GCP runtime
+        """
         logger.debug(f'Extracting runtime metadata from: {runtime_name}')
-
-        function_name = self._format_function_name(runtime_name, memory)
-        function_location = self._get_function_location(function_name)
 
         payload = {
             'get_metadata': {
                 'runtime_name': runtime_name,
-                'storage_config': self.internal_storage.storage.storage_config
-            }
+                'storage_config': self.internal_storage.storage.config
+            },
+            'trigger': self.trigger
         }
 
-        # Data is b64 encoded so we can treat REST call the same as async pub/sub event trigger
-        response = self._api_resource.projects().locations().functions().call(
-            name=function_location,
-            body={'data': json.dumps({'data': self._encode_payload(payload)})}
-        ).execute(num_retries=self.num_retries)
+        try:
+            runtime_meta = self.invoke(runtime_name, runtime_memory, payload, return_result=True)
+        except Exception as e:
+            raise Exception(f"Unable to extract metadata from the runtime: {e}")
 
-        if 'result' in response and response['result'] == 'OK':
-            object_key = '/'.join([JOBS_PREFIX, runtime_name + '.meta'])
+        if not runtime_meta or 'preinstalls' not in runtime_meta:
+            raise Exception(f'Failed getting runtime metadata: {runtime_meta}')
 
-            runtime_meta_json = self.internal_storage.get_data(object_key)
-            runtime_meta = json.loads(runtime_meta_json)
-            self.internal_storage.storage.delete_object(self.internal_storage.bucket, object_key)
-            return runtime_meta
-        elif 'error' in response:
-            raise Exception(response['error'])
-        else:
-            raise Exception(f'Error at retrieving runtime meta: {response}')
+        logger.debug(f'Ok -- Extraced modules from {runtime_name}')
+
+        runtime_meta = self.invoke(runtime_name, runtime_memory, payload, True)
+
+        return runtime_meta
 
     def get_runtime_key(self, runtime_name, runtime_memory, version=__version__):
         function_name = self._format_function_name(runtime_name, runtime_memory, version)

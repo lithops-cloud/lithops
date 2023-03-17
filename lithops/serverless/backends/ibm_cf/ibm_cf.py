@@ -15,20 +15,20 @@
 #
 
 import os
-import base64
 import logging
 from threading import Lock
 
 from lithops import utils
+from lithops.util.ibm_token_manager import IAMTokenManager
 from lithops.version import __version__
+from lithops.config import dump_yaml_config, load_yaml_config
 from lithops.libs.openwhisk.client import OpenWhiskClient
-from lithops.util.ibm_token_manager import IBMTokenManager
-from lithops.constants import COMPUTE_CLI_MSG
+from lithops.constants import CACHE_DIR, COMPUTE_CLI_MSG
 
 from . import config
 
 logger = logging.getLogger(__name__)
-invoke_mutex = Lock()
+cf_mutex = Lock()
 
 
 class IBMCloudFunctionsBackend:
@@ -36,64 +36,101 @@ class IBMCloudFunctionsBackend:
     A wrap-up around IBM Cloud Functions backend.
     """
 
-    def __init__(self, ibm_cf_config, internal_storage):
+    def __init__(self, cf_config, internal_storage):
         logger.debug("Creating IBM Cloud Functions client")
         self.name = 'ibm_cf'
         self.type = 'faas'
-        self.config = ibm_cf_config
+        self.config = cf_config
         self.is_lithops_worker = utils.is_lithops_worker()
 
-        self.user_agent = ibm_cf_config['user_agent']
-        self.endpoint = ibm_cf_config['endpoint']
-        self.namespace = ibm_cf_config['namespace']
-        self.namespace_id = ibm_cf_config.get('namespace_id', None)
-        self.api_key = ibm_cf_config.get('api_key', None)
-        self.iam_api_key = ibm_cf_config.get('iam_api_key', None)
-        self.region = self.endpoint.split('//')[1].split('.')[0]
+        self.user_agent = cf_config['user_agent']
+        self.endpoint = cf_config['endpoint']
+        self.region = cf_config['region']
+        self.iam_api_key = cf_config['iam_api_key']
+        self.resource_group_id = cf_config.get('resource_group_id')
 
-        self.invoke_error = None
-
-        logger.debug(f"Set IBM CF Namespace to {self.namespace}")
         logger.debug(f"Set IBM CF Endpoint to {self.endpoint}")
 
-        self.user_key = self.api_key.split(':')[1][:4] if self.api_key else self.iam_api_key[:4]
+        self.user_key = self.iam_api_key[:4].lower()
         self.package = f'lithops_{self.user_key}'
 
-        if self.api_key:
-            enc_api_key = str.encode(self.api_key)
-            auth_token = base64.encodebytes(enc_api_key).replace(b'\n', b'')
-            auth = 'Basic %s' % auth_token.decode('UTF-8')
+        self.namespace = cf_config.get('namespace', f'lithops-{self.region}-{self.user_key}')
+        self.namespace_id = cf_config.get('namespace_id')
 
-            self.cf_client = OpenWhiskClient(
-                endpoint=self.endpoint,
-                namespace=self.namespace,
-                auth=auth,
-                user_agent=self.user_agent
-            )
+        self.cache_dir = os.path.join(CACHE_DIR, self.name)
+        self.cache_file = os.path.join(self.cache_dir, self.region + '_data')
 
-        elif self.iam_api_key:
-            api_key_type = 'IAM'
-            token = self.config.get('token', None)
-            token_expiry_time = self.config.get('token_expiry_time', None)
-            self.ibm_token_manager = IBMTokenManager(self.iam_api_key,
-                                                     api_key_type, token,
-                                                     token_expiry_time)
-            token, token_expiry_time = self.ibm_token_manager.get_token()
+        self.invoke_error = None
+        self.token_manager = None
 
-            self.config['token'] = token
-            self.config['token_expiry_time'] = token_expiry_time
+        self._create_ow_client()
 
-            auth = 'Bearer ' + token
-
-            self.cf_client = OpenWhiskClient(
-                endpoint=self.endpoint,
-                namespace=self.namespace_id,
-                auth=auth,
-                user_agent=self.user_agent
-            )
+        if not self.is_lithops_worker:
+            self._init_namespace()
 
         msg = COMPUTE_CLI_MSG.format('IBM CF')
         logger.info(f"{msg} - Region: {self.region} - Namespace: {self.namespace}")
+
+    def _create_ow_client(self):
+        """
+        Createsthe OW client
+        """
+        old_token = self.config.get('token')
+        old_expiry_time = self.config.get('token_expiry_time')
+
+        self.token_manager = IAMTokenManager(self.iam_api_key, old_token, old_expiry_time)
+        token, expiry_time = self.token_manager.get_token()
+
+        self.config['token'] = token
+        self.config['token_expiry_time'] = expiry_time
+
+        self.cf_client = OpenWhiskClient(
+            endpoint=self.endpoint,
+            namespace=self.namespace_id,
+            auth='Bearer ' + token,
+            user_agent=self.user_agent
+        )
+
+    def _refresh_ow_client(self):
+        """
+        Refresh the OW client if necessary
+        """
+        if not self.is_lithops_worker:
+            cf_mutex.acquire()
+            token, expiry_time = self.token_manager.get_token()
+
+            if expiry_time != self.config['token_expiry_time']:
+                self.config['token'] = token
+                self.config['token_expiry_time'] = expiry_time
+
+                self.cf_client = OpenWhiskClient(
+                    endpoint=self.endpoint,
+                    namespace=self.namespace_id,
+                    auth='Bearer ' + token,
+                    user_agent=self.user_agent
+                )
+            cf_mutex.release()
+
+    def _init_namespace(self):
+        """
+        Creates a new IAM namepsace if not exists
+        """
+        cf_data = load_yaml_config(self.cache_file)
+        self.namespace_id = self.namespace_id or cf_data.get('namespace_id')
+
+        if not self.namespace_id:
+            logger.debug(f"Creating new Cloud Functions namespace '{self.namespace}'")
+            self.namespace_id = self.cf_client.create_namespace(self.namespace, self.resource_group_id)
+        else:
+            self.cf_client.namespace = self.namespace_id
+
+        self.config['namespace'] = self.namespace
+        self.config['namespace_id'] = self.namespace_id
+
+        cf_data['namespace'] = self.namespace
+        cf_data['namespace_id'] = self.namespace_id
+
+        dump_yaml_config(self.cache_file, cf_data)
 
     def _format_function_name(self, runtime_name, runtime_memory, version=__version__):
         runtime_name = runtime_name.replace('/', '_').replace(':', '_')
@@ -121,15 +158,27 @@ class IBMCloudFunctionsBackend:
 
         if dockerfile:
             assert os.path.isfile(dockerfile), f'Cannot locate "{dockerfile}"'
-            cmd = f'{docker_path} build -t {docker_image_name} -f {dockerfile} . '
+            cmd = f'{docker_path} build --platform=linux/amd64 -t {docker_image_name} -f {dockerfile} . '
         else:
-            cmd = f'{docker_path} build -t {docker_image_name} . '
+            cmd = f'{docker_path} build --platform=linux/amd64 -t {docker_image_name} . '
 
         cmd = cmd + ' '.join(extra_args)
         utils.run_command(cmd)
 
+        docker_user = self.config.get("docker_user")
+        docker_password = self.config.get("docker_password")
+        docker_server = self.config.get("docker_server")
+
         logger.debug(f'Pushing runtime {docker_image_name} to container registry')
-        cmd = f'{docker_path} push {docker_image_name}'
+
+        if docker_user and docker_password:
+            cmd = f'{docker_path} login -u {docker_user} --password-stdin {docker_server}'
+            utils.run_command(cmd, input=docker_password)
+
+        if utils.is_podman(docker_path):
+            cmd = f'{docker_path} push {docker_image_name} --format docker --remove-signatures'
+        else:
+            cmd = f'{docker_path} push {docker_image_name}'
         utils.run_command(cmd)
 
         logger.debug('Building done!')
@@ -139,6 +188,8 @@ class IBMCloudFunctionsBackend:
         Creates a new runtime into IBM CF namespace from an already built Docker image
         """
         logger.info(f"Deploying runtime: {docker_image_name} - Memory: {memory} Timeout: {timeout}")
+
+        self._refresh_ow_client()
 
         self.cf_client.create_package(self.package)
         action_name = self._format_function_name(docker_image_name, memory)
@@ -166,13 +217,16 @@ class IBMCloudFunctionsBackend:
         Deletes a runtime
         """
         logger.info(f'Deleting runtime: {docker_image_name} - {memory}MB')
+        self._refresh_ow_client()
         action_name = self._format_function_name(docker_image_name, memory, version)
         self.cf_client.delete_action(self.package, action_name)
 
-    def clean(self):
+    def clean(self, all=False):
         """
         Deletes all runtimes from all packages
         """
+        self._refresh_ow_client()
+
         packages = self.cf_client.list_packages()
         for pkg in packages:
             if pkg['name'].startswith('lithops') and pkg['name'].endswith(self.user_key):
@@ -184,13 +238,17 @@ class IBMCloudFunctionsBackend:
                     actions = self.cf_client.list_actions(pkg['name'])
                 self.cf_client.delete_package(pkg['name'])
 
+        if all and os.path.exists(self.cache_file):
+            self.cf_client.delete_namespace(self.namespace_id)
+            os.remove(self.cache_file)
+
     def list_runtimes(self, docker_image_name='all'):
         """
         List all the runtimes deployed in the IBM CF service
         return: list of tuples (docker_image_name, memory)
         """
         runtimes = []
-
+        self._refresh_ow_client()
         packages = self.cf_client.list_packages()
         for pkg in packages:
             if pkg['name'] == self.package:
@@ -207,41 +265,31 @@ class IBMCloudFunctionsBackend:
         """
         action_name = self._format_function_name(docker_image_name, runtime_memory)
 
-        activation_id = self.cf_client.invoke(package=self.package,
-                                              action_name=action_name,
-                                              payload=payload,
-                                              is_ow_action=self.is_lithops_worker)
+        activation_id = self.cf_client.invoke(
+            package=self.package,
+            action_name=action_name,
+            payload=payload,
+            is_ow_action=self.is_lithops_worker
+        )
 
         if activation_id == 401:
-            # unauthorized. Probably token expired if using IAM auth
-            if self.iam_api_key and not self.is_lithops_worker:
-                invoke_mutex.acquire()
-                token, token_expiry_time = self.ibm_token_manager.get_token()
-                if token != self.config['token']:
-                    self.config['token'] = token
-                    self.config['token_expiry_time'] = token_expiry_time
-                    auth = 'Bearer ' + token
-                    self.cf_client = OpenWhiskClient(endpoint=self.endpoint,
-                                                     namespace=self.namespace_id,
-                                                     auth=auth,
-                                                     user_agent=self.user_agent)
-                invoke_mutex.release()
-                return self.invoke(docker_image_name, runtime_memory, payload)
-            else:
-                raise Exception('Unauthorized. Review your API key')
+            # Token expired
+            self._refresh_ow_client()
+            return self.invoke(docker_image_name, runtime_memory, payload)
 
         elif activation_id == 404:
             # Runtime not deployed
             if self.invoke_error is None:
                 self.invoke_error = 404
-
-            invoke_mutex.acquire()
+            cf_mutex.acquire()
             if self.invoke_error == 404:
                 logger.debug('Runtime not found')
-                self.deploy_runtime(docker_image_name, runtime_memory,
-                                    self.config['runtime_timeout'])
+                self.deploy_runtime(
+                    docker_image_name, runtime_memory,
+                    self.config['runtime_timeout']
+                )
                 self.invoke_error = None
-            invoke_mutex.release()
+            cf_mutex.release()
             return self.invoke(docker_image_name, runtime_memory, payload)
 
         return activation_id

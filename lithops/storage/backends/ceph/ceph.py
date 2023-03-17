@@ -35,11 +35,11 @@ class CephStorageBackend:
 
     def __init__(self, ceph_config):
         logger.debug("Creating Ceph client")
-        self.ceph_config = ceph_config
+        self.config = ceph_config
         user_agent = ceph_config['user_agent']
         service_endpoint = ceph_config['endpoint']
 
-        logger.debug("Setting Ceph endpoint to {}".format(service_endpoint))
+        logger.debug(f"Setting Ceph endpoint to {service_endpoint}")
 
         client_config = botocore.client.Config(
             max_pool_connections=128,
@@ -52,12 +52,13 @@ class CephStorageBackend:
         self.s3_client = boto3.client(
             's3', aws_access_key_id=ceph_config['access_key_id'],
             aws_secret_access_key=ceph_config['secret_access_key'],
+            aws_session_token=ceph_config.get('session_token'),
             config=client_config,
             endpoint_url=service_endpoint
         )
 
         msg = STORAGE_CLI_MSG.format('Ceph')
-        logger.info("{} - Endpoint: {}".format(msg, service_endpoint))
+        logger.info(f"{msg} - Endpoint: {service_endpoint}")
 
     def get_client(self):
         """
@@ -65,6 +66,20 @@ class CephStorageBackend:
         :return: ibm_boto3 client
         """
         return self.s3_client
+
+    def create_bucket(self, bucket_name):
+        """
+        Create a bucket if not exists
+        """
+        try:
+            self.s3_client.head_bucket(Bucket=bucket_name)
+        except botocore.exceptions.ClientError as e:
+            if e.response['ResponseMetadata']['HTTPStatusCode'] == 404:
+                logger.debug(f"Could not find the bucket {bucket_name} in the Ceph storage backend")
+                logger.debug(f"Creating new bucket {bucket_name} in the Ceph storage backend")
+                self.s3_client.create_bucket(Bucket=bucket_name)
+            else:
+                raise e
 
     def put_object(self, bucket_name, key, data):
         """
@@ -206,7 +221,7 @@ class CephStorageBackend:
         max_keys_num = 1000
         for i in range(0, len(key_list), max_keys_num):
             delete_keys = {'Objects': []}
-            delete_keys['Objects'] = [{'Key': k} for k in key_list[i:i+max_keys_num]]
+            delete_keys['Objects'] = [{'Key': k} for k in key_list[i:i + max_keys_num]]
             result.append(self.s3_client.delete_objects(Bucket=bucket_name, Delete=delete_keys))
         return result
 
@@ -225,7 +240,7 @@ class CephStorageBackend:
             else:
                 raise e
 
-    def list_objects(self, bucket_name, prefix=None):
+    def list_objects(self, bucket_name, prefix=None, match_pattern=None):
         """
         Return a list of objects for the given bucket and prefix.
         :param bucket_name: Name of the bucket.

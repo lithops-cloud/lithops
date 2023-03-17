@@ -32,6 +32,8 @@ import logging.config
 import subprocess as sp
 
 from lithops import constants
+from lithops.version import __version__
+
 
 logger = logging.getLogger(__name__)
 
@@ -367,13 +369,13 @@ def get_docker_path():
     return docker_path or podman_path
 
 
-def get_default_container_name(backend, backend_config, runtime_name, version):
+def get_default_container_name(backend, backend_config, runtime_name):
     """
     Generates the default runtime image name
     Used in serverless/kubernetes-based backends
     """
-    python_version = version_str(sys.version_info).replace('.', '')
-    img = f'{runtime_name}-v{python_version}:{version}'
+    python_version = CURRENT_PY_VERSION.replace('.', '')
+    img = f'{runtime_name}-v{python_version}:{__version__}'
 
     docker_server = backend_config['docker_server']
 
@@ -394,6 +396,16 @@ def get_default_container_name(backend, backend_config, runtime_name, version):
             raise Exception('You must provide "docker_namespace" param'
                             f'in config under "{backend}" section')
         return f'{docker_server}/{docker_namespace}/{img}'
+
+    elif 'gcr.io' in docker_server:
+        # Google container registry
+        try:
+            country = backend_config['region'].split('-')[0]
+            project_name = backend_config['project_name']
+        except Exception:
+            raise Exception('You must provide "region" and "project_name" params'
+                            'in config under "gcp" section')
+        return f'{country}.gcr.io/{project_name}/{img}'
 
     else:
         return f'{docker_server}/{img}'
@@ -688,17 +700,22 @@ class WrappedStreamingBodyPartition(WrappedStreamingBody):
         return retval
 
 
-def run_command(cmd, return_result=False):
+def run_command(cmd, return_result=False, input=None):
+    kwargs = {}
+
+    if logger.getEffectiveLevel() != logging.DEBUG:
+        kwargs['stderr'] = sp.DEVNULL
+
+    if input:
+        return sp.check_output(cmd.split(), input=bytes(input, 'utf-8'), **kwargs)
+
     if return_result:
-        if logger.getEffectiveLevel() != logging.DEBUG:
-            return sp.check_output(cmd.split(), encoding='UTF-8', stderr=sp.DEVNULL).strip().replace('"', '')
-        else:
-            return sp.check_output(cmd.split(), encoding='UTF-8').strip().replace('"', '')
+        result = sp.check_output(cmd.split(), encoding='UTF-8', **kwargs)
+        return result.strip().replace('"', '')
     else:
         if logger.getEffectiveLevel() != logging.DEBUG:
-            sp.check_call(cmd.split(), stdout=sp.DEVNULL, stderr=sp.DEVNULL)
-        else:
-            sp.check_call(cmd.split())
+            kwargs['stdout'] = sp.DEVNULL
+        sp.check_call(cmd.split(), **kwargs)
 
 
 def is_podman(docker_path):

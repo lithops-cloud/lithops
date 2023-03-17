@@ -59,7 +59,7 @@ class AWSLambdaBackend:
 
         self.user_key = lambda_config['access_key_id'][-4:].lower()
         self.package = f'lithops_v{__version__.replace(".", "-")}_{self.user_key}'
-        self.region_name = lambda_config['region_name']
+        self.region_name = lambda_config['region']
         self.role_arn = lambda_config['execution_role']
 
         logger.debug('Creating Boto3 AWS Session and Lambda Client')
@@ -67,6 +67,7 @@ class AWSLambdaBackend:
         self.aws_session = boto3.Session(
             aws_access_key_id=lambda_config['access_key_id'],
             aws_secret_access_key=lambda_config['secret_access_key'],
+            aws_session_token=lambda_config.get('session_token'),
             region_name=self.region_name
         )
 
@@ -572,7 +573,7 @@ class AWSLambdaBackend:
                 layer = self._format_layer_name(runtime_name, version)
                 self._delete_layer(layer)
 
-    def clean(self):
+    def clean(self, **kwargs):
         """
         Deletes all Lithops lambda runtimes for this user
         """

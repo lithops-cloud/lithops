@@ -43,27 +43,28 @@ class Storage:
 
         :param config: lithops configuration dict
         :param backend: storage backend name
+        :param storage_config: storage configuration dict
+
         :return: Storage instance.
         """
 
         if storage_config:
-            self.storage_config = storage_config
+            self.config = storage_config
         else:
-            storage_config = default_storage_config(config_data=config,
-                                                    backend=backend)
-            self.storage_config = extract_storage_config(storage_config)
+            storage_config = default_storage_config(config_data=config, backend=backend)
+            self.config = extract_storage_config(storage_config)
 
-        self.backend = self.storage_config['backend']
-        self.bucket = self.storage_config['bucket']
+        self.backend = self.config['backend']
+        self.bucket = self.config['bucket']
 
         try:
-            module_location = 'lithops.storage.backends.{}'.format(self.backend)
+            module_location = f'lithops.storage.backends.{self.backend}'
             sb_module = importlib.import_module(module_location)
             StorageBackend = getattr(sb_module, 'StorageBackend')
-            self.storage_handler = StorageBackend(self.storage_config[self.backend])
+            self.storage_handler = StorageBackend(self.config[self.backend])
         except Exception as e:
             logger.error("An exception was produced trying to create the "
-                         "'{}' storage backend".format(self.backend))
+                         f"'{self.backend}' storage backend")
             raise e
 
         self._created_cobjects_n = itertools.count()
@@ -82,7 +83,16 @@ class Storage:
 
         :return: Storage configuration
         """
-        return self.storage_config
+        return self.config
+
+    def create_bucket(self, bucket: str):
+        """
+        Creates a bucket if not exists.
+
+        :param bucket: Name of the bucket
+        """
+        if hasattr(self.storage_handler, 'create_bucket'):
+            return self.storage_handler.create_bucket(bucket)
 
     def put_object(self, bucket: str, key: str, body: Union[str, bytes, TextIO, BinaryIO]):
         """
@@ -114,9 +124,9 @@ class Storage:
         """
         Upload a file to a bucket of the storage backend. (Multipart upload)
 
+        :param file_name: Name of the file to upload
         :param bucket: Name of the bucket
         :param key: Key of the object
-        :param body: Object data
         :param extra_args: Extra get arguments to be passed to the underlying backend implementation (dict).
         """
         return self.storage_handler.upload_file(file_name, bucket, key, extra_args)
@@ -128,7 +138,7 @@ class Storage:
 
         :param bucket: Name of the bucket
         :param key: Key of the object
-        :param stream: Get the object data or a file-like object
+        :param file_name: Name of the file to save the object data
         :param extra_args: Extra get arguments to be passed to the underlying backend implementation (dict).
 
         :return: Object, as a binary array or as a file-like stream if parameter `stream` is enabled
@@ -179,7 +189,7 @@ class Storage:
         """
         return self.storage_handler.head_bucket(bucket)
 
-    def list_objects(self, bucket: str, prefix: Optional[str] = None) -> List[Tuple[str, int]]:
+    def list_objects(self, bucket: str, prefix: Optional[str] = None, match_pattern: Optional[str] = None) -> List[Tuple[str, int]]:
         """
         Returns all of the object keys in a bucket. For each object, the list contains the name
         of the object (key) and the size.
@@ -190,7 +200,7 @@ class Storage:
         :return: List of tuples containing the object key and size in bytes
         """
 
-        return self.storage_handler.list_objects(bucket, prefix)
+        return self.storage_handler.list_objects(bucket, prefix, match_pattern)
 
     def list_keys(self, bucket, prefix=None) -> List[str]:
         """
@@ -292,6 +302,12 @@ class InternalStorage:
         self.storage = Storage(storage_config=storage_config)
         self.backend = self.storage.backend
         self.bucket = self.storage.bucket
+
+        if not self.bucket:
+            raise Exception(f"'storage_bucket' is mandatory under '{self.backend}'"
+                            " section of the configuration")
+
+        self.storage.create_bucket(self.bucket)
 
     def get_client(self):
         """

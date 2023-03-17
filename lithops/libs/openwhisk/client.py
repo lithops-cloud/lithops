@@ -43,6 +43,7 @@ class OpenWhiskClient:
         :param user_agent: User agent on requests.
         """
         self.endpoint = endpoint.replace('http:', 'https:')
+        self.url = f'{self.endpoint}/api/v1/namespaces'
         self.namespace = namespace
         self.api_key = api_key
         self.auth = auth
@@ -64,16 +65,49 @@ class OpenWhiskClient:
 
         if user_agent:
             default_user_agent = self.session.headers['User-Agent']
-            self.headers['User-Agent'] = default_user_agent + ' {}'.format(user_agent)
+            self.headers['User-Agent'] = default_user_agent + f' {user_agent}'
 
         self.session.headers.update(self.headers)
         adapter = requests.adapters.HTTPAdapter()
         self.session.mount('https://', adapter)
 
+    def create_namespace(self, namespace, resource_group_id):
+        """
+        Create a WSK namespace
+        """
+        data = {"name": namespace, "description": "Auto-created Lithops namespace",
+                "resource_group_id": resource_group_id, "resource_plan_id": "functions-base-plan"}
+
+        res = self.session.post(self.url, json=data)
+        resp_text = res.json()
+
+        if res.status_code == 201:
+            logger.debug(f"OK --> Namespace created {namespace}")
+            self.namespace = resp_text['id']
+            return resp_text['id']
+        else:
+            msg = f"An error occurred creating the namsepace {namespace}: {resp_text['message']}"
+            raise Exception(msg)
+
+    def delete_namespace(self, namespace):
+        """
+        Delete a WSK namespace
+        """
+        res = self.session.delete(f'{self.url}/{namespace}')
+
+        if res.status_code == 200:
+            logger.debug(f"OK --> Namespace deleted {namespace}")
+        elif res.status_code == 404:
+            pass
+        else:
+            resp_text = res.json()
+            msg = f"An error occurred deleting the namsepace {namespace}: {resp_text['message']}"
+            raise Exception(msg)
+
     def create_action(self, package, action_name, image_name=None, code=None, memory=None,
                       timeout=30000, kind='blackbox', is_binary=True, overwrite=True):
         """
-        Create an IBM Cloud Functions action
+        Create an WSK action
         """
         data = {}
         limits = {}
@@ -89,34 +123,34 @@ class OpenWhiskClient:
         cfexec['code'] = base64.b64encode(code).decode("utf-8") if is_binary else code
         data['exec'] = cfexec
 
-        logger.debug('Creating function action: {}'.format(action_name))
-        url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.namespace, 'actions', package,
+        logger.debug(f'Creating function action: {action_name}')
+        url = '/'.join([self.url, self.namespace, 'actions', package,
                         action_name + "?overwrite=" + str(overwrite)])
 
         res = self.session.put(url, json=data)
         resp_text = res.json()
 
         if res.status_code == 200:
-            logger.debug("OK --> Created action {}".format(action_name))
+            logger.debug(f"OK --> Created action {action_name}")
         else:
-            msg = 'An error occurred creating/updating action {}: {}'.format(action_name, resp_text['error'])
+            msg = f'An error occurred creating/updating action {action_name}: {resp_text["error"]}'
             raise Exception(msg)
 
     def get_action(self, package, action_name):
         """
-        Get an IBM Cloud Functions action
+        Get an WSK action
         """
-        logger.debug("Getting cloud function action: {}".format(action_name))
-        url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.namespace, 'actions', package, action_name])
+        logger.debug(f"Getting cloud function action: {action_name}")
+        url = '/'.join([self.url, self.namespace, 'actions', package, action_name])
         res = self.session.get(url)
         return res.json()
 
     def list_actions(self, package):
         """
-        List all IBM Cloud Functions actions in a package
+        List all WSK actions in a package
         """
-        logger.debug("Listing all actions from: {}".format(package))
-        url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.namespace, 'actions', package, ''])
+        logger.debug(f"Listing all actions from: {package}")
+        url = '/'.join([self.url, self.namespace, 'actions', package, ''])
         res = self.session.get(url)
         if res.status_code == 200:
             return res.json()
@@ -125,80 +159,78 @@ class OpenWhiskClient:
 
     def delete_action(self, package, action_name):
         """
-        Delete an IBM Cloud Function
+        Delete an WSK function
         """
-        logger.debug("Deleting cloud function action: {}".format(action_name))
-        url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.namespace, 'actions', package, action_name])
+        logger.debug(f"Deleting cloud function action: {action_name}")
+        url = '/'.join([self.url, self.namespace, 'actions', package, action_name])
         res = self.session.delete(url)
         resp_text = res.json()
 
         if res.status_code != 200:
-            logger.debug('An error occurred deleting action {}: {}'.format(action_name, resp_text['error']))
+            logger.debug(f'An error occurred deleting action {action_name}: {resp_text["error"]}')
 
     def update_memory(self, package, action_name, memory):
-        logger.debug('Updating memory of the {} action to {}'.format(action_name, memory))
-        url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.namespace,
-                        'actions', package, action_name + "?overwrite=True"])
+        logger.debug(f'Updating memory of the {action_name} action to {memory}')
+        url = '/'.join([self.url, self.namespace, 'actions', package, action_name + "?overwrite=True"])
 
         data = {"limits": {"memory": memory}}
         res = self.session.put(url, json=data)
         resp_text = res.json()
 
         if res.status_code != 200:
-            logger.debug('An error occurred updating action {}: {}'.format(action_name, resp_text['error']))
+            logger.debug(f'An error occurred updating action {action_name}: {resp_text["error"]}')
         else:
-            logger.debug("OK --> Updated action memory {}".format(action_name))
+            logger.debug(f"OK --> Updated action memory {action_name}")
 
     def list_packages(self):
         """
-        List all IBM Cloud Functions packages
+        List all WSK packages
         """
         logger.debug('Listing function packages')
-        url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.namespace, 'packages'])
+        url = '/'.join([self.url, self.namespace, 'packages'])
 
         res = self.session.get(url)
 
         if res.status_code == 200:
             return res.json()
         else:
-            logger.debug("Unable to list packages")
-            raise Exception("Unable to list packages")
+            return []
 
     def delete_package(self, package):
         """
-        Delete an IBM Cloud Functions package
+        Delete an WSK package
         """
-        logger.debug("Deleting functions package: {}".format(package))
-        url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.namespace, 'packages', package])
+        logger.debug(f"Deleting functions package: {package}")
+        url = '/'.join([self.url, self.namespace, 'packages', package])
         res = self.session.delete(url)
         resp_text = res.json()
 
         if res.status_code == 200:
             return resp_text
         else:
-            logger.debug('An error occurred deleting the package {}: {}'.format(package, resp_text['error']))
+            logger.debug(f'An error occurred deleting the package {package}: {resp_text["error"]}')
 
     def create_package(self, package):
         """
-        Create a package
+        Create a WSK package
         """
-        logger.debug('Creating functions package {}'.format(package))
-        url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.namespace, 'packages', package + "?overwrite=False"])
+        logger.debug(f'Creating functions package {package}')
+        url = '/'.join([self.url, self.namespace, 'packages', package + "?overwrite=False"])
 
         data = {"name": package}
         res = self.session.put(url, json=data)
         resp_text = res.json()
 
         if res.status_code != 200:
-            logger.debug('Package {}: {}'.format(package, resp_text['error']))
+            logger.debug(f'Package {package}: {resp_text["error"]}')
         else:
-            logger.debug("OK --> Created package {}".format(package))
+            logger.debug(f"OK --> Created package {package}")
 
     def invoke(self, package, action_name, payload={}, is_ow_action=False, self_invoked=False):
         """
-        Invoke an Cloud Function by using new request.
+        Invoke an WSK function by using new request.
         """
-        url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.namespace, 'actions', package, action_name])
+        url = '/'.join([self.url, self.namespace, 'actions', package, action_name])
         parsed_url = urlparse(url)
 
         try:
@@ -217,7 +249,7 @@ class OpenWhiskClient:
                 data = json.loads(resp.read().decode("utf-8"))
                 conn.close()
         except Exception as e:
-            logger.debug('Invocation Failed: {}. Doing reinvocation'.format(str(e)))
+            logger.debug(f'Invocation Failed: {str(e)}. Doing reinvocation')
             if not is_ow_action:
                 conn.close()
             if self_invoked:
@@ -241,10 +273,9 @@ class OpenWhiskClient:
 
     def invoke_with_result(self, package, action_name, payload={}):
         """
-        Invoke an IBM Cloud Function waiting for the result.
+        Invoke a WSK function waiting for the result.
         """
-        url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.namespace, 'actions',
-                        package, action_name + "?blocking=true&result=true"])
+        url = '/'.join([self.url, self.namespace, 'actions', package, action_name + "?blocking=true&result=true"])
         resp = self.session.post(url, json=payload)
         result = resp.json()
 

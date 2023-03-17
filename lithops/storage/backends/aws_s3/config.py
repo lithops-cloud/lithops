@@ -15,35 +15,30 @@
 #
 
 
-REQ_PARAMS = ('secret_access_key', 'access_key_id')
-ENDPOINT_URL = 'https://s3.{}.amazonaws.com'
+import copy
 
 
 def load_config(config_data):
-    if 'aws' not in config_data or 'aws_s3' not in config_data:
-        raise Exception("'aws' and 'aws_s3' sections are mandatory in the configuration")
 
-    for param in REQ_PARAMS:
-        if param not in config_data['aws']:
-            msg = f"'{param}' is mandatory under 'aws' section of the configuration"
-            raise Exception(msg)
+    if 'aws' in config_data:
 
-    # Put credential keys to 'aws_s3' dict entry
-    config_data['aws_s3'].update(config_data['aws'])
+        if not {'access_key_id', 'secret_access_key'}.issubset(set(config_data['aws'])):
+            raise Exception("'access_key_id' and 'secret_access_key' are mandatory under the 'aws' section of the configuration")
 
-    if 'endpoint' not in config_data['aws_s3'] and 'region_name' not in config_data['aws_s3']:
-        raise Exception("'endpoint' or 'region_name' is mandatory under 'aws_s3' section of the configuration")
+        if 'aws_s3' not in config_data:
+            config_data['aws_s3'] = {}
 
-    if 'region_name' in config_data['aws_s3']:
-        region = config_data['aws_s3']['region_name']
-        config_data['aws_s3']['endpoint'] = ENDPOINT_URL.format(region)
+        temp = copy.deepcopy(config_data['aws_s3'])
+        config_data['aws_s3'].update(config_data['aws'])
+        config_data['aws_s3'].update(temp)
 
-    if not config_data['aws_s3']['endpoint'].startswith('http'):
-        raise Exception('S3 endpoint must start with http:// or https://')
+        if 'region_name' in config_data['aws_s3']:
+            config_data['aws_s3']['region'] = config_data['aws_s3'].pop('region_name')
 
-    if 'region_name' not in config_data['aws_s3']:
-        region = config_data['aws_s3']['endpoint'].split('.')[1]
-        config_data['aws_s3']['region_name'] = region
+        if 'region' not in config_data['aws_s3']:
+            raise Exception("'region' is mandatory under 'aws_s3' or 'aws' section of the configuration")
 
-    if 'storage_bucket' in config_data['aws_s3']:
-        config_data['lithops']['storage_bucket'] = config_data['aws_s3']['storage_bucket']
+        if 'storage_bucket' not in config_data['aws_s3']:
+            key = config_data['aws_s3']['access_key_id']
+            region = config_data['aws_s3']['region']
+            config_data['aws_s3']['storage_bucket'] = f'lithops-{region}-{key[:6].lower()}'

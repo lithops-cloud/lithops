@@ -114,7 +114,7 @@ def upload_data_sets():
         i, url = param
         content = urllib.request.urlopen(url).read()
         STORAGE.put_object(bucket=STORAGE_CONFIG['bucket'],
-                           key='{}/test{}'.format(DATASET_PREFIX, str(i)),
+                           key=f'{DATASET_PREFIX}/test{str(i)}',
                            body=content)
         return len(content.split())
 
@@ -163,17 +163,19 @@ def config_suite(suite, tests, groups):
                     terminate('test', test)
 
 
-def run_tests(tests, config=None, group=None, backend=None, storage=None, fail_fast=False,
-              keep_datasets=False):
+def run_tests(tests, config=None, group=None, backend=None, storage=None, region=None,
+              fail_fast=False, keep_datasets=False):
     global CONFIG, STORAGE_CONFIG, STORAGE
 
-    config_ow = {'lithops': {}}
+    config_ow = {'lithops': {}, 'backend': {}}
     if storage:
         config_ow['lithops']['storage'] = storage
     if backend:
         config_ow['lithops']['backend'] = backend
+    if region:
+        config_ow['backend']['region'] = region
 
-    CONFIG = default_config(config, config_ow)
+    CONFIG = default_config(config_data=config, config_overwrite=config_ow)
     STORAGE_CONFIG = extract_storage_config(CONFIG)
     STORAGE = Storage(storage_config=STORAGE_CONFIG)
     init_test_variables()

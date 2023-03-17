@@ -84,15 +84,14 @@ class KubernetesBackend:
         name = f'{runtime_name}-{runtime_memory}-{version}'
         name_hash = hashlib.sha1(name.encode("utf-8")).hexdigest()[:10]
 
-        return f'lithops-kubernetes-runtime-v{version.replace(".", "")}-{name_hash}'
+        return f'lithops-worker-{version.replace(".", "")}-{name_hash}'
 
     def _get_default_runtime_image_name(self):
         """
         Generates the default runtime image name
         """
-        revision = 'latest' if 'dev' in __version__ else __version__
         return utils.get_default_container_name(
-            self.name, self.k8s_config, 'lithops-kubernetes-default', revision
+            self.name, self.k8s_config, 'lithops-kubernetes-default'
         )
 
     def build_runtime(self, docker_image_name, dockerfile, extra_args=[]):
@@ -210,7 +209,7 @@ class KubernetesBackend:
         """
         pass
 
-    def clean(self, force=True):
+    def clean(self, all=False, **kwargs):
         """
         Deletes all jobs
         """
@@ -220,7 +219,7 @@ class KubernetesBackend:
             jobs = self.batch_api.list_namespaced_job(namespace=self.namespace)
             for job in jobs.items:
                 if job.metadata.labels['type'] == 'lithops-runtime'\
-                   and (job.status.completion_time is not None or force):
+                   and (job.status.completion_time is not None or all):
                     job_name = job.metadata.name
                     logger.debug(f'Deleting job {job_name}')
                     try:
@@ -371,7 +370,7 @@ class KubernetesBackend:
 
         logger.info(f"Extracting metadata from: {docker_image_name}")
 
-        payload = copy.deepcopy(self.internal_storage.storage.storage_config)
+        payload = copy.deepcopy(self.internal_storage.storage.config)
         payload['runtime_name'] = runtime_name
         payload['log_level'] = logger.getEffectiveLevel()
 
@@ -409,7 +408,7 @@ class KubernetesBackend:
         done = False
         failed = False
 
-        while not done or failed:
+        while not (done or failed):
             try:
                 w = watch.Watch()
                 for event in w.stream(self.batch_api.list_namespaced_job,

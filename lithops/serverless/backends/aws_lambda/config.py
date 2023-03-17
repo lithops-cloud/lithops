@@ -14,6 +14,7 @@
 # limitations under the License.
 #
 
+import copy
 import logging
 
 logger = logging.getLogger(__name__)
@@ -50,8 +51,7 @@ DEFAULT_CONFIG_KEYS = {
     'efs': []
 }
 
-REQ_PARAMS1 = ('access_key_id', 'secret_access_key')
-REQ_PARAMS2 = ('execution_role', 'region_name')
+REQ_PARAMS = ('execution_role',)
 
 RUNTIME_TIMEOUT_MAX = 900  # Max. timeout: 900 s == 15 min
 RUNTIME_MEMORY_MIN = 128  # Max. memory: 128 MB
@@ -65,15 +65,17 @@ def load_config(config_data):
     if 'aws' not in config_data:
         raise Exception("'aws' section is mandatory in the configuration")
 
-    for param in REQ_PARAMS1:
-        if param not in config_data['aws']:
-            msg = f'"{param}" is mandatory in the "aws" section of the configuration'
-            raise Exception(msg)
+    if not {'access_key_id', 'secret_access_key'}.issubset(set(config_data['aws'])):
+        raise Exception("'access_key_id' and 'secret_access_key' are mandatory under the 'aws' section of the configuration")
 
     if not config_data['aws_lambda']:
         raise Exception("'aws_lambda' section is mandatory in the configuration")
 
-    for param in REQ_PARAMS2:
+    temp = copy.deepcopy(config_data['aws_lambda'])
+    config_data['aws_lambda'].update(config_data['aws'])
+    config_data['aws_lambda'].update(temp)
+
+    for param in REQ_PARAMS:
         if param not in config_data['aws_lambda']:
             msg = f'"{param}" is mandatory in the "aws_lambda" section of the configuration'
             raise Exception(msg)
@@ -124,5 +126,10 @@ def load_config(config_data):
             or config_data['aws_lambda']['ephemeral_storage'] > RUNTIME_TMP_SZ_MAX:
         raise Exception(f'Ephemeral storage value must be between {RUNTIME_TMP_SZ_MIN} and {RUNTIME_TMP_SZ_MAX}')
 
-    # Put credential keys to 'aws_lambda' dict entry
-    config_data['aws_lambda'].update(config_data['aws'])
+    if 'region_name' in config_data['aws_lambda']:
+        config_data['aws_lambda']['region'] = config_data['aws_lambda'].pop('region_name')
+
+    if 'region' not in config_data['aws_lambda']:
+        raise Exception('"region" is mandatory under the "aws_lambda" or "aws" section of the configuration')
+    elif 'region' not in config_data['aws']:
+        config_data['aws']['region'] = config_data['aws_lambda']['region']

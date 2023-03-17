@@ -32,15 +32,15 @@ class AliyunObjectStorageServiceBackend:
 
     def __init__(self, oss_config):
         logger.debug("Creating Aliyun Object Storage Service client")
-        self.oss_config = oss_config
-        self.auth = oss2.Auth(self.oss_config['access_key_id'], self.oss_config['access_key_secret'])
+        self.config = oss_config
+        self.auth = oss2.Auth(self.config['access_key_id'], self.config['access_key_secret'])
 
         if is_lithops_worker():
-            self.endpoint = self.oss_config['internal_endpoint']
+            self.endpoint = self.config['internal_endpoint']
         else:
-            self.endpoint = self.oss_config['public_endpoint']
+            self.endpoint = self.config['public_endpoint']
 
-        self.region = self.endpoint.split('-', 1)[1].split('.')[0]
+        self.region = self.config['region']
 
         # Connection pool size in aliyun_oss must be updated to avoid "connection pool is full" type errors.
         oss2.defaults.connection_pool_size = config.CONNECTION_POOL_SIZE
@@ -58,6 +58,13 @@ class AliyunObjectStorageServiceBackend:
 
     def get_client(self):
         return self
+
+    def create_bucket(self, bucket_name):
+        """
+        Create a bucket if not exists
+        """
+        bucket = self._connect_bucket(bucket_name)
+        bucket.create_bucket()
 
     def put_object(self, bucket_name, key, data):
         """
@@ -209,7 +216,7 @@ class AliyunObjectStorageServiceBackend:
         except oss2.exceptions.NoSuchBucket:
             raise StorageNoSuchKeyError(bucket_name, '')
 
-    def list_objects(self, bucket_name, prefix=None):
+    def list_objects(self, bucket_name, prefix=None, match_pattern=None):
         """
         Return a list of objects for the given bucket and prefix.
         :param bucket_name: name of the bucket.
