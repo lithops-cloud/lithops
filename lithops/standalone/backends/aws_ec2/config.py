@@ -54,6 +54,9 @@ def load_config(config_data):
         if key not in config_data['aws_ec2']:
             config_data['aws_ec2'][key] = DEFAULT_CONFIG_KEYS[key]
 
+    if 'standalone' not in config_data or config_data['standalone'] is None:
+        config_data['standalone'] = {}
+
     for key in SA_DEFAULT_CONFIG_KEYS:
         if key in config_data['aws_ec2']:
             config_data['standalone'][key] = config_data['aws_ec2'].pop(key)
