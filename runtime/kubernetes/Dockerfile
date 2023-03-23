@@ -21,6 +21,7 @@ RUN pip install --upgrade setuptools six pip \
     && pip install --no-cache-dir \
         flask \
         pika \
+        boto3 \
         ibm-cos-sdk \
         redis \
         gevent \
