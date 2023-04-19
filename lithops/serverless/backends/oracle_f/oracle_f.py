@@ -14,6 +14,7 @@ from . import config
 
 logger = logging.getLogger(__name__)
 
+LITHOPS_FUNCTION_ZIP = 'lithops_oracle.zip'
 
 class OracleCloudFunctionsBackend:
 
@@ -33,6 +34,7 @@ class OracleCloudFunctionsBackend:
         self.service_name = oracle_config.get('service', self.default_service_name)
         
         self.cf_client = oci.functions.FunctionsManagementClient(oracle_config)
+        
     
     def _format_function_name(self, runtime_name, runtime_memory, version=__version__):
         runtime_name = ('lithops_v' + version + '_' + runtime_name).replace('.', '-')
@@ -54,6 +56,24 @@ class OracleCloudFunctionsBackend:
         runtime_key = os.path.join(self.name, version, self.region, self.service_name, function_name)
 
         return runtime_key
+    @staticmethod
+    def _create_handler_bin(remove=True):
+        """
+        Create and return Lithops handler function as zip bytes
+        @param remove: True to delete the zip archive after building
+        @return: Lithops handler function as zip bytes
+        """
+        current_location = os.path.dirname(os.path.abspath(__file__))
+        main_file = os.path.join(current_location, 'entry_point.py')
+        utils.create_handler_zip(LITHOPS_FUNCTION_ZIP, main_file, 'entry_point.py')
+
+        with open(LITHOPS_FUNCTION_ZIP, 'rb') as action_zip:
+            action_bin = action_zip.read()
+
+        if remove:
+            os.remove(LITHOPS_FUNCTION_ZIP)
+
+        return action_bin
 
     def _get_default_runtime_name(self):
         py_version = utils.CURRENT_PY_VERSION.replace('.', '')
@@ -66,34 +86,62 @@ class OracleCloudFunctionsBackend:
         requirements_file = os.path.join(TEMP_DIR, 'oracle_default_requirements.txt')
         with open(requirements_file, 'w') as reqf:
             reqf.write(config.REQUIREMENTS_FILE)
+        
+        dockerfile_content = f'''
+            FROM python:{utils.CURRENT_PY_VERSION}-slim
+
+            WORKDIR /app
+
+            COPY {os.path.basename(requirements_file)} ./
+            RUN pip install --no-cache-dir -r {os.path.basename(requirements_file)}
+
+            CMD ["python", "-c", "print('Hello from the Oracle Functions runtime!')"]
+        '''
+        dockerfile_path = os.path.join(TEMP_DIR, 'oracle_default_Dockerfile')
+        shutil.copy(requirements_file, './oracle_default_requirements.txt')
+
+        with open(dockerfile_path, 'w') as dockerfile:
+            dockerfile.write(dockerfile_content)
+
         try:
-            self.build_runtime(runtime_name, requirements_file)
+            self.build_runtime(runtime_name, dockerfile_path)
         finally:
-            os.remove(requirements_file)
+            print('Cleaning up')
     
     def build_runtime(self, docker_image_name, dockerfile, extra_args=[]):
+        """ Build the runtime Docker image and push it to OCIR. """
+        
         logger.info(f'Building runtime {docker_image_name} from {dockerfile}')
         print('Building runtime {docker_image_name} from {dockerfile}')
         docker_path = utils.get_docker_path()
 
-        cmd = f'{docker_path} login {self.region}.ocir.io -u {self.namespace_name}/{self.username} -p {self.auth_token}'
-        utils.run_command(cmd)
-        print(dockerfile)
-        # Build the Docker image
+        cmd = f'{docker_path} login {self.region}.ocir.io -u {self.namespace_name}/{self.username} --password-stdin'
+        
+        out = utils.run_command(cmd, return_result=True, input=self.auth_token)
+        print(out)
+        
+        # Create Lithops handler zip file
+        try:
+            self._create_handler_bin(remove=False)
+            
+            # Build the Docker image
+            if dockerfile:
+                assert os.path.isfile(dockerfile), f'Cannot locate "{dockerfile}"'
+                cmd = f'{docker_path} build -t {docker_image_name} -f {dockerfile} . '
+            else:
+                cmd = f'{docker_path} build -t {docker_image_name} . '
 
-        if dockerfile:
-            assert os.path.isfile(dockerfile), f'Cannot locate "{dockerfile}"'
-            cmd = f'{docker_path} build -t {docker_image_name} -f {dockerfile} . '
-        else:
-            cmd = f'{docker_path} build -t {docker_image_name} . '
+            output = utils.run_command(cmd, return_result=True)
+            print(output)
+        finally:
+            os.remove(LITHOPS_FUNCTION_ZIP)
+
+        cmd = f'{docker_path} tag {docker_image_name}:latest {self.region}.ocir.io/{self.namespace_name}/{docker_image_name}:latest'
         utils.run_command(cmd)
         
-        # Tag the image with the appropriate name and version
-        #utils.run_command(f'{docker_path} "tag" {runtime_name} {self.region}.ocir.io/{self.namespace_name}/{runtime_name}')
-
-      
-
-    
+        # Push the Docker image to the Oracle Cloud Infrastructure Registry (OCIR)
+        cmd = f'{docker_path} push {self.region}.ocir.io/{self.namespace_name}/{docker_image_name}:latest'
+        utils.run_command(cmd)
 
 
     def get_runtime_info(self):
@@ -139,48 +187,53 @@ class OracleCloudFunctionsBackend:
                 return serv.id
         return None
 
+
     def deploy_runtime(self, runtime_name, memory, timeout):
-            """
-            Deploys a new runtime into Aliyun Function Compute
-            with the custom modules for lithops
-            """
-            logger.info(f"Deploying runtime: {runtime_name} - Memory: {memory} Timeout: {timeout}")
+        """
+        Deploys a new runtime into Oracle Function Compute
+        with the custom modules for lithops
+        """
+        logger.info(f"Deploying runtime: {runtime_name} - Memory: {memory} Timeout: {timeout}")
 
-            if not self._service_exists(self.service_name):
-                logger.debug(f"creating service {self.service_name}")
-                
-                self.cf_client.create_application(
+        if not self._service_exists(self.service_name):
+            logger.debug(f"Creating service {self.service_name}")
+
+            self.cf_client.create_application(
                 create_application_details=oci.functions.models.CreateApplicationDetails(
-                compartment_id=self.tenancy,
-                display_name=self.service_name,
-                subnet_ids=[self.config['subnet_ids']]))
+                    compartment_id=self.tenancy,
+                    display_name=self.service_name,
+                    subnet_ids=[self.config['subnet_ids']]))
 
-            
-            if runtime_name == self._get_default_runtime_name():
-                self._build_default_runtime(runtime_name)
+        function_name = self._format_function_name(runtime_name, memory)
+        app_id = self._get_application_id(self.service_name)
 
-            function_name = self._format_function_name(runtime_name, memory)
-            app_id = self._get_application_id(self.service_name)
+        logger.debug(f'Creating function {function_name}')
+        functions = self.cf_client.list_functions(app_id).data
 
-            print(app_id)
-            logger.debug(f'Creating function {function_name}')
-            functions = self.cf_client.list_functions(app_id).data
-            
-            for function in functions:
-                if function['functionName'] == function_name:
-                    logger.debug(f'Function {function_name} already exists. Deleting it')
-                    self.delete_runtime(runtime_name, memory)
+        existing_function = None
+        for function in functions:
+            if function.display_name == function_name:
+                existing_function = function
+                break
 
-            self.cf_client.create_function(
-                create_function_details=oci.functions.models.CreateFunctionDetails(
+        if existing_function:
+            logger.debug(f'Function {function_name} already exists. Deleting it')
+            self.cf_client.delete_function(existing_function.id)
+
+        docker_image_name = f'{self.region}.ocir.io/{self.namespace_name}/{runtime_name}:latest'
+
+        self.cf_client.create_function(
+            create_function_details=oci.functions.models.CreateFunctionDetails(
                 display_name=function_name,
                 application_id=app_id,
-                image="EXAMPLE-image-Value",
-                memory_in_mbs=memory))
+                image=docker_image_name,
+                memory_in_mbs=memory,
+                timeout_in_seconds=timeout))
 
-            metadata = self._generate_runtime_meta(function_name)
+        metadata = self._generate_runtime_meta(function_name)
 
-            return metadata
+        return metadata
+
 
        
 """

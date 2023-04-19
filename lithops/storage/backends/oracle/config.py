@@ -19,8 +19,9 @@ CONNECTION_POOL_SIZE = 300
 REQ_PARAMS_1 = ('user', 'key_file','fingerprint', 'tenancy', 'region', 'namespace_name')
 
 
-
+print("Hello World")
 def load_config(config_data=None):
+    
     if 'oracle' not in config_data:
         raise Exception("'oracle' section is mandatory in the configuration")
 

@@ -131,7 +131,7 @@ class OCIObjectStorageBackend:
             raise StorageNoSuchKeyError(bucket_name,prefix)
 
 
-"""
+
 if __name__ == "__main__":
     config = {
         
@@ -151,7 +151,8 @@ if __name__ == "__main__":
     
 
     print(ociobj.list_objects( "cloudlab-bucket"))
+    print("test download file")
     print(ociobj.download_file( "cloudlab-bucket", "test.txt"))
-    print(ociobj.upload_file("cloudlab-bucket", "oracle_oss.py"))
+    print("test upload file")
+    print(ociobj.upload_file("cloudlab-bucket", "config.py"))
 
-"""

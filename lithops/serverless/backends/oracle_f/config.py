@@ -20,11 +20,11 @@ AVAILABLE_PY_RUNTIMES = {
 }
 
 REQUIREMENTS_FILE = """
-oci
-pika
-tblib
-cloudpickle
-ps-mem
+    oci
+    pika
+    tblib
+    cloudpickle
+    ps-mem
 """
 
 REQ_PARAMS = ('tenancy', 'user', 'fingerprint', 'key_file', 'region', 'compartment_id','subnet_ids','username','auth_token')
