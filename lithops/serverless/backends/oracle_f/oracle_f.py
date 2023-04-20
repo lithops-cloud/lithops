@@ -37,8 +37,8 @@ class OracleCloudFunctionsBackend:
         
     
     def _format_function_name(self, runtime_name, runtime_memory, version=__version__):
-        runtime_name = ('lithops_v' + version + '_' + runtime_name).replace('.', '-')
-        return f'{runtime_name}_{runtime_memory}MB'
+       
+        return runtime_name
     
     def _unformat_function_name(self, function_name):
         runtime_name, runtime_memory = function_name.rsplit('_', 1)
@@ -197,7 +197,6 @@ class OracleCloudFunctionsBackend:
 
         if not self._service_exists(self.service_name):
             logger.debug(f"Creating service {self.service_name}")
-
             self.cf_client.create_application(
                 create_application_details=oci.functions.models.CreateApplicationDetails(
                     compartment_id=self.tenancy,
@@ -207,7 +206,7 @@ class OracleCloudFunctionsBackend:
         function_name = self._format_function_name(runtime_name, memory)
         app_id = self._get_application_id(self.service_name)
 
-        logger.debug(f'Creating function {function_name}')
+        logger.debug(f'Checking if function {function_name} exists')
         functions = self.cf_client.list_functions(app_id).data
 
         existing_function = None
@@ -216,41 +215,79 @@ class OracleCloudFunctionsBackend:
                 existing_function = function
                 break
 
-        if existing_function:
-            logger.debug(f'Function {function_name} already exists. Deleting it')
-            self.cf_client.delete_function(existing_function.id)
-
         docker_image_name = f'{self.region}.ocir.io/{self.namespace_name}/{runtime_name}:latest'
 
-        self.cf_client.create_function(
-            create_function_details=oci.functions.models.CreateFunctionDetails(
-                display_name=function_name,
-                application_id=app_id,
-                image=docker_image_name,
-                memory_in_mbs=memory,
-                timeout_in_seconds=timeout))
+        if existing_function:
+            logger.debug(f'Function {function_name} already exists. Updating it')
+            self.cf_client.update_function(
+                function_id=existing_function.id,
+                update_function_details=oci.functions.models.UpdateFunctionDetails(
+                    image=docker_image_name,
+                    memory_in_mbs=memory,
+                    timeout_in_seconds=timeout))
+        else:
+            logger.debug(f'Creating function {function_name}')
+            self.cf_client.create_function(
+                create_function_details=oci.functions.models.CreateFunctionDetails(
+                    display_name=function_name,
+                    application_id=app_id,
+                    image=docker_image_name,
+                    memory_in_mbs=memory,
+                    timeout_in_seconds=timeout))
 
+        print("before generate_runtime_metadata")
         metadata = self._generate_runtime_meta(function_name)
 
         return metadata
 
+    def _generate_runtime_meta(self, runtime_name):
+        logger.debug(f'Extracting runtime metadata from: {runtime_name}')
 
+        # Get the function ID
+        app_id = self._get_application_id(self.service_name)
+        function_name = self._format_function_name(runtime_name, self.config['runtime_memory'])
+        function_ocid = self._get_function_ocid(function_name, app_id)
+
+        # Retrieve the function's information, including the invoke endpoint
+        fn_info = self.cf_client.get_function(function_ocid).data
+
+        # Set the invoke endpoint
+        invoke_endpoint = fn_info.invoke_endpoint
+
+        # Prepare the Oracle Functions client with the invoke endpoint
+        fn_invoke_client = oci.functions.FunctionsInvokeClient(self.config, service_endpoint=invoke_endpoint)
+
+        # Prepare the payload with the 'get_metadata' argument
+        payload = json.dumps({"get_metadata": True}).encode()
+
+        # Invoke the function with the payload
+        response = fn_invoke_client.invoke_function(
+            function_id=function_ocid,
+            invoke_function_body=payload
+        )
+
+        print(response.data.text())
+        result = json.loads(response.data.text())
+
+        if 'lithops_version' in result:
+            return result
+        else:
+            raise Exception('An error occurred: {}'.format(result))
+
+
+    def _get_function_ocid(self, runtime_name, app_id):
        
-"""
-if __name__ == "__main__":
-    config1 = {
-        
-        "user": "ocid1.user.oc1..aaaaaaaa35yjlnfrox4km4cmwectgtclrgwvpmjrheuyqi3tj3biavqxkmiq",
-        "key_file": "/home/ayman/ayman.bourramouss@urv.cat_2023-01-09T12_07_06.729Z.pem",
-        "fingerprint": "cf:b9:a6:85:a5:6e:06:23:20:35:76:af:71:ff:a9:52",
-        "tenancy": "ocid1.tenancy.oc1..aaaaaaaaedomxxeig7qoo5fmbbvsohbmp6nial74sh2so32zk3wxnc2erxta",
-        "region": "eu-madrid-1",
-        "compartment_id": "ocid1.compartment.oc1..aaaaaaaa6fwt7css3rvvryfi5gjrqvrdakkdlkizltk7c7dxy35bfkpms57q",
-        "namespace_name":"axwup7ph7ej7"
-    }
-    
-    f = OracleCloudFunctionsBackend(config1).cf_client
 
-    print(f.get_application('ocid1.fnapp.oc1.eu-madrid-1.aaaaaaaauxuxuzklmzikfbwzjmtb5m2qqal4azoebsoycv33isu22xewsvra').data)
+        if app_id is None:
+            raise Exception(f'Application {runtime_name} not found.')
 
-"""     
+        # Get the list of functions within the found application
+        functions = self.cf_client.list_functions(app_id).data
+
+        # Search for the function and return its OCID
+        for function in functions:
+            if function.display_name == runtime_name:
+                return function.id
+
+        raise Exception(f'Function {runtime_name} not found.')
+

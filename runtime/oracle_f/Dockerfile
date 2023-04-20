@@ -37,11 +37,14 @@ ARG FUNCTION_DIR="/function"
 
 # Copy function code
 RUN mkdir -p ${FUNCTION_DIR}
+ENV FN_LISTENER=unix:/tmp/fn.sock
+ENV FN_FORMAT=http-stream
 
 # Update pip
-RUN pip install --upgrade --ignore-installed pip wheel six setuptools \
+RUN pip install --upgrade --ignore-installed setuptools six pip \
     && pip install --upgrade --no-cache-dir --ignore-installed \
         fn \
+        fdk \
         boto3 \
         redis \
         httplib2 \
@@ -53,7 +56,8 @@ RUN pip install --upgrade --ignore-installed pip wheel six setuptools \
         kafka-python \
         cloudpickle \
         ps-mem \
-        tblib
+        tblib \
+        lithops
 
 WORKDIR ${FUNCTION_DIR}
 
@@ -65,5 +69,4 @@ RUN unzip lithops_oracle.zip \
     && mv entry_point.py handler/
 
 
-ENTRYPOINT [ "/usr/local/bin/python", "-m", "fn_fdk" ]
-CMD [ "handler.entry_point.main" ]
+ENTRYPOINT ["/usr/local/bin/fdk", "handler/entry_point.py", "handler"]
