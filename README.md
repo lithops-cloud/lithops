@@ -135,7 +135,7 @@ if __name__ == "__main__":
     st = Storage()
     st.put_object(bucket='mybucket',
                   key='test.txt',
-                  body='Hello World')
+                  body='Hello Universe')
 
     print(st.get_object(bucket='mybucket',
                         key='test.txt'))
