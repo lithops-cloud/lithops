@@ -5,6 +5,8 @@ import shutil
 import json
 import lithops
 import oci
+import ast
+from oci import Signer
 
 from lithops import utils
 from lithops.version import __version__
@@ -107,32 +109,71 @@ class OracleCloudFunctionsBackend:
             self.build_runtime(runtime_name, dockerfile_path)
         finally:
             print('Cleaning up')
+            
+    def invoke(self, runtime_name, memory=None, payload={}):
+        
+        print(payload)
+        logger.debug(f'Extracting runtime metadata from: {runtime_name}')
+
+        # Get the function ID
+        app_id = self._get_application_id(self.service_name)
+        function_name = self._format_function_name(runtime_name, self.config['runtime_memory'])
+        function_ocid = self._get_function_ocid(function_name, app_id)
+
+        # Retrieve the function's information, including the invoke endpoint
+        fn_info = self.cf_client.get_function(function_ocid).data
+
+        # Set the invoke endpoint
+        invoke_endpoint = fn_info.invoke_endpoint
+
+  
+        
+        # Prepare the Oracle Functions client with the invoke endpoint
+        fn_invoke_client = oci.functions.FunctionsInvokeClient(self.config, service_endpoint=invoke_endpoint)
+
+        # Invoke the function with the payload
+        response = fn_invoke_client.invoke_function(
+            function_id=function_ocid,
+            invoke_function_body=json.dumps(payload,default=str)
+        )
+
+        
+
+        status_code = response.status
+
+        if status_code == 200:
+            return response.headers['opc-request-id']
+        elif status_code == 401:
+            logger.debug(response.data.text)
+            raise Exception('Unauthorized - Invalid API Key')
+        elif status_code == 404:
+            logger.debug(response.data.text)
+            raise Exception('Lithops Runtime: {} not deployed'.format(runtime_name))
+        else:
+            logger.debug(response.data.text)
+            raise Exception('Error {}: {}'.format(status_code, response.data.text))
+
     
     def build_runtime(self, docker_image_name, dockerfile, extra_args=[]):
         """ Build the runtime Docker image and push it to OCIR. """
         
         logger.info(f'Building runtime {docker_image_name} from {dockerfile}')
-        print('Building runtime {docker_image_name} from {dockerfile}')
         docker_path = utils.get_docker_path()
 
         cmd = f'{docker_path} login {self.region}.ocir.io -u {self.namespace_name}/{self.username} --password-stdin'
         
         out = utils.run_command(cmd, return_result=True, input=self.auth_token)
-        print(out)
-        
+        # Build the Docker image
+        if dockerfile:
+            assert os.path.isfile(dockerfile), f'Cannot locate "{dockerfile}"'
+            cmd = f'{docker_path} build -t {docker_image_name} -f {dockerfile} . '
+        else:
+            cmd = f'{docker_path} build -t {docker_image_name} . '
+        cmd = cmd + ' '.join(extra_args)
         # Create Lithops handler zip file
         try:
             self._create_handler_bin(remove=False)
-            
-            # Build the Docker image
-            if dockerfile:
-                assert os.path.isfile(dockerfile), f'Cannot locate "{dockerfile}"'
-                cmd = f'{docker_path} build -t {docker_image_name} -f {dockerfile} . '
-            else:
-                cmd = f'{docker_path} build -t {docker_image_name} . '
-
-            output = utils.run_command(cmd, return_result=True)
-            print(output)
+            utils.run_command(cmd, return_result=True)
         finally:
             os.remove(LITHOPS_FUNCTION_ZIP)
 
@@ -235,9 +276,7 @@ class OracleCloudFunctionsBackend:
                     memory_in_mbs=memory,
                     timeout_in_seconds=timeout))
 
-        print("before generate_runtime_metadata")
         metadata = self._generate_runtime_meta(function_name)
-
         return metadata
 
     def _generate_runtime_meta(self, runtime_name):
@@ -257,18 +296,16 @@ class OracleCloudFunctionsBackend:
         # Prepare the Oracle Functions client with the invoke endpoint
         fn_invoke_client = oci.functions.FunctionsInvokeClient(self.config, service_endpoint=invoke_endpoint)
 
-        # Prepare the payload with the 'get_metadata' argument
-        payload = json.dumps({"get_metadata": True}).encode()
 
         # Invoke the function with the payload
         response = fn_invoke_client.invoke_function(
             function_id=function_ocid,
-            invoke_function_body=payload
+            invoke_function_body=json.dumps({"get_metadata": True},default=str)
         )
 
-        print(response.data.text())
-        result = json.loads(response.data.text())
-
+        meta_dict = ast.literal_eval(response.data.text)
+        result = json.dumps(meta_dict)
+        result = json.loads(result)
         if 'lithops_version' in result:
             return result
         else:

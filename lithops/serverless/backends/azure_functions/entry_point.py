@@ -59,7 +59,7 @@ def main_http(req: func.HttpRequest, context: func.Context) -> str:
     os.environ['__LITHOPS_BACKEND'] = 'Azure Functions (http)'
 
     if 'get_metadata' in payload:
-        logger.info(f"Lithops v{__version__} - Generating metadata")
+        logger.info(f"Lithops v{__version__} - Generating metadata!")
         runtime_meta = get_runtime_metadata()
         return json.dumps(runtime_meta)
     elif 'remote_invoker' in payload:

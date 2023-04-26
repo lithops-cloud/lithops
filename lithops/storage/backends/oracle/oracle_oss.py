@@ -6,6 +6,7 @@ from oci.object_storage import ObjectStorageClient
 from lithops.storage.utils import StorageNoSuchKeyError
 from lithops.utils import is_lithops_worker
 from lithops.constants import STORAGE_CLI_MSG
+from lithops.utils import sizeof_fmt
 
 
 logger = logging.getLogger(__name__)
@@ -15,44 +16,77 @@ class OCIObjectStorageBackend:
         logger.debug("Creating Oracle Object Storage Service client")
 
         self.config = config
-        self.object_storage_client = ObjectStorageClient(config)
-     
+        if 'key_file' in config and os.path.isfile(config['key_file']):
+            print("Using Oracle Object Storage CLI")
+            self.object_storage_client = ObjectStorageClient(config)
+        else:
+            signer = oci.auth.signers.get_resource_principals_signer()
+            self.object_storage_client = ObjectStorageClient(config={}, signer=signer)
+    
     def get_client(self):
         return self
 
     def put_object(self, bucket_name, key, data):
+        '''
+        Put an object in OCI Object Storage. Override the object if the key already exists.
+        :param bucket_name: name of the bucket.
+        :param key: key of the object.
+        :param data: data of the object
+        :type data: str/bytes
+        :return: None
+        '''
         if isinstance(data, str):
             data = data.encode()
 
         try:
-            print(self.config)
-
-            self.object_storage_client.put_object(self.config['namespace_name'] ,bucket_name, key, data)    
-        except oci.exceptions.ServiceError:
+            response = self.object_storage_client.put_object(self.config['namespace_name'], bucket_name, key, data)
+            status = 'OK' if response.status == 200 else 'Error'
+            
+            try:
+                logger.debug('PUT Object {} - Size: {} - {}'.format(key, sizeof_fmt(len(data)), status))
+            except Exception:
+                logger.debug('PUT Object {} {}'.format(key, status))
+        except oci.exceptions.ServiceError as e:
+            logger.info("ServiceError in put_object: %s", str(e))
             raise StorageNoSuchKeyError(bucket_name, key)
+           
 
     def get_object(self, bucket_name, key, stream=False, extra_get_args={}):
-        try:
-            if 'Range' in extra_get_args:
-                byte_range = extra_get_args.pop('Range')
-                if isinstance(byte_range, str):
-                    byte_range = byte_range.replace('bytes=', '')
-                    start, end = byte_range.split('-')
-                
-                if int(start) != 0:
-                    object_length = self.head_object(self.config['namespace_name'], bucket_name, key)['content-length']
-                    if int(end) >= object_length:
-                        end = object_length - 1
-                extra_get_args['byte_range'] = (int(start), int(end))
-            data = self.object_storage_client.get_object(self.config['namespace_name'], bucket_name, key)
-
-            if stream:
-                return data
-            else:
-                return data.data.raw.read()
+        '''
+        Get object from OCI Object Storage with a key. Throws NoSuchKey if the given key does not exist.
+        :param config: OCI config object
+        :param namespace: Object storage namespace
+        :param bucket_name: Bucket name
+        :param key: Key of the object
+        :param stream: Whether to return a stream or read the data
+        :param extra_get_args: Additional arguments for get_object
+        :return: Data of the object
+        :rtype: str/bytes
+        '''
         
-        except (oci.exceptions.ServiceError, oci.exceptions.ClientError):
-            raise StorageNoSuchKeyError(bucket_name,key)
+        try:
+            logger.info("OCI_RESOURCE_PRINCIPAL_VERSION: %s", os.environ.get("OCI_RESOURCE_PRINCIPAL_VERSION"))
+            logger.info("OCI_RESOURCE_PRINCIPAL_RPST: %s", os.environ.get("OCI_RESOURCE_PRINCIPAL_RPST"))
+            logger.info("OCI_RESOURCE_PRINCIPAL_PRIVATE_PEM: %s", os.environ.get("OCI_RESOURCE_PRINCIPAL_PRIVATE_PEM"))
+            print("Request get_object: %s %s", bucket_name, key)
+            logger.info("Request get_object: %s %s", bucket_name, key)
+            
+            r = self.object_storage_client.get_object(self.config['namespace_name'], bucket_name, key, **extra_get_args)
+            
+            if stream:
+                data = r.data
+            else:
+                data = r.data.content
+            
+            return data
+        except oci.exceptions.ServiceError as e:
+            logger.info("ServiceError in get_object: %s", str(e))
+            logger.info("Listing objects in bucket {}:".format(bucket_name))
+            logger.info(" - %s",self.list_objects(bucket_name))
+            print("Listing objects in bucket {}:".format(self.list_objects(bucket_name)))
+            raise StorageNoSuchKeyError(bucket_name, key)
+           
+        
 
     def upload_file(self, file_name, bucket, key=None, extra_args={}):
         if key is None:
@@ -115,7 +149,9 @@ class OCIObjectStorageBackend:
             obj_list = [obj.name for obj in res.data.objects]
             return obj_list
 
-        except oci.exceptions.ServiceError:
+        except oci.exceptions.ServiceError as e:
+            logger.info("ServiceError in list_objects: %s", str(e))
+
             raise StorageNoSuchKeyError(bucket_name,prefix)
 
 
@@ -129,7 +165,6 @@ class OCIObjectStorageBackend:
 
         except oci.exceptions.ServiceError:
             raise StorageNoSuchKeyError(bucket_name,prefix)
-
 
 
 if __name__ == "__main__":
@@ -150,9 +185,5 @@ if __name__ == "__main__":
 
     
 
-    print(ociobj.list_objects( "cloudlab-bucket"))
-    print("test download file")
-    print(ociobj.download_file( "cloudlab-bucket", "test.txt"))
-    print("test upload file")
-    print(ociobj.upload_file("cloudlab-bucket", "config.py"))
-
+    print(ociobj.get_object( "cloudlab-bucket", "tst.txt"))
+    
