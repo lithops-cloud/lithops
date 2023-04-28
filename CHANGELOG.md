@@ -25,6 +25,7 @@
 - [IBM COS] Changed 'access_key' config parameter to 'access_key_id' for compatibility
 - [IBM COS] Changed 'secret_key' config parameter to 'secret_access_key' for compatibility
 - [IBM] Improved token manager
+- [Core] Job creation now checks that each element in 'iterdata' is smaller than 8 KB
 
 ### Fixed
 - [IBM VPC & AWS EC2] Make sure only VMs from the given VPC are removed

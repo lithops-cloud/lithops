@@ -39,7 +39,7 @@ k8s:
 
     Note that Docker hub image names look like *"docker_username/runtimename:tag"* and must be all lower case, for example:
 
-        $ lithops runtime build -b k8s myaccount/lithops-kn-custom-v39:01
+        $ lithops runtime build -b k8s myaccount/lithops-k8s-custom-v39:01
 
     By default the Dockerfile should be located in the same folder from where you execute the **lithops runtime** command. If your Dockerfile is located in another folder, or the Dockerfile has another name, you can specify its location with the **-f** parameter, for example:
 
@@ -62,22 +62,24 @@ k8s:
 
     ```python
     import lithops
-    fexec = lithops.FunctionExecutor(runtime='lithopscloud/lithops-k8s-conda-v39:01')
+    fexec = lithops.FunctionExecutor(runtime='docker.io/lithopscloud/lithops-k8s-conda-v39:01')
     ```
 
     Alternatively, you can create a Lithops runtime based on already built Docker image by executing the following command, which will deploy all the necessary information to use the runtime with your Lithops.
 
-        $ lithops runtime deploy -b k8s docker_username/runtimename:tag
+    ```
+    $ lithops runtime deploy -b k8s docker_username/runtimename:tag
+    ```
 
     For example, you can use an already buit runtime based on Python 3.9 and with the *matplotlib* and *nltk* libraries by running:
 
-        $ lithops runtime deploy -b k8s lithopscloud/lithops-k8s-matplotlib-v39:01
-
-    Once finished, you can use the runtime in your Lithops code:
+    ```
+    $ lithops runtime deploy -b k8s docker.io/lithopscloud/lithops-k8s-matplotlib-v39:01
+    ```
 
     ```python
     import lithops
-    fexec = lithops.FunctionExecutor(runtime='lithopscloud/lithops-k8s-matplotlib:v39:01')
+    fexec = lithops.FunctionExecutor(runtime='docker.io/lithopscloud/lithops-k8s-matplotlib:v39:01')
     ```
 
 3. **Clean everything**

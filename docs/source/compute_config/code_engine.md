@@ -101,8 +101,8 @@ To configure Lithops to access a private repository in your docker hub account, 
 code_engine:
     ....
     docker_server    : docker.io
-    docker_user      : <Docker hub username>
-    docker_password  : <DOcker hub access TOEKN>
+    docker_user      : <container registry username>
+    docker_password  : <container registry access TOEKN>
 ```
 
 #### Configure IBM Container Registry
@@ -133,7 +133,6 @@ code_engine:
 |---|---|---|---|---|
 |code_engine | namespace |  |yes | Namespace name|
 |code_engine | region |  | yes | Cluster region. One of: `eu-gb`, `eu-de`, `us-south`, `us-east`, `br-sao`, `ca-tor`, `jp-tok`, `jp-osa`, `au-syd`. Lithops will use the region set under the `ibm` section if it is not set here |
-|code_engine | kubecfg_path | |no | **Mandatory** if no namepsace and no region. Path to kubecfg file. Only set if config file not in `~/.kube/config` or KUBECONFIG env var not present|
 |code_engine | docker_server | docker.io |no | Docker server URL |
 |code_engine | docker_user | |no | Docker hub username |
 |code_engine | docker_password | |no | Login to your docker hub account and generate a new access token [here](https://hub.docker.com/settings/security)|
