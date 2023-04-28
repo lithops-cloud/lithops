@@ -67,11 +67,6 @@ class OCIObjectStorageBackend:
         '''
         
         try:
-            logger.debug("OCI_RESOURCE_PRINCIPAL_VERSION: %s", os.environ.get("OCI_RESOURCE_PRINCIPAL_VERSION"))
-            logger.debug("OCI_RESOURCE_PRINCIPAL_RPST: %s", os.environ.get("OCI_RESOURCE_PRINCIPAL_RPST"))
-            logger.debug("OCI_RESOURCE_PRINCIPAL_PRIVATE_PEM: %s", os.environ.get("OCI_RESOURCE_PRINCIPAL_PRIVATE_PEM"))
-            
-            
             r = self.object_storage_client.get_object(self.namespace, bucket_name, key, **extra_get_args)
             
             if stream:
@@ -152,15 +147,32 @@ class OCIObjectStorageBackend:
 
 
     def list_keys(self, bucket_name, prefix=None):
-    
+        '''
+        Return a list of keys for the given prefix.
+        :param bucket_name: Name of the bucket.
+        :param prefix: Prefix to filter object names.
+        :return: List of keys in bucket that match the given prefix.
+        :rtype: list of str
+        '''
         prefix = '' if prefix is None else prefix
         try:
-            res = self.object_storage_client.list_objects(self.namespace, bucket_name,prefix=prefix,limit=1000)
-            obj_list = [{'Key': obj.name, 'Size': obj.size} for obj in res.data.objects]
-            return obj_list
+            objects = []
+            next_start = None
+            while True:
+                res = self.object_storage_client.list_objects(self.namespace, bucket_name, prefix=prefix, start=next_start)
+                objects.extend(res.data.objects)
+                if res.data.next_start_with is None:
+                    break
+                next_start = res.data.next_start_with
 
-        except oci.exceptions.ServiceError:
-            raise StorageNoSuchKeyError(bucket_name,prefix)
+            key_list = [obj.name for obj in objects]
+            return key_list
+        except oci.exceptions.ServiceError as e:
+            if e.status == 404:
+                raise StorageNoSuchKeyError(bucket_name, prefix)
+            else:
+                raise e
+
 
 
 

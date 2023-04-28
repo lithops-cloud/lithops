@@ -6,20 +6,20 @@ from lithops.utils import setup_lithops_logger
 from lithops.worker import function_handler
 from lithops.worker import function_invoker
 from lithops.worker.utils import get_runtime_metadata
-import sys
-from fdk import response
+import io
 
 logger = logging.getLogger(__name__)
 
-async def handler(ctx, data=None):
+def handler(ctx, data: io.BytesIO=None):
 
-    if data:
-        event = data.read().decode('utf-8')
-    else:
-        event = ''
-    args = json.loads(event)
-
-    os.environ['__LITHOPS_ACTIVATION_ID'] = ctx.CallID()
+    try:
+        args = json.loads(data.getvalue())
+    except (Exception, ValueError) as ex:
+        print(str(ex))
+    
+    call_id = ctx.CallID()
+    
+    os.environ['__LITHOPS_ACTIVATION_ID'] = call_id
     os.environ['__LITHOPS_BACKEND'] = 'Oracle Function Compute'
 
     if 'get_metadata' in args:
@@ -33,4 +33,4 @@ async def handler(ctx, data=None):
         logger.debug(f"Lithops v{__version__} - Starting Oracle Function Compute execution")
         function_handler(args)
 
-    return response.Response(ctx, response_data=json.dumps({"Execution": "Finished"}))
+    return call_id
