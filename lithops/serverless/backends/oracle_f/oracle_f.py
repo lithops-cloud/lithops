@@ -35,7 +35,12 @@ class OracleCloudFunctionsBackend:
         self.default_service_name = f'{config.SERVICE_NAME}_{self.user[-5:-1].lower()}'
         self.service_name = oracle_config.get('service', self.default_service_name)
         
-        self.cf_client = oci.functions.FunctionsManagementClient(oracle_config)
+        if 'key_file' in oracle_config and os.path.isfile(oracle_config['key_file']):
+            self.cf_client = oci.functions.FunctionsManagementClient(config=oracle_config)
+        else:
+            signer = oci.auth.signers.get_resource_principals_signer()
+            self.cf_client = oci.functions.FunctionsManagementClient(config={}, signer=signer)
+        
         
     
     def _format_function_name(self, runtime_name, runtime_memory, version=__version__):
@@ -112,7 +117,6 @@ class OracleCloudFunctionsBackend:
             
     def invoke(self, runtime_name, memory=None, payload={}):
         
-        print(payload)
         logger.debug(f'Extracting runtime metadata from: {runtime_name}')
 
         # Get the function ID
@@ -142,7 +146,7 @@ class OracleCloudFunctionsBackend:
         status_code = response.status
 
         if status_code == 200:
-            return response.headers['opc-request-id']
+            return response.request_id
         elif status_code == 401:
             logger.debug(response.data.text)
             raise Exception('Unauthorized - Invalid API Key')

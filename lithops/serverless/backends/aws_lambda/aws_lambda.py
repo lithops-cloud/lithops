@@ -621,41 +621,41 @@ class AWSLambdaBackend:
 
         return runtimes
 
-    def invoke(self, runtime_name, memory=None, payload={}):
-        # Get the function ID
-        app_id = self._get_application_id(self.service_name)
-        function_name = self._format_function_name(runtime_name, self.config['runtime_memory'])
-        function_ocid = self._get_function_ocid(function_name, app_id)
+    def invoke(self, runtime_name, runtime_memory, payload):
+        """
+        Invoke lambda function asynchronously
+        @param runtime_name: name of the runtime
+        @param runtime_memory: memory of the runtime in MB
+        @param payload: invoke dict payload
+        @return: invocation ID
+        """
 
-        # Retrieve the function's information, including the invoke endpoint
-        fn_info = self.cf_client.get_function(function_ocid).data
+        function_name = self._format_function_name(runtime_name, runtime_memory)
 
-        # Set the invoke endpoint
-        invoke_endpoint = fn_info.invoke_endpoint
+        headers = {'Host': self.host, 'X-Amz-Invocation-Type': 'Event', 'User-Agent': self.user_agent}
+        url = f'https://{self.host}/2015-03-31/functions/{function_name}/invocations'
+        request = AWSRequest(method="POST", url=url, data=json.dumps(payload, default=str), headers=headers)
+        SigV4Auth(self.credentials, "lambda", self.region_name).add_auth(request)
 
-        # Prepare the Oracle Functions client with the invoke endpoint
-        fn_invoke_client = oci.functions.FunctionsInvokeClient(self.config, service_endpoint=invoke_endpoint)
+        invoked = False
+        while not invoked:
+            try:
+                r = self.session.send(request.prepare())
+                invoked = True
+            except Exception:
+                pass
 
-        # Prepare the payload
-        payload_encoded = json.dumps(payload, default=str).encode()
-
-        # Invoke the function with the payload
-        response = fn_invoke_client.invoke_function(
-            function_id=function_ocid,
-            invoke_function_body=payload_encoded
-        )
-
-        if response.status == 202:
-            return response.headers.get('opc-request-id')
-        elif response.status == 401:
-            logger.debug(response.data.text)
+        if r.status_code == 202:
+            return r.headers['x-amzn-RequestId']
+        elif r.status_code == 401:
+            logger.debug(r.text)
             raise Exception('Unauthorized - Invalid API Key')
-        elif response.status == 404:
-            logger.debug(response.data.text)
+        elif r.status_code == 404:
+            logger.debug(r.text)
             raise Exception('Lithops Runtime: {} not deployed'.format(runtime_name))
         else:
-            logger.debug(response.data.text)
-            raise Exception('Error {}: {}'.format(response.status, response.data.text))
+            logger.debug(r.text)
+            raise Exception('Error {}: {}'.format(r.status_code, r.text))
 
 
         # response = self.lambda_client.invoke(
