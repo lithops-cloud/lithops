@@ -66,13 +66,13 @@ In this step you are required to install IBM Cloud CLI tool, Code Engine plugin 
     ```yaml
     lithops:
         backend: code_engine
-        
+
     ibm:
         iam_api_key: <IAM_API_KEY>
-       
+        region     : <REGION>
+
     code_engine:
         namespace  : <NAMESPACE>
-        region     : <REGION>
     ```
 
 ## Runtime
@@ -124,7 +124,7 @@ code_engine:
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |ibm | iam_api_key | |yes | IBM Cloud IAM API key to authenticate against IBM services. Obtain the key [here](https://cloud.ibm.com/iam/apikeys) |
-|ibm | region | |no | IBM Region.  One of: `eu-gb`, `eu-de`, `us-south`, `us-east`, `br-sao`, `ca-tor`, `jp-tok`, `jp-osa`, `au-syd` |
+|ibm | region | |yes | IBM Region.  One of: `eu-gb`, `eu-de`, `us-south`, `us-east`, `br-sao`, `ca-tor`, `jp-tok`, `jp-osa`, `au-syd` |
 |ibm | resource_group_id | | no | Resource group id from your IBM Cloud account. Get it from [here](https://cloud.ibm.com/account/resource-groups) |
 
 ## Code Engine:
@@ -132,7 +132,7 @@ code_engine:
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |code_engine | namespace |  |yes | Namespace name|
-|code_engine | region |  | yes | Cluster region. One of: `eu-gb`, `eu-de`, `us-south`, `us-east`, `br-sao`, `ca-tor`, `jp-tok`, `jp-osa`, `au-syd`. Lithops will use the region set under the `ibm` section if it is not set here |
+|code_engine | region |  | no | Cluster region. One of: `eu-gb`, `eu-de`, `us-south`, `us-east`, `br-sao`, `ca-tor`, `jp-tok`, `jp-osa`, `au-syd`. Lithops will use the `region` set under the `ibm` section if it is not set here |
 |code_engine | docker_server | docker.io |no | Docker server URL |
 |code_engine | docker_user | |no | Docker hub username |
 |code_engine | docker_password | |no | Login to your docker hub account and generate a new access token [here](https://hub.docker.com/settings/security)|

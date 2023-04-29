@@ -15,6 +15,8 @@
 #
 
 import os
+import copy
+
 from lithops.constants import TEMP_DIR
 
 BUILD_DIR = os.path.join(TEMP_DIR, 'AzureRuntimeBuild')
@@ -33,12 +35,10 @@ DEFAULT_CONFIG_KEYS = {
     'trigger': 'pub/sub'
 }
 
-REQ_PARAMS = ('location', 'resource_group')
-
 AVAILABLE_PY_RUNTIMES = ['3.7', '3.8', '3.9', '3.10']
 
-REQUIRED_AZURE_STORAGE_PARAMS = ['storage_account_name', 'storage_account_key']
-REQUIRED_AZURE_FUNCTIONS_PARAMS = ['resource_group', 'location']
+REQUIRED_AZURE_STORAGE_PARAMS = ('storage_account_name', 'storage_account_key')
+REQUIRED_AZURE_FUNCTIONS_PARAMS = ('resource_group', 'region')
 
 IN_QUEUE = "in-trigger"
 OUT_QUEUE = "out-result"
@@ -142,16 +142,19 @@ tblib
 
 
 def load_config(config_data):
-    if 'azure_storage' not in config_data:
+    if 'azure_storage' not in config_data or not config_data['azure_storage']:
         raise Exception("'azure_storage' section is mandatory in the configuration")
+
+    if 'azure' in config_data and config_data['azure'] is not None:
+        temp = copy.deepcopy(config_data['azure_functions'])
+        config_data['azure_functions'].update(config_data['azure'])
+        config_data['azure_functions'].update(temp)
 
     if not config_data['azure_functions']:
         raise Exception("'azure_functions' section is mandatory in the configuration")
 
-    for param in REQ_PARAMS:
-        if param not in config_data['azure_functions']:
-            msg = f'"{param}" is mandatory in the "azure_functions" section of the configuration'
-            raise Exception(msg)
+    if 'location' in config_data['azure_functions']:
+        config_data['azure_functions']['region'] = config_data['azure_functions'].pop('location')
 
     for key in DEFAULT_CONFIG_KEYS:
         if key not in config_data['azure_functions']:

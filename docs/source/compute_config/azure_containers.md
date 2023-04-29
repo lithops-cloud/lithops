@@ -63,16 +63,24 @@ az containerapp env create --name lithops --resource-group LithopsResourceGroup 
   lithops:
       backend : azure_containers
 
+  azure:
+      region: <LOCATION>
+      resource_group: <RESOURCE_GROUP_NAME>
+
   azure_storage:
       storage_account_name: <STORAGE_ACCOUNT_NAME>
       storage_account_key: <STORAGE_ACCOUNT_KEY>
-
-  azure_containers:
-      location: <LOCATION>
-      resource_group: <RESOURCE_GROUP_NAME>
 ```
 
 ## Summary of configuration keys for Azure
+
+### Azure
+
+|Group|Key|Default|Mandatory|Additional info|
+|---|---|---|---|---|
+|azure| region |  |yes | Azure location for the services to be deployed, for example: `westeurope`|
+|azure| resource_group | | yes | Name of a resource group, for example: `LithopsResourceGroup` |
+|azure| subscription_id |  |no | Subscription ID from your account. Find it [here](https://portal.azure.com/#view/Microsoft_Azure_Billing/SubscriptionsBlade)|
 
 ### Azure Storage
 
@@ -85,8 +93,8 @@ az containerapp env create --name lithops --resource-group LithopsResourceGroup 
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|azure_containers| resource_group | |yes | Name of the resource group used in the step 5 of the installation. |
-|azure_containers| location |  |yes | The location where you created the `lithops` Container APP environment. For example: `westeurope`|
+|azure_containers| resource_group | |no | Name of a resource group, for example: `LithopsResourceGroup`. Lithops will use the `resource_group` set under the `azure` section if it is not set here |
+|azure_containers| region |  |no | The location where you created the `lithops` Container APP environment. For example: `westeurope`. Lithops will use the `region` set under the `azure` section if it is not set here|
 |azure_containers| environment | lithops |no | The environemnt name you created in the step 5 of the installation |
 |azure_containers | docker_server | index.docker.io |no | Docker server URL |
 |azure_containers | docker_user | |no | Docker hub username |

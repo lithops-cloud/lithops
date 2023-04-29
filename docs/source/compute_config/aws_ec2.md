@@ -96,7 +96,7 @@ aws_ec2:
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|aws_ec2 | region | |yes | Region name, for example: `eu-west-1` |
+|aws_ec2 | region | |yes | Region name, for example: `eu-west-1`. Lithops will use the `region` set under the `aws` section if it is not set here |
 |aws_ec2 | iam_role | | yes | IAM EC2 role name. You can find it in the [IAM Console page](https://console.aws.amazon.com/iamv2/home#/roles). Create a new EC2 role if it does not exist|
 |aws_ec2 | vpc_id | | no | VPC id. You can find all the available VPCs in the [VPC Console page](https://console.aws.amazon.com/vpc/v2/home#vpcs:) |
 |aws_ec2 | subnet_id | | no | Subnet id. You can find all the available Subnets in the [VPC Console page](https://console.aws.amazon.com/vpc/v2/home#subnets:) |

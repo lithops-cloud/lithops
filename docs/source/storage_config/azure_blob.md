@@ -48,11 +48,9 @@ $ python3 -m pip install lithops[azure]
 
 1. Access to the [Storage Account](https://portal.azure.com/#blade/HubsExtension/BrowseResource/resourceType/Microsoft.Storage%2FStorageAccounts)
 
-2. In the left menu, click on *Access Keys* and copy the *Key 1* key
+2. In the left menu, under the *Security + networking* section, click on *Access Keys* and copy the *Key 1*
 
-3. In the left menu, navigate to *Blob service* --> *Containers*, and create a *new container (e.g. `lithops-data`). Remember to update the `storage_bucket` Lithops config field with this container name.
-
-1. Edit your lithops config and add the following keys:
+3. Edit your lithops config and add the following keys:
 
 ```yaml
   lithops:
@@ -67,6 +65,6 @@ $ python3 -m pip install lithops[azure]
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|azure_storage | storage_account_name | |yes |  The storage account name |
-|azure_storage | storage_account_key |  | yes |  An storage account key, found in *Storage Accounts* > `account_name` > *Settings* > *Access Keys*|
+|azure_storage | storage_account_name | | yes |  The storage account name |
+|azure_storage | storage_account_key  | | yes |  An Account Key, found in *Storage Accounts* > `account_name` > *Security + networking* > *Access Keys*|
 |azure_storage | storage_bucket | | no | The name of a container that exists in you account. This will be used by Lithops for intermediate data. Lithops will automatically create a new one if it is not provided |
