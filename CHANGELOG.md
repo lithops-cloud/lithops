@@ -17,6 +17,7 @@
 - [Cli] Added new 'lithops image build' command for standalone backends
 - [Cli] Added new 'lithops image list' command for standalone backends
 - [IBM CF] Automatically create a CF namespace if not provided in config
+- [Azure] Allow to set 'region' parameter in config
 
 ### Changed
 - [AWS EC2] Reduced number of mandatory parameters

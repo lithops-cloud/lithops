@@ -68,7 +68,7 @@ az containerapp env create --name lithops --resource-group LithopsResourceGroup 
       storage_account_key: <STORAGE_ACCOUNT_KEY>
 
   azure_containers:
-      location: <LOCATION>
+      region: <LOCATION>
       resource_group: <RESOURCE_GROUP_NAME>
 ```
 
@@ -86,7 +86,7 @@ az containerapp env create --name lithops --resource-group LithopsResourceGroup 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |azure_containers| resource_group | |yes | Name of the resource group used in the step 5 of the installation. |
-|azure_containers| location |  |yes | The location where you created the `lithops` Container APP environment. For example: `westeurope`|
+|azure_containers| region |  |yes | The location where you created the `lithops` Container APP environment. For example: `westeurope`|
 |azure_containers| environment | lithops |no | The environemnt name you created in the step 5 of the installation |
 |azure_containers | docker_server | index.docker.io |no | Docker server URL |
 |azure_containers | docker_user | |no | Docker hub username |

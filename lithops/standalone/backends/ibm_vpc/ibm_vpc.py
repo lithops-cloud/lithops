@@ -43,10 +43,10 @@ VPC_API_VERSION = '2021-09-21'
 
 class IBMVPCBackend:
 
-    def __init__(self, ibm_vpc_config, mode):
+    def __init__(self, config, mode):
         logger.debug("Creating IBM VPC client")
         self.name = 'ibm_vpc'
-        self.config = ibm_vpc_config
+        self.config = config
         self.mode = mode
 
         self.vpc_name = None
@@ -853,7 +853,7 @@ class IBMVPCInstance:
 
     def get_ssh_client(self):
         """
-        Creates an ssh client against the VM only if the Instance is the master
+        Creates an ssh client against the VM
         """
 
         if not self.validated and self.public and self.instance_id:

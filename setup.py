@@ -43,6 +43,10 @@ extras_require = {
         'oss2'
     ],
     'azure': [
+        'azure-mgmt-resource',
+        'azure-mgmt-compute',
+        'azure-mgmt-network',
+        'azure-identity',
         'azure-storage-blob',
         'azure-storage-queue'
     ],
