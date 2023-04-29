@@ -72,7 +72,7 @@ ibm_vpc:
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|ibm_vpc | region | |no | VPC Region. For example `us-south`. Choose one region from [here](https://cloud.ibm.com/docs/vpc?topic=vpc-service-endpoints-for-vpc). Lithops will use the region set under the `ibm` section if it is not set here |
+|ibm_vpc | region | |no | VPC Region. For example `us-south`. Choose one region from [here](https://cloud.ibm.com/docs/vpc?topic=vpc-service-endpoints-for-vpc). Lithops will use the `region` set under the `ibm` section if it is not set here |
 |ibm_vpc | vpc_id | | no | VPC id of an existing VPC. Get it from [here](https://cloud.ibm.com/vpc-ext/network/vpcs) |
 |ibm_vpc | vpc_name | | no | VPC name of an existing VPC (if `vpc_id` is not provided) |
 |ibm_vpc | security_group_id | | no | Security group id of an existing VPC. Get it from [here](https://cloud.ibm.com/vpc-ext/network/securityGroups)|

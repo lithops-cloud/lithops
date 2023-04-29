@@ -15,6 +15,8 @@
 #
 
 import os
+import copy
+
 from lithops.constants import TEMP_DIR
 
 FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_azure_ca.zip')
@@ -151,6 +153,11 @@ CMD ["python", "lithopsentry.py"]
 def load_config(config_data):
     if 'azure_storage' not in config_data or not config_data['azure_storage']:
         raise Exception("'azure_storage' section is mandatory in the configuration")
+
+    if 'azure' in config_data and config_data['azure'] is not None:
+        temp = copy.deepcopy(config_data['azure_containers'])
+        config_data['azure_containers'].update(config_data['azure'])
+        config_data['azure_containers'].update(temp)
 
     if not config_data['azure_containers']:
         raise Exception("'azure_containers' section is mandatory in the configuration")

@@ -15,6 +15,8 @@
 #
 
 import os
+import copy
+
 from lithops.constants import TEMP_DIR
 
 BUILD_DIR = os.path.join(TEMP_DIR, 'AzureRuntimeBuild')
@@ -142,6 +144,11 @@ tblib
 def load_config(config_data):
     if 'azure_storage' not in config_data or not config_data['azure_storage']:
         raise Exception("'azure_storage' section is mandatory in the configuration")
+
+    if 'azure' in config_data and config_data['azure'] is not None:
+        temp = copy.deepcopy(config_data['azure_functions'])
+        config_data['azure_functions'].update(config_data['azure'])
+        config_data['azure_functions'].update(temp)
 
     if not config_data['azure_functions']:
         raise Exception("'azure_functions' section is mandatory in the configuration")
