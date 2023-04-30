@@ -60,7 +60,7 @@ class AzureFunctionAppBackend:
         logger.debug(f'Invocation trigger set to: {self.trigger}')
 
         msg = COMPUTE_CLI_MSG.format('Azure Functions')
-        logger.info(f"{msg} - Location: {self.location}")
+        logger.info(f"{msg} - Region: {self.location}")
 
     def _format_function_name(self, runtime_name, version=__version__):
         """

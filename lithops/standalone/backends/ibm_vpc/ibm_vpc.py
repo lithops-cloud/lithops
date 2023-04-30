@@ -125,7 +125,7 @@ class IBMVPCBackend:
         logger.debug(f'Setting VPC name to: {self.vpc_name}')
 
         assert re.match("^[a-z0-9-:-]*$", self.vpc_name),\
-            'VPC name "{}" not valid'.format(self.vpc_name)
+            f'VPC name "{self.vpc_name}" not valid'
 
         vpcs_info = self.vpc_cli.list_vpcs().get_result()
         for vpc in vpcs_info['vpcs']:

@@ -56,7 +56,7 @@ class AzureContainerAppBackend:
         logger.debug(f'Invocation trigger set to: {self.trigger}')
 
         msg = COMPUTE_CLI_MSG.format('Azure Container Apps')
-        logger.info(f"{msg} - Location: {self.location}")
+        logger.info(f"{msg} - Region: {self.location}")
 
     def _format_containerapp_name(self, runtime_name, runtime_memory, version=__version__):
         """
