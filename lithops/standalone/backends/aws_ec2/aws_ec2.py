@@ -120,7 +120,7 @@ class AWSEC2Backend:
         logger.debug(f'Setting VPC name to: {self.vpc_name}')
 
         assert re.match("^[a-z0-9-:-]*$", self.vpc_name),\
-            'VPC name "{}" not valid'.format(self.vpc_name)
+            f'VPC name "{self.vpc_name}" not valid'
 
         filter = [{'Name': 'tag:Name', 'Values': [self.vpc_name]}]
         vpcs_info = self.ec2_client.describe_vpcs(Filters=filter)['Vpcs']
@@ -870,7 +870,7 @@ class EC2Instance:
             if instance_data:
                 self.instance_id = instance_data['InstanceId']
             else:
-                logger.debug(f'VM instance {self.name} does not exists'.format(self.name))
+                logger.debug(f'VM instance {self.name} does not exists')
 
         return self.instance_id
 

@@ -118,7 +118,7 @@ def get_host_setup_script(docker=True):
     if [[ ! $(pip3 list|grep "lithops") ]]; then
     wait_internet_connection;
     echo "--> Installing Lithops python dependencies"
-    pip3 install -U flask gevent lithops boto3;
+    pip3 install -U flask gevent lithops[all];
     fi;
     }}
     install_packages >> {SA_LOG_FILE} 2>&1

@@ -2,8 +2,6 @@
 
 Lithops with Azure Functions as serverless compute backend.
 
-*Note that currently Azure functions supports Python 3.6, 3.7, 3.8 and 3.9. So you must use one of these versions in your client machine.*
-
 ## Installation
 
 1. Install Microsoft Azure backend dependencies:
@@ -60,8 +58,8 @@ az login
       backend : azure_functions
 
   azure:
-      region: <LOCATION>
       resource_group: <RESOURCE_GROUP_NAME>
+      region: <LOCATION>
 
   azure_storage:
       storage_account_name: <STORAGE_ACCOUNT_NAME>
@@ -74,15 +72,15 @@ az login
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|azure| region |  |yes | Azure location for the services to be deployed, for example: `westeurope`|
 |azure| resource_group | | yes | Name of a resource group, for example: `LithopsResourceGroup` |
+|azure| region |  |yes | Location of the resource group, for example: `westeurope`, `westus2`, etc|
 |azure| subscription_id |  |no | Subscription ID from your account. Find it [here](https://portal.azure.com/#view/Microsoft_Azure_Billing/SubscriptionsBlade)|
 
 ## Azure Storage
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|azure_storage| storage_account_name | |yes |  The name generated in the step 5 of the installation |
+|azure_storage| storage_account_name | |yes |  Storage account name. The name generated in the step 5 of the installation if you followed these instructions |
 |azure_storage| storage_account_key |  | yes |  An Account Key, found in *Storage Accounts* > `account_name` > *Security + networking* > *Access Keys*|
 
 ### Azure Functions
@@ -90,7 +88,7 @@ az login
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |azure_functions| resource_group | |no | Name of a resource group, for example: `LithopsResourceGroup`. Lithops will use the `resource_group` set under the `azure` section if it is not set here |
-|azure_functions| region |  |no | The location of the consumption plan for the runtime. Use `az functionapp list-consumption-locations` to view the available locations. For example: `westeurope`. Lithops will use the `region` set under the `azure` section if it is not set here|
+|azure_functions| region |  |no | The location of the consumption plan for the runtime. Use `az functionapp list-consumption-locations` to view the available locations. For example: `westeurope`, `westus2`, etc. Lithops will use the `region` set under the `azure` section if it is not set here|
 |azure_functions | max_workers | 1000 | no | Max number of parallel workers. Altough Azure limits the number of workrs to 200, it is convenient to keep this value high|
 |azure_functions | worker_processes | 1 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker |
 |azure_functions| runtime |  |no | Runtime name already deployed in the service|

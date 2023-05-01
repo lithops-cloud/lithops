@@ -64,8 +64,8 @@ az containerapp env create --name lithops --resource-group LithopsResourceGroup 
       backend : azure_containers
 
   azure:
-      region: <LOCATION>
       resource_group: <RESOURCE_GROUP_NAME>
+      region: <LOCATION>
 
   azure_storage:
       storage_account_name: <STORAGE_ACCOUNT_NAME>
@@ -78,15 +78,15 @@ az containerapp env create --name lithops --resource-group LithopsResourceGroup 
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|azure| region |  |yes | Azure location for the services to be deployed, for example: `westeurope`|
 |azure| resource_group | | yes | Name of a resource group, for example: `LithopsResourceGroup` |
+|azure| region |  |yes | Location of the resource group, for example: `westeurope`, `westus2`, etc|
 |azure| subscription_id |  |no | Subscription ID from your account. Find it [here](https://portal.azure.com/#view/Microsoft_Azure_Billing/SubscriptionsBlade)|
 
 ### Azure Storage
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|azure_storage| storage_account_name | |yes |  The name generated in the step 5 of the installation |
+|azure_storage| storage_account_name | |yes |  Storage account name. The name generated in the step 4 of the installation if you followed these instructions |
 |azure_storage| storage_account_key |  | yes |  An Account Key, found in *Storage Accounts* > `account_name` > *Security + networking* > *Access Keys*|
 
 ### Azure Containers
@@ -94,7 +94,7 @@ az containerapp env create --name lithops --resource-group LithopsResourceGroup 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |azure_containers| resource_group | |no | Name of a resource group, for example: `LithopsResourceGroup`. Lithops will use the `resource_group` set under the `azure` section if it is not set here |
-|azure_containers| region |  |no | The location where you created the `lithops` Container APP environment. For example: `westeurope`. Lithops will use the `region` set under the `azure` section if it is not set here|
+|azure_containers| region |  |no | The location where you created the `lithops` Container APP environment. For example: `westeurope`, `westus2`, etc. Lithops will use the `region` set under the `azure` section if it is not set here|
 |azure_containers| environment | lithops |no | The environemnt name you created in the step 5 of the installation |
 |azure_containers | docker_server | index.docker.io |no | Docker server URL |
 |azure_containers | docker_user | |no | Docker hub username |
