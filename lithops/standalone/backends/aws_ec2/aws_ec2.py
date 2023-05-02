@@ -303,7 +303,7 @@ class AWSEC2Backend:
         name = self.config.get('master_name') or f'lithops-master-{self.vpc_key}'
         self.master = EC2Instance(name, self.config, self.ec2_client, public=True)
         self.master.instance_id = self.config['instance_id'] if self.mode == ExecMode.CONSUME.value else None
-        self.master.profile_name = self.config['master_instance_type']
+        self.master.instance_type = self.config['master_instance_type']
         self.master.delete_on_dismantle = False
         self.master.ssh_credentials.pop('password')
         self.master.get_instance_data()

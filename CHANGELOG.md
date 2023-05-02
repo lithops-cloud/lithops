@@ -2,6 +2,9 @@
 
 ## [v2.9.1.dev0]
 
+### New
+- [Azure Virtual Machines] Added new 'Azure Virtual Machines' standalone backend
+
 ### Added
 - [AWS Lambda] Added support for python 3.10 runtimes
 - [Azure Functions] Added support for python 3.10 runtimes
@@ -106,6 +109,9 @@
 
 
 ## [v2.7.0]
+
+### New
+- [Azure Container APPs] Added new 'Azure Container APPs' serverless backend
 
 ### Added
 - [Azure Container APPs] Added new lithops backend for Azure Container APPs

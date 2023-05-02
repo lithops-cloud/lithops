@@ -112,6 +112,7 @@ SERVERLESS_BACKENDS = [
 STANDALONE_BACKENDS = [
     'ibm_vpc',
     'aws_ec2',
+    'azure_vms',
     'vm'
 ]
 
@@ -131,6 +132,7 @@ FAAS_BACKENDS = [
 BATCH_BACKENDS = [
     'ibm_vpc',
     'aws_ec2',
+    'azure_vms',
     'aws_batch',
     'k8s',
     'code_engine'
