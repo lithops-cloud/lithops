@@ -30,8 +30,8 @@ DEFAULT_CONFIG_KEYS = {
     'worker_processes': 2
 }
 
-REQ_PARAMS_1 = ('instance_id',)
-REQ_PARAMS_2 = ('resource_group', 'subscription_id', 'region')
+REQ_PARAMS_1 = ('resource_group', 'subscription_id', 'region')
+REQ_PARAMS_2 = ('instance_name',)
 
 
 def load_config(config_data):
@@ -57,16 +57,17 @@ def load_config(config_data):
         elif key not in config_data['standalone']:
             config_data['standalone'][key] = SA_DEFAULT_CONFIG_KEYS[key]
 
-    if config_data['standalone']['exec_mode'] == 'consume':
-        params_to_check = REQ_PARAMS_1
-        config_data['azure_vms']['max_workers'] = 1
-    else:
-        params_to_check = REQ_PARAMS_2
-
     if 'location' in config_data['azure_vms']:
         config_data['azure_vms']['region'] = config_data['azure_vms'].pop('location')
 
-    for param in params_to_check:
+    for param in REQ_PARAMS_1:
         if param not in config_data['azure_vms']:
-            msg = f"'{param}' is mandatory in the 'azure_vms' section of the configuration"
+            msg = f"'{param}' is mandatory in the 'azure' or 'azure_vms' section of the configuration"
             raise Exception(msg)
+
+    if config_data['standalone']['exec_mode'] == 'consume':
+        config_data['azure_vms']['max_workers'] = 1
+        for param in REQ_PARAMS_2:
+            if param not in config_data['azure_vms']:
+                msg = f"'{param}' is mandatory in the 'azure_vms' section of the configuration"
+                raise Exception(msg)

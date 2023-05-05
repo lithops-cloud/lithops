@@ -308,40 +308,46 @@ class AzureVMSBackend:
         """
         name = self.config.get('master_name') or f'lithops-master-{self.vnet_key}'
         self.master = VMInstance(name, self.config, self.compute_client, public=True)
-        self.master.instance_id = self.config['instance_id'] if self.mode == ExecMode.CONSUME.value else None
+        self.master.name = self.config['instance_name'] if self.mode == ExecMode.CONSUME.value else name
         self.master.instance_type = self.config['master_instance_type']
         self.master.delete_on_dismantle = False
         self.master.ssh_credentials.pop('password')
         self.master.get_instance_data()
+        self.config['instance_id'] = self.master.instance_id
 
     def init(self):
         """
         Initialize the backend by defining the Master VM
         """
-        logger.debug(f'Initializing AWS EC2 backend ({self.mode} mode)')
+        logger.debug(f'Initializing Azure Virtual Machines backend ({self.mode} mode)')
 
         self._load_azure_vms_data()
         if self.mode != self.azure_data.get('mode'):
             self.azure_data = {}
 
         if self.mode == ExecMode.CONSUME.value:
-            ins_id = self.config['instance_id']
-            if not self.azure_data or ins_id != self.azure_data.get('instance_id'):
-                instances = self.compute_client.describe_instances(InstanceIds=[ins_id])
-                instance_data = instances['Reservations'][0]['Instances'][0]
-                self.config['master_name'] = 'lithops-consume'
-                for tag in instance_data['Tags']:
-                    if tag['Key'] == 'Name':
-                        self.config['master_name'] = tag['Value']
+            instance_name = self.config['instance_name']
+            if not self.azure_data or instance_name != self.azure_data.get('instance_name'):
+                try:
+                    self.compute_client.virtual_machines.get(
+                        self.config['resource_group'], instance_name
+                    )
+                except ResourceNotFoundError:
+                    raise Exception(f"VM Instance {instance_name} does not exists")
 
             # Create the master VM instance
             self._create_master_instance()
 
+            # Make sure that the ssh key is provided
+            self.config['ssh_key_filename'] = self.config.get('ssh_key_filename', '~/.ssh/id_rsa')
+
             self.azure_data = {
                 'mode': self.mode,
+                'vnet_data_type': 'provided',
                 'ssh_data_type': 'provided',
-                'master_name': self.config['master_name'],
-                'master_id': self.config['instance_id']
+                'instance_name': self.config['instance_name'],
+                'master_id': self.config['instance_id'],
+                'ssh_key_filename': self.config['ssh_key_filename'],
             }
 
         elif self.mode in [ExecMode.CREATE.value, ExecMode.REUSE.value]:
