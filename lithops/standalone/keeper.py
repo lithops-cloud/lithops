@@ -98,3 +98,4 @@ class BudgetKeeper(threading.Thread):
                     runing = False
                 except Exception as e:
                     logger.debug(f"Dismantle error {e}")
+                    time.sleep(5)
