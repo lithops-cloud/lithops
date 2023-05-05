@@ -1,16 +1,17 @@
 import os
-import sys
 import logging
 import shutil
 import json
-import lithops
 import oci
 import ast
-from oci import Signer
+import hashlib
 
 from lithops import utils
 from lithops.version import __version__
 from lithops.constants import COMPUTE_CLI_MSG, TEMP_DIR
+
+import time
+from oci.exceptions import ServiceError
 
 from . import config
 
@@ -18,34 +19,9 @@ logger = logging.getLogger(__name__)
 
 LITHOPS_FUNCTION_ZIP = 'lithops_oracle.zip'
 
-import os
-import sys
-import logging
-import shutil
-import json
-import lithops
-import oci
-import ast
-from oci import Signer
-
-from lithops import utils
-from lithops.version import __version__
-from lithops.constants import COMPUTE_CLI_MSG, TEMP_DIR
-
-from . import config
-
-logger = logging.getLogger(__name__)
-
-LITHOPS_FUNCTION_ZIP = 'lithops_oracle.zip'
-
-#TODO: clean up config and attributes
 class OracleCloudFunctionsBackend:
 
     def __init__(self, oracle_config, storage_config):
-        self._initialize_variables(oracle_config)
-        self._initialize_clients()
-
-    def _initialize_variables(self, oracle_config):
         self.name = 'oracle_f'
         self.type = 'faas'
         self.config = oracle_config
@@ -54,37 +30,35 @@ class OracleCloudFunctionsBackend:
         self.compartment_id = oracle_config['compartment_id']
         self.user = oracle_config['user']
         self.namespace_name = oracle_config['namespace_name']
-        self.username = oracle_config['username']
-        self.auth_token = oracle_config['auth_token']
-
-        self.default_service_name = f'{config.SERVICE_NAME}_{self.user[-5:-1].lower()}'
-        self.service_name = oracle_config.get('service', self.default_service_name)
-
-    def _initialize_clients(self):
-        if 'key_file' in self.config and os.path.isfile(self.config['key_file']):
-            self.cf_client = oci.functions.FunctionsManagementClient(config=self.config)
+        
+        
+        self.default_application_name = f'{config.APPLICATION_NAME}_{self.user[-5:-1].lower()}'
+        self.application_name = oracle_config.get('application', self.default_application_name)
+        
+        
+        if 'key_file' in oracle_config and os.path.isfile(oracle_config['key_file']):
+            self.cf_client = oci.functions.FunctionsManagementClient(config=oracle_config)
         else:
             signer = oci.auth.signers.get_resource_principals_signer()
             self.cf_client = oci.functions.FunctionsManagementClient(config={}, signer=signer)
-
-        app_id = self._get_application_id(self.service_name)
-        function_name = self._format_function_name(self.config['runtime'], self.config['runtime_memory'])
-        self.function_ocid = self._get_function_ocid(function_name, app_id)
-        invoke_endpoint = self.cf_client.get_function(self.function_ocid).data.invoke_endpoint
-        self.fn_invoke_client = oci.functions.FunctionsInvokeClient(self.config, service_endpoint=invoke_endpoint)
-
-
+        
+        msg = COMPUTE_CLI_MSG.format('Oracle Functions')
+        logger.info(f"{msg} - Region: {self.region}")
     
     def _format_function_name(self, runtime_name, runtime_memory, version=__version__):
-       
-        return runtime_name
+        name = f'{runtime_name}-{runtime_memory}-{version}'
+        name_hash = hashlib.sha1(name.encode("utf-8")).hexdigest()[:10]
+
+        return f'lithops-worker-{runtime_name}-v{version.replace(".", "-")}-{name_hash}'
     
     def _unformat_function_name(self, function_name):
-        runtime_name, runtime_memory = function_name.rsplit('_', 1)
-        runtime_name = runtime_name.replace('lithops_v', '')
-        version, runtime_name = runtime_name.split('_', 1)
+        runtime_name, hash = function_name.rsplit('-', 1)
+        runtime_name = runtime_name.replace('lithops-worker-', '')
+        runtime_name, version = runtime_name.rsplit('-v', 1)
         version = version.replace('-', '.')
-        return version, runtime_name, runtime_memory.replace('MB', '')
+        return version, runtime_name
+    
+    
     def get_runtime_key(self, runtime_name, runtime_memory, version=__version__):
         """
         Method that creates and returns the runtime key.
@@ -92,7 +66,7 @@ class OracleCloudFunctionsBackend:
         in order to know which runtimes are installed and which not.
         """
         function_name = self._format_function_name(runtime_name, runtime_memory, version)
-        runtime_key = os.path.join(self.name, version, self.region, self.service_name, function_name)
+        runtime_key = os.path.join(self.name, version, self.region, self.application_name, function_name)
 
         return runtime_key
     @staticmethod
@@ -147,18 +121,69 @@ class OracleCloudFunctionsBackend:
         finally:
             print('Cleaning up')
             
-    def invoke(self, runtime_name, memory=None, payload={}):
-         
-        try:
-            response = self.fn_invoke_client.invoke_function(
-                function_id=self.function_ocid,
-                fn_invoke_type='detached',
-                invoke_function_body=json.dumps(payload, default=str)
-            )
-        except oci.exceptions.ServiceError as e:
-            raise e
+    def clean(self, **kwargs):
+        """
+        Deletes all runtimes from the current service
+        """
+        logger.debug('Going to delete all deployed runtimes')
+        
+        if not self._application_exists(self.application_name):
+            return
 
-        return response.request_id
+        app_id = self._get_application_id(self.application_name)
+
+        if app_id is None:
+            return
+
+        functions = self.cf_client.list_functions(app_id).data
+
+        for function in functions:
+            function_name = function.display_name
+            if function_name.startswith('lithops-worker'):
+                logger.info(f'Going to delete runtime {function_name}')
+                self.cf_client.delete_function(function.id)
+
+        self.cf_client.delete_application(app_id)
+        
+    def invoke(self, runtime_name, memory=None, payload={}):
+        
+        logger.debug(f'Extracting runtime metadata from: {runtime_name}')
+
+        # Get the function ID
+        app_id = self._get_application_id(self.application_name)
+        function_name = self._format_function_name(runtime_name, self.config['runtime_memory'])
+        function_ocid = self._get_function_ocid(function_name, app_id)
+
+        # Retrieve the function's information, including the invoke endpoint
+        fn_info = self.cf_client.get_function(function_ocid).data
+
+        # Set the invoke endpoint
+        invoke_endpoint = fn_info.invoke_endpoint
+
+  
+        
+        # Prepare the Oracle Functions client with the invoke endpoint
+        fn_invoke_client = oci.functions.FunctionsInvokeClient(self.config, service_endpoint=invoke_endpoint)
+
+        # Invoke the function with the payload
+        response = fn_invoke_client.invoke_function(
+            function_id=function_ocid,
+            invoke_function_body=json.dumps(payload,default=str),
+            fn_invoke_type='detached'
+        )
+
+        
+
+        status_code = response.status
+
+        if status_code == 200 or status_code == 202:
+            return response.request_id
+        elif status_code == 401:
+            logger.debug(response.data.text)
+            raise Exception('Unauthorized - Invalid API Key')
+        elif status_code == 404:
+            logger.debug(response.data.text)
+            raise Exception('Lithops Runtime: {} not deployed'.format(runtime_name))
 
     
     def build_runtime(self, docker_image_name, dockerfile, extra_args=[]):
@@ -166,10 +191,7 @@ class OracleCloudFunctionsBackend:
         
         logger.info(f'Building runtime {docker_image_name} from {dockerfile}')
         docker_path = utils.get_docker_path()
-    
-        #cmd = f'{docker_path} login {self.region}.ocir.io -u {self.namespace_name}/{self.username} --password-stdin'
-        #utils.run_command(cmd, return_result=True, input=self.auth_token)
-        
+
         
         # Build the Docker image
         if dockerfile:
@@ -215,24 +237,25 @@ class OracleCloudFunctionsBackend:
         }
 
         return runtime_info
-    def _service_exists(self, service_name):
+    def _application_exists(self, application_name):
         """
-        Checks if a given service exists
+        Checks if a given application exists
         """
-        services = self.cf_client.list_applications(self.config['tenancy']).data
-        for serv in services:
-            if serv.display_name == service_name:
+        applications = self.cf_client.list_applications(self.config['tenancy']).data
+       
+        for serv in applications:
+            if serv.display_name == application_name:
                 
                 return True
         return False
 
-    def _get_application_id(self, service_name):
+    def _get_application_id(self, application_name):
         """
         Returns the application id of a given application
         """
-        services = self.cf_client.list_applications(self.config['tenancy']).data
-        for serv in services:
-            if serv.display_name == service_name:
+        applications = self.cf_client.list_applications(self.config['tenancy']).data
+        for serv in applications:
+            if serv.display_name == application_name:
                 return serv.id
         return None
 
@@ -243,17 +266,16 @@ class OracleCloudFunctionsBackend:
         with the custom modules for lithops
         """
         logger.info(f"Deploying runtime: {runtime_name} - Memory: {memory} Timeout: {timeout}")
-
-        if not self._service_exists(self.service_name):
-            logger.debug(f"Creating service {self.service_name}")
+        if not self._application_exists(self.application_name):
+            logger.debug(f"Creating application {self.application_name}")
             self.cf_client.create_application(
                 create_application_details=oci.functions.models.CreateApplicationDetails(
                     compartment_id=self.tenancy,
-                    display_name=self.service_name,
-                    subnet_ids=[self.config['subnet_ids']]))
+                    display_name=self.application_name,
+                    subnet_ids=[self.config['vcn']['subnet_ids']]))
 
         function_name = self._format_function_name(runtime_name, memory)
-        app_id = self._get_application_id(self.service_name)
+        app_id = self._get_application_id(self.application_name)
 
         logger.debug(f'Checking if function {function_name} exists')
         functions = self.cf_client.list_functions(app_id).data
@@ -283,16 +305,30 @@ class OracleCloudFunctionsBackend:
                     image=docker_image_name,
                     memory_in_mbs=memory,
                     timeout_in_seconds=timeout))
+            
+            max_retries = 5
+            retry_interval = 5
+              
+            for i in range(max_retries):
+                try:
+                    metadata = self._generate_runtime_meta(function_name)
+                    return metadata
+                except ServiceError as e:
+                    if e.status == 404 and i < max_retries - 1:
+                        logger.debug(f"Function not found yet, waiting {retry_interval} seconds before retrying...")
+                        time.sleep(retry_interval)
+                    else:
+                        raise e
 
+        
         metadata = self._generate_runtime_meta(function_name)
         return metadata
 
-    def _generate_runtime_meta(self, runtime_name):
-        logger.debug(f'Extracting runtime metadata from: {runtime_name}')
+    def _generate_runtime_meta(self, function_name):
+        logger.debug(f'Extracting runtime metadata from: {function_name}')
 
         # Get the function ID
-        app_id = self._get_application_id(self.service_name)
-        function_name = self._format_function_name(runtime_name, self.config['runtime_memory'])
+        app_id = self._get_application_id(self.application_name)
         function_ocid = self._get_function_ocid(function_name, app_id)
 
         # Retrieve the function's information, including the invoke endpoint
@@ -310,7 +346,7 @@ class OracleCloudFunctionsBackend:
             function_id=function_ocid,
             invoke_function_body=json.dumps({"get_metadata": True},default=str)
         )
-        
+
         meta_dict = ast.literal_eval(response.data.text)
         result = json.dumps(meta_dict)
         result = json.loads(result)
@@ -335,4 +371,3 @@ class OracleCloudFunctionsBackend:
                 return function.id
 
         raise Exception(f'Function {runtime_name} not found.')
-

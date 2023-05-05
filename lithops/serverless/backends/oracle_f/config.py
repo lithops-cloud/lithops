@@ -12,7 +12,7 @@ DEFAULT_CONFIG_KEYS = {
 
 CONNECTION_POOL_SIZE = 300
 
-SERVICE_NAME = 'lithops'
+APPLICATION_NAME = 'lithops'
 BUILD_DIR = os.path.join(TEMP_DIR, 'OracleRuntimeBuild')
 
 AVAILABLE_PY_RUNTIMES = {
@@ -27,7 +27,7 @@ REQUIREMENTS_FILE = """
     ps-mem
 """
 
-REQ_PARAMS = ('tenancy', 'user', 'fingerprint', 'key_file', 'region', 'compartment_id','subnet_ids','username','auth_token')
+REQ_PARAMS = ('tenancy', 'user', 'fingerprint', 'key_file', 'region')
 
 def load_config(config_data=None):
     if 'oracle' not in config_data:
@@ -41,9 +41,10 @@ def load_config(config_data=None):
     for key in DEFAULT_CONFIG_KEYS:
         if key not in config_data['oracle_f']:
             config_data['oracle_f'][key] = DEFAULT_CONFIG_KEYS[key]
-    
+
+    if 'vcn' not in config_data['oracle_f'] or 'subnet_ids' not in config_data['oracle_f']['vcn']:
+        raise Exception("'vcn' and 'subnet_ids' are mandatory in the 'oracle_f' section of the configuration")
+    else:
+        config_data['oracle_f']['subnet_ids'] = config_data['oracle_f']['vcn']['subnet_ids']
+
     config_data['oracle_f'].update(config_data['oracle'])
-
-
- 
-

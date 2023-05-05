@@ -16,7 +16,7 @@
 
 CONNECTION_POOL_SIZE = 300
 
-REQ_PARAMS_1 = ('user', 'key_file','fingerprint', 'tenancy', 'region', 'namespace_name')
+REQ_PARAMS_1 = ('tenancy', 'user', 'fingerprint', 'key_file', 'region')
 
 
 def load_config(config_data=None):

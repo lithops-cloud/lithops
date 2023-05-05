@@ -49,7 +49,6 @@ class AliyunFunctionComputeBackend:
         self.access_key_secret = afc_config['access_key_secret']
         self.role_arn = afc_config['role_arn']
         self.region = afc_config['region']
-        self.fn_invoke_client = oci.functions.FunctionsInvokeClient(self.config)
 
         self.default_service_name = f'{config.SERVICE_NAME}_{self.access_key_id[0:4].lower()}'
         self.service_name = afc_config.get('service', self.default_service_name)

@@ -17,7 +17,6 @@ class OCIObjectStorageBackend:
         
         logger.info("Creating Oracle Object Storage Service client")
         self.config = config
-        self.namespace = config['namespace_name']
         self.region_name = config['region']
         
         if 'key_file' in config and os.path.isfile(config['key_file']):
@@ -25,6 +24,8 @@ class OCIObjectStorageBackend:
         else:
             signer = oci.auth.signers.get_resource_principals_signer()
             self.object_storage_client = ObjectStorageClient(config={}, signer=signer)
+        
+        self.namespace = self.object_storage_client.get_namespace().data
 
         msg = STORAGE_CLI_MSG.format('Oracle Object Storage')
         logger.info(f"{msg} - Region: {self.region_name}")
@@ -68,7 +69,6 @@ class OCIObjectStorageBackend:
         
         try:
             r = self.object_storage_client.get_object(self.namespace, bucket_name, key, **extra_get_args)
-            
             if stream:
                 data = r.data
             else:
@@ -124,7 +124,7 @@ class OCIObjectStorageBackend:
     
     def delete_objects(self, bucket_name, keys_list):
         for key in keys_list:
-            self.object_storage_client.delete_objects(self.namespace, bucket_name, key)
+            self.object_storage_client.delete_object(self.namespace, bucket_name, key)
 
     def head_bucket(self, bucket_name):
         try:
