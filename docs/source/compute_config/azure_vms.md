@@ -10,7 +10,7 @@ The Azure Virtual Machines client of Lithops can provide a truely serverless use
 
 ## Lithops and the VM consume mode
 
-In this mode, Lithops can start and stop an existing VM, and deploy an entire job to that VM. The partition logic in this scenario is different from the `create/reuse` mode, since entire job executed in the same VM.
+In this mode, Lithops can start and stop an existing VM, and deploy an entire job to that VM. The partition logic in this scenario is different from the `create/reuse` modes, since the entire job is executed in the same VM.
 
 ### Lithops configuration for the consume mode
 
@@ -56,8 +56,8 @@ Edit your lithops config and add the relevant keys:
 
 
 ## Lithops and the VM auto create|reuse mode
-In this mode, Lithops will automatically create new worker VM instances in runtime, scale Lithops job against generated VMs, and automatically delete the VMs when the job is completed.
-Alternatively, you can set the `reuse` mode to keep running the started worker VMs, and reuse them for further executions. In the `reuse` mode, Lithops checks all the available worker VMs and start new workers if necessary.
+In the `create` mode, Lithops will automatically create new worker VM instances in runtime, scale Lithops job against generated VMs, and automatically delete the VMs when the job is completed.
+Alternatively, you can set the `reuse` mode to keep running the started worker VMs, and reuse them for further executions. In the `reuse` mode, Lithops checks all the available worker VMs and start new workers only if necessary.
 
 ### Lithops configuration for the auto create mode
 
@@ -82,11 +82,11 @@ Edit your lithops config and add the relevant keys:
 |azure| region |  |yes | Location of the resource group, for example: `westeurope`, `westus2`, etc|
 |azure| subscription_id |  |yes | Subscription ID from your account. Find it [here](https://portal.azure.com/#view/Microsoft_Azure_Billing/SubscriptionsBlade)|
 
-### EC2 Create and Reuse Mode
+### Azure VMs - Create and Reuse Modes
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|azure_vms | region | |no | Region name, for example: `eu-west-1`. Lithops will use the `region` set under the `aws` section if it is not set here |
+|azure_vms| region |  |no | Azure location for deploying the VMS. For example: `westeurope`, `westus2`, etc. Lithops will use the `region` set under the `azure` section if it is not set here|
 |azure_vms | ssh_username | ubuntu |no | Username to access the VM |
 |azure_vms | ssh_password |  |no | Password for accessing the worker VMs. If not provided, it is created randomly|
 |azure_vms | ssh_key_filename | ~/.ssh/id_rsa | no | Path to the ssh key file provided to access the VPC. It will use the default path if not provided |
@@ -95,7 +95,7 @@ Edit your lithops config and add the relevant keys:
 |azure_vms | delete_on_dismantle | False | no | Delete the worker VMs when they are stopped. Master VM is never deleted when stopped. `True` is NOT YET SUPPORTED |
 |azure_vms | max_workers | 100 | no | Max number of workers per `FunctionExecutor()`|
 |azure_vms | worker_processes | 2 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker. It is recommendable to set this value to the same number of CPUs of a worker VM. |
-|azure_vms | runtime | python3 | no | Runtime name to run the functions. Can be a container image name. If not set Lithops will use the defeuv python3 interpreter of the VM |
+|azure_vms | runtime | python3 | no | Runtime name to run the functions. Can be a container image name. If not set Lithops will use the default python3 interpreter of the VM |
 |azure_vms | auto_dismantle | True |no | If False then the VM is not stopped automatically.|
 |azure_vms | soft_dismantle_timeout | 300 |no| Time in seconds to stop the VM instance after a job **completed** its execution |
 |azure_vms | hard_dismantle_timeout | 3600 | no | Time in seconds to stop the VM instance after a job **started** its execution |
@@ -118,7 +118,7 @@ You can view the function executions logs in your local machine using the *litho
 lithops logs poll
 ```
 
-The master and worker VMs contains the Lithops service logs in `/tmp/lithops/service.log`
+The master and worker VMs contain the Lithops service logs in `/tmp/lithops-root/service.log`
 
 You can login to the master VM and get a live ssh connection with:
 
