@@ -51,4 +51,4 @@ in the remote VMs since Lithops does this process automatically the first time y
 
     fexec = lithops.StandaloneExecutor()
 
-- Available backends: `IBM Virtual Private Cloud <compute_config/ibm_vpc.md>`_, `AWS Elastic Compute Cloud <compute_config/aws_ec2.md>`_, `Remote host / Virtual Machine <compute_config/vm.md>`_
+- Available backends: `IBM Virtual Private Cloud <compute_config/ibm_vpc.md>`_, `AWS Elastic Compute Cloud (EC2) <compute_config/aws_ec2.md>`_, `Azure Virtual Machines <compute_config/azure_vms.md>`_, `Virtual Machine <compute_config/vm.md>`_

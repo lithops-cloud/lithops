@@ -2,7 +2,13 @@
 
 ## [v2.9.1.dev0]
 
+### New
+- [Azure Virtual Machines] Added new 'Azure Virtual Machines' standalone backend
+
 ### Added
+- [AWS Lambda] Added support for python 3.10 runtimes
+- [Azure Functions] Added support for python 3.10 runtimes
+- [Aliyun Functions] Added support for python 3.10 runtimes
 - [Executor] Allow to set all the compute backend params programatically in the FunctionExecutor()
 - [AWS EC2] Allow to automatically create the VPC and all the necessary resources
 - [IBM VPC & AWS EC2] General fixes and Improvements
@@ -10,12 +16,11 @@
 - [Storage] Automatically create the storage bucket if not provided in the config
 - [IBM] Allow to set "region" under "ibm" section
 - [AWS] Allow to set "region" under "aws" section
-- [Azure Functions] Allow to use a python 3.10 runtime
-- [Aliyun Functions] Allow to use a python 3.10 runtime
 - [IBM VPC] Added build_image() method for automatically building VM images
 - [Cli] Added new 'lithops image build' command for standalone backends
 - [Cli] Added new 'lithops image list' command for standalone backends
 - [IBM CF] Automatically create a CF namespace if not provided in config
+- [Azure] Allow to set 'region' parameter in config
 
 ### Changed
 - [AWS EC2] Reduced number of mandatory parameters
@@ -104,6 +109,9 @@
 
 
 ## [v2.7.0]
+
+### New
+- [Azure Container APPs] Added new 'Azure Container APPs' serverless backend
 
 ### Added
 - [Azure Container APPs] Added new lithops backend for Azure Container APPs

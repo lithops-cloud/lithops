@@ -34,6 +34,7 @@ Choose your compute and storage engines from the table below:
 || `Remote Host / Virtual Machine <compute_config/vm.html>`_         ||                                                                   |
 || `IBM Virtual Private Cloud <compute_config/ibm_vpc.html>`_        ||                                                                   |
 || `AWS Elastic Compute Cloud (EC2) <compute_config/aws_ec2.html>`_  ||                                                                   |
+|| `Azure Virtual Machines <compute_config/azure_vms.html>`_         ||                                                                   |
 +--------------------------------------------------------------------+--------------------------------------------------------------------+
 
 Configuration File
@@ -67,13 +68,13 @@ Here is an example of providing configuration keys for IBM Cloud Functions and I
 
     import lithops
 
+
     config = {'lithops': {'backend': 'ibm_cf', 'storage': 'ibm_cos'},
-              'ibm_cf':  {'endpoint': 'ENDPOINT',
-                          'namespace': 'NAMESPACE',
-                          'api_key': 'API_KEY'},
-              'ibm_cos': {'storage_bucket': 'BUCKET_NAME',
-                          'region': 'REGION',
-                          'api_key': 'API_KEY'}}
+              'ibm': {'region': 'REGION',
+                      'iam_api_key': 'IAM_API_KEY',
+                      'resource_group_id': 'RESOURCE_GROUP_ID'}
+              'ibm_cos': {'api_key': 'API_KEY',
+                          'storage_bucket': 'STORAGE_BUCKET'}}
 
     def hello_world(name):
         return 'Hello {}!'.format(name)

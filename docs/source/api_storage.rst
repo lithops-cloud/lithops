@@ -1,4 +1,4 @@
-Storage API Deatils
+Storage API Details
 ===================
 
 Lithops allows to create a **Storage** instance and abstract away the backend implementation details.

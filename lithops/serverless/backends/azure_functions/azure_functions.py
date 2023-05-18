@@ -50,7 +50,7 @@ class AzureFunctionAppBackend:
         self.resource_group = af_config['resource_group']
         self.storage_account_name = af_config['storage_account_name']
         self.storage_account_key = af_config['storage_account_key']
-        self.location = af_config['location']
+        self.location = af_config['region']
         self.functions_version = self.af_config['functions_version']
 
         self.queue_service_url = f'https://{self.storage_account_name}.queue.core.windows.net'
@@ -60,7 +60,7 @@ class AzureFunctionAppBackend:
         logger.debug(f'Invocation trigger set to: {self.trigger}')
 
         msg = COMPUTE_CLI_MSG.format('Azure Functions')
-        logger.info(f"{msg} - Location: {self.location}")
+        logger.info(f"{msg} - Region: {self.location}")
 
     def _format_function_name(self, runtime_name, version=__version__):
         """

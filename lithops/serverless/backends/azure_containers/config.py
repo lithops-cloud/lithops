@@ -15,6 +15,8 @@
 #
 
 import os
+import copy
+
 from lithops.constants import TEMP_DIR
 
 FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_azure_ca.zip')
@@ -31,8 +33,6 @@ DEFAULT_CONFIG_KEYS = {
     'docker_server': 'index.docker.io'
 }
 
-REQ_PARAMS = ('location', 'resource_group')
-
 ALLOWED_MEM = {
     512: ('0.5Gi', 0.25),
     1024: ('1Gi', 0.5),
@@ -44,8 +44,8 @@ ALLOWED_MEM = {
     4096: ('4Gi', 2),
 }
 
-REQUIRED_AZURE_STORAGE_PARAMS = ['storage_account_name', 'storage_account_key']
-REQUIRED_AZURE_CONTAINERS_PARAMS = ['resource_group', 'location']
+REQUIRED_AZURE_STORAGE_PARAMS = ('storage_account_name', 'storage_account_key')
+REQUIRED_AZURE_CONTAINERS_PARAMS = ('resource_group', 'region')
 
 CONTAINERAPP_JSON = {
     "type": "Microsoft.App/containerApps",
@@ -151,16 +151,19 @@ CMD ["python", "lithopsentry.py"]
 
 
 def load_config(config_data):
-    if 'azure_storage' not in config_data:
+    if 'azure_storage' not in config_data or not config_data['azure_storage']:
         raise Exception("'azure_storage' section is mandatory in the configuration")
+
+    if 'azure' in config_data and config_data['azure'] is not None:
+        temp = copy.deepcopy(config_data['azure_containers'])
+        config_data['azure_containers'].update(config_data['azure'])
+        config_data['azure_containers'].update(temp)
 
     if not config_data['azure_containers']:
         raise Exception("'azure_containers' section is mandatory in the configuration")
 
-    for param in REQ_PARAMS:
-        if param not in config_data['azure_containers']:
-            msg = f'"{param}" is mandatory in the "azure_containers" section of the configuration'
-            raise Exception(msg)
+    if 'location' in config_data['azure_containers']:
+        config_data['azure_containers']['region'] = config_data['azure_containers'].pop('location')
 
     for key in DEFAULT_CONFIG_KEYS:
         if key not in config_data['azure_containers']:

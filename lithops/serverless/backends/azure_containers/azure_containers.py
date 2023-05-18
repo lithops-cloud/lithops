@@ -46,7 +46,7 @@ class AzureContainerAppBackend:
         self.resource_group = ac_config['resource_group']
         self.storage_account_name = ac_config['storage_account_name']
         self.storage_account_key = ac_config['storage_account_key']
-        self.location = ac_config['location']
+        self.location = ac_config['region']
         self.environment = ac_config['environment']
 
         self.queue_service_url = f'https://{self.storage_account_name}.queue.core.windows.net'
@@ -56,7 +56,7 @@ class AzureContainerAppBackend:
         logger.debug(f'Invocation trigger set to: {self.trigger}')
 
         msg = COMPUTE_CLI_MSG.format('Azure Container Apps')
-        logger.info(f"{msg} - Location: {self.location}")
+        logger.info(f"{msg} - Region: {self.location}")
 
     def _format_containerapp_name(self, runtime_name, runtime_memory, version=__version__):
         """

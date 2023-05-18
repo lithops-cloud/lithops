@@ -14,7 +14,7 @@ Any Virtual Machine (VM) need to define the instance’s operating system and ve
 
 ## Lithops and the VM consume mode
 
-In this mode, Lithops can start and stop an existing VM, and deploy an entire job to that VM. The partition logic in this scenario is different from the create/reuse mode, since entire job executed in the same VM.
+In this mode, Lithops can start and stop an existing VM, and deploy an entire job to that VM. The partition logic in this scenario is different from the `create/reuse` modes, since the entire job is executed in the same VM.
 
 ### Lithops configuration for the consume mode
 
@@ -44,7 +44,7 @@ aws_ec2:
 |aws | session_token | |no | Session token for temporary AWS credentials |
 |aws | account_id | |no | *This field will be used if present to retrieve the account ID instead of using AWS STS. The account ID is used to format full image names for container runtimes. |
 
-### EC2 Consume Mode
+### EC2 - Consume Mode
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
@@ -60,8 +60,8 @@ aws_ec2:
 
 
 ## Lithops and the VM auto create|reuse mode
-In this mode, Lithops will automatically create new worker VM instances in runtime, scale Lithops job against generated VMs, and automatically delete the VMs when the job is completed.
-Alternatively, you can set the `reuse` mode to keep running the started worker VMs, and reuse them for further executions. In the `reuse` mode, Lithops checks all the available worker VMs and start new workers if necessary.
+In the `create` mode, Lithops will automatically create new worker VM instances in runtime, scale Lithops job against generated VMs, and automatically delete the VMs when the job is completed.
+Alternatively, you can set the `reuse` mode to keep running the started worker VMs, and reuse them for further executions. In the `reuse` mode, Lithops checks all the available worker VMs and start new workers only if necessary.
 
 ### Lithops configuration for the auto create mode
 
@@ -92,11 +92,11 @@ aws_ec2:
 |aws | session_token | |no | Session token for temporary AWS credentials |
 |aws | account_id | |no | *This field will be used if present to retrieve the account ID instead of using AWS STS. The account ID is used to format full image names for container runtimes. |
 
-### EC2 Create and Reuse Mode
+### EC2 - Create and Reuse Modes
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|aws_ec2 | region | |yes | Region name, for example: `eu-west-1` |
+|aws_ec2 | region | |yes | Region name, for example: `eu-west-1`. Lithops will use the `region` set under the `aws` section if it is not set here |
 |aws_ec2 | iam_role | | yes | IAM EC2 role name. You can find it in the [IAM Console page](https://console.aws.amazon.com/iamv2/home#/roles). Create a new EC2 role if it does not exist|
 |aws_ec2 | vpc_id | | no | VPC id. You can find all the available VPCs in the [VPC Console page](https://console.aws.amazon.com/vpc/v2/home#vpcs:) |
 |aws_ec2 | subnet_id | | no | Subnet id. You can find all the available Subnets in the [VPC Console page](https://console.aws.amazon.com/vpc/v2/home#subnets:) |
@@ -112,7 +112,7 @@ aws_ec2:
 |aws_ec2 | delete_on_dismantle | True | no | Delete the worker VMs when they are stopped. Master VM is never deleted when stopped |
 |aws_ec2 | max_workers | 100 | no | Max number of workers per `FunctionExecutor()`|
 |aws_ec2 | worker_processes | 2 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker. It is recommendable to set this value to the same number of CPUs of a worker VM. |
-|aws_ec2 | runtime | python3 | no | Runtime name to run the functions. Can be a container image name. If not set Lithops will use the defeuv python3 interpreter of the VM |
+|aws_ec2 | runtime | python3 | no | Runtime name to run the functions. Can be a container image name. If not set Lithops will use the default python3 interpreter of the VM |
 |aws_ec2 | auto_dismantle | True |no | If False then the VM is not stopped automatically.|
 |aws_ec2 | soft_dismantle_timeout | 300 |no| Time in seconds to stop the VM instance after a job **completed** its execution |
 |aws_ec2 | hard_dismantle_timeout | 3600 | no | Time in seconds to stop the VM instance after a job **started** its execution |
@@ -135,7 +135,7 @@ You can view the function executions logs in your local machine using the *litho
 lithops logs poll
 ```
 
-The master and worker VMs contains the Lithops service logs in `/tmp/lithops/service.log`
+The master and worker VMs contain the Lithops service logs in `/tmp/lithops-root/service.log`
 
 You can login to the master VM and get a live ssh connection with:
 

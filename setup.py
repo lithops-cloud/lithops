@@ -47,6 +47,10 @@ extras_require = {
         'oci'
     ],
     'azure': [
+        'azure-mgmt-resource',
+        'azure-mgmt-compute',
+        'azure-mgmt-network',
+        'azure-identity',
         'azure-storage-blob',
         'azure-storage-queue'
     ],

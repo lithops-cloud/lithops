@@ -8,15 +8,16 @@ The assumption that you already familiar with IBM Cloud, have your IBM IAM API k
 Follow [IBM VPC setup](https://cloud.ibm.com/vpc-ext/overview) if you need to create IBM Virtual Private Cloud. Decide the region for your VPC. The best practice is to use the same region both for VPC and IBM COS, hoewever there is no requirement to keep them in the same region.
 
 ## Choose an operating system image for VSI
-Any Virtual Service Instance (VSI) need to define the instance’s operating system and version. Lithops support both standard operting system choices provided by the VPC or using pre-defined custom images that already contains all dependencies required by Lithops.
+Any Virtual Service Instance (VSI) need to define the instance’s operating system and version. Lithops support both standard Ubuntu operting system choices provided by the VPC and using pre-defined custom images that already contains all dependencies required by Lithops.
 
 - Option 1: Lithops is compatible with any Ubuntu 22.04 image provided in IBM Cloud. In this case, no further action is required and you can continue to the next step. Lithops will install all required dependencies in the VSI by itself. Notice this can consume about 3 min to complete all installations.
 
-- Option 2: Alternatively, you can use a pre-built custom image that will greatly improve VSI creation time for Lithops jobs. To benefit from this approach, navigate to [runtime/ibm_vpc](https://github.com/lithops-cloud/lithops/tree/master/runtime/ibm_vpc), and follow the instructions.
+- Option 2: Alternatively, you can use a pre-built custom image (based on Ubuntu) that will greatly improve VSI creation time for Lithops jobs. To benefit from this approach, navigate to [runtime/ibm_vpc](https://github.com/lithops-cloud/lithops/tree/master/runtime/ibm_vpc), and follow the instructions.
 
 
-## Lithops and the VSI *create* and *reuse* mode
-In this mode, Lithops will automatically create new worker VM instances in runtime, scale Lithops job against generated VMs, and automatically delete VMs when the job is completed.
+## Lithops and the VM auto create|reuse mode
+In the `create` mode, Lithops will automatically create new worker VM instances in runtime, scale Lithops job against generated VMs, and automatically delete the VMs when the job is completed.
+Alternatively, you can set the `reuse` mode to keep running the started worker VMs, and reuse them for further executions. In the `reuse` mode, Lithops checks all the available worker VMs and start new workers only if necessary.
 
 ### Lithops configuration for the *create* and *reuse* mode
 
@@ -68,11 +69,11 @@ ibm_vpc:
 |ibm | region | |yes | IBM Region.  One of: `eu-gb`, `eu-de`, `us-south`, `us-east`, `br-sao`, `ca-tor`, `jp-tok`, `jp-osa`, `au-syd` |
 |ibm | resource_group_id | | yes | Resource group id from your IBM Cloud account. Get it from [here](https://cloud.ibm.com/account/resource-groups) |
 
-### VPC Create and Reuse mode
+### IBM VPC - Create and Reuse modes
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|ibm_vpc | region | |no | VPC Region. For example `us-south`. Choose one region from [here](https://cloud.ibm.com/docs/vpc?topic=vpc-service-endpoints-for-vpc). Lithops will use the region set under the `ibm` section if it is not set here |
+|ibm_vpc | region | |no | VPC Region. For example `us-south`. Choose one region from [here](https://cloud.ibm.com/docs/vpc?topic=vpc-service-endpoints-for-vpc). Lithops will use the `region` set under the `ibm` section if it is not set here |
 |ibm_vpc | vpc_id | | no | VPC id of an existing VPC. Get it from [here](https://cloud.ibm.com/vpc-ext/network/vpcs) |
 |ibm_vpc | vpc_name | | no | VPC name of an existing VPC (if `vpc_id` is not provided) |
 |ibm_vpc | security_group_id | | no | Security group id of an existing VPC. Get it from [here](https://cloud.ibm.com/vpc-ext/network/securityGroups)|
@@ -92,7 +93,7 @@ ibm_vpc:
 |ibm_vpc | max_workers | 100 | no | Max number of workers per `FunctionExecutor()`|
 |ibm_vpc | worker_processes | 2 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker. It is recommendable to set this value to the same number of CPUs of a worker VM. |
 |ibm_vpc | singlesocket | False | no | Try to allocate workers with single socket CPU. If eventually running on multiple socket, a warning message printed to user. Is **True** standalone **workers_policy** must be set to **strict** to trace workers states|
-|ibm_vpc | runtime | python3 | no | Runtime name to run the functions. Can be a container image name. If not set Lithops will use the defeuv python3 interpreter of the VM |
+|ibm_vpc | runtime | python3 | no | Runtime name to run the functions. Can be a container image name. If not set Lithops will use the default python3 interpreter of the VM |
 |ibm_vpc | auto_dismantle | True |no | If False then the VM is not stopped automatically.|
 |ibm_vpc | soft_dismantle_timeout | 300 |no| Time in seconds to stop the VM instance after a job **completed** its execution |
 |ibm_vpc | hard_dismantle_timeout | 3600 | no | Time in seconds to stop the VM instance after a job **started** its execution |
@@ -103,7 +104,7 @@ ibm_vpc:
 
 ## Lithops and the VSI consume mode
 
-In this mode, Lithops can start and stop an existing VM, and deploy an entire job to that VM. The partition logic in this scenario is different from the auto create mode, since entire job executed in the same VM.
+In this mode, Lithops can start and stop an existing VM, and deploy an entire job to that VM. The partition logic in this scenario is different from the `create/reuse` modes, since the entire job is executed in the same VM.
 
 ### Lithops configuration for the consume mode
 
@@ -139,7 +140,7 @@ If you need to create new VM, then follow the steps to create and update Lithops
 |ibm | iam_api_key | |no | IBM Cloud IAM API key to authenticate against IBM COS and IBM Cloud Functions. Obtain the key [here](https://cloud.ibm.com/iam/apikeys) |
 |ibm | region | |no | IBM Region.  One of: `eu-gb`, `eu-de`, `us-south`, `us-east`, `br-sao`, `ca-tor`, `jp-tok`, `jp-osa`, `au-syd` |
 
-### VPC Consume Mode
+### IBM VPC - Consume Mode
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
@@ -172,7 +173,7 @@ You can view the function executions logs in your local machine using the *litho
 lithops logs poll
 ```
 
-The master and worker VMs contains the Lithops service logs in `/tmp/lithops/service.log`
+The master and worker VMs contain the Lithops service logs in `/tmp/lithops-root/service.log`
 
 You can login to the master VM and get a live ssh connection with:
 

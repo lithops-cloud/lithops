@@ -64,9 +64,11 @@ Currently, Lithops for Microsoft Azure supports these backends:
 
    * - Compute
      - Storage
-   * - `Azure Functions <https://docs.microsoft.com/en-us/azure/azure-functions/>`_
-     - `Azure Blob Storage <https://docs.microsoft.com/en-us/azure/storage/blobs/>`_
-   * - `Azure Container APPs <https://docs.microsoft.com/en-us/azure/container-apps/>`_
+   * - `Azure Functions <https://learn.microsoft.com/en-us/azure/azure-functions/>`_
+     - `Azure Blob Storage <https://learn.microsoft.com/en-us/azure/storage/blobs/>`_
+   * - `Azure Container APPs <https://learn.microsoft.com/en-us/azure/container-apps/>`_
+     -
+   * - `Azure Virtual Machines <https://learn.microsoft.com/en-us/azure/virtual-machines/>`_
      -
 
 Alibaba Aliyun

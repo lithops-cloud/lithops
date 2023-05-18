@@ -50,30 +50,30 @@ def b64s(string):
 
 class AWSEC2Backend:
 
-    def __init__(self, ec2_config, mode):
+    def __init__(self, config, mode):
         logger.debug("Creating AWS EC2 client")
         self.name = 'aws_ec2'
-        self.config = ec2_config
+        self.config = config
         self.mode = mode
-        self.region_name = ec2_config['region']
+        self.region_name = self.config['region']
         self.cache_dir = os.path.join(CACHE_DIR, self.name)
         self.cache_file = os.path.join(self.cache_dir, self.region_name + '_data')
-        self.vpc_data_type = 'provided' if 'vpc_id' in ec2_config else 'created'
-        self.ssh_data_type = 'provided' if 'ssh_key_name' in ec2_config else 'created'
+        self.vpc_data_type = 'provided' if 'vpc_id' in self.config else 'created'
+        self.ssh_data_type = 'provided' if 'ssh_key_name' in self.config else 'created'
 
         self.ec2_data = None
         self.vpc_name = None
         self.vpc_key = None
-        self.user_key = ec2_config['access_key_id'][-4:].lower()
+        self.user_key = self.config['access_key_id'][-4:].lower()
 
         client_config = botocore.client.Config(
-            user_agent_extra=ec2_config['user_agent']
+            user_agent_extra=self.config['user_agent']
         )
 
         self.ec2_client = boto3.client(
-            'ec2', aws_access_key_id=ec2_config['access_key_id'],
-            aws_secret_access_key=ec2_config['secret_access_key'],
-            aws_session_token=ec2_config.get('session_token'),
+            'ec2', aws_access_key_id=self.config['access_key_id'],
+            aws_secret_access_key=self.config['secret_access_key'],
+            aws_session_token=self.config.get('session_token'),
             config=client_config,
             region_name=self.region_name
         )
@@ -120,7 +120,7 @@ class AWSEC2Backend:
         logger.debug(f'Setting VPC name to: {self.vpc_name}')
 
         assert re.match("^[a-z0-9-:-]*$", self.vpc_name),\
-            'VPC name "{}" not valid'.format(self.vpc_name)
+            f'VPC name "{self.vpc_name}" not valid'
 
         filter = [{'Name': 'tag:Name', 'Values': [self.vpc_name]}]
         vpcs_info = self.ec2_client.describe_vpcs(Filters=filter)['Vpcs']
@@ -303,7 +303,7 @@ class AWSEC2Backend:
         name = self.config.get('master_name') or f'lithops-master-{self.vpc_key}'
         self.master = EC2Instance(name, self.config, self.ec2_client, public=True)
         self.master.instance_id = self.config['instance_id'] if self.mode == ExecMode.CONSUME.value else None
-        self.master.profile_name = self.config['master_instance_type']
+        self.master.instance_type = self.config['master_instance_type']
         self.master.delete_on_dismantle = False
         self.master.ssh_credentials.pop('password')
         self.master.get_instance_data()
@@ -684,7 +684,7 @@ class EC2Instance:
 
     def get_ssh_client(self):
         """
-        Creates an ssh client against the VM only if the Instance is the master
+        Creates an ssh client against the VM
         """
         if self.public:
             if not self.ssh_client or self.ssh_client.ip_address != self.public_ip:
@@ -870,7 +870,7 @@ class EC2Instance:
             if instance_data:
                 self.instance_id = instance_data['InstanceId']
             else:
-                logger.debug(f'VM instance {self.name} does not exists'.format(self.name))
+                logger.debug(f'VM instance {self.name} does not exists')
 
         return self.instance_id
 

@@ -43,10 +43,10 @@ VPC_API_VERSION = '2021-09-21'
 
 class IBMVPCBackend:
 
-    def __init__(self, ibm_vpc_config, mode):
+    def __init__(self, config, mode):
         logger.debug("Creating IBM VPC client")
         self.name = 'ibm_vpc'
-        self.config = ibm_vpc_config
+        self.config = config
         self.mode = mode
 
         self.vpc_name = None
@@ -125,7 +125,7 @@ class IBMVPCBackend:
         logger.debug(f'Setting VPC name to: {self.vpc_name}')
 
         assert re.match("^[a-z0-9-:-]*$", self.vpc_name),\
-            'VPC name "{}" not valid'.format(self.vpc_name)
+            f'VPC name "{self.vpc_name}" not valid'
 
         vpcs_info = self.vpc_cli.list_vpcs().get_result()
         for vpc in vpcs_info['vpcs']:
@@ -853,7 +853,7 @@ class IBMVPCInstance:
 
     def get_ssh_client(self):
         """
-        Creates an ssh client against the VM only if the Instance is the master
+        Creates an ssh client against the VM
         """
 
         if not self.validated and self.public and self.instance_id:

@@ -683,7 +683,7 @@ def list_images(config, backend, region, debug):
     compute_config = extract_standalone_config(config)
     compute_handler = StandaloneHandler(compute_config)
 
-    logger.info('Listing Ubuntu Linux 22.04 VM Images')
+    logger.info('Listing all Ubuntu Linux 22.04 VM Images')
     images = compute_handler.list_images()
 
     if images:
