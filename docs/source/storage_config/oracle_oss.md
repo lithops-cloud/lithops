@@ -31,3 +31,23 @@ oracle_oss:
 
 ```
 
+## Summary of configuration keys for Oracle:
+
+
+|Group|Key|Default|Mandatory|Additional info|
+|---|---|---|---|---|
+|oracle | user | |yes |  Oracle Cloud User's OCID |
+|oracle | key_file | |yes | Path to the PEM file |
+|oracle | fingerprint | |yes | Fingerprint of the PEM file |
+|oracle | tenancy | |yes | Tenancy's OCID |
+|oracle | region | |yes | Region name. For example: `eu-madrid-1` |
+|oracle | compartment_id | |yes | Compartment's OCID |
+|oracle | namespace_name | |yes | Namespace name for the container registry where docker images are uploaded |
+
+## Summary of configuration keys for Oracle Object Storage Service :
+
+|Group|Key|Default|Mandatory|Additional info|
+|---|---|---|---|---|
+|oracle_oss | storage_bucket | |yes | Bucket name. For example: `oracle-bucket`|
+
+
