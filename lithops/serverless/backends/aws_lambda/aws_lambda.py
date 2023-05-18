@@ -657,7 +657,6 @@ class AWSLambdaBackend:
             logger.debug(r.text)
             raise Exception('Error {}: {}'.format(r.status_code, r.text))
 
-
         # response = self.lambda_client.invoke(
         #    FunctionName=function_name,
         #     InvocationType='Event',
