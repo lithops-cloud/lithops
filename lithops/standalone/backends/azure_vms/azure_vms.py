@@ -20,7 +20,7 @@ import time
 import uuid
 import logging
 import base64
-from concurrent.futures import ThreadPoolExecutor, wait
+from concurrent.futures import ThreadPoolExecutor
 from azure.identity import DefaultAzureCredential
 from azure.mgmt.compute import ComputeManagementClient
 from azure.mgmt.network import NetworkManagementClient
@@ -242,30 +242,30 @@ class AzureVMSBackend:
         """
         Creates the master VM floating IP address
         """
-        if 'floating_ip_id' in self.config:
-            return
+
+        def get_floating_ip(fip_name):
+            try:
+                fip_info = self.network_client.network_security_groups.get(
+                    self.config['resource_group'], fip_name
+                )
+                self.config['floating_ip'] = fip_info.ip_address
+                self.config['floating_ip_name'] = fip_info.name
+                self.config['floating_ip_id'] = fip_info.id
+            except ResourceNotFoundError:
+                pass
 
         if 'floating_ip_id' in self.azure_data:
-            fips_info = list(self.network_client.public_ip_addresses.list(self.config['resource_group']))
-            for fip in fips_info:
-                if fip.id == self.azure_data['floating_ip_id']:
-                    self.config['floating_ip'] = fip.ip_address
-                    self.config['floating_ip_name'] = fip.name
-                    self.config['floating_ip_id'] = fip.id
-                    return
+            get_floating_ip(self.azure_data['floating_ip_name'])
 
-        public_ip_addresses_name = self.vnet_name + '-ip'
-        fips_info = list(self.network_client.public_ip_addresses.list(self.config['resource_group']))
-        for fip in fips_info:
-            if fip.name == public_ip_addresses_name:
-                self.config['floating_ip'] = fip.ip_address
-                self.config['floating_ip_name'] = fip.name
-                self.config['floating_ip_id'] = fip.id
+        floating_ip_name = self.vnet_name + '-ip'
+
+        if 'floating_ip_id' not in self.config:
+            get_floating_ip(floating_ip_name)
 
         if 'floating_ip_id' not in self.config:
             poller = self.network_client.public_ip_addresses.begin_create_or_update(
                 self.config['resource_group'],
-                public_ip_addresses_name,
+                floating_ip_name,
                 {
                     "location": self.location,
                     "sku": {"name": "Standard"},
@@ -309,6 +309,7 @@ class AzureVMSBackend:
         name = self.config.get('master_name') or f'lithops-master-{self.vnet_key}'
         self.master = VMInstance(name, self.config, self.compute_client, public=True)
         self.master.name = self.config['instance_name'] if self.mode == ExecMode.CONSUME.value else name
+        self.master.public_ip = self.config['floating_ip']
         self.master.instance_type = self.config['master_instance_type']
         self.master.delete_on_dismantle = False
         self.master.ssh_credentials.pop('password')
@@ -363,7 +364,7 @@ class AzureVMSBackend:
             # Create the security group if not exists
             self._create_security_group()
             # Create the master VM floating IP address
-            # self._create_master_floating_ip()
+            self._create_master_floating_ip()
             # Create the ssh key pair if not exists
             self._create_ssh_key()
 
@@ -382,7 +383,9 @@ class AzureVMSBackend:
                 'subnet_id': self.config['subnet_id'],
                 'ssh_key_filename': self.config['ssh_key_filename'],
                 'security_group_id': self.config['security_group_id'],
-                'security_group_name': self.config['security_group_name']
+                'security_group_name': self.config['security_group_name'],
+                'floating_ip_id': self.config['floating_ip_id'],
+                'floating_ip_name': self.config['floating_ip_name']
             }
 
         self._dump_azure_vms_data()
@@ -454,20 +457,36 @@ class AzureVMSBackend:
         if self.azure_data['vnet_data_type'] == 'provided':
             return
 
-        logger.debug(f"Deleting Subnet {self.azure_data['subnet_name']}")
-        poller = self.network_client.subnets.begin_delete(
-            self.config['resource_group'],
-            self.azure_data['vnet_name'],
-            self.azure_data['subnet_name']
-        )
-        poller.result()
+        try:
+            logger.debug(f"Deleting Subnet {self.azure_data['subnet_name']}")
+            poller = self.network_client.subnets.begin_delete(
+                self.config['resource_group'],
+                self.azure_data['vnet_name'],
+                self.azure_data['subnet_name']
+            )
+            poller.result()
+        except ResourceNotFoundError:
+            pass
 
-        logger.debug(f"Deleting Virtual Network {self.azure_data['vnet_name']}")
-        poller = self.network_client.virtual_networks.begin_delete(
-            self.config['resource_group'],
-            self.azure_data['vnet_name']
-        )
-        poller.result()
+        try:
+            logger.debug(f"Deleting Virtual Network {self.azure_data['vnet_name']}")
+            poller = self.network_client.virtual_networks.begin_delete(
+                self.config['resource_group'],
+                self.azure_data['vnet_name']
+            )
+            poller.result()
+        except ResourceNotFoundError:
+            pass
+
+        try:
+            logger.debug(f"Deleting Public IP address {self.azure_data['floating_ip_name']}")
+            poller = self.network_client.public_ip_addresses.begin_delete(
+                self.config['resource_group'],
+                self.azure_data['floating_ip_name']
+            )
+            poller.result()
+        except ResourceNotFoundError:
+            pass
 
     def _delete_ssh_key(self):
         """
@@ -686,7 +705,7 @@ class VMInstance:
             "network_security_group": {"id": self.config['security_group_id']}
         }
 
-        if self.public:
+        if self.public and not self.public_ip:
             poller = self.network_client.public_ip_addresses.begin_create_or_update(
                 self.config['resource_group'],
                 self.name + '-ip',
@@ -701,6 +720,9 @@ class VMInstance:
             self.public_ip = ip_address_result.ip_address
             logger.debug(f"Provisioned public IP address {self.public_ip}")
             nic_params['ip_configurations'][0]['public_ip_address'] = {"id": ip_address_result.id}
+
+        elif self.public:
+            nic_params['ip_configurations'][0]['public_ip_address'] = {"id": self.config['floating_ip_id']}
 
         poller = self.network_client.network_interfaces.begin_create_or_update(
             self.config['resource_group'],
