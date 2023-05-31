@@ -89,7 +89,8 @@ def wait(fs: Union[ResponseFuture, FuturesList, List[ResponseFuture]],
 
     else:
         fs_to_wait = math.ceil(return_when * len(fs) / 100)
-        msg = (f'ExecutorID {fs[0].executor_id} - Waiting for {return_when}% of '
+        msg_text = 'any' if return_when == ANY_COMPLETED else f'{return_when}%'
+        msg = (f'ExecutorID {fs[0].executor_id} - Waiting for {msg_text} of '
                f'{len(fs)} function activations to complete')
         fs_done = [f for f in fs if f.success or f.done]
         fs_not_done = [f for f in fs if not (f.success or f.done)]
