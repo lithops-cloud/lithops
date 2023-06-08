@@ -13,16 +13,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import argparse
+
 import os
-from importlib import import_module
+import sys
 import inspect
 import pathlib
-import sys
+import argparse
+import base64
 import unittest
 import logging
 import urllib.request
 from os import walk
+from importlib import import_module
 
 from lithops.storage import Storage
 from lithops.config import default_config, extract_storage_config, load_yaml_config
@@ -39,11 +41,16 @@ STORAGE = None
 PREFIX = '__lithops.test'
 DATASET_PREFIX = PREFIX + '/dataset'
 
-TEST_FILES_URLS = ["http://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/vocab.enron.txt",
-                   "http://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/vocab.kos.txt",
-                   "http://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/vocab.nips.txt",
-                   "http://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/vocab.nytimes.txt",
-                   "http://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/vocab.pubmed.txt"]
+base64_bytes = 'aHR0cHM6Ly9zMy1ldS13ZXN0LTEuYW1hem9uYXdzLmNvbS9hcnRtLw=='.encode('ascii')
+
+TEST_FILES_REPO = base64.b64decode(base64_bytes).decode('ascii')
+TEST_FILES_URLS = [
+    TEST_FILES_REPO + "vocab.enron.txt",
+    TEST_FILES_REPO + "vocab.kos.txt",
+    TEST_FILES_REPO + "vocab.nips.txt",
+    TEST_FILES_REPO + "vocab.nytimes.txt",
+    TEST_FILES_REPO + "vocab.pubmed.txt"
+]
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +117,7 @@ def upload_data_sets():
     """uploads datasets to storage and return a list of the number of words within each test file"""
 
     def up(param):
-        logger.info(f'Uploading dataset {param[1]}')
+        logger.info(f'Uploading bag-of-words dataset: {param[1].split("/")[-1]}')
         i, url = param
         content = urllib.request.urlopen(url).read()
         STORAGE.put_object(bucket=STORAGE_CONFIG['bucket'],
