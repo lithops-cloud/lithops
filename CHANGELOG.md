@@ -37,6 +37,7 @@
 - [IBM VPC] Reuse floating IPs for public gateways
 - [Serializer] Prevent analyzing the same module multiple times
 - [SSH Cli] Fix issue with RSA keys
+- [Tests] Fix broken links of testing files
 
 
 ## [v2.9.0]
