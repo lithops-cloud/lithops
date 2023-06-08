@@ -80,7 +80,7 @@ Lithops is shipped with 2 different high-level Compute APIs, and 2 high-level St
 from lithops import FunctionExecutor
 
 def hello(name):
-    return 'Hello {}!'.format(name)
+    return f'Hello {name}!'
 
 with FunctionExecutor() as fexec:
     fut = fexec.call_async(hello, 'World')
