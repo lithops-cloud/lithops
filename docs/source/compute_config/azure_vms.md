@@ -55,11 +55,11 @@ Edit your lithops config and add the relevant keys:
 |azure_vms | hard_dismantle_timeout | 3600 | no | Time in seconds to stop the VM instance after a job **started** its execution |
 
 
-## Lithops and the VM auto create|reuse mode
+## Lithops and the VM auto create and reuse modes
 In the `create` mode, Lithops will automatically create new worker VM instances in runtime, scale Lithops job against generated VMs, and automatically delete the VMs when the job is completed.
 Alternatively, you can set the `reuse` mode to keep running the started worker VMs, and reuse them for further executions. In the `reuse` mode, Lithops checks all the available worker VMs and start new workers only if necessary.
 
-### Lithops configuration for the auto create mode
+### Lithops configuration for the create or reuse modes
 
 Edit your lithops config and add the relevant keys:
 
@@ -71,6 +71,9 @@ Edit your lithops config and add the relevant keys:
         resource_group: <RESOURCE_GROUP_NAME>
         region: <LOCATION>
         subscription_id: <SUBSCRIPTION_ID>
+
+    azure_vms:
+        exec_mode: reuse
 ```
 
 
@@ -90,8 +93,8 @@ Edit your lithops config and add the relevant keys:
 |azure_vms | ssh_username | ubuntu |no | Username to access the VM |
 |azure_vms | ssh_password |  |no | Password for accessing the worker VMs. If not provided, it is created randomly|
 |azure_vms | ssh_key_filename | ~/.ssh/id_rsa | no | Path to the ssh key file provided to access the VPC. It will use the default path if not provided |
-|azure_vms | master_instance_type | t2.micro | no | Profile name for the master VM |
-|azure_vms | worker_instance_type | t2.medium | no | Profile name for the worker VMs |
+|azure_vms | master_instance_type | Standard_B1s | no | Profile name for the master VM |
+|azure_vms | worker_instance_type | Standard_B2s | no | Profile name for the worker VMs |
 |azure_vms | delete_on_dismantle | False | no | Delete the worker VMs when they are stopped. Master VM is never deleted when stopped. `True` is NOT YET SUPPORTED |
 |azure_vms | max_workers | 100 | no | Max number of workers per `FunctionExecutor()`|
 |azure_vms | worker_processes | 2 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker. It is recommendable to set this value to the same number of CPUs of a worker VM. |
