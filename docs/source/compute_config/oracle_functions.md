@@ -91,8 +91,13 @@ oracle_f:
             <SUBNET_ID 1>
 ```
 
+Also, remember to login into your Oracle container registry before you build your runtime. This is because runtimes are uploaded to the Oracle container registry.
 
+```
+docker login region.ocir.io -u namespace_name/username -p authentication_token
+```
 ## Summary of configuration keys for Oracle:
+
 
 
 |Group|Key|Default|Mandatory|Additional info|
