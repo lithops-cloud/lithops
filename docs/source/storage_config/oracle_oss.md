@@ -17,7 +17,6 @@ lithops:
     storage : oracle_oss
 
 oracle:
-    storage_bucket : <STORAGE_BUCKET>
     user : <USER>
     key_file : <KEY_FILE>
     fingerprint : <FINGERPRINT>

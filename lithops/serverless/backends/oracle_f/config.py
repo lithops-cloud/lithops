@@ -48,3 +48,4 @@ def load_config(config_data=None):
         config_data['oracle_f']['subnet_ids'] = config_data['oracle_f']['vcn']['subnet_ids']
 
     config_data['oracle_f'].update(config_data['oracle'])
+    

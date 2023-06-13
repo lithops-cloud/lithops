@@ -76,7 +76,6 @@ Now, your Oracle Functions have the necessary permissions to manage resources in
 lithops:
     backend: oracle_f
 oracle:
-    storage_bucket : <STORAGE_BUCKET>
     user : <USER>
     key_file : <KEY_FILE>
     fingerprint : <FINGERPRINT>
@@ -85,7 +84,6 @@ oracle:
     compartment_id: <COMPARTMENT_ID>
     namespace_name : <NAMESPACE_NAME>
 oracle_f:
-    max_workers: <MAX_WORKERS>
     runtime: <RUNTIME>
     runtime_memory: <RUNTIME_MEMORY>
     vcn:
