@@ -41,8 +41,23 @@ class S3Backend:
         self.access_key_id = s3_config.get('access_key_id')
         self.secret_access_key = s3_config.get('secret_access_key')
         self.session_token = s3_config.get('session_token')
+        self.sso_profile = s3_config.get('sso_profile')
 
-        if self.access_key_id and self.secret_access_key:
+        if self.sso_profile:
+            client_config = Config(
+                max_pool_connections=128,
+                user_agent_extra=self.user_agent,
+                connect_timeout=CONN_READ_TIMEOUT,
+                read_timeout=CONN_READ_TIMEOUT,
+                retries={'max_attempts': OBJ_REQ_RETRIES}
+            )
+            session = boto3.Session(profile_name=self.sso_profile, region_name=self.region_name)
+            self.s3_client = session.client(
+                's3',
+                config=client_config,
+                region_name=self.region_name
+            )
+        elif self.access_key_id and self.secret_access_key:
             client_config = Config(
                 max_pool_connections=128,
                 user_agent_extra=self.user_agent,
@@ -59,7 +74,6 @@ class S3Backend:
             )
         else:
             client_config = Config(
-                signature_version=UNSIGNED,
                 user_agent_extra=self.user_agent
             )
             self.s3_client = boto3.client('s3', config=client_config)

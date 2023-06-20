@@ -22,8 +22,8 @@ def load_config(config_data):
 
     if 'aws' in config_data:
 
-        if not {'access_key_id', 'secret_access_key'}.issubset(set(config_data['aws'])):
-            raise Exception("'access_key_id' and 'secret_access_key' are mandatory under the 'aws' section of the configuration")
+        if "sso_profile" in config_data["aws"] and {"secret_access_key", "access_key_id"}.issubset(config_data["aws"]):
+            raise Exception("Both 'sso_profile' and access keys are not permitted")
 
         if 'aws_s3' not in config_data:
             config_data['aws_s3'] = {}
