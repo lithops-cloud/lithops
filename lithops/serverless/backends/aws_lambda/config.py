@@ -26,7 +26,8 @@ DEFAULT_REQUIREMENTS = [
     'pika',
     'cloudpickle',
     'ps-mem',
-    'tblib'
+    'tblib',
+    'urllib3==1.26.15'
 ]
 
 AVAILABLE_PY_RUNTIMES = {
@@ -66,9 +67,6 @@ def load_config(config_data):
     if 'aws' not in config_data:
         raise Exception("'aws' section is mandatory in the configuration")
 
-    if not {'access_key_id', 'secret_access_key'}.issubset(set(config_data['aws'])):
-        raise Exception("'access_key_id' and 'secret_access_key' are mandatory under the 'aws' section of the configuration")
-
     if not config_data['aws_lambda']:
         raise Exception("'aws_lambda' section is mandatory in the configuration")
 
@@ -80,6 +78,9 @@ def load_config(config_data):
         if param not in config_data['aws_lambda']:
             msg = f'"{param}" is mandatory in the "aws_lambda" section of the configuration'
             raise Exception(msg)
+
+    if "sso_profile" in config_data["aws"] and {"secret_access_key", "access_key_id"}.issubset(config_data["aws"]):
+        raise Exception("Both 'sso_profile' and access keys are not permitted")
 
     for key in DEFAULT_CONFIG_KEYS:
         if key not in config_data['aws_lambda']:

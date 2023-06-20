@@ -56,20 +56,32 @@ class AWSLambdaBackend:
         self.lambda_config = lambda_config
         self.internal_storage = internal_storage
         self.user_agent = lambda_config['user_agent']
-
-        self.user_key = lambda_config['access_key_id'][-4:].lower()
-        self.package = f'lithops_v{__version__.replace(".", "-")}_{self.user_key}'
         self.region_name = lambda_config['region']
         self.role_arn = lambda_config['execution_role']
 
-        logger.debug('Creating Boto3 AWS Session and Lambda Client')
+        if "sso_profile" in self.lambda_config:
+            logger.debug('Creating Boto3 AWS Session and Lambda Client using SSO')
+            self.aws_session = boto3.Session(
+                profile_name=self.lambda_config["sso_profile"],
+                region_name=self.region_name
+            )
+        else:
+            logger.debug('Creating Boto3 AWS Session and Lambda Client using IAM credentials')
 
-        self.aws_session = boto3.Session(
-            aws_access_key_id=lambda_config['access_key_id'],
-            aws_secret_access_key=lambda_config['secret_access_key'],
-            aws_session_token=lambda_config.get('session_token'),
-            region_name=self.region_name
-        )
+            self.aws_session = boto3.Session(
+                aws_access_key_id=lambda_config.get('access_key_id'),
+                aws_secret_access_key=lambda_config.get('secret_access_key'),
+                aws_session_token=lambda_config.get('session_token'),
+                region_name=self.region_name
+            )
+
+        sts_client = self.aws_session.client('sts', region_name=self.region_name)
+        self.caller_id = sts_client.get_caller_identity()
+
+        if "sso_profile" in self.lambda_config:
+            self.user_key = self.caller_id["UserId"].split(":")[1]
+        else:
+            self.user_key = lambda_config['access_key_id'][-4:].lower()
 
         self.lambda_client = self.aws_session.client(
             'lambda', region_name=self.region_name,
@@ -81,12 +93,12 @@ class AWSLambdaBackend:
         self.credentials = self.aws_session.get_credentials()
         self.session = URLLib3Session()
         self.host = f'lambda.{self.region_name}.amazonaws.com'
+        self.package = f'lithops_v{__version__.replace(".", "-")}_{self.user_key}'
 
         if 'account_id' in self.lambda_config:
             self.account_id = self.lambda_config['account_id']
         else:
-            sts_client = self.aws_session.client('sts', region_name=self.region_name)
-            self.account_id = sts_client.get_caller_identity()["Account"]
+            self.account_id = self.caller_id["Account"]
 
         self.ecr_client = self.aws_session.client('ecr', region_name=self.region_name)
 
@@ -115,11 +127,11 @@ class AWSLambdaBackend:
 
     def _get_default_runtime_name(self):
         py_version = utils.CURRENT_PY_VERSION.replace('.', '')
-        return f'lithops-default-runtime-v{py_version}'
+        return f'default-v{py_version}'
 
     def _is_container_runtime(self, runtime_name):
         name = runtime_name.split('/', 1)[-1]
-        return 'lithops-default-runtime-v' not in name
+        return 'default-v' not in name
 
     def _format_repo_name(self, runtime_name):
         if ':' in runtime_name:
@@ -421,7 +433,7 @@ class AWSLambdaBackend:
                 },
                 FileSystemConfigs=[
                     {'Arn': efs_conf['access_point'],
-                        'LocalMountPath': efs_conf['mount_path']}
+                     'LocalMountPath': efs_conf['mount_path']}
                     for efs_conf in self.lambda_config['efs']
                 ],
                 Tags={
@@ -494,7 +506,7 @@ class AWSLambdaBackend:
                 },
                 FileSystemConfigs=[
                     {'Arn': efs_conf['access_point'],
-                        'LocalMountPath': efs_conf['mount_path']}
+                     'LocalMountPath': efs_conf['mount_path']}
                     for efs_conf in self.lambda_config['efs']
                 ],
                 Tags={
@@ -629,8 +641,31 @@ class AWSLambdaBackend:
         @param payload: invoke dict payload
         @return: invocation ID
         """
-
         function_name = self._format_function_name(runtime_name, runtime_memory)
+
+        if "access_key_id" in payload["config"]["aws"]:
+            del payload["config"]["aws"]["access_key_id"]
+        if "secret_access_key" in payload["config"]["aws"]:
+            del payload["config"]["aws"]["secret_access_key"]
+
+        if "access_key_id" in payload["config"]["aws_s3"]:
+            del payload["config"]["aws_s3"]["access_key_id"]
+        if "secret_access_key" in payload["config"]["aws_s3"]:
+            del payload["config"]["aws_s3"]["secret_access_key"]
+
+        if "access_key_id" in payload["config"]["aws_lambda"]:
+            del payload["config"]["aws_lambda"]["access_key_id"]
+        if "secret_access_key" in payload["config"]["aws_lambda"]:
+            del payload["config"]["aws_lambda"]["secret_access_key"]
+
+        if "sso_profile" in payload["config"]["aws"]:
+            del payload["config"]["aws"]["sso_profile"]
+
+        if "sso_profile" in payload["config"]["aws_s3"]:
+            del payload["config"]["aws_s3"]["sso_profile"]
+
+        if "sso_profile" in payload["config"]["aws_lambda"]:
+            del payload["config"]["aws_lambda"]["sso_profile"]
 
         headers = {'Host': self.host, 'X-Amz-Invocation-Type': 'Event', 'User-Agent': self.user_agent}
         url = f'https://{self.host}/2015-03-31/functions/{function_name}/invocations'
