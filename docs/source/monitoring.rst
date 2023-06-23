@@ -1,5 +1,5 @@
-Lithops Monitoring
-==================
+Monitoring
+==========
 
 By default, Lithops uses the storage backend to monitor function activations: Each function activation stores a file
 named *{id}/status.json* to the Object Storage when it finishes its execution. This file contains some statistics about
@@ -13,7 +13,7 @@ With RabbitMQ, the content of the *{id}/status.json* file is sent trough a queue
 time, since Lithops only needs one connection to the messaging service to monitor all function activations. We currently
 support the AMQP protocol.
 
-.. note:: The RabbitMQ server has to be accessible from both the client and the functions. For example, it could be deployed in a cloud server with a public IP with AMQP port open (5672).
+.. note:: The RabbitMQ server has to be accessible from both the client and the functions. For example, it could be deployed in a cloud server with a public IP address and with the AMQP port open (5672).
 
 To enable Lithops to use this service, add the *AMQP_URL* key into the *rabbitmq* section in
 the configuration, for example:

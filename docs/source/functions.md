@@ -1,5 +1,5 @@
-Lithops Functions and Parameters
-================================
+Functions and Parameters
+========================
 
 This document describes how to invoke functions based on the *iterdata* variable. In this sense, Lithops allows to send either *args* or *kwargs* in the function invocation. Take into account that there are some reserved parameter names that activate internal logic, and they cannot be used as regular parameters.
 
