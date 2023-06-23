@@ -47,7 +47,7 @@ Edit your lithops config and add the relevant keys:
 |azure_vms | instance_name | | yes | virtual server instance Name. The instance must exists in your resource group |
 |azure_vms | ssh_username | ubuntu | yes | Username to access the VM. It will use `ubuntu` if not provided |
 |azure_vms | ssh_key_filename | ~/.ssh/id_rsa | yes | Path to the ssh key file provided to create the VM. It will use the default path if not provided |
-|azure_vms | region | |no | Region name of the VPC. For example `us-east-1`. Lithops will use the region set under the `aws` section if it is not set here |
+|azure_vms | region | |no | Location of the resource group, for example: `westeurope`, `westus2`, etc. Lithops will use the region set under the `azure` section if it is not set here |
 |azure_vms | worker_processes | 2 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker. It is recommendable to set this value to the same number of CPUs of the VM. |
 |azure_vms | runtime | python3 | no | Runtime name to run the functions. Can be a container image name. If not set Lithops will use the defeuv python3 interpreter of the VM |
 |azure_vms | auto_dismantle | True |no | If False then the VM is not stopped automatically.|

@@ -43,7 +43,7 @@ DEFAULT_CONFIG_KEYS = {
 
 VPC_ENDPOINT = "https://{}.iaas.cloud.ibm.com"
 
-REGIONS = ["jp-tok", "jp-osa", "au-syd", "eu-gb", "eu-de", "us-south", "us-east", "br-sao", "ca-tor"]
+REGIONS = ["jp-tok", "jp-osa", "au-syd", "eu-gb", "eu-de", "eu-es", "us-south", "us-east", "br-sao", "ca-tor"]
 
 def load_config(config_data):
 

@@ -21,11 +21,13 @@
 - [Cli] Added new 'lithops image list' command for standalone backends
 - [IBM CF] Automatically create a CF namespace if not provided in config
 - [Azure] Allow to set 'region' parameter in config
+- [IBM VPC] Added Madrid (Spain) region
 
 ### Changed
+- [Azure] Changed 'location' config parameter to 'region' for compatibility
+- [Aliyun] Changed 'endpoint' config parameter to 'region' for compatibility
 - [AWS EC2] Reduced number of mandatory parameters
 - [AWS] Allow 'region' config parameter instead of 'region_name' for compatibility
-- [Aliyun] Changed 'endpoint' config parameters to 'region' for compatibility
 - [IBM CF] Cloud-foundry namespaces have been deprecated in IBM Cloud. From now all the users must use an IAM-based namespace
 - [IBM COS] Changed 'access_key' config parameter to 'access_key_id' for compatibility
 - [IBM COS] Changed 'secret_key' config parameter to 'secret_access_key' for compatibility

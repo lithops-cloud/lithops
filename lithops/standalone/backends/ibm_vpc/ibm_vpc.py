@@ -557,7 +557,9 @@ class IBMVPCBackend:
         """
         List VM Images
         """
-        images = self.vpc_cli.list_images().result['images']
+        images = self.vpc_cli.list_images(
+            resource_group_id=self.config['resource_group_id']
+        ).result['images']
 
         result = []
 
