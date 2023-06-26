@@ -689,17 +689,18 @@ def list_images(config, backend, region, debug):
     if images:
         width1 = max([len(img[0]) for img in images])
         width2 = max([len(img[1]) for img in images])
+        width3 = max([len(img[2]) for img in images])
 
-        print('\n{:{width1}} \t {:{width2}}'.format('Image Name', 'Image ID', width1=width1, width2=width2))
-        print('-' * width1, '\t', '-' * width2)
+        print('\n{:{width1}} \t {:{width2}}   {:{width3}}'.format('Image Name', 'Image ID', 'Creation Date', width1=width1, width2=width2, width3=width3))
+        print('-' * width1, '\t', '-' * width2, ' ', '-' * width3)
         for image in images:
-            print('{:{width1}} \t {:{width2}}'.format(image[0], image[1], width1=width1, width2=width2))
+            print('{:{width1}} \t {:{width2}}   {:{width3}}'.format(image[0], image[1], image[2], width1=width1, width2=width2, width3=width3))
         print()
         print(f'Total VM images: {len(images)}')
     else:
         width = 14
-        print('\n{:{width}} \t {}'.format('Image Name', 'Image ID', width=width))
-        print('-' * width, '\t', '-' * width)
+        print('\n{:{width}} \t {}   {}'.format('Image Name', 'Image ID', 'Creation Date', width=width))
+        print('-' * width, '\t', '-' * width, '   ', '-' * width)
         print('\nNo VM Images found')
 
 
