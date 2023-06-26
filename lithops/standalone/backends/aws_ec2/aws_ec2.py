@@ -29,7 +29,7 @@ import botocore
 
 from lithops.version import __version__
 from lithops.util.ssh_client import SSHClient
-from lithops.constants import COMPUTE_CLI_MSG, CACHE_DIR
+from lithops.constants import COMPUTE_CLI_MSG, CACHE_DIR, SA_IMAGE_NAME_DEFAULT
 from lithops.config import load_yaml_config, dump_yaml_config
 from lithops.standalone.utils import CLOUD_CONFIG_WORKER, CLOUD_CONFIG_WORKER_PK, ExecMode
 from lithops.standalone.standalone import LithopsValidationError
@@ -38,8 +38,10 @@ from lithops.standalone.standalone import LithopsValidationError
 logger = logging.getLogger(__name__)
 
 INSTANCE_START_TIMEOUT = 180
-DEFAULT_UBUNTU_IMAGE = 'ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-202204*'
 
+DEFAULT_UBUNTU_IMAGE = 'ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*'
+DEFAULT_UBUNTU_IMAGE_VERSION = DEFAULT_UBUNTU_IMAGE.replace('*', '202306*')
+DEFAULT_UBUNTU_ACCOUNT_ID = '099720109477'
 
 def b64s(string):
     """
@@ -291,8 +293,20 @@ class AWSEC2Backend:
             response = self.ec2_client.describe_images(Filters=[
                 {
                     'Name': 'name',
-                    'Values': [DEFAULT_UBUNTU_IMAGE]
-                }], Owners=['099720109477'])
+                    'Values': [SA_IMAGE_NAME_DEFAULT]
+                }])
+
+            for image in response['Images']:
+                if image['Name'] == SA_IMAGE_NAME_DEFAULT:
+                    self.config['target_ami'] = image['ImageId']
+                    break
+
+        if 'target_ami' not in self.config:
+            response = self.ec2_client.describe_images(Filters=[
+                {
+                    'Name': 'name',
+                    'Values': [DEFAULT_UBUNTU_IMAGE_VERSION]
+                }], Owners=[DEFAULT_UBUNTU_ACCOUNT_ID])
 
             self.config['target_ami'] = response['Images'][0]['ImageId']
 
@@ -353,8 +367,8 @@ class AWSEC2Backend:
                 'mode': self.mode,
                 'vpc_data_type': 'provided',
                 'ssh_data_type': 'provided',
-                'master_name': self.config['master_name'],
-                'master_id': self.config['instance_id']
+                'master_name': self.master.name,
+                'master_id': self.master.instance_id
             }
 
         elif self.mode in [ExecMode.CREATE.value, ExecMode.REUSE.value]:
@@ -404,13 +418,37 @@ class AWSEC2Backend:
         """
         Builds a new VM Image
         """
-        pass
+        raise NotImplementedError()
 
     def list_images(self):
         """
         List VM Images
         """
-        pass
+        response = self.ec2_client.describe_images(Filters=[
+            {
+                'Name': 'name',
+                'Values': [DEFAULT_UBUNTU_IMAGE]
+            }], Owners=[DEFAULT_UBUNTU_ACCOUNT_ID])
+
+        response2 = self.ec2_client.describe_images(Filters=[
+            {
+                'Name': 'name',
+                'Values': ['*lithops*']
+            }])
+
+        result = []
+
+        for image in response['Images']:
+            created_at = datetime.strptime(image['CreationDate'], "%Y-%m-%dT%H:%M:%S.%fZ")
+            created_at = created_at.strftime("%Y-%m-%d %H:%M:%S")
+            result.append((image['Name'], image['ImageId'], created_at))
+
+        for image in response2['Images']:
+            created_at = datetime.strptime(image['CreationDate'], "%Y-%m-%dT%H:%M:%S.%fZ")
+            created_at = created_at.strftime("%Y-%m-%d %H:%M:%S")
+            result.append((image['Name'], image['ImageId'], created_at))
+
+        return sorted(result, key=lambda x: x[2], reverse=True)
 
     def _delete_vm_instances(self, all=False):
         """

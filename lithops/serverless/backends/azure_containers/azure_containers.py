@@ -195,10 +195,22 @@ class AzureContainerAppBackend:
                f'--resource-group {self.resource_group} '
                f'--yaml {config.CA_JSON_LOCATION}')
 
-        try:
-            utils.run_command(cmd)
-        finally:
-            os.remove(config.CA_JSON_LOCATION)
+        logger.debug('Deploying Azure Container App')
+        deployed = False
+        retries = 0
+
+        while retries < 15:
+            try:
+                time.sleep(20)
+                utils.run_command(cmd)
+                os.remove(config.CA_JSON_LOCATION)
+                deployed = True
+                break
+            except Exception:
+                retries += 1
+
+        if not deployed:
+            raise Exception(f"The Azure Container App cannot be deployed: {cmd}")
 
     def delete_runtime(self, runtime_name, memory, version=__version__):
         """
