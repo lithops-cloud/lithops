@@ -116,14 +116,10 @@ Example of providing configuration keys for IBM Cloud Functions and IBM Cloud Ob
 import lithops
 
 config = {'lithops': {'backend': 'ibm_cf', 'storage': 'ibm_cos'},
-
           'ibm': {'region': 'REGION',
                   'iam_api_key': 'IAM_API_KEY',
-                  'resource_group_id': 'RESOURCE_GROUP_ID'}
-
-          'ibm_cos': {'api_key': 'API_KEY',
-                      'storage_bucket': 'STORAGE_BUCKET',}
-}
+                  'resource_group_id': 'RESOURCE_GROUP_ID'},
+          'ibm_cos': {'storage_bucket': 'STORAGE_BUCKET'}}
 
 def hello_world(name):
     return f'Hello {name}!'

@@ -373,23 +373,25 @@ class IBMVPCBackend:
         if 'image_id' in self.config:
             return
 
-        images = self.vpc_cli.list_images().result['images']
+        images_def = self.vpc_cli.list_images().result['images']
+        images_user = self.vpc_cli.list_images(resource_group_id=self.config['resource_group_id']).result['images']
+        images_def.extend(images_user)
 
         if 'image_id' in self.vpc_data:
-            for image in images:
-                if image['id'] == self.vpc_data['image_id']:
-                    if not image['name'].startswith('ibm-ubuntu-22'):
-                        self.config['image_id'] = self.vpc_data['image_id']
-                        break
+            for image in images_def:
+                if image['id'] == self.vpc_data['image_id'] and \
+                   not image['name'].startswith('ibm-ubuntu-22'):
+                    self.config['image_id'] = self.vpc_data['image_id']
+                    break
 
         if 'image_id' not in self.config:
-            for image in images:
+            for image in images_def:
                 if image['name'] == SA_IMAGE_NAME_DEFAULT:
                     self.config['image_id'] = image['id']
                     break
 
         if 'image_id' not in self.config:
-            for image in images:
+            for image in images_def:
                 if image['name'].startswith('ibm-ubuntu-22'):
                     self.config['image_id'] = image['id']
                     break
@@ -482,13 +484,13 @@ class IBMVPCBackend:
         """
         Builds a new VM Image
         """
-        images = self.vpc_cli.list_images(name=image_name).result['images']
+        images = self.vpc_cli.list_images(name=image_name, resource_group_id=self.config['resource_group_id']).result['images']
         if len(images) > 0:
             image_id = images[0]['id']
             if overwrite:
                 logger.debug(f"Deleting existing VM Image '{image_name}'")
                 self.vpc_cli.delete_image(id=image_id)
-                while len(self.vpc_cli.list_images(name=image_name).result['images']) > 0:
+                while len(self.vpc_cli.list_images(name=image_name, resource_group_id=self.config['resource_group_id']).result['images']) > 0:
                     time.sleep(2)
             else:
                 raise Exception(f"The image with name '{image_name}' already exists with ID: '{image_id}'."
@@ -541,7 +543,7 @@ class IBMVPCBackend:
         logger.debug("Be patient, VM imaging can take up to 6 minutes")
 
         while True:
-            image = self.vpc_cli.list_images(name=image_name).result['images'][0]
+            image = self.vpc_cli.list_images(name=image_name, resource_group_id=self.config['resource_group_id']).result['images'][0]
             logger.debug(f"VM Image is being created. Current status: {image['status']}")
             if image['status'] == 'available':
                 break
@@ -558,13 +560,13 @@ class IBMVPCBackend:
         """
         List VM Images
         """
-        images = self.vpc_cli.list_images(
-            resource_group_id=self.config['resource_group_id']
-        ).result['images']
+        images_def = self.vpc_cli.list_images().result['images']
+        images_user = self.vpc_cli.list_images(resource_group_id=self.config['resource_group_id']).result['images']
+        images_def.extend(images_user)
 
         result = []
 
-        for img in images:
+        for img in images_def:
             if img['operating_system']['family'] == 'Ubuntu Linux':
                 opsys = img['operating_system']['display_name']
                 image_name = img['name']

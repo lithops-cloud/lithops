@@ -424,26 +424,21 @@ class AWSEC2Backend:
         """
         List VM Images
         """
-        response = self.ec2_client.describe_images(Filters=[
+        images_def = self.ec2_client.describe_images(Filters=[
             {
                 'Name': 'name',
                 'Values': [DEFAULT_UBUNTU_IMAGE]
-            }], Owners=[DEFAULT_UBUNTU_ACCOUNT_ID])
-
-        response2 = self.ec2_client.describe_images(Filters=[
+            }], Owners=[DEFAULT_UBUNTU_ACCOUNT_ID])['Images']
+        images_user = self.ec2_client.describe_images(Filters=[
             {
                 'Name': 'name',
                 'Values': ['*lithops*']
-            }])
+            }])['Images']
+        images_def.extend(images_user)
 
         result = []
 
-        for image in response['Images']:
-            created_at = datetime.strptime(image['CreationDate'], "%Y-%m-%dT%H:%M:%S.%fZ")
-            created_at = created_at.strftime("%Y-%m-%d %H:%M:%S")
-            result.append((image['Name'], image['ImageId'], created_at))
-
-        for image in response2['Images']:
+        for image in images_def:
             created_at = datetime.strptime(image['CreationDate'], "%Y-%m-%dT%H:%M:%S.%fZ")
             created_at = created_at.strftime("%Y-%m-%d %H:%M:%S")
             result.append((image['Name'], image['ImageId'], created_at))
