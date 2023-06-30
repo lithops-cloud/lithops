@@ -24,13 +24,15 @@ import logging
 import urllib3
 import copy
 import yaml
+import shutil
 from kubernetes import client, watch
-from kubernetes.config import load_kube_config, load_incluster_config, list_kube_config_contexts
+from kubernetes.config import load_incluster_config
 from kubernetes.client.rest import ApiException
 
 from lithops import utils
+from lithops.config import dump_yaml_config, load_yaml_config
 from lithops.version import __version__
-from lithops.constants import COMPUTE_CLI_MSG, JOBS_PREFIX
+from lithops.constants import CACHE_DIR, COMPUTE_CLI_MSG, JOBS_PREFIX
 from lithops.util.ibm_token_manager import IAMTokenManager
 
 from . import config
@@ -83,10 +85,16 @@ class CodeEngineBackend:
 
         self.user_agent = ce_config['user_agent']
         self.iam_api_key = ce_config['iam_api_key']
-        self.namespace = ce_config['namespace']
+        self.namespace = ce_config.get('namespace')
         self.region = ce_config['region']
 
+        self.user_key = self.iam_api_key[:4].lower()
+        self.project_name = ce_config.get('project_name', f'lithops-{self.region}-{self.user_key}')
+
         self.token_manager = None
+
+        self.cache_dir = os.path.join(CACHE_DIR, self.name)
+        self.cache_file = os.path.join(self.cache_dir, self.project_name + '_data')
 
         self.cluster = config.CLUSTER_URL.format(self.region)
 
@@ -98,13 +106,72 @@ class CodeEngineBackend:
         else:
             self._create_k8s_iam_client()
 
+        if not self.namespace:
+            self._get_or_create_namespace()
+            ce_config['namespace'] = self.namespace
+
         logger.debug(f"Set namespace to {self.namespace}")
         logger.debug(f"Set cluster to {self.cluster}")
 
         self.jobs = []  # list to store executed jobs (job_keys)
 
         msg = COMPUTE_CLI_MSG.format('IBM Code Engine')
-        logger.info(f"{msg} - Namespace: {self.namespace} - Region: {self.region}")
+        logger.info(f"{msg} - Project: {self.project_name} - Region: {self.region}")
+
+    def _get_or_create_namespace(self):
+        """
+        Gets or creates a new namespace
+        """
+        ce_data = load_yaml_config(self.cache_file)
+        self.namespace = ce_data.get('namespace')
+        if self.namespace:
+            return
+
+        from ibm_cloud_sdk_core.authenticators import IAMAuthenticator
+        from ibm_code_engine_sdk.code_engine_v2 import CodeEngineV2
+        from ibm_code_engine_sdk.ibm_cloud_code_engine_v1 import IbmCloudCodeEngineV1
+
+        authenticator = IAMAuthenticator(self.iam_api_key)
+        code_engine_service_v1 = IbmCloudCodeEngineV1(authenticator=authenticator)
+        code_engine_service_v1.set_service_url(config.BASE_URL_V1.format(self.region))
+        code_engine_service_v2 = CodeEngineV2(authenticator=authenticator)
+        code_engine_service_v2.set_service_url(config.BASE_URL_V2.format(self.region))
+
+        def get_k8s_namespace(project_id):
+            delegated_refresh_token_payload = {
+                'grant_type': 'urn:ibm:params:oauth:grant-type:apikey',
+                'apikey': self.iam_api_key,
+                'response_type': 'delegated_refresh_token',
+                'receiver_client_ids': 'ce',
+                'delegated_refresh_token_expiry': '3600'
+            }
+            token_manager = code_engine_service_v2.authenticator.token_manager
+            request_payload = token_manager.request_payload
+            token_manager.request_payload = delegated_refresh_token_payload
+            iam_response = token_manager.request_token()
+            token_manager.request_payload = request_payload
+            delegated_refresh_token = iam_response['delegated_refresh_token']
+            kc_resp = code_engine_service_v1.get_kubeconfig(delegated_refresh_token, project_id)
+            return kc_resp.get_result()['contexts'][0]['context']['namespace']
+
+        response = code_engine_service_v2.list_projects()
+        projects = response.get_result()['projects']
+        for project in projects:
+            if project['name'] == self.project_name:
+                self.namespace = get_k8s_namespace(project['id'])
+
+        if not self.namespace:
+            logger.debug(f"Creating new Code Engine project: {self.project_name}")
+            response = code_engine_service_v2.create_project(
+                name=self.project_name,
+                resource_group_id=self.config['resource_group_id']
+            )
+            project = response.get_result()
+            self.namespace = get_k8s_namespace(project['id'])
+
+        ce_data['project_name'] = self.project_name
+        ce_data['namespace'] = self.namespace
+        dump_yaml_config(self.cache_file, ce_data)
 
     def _create_k8s_iam_client(self):
         """
@@ -256,6 +323,8 @@ class CodeEngineBackend:
                     name=config_name,
                     namespace=self.namespace,
                     grace_period_seconds=0)
+
+        shutil.rmtree(self.cache_dir, ignore_errors=True)
 
     def list_runtimes(self, docker_image_name='all'):
         """

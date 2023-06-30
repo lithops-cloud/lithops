@@ -4,47 +4,7 @@
 
 IBM Code Engine exposes both Knative and Kubernetes Job Descriptor API. Lithops supports both of them. Follow IBM Code Engine documentation to get more details on the difference between those APIs.
 
-##  Installation
 
-Choose one option:
-
-### Option 1 (IBM CLoud Dashboard):
-1. Navigate to the [IBM Cloud Code Engine dashboard](https://cloud.ibm.com/codeengine/landing) and create a new project in your preferred region.
-
-
-### Option 2 (IBM CLoud CLI tool):
-In this step you are required to install IBM Cloud CLI tool, Code Engine plugin and create new Code Engine project
-
-1. Install the [IBM Cloud CLI](https://cloud.ibm.com/docs/cli?topic=cli-getting-started):
-
-   ```bash
-   curl -sL https://ibm.biz/idt-installer | bash
-   ```
-
-2. Login to your account, pointing to the region you want to create a project
-
-   ```bash
-   ibmcloud login -r us-south
-   ```
-
-3. Install the IBM Code Engine plugin:
-
-   ```bash
-   ibmcloud plugin install code-engine
-   ```
-
-4. Create a new Code Engine project (you can also do this through the dashboard). If you already have an existing project, then proceed to step 5:
-
-   ```bash
-   ibmcloud ce project create --name myproject
-   ```
-
-5. Target to your project:
-
-   ```bash
-   ibmcloud ce project select --name myproject
-   ```
-  
 ## Configuration
 
 1. If you don't have an IAM API key created, navigate to the [IBM IAM dashboard](https://cloud.ibm.com/iam/apikeys).
@@ -53,15 +13,9 @@ In this step you are required to install IBM Cloud CLI tool, Code Engine plugin 
 
 3. Copy the generated IAM API key (You can only see the key the first time you create it, so make sure to copy it).
 
-4. Locate the kubernetes config file using the IBM CLoud CLI:
+4. Naviagete to the [resource groups dashboard](https://cloud.ibm.com/account/resource-groups), and copy the desired resource group ID.
 
-   ```bash
-   ibmcloud ce project current
-   ```
-
-5. Print the content of the kubernetes config file and copy the `namespace` value under the context section.
-
-6. Edit your lithops config and add the following keys:
+5. Edit your lithops config and add the following keys:
 
     ```yaml
     lithops:
@@ -69,20 +23,20 @@ In this step you are required to install IBM Cloud CLI tool, Code Engine plugin 
 
     ibm:
         iam_api_key: <IAM_API_KEY>
-        region     : <REGION>
-
-    code_engine:
-        namespace  : <NAMESPACE>
+        region: <REGION>
+        resource_group_id: <RESOURCE_GROUP_ID>
     ```
 
 ## Runtime
 
 ### Use your own runtime
-If a pre-built runtime is not provided, Lithops automatically builds the default runtime the first time you run a script. For this task it uses the **docker** command installed locally in your machine. To make this working, you need:
+If a pre-built runtime is not provided, Lithops will automatically build the default runtime the first time you run a script. For this task it uses the **docker** command installed locally in your machine. To make this working, you need:
 
 1. [Install the Docker CE version](https://docs.docker.com/get-docker/).
 
-2. Login to your docker account:
+2. Provide the container registry credentials in the config.
+
+3. Login to your container registry account:
    ```bash
    docker login
    ```
@@ -125,13 +79,13 @@ code_engine:
 |---|---|---|---|---|
 |ibm | iam_api_key | |yes | IBM Cloud IAM API key to authenticate against IBM services. Obtain the key [here](https://cloud.ibm.com/iam/apikeys) |
 |ibm | region | |yes | IBM Region.  One of: `eu-gb`, `eu-de`, `us-south`, `us-east`, `br-sao`, `ca-tor`, `jp-tok`, `jp-osa`, `au-syd` |
-|ibm | resource_group_id | | no | Resource group id from your IBM Cloud account. Get it from [here](https://cloud.ibm.com/account/resource-groups) |
+|ibm | resource_group_id | | yes | Resource group id from your IBM Cloud account. Get it from [here](https://cloud.ibm.com/account/resource-groups) |
 
 ## Code Engine:
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|code_engine | namespace |  |yes | Namespace name|
+|code_engine | project_name |  |no | Project name that already exists in Code Engine. If not provided lithops will automatically create a new project|
 |code_engine | region |  | no | Cluster region. One of: `eu-gb`, `eu-de`, `us-south`, `us-east`, `br-sao`, `ca-tor`, `jp-tok`, `jp-osa`, `au-syd`. Lithops will use the `region` set under the `ibm` section if it is not set here |
 |code_engine | docker_server | docker.io |no | Docker server URL |
 |code_engine | docker_user | |no | Docker hub username |

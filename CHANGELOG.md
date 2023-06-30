@@ -22,8 +22,8 @@
 - [IBM VPC] Added list_image() method for listing the availabe VM images
 - [AWS EC2] Added list_image() method for listing the availabe VM images
 - [IBM CF] Automatically create a CF namespace if not provided in config
-- [Azure] Allow to set 'region' parameter in config
 - [IBM VPC] Added Madrid (Spain) region
+- [Code Engine] Automatically create a new project if not provided in config
 
 ### Changed
 - [Azure] Changed 'location' config parameter to 'region' for compatibility

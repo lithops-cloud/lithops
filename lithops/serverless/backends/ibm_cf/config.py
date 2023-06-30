@@ -40,14 +40,18 @@ FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_ibmcf.zip')
 CF_ENDPOINT = "https://{}.functions.cloud.ibm.com"
 REGIONS = ["jp-tok", "au-syd", "eu-gb", "eu-de", "us-south", "us-east"]
 
+REQ_PARAMS = ('iam_api_key', 'resource_group_id')
+
 
 def load_config(config_data):
 
     if 'ibm' not in config_data or config_data['ibm'] is None:
         raise Exception("'ibm' section is mandatory in the configuration")
 
-    if 'iam_api_key' not in config_data['ibm']:
-        raise Exception("'iam_api_key' parameter is mandatory under the 'ibm' section of the configuration")
+    for param in REQ_PARAMS:
+        if param not in config_data['ibm']:
+            msg = f'"{param}" is mandatory in the "ibm" section of the configuration'
+            raise Exception(msg)
 
     if not config_data['ibm_cf']:
         config_data['ibm_cf'] = {}

@@ -58,7 +58,7 @@ class IBMCloudFunctionsBackend:
         self.namespace_id = cf_config.get('namespace_id')
 
         self.cache_dir = os.path.join(CACHE_DIR, self.name)
-        self.cache_file = os.path.join(self.cache_dir, self.region + '_data')
+        self.cache_file = os.path.join(self.cache_dir, self.namespace + '_data')
 
         self.invoke_error = None
         self.token_manager = None
@@ -119,7 +119,7 @@ class IBMCloudFunctionsBackend:
         self.namespace_id = self.namespace_id or cf_data.get('namespace_id')
 
         if not self.namespace_id:
-            logger.debug(f"Creating new Cloud Functions namespace '{self.namespace}'")
+            logger.debug(f"Creating new Cloud Functions namespace: '{self.namespace}'")
             self.namespace_id = self.cf_client.create_namespace(self.namespace, self.resource_group_id)
         else:
             self.cf_client.namespace = self.namespace_id
