@@ -379,7 +379,8 @@ class IBMVPCBackend:
 
         if 'image_id' in self.vpc_data:
             for image in images_def:
-                if image['id'] == self.vpc_data['image_id']:
+                if image['id'] == self.vpc_data['image_id'] and \
+                   not image['name'].startswith('ibm-ubuntu-22'):
                     self.config['image_id'] = self.vpc_data['image_id']
                     break
 
