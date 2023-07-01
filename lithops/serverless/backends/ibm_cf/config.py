@@ -40,7 +40,7 @@ FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_ibmcf.zip')
 CF_ENDPOINT = "https://{}.functions.cloud.ibm.com"
 REGIONS = ["jp-tok", "au-syd", "eu-gb", "eu-de", "us-south", "us-east"]
 
-REQ_PARAMS = ('iam_api_key', 'resource_group_id')
+REQ_PARAMS = ('iam_api_key',)
 
 
 def load_config(config_data):

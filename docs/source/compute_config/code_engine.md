@@ -34,9 +34,7 @@ If a pre-built runtime is not provided, Lithops will automatically build the def
 
 1. [Install the Docker CE version](https://docs.docker.com/get-docker/).
 
-2. Provide the container registry credentials in the config.
-
-3. Login to your container registry account:
+2. Login to your container registry account:
    ```bash
    docker login
    ```
