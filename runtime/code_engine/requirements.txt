@@ -40,6 +40,7 @@ Pillow
 #watson-developer-cloud
 ibm-cos-sdk
 ibm-vpc
+ibm-code-engine-sdk
 #ibmcloudsql
 
 # Compose Libs

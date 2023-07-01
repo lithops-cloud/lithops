@@ -75,8 +75,11 @@ class OpenWhiskClient:
         """
         Create a WSK namespace
         """
-        data = {"name": namespace, "description": "Auto-created Lithops namespace",
-                "resource_group_id": resource_group_id, "resource_plan_id": "functions-base-plan"}
+        data = {}
+
+        if resource_group_id:
+            data = {"name": namespace, "description": "Auto-created Lithops namespace",
+                    "resource_group_id": resource_group_id, "resource_plan_id": "functions-base-plan"}
 
         res = self.session.post(self.url, json=data)
         resp_text = res.json()
@@ -102,6 +105,24 @@ class OpenWhiskClient:
         else:
             resp_text = res.json()
             msg = f"An error occurred deleting the namsepace {namespace}: {resp_text['message']}"
+            raise Exception(msg)
+
+    def list_namespaces(self, resource_group_id):
+        """
+        List WSK namespaces
+        """
+        data = {}
+
+        if resource_group_id:
+            data = {"resource_group_id": resource_group_id, "resource_plan_id": "functions-base-plan"}
+
+        res = self.session.get(self.url, json=data)
+        resp_text = res.json()
+
+        if res.status_code == 200:
+            return resp_text
+        else:
+            msg = f"An error occurred listing the namespaces: {resp_text['message']}"
             raise Exception(msg)
 
     def create_action(self, package, action_name, image_name=None, code=None, memory=None,
