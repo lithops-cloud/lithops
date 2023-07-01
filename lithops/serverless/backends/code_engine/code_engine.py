@@ -90,8 +90,11 @@ class CodeEngineBackend:
 
         self.user_key = self.iam_api_key[:4].lower()
         self.project_name = ce_config.get('project_name', f'lithops-{self.region}-{self.user_key}')
+        self.project_id = None
 
         self.token_manager = None
+        self.code_engine_service_v1 = None
+        self.code_engine_service_v2 = None
 
         self.cache_dir = os.path.join(CACHE_DIR, self.name)
         self.cache_file = os.path.join(self.cache_dir, self.project_name + '_data')
@@ -106,9 +109,9 @@ class CodeEngineBackend:
         else:
             self._create_k8s_iam_client()
 
-        if not self.namespace:
+        if not self.namespace and not self.is_lithops_worker:
             self._get_or_create_namespace()
-            ce_config['namespace'] = self.namespace
+            self.config['namespace'] = self.namespace
 
         logger.debug(f"Set namespace to {self.namespace}")
         logger.debug(f"Set cluster to {self.cluster}")
@@ -118,13 +121,11 @@ class CodeEngineBackend:
         msg = COMPUTE_CLI_MSG.format('IBM Code Engine')
         logger.info(f"{msg} - Project: {self.project_name} - Region: {self.region}")
 
-    def _get_or_create_namespace(self):
+    def _create_code_engine_client(self):
         """
-        Gets or creates a new namespace
+        Creates new code engine clients
         """
-        ce_data = load_yaml_config(self.cache_file)
-        self.namespace = ce_data.get('namespace')
-        if self.namespace:
+        if self.code_engine_service_v1 and self.code_engine_service_v2:
             return
 
         from ibm_cloud_sdk_core.authenticators import IAMAuthenticator
@@ -132,10 +133,23 @@ class CodeEngineBackend:
         from ibm_code_engine_sdk.ibm_cloud_code_engine_v1 import IbmCloudCodeEngineV1
 
         authenticator = IAMAuthenticator(self.iam_api_key)
-        code_engine_service_v1 = IbmCloudCodeEngineV1(authenticator=authenticator)
-        code_engine_service_v1.set_service_url(config.BASE_URL_V1.format(self.region))
-        code_engine_service_v2 = CodeEngineV2(authenticator=authenticator)
-        code_engine_service_v2.set_service_url(config.BASE_URL_V2.format(self.region))
+        self.code_engine_service_v1 = IbmCloudCodeEngineV1(authenticator=authenticator)
+        self.code_engine_service_v1.set_service_url(config.BASE_URL_V1.format(self.region))
+        self.code_engine_service_v2 = CodeEngineV2(authenticator=authenticator)
+        self.code_engine_service_v2.set_service_url(config.BASE_URL_V2.format(self.region))
+
+    def _get_or_create_namespace(self):
+        """
+        Gets or creates a new namespace
+        """
+        ce_data = load_yaml_config(self.cache_file)
+        self.namespace = ce_data.get('namespace')
+        self.project_id = ce_data.get('project_id')
+
+        if self.namespace:
+            return
+
+        self._create_code_engine_client()
 
         def get_k8s_namespace(project_id):
             delegated_refresh_token_payload = {
@@ -145,31 +159,35 @@ class CodeEngineBackend:
                 'receiver_client_ids': 'ce',
                 'delegated_refresh_token_expiry': '3600'
             }
-            token_manager = code_engine_service_v2.authenticator.token_manager
+            token_manager = self.code_engine_service_v2.authenticator.token_manager
             request_payload = token_manager.request_payload
             token_manager.request_payload = delegated_refresh_token_payload
             iam_response = token_manager.request_token()
             token_manager.request_payload = request_payload
             delegated_refresh_token = iam_response['delegated_refresh_token']
-            kc_resp = code_engine_service_v1.get_kubeconfig(delegated_refresh_token, project_id)
+            kc_resp = self.code_engine_service_v1.get_kubeconfig(delegated_refresh_token, project_id)
             return kc_resp.get_result()['contexts'][0]['context']['namespace']
 
-        response = code_engine_service_v2.list_projects()
-        projects = response.get_result()['projects']
-        for project in projects:
-            if project['name'] == self.project_name:
-                self.namespace = get_k8s_namespace(project['id'])
+        response = self.code_engine_service_v2.list_projects().get_result()
+        if 'projects' in response:
+            for project in response['projects']:
+                if project['name'] == self.project_name:
+                    logger.debug(f"Found Code Engine project: {self.project_name}")
+                    self.project_id = project['id']
+                    self.namespace = get_k8s_namespace(self.project_id)
 
         if not self.namespace:
             logger.debug(f"Creating new Code Engine project: {self.project_name}")
-            response = code_engine_service_v2.create_project(
+            response = self.code_engine_service_v2.create_project(
                 name=self.project_name,
                 resource_group_id=self.config['resource_group_id']
             )
             project = response.get_result()
-            self.namespace = get_k8s_namespace(project['id'])
+            self.project_id = project['id']
+            self.namespace = get_k8s_namespace(self.project_id)
 
         ce_data['project_name'] = self.project_name
+        ce_data['project_id'] = self.project_id
         ce_data['namespace'] = self.namespace
         dump_yaml_config(self.cache_file, ce_data)
 
@@ -303,7 +321,7 @@ class CodeEngineBackend:
         except ApiException as e:
             logger.debug(f"Deleting a jobdef failed with {e.status} {e.reason}")
 
-    def clean(self, **kwargs):
+    def clean(self, all=False):
         """
         Deletes all runtimes from all packages
         """
@@ -323,6 +341,12 @@ class CodeEngineBackend:
                     name=config_name,
                     namespace=self.namespace,
                     grace_period_seconds=0)
+
+        if all and os.path.exists(self.cache_file):
+            self._create_code_engine_client()
+            logger.debug(f"Deleting Code Engine project: {self.project_name}")
+            self.code_engine_service_v2.delete_project(id=self.project_id)
+            os.remove(self.cache_file)
 
         shutil.rmtree(self.cache_dir, ignore_errors=True)
 

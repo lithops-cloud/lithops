@@ -16,6 +16,7 @@
 
 import os
 import logging
+import shutil
 from threading import Lock
 
 from lithops import utils
@@ -65,8 +66,11 @@ class IBMCloudFunctionsBackend:
 
         self._create_ow_client()
 
-        if not self.is_lithops_worker:
-            self._init_namespace()
+        if not self.namespace_id and not self.is_lithops_worker:
+            self._get_or_create_namespace()
+            self.cf_client.namespace = self.namespace_id
+            self.config['namespace'] = self.namespace
+            self.config['namespace_id'] = self.namespace_id
 
         msg = COMPUTE_CLI_MSG.format('IBM CF')
         logger.info(f"{msg} - Region: {self.region} - Namespace: {self.namespace}")
@@ -111,25 +115,30 @@ class IBMCloudFunctionsBackend:
                 )
             cf_mutex.release()
 
-    def _init_namespace(self):
+    def _get_or_create_namespace(self):
         """
-        Creates a new IAM namepsace if not exists
+        Gets or creates a new IAM namepsace if not exists
         """
         cf_data = load_yaml_config(self.cache_file)
-        self.namespace_id = self.namespace_id or cf_data.get('namespace_id')
+        self.namespace_id = cf_data.get('namespace_id')
+        if self.namespace_id:
+            return
+
+        response = self.cf_client.list_namespaces(self.resource_group_id)
+        if 'namespaces' in response:
+            for namespace in response['namespaces']:
+                if namespace['name'] == self.namespace:
+                    logger.debug(f"Found Cloud Functions namespace: {self.namespace}")
+                    self.namespace_id = namespace['id']
 
         if not self.namespace_id:
-            logger.debug(f"Creating new Cloud Functions namespace: '{self.namespace}'")
-            self.namespace_id = self.cf_client.create_namespace(self.namespace, self.resource_group_id)
-        else:
-            self.cf_client.namespace = self.namespace_id
-
-        self.config['namespace'] = self.namespace
-        self.config['namespace_id'] = self.namespace_id
+            logger.debug(f"Creating new Cloud Functions namespace: {self.namespace}")
+            self.namespace_id = self.cf_client.create_namespace(
+                self.namespace, self.resource_group_id
+            )
 
         cf_data['namespace'] = self.namespace
         cf_data['namespace_id'] = self.namespace_id
-
         dump_yaml_config(self.cache_file, cf_data)
 
     def _format_function_name(self, runtime_name, runtime_memory, version=__version__):
@@ -241,6 +250,8 @@ class IBMCloudFunctionsBackend:
         if all and os.path.exists(self.cache_file):
             self.cf_client.delete_namespace(self.namespace_id)
             os.remove(self.cache_file)
+
+        shutil.rmtree(self.cache_dir, ignore_errors=True)
 
     def list_runtimes(self, docker_image_name='all'):
         """
