@@ -20,6 +20,7 @@
 - [Cli] Added new 'lithops image list' command for standalone backends
 - [IBM VPC] Added build_image() method for automatically building VM images
 - [IBM VPC] Added list_image() method for listing the availabe VM images
+- [IBM EC2] Added build_image() method for automatically building VM images
 - [AWS EC2] Added list_image() method for listing the availabe VM images
 - [IBM CF] Automatically create a CF namespace if not provided in config
 - [IBM VPC] Added Madrid (Spain) region

@@ -23,7 +23,7 @@ import logging
 
 from lithops import constants as c
 from lithops.version import __version__
-from lithops.utils import get_mode, get_default_backend
+from lithops.utils import CURRENT_PY_VERSION, get_mode, get_default_backend
 from builtins import FileNotFoundError
 
 logger = logging.getLogger(__name__)
@@ -138,7 +138,7 @@ def default_config(config_file=None, config_data=None, config_overwrite={}, load
     then checks LITHOPS_CONFIG_FILE environment variable
     then ~/.lithops/config
     """
-    logger.info(f'Lithops v{__version__}')
+    logger.info(f'Lithops v{__version__} - Python{CURRENT_PY_VERSION}')
 
     config_data = copy.deepcopy(config_data) or load_config(config_file)
 

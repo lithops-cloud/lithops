@@ -50,8 +50,8 @@ class IBMVPCBackend:
         self.config = config
         self.mode = mode
 
-        self.vpc_name = None
         self.vpc_data = {}
+        self.vpc_name = None
         self.vpc_key = None
 
         self.vpc_data_type = 'provided' if 'vpc_id' in self.config else 'created'
@@ -387,6 +387,7 @@ class IBMVPCBackend:
         if 'image_id' not in self.config:
             for image in images_def:
                 if image['name'] == SA_IMAGE_NAME_DEFAULT:
+                    logger.debug(f"Found default VM image: {SA_IMAGE_NAME_DEFAULT}")
                     self.config['image_id'] = image['id']
                     break
 
@@ -543,10 +544,11 @@ class IBMVPCBackend:
         logger.debug("Be patient, VM imaging can take up to 6 minutes")
 
         while True:
-            image = self.vpc_cli.list_images(name=image_name, resource_group_id=self.config['resource_group_id']).result['images'][0]
-            logger.debug(f"VM Image is being created. Current status: {image['status']}")
-            if image['status'] == 'available':
-                break
+            images = self.vpc_cli.list_images(name=image_name, resource_group_id=self.config['resource_group_id']).result['images']
+            if len(images) > 0:
+                logger.debug(f"VM Image is being created. Current status: {images[0]['status']}")
+                if images[0]['status'] == 'available':
+                    break
             time.sleep(30)
 
         build_vm.delete()
@@ -554,7 +556,7 @@ class IBMVPCBackend:
         if not initial_vpc_data:
             self.clean(all)
 
-        logger.info(f"VM Image created. Image ID: {image['id']}")
+        logger.info(f"VM Image created. Image ID: {images[0]['id']}")
 
     def list_images(self):
         """
