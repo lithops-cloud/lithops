@@ -27,7 +27,7 @@ DEFAULT_REQUIREMENTS = [
     'cloudpickle',
     'ps-mem',
     'tblib',
-    'urllib3==1.26.15'
+    'urllib3'
 ]
 
 AVAILABLE_PY_RUNTIMES = {
