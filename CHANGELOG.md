@@ -44,6 +44,7 @@
 - [SSH Cli] Fix issue with RSA keys
 - [Tests] Fix broken links of testing files
 - [Azure Container APPs] Make sure the lithops worker app is deployed
+- [AWS Lambda] Fixed error with urllib3. Pin urllib3 to <2 as for now botocore does not support urllib3 2.0
 
 
 ## [v2.9.0]

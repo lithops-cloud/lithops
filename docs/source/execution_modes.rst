@@ -6,8 +6,15 @@ Lithops compute backends can be classified in 3 different execution modes depend
 
 Localhost mode
 --------------
-This mode allows to run functions in your local machine, using the available local CPUs.
-This is the default mode of execution if no configuration is provided.
+The "localhost mode" in Lithops is a convenient feature that enables you to execute functions on your local machine using processes. It serves as the default execution mode if no specific configuration is provided.
+
+In localhost mode, you can run your code locally without relying on cloud resources or serverless computing environments. It allows you to leverage the power of Lithops and its distributed computing capabilities right on your own machine.
+
+By utilizing processes, Lithops efficiently manages the execution of functions in parallel, taking advantage of the available resources on your local system. This mode is particularly useful for development, testing, and debugging purposes, as it eliminates the need to deploy code to a cloud environment during the development phase.
+
+To use localhost mode, you can simply write your functions using the Lithops programming model and execute them locally. Lithops will handle the distribution and coordination of the function executions, optimizing performance by leveraging multiple processes.
+
+Whether you're exploring Lithops for the first time or working on local development tasks, the localhost mode offers a seamless experience, empowering you to harness the capabilities of Lithops without the need for cloud infrastructure.
 
 .. note:: This is the preferable option for starting with Lithops, and for testing (debugging) your applications.
 
@@ -21,14 +28,15 @@ This is the default mode of execution if no configuration is provided.
 
 Serverless mode
 ---------------
-This mode allows to run functions by using one or multiple function-as-a-service (FaaS)
-Serverless compute backends.  In this mode of execution, each function invocation equals
-to a parallel task running in the cloud in an isolated environment.
+The "serverless mode" in Lithops is designed to execute functions using publicly accessible serverless compute services, including IBM Cloud Functions, Amazon Lambda, Google Cloud Functions, and more, enabling parallel task execution in isolated cloud environments.
 
-In this mode of execution, the execution environment depends of the serverless compute
-backend. For example, in AWS Lambda, IBM Cloud Functions, Google Cloud Run, IBM Code Engine
-and Kubernetes you must use a Docker image as execution environment. In contrast,
-Google cloud functions, Azure functions and Aliyun Functions use their own formats of environments.
+In serverless mode, Lithops leverages the power of these serverless platforms to execute functions as independent tasks. Each function invocation is treated as a separate parallel task, benefiting from the scalability, automatic provisioning of resources, and isolation provided by the serverless compute service.
+
+By utilizing serverless platforms, developers can offload the burden of managing infrastructure and focus solely on writing and deploying their functions. The serverless mode in Lithops abstracts away the complexities of configuring and scaling embarrassingly parallel applications, making it easier to develop and deploy large-scale data processing workloads.
+
+This execution mode offers flexibility and elasticity, as resources are dynamically allocated based on workload demands, ensuring efficient utilization of compute power. It allows developers to seamlessly leverage the scalability and reliability of serverless platforms while benefiting from Lithops' programming model and distributed computing capabilities.
+
+Whether you're processing large datasets, handling real-time event-driven tasks, or building serverless applications, Lithops' serverless mode provides a convenient and scalable approach to execute functions on popular serverless compute services, simplifying the development and deployment process.
 
 .. code:: python
 
@@ -40,10 +48,13 @@ Google cloud functions, Azure functions and Aliyun Functions use their own forma
 
 Standalone mode
 ---------------
-This mode allows to run functions by using a remote host or a cluster of virtual machines (VM).
-In the VM, functions run using parallel processes. This mode of executions is similar to the
-localhost mode, but using remote machines. In this case, it is not needed to install anything
-in the remote VMs since Lithops does this process automatically the first time you use them.
+The "standalone mode" in Lithops provides the capability to execute functions on one or multiple virtual machines (VMs) simultaneously, in a serverless-like fashion, without requiring manual provisioning as everything is automatically created. This mode can be deployed in a private cluster or in the cloud, where functions within each VM are executed using parallel processes, similar to the functionality offered in localhost mode.
+
+In standalone mode, Lithops simplifies the deployment and management of VMs, enabling users to effortlessly scale their compute resources to meet the demands of their workloads. By leveraging the automatic creation and configuration of VMs, developers can focus on writing their functions while Lithops takes care of the underlying infrastructure.
+
+Each VM within the standalone mode operates independently, allowing for parallel processing of functions. This parallelism enhances performance and enables efficient execution of computationally intensive tasks across multiple VMs. Whether deployed in a private cluster or in the cloud, standalone mode provides flexibility and scalability to process large volumes of data or perform complex computations.
+
+Standalone mode in Lithops expands the possibilities for distributed computing by combining the convenience of serverless-like provisioning with the power of parallel processing on VMs. It offers developers a seamless experience for executing functions in an isolated and scalable environment, simplifying the development and execution of data-intensive workloads and parallel applications.
 
 .. note:: This is the preferable option if your application (or a part) requires a more powerful environment than the ones provided by the Serverless backends (in terms of CPU and Memory).
 
