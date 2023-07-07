@@ -45,10 +45,13 @@ class PicklableRedis(redis.StrictRedis):
 
 
 def get_redis_client(**overwrites):
-    try:
-        conn_params = load_config()['redis']
-    except KeyError:
+    lithops_config = load_config()
+    if 'redis' not in lithops_config or not lithops_config['redis']:
         raise Exception('Redis section not found in you config')
+
+    conn_params = lithops_config['redis']
+    if 'socket_timeout' not in conn_params:
+        conn_params['socket_timeout'] = 5
     conn_params.update(overwrites)
     return PicklableRedis(**conn_params)
 

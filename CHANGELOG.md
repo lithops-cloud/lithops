@@ -20,7 +20,7 @@
 - [Cli] Added new 'lithops image list' command for standalone backends
 - [IBM VPC] Added build_image() method for automatically building VM images
 - [IBM VPC] Added list_image() method for listing the availabe VM images
-- [IBM EC2] Added build_image() method for automatically building VM images
+- [AWS EC2] Added build_image() method for automatically building VM images
 - [AWS EC2] Added list_image() method for listing the availabe VM images
 - [IBM CF] Automatically create a CF namespace if not provided in config
 - [IBM VPC] Added Madrid (Spain) region
@@ -46,6 +46,7 @@
 - [Tests] Fix broken links of testing files
 - [Azure Container APPs] Make sure the lithops worker app is deployed
 - [AWS Lambda] Fixed error with urllib3. Pin urllib3 to <2 as for now botocore does not support urllib3 2.0
+- [Multiprocessing] Check redis connection before starting to submit jobs
 
 
 ## [v2.9.0]
