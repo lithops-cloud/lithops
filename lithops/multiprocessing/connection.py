@@ -271,8 +271,8 @@ class _RedisConnection(_ConnectionBase):
     def __init__(self, handle, readable=True, writable=True):
         super().__init__(handle, readable, writable)
         logger.debug('Requested creation of Redis connection resource')
-        self._client = util.get_redis_client()
         self._check_redis_connection()
+        self._client = util.get_redis_client()
         self._subhandle = get_subhandle(handle)
         self._connect()
 
@@ -281,7 +281,8 @@ class _RedisConnection(_ConnectionBase):
         Check the connection with a timeout
         """
         try:
-            self._client.ping()
+            client = util.get_redis_client(persist=False, socket_timeout=5)
+            client.ping()
         except Exception as e:
             raise Exception("There was an issue with the Redis connection: " + str(e))
 
