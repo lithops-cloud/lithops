@@ -25,6 +25,8 @@ from . import config as mp_config
 
 logger = logging.getLogger(__name__)
 
+LITHOPS_CONFIG = None
+REDIS_CLIENT = None
 
 #
 # Picklable redis client
@@ -44,16 +46,23 @@ class PicklableRedis(redis.StrictRedis):
         self.__init__(*state[0], **state[1])
 
 
-def get_redis_client(**overwrites):
-    lithops_config = load_config()
-    if 'redis' not in lithops_config or not lithops_config['redis']:
-        raise Exception('Redis section not found in you config')
+def get_redis_client(persist=True, **overwrites):
+    global LITHOPS_CONFIG
+    global REDIS_CLIENT
 
-    conn_params = lithops_config['redis']
-    if 'socket_timeout' not in conn_params:
-        conn_params['socket_timeout'] = 5
-    conn_params.update(overwrites)
-    return PicklableRedis(**conn_params)
+    if REDIS_CLIENT:
+        return REDIS_CLIENT
+
+    if not LITHOPS_CONFIG:
+        LITHOPS_CONFIG = load_config()
+    if 'redis' not in LITHOPS_CONFIG or not LITHOPS_CONFIG['redis']:
+        raise Exception('Redis section not found in your lithops config')
+
+    conn_params = LITHOPS_CONFIG['redis']
+    redis_client = PicklableRedis(**conn_params, **overwrites)
+    if persist:
+        REDIS_CLIENT = redis_client
+    return redis_client
 
 
 #
