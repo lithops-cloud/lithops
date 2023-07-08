@@ -62,7 +62,7 @@ class StorageBackend:
         Generates new token for accessing to Swift.
         :return: token
         """
-        url = self.auth_url+"/v3/auth/tokens"
+        url = self.auth_url + "/v3/auth/tokens"
         headers = {'Content-Type': 'application/json'}
         data = {"auth": {"identity": {"methods": ["password"],
                                       "password": {"user": {"id": self.user_id, "password": self.password}}},
@@ -218,8 +218,8 @@ class StorageBackend:
         :param bucket: bucket name
         :param key: data key
         """
-        headers={'X-Auth-Token': self.token,
-                 'X-Bulk-Delete': 'True'}
+        headers = {'X-Auth-Token': self.token,
+                   'X-Bulk-Delete': 'True'}
 
         keys_to_delete = []
         for key in key_list:
@@ -229,7 +229,7 @@ class StorageBackend:
         url = '/'.join([self.endpoint, '?bulk-delete'])
         return self.session.delete(url, data=keys_to_delete, headers=headers)
 
-    def list_objects(self, container_name, prefix='', match_pattern = None):
+    def list_objects(self, container_name, prefix='', match_pattern=None):
         """
         Lists the objects in a bucket. Throws StorageNoSuchKeyError if the given bucket does not exist.
         :param key: key of the object
@@ -237,7 +237,7 @@ class StorageBackend:
         :rtype: str/bytes
         """
         if prefix:
-            url = '/'.join([self.endpoint, container_name, '?format=json&prefix='+prefix])
+            url = '/'.join([self.endpoint, container_name, '?format=json&prefix=' + prefix])
         else:
             url = '/'.join([self.endpoint, container_name, '?format=json'])
         try:
@@ -261,4 +261,4 @@ class StorageBackend:
             object_keys = [r['name'] for r in objects]
             return object_keys
         except Exception as e:
-            raise(e)
+            raise e

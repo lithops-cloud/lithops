@@ -47,7 +47,7 @@
 - [Azure Container APPs] Make sure the lithops worker app is deployed
 - [AWS Lambda] Fixed error with urllib3. Pin urllib3 to <2 as for now botocore does not support urllib3 2.0
 - [Multiprocessing] Check redis connection before starting to submit jobs
-
+- [Redis] Fixed redis backend exception regarding storage_bucket
 
 ## [v2.9.0]
 
