@@ -152,15 +152,15 @@ Lithops is shipped with 3 different modes of execution. The execution mode allow
 
 * [Localhost Mode](docs/source/execution_modes.rst#localhost-mode)
 
-  This mode allows developers to execute functions on their local machines using processes, providing a convenient and efficient way to leverage Lithops' distributed computing capabilities without relying on cloud resources. This mode is particularly useful for development, testing, and debugging purposes. This is the default mode of execution if no configuration is provided.
+  This mode allows you to execute functions on the local machine using processes, providing a convenient and efficient way to leverage Lithops' distributed computing capabilities without relying on cloud resources. This mode is particularly useful for development, testing, and debugging purposes. This is the default mode of execution if no configuration is provided.
 
 * [Serverless Mode](docs/source/execution_modes.rst#serverless-mode)
 
-  This mode empowers developers to efficiently execute functions on popular serverless compute services, leveraging the scalability, isolation, and automatic resource provisioning provided by these platforms. With serverless mode, developers can easily parallelize task execution, harness the elastic nature of serverless environments, and simplify the development and deployment of scalable data processing workloads and parallel applications.
+  This mode allows you to efficiently execute functions on popular serverless compute services, leveraging the scalability, isolation, and automatic resource provisioning provided by these platforms. With serverless mode, you can easily parallelize task execution, harness the elastic nature of serverless environments, and simplify the development and deployment of scalable data processing workloads and parallel applications.
 
 * [Standalone Mode](docs/source/execution_modes.rst#standalone-mode)
 
-  This mode provides the capability to execute functions on one or multiple virtual machines (VMs) simultaneously, in a serverless-like fashion, without requiring manual provisioning as everything is automatically created. This mode can be deployed in a private cluster or in the cloud, where functions within each VM are executed using parallel processes, similar to the functionality offered in localhost mode.
+  This mode provides the capability to execute functions on one or multiple virtual machines (VMs) simultaneously, in a serverless-like fashion, without requiring manual provisioning as everything is automatically created. This mode can be used in a private cluster or in the cloud, where functions within each VM are executed using parallel processes, similar to the functionality offered in localhost mode.
 
 
 ## Documentation
