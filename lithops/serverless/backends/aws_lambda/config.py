@@ -53,7 +53,7 @@ DEFAULT_CONFIG_KEYS = {
     'efs': []
 }
 
-REQ_PARAMS = ('execution_role',)
+REQ_PARAMS = ('execution_role', 'region_name')
 
 RUNTIME_TIMEOUT_MAX = 900  # Max. timeout: 900 s == 15 min
 RUNTIME_MEMORY_MIN = 128  # Max. memory: 128 MB
@@ -64,23 +64,26 @@ RUNTIME_TMP_SZ_MAX = 10240
 
 
 def load_config(config_data):
-    if 'aws' not in config_data:
-        raise Exception("'aws' section is mandatory in the configuration")
-
     if not config_data['aws_lambda']:
         raise Exception("'aws_lambda' section is mandatory in the configuration")
-
-    temp = copy.deepcopy(config_data['aws_lambda'])
-    config_data['aws_lambda'].update(config_data['aws'])
-    config_data['aws_lambda'].update(temp)
 
     for param in REQ_PARAMS:
         if param not in config_data['aws_lambda']:
             msg = f'"{param}" is mandatory in the "aws_lambda" section of the configuration'
             raise Exception(msg)
 
-    if "sso_profile" in config_data["aws"] and {"secret_access_key", "access_key_id"}.issubset(config_data["aws"]):
-        raise Exception("Both 'sso_profile' and access keys are not permitted")
+    # Put "aws" section inside "aws_lambda" config so we can access credentials at the backend class
+    if "aws" not in config_data:
+        config_data["aws"] = {}
+    else:
+        config_data["aws_lambda"]["aws"] = copy.deepcopy(config_data["aws"])
+
+    # TODO remove aws secrets from lithops config
+    if "secret_access_key" in config_data["aws"] or "access_key_id" in config_data["aws"]:
+        logger.warning('using "secret_access_key" and "access_key_id" in the lithops configuration is deprecated and '
+                       'they will be removed in future releases '
+                       '- Use boto3 configuration with environment variables or config file in ~/.aws instead '
+                       '(https://boto3.amazonaws.com/v1/documentation/api/latest/guide/configuration.html)')
 
     for key in DEFAULT_CONFIG_KEYS:
         if key not in config_data['aws_lambda']:
@@ -105,22 +108,21 @@ def load_config(config_data):
         raise Exception("'subnets' and 'security_groups' are mandatory sections under 'aws_lambda/vpc'")
 
     if not isinstance(config_data['aws_lambda']['vpc']['subnets'], list):
-        raise Exception("Unknown type {} for 'aws_lambda/"
-                        "vpc/subnet' section".format(type(config_data['aws_lambda']['vpc']['subnets'])))
+        raise Exception("Invalid type {} for 'aws_lambda/vpc/subnet' section"
+                        .format(type(config_data['aws_lambda']['vpc']['subnets'])))
 
     if not isinstance(config_data['aws_lambda']['vpc']['security_groups'], list):
-        raise Exception("Unknown type {} for 'aws_lambda/"
-                        "vpc/security_groups' section".format(type(config_data['aws_lambda']['vpc']['security_groups'])))
+        raise Exception("Invalid type {} for 'aws_lambda/vpc/security_groups' section"
+                        .format(type(config_data['aws_lambda']['vpc']['security_groups'])))
 
     if not isinstance(config_data['aws_lambda']['efs'], list):
-        raise Exception("Unknown type {} for "
-                        "'aws_lambda/efs' section".format(type(config_data['aws_lambda']['vpc']['security_groups'])))
+        raise Exception("Invalid type {} for 'aws_lambda/efs' section"
+                        .format(type(config_data['aws_lambda']['vpc']['security_groups'])))
 
-    if not all(
-            ['access_point' in efs_conf and 'mount_path' in efs_conf for efs_conf in config_data['aws_lambda']['efs']]):
+    if not all('access_point' in efs and 'mount_path' in efs for efs in config_data['aws_lambda']['efs']):
         raise Exception("List of 'access_point' and 'mount_path' mandatory in 'aws_lambda/efs section'")
 
-    if not all([efs_conf['mount_path'].startswith('/mnt') for efs_conf in config_data['aws_lambda']['efs']]):
+    if not all(efs_conf['mount_path'].startswith('/mnt') for efs_conf in config_data['aws_lambda']['efs']):
         raise Exception("All mount paths must start with '/mnt' on 'aws_lambda/efs/*/mount_path' section")
 
     # Lambda runtime config
