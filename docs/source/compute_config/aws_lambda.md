@@ -27,7 +27,10 @@ python3 -m pip install lithops[aws]
                 "lambda:*",
                 "ec2:*",
                 "ecr:*",
-                "sts:GetCallerIdentity"
+                "sts:GetCallerIdentity",
+                "logs:CreateLogGroup",
+                "logs:CreateLogStream",
+                "logs:PutLogEvents"
             ],
             "Resource": "*"
         }

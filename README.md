@@ -52,25 +52,17 @@ Lithops provides an extensible backend architecture (compute, storage) that is d
 
 Lithops is shipped with 2 different high-level Compute APIs, and 2 high-level Storage APIs
 
-
+<div align="center">
 <table>
 <tr>
-<th align="center">
-<img width="441" height="1px">
-<p> 
-<small>
-<a href="docs/api_futures.md">Futures API</a>
-</small>
-</p>
-</th>
-<th align="center">
-<img width="441" height="1px">
-<p> 
-<small>
-<a href="docs/source/api_multiprocessing.rst">Multiprocessing API</a>
-</small>
-</p>
-</th>
+  <th>
+    <img width="50%" height="1px">
+    <p><small><a href="docs/api_futures.md">Futures API</a></small></p>
+  </th>
+  <th>
+    <img width="50%" height="1px">
+    <p><small><a href="docs/source/api_multiprocessing.rst">Multiprocessing API</a></small></p>
+  </th>
 </tr>
 
 <tr>
@@ -104,25 +96,16 @@ with Pool() as pool:
 
 </table>
 
-
 <table>
 <tr>
-<th align="center">
-<img width="441" height="1px">
-<p> 
-<small>
-<a href="docs/api_storage.md">Storage API</a>
-</small>
-</p>
-</th>
-<th align="center">
-<img width="441" height="1px">
-<p> 
-<small>
-<a href="docs/source/api_storage_os.rst">Storage OS API</a>
-</small>
-</p>
-</th>
+  <th>
+    <img width="50%" height="1px">
+    <p><small><a href="docs/api_storage.md">Storage API</a></small></p>
+  </th>
+  <th>
+    <img width="50%" height="1px">
+    <p><small><a href="docs/source/api_storage_os.rst">Storage OS API</a></small></p>
+  </th>
 </tr>
 
 <tr>
@@ -144,7 +127,7 @@ if __name__ == "__main__":
 <td>
 
 ```python
-from lithops.storage.cloud_proxy import os
+from lithops.storage.cloud_proxy import os 
 
 if __name__ == "__main__":
     filepath = 'bar/foo.txt'
@@ -159,6 +142,7 @@ if __name__ == "__main__":
 </tr>
 
 </table>
+</div>
 
 You can find more usage examples in the [examples](/examples) folder.
 
@@ -166,54 +150,18 @@ You can find more usage examples in the [examples](/examples) folder.
 
 Lithops is shipped with 3 different modes of execution. The execution mode allows you to decide where and how the functions are executed.
 
-<table>
-<tr>
-<th align="center">
-<img width="441" height="1px">
-<p>
-<small>
-<a href="docs/source/execution_modes.rst#localhost-mode">Localhost Mode</a>
-</small>
-</p>
-</th>
-<th align="center">
-<img width="441" height="1px">
-<p>
-<small>
-<a href="docs/source/execution_modes.rst#serverless-mode">Serverless Mode</a>
-</small>
-<small>
-</small>
-</p>
-</th>
-<th align="center">
-<img width="441" height="1px">
-<p>
-<small>
-<a href="docs/source/execution_modes.rst#standalone-mode">Standalone Mode</a>
-</small>
-</p>
-</th>
-</tr>
-<tr>
-<td>
+* [Localhost Mode](docs/source/execution_modes.rst#localhost-mode)
 
-This mode allows you to run functions in your local machine, by using processes. This is the default mode of execution if no configuration is provided.
+  This mode allows you to execute functions on the local machine using processes, providing a convenient and efficient way to leverage Lithops' distributed computing capabilities without relying on cloud resources. This mode is particularly useful for development, testing, and debugging purposes. This is the default mode of execution if no configuration is provided.
 
-</td>
-<td>
+* [Serverless Mode](docs/source/execution_modes.rst#serverless-mode)
 
-This mode allows you to run functions by using publicly accessible Serverless compute services, such as IBM Cloud Functions, Amazon Lambda or Google Cloud Functions, among others. In this mode of execution, each function invocation equals to a parallel task running in the cloud in an isolated environment.
+  This mode allows you to efficiently execute functions on popular serverless compute services, leveraging the scalability, isolation, and automatic resource provisioning provided by these platforms. With serverless mode, you can easily parallelize task execution, harness the elastic nature of serverless environments, and simplify the development and deployment of scalable data processing workloads and parallel applications.
 
-</td>
+* [Standalone Mode](docs/source/execution_modes.rst#standalone-mode)
 
-<td>
+  This mode provides the capability to execute functions on one or multiple virtual machines (VMs) simultaneously, in a serverless-like fashion, without requiring manual provisioning as everything is automatically created. This mode can be used in a private cluster or in the cloud, where functions within each VM are executed using parallel processes, similar to the functionality offered in localhost mode.
 
-This mode allows to run functions by using one or multiple Virtual machines (VM), either in a private cluster or in the cloud. In each VM, functions run using parallel processes like in the Localhost mode.
-
-</td>
-</tr>
-</table>
 
 ## Documentation
 
@@ -247,8 +195,4 @@ If you are interested in contributing, see [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 
 # Acknowledgements
-
-![image](https://user-images.githubusercontent.com/26366936/61350554-d62acf00-a85f-11e9-84b2-36312a35398e.png)
-
 This project has received funding from the European Union's Horizon 2020 research and innovation programme under grant agreement No 825184.
-

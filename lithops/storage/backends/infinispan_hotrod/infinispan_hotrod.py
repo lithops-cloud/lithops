@@ -57,7 +57,7 @@ class InfinispanHotrodBackend:
         logger.info("{} - Endpoint: {}".format(msg, self.endpoint))
 
     def __create_cache(self, cache_name, cache_type):
-            self.caches[cache_name] = self.cacheManagerAdmin.getOrCreateCache(cache_name, cache_type)
+        self.caches[cache_name] = self.cacheManagerAdmin.getOrCreateCache(cache_name, cache_type)
 
     def __key(self, key):
         return key
@@ -99,7 +99,7 @@ class InfinispanHotrodBackend:
         if 'Range' in extra_get_args:
             byte_range = extra_get_args['Range'].replace('bytes=', '')
             first_byte, last_byte = map(int, byte_range.split('-'))
-            b = b[first_byte:last_byte+1]
+            b = b[first_byte:last_byte + 1]
         if stream:
             return io.BytesIO(b)
         return b
@@ -194,7 +194,7 @@ class InfinispanHotrodBackend:
         """
         raise NotImplementedError
 
-    def list_objects(self, bucket_name, prefix=None, match_pattern = None):
+    def list_objects(self, bucket_name, prefix=None, match_pattern=None):
         """
         Return a list of objects for the given bucket and prefix.
         :param bucket_name: Name of the bucket.

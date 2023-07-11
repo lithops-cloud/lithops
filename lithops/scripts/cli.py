@@ -430,7 +430,7 @@ def runtime(ctx):
 @click.option('--file', '-f', default=None, help='file needed to build the runtime', type=click.Path(exists=True))
 @click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
 @click.option('--backend', '-b', default=None, help='compute backend')
-@click.option('--debug', '-d', is_flag=True, default=True, help='debug mode')
+@click.option('--debug', '-d', is_flag=True, help='debug mode')
 @click.pass_context
 def build(ctx, name, file, config, backend, debug):
     """ build a serverless runtime. """
@@ -462,11 +462,10 @@ def build(ctx, name, file, config, backend, debug):
 @click.option('--storage', '-s', default=None, help='storage backend')
 @click.option('--memory', default=None, help='memory used by the runtime', type=int)
 @click.option('--timeout', default=None, help='runtime timeout', type=int)
-@click.option('--debug', '-d', is_flag=True, default=True, help='debug mode')
+@click.option('--debug', '-d', is_flag=True, help='debug mode')
 def deploy(name, storage, backend, memory, timeout, config, debug):
     """ deploy a serverless runtime """
-    log_level = logging.INFO if not debug else logging.DEBUG
-    setup_lithops_logger(log_level)
+    setup_lithops_logger(logging.DEBUG)
 
     verify_runtime_name(name)
 
@@ -638,13 +637,12 @@ def image(ctx):
 @click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
 @click.option('--backend', '-b', default=None, help='compute backend')
 @click.option('--region', '-r', default=None, help='compute backend region')
-@click.option('--debug', '-d', is_flag=True, default=True, help='debug mode')
-@click.option('--overwrite', '-o', is_flag=True, default=False, help='overwrite the image if it already exists')
+@click.option('--debug', '-d', is_flag=True, help='debug mode')
+@click.option('--overwrite', '-o', is_flag=True, help='overwrite the image if it already exists')
 @click.pass_context
 def build_image(ctx, name, file, config, backend, region, debug, overwrite):
     """ build a VM image """
-    log_level = logging.INFO if not debug else logging.DEBUG
-    setup_lithops_logger(log_level)
+    setup_lithops_logger(logging.DEBUG)
 
     name = SA_IMAGE_NAME_DEFAULT if not name else name
     verify_runtime_name(name)
@@ -667,7 +665,7 @@ def build_image(ctx, name, file, config, backend, region, debug, overwrite):
 @click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
 @click.option('--backend', '-b', default=None, help='compute backend')
 @click.option('--region', '-r', default=None, help='compute backend region')
-@click.option('--debug', '-d', is_flag=True, default=False, help='debug mode')
+@click.option('--debug', '-d', is_flag=True, help='debug mode')
 def list_images(config, backend, region, debug):
     """ List VM images """
     log_level = logging.INFO if not debug else logging.DEBUG
@@ -689,17 +687,18 @@ def list_images(config, backend, region, debug):
     if images:
         width1 = max([len(img[0]) for img in images])
         width2 = max([len(img[1]) for img in images])
+        width3 = max([len(img[2]) for img in images])
 
-        print('\n{:{width1}} \t {:{width2}}'.format('Image Name', 'Image ID', width1=width1, width2=width2))
-        print('-' * width1, '\t', '-' * width2)
+        print('\n{:{width1}} \t {:{width2}}   {:{width3}}'.format('Image Name', 'Image ID', 'Creation Date', width1=width1, width2=width2, width3=width3))
+        print('-' * width1, '\t', '-' * width2, ' ', '-' * width3)
         for image in images:
-            print('{:{width1}} \t {:{width2}}'.format(image[0], image[1], width1=width1, width2=width2))
+            print('{:{width1}} \t {:{width2}}   {:{width3}}'.format(image[0], image[1], image[2], width1=width1, width2=width2, width3=width3))
         print()
         print(f'Total VM images: {len(images)}')
     else:
         width = 14
-        print('\n{:{width}} \t {}'.format('Image Name', 'Image ID', width=width))
-        print('-' * width, '\t', '-' * width)
+        print('\n{:{width}} \t {}   {}'.format('Image Name', 'Image ID', 'Creation Date', width=width))
+        print('-' * width, '\t', '-' * width, '   ', '-' * width)
         print('\nNo VM Images found')
 
 

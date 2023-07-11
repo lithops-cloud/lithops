@@ -23,6 +23,7 @@ import paramiko
 import time
 import logging
 import uuid
+from datetime import datetime
 from ibm_vpc import VpcV1
 from ibm_cloud_sdk_core.authenticators import IAMAuthenticator
 from ibm_cloud_sdk_core import ApiException
@@ -30,7 +31,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from lithops.version import __version__
 from lithops.util.ssh_client import SSHClient
-from lithops.constants import COMPUTE_CLI_MSG, CACHE_DIR
+from lithops.constants import COMPUTE_CLI_MSG, CACHE_DIR, SA_IMAGE_NAME_DEFAULT
 from lithops.config import load_yaml_config, dump_yaml_config
 from lithops.standalone.utils import CLOUD_CONFIG_WORKER, CLOUD_CONFIG_WORKER_PK, ExecMode, get_host_setup_script
 from lithops.standalone.standalone import LithopsValidationError
@@ -49,8 +50,8 @@ class IBMVPCBackend:
         self.config = config
         self.mode = mode
 
-        self.vpc_name = None
         self.vpc_data = {}
+        self.vpc_name = None
         self.vpc_key = None
 
         self.vpc_data_type = 'provided' if 'vpc_id' in self.config else 'created'
@@ -372,23 +373,26 @@ class IBMVPCBackend:
         if 'image_id' in self.config:
             return
 
-        images = self.vpc_cli.list_images().result['images']
+        images_def = self.vpc_cli.list_images().result['images']
+        images_user = self.vpc_cli.list_images(resource_group_id=self.config['resource_group_id']).result['images']
+        images_def.extend(images_user)
 
         if 'image_id' in self.vpc_data:
-            for image in images:
-                if image['id'] == self.vpc_data['image_id']:
-                    if not image['name'].startswith('ibm-ubuntu-22'):
-                        self.config['image_id'] = self.vpc_data['image_id']
-                        break
+            for image in images_def:
+                if image['id'] == self.vpc_data['image_id'] and \
+                   not image['name'].startswith('ibm-ubuntu-22'):
+                    self.config['image_id'] = self.vpc_data['image_id']
+                    break
 
         if 'image_id' not in self.config:
-            for image in images:
-                if image['name'] == self.config['image_name']:
+            for image in images_def:
+                if image['name'] == SA_IMAGE_NAME_DEFAULT:
+                    logger.debug(f"Found default VM image: {SA_IMAGE_NAME_DEFAULT}")
                     self.config['image_id'] = image['id']
                     break
 
         if 'image_id' not in self.config:
-            for image in images:
+            for image in images_def:
                 if image['name'].startswith('ibm-ubuntu-22'):
                     self.config['image_id'] = image['id']
                     break
@@ -429,9 +433,9 @@ class IBMVPCBackend:
                 'mode': self.mode,
                 'vpc_data_type': 'provided',
                 'ssh_data_type': 'provided',
-                'master_name': self.config['master_name'],
-                'master_id': self.config['instance_id'],
-                'floating_ip': self.config['floating_ip']
+                'master_name': self.master.name,
+                'master_id': self.master.instance_id,
+                'floating_ip': self.master.public_ip
             }
 
         elif self.mode in [ExecMode.CREATE.value, ExecMode.REUSE.value]:
@@ -481,13 +485,13 @@ class IBMVPCBackend:
         """
         Builds a new VM Image
         """
-        images = self.vpc_cli.list_images(name=image_name).result['images']
+        images = self.vpc_cli.list_images(name=image_name, resource_group_id=self.config['resource_group_id']).result['images']
         if len(images) > 0:
             image_id = images[0]['id']
             if overwrite:
                 logger.debug(f"Deleting existing VM Image '{image_name}'")
                 self.vpc_cli.delete_image(id=image_id)
-                while len(self.vpc_cli.list_images(name=image_name).result['images']) > 0:
+                while len(self.vpc_cli.list_images(name=image_name, resource_group_id=self.config['resource_group_id']).result['images']) > 0:
                     time.sleep(2)
             else:
                 raise Exception(f"The image with name '{image_name}' already exists with ID: '{image_id}'."
@@ -540,10 +544,11 @@ class IBMVPCBackend:
         logger.debug("Be patient, VM imaging can take up to 6 minutes")
 
         while True:
-            image = self.vpc_cli.list_images(name=image_name).result['images'][0]
-            logger.debug(f"VM Image is being created. Current status: {image['status']}")
-            if image['status'] == 'available':
-                break
+            images = self.vpc_cli.list_images(name=image_name, resource_group_id=self.config['resource_group_id']).result['images']
+            if len(images) > 0:
+                logger.debug(f"VM Image is being created. Current status: {images[0]['status']}")
+                if images[0]['status'] == 'available':
+                    break
             time.sleep(30)
 
         build_vm.delete()
@@ -551,25 +556,29 @@ class IBMVPCBackend:
         if not initial_vpc_data:
             self.clean(all)
 
-        logger.info(f"VM Image created. Image ID: {image['id']}")
+        logger.info(f"VM Image created. Image ID: {images[0]['id']}")
 
     def list_images(self):
         """
         List VM Images
         """
-        images = self.vpc_cli.list_images().result['images']
+        images_def = self.vpc_cli.list_images().result['images']
+        images_user = self.vpc_cli.list_images(resource_group_id=self.config['resource_group_id']).result['images']
+        images_def.extend(images_user)
 
         result = []
 
-        for img in images:
+        for img in images_def:
             if img['operating_system']['family'] == 'Ubuntu Linux':
                 opsys = img['operating_system']['display_name']
                 image_name = img['name']
                 image_id = img['id']
+                created_at = datetime.strptime(img['created_at'], "%Y-%m-%dT%H:%M:%SZ")
+                created_at = created_at.strftime("%Y-%m-%d %H:%M:%S")
                 if '22' in opsys:
-                    result.append((image_name, image_id, opsys))
+                    result.append((image_name, image_id, created_at))
 
-        return result
+        return sorted(result, key=lambda x: x[2], reverse=True)
 
     def _delete_vm_instances(self, all=False):
         """

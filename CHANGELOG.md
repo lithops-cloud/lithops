@@ -16,16 +16,21 @@
 - [Storage] Automatically create the storage bucket if not provided in the config
 - [IBM] Allow to set "region" under "ibm" section
 - [AWS] Allow to set "region" under "aws" section
-- [IBM VPC] Added build_image() method for automatically building VM images
 - [Cli] Added new 'lithops image build' command for standalone backends
 - [Cli] Added new 'lithops image list' command for standalone backends
+- [IBM VPC] Added build_image() method for automatically building VM images
+- [IBM VPC] Added list_image() method for listing the availabe VM images
+- [AWS EC2] Added build_image() method for automatically building VM images
+- [AWS EC2] Added list_image() method for listing the availabe VM images
 - [IBM CF] Automatically create a CF namespace if not provided in config
-- [Azure] Allow to set 'region' parameter in config
+- [IBM VPC] Added Madrid (Spain) region
+- [Code Engine] Automatically create a new project if not provided in config
 
 ### Changed
+- [Azure] Changed 'location' config parameter to 'region' for compatibility
+- [Aliyun] Changed 'endpoint' config parameter to 'region' for compatibility
 - [AWS EC2] Reduced number of mandatory parameters
 - [AWS] Allow 'region' config parameter instead of 'region_name' for compatibility
-- [Aliyun] Changed 'endpoint' config parameters to 'region' for compatibility
 - [IBM CF] Cloud-foundry namespaces have been deprecated in IBM Cloud. From now all the users must use an IAM-based namespace
 - [IBM COS] Changed 'access_key' config parameter to 'access_key_id' for compatibility
 - [IBM COS] Changed 'secret_key' config parameter to 'secret_access_key' for compatibility
@@ -39,7 +44,10 @@
 - [Serializer] Prevent analyzing the same module multiple times
 - [SSH Cli] Fix issue with RSA keys
 - [Tests] Fix broken links of testing files
-
+- [Azure Container APPs] Make sure the lithops worker app is deployed
+- [AWS Lambda] Fixed error with urllib3. Pin urllib3 to <2 as for now botocore does not support urllib3 2.0
+- [Multiprocessing] Check redis connection before starting to submit jobs
+- [Redis] Fixed redis backend exception regarding storage_bucket
 
 ## [v2.9.0]
 

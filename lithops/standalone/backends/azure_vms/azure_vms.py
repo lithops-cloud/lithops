@@ -394,13 +394,13 @@ class AzureVMSBackend:
         """
         Builds a new VM Image
         """
-        pass
+        raise NotImplementedError()
 
     def list_images(self):
         """
         List VM Images
         """
-        pass
+        raise NotImplementedError()
 
     def _delete_vm_instances(self, all=False):
         """

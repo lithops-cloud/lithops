@@ -217,7 +217,7 @@ class LocalhostStorageBackend:
         else:
             raise StorageNoSuchKeyError(os.path.join(LITHOPS_TEMP_DIR, bucket_name), '')
 
-    def list_objects(self, bucket_name, prefix=None, match_pattern = None):
+    def list_objects(self, bucket_name, prefix=None, match_pattern=None):
         """
         Return a list of objects for the prefix.
         :param bucket_name: Name of the bucket.

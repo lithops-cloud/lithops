@@ -271,9 +271,20 @@ class _RedisConnection(_ConnectionBase):
     def __init__(self, handle, readable=True, writable=True):
         super().__init__(handle, readable, writable)
         logger.debug('Requested creation of Redis connection resource')
+        self._check_redis_connection()
         self._client = util.get_redis_client()
         self._subhandle = get_subhandle(handle)
         self._connect()
+
+    def _check_redis_connection(self):
+        """
+        Check the connection with a timeout
+        """
+        try:
+            client = util.get_redis_client(persist=False, socket_timeout=5)
+            client.ping()
+        except Exception as e:
+            raise Exception("There was an issue with the Redis connection: " + str(e))
 
     def _connect(self):
         if self._handle.startswith(REDIS_LIST_CONN):
@@ -308,11 +319,13 @@ class _RedisConnection(_ConnectionBase):
         self._set_expiry = lambda key: None
 
     def _close(self, _close=None):
-        if self._pubsub is not None:
-            self._pubsub.unsubscribe(self._handle)
+        if hasattr(self, '_pubsub'):
+            if self._pubsub is not None:
+                self._pubsub.unsubscribe(self._handle)
         # older versions of StrictRedis can't be closed
-        if hasattr(self._client, 'close'):
-            self._client.close()
+        if hasattr(self, '_client'):
+            if hasattr(self._client, 'close'):
+                self._client.close()
 
     def _listwrite(self, handle, buf):
         self._set_expiry(handle)

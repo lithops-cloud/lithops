@@ -40,8 +40,8 @@ Lithops with *IBM Cloud Functions* as compute backend.
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|ibm_cf| namespace | |no | Value of CURRENT NAMESPACE from [here](https://cloud.ibm.com/functions/namespace-settings). Lithops will automatically create a new namespace if not provided. Alternatively provide a `namespace` name and `namespace_id` of an existsing namespace |
-|ibm_cf| namespace_id |  |no |  Value of 'GUID' from [here](https://cloud.ibm.com/functions/namespace-settings). Provide it if you want to use an existsing `namespace`|
+|ibm_cf| namespace | |no | Value of CURRENT NAMESPACE from [here](https://cloud.ibm.com/functions/namespace-settings). Provide it if you want to use an existsing `namespace`. Lithops will automatically create a new namespace if not provided.|
+|ibm_cf| namespace_id |  |no |  Value of 'GUID' from [here](https://cloud.ibm.com/functions/namespace-settings). Provide it if you want to use an existsing `namespace`. Provide it along with `namespace`.|
 |ibm_cf | region | |no | Service region. One of: `jp-tok`, `au-syd`, `eu-gb`, `eu-de`, `us-south`, `us-east`. Lithops will use the `region` set under the `ibm` section if it is not set here |
 |ibm_cf| endpoint | |no | IBM Cloud Functions endpoint (if region not provided). Make sure to use https:// prefix, for example: https://us-east.functions.cloud.ibm.com |
 |ibm_cf | max_workers | 1200 | no | Max number of workers per `FunctionExecutor()`|

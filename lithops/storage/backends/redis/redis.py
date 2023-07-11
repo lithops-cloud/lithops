@@ -16,6 +16,7 @@
 
 import os
 import io
+import copy
 import redis
 import shutil
 import logging
@@ -29,13 +30,17 @@ logger = logging.getLogger(__name__)
 class RedisBackend:
     def __init__(self, config):
         logger.debug("Creating Redis storage client")
-        self.user_agent = config.pop('user_agent')
         self.config = config
+        self.user_agent = self.config['user_agent']
         self.host = self.config['host']
-        self._client = redis.Redis(**config)
+
+        redis_config = copy.deepcopy(config)
+        redis_config.pop('storage_bucket')
+        redis_config.pop('user_agent')
+        self._client = redis.Redis(**redis_config)
 
         msg = STORAGE_CLI_MSG.format('Redis')
-        logger.info("{} - Host: {}".format(msg, self.host))
+        logger.info(f"{msg} - Host: {self.host}")
 
     def get_client(self):
         return self._client

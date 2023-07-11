@@ -29,17 +29,19 @@ import botocore
 
 from lithops.version import __version__
 from lithops.util.ssh_client import SSHClient
-from lithops.constants import COMPUTE_CLI_MSG, CACHE_DIR
+from lithops.constants import COMPUTE_CLI_MSG, CACHE_DIR, SA_IMAGE_NAME_DEFAULT
 from lithops.config import load_yaml_config, dump_yaml_config
-from lithops.standalone.utils import CLOUD_CONFIG_WORKER, CLOUD_CONFIG_WORKER_PK, ExecMode
+from lithops.standalone.utils import CLOUD_CONFIG_WORKER, CLOUD_CONFIG_WORKER_PK, ExecMode, get_host_setup_script
 from lithops.standalone.standalone import LithopsValidationError
 
 
 logger = logging.getLogger(__name__)
 
-INSTANCE_START_TIMEOUT = 180
-DEFAULT_UBUNTU_IMAGE = 'ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-202204*'
+INSTANCE_STX_TIMEOUT = 180
 
+DEFAULT_UBUNTU_IMAGE = 'ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*'
+DEFAULT_UBUNTU_IMAGE_VERSION = DEFAULT_UBUNTU_IMAGE.replace('*', '202306*')
+DEFAULT_UBUNTU_ACCOUNT_ID = '099720109477'
 
 def b64s(string):
     """
@@ -61,7 +63,7 @@ class AWSEC2Backend:
         self.vpc_data_type = 'provided' if 'vpc_id' in self.config else 'created'
         self.ssh_data_type = 'provided' if 'ssh_key_name' in self.config else 'created'
 
-        self.ec2_data = None
+        self.ec2_data = {}
         self.vpc_name = None
         self.vpc_key = None
         self.user_key = self.config['access_key_id'][-4:].lower()
@@ -291,8 +293,21 @@ class AWSEC2Backend:
             response = self.ec2_client.describe_images(Filters=[
                 {
                     'Name': 'name',
-                    'Values': [DEFAULT_UBUNTU_IMAGE]
-                }], Owners=['099720109477'])
+                    'Values': [SA_IMAGE_NAME_DEFAULT]
+                }])
+
+            for image in response['Images']:
+                if image['Name'] == SA_IMAGE_NAME_DEFAULT:
+                    logger.debug(f"Found default AMI: {SA_IMAGE_NAME_DEFAULT}")
+                    self.config['target_ami'] = image['ImageId']
+                    break
+
+        if 'target_ami' not in self.config:
+            response = self.ec2_client.describe_images(Filters=[
+                {
+                    'Name': 'name',
+                    'Values': [DEFAULT_UBUNTU_IMAGE_VERSION]
+                }], Owners=[DEFAULT_UBUNTU_ACCOUNT_ID])
 
             self.config['target_ami'] = response['Images'][0]['ImageId']
 
@@ -353,8 +368,8 @@ class AWSEC2Backend:
                 'mode': self.mode,
                 'vpc_data_type': 'provided',
                 'ssh_data_type': 'provided',
-                'master_name': self.config['master_name'],
-                'master_id': self.config['instance_id']
+                'master_name': self.master.name,
+                'master_id': self.master.instance_id
             }
 
         elif self.mode in [ExecMode.CREATE.value, ExecMode.REUSE.value]:
@@ -404,13 +419,99 @@ class AWSEC2Backend:
         """
         Builds a new VM Image
         """
-        pass
+        images = self.ec2_client.describe_images(Filters=[
+            {
+                'Name': 'name',
+                'Values': [image_name]
+            }])['Images']
+        if len(images) > 0:
+            image_id = images[0]['ImageId']
+            if overwrite:
+                logger.debug(f"Deleting existing VM Image '{image_name}'")
+                self.ec2_client.deregister_image(ImageId=image_id)
+                while len(self.ec2_client.describe_images(Filters=[{'Name': 'name', 'Values': [image_name]}])['Images']) > 0:
+                    time.sleep(2)
+            else:
+                raise Exception(f"The image with name '{image_name}' already exists with ID: '{image_id}'."
+                                " Use '--overwrite' or '-o' if you want ot overwrite it")
+
+        initial_vpc_data = self._load_ec2_data()
+        self.init()
+
+        build_vm = EC2Instance(image_name, self.config, self.ec2_client, public=True)
+        build_vm.delete_on_dismantle = False
+        build_vm.create()
+        build_vm.wait_ready()
+
+        logger.debug(f"Uploading installation script to {build_vm}")
+        remote_script = "/tmp/install_lithops.sh"
+        script = get_host_setup_script()
+        build_vm.get_ssh_client().upload_data_to_file(script, remote_script)
+        logger.debug("Executing installation script. Be patient, this process can take up to 3 minutes")
+        build_vm.get_ssh_client().run_remote_command(f"chmod 777 {remote_script}; sudo {remote_script}; rm {remote_script};")
+        logger.debug("Installation script finsihed")
+
+        if script_file:
+            script = os.path.expanduser(script_file)
+            logger.debug(f"Uploading user script {script_file} to {build_vm}")
+            remote_script = "/tmp/install_user_lithops.sh"
+            build_vm.get_ssh_client().upload_local_file(script, remote_script)
+            logger.debug("Executing user script. Be patient, this process can take long")
+            build_vm.get_ssh_client().run_remote_command(f"chmod 777 {remote_script}; sudo {remote_script}; rm {remote_script};")
+            logger.debug("User script finsihed")
+
+        build_vm_id = build_vm.get_instance_id()
+
+        build_vm.stop()
+        build_vm.wait_stopped()
+
+        self.ec2_client.create_image(
+            InstanceId=build_vm_id,
+            Name=image_name,
+            Description='Lithops Image'
+        )
+
+        logger.debug("Be patient, VM imaging can take up to 5 minutes")
+
+        while True:
+            images = self.ec2_client.describe_images(Filters=[{'Name': 'name', 'Values': [image_name]}])['Images']
+            if len(images) > 0:
+                logger.debug(f"VM Image is being created. Current status: {images[0]['State']}")
+                if images[0]['State'] == 'available':
+                    break
+            time.sleep(20)
+
+        build_vm.delete()
+
+        if not initial_vpc_data:
+            self.clean(all)
+
+        logger.info(f"VM Image created. Image ID: {images[0]['ImageId']}")
 
     def list_images(self):
         """
         List VM Images
         """
-        pass
+        images_def = self.ec2_client.describe_images(Filters=[
+            {
+                'Name': 'name',
+                'Values': [DEFAULT_UBUNTU_IMAGE]
+            }], Owners=[DEFAULT_UBUNTU_ACCOUNT_ID])['Images']
+        images_user = self.ec2_client.describe_images(Filters=[
+            {
+                'Name': 'name',
+                'Values': ['*lithops*']
+            }])['Images']
+        images_def.extend(images_user)
+
+        result = []
+
+        for image in images_def:
+            created_at = datetime.strptime(image['CreationDate'], "%Y-%m-%dT%H:%M:%S.%fZ")
+            created_at = created_at.strftime("%Y-%m-%d %H:%M:%S")
+            result.append((image['Name'], image['ImageId'], created_at))
+
+        return sorted(result, key=lambda x: x[2], reverse=True)
 
     def _delete_vm_instances(self, all=False):
         """
@@ -722,7 +823,7 @@ class EC2Instance:
             return False
         return True
 
-    def wait_ready(self, timeout=INSTANCE_START_TIMEOUT):
+    def wait_ready(self, timeout=INSTANCE_STX_TIMEOUT):
         """
         Waits until the VM instance is ready to receive ssh connections
         """
@@ -740,6 +841,30 @@ class EC2Instance:
             time.sleep(5)
 
         raise TimeoutError(f'Readiness probe expired on {self}')
+
+    def is_stopped(self):
+        """
+        Checks if the VM instance is stoped
+        """
+        state = self.get_instance_data()['State']
+        if state['Name'] == 'stopped':
+            return True
+        return False
+
+    def wait_stopped(self, timeout=INSTANCE_STX_TIMEOUT):
+        """
+        Waits until the VM instance is stoped
+        """
+        logger.debug(f'Waiting {self} to become stopped')
+
+        start = time.time()
+
+        while (time.time() - start < timeout):
+            if self.is_stopped():
+                return True
+            time.sleep(3)
+
+        raise TimeoutError(f'Stop probe expired on {self}')
 
     def _create_instance(self, user_data=None):
         """

@@ -82,7 +82,7 @@ html_theme_options = {
     'repository_url': 'https://github.com/lithops-cloud/lithops',
     'repository_branch': 'master',
     'google_analytics_id': 'G-7YKZHZYDCR',
-    'use_issues_button': True,
+    'use_issues_button': False,
     'use_download_button': True,
     'use_fullscreen_button': False,
     'use_repository_button': True,

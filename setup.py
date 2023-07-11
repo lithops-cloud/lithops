@@ -19,6 +19,7 @@ install_requires = [
     'matplotlib',
     'kubernetes',
     'ibm-cos-sdk',
+    'ibm-code-engine-sdk',
     'redis',
     'ibm-vpc',
     'cloudpickle',

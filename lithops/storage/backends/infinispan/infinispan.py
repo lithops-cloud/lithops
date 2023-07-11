@@ -44,7 +44,7 @@ class InfinispanBackend:
                                        infinispan_config.get('password'))
         elif self.mech == 'BASIC':
             self.auth = HTTPBasicAuth(infinispan_config.get('username'),
-                                       infinispan_config.get('password'))
+                                      infinispan_config.get('password'))
         self.endpoint = infinispan_config.get('endpoint')
         self.cache_names = infinispan_config.get('cache_names', ['storage'])
         self.cache_type = infinispan_config.get('cache_type', 'org.infinispan.DIST_SYNC')
@@ -67,7 +67,7 @@ class InfinispanBackend:
 
         if res.status_code == 404:
             logger.debug('going to create new Infinispan cache {}'.format(cache_name))
-            url = self.endpoint+'/rest/v2/caches/'+cache_name+'?template='+cache_type
+            url = self.endpoint + '/rest/v2/caches/' + cache_name + '?template=' + cache_type
             res = self.infinispan_client.post(url, auth=self.auth)
             logger.debug('New Infinispan cache {} created with '
                          'status {}'.format(cache_name, res.status_code))
@@ -122,7 +122,7 @@ class InfinispanBackend:
         if 'Range' in extra_get_args:
             byte_range = extra_get_args['Range'].replace('bytes=', '')
             first_byte, last_byte = map(int, byte_range.split('-'))
-            data = data[first_byte:last_byte+1]
+            data = data[first_byte:last_byte + 1]
         if stream:
             return io.BytesIO(data)
         return data
@@ -214,7 +214,7 @@ class InfinispanBackend:
         """
         raise NotImplementedError
 
-    def list_objects(self, bucket_name, prefix=None, match_pattern = None):
+    def list_objects(self, bucket_name, prefix=None, match_pattern=None):
         """
         Return a list of objects for the given bucket and prefix.
         :param bucket_name: Name of the bucket.

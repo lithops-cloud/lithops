@@ -18,7 +18,7 @@
 import copy
 import uuid
 
-from lithops.constants import SA_DEFAULT_CONFIG_KEYS, SA_IMAGE_NAME_DEFAULT
+from lithops.constants import SA_DEFAULT_CONFIG_KEYS
 
 MANDATORY_PARAMETERS_1 = ('instance_id',
                           'floating_ip',
@@ -30,7 +30,6 @@ MANDATORY_PARAMETERS_2 = ('resource_group_id',
 DEFAULT_CONFIG_KEYS = {
     'master_profile_name': 'cx2-2x4',
     'worker_profile_name': 'cx2-2x4',
-    'image_name': SA_IMAGE_NAME_DEFAULT,
     'boot_volume_profile': 'general-purpose',
     'ssh_username': 'root',
     'ssh_password': str(uuid.uuid4()),
@@ -43,7 +42,7 @@ DEFAULT_CONFIG_KEYS = {
 
 VPC_ENDPOINT = "https://{}.iaas.cloud.ibm.com"
 
-REGIONS = ["jp-tok", "jp-osa", "au-syd", "eu-gb", "eu-de", "us-south", "us-east", "br-sao", "ca-tor"]
+REGIONS = ["jp-tok", "jp-osa", "au-syd", "eu-gb", "eu-de", "eu-es", "us-south", "us-east", "br-sao", "ca-tor"]
 
 def load_config(config_data):
 
