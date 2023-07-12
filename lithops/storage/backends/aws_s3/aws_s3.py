@@ -38,12 +38,9 @@ class S3Backend:
         self.config = s3_config
         self.user_agent = s3_config['user_agent']
         self.region_name = s3_config.get('region')
-        self.access_key_id = s3_config.get('access_key_id')
-        self.secret_access_key = s3_config.get('secret_access_key')
-        self.session_token = s3_config.get('session_token')
-        self.sso_profile = s3_config.get('sso_profile')
 
-        if self.sso_profile:
+        if "config_profile" in s3_config["aws"]:
+            logger.debug("Creating boto3 client using profile %s", s3_config["aws"]["config_profile"])
             client_config = Config(
                 max_pool_connections=128,
                 user_agent_extra=self.user_agent,
@@ -51,13 +48,14 @@ class S3Backend:
                 read_timeout=CONN_READ_TIMEOUT,
                 retries={'max_attempts': OBJ_REQ_RETRIES}
             )
-            session = boto3.Session(profile_name=self.sso_profile, region_name=self.region_name)
+            session = boto3.Session(profile_name=s3_config["aws"]["config_profile"], region_name=self.region_name)
             self.s3_client = session.client(
                 's3',
                 config=client_config,
                 region_name=self.region_name
             )
-        elif self.access_key_id and self.secret_access_key:
+        elif "access_key_id" in s3_config["aws"] and "secret_access_key" in s3_config["aws"]:
+            logger.debug("Creating boto3 client using IAM key pair")
             client_config = Config(
                 max_pool_connections=128,
                 user_agent_extra=self.user_agent,
@@ -66,26 +64,30 @@ class S3Backend:
                 retries={'max_attempts': OBJ_REQ_RETRIES}
             )
             self.s3_client = boto3.client(
-                's3', aws_access_key_id=self.access_key_id,
-                aws_secret_access_key=self.secret_access_key,
-                aws_session_token=self.session_token,
+                's3', aws_access_key_id=s3_config["aws"]["access_key_id"],
+                aws_secret_access_key=s3_config["aws"]["secret_access_key"],
+                aws_session_token=s3_config["aws"].get("session_token"),
                 config=client_config,
                 region_name=self.region_name
             )
         else:
+            logger.debug("Creating default boto3 client")
             client_config = Config(
                 user_agent_extra=self.user_agent
             )
             self.s3_client = boto3.client('s3', config=client_config)
 
+        # Remove "aws" section from s3 config to avoid storing secrets
+        s3_config["aws"] = {}
+
         msg = STORAGE_CLI_MSG.format('S3')
         logger.info(f"{msg} - Region: {self.region_name}")
 
     def get_client(self):
-        '''
+        """
         Get boto3 client.
         :return: boto3 client
-        '''
+        """
         return self.s3_client
 
     def create_bucket(self, bucket_name):
@@ -104,13 +106,13 @@ class S3Backend:
                 raise e
 
     def put_object(self, bucket_name, key, data):
-        '''
+        """
         Put an object in COS. Override the object if the key already exists.
         :param key: key of the object.
         :param data: data of the object
         :type data: str/bytes
         :return: None
-        '''
+        """
         try:
             res = self.s3_client.put_object(Bucket=bucket_name, Key=key, Body=data)
             status = 'OK' if res['ResponseMetadata']['HTTPStatusCode'] == 200 else 'Error'
@@ -125,12 +127,12 @@ class S3Backend:
                 raise e
 
     def get_object(self, bucket_name, key, stream=False, extra_get_args={}):
-        '''
+        """
         Get object from COS with a key. Throws StorageNoSuchKeyError if the given key does not exist.
         :param key: key of the object
         :return: Data of the object
         :rtype: str/bytes
-        '''
+        """
         try:
             r = self.s3_client.get_object(Bucket=bucket_name, Key=key, **extra_get_args)
             if stream:
@@ -185,12 +187,12 @@ class S3Backend:
         return True
 
     def head_object(self, bucket_name, key):
-        '''
+        """
         Head object from COS with a key. Throws StorageNoSuchKeyError if the given key does not exist.
         :param key: key of the object
         :return: Data of the object
         :rtype: str/bytes
-        '''
+        """
         try:
             metadata = self.s3_client.head_object(Bucket=bucket_name, Key=key)
             return metadata['ResponseMetadata']['HTTPHeaders']
@@ -201,19 +203,19 @@ class S3Backend:
                 raise e
 
     def delete_object(self, bucket_name, key):
-        '''
+        """
         Delete an object from storage.
         :param bucket: bucket name
         :param key: data key
-        '''
+        """
         return self.s3_client.delete_object(Bucket=bucket_name, Key=key)
 
     def delete_objects(self, bucket_name, key_list):
-        '''
+        """
         Delete a list of objects from storage.
         :param bucket: bucket name
         :param key_list: list of keys
-        '''
+        """
         result = []
         max_keys_num = 1000
         for i in range(0, len(key_list), max_keys_num):
@@ -223,12 +225,12 @@ class S3Backend:
         return result
 
     def head_bucket(self, bucket_name):
-        '''
+        """
         Head bucket from COS with a name. Throws StorageNoSuchKeyError if the given bucket does not exist.
         :param bucket_name: name of the bucket
         :return: Metadata of the bucket
         :rtype: str/bytes
-        '''
+        """
         try:
             return self.s3_client.head_bucket(Bucket=bucket_name)
         except botocore.exceptions.ClientError as e:
@@ -238,13 +240,13 @@ class S3Backend:
                 raise e
 
     def list_objects(self, bucket_name, prefix=None, match_pattern=None):
-        '''
+        """
         Return a list of objects for the given bucket and prefix.
         :param bucket_name: Name of the bucket.
         :param prefix: Prefix to filter object names.
         :return: List of objects in bucket that match the given prefix.
         :rtype: list of str
-        '''
+        """
         try:
             prefix = '' if prefix is None else prefix
             paginator = self.s3_client.get_paginator('list_objects_v2')
@@ -265,13 +267,13 @@ class S3Backend:
                 raise e
 
     def list_keys(self, bucket_name, prefix=None):
-        '''
+        """
         Return a list of keys for the given prefix.
         :param bucket_name: Name of the bucket.
         :param prefix: Prefix to filter object names.
         :return: List of keys in bucket that match the given prefix.
         :rtype: list of str
-        '''
+        """
         try:
             prefix = '' if prefix is None else prefix
             paginator = self.s3_client.get_paginator('list_objects_v2')

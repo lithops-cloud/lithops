@@ -50,38 +50,30 @@ class AWSLambdaBackend:
         Initialize AWS Lambda Backend
         """
         logger.debug('Creating AWS Lambda client')
-
         self.name = 'aws_lambda'
         self.type = 'faas'
-        self.lambda_config = lambda_config
         self.internal_storage = internal_storage
         self.user_agent = lambda_config['user_agent']
         self.region_name = lambda_config['region']
-        self.role_arn = lambda_config['execution_role']
 
-        if "sso_profile" in self.lambda_config:
-            logger.debug('Creating Boto3 AWS Session and Lambda Client using SSO')
+        if "config_profile" in lambda_config["aws"]:
+            logger.debug("Creating boto3 client using profile %s", lambda_config["aws"]["config_profile"])
             self.aws_session = boto3.Session(
-                profile_name=self.lambda_config["sso_profile"],
+                profile_name=lambda_config["aws"]["config_profile"],
                 region_name=self.region_name
             )
         else:
-            logger.debug('Creating Boto3 AWS Session and Lambda Client using IAM credentials')
-
             self.aws_session = boto3.Session(
-                aws_access_key_id=lambda_config.get('access_key_id'),
-                aws_secret_access_key=lambda_config.get('secret_access_key'),
-                aws_session_token=lambda_config.get('session_token'),
+                aws_access_key_id=lambda_config["aws"].get('access_key_id'),
+                aws_secret_access_key=lambda_config["aws"].get('secret_access_key'),
+                aws_session_token=lambda_config["aws"].get('session_token'),
                 region_name=self.region_name
             )
 
         sts_client = self.aws_session.client('sts', region_name=self.region_name)
-        self.caller_id = sts_client.get_caller_identity()
+        caller_id = sts_client.get_caller_identity()
 
-        if "sso_profile" in self.lambda_config:
-            self.user_key = self.caller_id["UserId"].split(":")[1]
-        else:
-            self.user_key = lambda_config['access_key_id'][-4:].lower()
+        self.user_key = caller_id["UserId"].split(":")[1]
 
         self.lambda_client = self.aws_session.client(
             'lambda', region_name=self.region_name,
@@ -95,15 +87,19 @@ class AWSLambdaBackend:
         self.host = f'lambda.{self.region_name}.amazonaws.com'
         self.package = f'lithops_v{__version__.replace(".", "-")}_{self.user_key}'
 
-        if 'account_id' in self.lambda_config:
-            self.account_id = self.lambda_config['account_id']
+        if 'account_id' in lambda_config["aws"]:
+            self.account_id = lambda_config["aws"]['account_id']
         else:
-            self.account_id = self.caller_id["Account"]
+            self.account_id = caller_id["Account"]
 
         self.ecr_client = self.aws_session.client('ecr', region_name=self.region_name)
 
+        # Remove "aws" section from lambda config to avoid storing secrets
+        lambda_config["aws"] = {}
+        self.lambda_config = lambda_config
+
         msg = COMPUTE_CLI_MSG.format('AWS Lambda')
-        logger.info(f"{msg} - Region: {self.region_name}")
+        logger.info("%s - Region: %s", msg, self.region_name)
 
     def _format_function_name(self, runtime_name, runtime_memory, version=__version__):
         runtime_name = runtime_name.replace('/', '__').replace('.', '').replace(':', '--')
@@ -171,17 +167,16 @@ class AWSLambdaBackend:
             state = res['Configuration']['State']
             if state == 'Pending':
                 time.sleep(sleep_seconds)
-                logger.debug('"{}" function is being deployed... '
-                             '(status: {})'.format(func_name, res['Configuration']['State']))
+                logger.debug('"%s" function is being deployed (status: %s)', func_name, res['Configuration']['State'])
                 retries -= 1
                 if retries == 0:
-                    raise Exception('"{}" function not deployed (timed out): {}'.format(func_name, res))
+                    raise Exception(f'"{func_name}" function not deployed (timed out): {res}')
             elif state == 'Failed' or state == 'Inactive':
-                raise Exception('"{}" function not deployed (state is "{}"): {}'.format(func_name, state, res))
+                raise Exception(f'"{func_name}" function not deployed (state is "{state}"): {res}')
             elif state == 'Active':
                 break
 
-        logger.debug('Ok --> function "{}" is active'.format(func_name))
+        logger.debug('Function "%s" is active', func_name)
 
     def _get_layer(self, runtime_name):
         """
@@ -203,7 +198,7 @@ class AWSLambdaBackend:
         @param runtime_name: runtime name from which to create the layer
         @return: ARN of the created layer
         """
-        logger.info('Creating default lambda layer for runtime {}'.format(runtime_name))
+        logger.info('Creating default lambda layer for runtime %s', runtime_name)
 
         with zipfile.ZipFile(BUILD_LAYER_FUNCTION_ZIP, 'w') as build_layer_zip:
             current_location = os.path.dirname(os.path.abspath(__file__))
@@ -218,10 +213,10 @@ class AWSLambdaBackend:
         logger.debug('Creating "layer builder" function')
 
         try:
-            resp = self.lambda_client.create_function(
+            res = self.lambda_client.create_function(
                 FunctionName=func_name,
                 Runtime=config.AVAILABLE_PY_RUNTIMES[utils.CURRENT_PY_VERSION],
-                Role=self.role_arn,
+                Role=self.lambda_config["execution_role"],
                 Handler='build_layer.lambda_handler',
                 Code={
                     'ZipFile': build_layer_zip_bin
@@ -231,12 +226,12 @@ class AWSLambdaBackend:
             )
 
             # wait until the function is created
-            if resp['ResponseMetadata']['HTTPStatusCode'] not in (200, 201):
-                msg = 'An error occurred creating/updating action {}: {}'.format(runtime_name, resp)
+            if res['ResponseMetadata']['HTTPStatusCode'] not in (200, 201):
+                msg = f'An error occurred creating/updating action {runtime_name}: {res}'
                 raise Exception(msg)
 
             self._wait_for_function_deployed(func_name)
-            logger.debug('OK --> Created "layer builder" function {}'.format(runtime_name))
+            logger.debug('Created "layer builder" function %s', runtime_name)
 
             dependencies = [dependency.strip().replace(' ', '') for dependency in config.DEFAULT_REQUIREMENTS]
             layer_name = self._format_layer_name(runtime_name)
@@ -249,9 +244,9 @@ class AWSLambdaBackend:
             logger.debug('Invoking "layer builder" function')
             response = self.lambda_client.invoke(FunctionName=func_name, Payload=json.dumps(payload))
             if response['ResponseMetadata']['HTTPStatusCode'] == 200:
-                logger.debug('OK --> Layer {} built'.format(layer_name))
+                logger.debug('Layer %s built', layer_name)
             else:
-                msg = 'An error occurred creating layer {}: {}'.format(layer_name, response)
+                msg = f'An error occurred creating layer {layer_name}: {response}'
                 raise Exception(msg)
         finally:
             os.remove(BUILD_LAYER_FUNCTION_ZIP)
@@ -263,7 +258,7 @@ class AWSLambdaBackend:
                     raise
 
         # Publish layer from S3
-        logger.debug('Creating layer {} ...'.format(layer_name))
+        logger.debug('Creating layer %s', layer_name)
         response = self.lambda_client.publish_layer_version(
             LayerName=layer_name,
             Description='Lithops Function for ' + self.package,
@@ -280,7 +275,7 @@ class AWSLambdaBackend:
             logger.warning(e)
 
         if response['ResponseMetadata']['HTTPStatusCode'] == 201:
-            logger.debug('OK --> Layer {} created'.format(layer_name))
+            logger.debug('Layer %s created', layer_name)
             return response['LayerVersionArn']
         else:
             raise Exception(f'An error occurred creating layer {layer_name}: {response}')
@@ -290,7 +285,7 @@ class AWSLambdaBackend:
         Delete a layer
         @param layer_name: Formatted layer name
         """
-        logger.debug('Deleting lambda layer: {}'.format(layer_name))
+        logger.debug('Deleting lambda layer %s', layer_name)
 
         versions = []
         response = self.lambda_client.list_layer_versions(LayerName=layer_name)
@@ -306,7 +301,7 @@ class AWSLambdaBackend:
                 VersionNumber=version
             )
             if response['ResponseMetadata']['HTTPStatusCode'] == 204:
-                logger.debug('OK --> Layer {} version {} deleted'.format(layer_name, version))
+                logger.debug('Layer %s version %s deleted', layer_name, version)
 
     def _list_layers(self):
         """
@@ -317,7 +312,7 @@ class AWSLambdaBackend:
         response = self.lambda_client.list_layers()
 
         layers = response['Layers'] if 'Layers' in response else []
-        logger.debug('Listed {} layers'.format(len(layers)))
+        logger.debug('Listed %d layers', len(layers))
         lithops_layers = []
         for layer in layers:
             if 'lithops' in layer['LayerName'] and self.user_key in layer['LayerName']:
@@ -329,7 +324,7 @@ class AWSLambdaBackend:
         Deletes a function by its formatted name
         @param function_name: function name to delete
         """
-        logger.info(f'Deleting function: {function_name}')
+        logger.info('Deleting function "%s"', function_name)
         try:
             response = self.lambda_client.delete_function(
                 FunctionName=function_name
@@ -338,11 +333,11 @@ class AWSLambdaBackend:
             raise err
 
         if response['ResponseMetadata']['HTTPStatusCode'] == 204:
-            logger.debug('OK --> Deleted function {}'.format(function_name))
+            logger.debug('Deleted function "%s"', function_name)
         elif response['ResponseMetadata']['HTTPStatusCode'] == 404:
-            logger.debug('OK --> Function {} does not exist'.format(function_name))
+            logger.debug('Function "%s" does not exist', function_name)
         else:
-            msg = 'An error occurred creating/updating action {}: {}'.format(function_name, response)
+            msg = f'An error occurred creating/updating action {function_name}: {response}'
             raise Exception(msg)
 
     def build_runtime(self, runtime_name, runtime_file, extra_args=[]):
@@ -351,7 +346,7 @@ class AWSLambdaBackend:
         @param runtime_name: name of the runtime to be built
         @param runtime_file: path of a Dockerfile for a container runtime
         """
-        logger.info(f'Building runtime {runtime_name} from {runtime_file}')
+        logger.info('Building runtime %s from %s', runtime_name, runtime_file)
 
         docker_path = utils.get_docker_path()
         if runtime_file:
@@ -386,10 +381,10 @@ class AWSLambdaBackend:
         try:
             self.ecr_client.create_repository(repositoryName=repo_name)
         except self.ecr_client.exceptions.RepositoryAlreadyExistsException:
-            logger.debug(f'Repository {repo_name} already exists')
+            logger.debug('Repository "%s" already exists', repo_name)
 
         image_name = f'{registry}/{repo_name}:{tag}'
-        logger.debug(f'Pushing runtime {image_name} to AWS container registry')
+        logger.debug('Pushing runtime "%s" to AWS container registry', image_name)
         cmd = f'{docker_path} tag {runtime_name} {image_name}'
         utils.run_command(cmd)
         if utils.is_podman(docker_path):
@@ -404,7 +399,7 @@ class AWSLambdaBackend:
         """
         Deploy the default runtime based on layers
         """
-        logger.info(f"Deploying runtime: {runtime_name} - Memory: {memory} - Timeout: {timeout}")
+        logger.info("Deploying runtime: %s - Memory: %d - Timeout: %d", runtime_name, memory, timeout)
         function_name = self._format_function_name(runtime_name, memory)
 
         layer_arn = self._get_layer(runtime_name)
@@ -418,7 +413,7 @@ class AWSLambdaBackend:
             response = self.lambda_client.create_function(
                 FunctionName=function_name,
                 Runtime=config.AVAILABLE_PY_RUNTIMES[utils.CURRENT_PY_VERSION],
-                Role=self.role_arn,
+                Role=self.lambda_config["execution_role"],
                 Handler='entry_point.lambda_handler',
                 Code={
                     'ZipFile': code
@@ -458,13 +453,13 @@ class AWSLambdaBackend:
                 raise e
 
         self._wait_for_function_deployed(function_name)
-        logger.debug('OK --> Created lambda function {}'.format(function_name))
+        logger.debug('Created lambda function "%s"', function_name)
 
     def _deploy_container_runtime(self, runtime_name, memory, timeout):
         """
         Deploy a runtime based on a container
         """
-        logger.info(f"Deploying runtime: {runtime_name} - Memory: {memory} Timeout: {timeout}")
+        logger.info("Deploying runtime: %s - Memory: %d Timeout: %d", runtime_name, memory, timeout)
         function_name = self._format_function_name(runtime_name, memory)
 
         if ':' in runtime_name:
@@ -492,7 +487,7 @@ class AWSLambdaBackend:
         try:
             response = self.lambda_client.create_function(
                 FunctionName=function_name,
-                Role=self.role_arn,
+                Role=self.lambda_config["execution_role"],
                 Code={
                     'ImageUri': image_uri
                 },
@@ -532,7 +527,7 @@ class AWSLambdaBackend:
                 raise e
 
         self._wait_for_function_deployed(function_name)
-        logger.debug(f'OK --> Created lambda function {function_name}')
+        logger.debug('Created lambda function "%s"', function_name)
 
     def deploy_runtime(self, runtime_name, memory, timeout):
         """
@@ -557,7 +552,7 @@ class AWSLambdaBackend:
         @param runtime_name: name of the runtime to be deleted
         @param runtime_memory: memory of the runtime to be deleted in MB
         """
-        logger.info(f'Deleting lambda runtime: {runtime_name} - {runtime_memory}MB')
+        logger.info('Deleting lambda runtime: %s - %d MB',runtime_name, runtime_memory)
         func_name = self._format_function_name(runtime_name, runtime_memory, version)
 
         self._delete_function(func_name)
@@ -572,14 +567,14 @@ class AWSLambdaBackend:
                     image, tag = runtime_name, 'latest'
                 package = '_'.join(func_name.split('_')[:3])
                 repo_name = f"{package}/{image}"
-                logger.debug(f'Going to delete ECR repository {repo_name} tag {tag}')
+                logger.debug('Going to delete ECR repository "%s" with tag "%s"', repo_name, tag)
                 try:
                     self.ecr_client.batch_delete_image(repositoryName=repo_name, imageIds=[{'imageTag': tag}])
                     images = self.ecr_client.list_images(repositoryName=repo_name, filter={'tagStatus': 'TAGGED'})
                     if not images['imageIds']:
-                        logger.debug(f'Going to delete ECR repository {repo_name}')
+                        logger.debug('Going to delete ECR repository %s', repo_name)
                         self.ecr_client.delete_repository(repositoryName=repo_name, force=True)
-                except Exception:
+                except:
                     pass
             else:
                 layer = self._format_layer_name(runtime_name, version)
@@ -643,30 +638,6 @@ class AWSLambdaBackend:
         """
         function_name = self._format_function_name(runtime_name, runtime_memory)
 
-        if "access_key_id" in payload["config"]["aws"]:
-            del payload["config"]["aws"]["access_key_id"]
-        if "secret_access_key" in payload["config"]["aws"]:
-            del payload["config"]["aws"]["secret_access_key"]
-
-        if "access_key_id" in payload["config"]["aws_s3"]:
-            del payload["config"]["aws_s3"]["access_key_id"]
-        if "secret_access_key" in payload["config"]["aws_s3"]:
-            del payload["config"]["aws_s3"]["secret_access_key"]
-
-        if "access_key_id" in payload["config"]["aws_lambda"]:
-            del payload["config"]["aws_lambda"]["access_key_id"]
-        if "secret_access_key" in payload["config"]["aws_lambda"]:
-            del payload["config"]["aws_lambda"]["secret_access_key"]
-
-        if "sso_profile" in payload["config"]["aws"]:
-            del payload["config"]["aws"]["sso_profile"]
-
-        if "sso_profile" in payload["config"]["aws_s3"]:
-            del payload["config"]["aws_s3"]["sso_profile"]
-
-        if "sso_profile" in payload["config"]["aws_lambda"]:
-            del payload["config"]["aws_lambda"]["sso_profile"]
-
         headers = {'Host': self.host, 'X-Amz-Invocation-Type': 'Event', 'User-Agent': self.user_agent}
         url = f'https://{self.host}/2015-03-31/functions/{function_name}/invocations'
         request = AWSRequest(method="POST", url=url, data=json.dumps(payload, default=str), headers=headers)
@@ -677,7 +648,7 @@ class AWSLambdaBackend:
             try:
                 r = self.session.send(request.prepare())
                 invoked = True
-            except Exception:
+            except:
                 pass
 
         if r.status_code == 202:
@@ -748,7 +719,7 @@ class AWSLambdaBackend:
         Extract preinstalled Python modules from lambda function execution environment
         return : runtime meta dictionary
         """
-        logger.debug(f'Extracting runtime metadata from: {runtime_name}')
+        logger.debug('Extracting runtime metadata from runtime "%s"', runtime_name)
 
         function_name = self._format_function_name(runtime_name, runtime_memory)
 
