@@ -37,6 +37,7 @@
 - [IBM] Improved token manager
 - [Core] Job creation now checks that each element in 'iterdata' is smaller than 8 KB
 - [MapReduce] Make 'results' variable name not mandatory in the reduce function signature
+- [AWS] Replace 'aws_access_key_id' and 'aws_secret_access_key' in lithops 'aws' config in favor of 'config_profile' key and standard AWS SDK config retrieval procedures. 
 
 ### Fixed
 - [IBM VPC & AWS EC2] Make sure only VMs from the given VPC are removed
