@@ -393,7 +393,8 @@ class IBMVPCBackend:
 
         if 'image_id' not in self.config:
             for image in images_def:
-                if image['name'].startswith('ibm-ubuntu-22'):
+                if image['name'].startswith('ibm-ubuntu-22') \
+                   and "amd64" in image['name']:
                     self.config['image_id'] = image['id']
                     break
 
