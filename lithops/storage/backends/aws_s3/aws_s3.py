@@ -22,7 +22,7 @@ from botocore.config import Config
 import botocore
 
 from lithops.storage.utils import StorageNoSuchKeyError
-from lithops.utils import sizeof_fmt
+from lithops.utils import sizeof_fmt, is_lithops_worker
 from lithops.constants import STORAGE_CLI_MSG
 from lithops.libs.globber import match
 
@@ -39,8 +39,8 @@ class S3Backend:
         self.user_agent = s3_config['user_agent']
         self.region_name = s3_config.get('region')
 
-        if "config_profile" in s3_config["aws"]:
-            logger.debug("Creating boto3 client using profile %s", s3_config["aws"]["config_profile"])
+        if "config_profile" in s3_config and not is_lithops_worker():
+            logger.debug("Creating boto3 client using profile %s", s3_config["config_profile"])
             client_config = Config(
                 max_pool_connections=128,
                 user_agent_extra=self.user_agent,
@@ -48,13 +48,13 @@ class S3Backend:
                 read_timeout=CONN_READ_TIMEOUT,
                 retries={'max_attempts': OBJ_REQ_RETRIES}
             )
-            session = boto3.Session(profile_name=s3_config["aws"]["config_profile"], region_name=self.region_name)
+            session = boto3.Session(profile_name=s3_config["config_profile"], region_name=self.region_name)
             self.s3_client = session.client(
                 's3',
                 config=client_config,
                 region_name=self.region_name
             )
-        elif "access_key_id" in s3_config["aws"] and "secret_access_key" in s3_config["aws"]:
+        elif "access_key_id" in s3_config and "secret_access_key" in s3_config:
             logger.debug("Creating boto3 client using IAM key pair")
             client_config = Config(
                 max_pool_connections=128,
@@ -64,9 +64,9 @@ class S3Backend:
                 retries={'max_attempts': OBJ_REQ_RETRIES}
             )
             self.s3_client = boto3.client(
-                's3', aws_access_key_id=s3_config["aws"]["access_key_id"],
-                aws_secret_access_key=s3_config["aws"]["secret_access_key"],
-                aws_session_token=s3_config["aws"].get("session_token"),
+                's3', aws_access_key_id=s3_config["access_key_id"],
+                aws_secret_access_key=s3_config["secret_access_key"],
+                aws_session_token=s3_config.get("session_token"),
                 config=client_config,
                 region_name=self.region_name
             )
@@ -76,9 +76,6 @@ class S3Backend:
                 user_agent_extra=self.user_agent
             )
             self.s3_client = boto3.client('s3', config=client_config)
-
-        # Remove "aws" section from s3 config to avoid storing secrets
-        s3_config["aws"] = {}
 
         msg = STORAGE_CLI_MSG.format('S3')
         logger.info(f"{msg} - Region: {self.region_name}")

@@ -31,6 +31,7 @@ from botocore.auth import SigV4Auth
 from lithops import utils
 from lithops.version import __version__
 from lithops.constants import COMPUTE_CLI_MSG
+from lithops.utils import is_lithops_worker
 
 from . import config
 
@@ -55,25 +56,29 @@ class AWSLambdaBackend:
         self.internal_storage = internal_storage
         self.user_agent = lambda_config['user_agent']
         self.region_name = lambda_config['region']
+        self.lambda_config = lambda_config
 
-        if "config_profile" in lambda_config["aws"]:
-            logger.debug("Creating boto3 client using profile %s", lambda_config["aws"]["config_profile"])
+        if "config_profile" in lambda_config and not is_lithops_worker():
+            logger.debug("Creating boto3 client using profile %s", lambda_config["config_profile"])
             self.aws_session = boto3.Session(
-                profile_name=lambda_config["aws"]["config_profile"],
+                profile_name=lambda_config["config_profile"],
                 region_name=self.region_name
             )
-        else:
+        else:  # If it's a lithops worker (lambda), get credentials from execution role
             self.aws_session = boto3.Session(
-                aws_access_key_id=lambda_config["aws"].get('access_key_id'),
-                aws_secret_access_key=lambda_config["aws"].get('secret_access_key'),
-                aws_session_token=lambda_config["aws"].get('session_token'),
+                aws_access_key_id=lambda_config.get('access_key_id'),
+                aws_secret_access_key=lambda_config.get('secret_access_key'),
+                aws_session_token=lambda_config.get('session_token'),
                 region_name=self.region_name
             )
 
         sts_client = self.aws_session.client('sts', region_name=self.region_name)
         caller_id = sts_client.get_caller_identity()
 
-        self.user_key = caller_id["UserId"].split(":")[1]
+        if ":" in caller_id["UserId"]:  # SSO user
+            self.user_key = caller_id["UserId"].split(":")[1]
+        else:  # IAM user
+            self.user_key = caller_id["UserId"][-4:].lower()
 
         self.lambda_client = self.aws_session.client(
             'lambda', region_name=self.region_name,
@@ -87,16 +92,12 @@ class AWSLambdaBackend:
         self.host = f'lambda.{self.region_name}.amazonaws.com'
         self.package = f'lithops_v{__version__.replace(".", "-")}_{self.user_key}'
 
-        if 'account_id' in lambda_config["aws"]:
-            self.account_id = lambda_config["aws"]['account_id']
+        if 'account_id' in lambda_config:
+            self.account_id = lambda_config['account_id']
         else:
             self.account_id = caller_id["Account"]
 
         self.ecr_client = self.aws_session.client('ecr', region_name=self.region_name)
-
-        # Remove "aws" section from lambda config to avoid storing secrets
-        lambda_config["aws"] = {}
-        self.lambda_config = lambda_config
 
         msg = COMPUTE_CLI_MSG.format('AWS Lambda')
         logger.info("%s - Region: %s", msg, self.region_name)
@@ -552,7 +553,7 @@ class AWSLambdaBackend:
         @param runtime_name: name of the runtime to be deleted
         @param runtime_memory: memory of the runtime to be deleted in MB
         """
-        logger.info('Deleting lambda runtime: %s - %d MB',runtime_name, runtime_memory)
+        logger.info('Deleting lambda runtime: %s - %d MB', runtime_name, runtime_memory)
         func_name = self._format_function_name(runtime_name, runtime_memory, version)
 
         self._delete_function(func_name)
@@ -637,6 +638,10 @@ class AWSLambdaBackend:
         @return: invocation ID
         """
         function_name = self._format_function_name(runtime_name, runtime_memory)
+
+        if "access_key_id" in payload["config"]["aws"] and "secret_access_key" in payload["config"]["aws"]:
+            del payload["config"]["aws"]["access_key_id"]
+            del payload["config"]["aws"]["secret_access_key"]
 
         headers = {'Host': self.host, 'X-Amz-Invocation-Type': 'Event', 'User-Agent': self.user_agent}
         url = f'https://{self.host}/2015-03-31/functions/{function_name}/invocations'
