@@ -35,7 +35,7 @@ DEFAULT_CONFIG_KEYS = {
     'trigger': 'pub/sub'
 }
 
-AVAILABLE_PY_RUNTIMES = ['3.7', '3.8', '3.9', '3.10']
+AVAILABLE_PY_RUNTIMES = ['3.7', '3.8', '3.9', '3.10', '3.11']
 
 REQUIRED_AZURE_STORAGE_PARAMS = ('storage_account_name', 'storage_account_key')
 REQUIRED_AZURE_FUNCTIONS_PARAMS = ('resource_group', 'region')
