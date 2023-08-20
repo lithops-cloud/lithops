@@ -81,6 +81,9 @@ class AliyunFunctionComputeBackend:
         return f'default-runtime-v{py_version}'
 
     def build_runtime(self, runtime_name, requirements_file, extra_args=[]):
+        if not requirements_file:
+            raise Exception('Please provide a "requirements.txt" file with the necessary modules')
+
         logger.info(f'Building runtime {runtime_name} from {requirements_file}')
 
         build_dir = os.path.join(config.BUILD_DIR, runtime_name)
