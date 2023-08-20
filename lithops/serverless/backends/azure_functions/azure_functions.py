@@ -113,6 +113,9 @@ class AzureFunctionAppBackend:
             os.remove(requirements_file)
 
     def build_runtime(self, runtime_name, requirements_file, extra_args=[]):
+        if not requirements_file:
+            raise Exception('Please provide a "requirements.txt" file with the necessary modules')
+
         logger.info(f'Building runtime {runtime_name} from {requirements_file}')
 
         try:

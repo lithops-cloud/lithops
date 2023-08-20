@@ -159,9 +159,9 @@ class IBMCloudFunctionsBackend:
 
     def build_runtime(self, docker_image_name, dockerfile, extra_args=[]):
         """
-        Builds a new runtime from a Docker file and pushes it to the Docker hub
+        Builds a new runtime from a Docker file and pushes it to the registry
         """
-        logger.info(f'Building runtime {docker_image_name} from {dockerfile}')
+        logger.info(f'Building runtime {docker_image_name} from {dockerfile or "Dockerfile"}')
 
         docker_path = utils.get_docker_path()
 

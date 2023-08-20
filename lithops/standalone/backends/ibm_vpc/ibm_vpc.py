@@ -567,7 +567,7 @@ class IBMVPCBackend:
         images_user = self.vpc_cli.list_images(resource_group_id=self.config['resource_group_id']).result['images']
         images_def.extend(images_user)
 
-        result = []
+        result = set()
 
         for img in images_def:
             if img['operating_system']['family'] == 'Ubuntu Linux':
@@ -577,7 +577,7 @@ class IBMVPCBackend:
                 created_at = datetime.strptime(img['created_at'], "%Y-%m-%dT%H:%M:%SZ")
                 created_at = created_at.strftime("%Y-%m-%d %H:%M:%S")
                 if '22' in opsys:
-                    result.append((image_name, image_id, created_at))
+                    result.add((image_name, image_id, created_at))
 
         return sorted(result, key=lambda x: x[2], reverse=True)
 
