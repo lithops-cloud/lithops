@@ -59,7 +59,7 @@ class AWSLambdaBackend:
         self.lambda_config = lambda_config
 
         if "config_profile" in lambda_config and not is_lithops_worker():
-            logger.debug("Creating boto3 client using profile %s", lambda_config["config_profile"])
+            logger.debug("Creating lambda session using profile %s", lambda_config["config_profile"])
             self.aws_session = boto3.Session(
                 profile_name=lambda_config["config_profile"],
                 region_name=self.region_name

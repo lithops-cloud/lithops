@@ -14,17 +14,18 @@
 # limitations under the License.
 #
 
-import os
 import logging
+import os
+
 import boto3
+import botocore
 from botocore import UNSIGNED
 from botocore.config import Config
-import botocore
 
-from lithops.storage.utils import StorageNoSuchKeyError
-from lithops.utils import sizeof_fmt, is_lithops_worker
 from lithops.constants import STORAGE_CLI_MSG
 from lithops.libs.globber import match
+from lithops.storage.utils import StorageNoSuchKeyError
+from lithops.utils import sizeof_fmt, is_lithops_worker
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +41,7 @@ class S3Backend:
         self.region_name = s3_config.get('region')
 
         if "config_profile" in s3_config and not is_lithops_worker():
-            logger.debug("Creating boto3 client using profile %s", s3_config["config_profile"])
+            logger.debug("Creating s3 client using profile %s", s3_config["config_profile"])
             client_config = Config(
                 max_pool_connections=128,
                 user_agent_extra=self.user_agent,
@@ -55,7 +56,7 @@ class S3Backend:
                 region_name=self.region_name
             )
         elif "access_key_id" in s3_config and "secret_access_key" in s3_config:
-            logger.debug("Creating boto3 client using IAM key pair")
+            logger.debug("Creating s3 client using IAM key pair")
             client_config = Config(
                 max_pool_connections=128,
                 user_agent_extra=self.user_agent,
@@ -71,11 +72,23 @@ class S3Backend:
                 region_name=self.region_name
             )
         else:
-            logger.debug("Creating default boto3 client")
-            client_config = Config(
-                user_agent_extra=self.user_agent
-            )
-            self.s3_client = boto3.client('s3', config=client_config)
+            logger.debug("Creating default s3 client")
+            session = boto3.Session()
+            credentials = session.get_credentials()  # Returns not None if credentials are configured for this host
+            if credentials is None:
+                # Create unsigned client if no credentials are found
+                logger.debug("No AWS credentials found, creating unsigned boto3 client")
+                client_config = Config(
+                    signature_version=UNSIGNED,
+                    user_agent_extra=self.user_agent
+                )
+                session = boto3.Session()
+                session.get_credentials()
+                self.s3_client = boto3.client('s3', config=client_config)
+            else:
+                # Let botocore load credentials from file, env, IAM execution role...
+                client_config = Config(user_agent_extra=self.user_agent)
+                self.s3_client = session.client("s3", config=client_config)
 
         msg = STORAGE_CLI_MSG.format('S3')
         logger.info(f"{msg} - Region: {self.region_name}")
