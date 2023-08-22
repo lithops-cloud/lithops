@@ -112,7 +112,7 @@ az containerapp env create --name lithops --resource-group LithopsResourceGroup 
 Once you have your compute and storage backends configured, you can run a hello world function with:
 
 ```bash
-lithops test -b azure_containers -s azure_storage
+lithops hello -b azure_containers -s azure_storage
 ```
 
 

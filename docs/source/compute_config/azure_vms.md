@@ -110,7 +110,7 @@ Edit your lithops config and add the relevant keys:
 Once you have your compute and storage backends configured, you can run a hello world function with:
 
 ```bash
-lithops test -b azure_vms -s azure_storage
+lithops hello -b azure_vms -s azure_storage
 ```
 
 ## Viewing the execution logs

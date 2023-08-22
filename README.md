@@ -30,10 +30,10 @@ Lithops is specially suited for highly-parallel programs with little or no need 
     pip install lithops
     ```
 
-2. Execute a *Hello World* test function:
+2. Execute a *Hello World* function:
   
    ```bash
-   lithops test
+   lithops hello
    ```
 
 ## Configuration

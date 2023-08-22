@@ -73,7 +73,7 @@ In this mode of execution, you can use any docker image that contains all the re
 Once you have your compute and storage backends configured, you can run a hello world function with:
 
 ```bash
-lithops test -b localhost -s localhost
+lithops hello -b localhost -s localhost
 ```
 
 ## Viewing the execution logs

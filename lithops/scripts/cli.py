@@ -119,7 +119,7 @@ def clean(config, backend, storage, debug, region, all):
     logger.info('All Lithops data cleaned')
 
 
-@lithops_cli.command('verify')
+@lithops_cli.command('test')
 @click.option('--config', '-c', default=None, help='Path to yaml config file', type=click.Path(exists=True))
 @click.option('--backend', '-b', default=None, help='Compute backend')
 @click.option('--storage', '-s', default=None, help='Storage backend')
@@ -134,7 +134,7 @@ def clean(config, backend, storage, debug, region, all):
 @click.option('--fail_fast', '-f', is_flag=True, help='Stops test run upon first occurrence of a failed test')
 @click.option('--keep_datasets', '-k', is_flag=True, help='keeps datasets in storage after the test run. '
                                                           'Meant to serve some use-cases in github workflow.')
-def verify(test, config, backend, groups, storage, debug, region, fail_fast, keep_datasets):
+def test(test, config, backend, groups, storage, debug, region, fail_fast, keep_datasets):
     config = load_yaml_config(config) if config else None
 
     log_level = logging.INFO if not debug else logging.DEBUG
@@ -151,7 +151,7 @@ def verify(test, config, backend, groups, storage, debug, region, fail_fast, kee
         run_tests(test, config, groups, backend, storage, region, fail_fast, keep_datasets)
 
 
-@lithops_cli.command('test')
+@lithops_cli.command('hello')
 @click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
 @click.option('--backend', '-b', default=None, help='compute backend')
 @click.option('--storage', '-s', default=None, help='storage backend')
