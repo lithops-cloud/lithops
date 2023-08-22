@@ -12,6 +12,7 @@
 - [Azure Functions] Added support for python 3.11 runtimes
 - [Google Cloud Functions] Added support for python 3.11 runtimes
 - [IBM CF] Added support for python 3.11 runtimes
+- [Openwhisk] Added support for python 3.11 runtimes
 - [Aliyun Functions] Added support for python 3.10 runtimes
 - [Executor] Allow to set all the compute backend params programatically in the FunctionExecutor()
 - [AWS EC2] Allow to automatically create the VPC and all the necessary resources
