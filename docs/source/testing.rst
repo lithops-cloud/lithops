@@ -6,28 +6,28 @@ Testing Guidelines
 Verify current Lithops status
 -----------------------------
 
-Run ``lithops verify`` to run an extensive inspection, which simulates your lithops installation on a variety of tests.
+Run ``lithops test`` to run an extensive inspection, which simulates your lithops installation on a variety of tests.
 
-* Get all available options by running ``lithops verify --help``.
+* Get all available options by running ``lithops test --help``.
 
-* Get all available test functions and their parent group by running ``lithops verify -t help``.
+* Get all available test functions and their parent group by running ``lithops test -t help``.
 
-* Run all test instances named ``<test name>``, via ``lithops verify -t <test name>``.
-  Run a test from a specific group by prefixing the test name with group name, e.g. : ``lithops verify -t <test group>.<test name>``.
-  Run multiple tests by separating them with a comma, e.g. ``lithops verify -t <test name1>,<test name2>``.
+* Run all test instances named ``<test name>``, via ``lithops test -t <test name>``.
+  Run a test from a specific group by prefixing the test name with group name, e.g. : ``lithops test -t <test group>.<test name>``.
+  Run multiple tests by separating them with a comma, e.g. ``lithops test -t <test name1>,<test name2>``.
 
-* To get all available groups, run ``lithops verify -g help``.
+* To get all available groups, run ``lithops test -g help``.
 
-* Run a single group of tests via ``lithops verify -g <group name>``.
-  Run multiple tests by separating them with a comma, e.g. ``lithops verify -g <test group1>,<test group2>``.
+* Run a single group of tests via ``lithops test -g <group name>``.
+  Run multiple tests by separating them with a comma, e.g. ``lithops test -g <test group1>,<test group2>``.
 
-* To stop the test procedure upon first encountering a failed test, add the -f flag, e.g. ``lithops verify -f``.
-* To remove datasets, uploaded during the test procedure, use the -r flag, ``lithops verify -r``.
+* To stop the test procedure upon first encountering a failed test, add the -f flag, e.g. ``lithops test -f``.
+* To remove datasets, uploaded during the test procedure, use the -r flag, ``lithops test -r``.
   WARNING - do not use this flag on a github workflow, due to race condition issues.
 
-* Get a complete list of the available flags by running ``lithops verify --help``.
+* Get a complete list of the available flags by running ``lithops test --help``.
 
-* A summarizing example: ``lithops verify -t test_map,storage.test_cloudobject -g call_async -f``.
+* A summarizing example: ``lithops test -t test_map,storage.test_cloudobject -g call_async -f``.
    
 Alternatively, you may run the tests via ``python3 -m lithops.tests.tests_main``, followed by aforementioned flags.
 

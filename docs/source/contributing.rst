@@ -30,7 +30,7 @@ To test that all is working as expected, run either:
 
 .. code::
 
-   $ lithops verify
+   $ lithops test
 
 
 .. code::

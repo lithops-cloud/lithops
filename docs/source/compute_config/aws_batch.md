@@ -88,7 +88,7 @@ aws_batch:
 Once you have your compute and storage backends configured, you can run a hello world function with:
 
 ```bash
-lithops test -b aws_batch -s aws_s3
+lithops hello -b aws_batch -s aws_s3
 ```
 
 ## Viewing the execution logs

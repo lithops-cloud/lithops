@@ -70,7 +70,7 @@ k8s:
 Once you have your compute and storage backends configured, you can run a hello world function with:
 
 ```bash
-lithops test -b k8s -s ibm_cos
+lithops hello -b k8s -s ibm_cos
 ```
 
 ## Viewing the execution logs

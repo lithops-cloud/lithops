@@ -60,7 +60,7 @@ In this backend, you can use any docker image that contains all the required dep
 Once you have your compute and storage backends configured, you can run a hello world function with:
 
 ```bash
-lithops test -b vm -s ibm_cos
+lithops hello -b vm -s ibm_cos
 ```
 
 ## Viewing the execution logs

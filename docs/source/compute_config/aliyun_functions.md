@@ -68,7 +68,7 @@ aliyun_fc:
 Once you have your compute and storage backends configured, you can run a hello world function with:
 
 ```bash
-lithops test -b aliyun_fc -s aliyun_oss
+lithops hello -b aliyun_fc -s aliyun_oss
 ```
 
 

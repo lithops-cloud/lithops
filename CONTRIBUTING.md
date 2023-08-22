@@ -27,7 +27,7 @@ Unit testing
 To test that all is working as expected, run either:
 
 ```bash
-$ lithops verify
+$ lithops test
 ```
 or 
 

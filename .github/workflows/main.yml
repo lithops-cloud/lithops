@@ -52,7 +52,7 @@ jobs:
 
       - name: Run Lithops tests
         run: |
-          lithops verify -b localhost -s localhost
+          lithops test -b localhost -s localhost
 
 
   ibm_ce_cos_tests:
@@ -87,7 +87,7 @@ jobs:
 
       - name: Run Lithops tests
         run: |
-          lithops verify -b code_engine -s ibm_cos -k
+          lithops test -b code_engine -s ibm_cos -k
 
       - name: Delete Lithops CE runtime
         if: needs.determine_runnable_jobs.outputs.code_engine == 'true'
@@ -127,7 +127,7 @@ jobs:
 
       - name: Run Lithops tests
         run: |
-          lithops verify -b ibm_cf -s ibm_cos -k
+          lithops test -b ibm_cf -s ibm_cos -k
 
       - name: Delete Lithops CF runtime
         run: |

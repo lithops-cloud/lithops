@@ -70,7 +70,7 @@ python3 -m install lithops[gcp]
 Once you have your compute and storage backends configured, you can run a hello world function with:
 
 ```bash
-lithops test -b gcp_cloudrun -s gcp_storage
+lithops hello -b gcp_cloudrun -s gcp_storage
 ```
 
 ## Viewing the execution logs

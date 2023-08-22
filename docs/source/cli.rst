@@ -9,10 +9,10 @@ when you install Lithops through ``pip3 install lithops``.
 Lithops management
 ------------------
 
-``lithops test``
+``lithops hello``
 ~~~~~~~~~~~~~~~~
 
-Runs a *hello-world* test function.
+Runs a *hello-world* function.
 
 +-----------------+------------------------------+
 | Parameter       | Description                  |
@@ -28,9 +28,9 @@ Runs a *hello-world* test function.
 | --debug, -d     | Activate debug logs (Flag)   |
 +-----------------+------------------------------+
 
--  **Usage example**: ``lithops test -b ibm_cf -s ibm_cos``
+-  **Usage example**: ``lithops hello -b ibm_cf -s ibm_cos``
 
-``lithops verify``
+``lithops test``
 ~~~~~~~~~~~~~~~~~~
 
 Runs the unit testing suite. For more instructions about testing `view
@@ -58,7 +58,7 @@ this page <testing.md>`__.
 | --keep\_datasets, -k   | Keeps datasets in storage after the test run (Flag)            |
 +------------------------+----------------------------------------------------------------+
 
--  **Usage example**: ``lithops verify -b ibm_cf -s ibm_cos -f``
+-  **Usage example**: ``lithops test -b ibm_cf -s ibm_cos -f``
 
 ``lithops clean``
 ~~~~~~~~~~~~~~~~~
