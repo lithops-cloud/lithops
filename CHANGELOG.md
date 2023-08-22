@@ -7,7 +7,11 @@
 
 ### Added
 - [AWS Lambda] Added support for python 3.10 runtimes
+- [AWS Lambda] Added support for python 3.11 runtimes
 - [Azure Functions] Added support for python 3.10 runtimes
+- [Azure Functions] Added support for python 3.11 runtimes
+- [Google Cloud Functions] Added support for python 3.11 runtimes
+- [IBM CF] Added support for python 3.11 runtimes
 - [Aliyun Functions] Added support for python 3.10 runtimes
 - [Executor] Allow to set all the compute backend params programatically in the FunctionExecutor()
 - [AWS EC2] Allow to automatically create the VPC and all the necessary resources
@@ -22,6 +26,7 @@
 - [IBM VPC] Added list_image() method for listing the availabe VM images
 - [AWS EC2] Added build_image() method for automatically building VM images
 - [AWS EC2] Added list_image() method for listing the availabe VM images
+- [Azure VMS] Added list_image() method for listing the availabe VM images
 - [IBM CF] Automatically create a CF namespace if not provided in config
 - [IBM VPC] Added Madrid (Spain) region
 - [Code Engine] Automatically create a new project if not provided in config

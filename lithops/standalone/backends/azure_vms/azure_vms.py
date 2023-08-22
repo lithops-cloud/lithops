@@ -400,7 +400,24 @@ class AzureVMSBackend:
         """
         List VM Images
         """
-        raise NotImplementedError()
+
+        images_def = self.compute_client.virtual_machine_images.list_offers(
+            location=self.location,
+            publisher_name='Canonical'
+        )
+
+        images_user = self.compute_client.images.list_by_resource_group(
+            self.config['resource_group']
+        )
+
+        images_def.extend(images_user)
+
+        result = set()
+
+        for image in images_def:
+            result.add((image.name, image.id, "Unknown"))
+
+        return sorted(result, key=lambda x: x[2], reverse=True)
 
     def _delete_vm_instances(self, all=False):
         """
@@ -786,6 +803,10 @@ class VMInstance:
                 }]
             }
         }
+
+        if 'image_id' in self.config:
+            vm_parameters['storage_profile']['image_reference'] = {"id": self.config['image_id']}
+
         poller = self.compute_client.virtual_machines.begin_create_or_update(
             self.config['resource_group'],
             self.name,

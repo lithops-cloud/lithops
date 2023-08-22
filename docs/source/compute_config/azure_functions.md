@@ -101,7 +101,7 @@ az login
 Once you have your compute and storage backends configured, you can run a hello world function with:
 
 ```bash
-lithops test -b azure_functions -s azure_storage
+lithops hello -b azure_functions -s azure_storage
 ```
 
 

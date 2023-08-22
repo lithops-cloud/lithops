@@ -124,7 +124,7 @@ aws_ec2:
 Once you have your compute and storage backends configured, you can run a hello world function with:
 
 ```bash
-lithops test -b aws_ec2 -s aws_s3
+lithops hello -b aws_ec2 -s aws_s3
 ```
 
 ## Viewing the execution logs

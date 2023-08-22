@@ -90,6 +90,7 @@ Edit your lithops config and add the relevant keys:
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |azure_vms| region |  |no | Azure location for deploying the VMS. For example: `westeurope`, `westus2`, etc. Lithops will use the `region` set under the `azure` section if it is not set here|
+|azure_vms | image_id | Canonical:0001-com-ubuntu-server-jammy:22_04-lts-gen2:latest |no | Image ID. ARM resource identifier |
 |azure_vms | ssh_username | ubuntu |no | Username to access the VM |
 |azure_vms | ssh_password |  |no | Password for accessing the worker VMs. If not provided, it is created randomly|
 |azure_vms | ssh_key_filename | ~/.ssh/id_rsa | no | Path to the ssh key file provided to access the VPC. It will use the default path if not provided |
@@ -110,7 +111,7 @@ Edit your lithops config and add the relevant keys:
 Once you have your compute and storage backends configured, you can run a hello world function with:
 
 ```bash
-lithops test -b azure_vms -s azure_storage
+lithops hello -b azure_vms -s azure_storage
 ```
 
 ## Viewing the execution logs

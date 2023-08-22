@@ -32,7 +32,9 @@ def load_config(config_data):
         if 'aws_s3' not in config_data:
             config_data['aws_s3'] = {}
 
+        temp = copy.deepcopy(config_data['aws_s3'])
         config_data['aws_s3'].update(config_data['aws'])
+        config_data['aws_s3'].update(temp)
 
         if 'region_name' in config_data['aws_s3']:
             config_data['aws_s3']['region'] = config_data['aws_s3'].pop('region_name')

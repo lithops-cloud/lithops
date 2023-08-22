@@ -108,7 +108,7 @@ The preferable way to run Lithops in Code Engine is by using the JOB API. Howeve
 Once you have your compute and storage backends configured, you can run a hello world function with:
 
 ```bash
-lithops test -b code_engine -s ibm_cos
+lithops hello -b code_engine -s ibm_cos
 ```
 
 ## Viewing the execution logs

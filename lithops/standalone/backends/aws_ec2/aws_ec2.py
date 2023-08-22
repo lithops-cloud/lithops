@@ -504,12 +504,12 @@ class AWSEC2Backend:
             }])['Images']
         images_def.extend(images_user)
 
-        result = []
+        result = set()
 
         for image in images_def:
             created_at = datetime.strptime(image['CreationDate'], "%Y-%m-%dT%H:%M:%S.%fZ")
             created_at = created_at.strftime("%Y-%m-%d %H:%M:%S")
-            result.append((image['Name'], image['ImageId'], created_at))
+            result.add((image['Name'], image['ImageId'], created_at))
 
         return sorted(result, key=lambda x: x[2], reverse=True)
 

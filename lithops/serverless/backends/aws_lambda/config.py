@@ -31,11 +31,12 @@ DEFAULT_REQUIREMENTS = [
 ]
 
 AVAILABLE_PY_RUNTIMES = {
-    "3.6": "python3.6",
-    "3.7": "python3.7",
-    "3.8": "python3.8",
-    "3.9": "python3.9",
-    "3.10": "python3.10"
+    '3.6': 'python3.6',
+    '3.7': 'python3.7',
+    '3.8': 'python3.8',
+    '3.9': 'python3.9',
+    '3.10': 'python3.10',
+    '3.11': 'python3.11'
 }
 
 USER_RUNTIME_PREFIX = "lithops.user_runtimes"
@@ -75,9 +76,9 @@ def load_config(config_data):
     if not config_data["aws_lambda"]:
         raise Exception("\"aws_lambda\" section is mandatory in the configuration")
 
-    # temp = copy.deepcopy(config_data["aws_lambda"])
-    config_data["aws_lambda"].update(config_data["aws"])
-    # config_data["aws_lambda"].update(temp)
+    temp = copy.deepcopy(config_data['aws_lambda'])
+    config_data['aws_lambda'].update(config_data['aws'])
+    config_data['aws_lambda'].update(temp)
 
     for param in REQ_PARAMS:
         if param not in config_data["aws_lambda"]:

@@ -131,7 +131,7 @@ knative:
 Once you have your compute and storage backends configured, you can run a hello world function with:
 
 ```bash
-lithops test -b knative -s ibm_cos
+lithops hello -b knative -s ibm_cos
 ```
 
 ## Viewing the execution logs

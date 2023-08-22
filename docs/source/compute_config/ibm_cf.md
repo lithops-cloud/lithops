@@ -57,7 +57,7 @@ Lithops with *IBM Cloud Functions* as compute backend.
 Once you have your compute and storage backends configured, you can run a hello world function with:
 
 ```bash
-lithops test -b ibm_cf -s ibm_cos
+lithops hello -b ibm_cf -s ibm_cos
 ```
 
 ## Viewing the execution logs

@@ -266,10 +266,10 @@ class GCPFunctionsBackend:
                 raise Exception(f"Unknown status {response['status']}")
 
     def build_runtime(self, runtime_name, requirements_file, extra_args=[]):
-        logger.info(f'Building runtime {runtime_name} from {requirements_file}')
-
         if not requirements_file:
             raise Exception('Please provide a "requirements.txt" file with the necessary modules')
+
+        logger.info(f'Building runtime {runtime_name} from {requirements_file}')
 
         entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
         runtime_path = config.FH_ZIP_LOCATION.format(runtime_name)

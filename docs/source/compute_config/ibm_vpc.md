@@ -162,7 +162,7 @@ If you need to create new VM, then follow the steps to create and update Lithops
 Once you have your compute and storage backends configured, you can run a hello world function with:
 
 ```bash
-lithops test -b ibm_vpc -s ibm_cos
+lithops hello -b ibm_vpc -s ibm_cos
 ```
 
 ## Viewing the execution logs

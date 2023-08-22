@@ -200,7 +200,7 @@ For more information, check out [AWS documentation on attaching EFS volumes to L
 Once you have your compute and storage backends configured, you can run a hello world function with:
 
 ```bash
-lithops test -b aws_lambda -s aws_s3
+lithops hello -b aws_lambda -s aws_s3
 ```
 
 ## Viewing the execution logs
