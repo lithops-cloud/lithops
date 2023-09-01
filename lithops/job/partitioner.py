@@ -16,6 +16,7 @@
 #
 
 import os
+import sys 
 import logging
 import requests
 from concurrent.futures import ThreadPoolExecutor
@@ -52,11 +53,11 @@ def create_partitions(
     # first filter; decide if the iterdata elements are urls,
     # paths or object storage objects
     for elem in map_iterdata:
-        if elem['obj'].startswith('http'):
+        if str(elem['obj']).startswith('http'):
             # iterdata is a list of public urls
             urls.append(elem)
 
-        elif elem['obj'].startswith('/'):
+        elif str(elem['obj']).startswith('/'):
             # iterdata is a list of localhost paths or dirs
             paths.append(elem)
 
