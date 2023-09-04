@@ -1,6 +1,17 @@
 # Changelog
 
-## [v2.9.1.dev0]
+## [v3.0.1.dev0]
+
+### Added
+- 
+
+### Changed
+- 
+
+### Fixed
+- 
+
+## [v3.0.0]
 
 ### New
 - [Azure Virtual Machines] Added new 'Azure Virtual Machines' standalone backend
