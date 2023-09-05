@@ -428,7 +428,7 @@ class FaaSInvoker(Invoker):
             logger.debug('ExecutorID {} | JobID {} - Free workers:'
                          ' {} - Going to run {} activations in {} workers'
                          .format(job.executor_id, job.job_id, free_workers,
-                                 len(callids), consumed_workers))
+                                 len(callids_to_invoke_direct), consumed_workers))
 
             def _callback(future):
                 future.result()
