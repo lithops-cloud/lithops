@@ -28,8 +28,7 @@ from lithops.future import ResponseFuture
 from lithops.config import extract_storage_config
 from lithops.version import __version__
 from lithops.utils import verify_runtime_name, version_str, is_lithops_worker, iterchunks
-from lithops.constants import LOGGER_LEVEL, LOGS_DIR,\
-    LOCALHOST, SERVERLESS, STANDALONE
+from lithops.constants import LOGGER_LEVEL, LOGS_DIR, SERVERLESS
 from lithops.util.metrics import PrometheusExporter
 
 logger = logging.getLogger(__name__)
@@ -429,7 +428,7 @@ class FaaSInvoker(Invoker):
             logger.debug('ExecutorID {} | JobID {} - Free workers:'
                          ' {} - Going to run {} activations in {} workers'
                          .format(job.executor_id, job.job_id, free_workers,
-                                 len(callids_to_invoke_direct), consumed_workers))
+                                 len(callids), consumed_workers))
 
             def _callback(future):
                 future.result()

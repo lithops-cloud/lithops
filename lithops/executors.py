@@ -701,7 +701,8 @@ class LocalhostExecutor(FunctionExecutor):
         config_file: Optional[str] = None,
         storage: Optional[str] = None,
         monitoring: Optional[str] = None,
-        log_level: Optional[str] = False
+        log_level: Optional[str] = False,
+        **kwargs: Optional[Dict[str, Any]]
     ):
         super().__init__(
             backend=LOCALHOST,
@@ -710,6 +711,7 @@ class LocalhostExecutor(FunctionExecutor):
             storage=storage or LOCALHOST,
             log_level=log_level,
             monitoring=monitoring,
+            **kwargs
         )
 
 
@@ -744,7 +746,7 @@ class ServerlessExecutor(FunctionExecutor):
             storage=storage,
             monitoring=monitoring,
             log_level=log_level,
-            kwargs=kwargs
+            **kwargs
         )
 
 
@@ -778,5 +780,5 @@ class StandaloneExecutor(FunctionExecutor):
             storage=storage,
             monitoring=monitoring,
             log_level=log_level,
-            kwargs=kwargs,
+            **kwargs,
         )
