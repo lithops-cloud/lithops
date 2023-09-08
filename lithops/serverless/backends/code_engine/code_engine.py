@@ -136,7 +136,7 @@ class CodeEngineBackend:
         Gets or creates a new namespace
         """
         if self.namespace or self.is_lithops_worker:
-            return
+            return self.namespace
 
         ce_data = load_yaml_config(self.cache_file)
         self.namespace = ce_data.get('namespace')
@@ -145,7 +145,7 @@ class CodeEngineBackend:
         self.config['namespace'] = self.namespace
 
         if self.namespace:
-            return
+            return self.namespace
 
         self._create_code_engine_client()
 
@@ -337,6 +337,7 @@ class CodeEngineBackend:
         """
         if not self._get_or_create_namespace(create=False):
             logger.info(f"Project {self.project_name} does not exists")
+            shutil.rmtree(self.cache_dir, ignore_errors=True)
             return
 
         self._create_k8s_iam_client()
@@ -369,12 +370,14 @@ class CodeEngineBackend:
         List all the runtimes
         return: list of tuples (docker_image_name, memory)
         """
+        runtimes = []
+
         if not self._get_or_create_namespace(create=False):
             logger.info(f"Project {self.project_name} does not exists")
-            return
+            return runtimes
 
         self._create_k8s_iam_client()
-        runtimes = []
+
         try:
             jobdefs = self.custom_api.list_namespaced_custom_object(
                 group=config.DEFAULT_GROUP,
