@@ -6,10 +6,11 @@
 - 
 
 ### Changed
-- 
+- [CodeEngine] Create the CE project only when necessary instead of creating it always
 
 ### Fixed
-- 
+- [Executor] Fixed kwargs mapping in ServerlessExecutor and StandaloneExecutor
+
 
 ## [v3.0.0]
 
