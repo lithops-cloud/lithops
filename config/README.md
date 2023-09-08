@@ -58,6 +58,7 @@ Storage Backends
 - [Azure Container APPs](../docs/source/compute_config/azure_containers.md)
 - [Aliyun functions](../docs/source/compute_config/aliyun_functions.md)
 - [Kubernetes Jobs](../docs/source/compute_config/k8s_job.md)
+- [Kubernetes v2 Jobs](../docs/source/compute_config/k8s_v2_job.md)
 - [Knative](../docs/source/compute_config/knative.md)
 - [OpenWhisk](../docs/source/compute_config/openwhisk.md)
 	</p>

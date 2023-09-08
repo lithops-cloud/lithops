@@ -106,7 +106,8 @@ SERVERLESS_BACKENDS = [
     'azure_functions',
     'azure_containers',
     'aliyun_fc',
-    'k8s'
+    'k8s',
+    'k8s_v2'
 ]
 
 STANDALONE_BACKENDS = [
@@ -135,6 +136,7 @@ BATCH_BACKENDS = [
     'azure_vms',
     'aws_batch',
     'k8s',
+    'k8s_v2',
     'code_engine'
     'vm'
 ]

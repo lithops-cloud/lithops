@@ -14,3 +14,4 @@ Choose your compute backend:
 10. [Azure Container APPs](azure_containers/)
 11. [Knative](knative/)
 12. [Kubernetes](kubernetes/)
+13. [Kubernetes v2](kubernetes_v2/)
