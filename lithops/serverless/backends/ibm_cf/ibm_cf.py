@@ -55,29 +55,25 @@ class IBMCloudFunctionsBackend:
         self.user_key = self.iam_api_key[:4].lower()
         self.package = f'lithops_{self.user_key}'
 
-        self.namespace = cf_config.get('namespace', f'lithops-{self.region}-{self.user_key}')
+        self.namespace_name = cf_config.get('namespace', f'lithops-{self.region}-{self.user_key}')
         self.namespace_id = cf_config.get('namespace_id')
 
+        self.config['namespace'] = self.namespace_name
+
         self.cache_dir = os.path.join(CACHE_DIR, self.name)
-        self.cache_file = os.path.join(self.cache_dir, self.namespace + '_data')
+        self.cache_file = os.path.join(self.cache_dir, self.namespace_name + '_data')
 
         self.invoke_error = None
         self.token_manager = None
 
         self._create_ow_client()
 
-        if not self.namespace_id and not self.is_lithops_worker:
-            self._get_or_create_namespace()
-            self.cf_client.namespace = self.namespace_id
-            self.config['namespace'] = self.namespace
-            self.config['namespace_id'] = self.namespace_id
-
         msg = COMPUTE_CLI_MSG.format('IBM CF')
-        logger.info(f"{msg} - Region: {self.region} - Namespace: {self.namespace}")
+        logger.info(f"{msg} - Region: {self.region} - Namespace: {self.namespace_name}")
 
     def _create_ow_client(self):
         """
-        Createsthe OW client
+        Creates the OW client
         """
         old_token = self.config.get('token')
         old_expiry_time = self.config.get('token_expiry_time')
@@ -115,31 +111,43 @@ class IBMCloudFunctionsBackend:
                 )
             cf_mutex.release()
 
-    def _get_or_create_namespace(self):
+    def _get_or_create_namespace(self, create=True):
         """
         Gets or creates a new IAM namepsace if not exists
         """
+        if self.namespace_id or self.is_lithops_worker:
+            return self.namespace_id
+
         cf_data = load_yaml_config(self.cache_file)
         self.namespace_id = cf_data.get('namespace_id')
+        self.config['namespace_id'] = self.namespace_id
+        self.cf_client.namespace = self.namespace_id
+
         if self.namespace_id:
-            return
+            return self.namespace_id
 
         response = self.cf_client.list_namespaces(self.resource_group_id)
         if 'namespaces' in response:
             for namespace in response['namespaces']:
-                if namespace['name'] == self.namespace:
-                    logger.debug(f"Found Cloud Functions namespace: {self.namespace}")
+                if namespace['name'] == self.namespace_name:
+                    logger.debug(f"Found Cloud Functions namespace: {self.namespace_name}")
                     self.namespace_id = namespace['id']
+                    self.config['namespace_id'] = self.namespace_id
 
-        if not self.namespace_id:
-            logger.debug(f"Creating new Cloud Functions namespace: {self.namespace}")
+        if not self.namespace_id and create:
+            logger.debug(f"Creating new Cloud Functions namespace: {self.namespace_name}")
             self.namespace_id = self.cf_client.create_namespace(
-                self.namespace, self.resource_group_id
+                self.namespace_name, self.resource_group_id
             )
+            self.config['namespace_id'] = self.namespace_id
 
-        cf_data['namespace'] = self.namespace
+        cf_data['namespace'] = self.namespace_name
         cf_data['namespace_id'] = self.namespace_id
         dump_yaml_config(self.cache_file, cf_data)
+
+        self.cf_client.namespace = self.namespace_id
+
+        return self.namespace_id
 
     def _format_function_name(self, runtime_name, runtime_memory, version=__version__):
         runtime_name = runtime_name.replace('/', '_').replace(':', '_')
@@ -196,6 +204,8 @@ class IBMCloudFunctionsBackend:
         """
         Creates a new runtime into IBM CF namespace from an already built Docker image
         """
+        self._get_or_create_namespace()
+
         logger.info(f"Deploying runtime: {docker_image_name} - Memory: {memory} Timeout: {timeout}")
 
         self._refresh_ow_client()
@@ -225,8 +235,12 @@ class IBMCloudFunctionsBackend:
         """
         Deletes a runtime
         """
-        logger.info(f'Deleting runtime: {docker_image_name} - {memory}MB')
         self._refresh_ow_client()
+        if not self._get_or_create_namespace(create=False):
+            logger.info(f"Namespace {self.namespace_name} does not exist")
+            return
+
+        logger.info(f'Deleting runtime: {docker_image_name} - {memory}MB')
         action_name = self._format_function_name(docker_image_name, memory, version)
         self.cf_client.delete_action(self.package, action_name)
 
@@ -235,6 +249,11 @@ class IBMCloudFunctionsBackend:
         Deletes all runtimes from all packages
         """
         self._refresh_ow_client()
+        if not self._get_or_create_namespace(create=False):
+            logger.info(f"Namespace {self.namespace_name} does not exist")
+            if os.path.exists(self.cache_file):
+                os.remove(self.cache_file)
+            return
 
         packages = self.cf_client.list_packages()
         for pkg in packages:
@@ -248,10 +267,9 @@ class IBMCloudFunctionsBackend:
                 self.cf_client.delete_package(pkg['name'])
 
         if all and os.path.exists(self.cache_file):
+            logger.debug(f"Deleting CF namespace: {self.namespace_name}")
             self.cf_client.delete_namespace(self.namespace_id)
             os.remove(self.cache_file)
-
-        shutil.rmtree(self.cache_dir, ignore_errors=True)
 
     def list_runtimes(self, docker_image_name='all'):
         """
@@ -259,7 +277,12 @@ class IBMCloudFunctionsBackend:
         return: list of tuples (docker_image_name, memory)
         """
         runtimes = []
+
         self._refresh_ow_client()
+        if not self._get_or_create_namespace(create=False):
+            logger.info(f"Namespace {self.namespace_name} does not exist")
+            return runtimes
+
         packages = self.cf_client.list_packages()
         for pkg in packages:
             if pkg['name'] == self.package:
@@ -274,6 +297,7 @@ class IBMCloudFunctionsBackend:
         """
         Invoke -- return information about this invocation
         """
+        self._get_or_create_namespace()
         action_name = self._format_function_name(docker_image_name, runtime_memory)
 
         activation_id = self.cf_client.invoke(
@@ -311,8 +335,9 @@ class IBMCloudFunctionsBackend:
         Runtime keys are used to uniquely identify runtimes within the storage,
         in order to know which runtimes are installed and which not.
         """
+        self._get_or_create_namespace()
         action_name = self._format_function_name(docker_image_name, runtime_memory, version)
-        runtime_key = os.path.join(self.name, version, self.region, self.namespace, action_name)
+        runtime_key = os.path.join(self.name, version, self.region, self.namespace_name, action_name)
 
         return runtime_key
 

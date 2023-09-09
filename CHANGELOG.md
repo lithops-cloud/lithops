@@ -7,6 +7,7 @@
 
 ### Changed
 - [CodeEngine] Create the CE project only when necessary instead of creating it always
+- [IBM CF] Create the CF namespace only when necessary instead of creating it always
 
 ### Fixed
 - [Executor] Fixed kwargs mapping in ServerlessExecutor and StandaloneExecutor
@@ -55,6 +56,8 @@
 - [IBM] Improved token manager
 - [Core] Job creation now checks that each element in 'iterdata' is smaller than 8 KB
 - [MapReduce] Make 'results' variable name not mandatory in the reduce function signature
+- [CLI] Renamed 'lithops test' command to 'lithops hello'
+- [CLI] Renamed 'lithops verify' command to 'lithops test'
 
 ### Fixed
 - [IBM VPC & AWS EC2] Make sure only VMs from the given VPC are removed

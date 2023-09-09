@@ -99,12 +99,12 @@ class OpenWhiskClient:
         res = self.session.delete(f'{self.url}/{namespace}')
 
         if res.status_code == 200:
-            logger.debug(f"OK --> Namespace deleted {namespace}")
+            logger.debug(f"OK --> Namespace deleted")
         elif res.status_code == 404:
             pass
         else:
             resp_text = res.json()
-            msg = f"An error occurred deleting the namsepace {namespace}: {resp_text['message']}"
+            msg = f"An error occurred deleting the namsepace: {resp_text['message']}"
             raise Exception(msg)
 
     def list_namespaces(self, resource_group_id):

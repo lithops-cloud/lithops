@@ -92,6 +92,8 @@ class CodeEngineBackend:
         self.project_name = ce_config.get('project_name', f'lithops-{self.region}-{self.user_key}')
         self.project_id = None
 
+        self.config['project_name'] = self.project_name
+
         self.token_manager = None
         self.code_engine_service_v1 = None
         self.code_engine_service_v2 = None
@@ -313,7 +315,7 @@ class CodeEngineBackend:
         We need to delete job definition
         """
         if not self._get_or_create_namespace(create=False):
-            logger.info(f"Project {self.project_name} does not exists")
+            logger.info(f"Project {self.project_name} does not exist")
             return
 
         logger.info(f'Deleting runtime: {runtime_name} - {memory}MB')
@@ -336,8 +338,9 @@ class CodeEngineBackend:
         Deletes all runtimes from all packages
         """
         if not self._get_or_create_namespace(create=False):
-            logger.info(f"Project {self.project_name} does not exists")
-            shutil.rmtree(self.cache_dir, ignore_errors=True)
+            logger.info(f"Project {self.project_name} does not exist")
+            if os.path.exists(self.cache_file):
+                os.remove(self.cache_file)
             return
 
         self._create_k8s_iam_client()
@@ -363,8 +366,6 @@ class CodeEngineBackend:
             self.code_engine_service_v2.delete_project(id=self.project_id)
             os.remove(self.cache_file)
 
-        shutil.rmtree(self.cache_dir, ignore_errors=True)
-
     def list_runtimes(self, docker_image_name='all'):
         """
         List all the runtimes
@@ -373,7 +374,7 @@ class CodeEngineBackend:
         runtimes = []
 
         if not self._get_or_create_namespace(create=False):
-            logger.info(f"Project {self.project_name} does not exists")
+            logger.info(f"Project {self.project_name} does not exist")
             return runtimes
 
         self._create_k8s_iam_client()
