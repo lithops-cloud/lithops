@@ -226,7 +226,7 @@ class AliyunFunctionComputeBackend:
     def list_runtimes(self, runtime_name='all'):
         """
         List all the runtimes deployed in the Aliyun FC service
-        return: list of tuples (docker_image_name, memory)
+        return: list of tuples (container_image_name, memory, version)
         """
         logger.debug('Listing deployed runtimes')
         runtimes = []
@@ -244,7 +244,7 @@ class AliyunFunctionComputeBackend:
                     runtimes.append((name, memory, version))
         return runtimes
 
-    def invoke(self, runtime_name, memory=None, payload={}):
+    def invoke(self, runtime_name, memory, payload={}):
         """
         Invoke function
         """

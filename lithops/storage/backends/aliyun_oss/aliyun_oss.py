@@ -61,7 +61,7 @@ class AliyunObjectStorageServiceBackend:
 
     def create_bucket(self, bucket_name):
         """
-        Create a bucket if not exists
+        Create a bucket if it doesn't exist
         """
         bucket = self._connect_bucket(bucket_name)
         bucket.create_bucket()
