@@ -37,7 +37,7 @@ class AliyunFunctionComputeBackend:
     A wrap-up around Aliyun Function Compute backend.
     """
 
-    def __init__(self, afc_config, storage_config):
+    def __init__(self, afc_config, internal_storage):
         logger.debug("Creating Aliyun Function Compute client")
         self.name = 'aliyun_fc'
         self.type = 'faas'

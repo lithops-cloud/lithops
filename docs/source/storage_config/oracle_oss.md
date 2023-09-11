@@ -25,10 +25,6 @@ oracle:
     tenancy : <TENANCY>
     region : <REGION>
     compartment_id: <COMPARTMENT_ID>
-    namespace_name : <NAMESPACE_NAME>
-
-oracle_oss:
-    storage_bucket : <STORAGE_BUCKET>
 ```
 
 ## Summary of configuration keys for Oracle:
@@ -41,10 +37,10 @@ oracle_oss:
 |oracle | tenancy | |yes | Tenancy's OCID |
 |oracle | region | |yes | Region name. For example: `eu-madrid-1` |
 |oracle | compartment_id | |yes | Compartment's OCID |
-|oracle | namespace_name | |yes | Namespace name for the container registry where docker images are uploaded |
 
 ## Summary of configuration keys for Oracle Object Storage Service :
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|oracle_oss | storage_bucket | |yes | Bucket name. For example: `oracle-bucket`|
+|oracle_oss | region | |no | Region name. For example: `eu-madrid-1`. Lithops will use the region set under the `oracle` section if it is not set here  |
+|oracle_oss | storage_bucket | |no | The name of a bucket that exists in your account. Lithops will automatically create a new bucket if it is not provided|
