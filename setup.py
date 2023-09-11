@@ -58,6 +58,9 @@ extras_require = {
         'joblib',
         'diskcache',
         'numpy'
+    ],
+    'oracle': [
+        'oci',
     ]
 }
 
