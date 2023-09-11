@@ -86,8 +86,6 @@ oracle:
     namespace_name : <NAMESPACE_NAME>
 
 oracle_f:
-    runtime: <RUNTIME>
-    runtime_memory: <RUNTIME_MEMORY>
     vcn:
         subnet_ids:
             <SUBNET_ID 1>
@@ -115,14 +113,13 @@ docker login region.ocir.io -u namespace_name/username -p authentication_token
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
+|oracle_f | vcn |  |yes | VCN Configuration |
 |oracle_f | region | |no | Region name. For example: `eu-west-1`. Lithops will use the region set under the `oracle` section if it is not set here |
 |oracle_f | max_workers | 300 | no | Max number of workers. Oracle limits to 60 GB RAM, any number of workers  |
 |oracle_f | worker_processes | 1 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker |
 |oracle_f | runtime |  |no | Runtime name you built and deployed using the lithops client|
 |oracle_f | runtime_memory | 256 |no | Memory limit in MB. Default 256MB |
 |oracle_f | runtime_timeout | 300 |no | Runtime timeout in seconds. Default 5 minutes |
-|oracle_f | vcn |  |yes | VCN Configuration |
-
 
 
 ## Test Lithops
@@ -130,4 +127,12 @@ Once you have your compute and storage backends configured, you can run a hello 
 
 ```bash
 lithops hello -b oracle_f -s oracle_oss
+```
+
+## Viewing the execution logs
+
+You can view the function executions logs in your local machine using the *lithops client*:
+
+```bash
+lithops logs poll
 ```

@@ -2,6 +2,10 @@
 
 ## [v3.0.1.dev0]
 
+### New
+- [OCI Functions] Added new 'Oracle Cloud Functions' serverless backend
+- [OCI Object Storage] Added new 'Oracle Cloud Object storage' storage backend
+
 ### Added
 - 
 
