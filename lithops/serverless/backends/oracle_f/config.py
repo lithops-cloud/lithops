@@ -38,6 +38,9 @@ REQUIREMENTS_FILE = """
     ps-mem
 """
 
+AVAILABLE_PY_RUNTIMES = ['3.6', '3.7', '3.8', '3.9']
+
+
 REQ_PARAMS = ('tenancy', 'user', 'fingerprint', 'key_file', 'region')
 
 def load_config(config_data=None):

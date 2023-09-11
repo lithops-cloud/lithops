@@ -19,7 +19,7 @@ REQ_PARAMS_1 = ('tenancy', 'user', 'fingerprint', 'key_file', 'region')
 
 
 def load_config(config_data=None):
-    
+
     if 'oracle' not in config_data:
         raise Exception("'oracle' section is mandatory in the configuration")
 
@@ -31,9 +31,7 @@ def load_config(config_data=None):
             msg = f'"{param}" is mandatory under "oracle" section of the configuration'
             raise Exception(msg)
 
-    
     config_data['oracle_oss'].update(config_data['oracle'])
 
     if 'storage_bucket' in config_data['oracle_oss']:
         config_data['lithops']['storage_bucket'] = config_data['oracle_oss']['storage_bucket']
-
