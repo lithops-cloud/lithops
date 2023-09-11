@@ -52,14 +52,14 @@ class OracleCloudFunctionsBackend:
 
         msg = COMPUTE_CLI_MSG.format('Oracle Functions')
         logger.info(f"{msg} - Region: {self.region}")
-    
+
     def _init_functions_client(self):
         if 'key_file' in self.config and os.path.isfile(self.config['key_file']):
             return oci.functions.FunctionsManagementClient(config=self.config)
         else:
             self.signer = oci.auth.signers.get_resource_principals_signer()
             return oci.functions.FunctionsManagementClient(config={}, signer=self.signer)
-    
+
     def _format_function_name(self, runtime_name, runtime_memory, version=__version__):
         name = f'{runtime_name}-{runtime_memory}-{version}'
         name_hash = hashlib.sha1(name.encode("utf-8")).hexdigest()[:10]
@@ -72,13 +72,23 @@ class OracleCloudFunctionsBackend:
         version = version.replace('-', '.')
         return version, runtime_name
 
+    def _format_image_name(self, runtime_name):
+        """
+        Formats OC image name from runtime name
+        """
+        if 'ocir.io' not in runtime_name:
+            return f'{self.region}.ocir.io/{self.namespace_name}/{runtime_name}'
+        else:
+            return runtime_name
+
     def get_runtime_key(self, runtime_name, runtime_memory, version=__version__):
         """
         Method that creates and returns the runtime key.
         Runtime keys are used to uniquely identify runtimes within the storage,
         in order to know which runtimes are installed and which not.
         """
-        function_name = self._format_function_name(runtime_name, runtime_memory, version)
+        image_name = self._format_image_name(runtime_name)
+        function_name = self._format_function_name(image_name, runtime_memory, version)
         runtime_key = os.path.join(
             self.name,
             version,
@@ -87,6 +97,7 @@ class OracleCloudFunctionsBackend:
             function_name
         )
         return runtime_key
+
     @staticmethod
     def _create_handler_bin(remove=True):
         """
@@ -108,7 +119,7 @@ class OracleCloudFunctionsBackend:
 
     def _get_default_runtime_name(self):
         py_version = utils.CURRENT_PY_VERSION.replace('.', '')
-        return f'lithops-default-runtime-v{py_version}'
+        return self._format_image_name(f'lithops-default-runtime-v{py_version}')
 
     def clean(self, **kwargs):
         """
@@ -135,10 +146,11 @@ class OracleCloudFunctionsBackend:
         """
         Invoke function
         """
-        logger.debug("Extracting runtime metadata from: %s", runtime_name)
-        function_name = self._format_function_name(runtime_name, self.config['runtime_memory'])
+        image_name = self._format_image_name(runtime_name)
+        function_name = self._format_function_name(image_name, self.config['runtime_memory'])
         response = self.invoke_function(function_name, payload, 'detached')
         status_code = response.status
+
         if status_code == 202:
             return response.request_id
         elif status_code == 401:
@@ -151,20 +163,23 @@ class OracleCloudFunctionsBackend:
             logger.debug(response.data.text)
             raise Exception(f"An error occurred: {response.data.text}")
 
-    def build_runtime(self, docker_image_name, dockerfile, extra_args=[]):
-        """ 
-        Build the runtime Docker image and push it to OCIR. 
+    def build_runtime(self, runtime_name, dockerfile, extra_args=[]):
         """
-        logger.info(f'Building runtime {docker_image_name} from {dockerfile}')
+        Build the runtime Docker image and push it to OCIR
+        """
+        image_name = self._format_image_name(runtime_name)
+
+        logger.info(f'Building runtime {image_name} from {dockerfile}')
         docker_path = utils.get_docker_path()
 
         # Build the Docker image
         if dockerfile:
             assert os.path.isfile(dockerfile), f'Cannot locate "{dockerfile}"'
-            cmd = f'{docker_path} build -t {docker_image_name} -f {dockerfile} . '
+            cmd = f'{docker_path} build -t {image_name} -f {dockerfile} . '
         else:
-            cmd = f'{docker_path} build -t {docker_image_name} . '
+            cmd = f'{docker_path} build -t {image_name} . '
         cmd = cmd + ' '.join(extra_args)
+
         # Create Lithops handler zip file
         try:
             self._create_handler_bin(remove=False)
@@ -172,25 +187,24 @@ class OracleCloudFunctionsBackend:
         finally:
             os.remove(LITHOPS_FUNCTION_ZIP)
 
-        cmd = f'{docker_path} tag {docker_image_name}:latest {self.region}.ocir.io/{self.namespace_name}/{docker_image_name}:latest'
+        logger.debug(f'Pushing runtime {image_name} to Oracle Cloud Container Registry')
+        if utils.is_podman(docker_path):
+            cmd = f'{docker_path} push {image_name} --format docker --remove-signatures'
+        else:
+            cmd = f'{docker_path} push {image_name}'
         utils.run_command(cmd)
 
-        # Push the Docker image to the Oracle Cloud Infrastructure Registry (OCIR)
-        cmd = f'{docker_path} push {self.region}.ocir.io/{self.namespace_name}/{docker_image_name}:latest'
-        utils.run_command(cmd)
+    def delete_runtime(self, runtime_name, runtime_memory, version=__version__):
+        logger.info(f'Deleting runtime: {runtime_name} - {runtime_memory}MB')
+        img_name = self._format_image_name(runtime_name)
 
+        raise NotImplementedError()
 
     def get_runtime_info(self):
         """
         Method that returns all the relevant information about the runtime set
         in config
         """
-        if utils.CURRENT_PY_VERSION not in config.AVAILABLE_PY_RUNTIMES:
-            raise Exception(
-                f'Python {utils.CURRENT_PY_VERSION} is not available for Oracle '
-                f'Functions. Please use one of {list(config.AVAILABLE_PY_RUNTIMES.keys())}'
-            )
-
         if 'runtime' not in self.config or self.config['runtime'] == 'default':
             self.config['runtime'] = self._get_default_runtime_name()
 
@@ -202,6 +216,7 @@ class OracleCloudFunctionsBackend:
         }
 
         return runtime_info
+
     def _application_exists(self, application_name):
         """
         Checks if a given application exists
@@ -222,7 +237,7 @@ class OracleCloudFunctionsBackend:
             if serv.display_name == application_name:
                 return serv.id
         return None
-    
+
     def invoke_function(self, function_name, payload, invoke_type=None):
         '''
         A wrapper for the function invokation API call.
@@ -248,7 +263,7 @@ class OracleCloudFunctionsBackend:
         # Invoke the function with the payload
         response = fn_invoke_client.invoke_function(
             function_id=function_ocid,
-            invoke_function_body=json.dumps(payload,default=str),
+            invoke_function_body=json.dumps(payload, default=str),
             fn_invoke_type=invoke_type
         )
 
@@ -259,7 +274,7 @@ class OracleCloudFunctionsBackend:
         Deploys a new runtime into Oracle Function Compute
         with the custom modules for lithops
         """
-        logger.info("Deploying runtime: %s - Memory: %s Timeout: %s",runtime_name, memory, timeout)
+        logger.info("Deploying runtime: %s - Memory: %s Timeout: %s", runtime_name, memory, timeout)
         if not self._application_exists(self.application_name):
             logger.debug("Creating application %s", self.application_name)
             self.cf_client.create_application(
@@ -268,19 +283,18 @@ class OracleCloudFunctionsBackend:
                     display_name=self.application_name,
                     subnet_ids=[self.config['vcn']['subnet_ids']]))
 
-        function_name = self._format_function_name(runtime_name, memory)
+        image_name = self._format_image_name(runtime_name)
+        function_name = self._format_function_name(image_name, memory)
         logger.debug("Checking if function %s exists", function_name)
 
         existing_function = self._get_function_ocid(function_name, self.app_id)
-
-        docker_image_name = f'{self.region}.ocir.io/{self.namespace_name}/{runtime_name}:latest'
 
         if existing_function is not None:
             logger.debug("Function %s already exists. Updating it", function_name)
             self.cf_client.update_function(
                 function_id=existing_function.id,
                 update_function_details=oci.functions.models.UpdateFunctionDetails(
-                    image=docker_image_name,
+                    image=image_name,
                     memory_in_mbs=memory,
                     timeout_in_seconds=timeout))
         else:
@@ -289,7 +303,7 @@ class OracleCloudFunctionsBackend:
                 create_function_details=oci.functions.models.CreateFunctionDetails(
                     display_name=function_name,
                     application_id=self.app_id,
-                    image=docker_image_name,
+                    image=image_name,
                     memory_in_mbs=memory,
                     timeout_in_seconds=timeout))
 
@@ -307,7 +321,6 @@ class OracleCloudFunctionsBackend:
                     else:
                         raise e
 
-
         metadata = self._generate_runtime_meta(function_name)
         return metadata
 
@@ -319,7 +332,7 @@ class OracleCloudFunctionsBackend:
         result = json.loads(result)
         if 'lithops_version' in result:
             return result
-    
+
     def _get_function_ocid(self, runtime_name, app_id):
         if app_id is None:
             raise Exception("Application %s not found.", app_id)
@@ -332,4 +345,3 @@ class OracleCloudFunctionsBackend:
             if function.display_name == runtime_name:
                 return function.id
         raise Exception("Function %s not found.", runtime_name)
-    

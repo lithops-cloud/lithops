@@ -30,10 +30,6 @@ CONNECTION_POOL_SIZE = 300
 APPLICATION_NAME = 'lithops'
 BUILD_DIR = os.path.join(TEMP_DIR, 'OracleRuntimeBuild')
 
-AVAILABLE_PY_RUNTIMES = {
-    '3.8': 'python3',
-}
-
 REQUIREMENTS_FILE = """
     oci
     pika
@@ -63,4 +59,3 @@ def load_config(config_data=None):
         config_data['oracle_f']['subnet_ids'] = config_data['oracle_f']['vcn']['subnet_ids']
 
     config_data['oracle_f'].update(config_data['oracle'])
-    

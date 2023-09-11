@@ -1,6 +1,8 @@
-# Oracle Functions
+# Oracle Functions (beta)
 
 Lithops with *Oracle Functions* as serverless compute backend.
+
+**Note**: This is a beta backend. Please open an issue if you encounter any error/bug
 
 ## Installation
 
@@ -62,8 +64,6 @@ Now that the dynamic group is set up, you'll need to create a policy that allows
 
 Now, your Oracle Functions have the necessary permissions to manage resources in your Oracle Cloud Infrastructure tenancy.
 
-
-
 1. Navigate to the Oracle Cloud Console. If you haven't already done so, follow the instructions in the Oracle documentation to generate and download the necessary API signing keys.
 
 2. Access your Oracle Functions dashboard, and choose your preferred region.
@@ -75,6 +75,7 @@ Now, your Oracle Functions have the necessary permissions to manage resources in
 ```yaml
 lithops:
     backend: oracle_f
+
 oracle:
     user : <USER>
     key_file : <KEY_FILE>
@@ -83,6 +84,7 @@ oracle:
     region : <REGION>
     compartment_id: <COMPARTMENT_ID>
     namespace_name : <NAMESPACE_NAME>
+
 oracle_f:
     runtime: <RUNTIME>
     runtime_memory: <RUNTIME_MEMORY>
@@ -97,8 +99,6 @@ Also, remember to login into your Oracle container registry before you build you
 docker login region.ocir.io -u namespace_name/username -p authentication_token
 ```
 ## Summary of configuration keys for Oracle:
-
-
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
@@ -129,5 +129,5 @@ docker login region.ocir.io -u namespace_name/username -p authentication_token
 Once you have your compute and storage backends configured, you can run a hello world function with:
 
 ```bash
-lithops test -b oracle_f -s oracle_oss
+lithops hello -b oracle_f -s oracle_oss
 ```

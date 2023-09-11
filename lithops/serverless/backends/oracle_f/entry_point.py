@@ -25,15 +25,16 @@ import io
 
 logger = logging.getLogger(__name__)
 
-def handler(ctx, data: io.BytesIO=None):
+
+def handler(ctx, data: io.BytesIO = None):
 
     try:
         args = json.loads(data.getvalue())
     except (Exception, ValueError) as ex:
         print(str(ex))
-    
+
     call_id = ctx.CallID()
-    
+
     os.environ['__LITHOPS_ACTIVATION_ID'] = call_id
     os.environ['__LITHOPS_BACKEND'] = 'Oracle Function Compute'
 
