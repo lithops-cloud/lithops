@@ -4,7 +4,7 @@ In IBM VPC, you can run functions by using a Virtual machine (VM). In the VM, fu
 
 ## Option 1 (beta):
 
-**Note**: This is a beta feature. Please open an issue if you encounter any errors using this way of creating VM images in IBM VPC.
+**Note**: This is a beta feature. Please open an issue if you encounter any error using this way of creating VM images in IBM VPC.
 
 For building the default VM image that contains all dependencies required by Lithops, execute:
 

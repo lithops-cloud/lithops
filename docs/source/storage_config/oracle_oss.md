@@ -1,6 +1,8 @@
-# Oracle Object Storage
+# Oracle Object Storage (beta)
 
 Lithops with Oracle Object Storage as storage backend.
+
+**Note**: This is a beta backend. Please open an issue if you encounter any error/bug
 
 ## Installation
 
@@ -27,11 +29,9 @@ oracle:
 
 oracle_oss:
     storage_bucket : <STORAGE_BUCKET>
-
 ```
 
 ## Summary of configuration keys for Oracle:
-
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
@@ -48,5 +48,3 @@ oracle_oss:
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |oracle_oss | storage_bucket | |yes | Bucket name. For example: `oracle-bucket`|
-
-
