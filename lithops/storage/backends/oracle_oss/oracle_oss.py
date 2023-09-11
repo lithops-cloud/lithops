@@ -13,13 +13,14 @@
 # limitations under the License.
 #
 
-import oci
 import io
 import os
 import logging
+
+import oci
 from oci.object_storage import ObjectStorageClient
+
 from lithops.storage.utils import StorageNoSuchKeyError
-from lithops.utils import is_lithops_worker
 from lithops.constants import STORAGE_CLI_MSG
 from lithops.utils import sizeof_fmt
 
@@ -28,8 +29,9 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 class OCIObjectStorageBackend:
+
     def __init__(self, config):
-        
+
         logger.info("Creating Oracle Object Storage Service client")
         self.config = config
         self.region_name = config['region']
@@ -38,14 +40,14 @@ class OCIObjectStorageBackend:
 
         msg = STORAGE_CLI_MSG.format('Oracle Object Storage')
         logger.info(f"{msg} - Region: {self.region_name}")
-    
+
     def _init_functions_client(self):
         if 'key_file' in self.config and os.path.isfile(self.config['key_file']):
             return ObjectStorageClient(self.config)
         else:
             self.signer = oci.auth.signers.get_resource_principals_signer()
             return ObjectStorageClient(config={}, signer=self.signer)
-    
+
     def get_client(self):
         return self
 
@@ -70,8 +72,6 @@ class OCIObjectStorageBackend:
         except oci.exceptions.ServiceError as e:
             logger.debug("ServiceError in put_object: %s", str(e))
             raise StorageNoSuchKeyError(bucket_name, key)
-
-           
 
     def get_object(self, bucket_name, key, stream=False, extra_get_args={}):
         '''
@@ -99,8 +99,6 @@ class OCIObjectStorageBackend:
             else:
                 raise e
         return data
-           
-        
 
     def upload_file(self, file_name, bucket, key=None, extra_args={}):
         '''
@@ -124,7 +122,6 @@ class OCIObjectStorageBackend:
             logging.error(e)
             return False
         return True
-    
 
     def download_file(self, bucket, key, file_name=None, extra_args={}):
         '''
@@ -154,7 +151,7 @@ class OCIObjectStorageBackend:
 
     def head_object(self, bucket_name, key):
         '''
-        Downloads a file from OCI Object Storage. The file is identified by a specified key and is written locally 
+        Downloads a file from OCI Object Storage. The file is identified by a specified key and is written locally
         in binary mode. If no local file name is provided, the key is used as the local file name.
 
         :param bucket: Name of the bucket
@@ -168,9 +165,8 @@ class OCIObjectStorageBackend:
             headobj = self.object_storage_client.head_object(self.namespace, bucket_name, key).headers
             return headobj
         except oci.exceptions.ServiceError:
-            raise StorageNoSuchKeyError(bucket_name,key)
+            raise StorageNoSuchKeyError(bucket_name, key)
 
-    
     def delete_object(self, bucket_name, key):
         '''
         Deletes an object from OCI Object Storage. The object is identified by a specified key in a specified bucket.
@@ -180,7 +176,7 @@ class OCIObjectStorageBackend:
 
         '''
         self.object_storage_client.delete_object(self.namespace, bucket_name, key)
-    
+
     def delete_objects(self, bucket_name, keys_list):
         '''
         Deletes multiple objects from OCI Object Storage. The objects are identified by a list of keys in a specified bucket.
@@ -193,7 +189,7 @@ class OCIObjectStorageBackend:
 
     def head_bucket(self, bucket_name):
         '''
-        Return the metadata for a bucket from OCI Object Storage. 
+        Return the metadata for a bucket from OCI Object Storage.
         :param bucket_name: Name of the bucket
         :return: A dictionary containing the HTTP status code and headers for the bucket
         :rtype: dict
@@ -210,8 +206,8 @@ class OCIObjectStorageBackend:
             response['ResponseMetadata']['HTTPStatusCode'] = metadata.status
             return response
         except oci.exceptions.ServiceError:
-            raise StorageNoSuchKeyError(bucket_name,'')
-    
+            raise StorageNoSuchKeyError(bucket_name, '')
+
     def list_objects(self, bucket_name, prefix=None, match_pattern=None):
         '''
         Return the list of objects from OCI Object Storage for the specified bucket.
@@ -225,16 +221,14 @@ class OCIObjectStorageBackend:
         '''
         prefix = '' if prefix is None else prefix
         try:
-            res = self.object_storage_client.list_objects(self.namespace, bucket_name, prefix=prefix,limit=1000,fields="name,size")
+            res = self.object_storage_client.list_objects(self.namespace, bucket_name, prefix=prefix, limit=1000, fields="name,size")
             obj_list = [{'Key': obj.name, 'Size': obj.size} for obj in res.data.objects]
-            
-            
+
             return obj_list
 
         except oci.exceptions.ServiceError as e:
             logger.debug("ServiceError in list_objects: %s", str(e))
-            raise StorageNoSuchKeyError(bucket_name,prefix)
-
+            raise StorageNoSuchKeyError(bucket_name, prefix)
 
     def list_keys(self, bucket_name, prefix=None):
         '''
@@ -262,8 +256,3 @@ class OCIObjectStorageBackend:
                 raise StorageNoSuchKeyError(bucket_name, prefix)
             else:
                 raise e
-
-
-
-
-    

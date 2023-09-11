@@ -20,19 +20,19 @@ import ast
 import hashlib
 import time
 
+import oci
+from oci.exceptions import ServiceError
+
 from lithops import utils
 from lithops.version import __version__
 from lithops.constants import COMPUTE_CLI_MSG
-
-
-import oci
-from oci.exceptions import ServiceError
 
 from . import config
 
 logger = logging.getLogger(__name__)
 
 LITHOPS_FUNCTION_ZIP = 'lithops_oracle.zip'
+
 
 class OracleCloudFunctionsBackend:
 
@@ -63,14 +63,7 @@ class OracleCloudFunctionsBackend:
     def _format_function_name(self, runtime_name, runtime_memory, version=__version__):
         name = f'{runtime_name}-{runtime_memory}-{version}'
         name_hash = hashlib.sha1(name.encode("utf-8")).hexdigest()[:10]
-        return f'lithops-worker-{runtime_name}-v{version.replace(".", "-")}-{name_hash}'
-
-    def _unformat_function_name(self, function_name):
-        runtime_name, hash = function_name.rsplit('-', 1)
-        runtime_name = runtime_name.replace('lithops-worker-', '')
-        runtime_name, version = runtime_name.rsplit('-v', 1)
-        version = version.replace('-', '.')
-        return version, runtime_name
+        return f'lithops-worker-{runtime_name.split("/")[-1]}-v{version.replace(".", "-")}-{name_hash}'
 
     def _format_image_name(self, runtime_name):
         """
@@ -93,6 +86,7 @@ class OracleCloudFunctionsBackend:
             self.name,
             version,
             self.region,
+            self.namespace_name,
             self.application_name,
             function_name
         )
@@ -148,7 +142,7 @@ class OracleCloudFunctionsBackend:
         """
         image_name = self._format_image_name(runtime_name)
         function_name = self._format_function_name(image_name, self.config['runtime_memory'])
-        response = self.invoke_function(function_name, payload, 'detached')
+        response = self._invoke_function(function_name, payload, 'detached')
         status_code = response.status
 
         if status_code == 202:
@@ -205,6 +199,12 @@ class OracleCloudFunctionsBackend:
         Method that returns all the relevant information about the runtime set
         in config
         """
+        if utils.CURRENT_PY_VERSION not in config.AVAILABLE_PY_RUNTIMES:
+            raise Exception(
+                f'Python {utils.CURRENT_PY_VERSION} is not available for Oracle '
+                f'Functions. Please use one of {config.AVAILABLE_PY_RUNTIMES}'
+            )
+
         if 'runtime' not in self.config or self.config['runtime'] == 'default':
             self.config['runtime'] = self._get_default_runtime_name()
 
@@ -238,7 +238,7 @@ class OracleCloudFunctionsBackend:
                 return serv.id
         return None
 
-    def invoke_function(self, function_name, payload, invoke_type=None):
+    def _invoke_function(self, function_name, payload, invoke_type=None):
         '''
         A wrapper for the function invokation API call.
         '''
@@ -326,7 +326,7 @@ class OracleCloudFunctionsBackend:
 
     def _generate_runtime_meta(self, function_name):
         logger.debug("Extracting runtime metadata from: %s", function_name)
-        response = self.invoke_function(function_name, {"get_metadata": True})
+        response = self._invoke_function(function_name, {"get_metadata": True})
         meta_dict = ast.literal_eval(response.data.text)
         result = json.dumps(meta_dict)
         result = json.loads(result)
