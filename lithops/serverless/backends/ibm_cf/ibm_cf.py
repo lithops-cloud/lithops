@@ -204,11 +204,10 @@ class IBMCloudFunctionsBackend:
         """
         Creates a new runtime into IBM CF namespace from an already built Docker image
         """
+        self._refresh_ow_client()
         self._get_or_create_namespace()
 
-        logger.info(f"Deploying runtime: {docker_image_name} - Memory: {memory} Timeout: {timeout}")
-
-        self._refresh_ow_client()
+        logger.info(f"Deploying runtime: {docker_image_name} - Memory: {memory} - Timeout: {timeout}")
 
         self.cf_client.create_package(self.package)
         action_name = self._format_function_name(docker_image_name, memory)
@@ -292,6 +291,12 @@ class IBMCloudFunctionsBackend:
                     if docker_image_name == image_name or docker_image_name == 'all':
                         runtimes.append((image_name, memory, version))
         return runtimes
+
+    def pre_invoke(self, docker_image_name, runtime_memory):
+        """
+        Pre-invocation task. This is executed only once before the invocation
+        """
+        self._refresh_ow_client()
 
     def invoke(self, docker_image_name, runtime_memory, payload):
         """

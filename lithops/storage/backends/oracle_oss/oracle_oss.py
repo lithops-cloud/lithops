@@ -32,9 +32,12 @@ class OCIObjectStorageBackend:
 
     def __init__(self, config):
 
-        logger.info("Creating Oracle Object Storage Service client")
+        logger.info("Creating Oracle Object Storage client")
         self.config = config
         self.region_name = config['region']
+        self.key_file = config['key_file']
+        self.compartment_id = config['compartment_id']
+
         self.object_storage_client = self._init_functions_client()
         self.namespace = self.object_storage_client.get_namespace().data
 
@@ -42,7 +45,7 @@ class OCIObjectStorageBackend:
         logger.info(f"{msg} - Region: {self.region_name}")
 
     def _init_functions_client(self):
-        if 'key_file' in self.config and os.path.isfile(self.config['key_file']):
+        if self.key_file and os.path.isfile(self.key_file):
             return ObjectStorageClient(self.config)
         else:
             self.signer = oci.auth.signers.get_resource_principals_signer()
@@ -51,6 +54,19 @@ class OCIObjectStorageBackend:
     def get_client(self):
         return self
 
+    def create_bucket(self, bucket_name):
+        """
+        Create a bucket if it doesn't exist
+        """
+        try:
+            self.object_storage_client.create_bucket(
+                namespace_name=self.namespace,
+                create_bucket_details=oci.object_storage.models.CreateBucketDetails(
+                    name=bucket_name,
+                    compartment_id=self.compartment_id))
+        except oci.exceptions.ServiceError:
+            pass
+
     def put_object(self, bucket_name, key, data):
         '''
         Uploads data to OCI Object Storage with a specified key. Throws StorageNoSuchKeyError if the key does not exist.
@@ -58,7 +74,6 @@ class OCIObjectStorageBackend:
         :param bucket_name: The name of the bucket to which the object will be uploaded.
         :param key: The key under which the object will be stored.
         :param data: The data to be uploaded, either as a byte string or a BytesIO object.
-
 
         :raises StorageNoSuchKeyError: If the specified key does not exist in the bucket.
         '''

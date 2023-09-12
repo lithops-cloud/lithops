@@ -405,6 +405,8 @@ class FaaSInvoker(Invoker):
         Normal Invocation
         Use local threads to perform all the function invocations
         """
+        self.compute_handler.pre_invoke(job)
+
         if self.remote_invoker:
             return self._invoke_job_remote(job)
 
