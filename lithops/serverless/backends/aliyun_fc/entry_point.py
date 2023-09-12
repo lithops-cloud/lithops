@@ -31,7 +31,7 @@ def main(event, context):
     os.environ['__LITHOPS_ACTIVATION_ID'] = context.request_id
     os.environ['__LITHOPS_BACKEND'] = 'Aliyun Function Compute'
 
-    setup_lithops_logger(args['log_level'])
+    setup_lithops_logger(args.get('log_level', logging.INFO))
 
     if 'get_metadata' in args:
         logger.info(f"Lithops v{__version__} - Generating metadata")

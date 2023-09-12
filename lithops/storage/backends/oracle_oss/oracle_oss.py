@@ -63,12 +63,7 @@ class OCIObjectStorageBackend:
                 namespace_name=self.namespace,
                 create_bucket_details=oci.object_storage.models.CreateBucketDetails(
                     name=bucket_name,
-                    compartment_id=self.compartment_id,
-                    public_access_type="NoPublicAccess",
-                    storage_tier="Standard",
-                    object_events_enabled=False,
-                    versioning="Disabled",
-                    auto_tiering="Disabled"))
+                    compartment_id=self.compartment_id))
         except oci.exceptions.ServiceError:
             pass
 
