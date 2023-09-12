@@ -5,13 +5,10 @@
 #FROM python:3.7-slim-buster
 
 # Python 3.8
-FROM python:3.8-slim-buster
+#FROM python:3.8-slim-buster
 
 # Python 3.9
-#FROM python:3.9-slim-buster
-
-# Python 3.10
-#FROM python:3.10-slim-buster
+FROM python:3.9-slim-buster
 
 RUN apt-get update \
     && apt-get install -y \
@@ -20,32 +17,8 @@ RUN apt-get update \
 
 RUN pip install --upgrade --ignore-installed setuptools six pip \
     && pip install --upgrade --no-cache-dir --ignore-installed \
-    boto3 \
-    pika \
-    glob2 \
-    redis \
-    requests \
-    PyYAML \
-    kubernetes \
-    numpy \
-    cloudpickle \
-    ps-mem \
-    tblib \
-    matplotlib
-
-ARG FUNCTION_DIR="/function"
-
-# Copy function code
-RUN mkdir -p ${FUNCTION_DIR}
-ENV FN_LISTENER=unix:/tmp/fn.sock
-ENV FN_FORMAT=http-stream
-
-# Update pip
-RUN pip install --upgrade --ignore-installed setuptools six pip \
-    && pip install --upgrade --no-cache-dir --ignore-installed \
     fn \
     fdk \
-    boto3 \
     redis \
     httplib2 \
     requests \
@@ -58,6 +31,13 @@ RUN pip install --upgrade --ignore-installed setuptools six pip \
     ps-mem \
     tblib \
     oci
+
+ARG FUNCTION_DIR="/function"
+
+# Copy function code
+RUN mkdir -p ${FUNCTION_DIR}
+ENV FN_LISTENER=unix:/tmp/fn.sock
+ENV FN_FORMAT=http-stream
 
 WORKDIR ${FUNCTION_DIR}
 

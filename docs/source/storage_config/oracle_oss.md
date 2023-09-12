@@ -10,20 +10,18 @@ Lithops with Oracle Object Storage as storage backend.
 
 ## Configuration
 
-1. Navigate to the [Oracle Cloud Console](https://console.oraclecloud.com/) and create a new API signing keys (If you don't have one)
-
-2. Edit your Lithops config and add the following keys:
+1. Navigate to the [API keys page](https://cloud.oracle.com/identity/domains/my-profile/api-keys) and generate and download a new API signing keys. Omit this step if you already generated and downloaded one key. When you generate a new Key, oracle provides a sample config file with most of the required parameters by lithops. Copy all the `key:value` pairs and configure lithops as follows:
 
 ```yaml
 lithops:
     storage : oracle_oss
 
 oracle:
-    user : <USER>
-    key_file : <KEY_FILE>
-    fingerprint : <FINGERPRINT>
-    tenancy : <TENANCY>
-    region : <REGION>
+    user: <USER>
+    region: <REGION>
+    fingerprint: <FINGERPRINT>
+    tenancy: <TENANCY>
+    key_file: <KEY_FILE>
     compartment_id: <COMPARTMENT_ID>
 ```
 
@@ -31,12 +29,13 @@ oracle:
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|oracle | user | |yes |  Oracle Cloud User's OCID |
-|oracle | key_file | |yes | Path to the PEM file |
-|oracle | fingerprint | |yes | Fingerprint of the PEM file |
-|oracle | tenancy | |yes | Tenancy's OCID |
-|oracle | region | |yes | Region name. For example: `eu-madrid-1` |
-|oracle | compartment_id | |yes | Compartment's OCID |
+|oracle | user | |yes |  Oracle Cloud User's OCID from [here](https://cloud.oracle.com/identity/domains/my-profile) |
+|oracle | region | |yes | Region Identifier from [here](https://cloud.oracle.com/regions). For example: `eu-madrid-1` |
+|oracle | fingerprint | |yes | Fingerprint of the private key PEM file from [here](https://cloud.oracle.com/identity/domains/my-profile/api-keys)|
+|oracle | tenancy | |yes | Tenancy's OCID from [here](https://cloud.oracle.com/tenancy)|
+|oracle | key_file | |yes | Path to the private key (PEM) file |
+|oracle | compartment_id | |yes | Compartment's ID from [here](https://cloud.oracle.com/identity/compartments)|
+|oracle | namespace_name | |no | Namespace name of your storage account. You cand find it [here](https://cloud.oracle.com/tenancy), under *Object storage namespace*|
 
 ## Summary of configuration keys for Oracle Object Storage Service :
 

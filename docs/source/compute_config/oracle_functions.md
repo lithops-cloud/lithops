@@ -22,99 +22,96 @@ python3 -m pip install lithops[oracle]
 
 2. **Open the navigation menu.** Under Identity & Security , go to Polices and then click **Domains**.
 
-3. Click on the current Domain (It's called **Default** by default) and then click on **Dynamic groups**
+3. On the left menu, select one compartment. Your account name is the dfault compartment.
 
-3. **Click Create Dynamic Group.**
+4. Click on the current Domain (It's called **Default** by default) and then click on **Dynamic groups**. Click **Create Dynamic Group.**
 
-4. **In the Create Dynamic Group dialog box:**
+5. In the **Create Dynamic Group** dialog box:
 
-    - Give your dynamic group a **Name** and **Description**.
+    - Give your dynamic group a **Name** (for example: lithops) and **Description**.
   
-    - In the **Matching Rule** box, paste your rule:
+    - In the **Matching Rule** box, paste the next rule, where <compartment_id> is the OCID of the compartment where the application and associated functions will be deployed. You can obtain it from [here](https://cloud.oracle.com/identity/compartments):
 
         ```
-        ALL {resource.type = 'fnfunc', resource.compartment.id = 'ocid1.tenancy.oc1..aaaaaaaaedomxxeig7qoo5fmbbvkdlbmp6dsdl74sh2so32zk3wxnc2dosla'}
+        ALL {resource.type = 'fnfunc', resource.compartment.id = '<compartment_id>'}
         ```
     
-5. **Click Create** to create the dynamic group.
+6. **Click Create** to create the dynamic group.
+
 
 ### Creating a Policy for the Dynamic Group
 
 Now that the dynamic group is set up, you'll need to create a policy that allows this group to manage resources.
 
-1. **Open the navigation menu again.** Under Governance and Administration, go to Identity, and then click **Policies**.
+1. **Open the navigation menu again.** Under Governance and Administration, go to Identity, and then click [**Policies**](https://cloud.oracle.com/identity/domains/policies).
 
-2. **Choose your compartment.**
+2. Choose your **compartment** and Click on the **Create Policy** button.
 
-3. **Click on the Create Policy button.**
+3. **In the Create Policy dialog box:**
 
-4. **In the Create Policy dialog box:**
-
-    - Give your policy a **Name** and **Description**.
+    - Give your policy a **Name** (for example: lithops) and **Description**.
     
-    - In the **Statement** box, input the policy statement that grants permissions. For example:
+    - In the **Statement** box, input the policy statement that grants permissions. Replace `<group_name>` with the name of the dynamic group you just created:
 
         ```
-        Allow dynamic-group function_compartment to manage all-resources in tenancy
+        Allow dynamic-group <group_name> to manage all-resources in tenancy
         ```
-    
-    Remember to replace `function_compartment` with the name of the dynamic group you just created.
-    
+
 5. **Click Create** to create the policy.
 
+
+### Configure lithops
 Now, your Oracle Functions have the necessary permissions to manage resources in your Oracle Cloud Infrastructure tenancy.
 
-1. Navigate to the Oracle Cloud Console. If you haven't already done so, follow the instructions in the Oracle documentation to generate and download the necessary API signing keys.
+1. Navigate to the [VCNs page](https://cloud.oracle.com/networking/vcns) and create a new VCN using the **VCN Wizard**. Then choose *create VCN with Internet Connectivity*. In the next page, you can uncheck `Use DNS hostnames in this VCN` and leave the rest of the parameters as provided by default.
 
-2. Access your Oracle Functions dashboard, and choose your preferred region.
+2. The **VCN Wizard** will create all the necessary VCN resources, including the subnets. Now access the private subnet and copy the OCID to the `subnet_id` parameter under the `oracle_f` section of the configuration.
 
-3. Create a new subnet in the Virtual Cloud Network (VCN) section. If you haven't set up a subnet yet, follow the instructions in the Oracle documentation to create one. Subnet creation is mandatory.
+3. Navigate to the [API keys page](https://cloud.oracle.com/identity/domains/my-profile/api-keys) and generate and download a new API signing keys. Omit this step if you already generated and downloaded one key. When you generate a new Key, oracle provides a sample config file with most of the required parameters by lithops. Copy all the `key:value` pairs and configure lithops as follows:
 
-4. Edit your Lithops config and add the following keys:
 
 ```yaml
 lithops:
     backend: oracle_f
 
 oracle:
-    user : <USER>
-    key_file : <KEY_FILE>
-    fingerprint : <FINGERPRINT>
-    tenancy : <TENANCY>
-    region : <REGION>
+    user: <USER>
+    region: <REGION>
+    fingerprint: <FINGERPRINT>
+    tenancy: <TENANCY>
+    key_file: <KEY_FILE>
     compartment_id: <COMPARTMENT_ID>
-    namespace_name : <NAMESPACE_NAME>
 
 oracle_f:
-    vcn:
-        subnet_ids:
-            <SUBNET_ID 1>
+    subnet_id: <SUBNET_OCID>
 ```
 
-Also, remember to login into your Oracle container registry before you build your runtime. This is because runtimes are uploaded to the Oracle container registry.
+
+Also, remember to login into your Oracle container registry before you build your runtime. This is because runtimes are uploaded to the Oracle container registry. <username> is probably your email address. You can create a new auth token [here](https://cloud.oracle.com/identity/domains/my-profile/auth-tokens)
 
 ```
-docker login region.ocir.io -u namespace_name/username -p authentication_token
+docker login <region>.ocir.io -u <cr_namespace>/<username> -p <authentication_token>
 ```
+
 ## Summary of configuration keys for Oracle:
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|oracle | user | |yes |  Oracle Cloud User's OCID |
-|oracle | key_file | |yes | Path to the PEM file |
-|oracle | fingerprint | |yes | Fingerprint of the PEM file |
-|oracle | tenancy | |yes | Tenancy's OCID |
-|oracle | region | |yes | Region name. For example: `eu-madrid-1` |
-|oracle | compartment_id | |yes | Compartment's OCID |
-|oracle | namespace_name | |yes | Namespace name for the container registry where docker images are uploaded |
+|oracle | user | |yes |  Oracle Cloud User's OCID from [here](https://cloud.oracle.com/identity/domains/my-profile) |
+|oracle | region | |yes | Region Identifier from [here](https://cloud.oracle.com/regions). For example: `eu-madrid-1` |
+|oracle | fingerprint | |yes | Fingerprint of the private key PEM file from [here](https://cloud.oracle.com/identity/domains/my-profile/api-keys)|
+|oracle | tenancy | |yes | Tenancy's OCID from [here](https://cloud.oracle.com/tenancy)|
+|oracle | key_file | |yes | Path to the private key (PEM) file |
+|oracle | compartment_id | |yes | Compartment's ID from [here](https://cloud.oracle.com/identity/compartments)|
+|oracle | namespace_name | |no | Namespace name of your storage account. You cand find it [here](https://cloud.oracle.com/tenancy), under *Object storage namespace*|
 
 
 ## Summary of configuration keys for Oracle Functions :
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|oracle_f | vcn |  |yes | VCN Configuration |
-|oracle_f | region | |no | Region name. For example: `eu-west-1`. Lithops will use the region set under the `oracle` section if it is not set here |
+|oracle_f | subnet_id |  |yes | Private subnet OCID |
+|oracle_f | region | |no | Region name. For example: `eu-madrid-1`. Lithops will use the region set under the `oracle` section if it is not set here |
 |oracle_f | max_workers | 300 | no | Max number of workers. Oracle limits to 60 GB RAM, any number of workers  |
 |oracle_f | worker_processes | 1 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker |
 |oracle_f | runtime |  |no | Runtime name you built and deployed using the lithops client|

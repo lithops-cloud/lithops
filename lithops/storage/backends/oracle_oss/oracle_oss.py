@@ -38,18 +38,11 @@ class OCIObjectStorageBackend:
         self.key_file = config['key_file']
         self.compartment_id = config['compartment_id']
 
-        self.object_storage_client = self._init_functions_client()
+        self.object_storage_client = ObjectStorageClient(self.config)
         self.namespace = self.object_storage_client.get_namespace().data
 
         msg = STORAGE_CLI_MSG.format('Oracle Object Storage')
         logger.info(f"{msg} - Region: {self.region_name}")
-
-    def _init_functions_client(self):
-        if self.key_file and os.path.isfile(self.key_file):
-            return ObjectStorageClient(self.config)
-        else:
-            self.signer = oci.auth.signers.get_resource_principals_signer()
-            return ObjectStorageClient(config={}, signer=self.signer)
 
     def get_client(self):
         return self
