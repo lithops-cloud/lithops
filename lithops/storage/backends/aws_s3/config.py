@@ -23,12 +23,6 @@ logger = logging.getLogger(__name__)
 
 def load_config(config_data):
     if 'aws' in config_data:
-
-        if "secret_access_key" in config_data["aws"] or "access_key_id" in config_data["aws"]:
-            logger.warning("Using 'secret_access_key' and 'access_key_id' in lithops configuration is not recommended "
-                           "- Use boto3 configuration file in ~/.aws or environment variables instead "
-                           "(https://boto3.amazonaws.com/v1/documentation/api/latest/guide/configuration.html)")
-
         if 'aws_s3' not in config_data:
             config_data['aws_s3'] = {}
 

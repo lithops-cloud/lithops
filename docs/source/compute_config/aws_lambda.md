@@ -43,19 +43,6 @@ python3 -m pip install lithops[aws]
 
 7. Choose **Lambda** on the use case list and click **Next: Permissions**. Select the policy created before (`lithops-policy`). Click **Next: Tags** and **Next: Review**. Type a role name, for example `lithops-execution-role`. Click on *Create Role*.
 
-## Configuration
-
-6. Edit your lithops config and add the following keys:
-
-```yaml
-lithops:
-    backend: aws_lambda
-
-aws_lambda:
-    execution_role: <EXECUTION_ROLE_ARN>
-    region: <REGION_NAME>
-```
-
 ## AWS Credential setup
 
 Lithops loads AWS credentials as specified in the [boto3 configuration guide](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/configuration.html).
@@ -70,7 +57,7 @@ In summary, you can use the following settings:
 
     Lithops needs at least `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and `AWS_DEFAULT_REGION` environment variables set.
 
-3. Provide the credentials in the `aws` section of the Lithops config file **This option is not ideal and will be removed in future Lithops releases!**:
+3. Provide the credentials in the `aws` section of the Lithops config file:
 ```yaml
 lithops:
     backend: aws_lambda
@@ -78,6 +65,10 @@ lithops:
 aws:
     access_key_id: <AWS_ACCESS_KEY_ID>
     secret_access_key: <AWS_SECRET_ACCESS_KEY>
+    region: <REGION_NAME>
+
+aws_lambda:
+    execution_role: <EXECUTION_ROLE_ARN>
     region: <REGION_NAME>
 ```
 
@@ -108,6 +99,10 @@ lithops:
 
 aws:
     config_profile: my-sso-profile
+
+aws_lambda:
+    execution_role: <EXECUTION_ROLE_ARN>
+    region: <REGION_NAME>
 ```
 
 More info [here](https://docs.aws.amazon.com/cli/latest/userguide/sso-configure-profile-token.html).
