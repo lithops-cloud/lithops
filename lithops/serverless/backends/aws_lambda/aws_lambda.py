@@ -639,9 +639,9 @@ class AWSLambdaBackend:
         """
         function_name = self._format_function_name(runtime_name, runtime_memory)
 
-        if "access_key_id" in payload["config"]["aws"] and "secret_access_key" in payload["config"]["aws"]:
-            del payload["config"]["aws"]["access_key_id"]
-            del payload["config"]["aws"]["secret_access_key"]
+        payload["config"]["aws"].pop("access_key_id", None)
+        payload["config"]["aws"].pop("secret_access_key", None)
+        payload["config"]["aws"].pop("session_token", None)
 
         headers = {'Host': self.host, 'X-Amz-Invocation-Type': 'Event', 'User-Agent': self.user_agent}
         url = f'https://{self.host}/2015-03-31/functions/{function_name}/invocations'
