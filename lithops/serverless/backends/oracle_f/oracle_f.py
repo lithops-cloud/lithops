@@ -50,7 +50,7 @@ class OracleCloudFunctionsBackend:
         self.app_name = oci_config.get(
             'application_name', f'{config.APP_NAME}_{self.user[-8:-1].lower()}')
 
-        self.cf_client = self._init_functions_client()
+        self.cf_client = self._init_functions_mgmt_client()
 
         self.app_id = self._get_application_id(self.app_name)
         self.namespace = oci_config.get("tenancy_namespace", self._get_namespace())
@@ -58,12 +58,18 @@ class OracleCloudFunctionsBackend:
         msg = COMPUTE_CLI_MSG.format('Oracle Functions')
         logger.info(f"{msg} - Region: {self.region}")
 
-    def _init_functions_client(self):
+    def _init_functions_mgmt_client(self):
         if os.path.isfile(self.key_file):
             return FunctionsManagementClient(config=self.config)
         else:
             self.signer = oci.auth.signers.get_resource_principals_signer()
             return FunctionsManagementClient(config={}, signer=self.signer)
+
+    def _init_functions_invk_client(self, endpoint):
+        if os.path.isfile(self.key_file):
+            return FunctionsInvokeClient(config=self.config, service_endpoint=endpoint)
+        else:
+            return FunctionsInvokeClient(config={}, service_endpoint=endpoint, signer=self.signer)
 
     def _get_namespace(self):
         """
@@ -169,10 +175,7 @@ class OracleCloudFunctionsBackend:
         # The pre_invoke() method is already called at this point
 
         # Prepare the Oracle Functions client with the invoke endpoint
-        fn_invoke_client = FunctionsInvokeClient(
-            self.config,
-            service_endpoint=self.invoke_endpoint
-        )
+        fn_invoke_client = self._init_functions_invk_client(self.invoke_endpoint)
 
         response = fn_invoke_client.invoke_function(
             function_id=self.invoke_function_id,
@@ -288,16 +291,13 @@ class OracleCloudFunctionsBackend:
         Invokes a function to get the runtime metadata
         """
         image_name = self._format_image_name(runtime_name)
-        logger.debug("Extracting runtime metadata from: %s", image_name)
+        logger.debug("Extracting runtime metadata from %s", image_name)
 
         self.pre_invoke(runtime_name, memory)
 
         payload = {'log_level': logger.getEffectiveLevel(), 'get_metadata': True}
 
-        fn_invoke_client = FunctionsInvokeClient(
-            self.config,
-            service_endpoint=self.invoke_endpoint
-        )
+        fn_invoke_client = self._init_functions_invk_client(self.invoke_endpoint)
 
         response = fn_invoke_client.invoke_function(
             function_id=self.invoke_function_id,
@@ -327,7 +327,7 @@ class OracleCloudFunctionsBackend:
             logger.debug(f'Application {self.app_name} does not exist')
             return
 
-        function_name = self._format_function_name(image_name, runtime_memory)
+        function_name = self._format_function_name(image_name, runtime_memory, version)
         function_id = self._get_function_id(function_name)
         if function_id:
             self.cf_client.delete_function(function_id)
