@@ -14,6 +14,7 @@
 #
 
 import os
+import copy
 from lithops.constants import TEMP_DIR
 
 
@@ -27,38 +28,81 @@ DEFAULT_CONFIG_KEYS = {
 
 CONNECTION_POOL_SIZE = 300
 
-APPLICATION_NAME = 'lithops'
-BUILD_DIR = os.path.join(TEMP_DIR, 'OracleRuntimeBuild')
+APP_NAME = 'lithops'
+FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_oracle.zip')
 
-REQUIREMENTS_FILE = """
+DEFAULT_DOCKERFILE = """
+RUN apt-get update \
+    && apt-get install -y \
+    zip \
+    && rm -rf /var/lib/apt/lists/*
+
+# Update pip
+RUN pip install --upgrade --ignore-installed setuptools six pip \
+    && pip install --upgrade --no-cache-dir --ignore-installed \
+    fn \
+    fdk \
+    redis \
+    httplib2 \
+    requests \
+    numpy \
+    scipy \
+    pandas \
+    pika \
+    PyYAML \
+    cloudpickle \
+    ps-mem \
+    tblib \
     oci
-    pika
-    tblib
-    cloudpickle
-    ps-mem
+
+ARG FUNCTION_DIR="/function"
+
+# Copy function code
+RUN mkdir -p ${FUNCTION_DIR}
+ENV FN_LISTENER=unix:/tmp/fn.sock
+ENV FN_FORMAT=http-stream
+
+WORKDIR ${FUNCTION_DIR}
+
+COPY lithops_oracle.zip ${FUNCTION_DIR}
+RUN unzip lithops_oracle.zip \
+    && rm lithops_oracle.zip \
+    && mkdir handler \
+    && touch handler/__init__.py \
+    && mv entry_point.py handler/
+
+
+ENV PYTHONPATH "${PYTHONPATH}:${FUNCTION_DIR}"
+ENTRYPOINT ["/usr/local/bin/fdk", "handler/entry_point.py", "handler"]
 """
 
 AVAILABLE_PY_RUNTIMES = ['3.6', '3.7', '3.8', '3.9']
 
+REQ_PARAMS_1 = ('compartment_id', 'user', 'key_file', 'region', 'tenancy', 'fingerprint')
 
-REQ_PARAMS = ('tenancy', 'user', 'fingerprint', 'key_file', 'region')
+REQ_PARAMS_2 = ('subnet_id', )
 
 def load_config(config_data=None):
     if 'oracle' not in config_data:
         raise Exception("'oracle' section is mandatory in the configuration")
 
-    for param in REQ_PARAMS:
+    if 'oracle' not in config_data:
+        raise Exception("'oracle_f' section is mandatory in the configuration")
+
+    for param in REQ_PARAMS_1:
         if param not in config_data['oracle']:
-            msg = f'"{param}" is mandatory in the "oci" section of the configuration'
+            msg = f'"{param}" is mandatory in the "oracle" section of the configuration'
+            raise Exception(msg)
+
+    for param in REQ_PARAMS_2:
+        if param not in config_data['oracle_f']:
+            msg = f'"{param}" is mandatory in the "oracle_f" section of the configuration'
             raise Exception(msg)
 
     for key in DEFAULT_CONFIG_KEYS:
         if key not in config_data['oracle_f']:
             config_data['oracle_f'][key] = DEFAULT_CONFIG_KEYS[key]
 
-    if 'vcn' not in config_data['oracle_f'] or 'subnet_ids' not in config_data['oracle_f']['vcn']:
-        raise Exception("'vcn' and 'subnet_ids' are mandatory in the 'oracle_f' section of the configuration")
-    else:
-        config_data['oracle_f']['subnet_ids'] = config_data['oracle_f']['vcn']['subnet_ids']
-
+    temp = copy.deepcopy(config_data['oracle_f'])
     config_data['oracle_f'].update(config_data['oracle'])
+    config_data['oracle_f'].update(temp)
