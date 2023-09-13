@@ -17,6 +17,7 @@
 
 import copy
 import logging
+import hashlib
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,11 @@ def load_config(config_data):
             raise Exception("'region' is mandatory under 'aws_s3' or 'aws' section of the configuration")
 
         if 'storage_bucket' not in config_data['aws_s3']:
-            key = config_data['aws_s3']['access_key_id']
+            if 'access_key_id' in config_data['aws']:
+                key = config_data['aws_s3']['access_key_id']
+            elif 'config_profile' in config_data['aws']:
+                key = hashlib.md5(config_data['aws']['config_profile'].encode("utf-8"), usedforsecurity=False).hexdigest()
+            else:
+                raise Exception("'access_key_id' or 'config_profile' is mandatory in 'aws' section of the configuration")
             region = config_data['aws_s3']['region']
             config_data['aws_s3']['storage_bucket'] = f'lithops-{region}-{key[:6].lower()}'
