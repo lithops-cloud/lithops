@@ -105,7 +105,7 @@ gcp_cloudrun:
 
     By default the Dockerfile should be located in the same folder from where you execute the **lithops runtime** command. If your Dockerfile is located in another folder, or the Dockerfile has another name, you can specify its location with the **-f** parameter, for example:
 
-        $ lithops runtime build -b knative -f PyTorchDockerfile pytorchruntime
+        $ lithops runtime build -b gcp_cloudrun -f PyTorchDockerfile pytorchruntime
 
     Once you have built your runtime with all of your necessary packages, you can already use it with Lithops.
     To do so, you have to specify the runtime name in the configuration or when you create the **FunctionExecutor** instance, or directly in the config file, for example:

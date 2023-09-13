@@ -1,6 +1,23 @@
 # Changelog
 
-## [v2.9.1.dev0]
+## [v3.0.1.dev0]
+
+### New
+- [OCI Functions] Added new 'Oracle Cloud Functions' serverless backend
+- [OCI Object Storage] Added new 'Oracle Cloud Object storage' storage backend
+
+### Added
+- 
+
+### Changed
+- [CodeEngine] Create the CE project only when necessary instead of creating it always
+- [IBM CF] Create the CF namespace only when necessary instead of creating it always
+
+### Fixed
+- [Executor] Fixed kwargs mapping in ServerlessExecutor and StandaloneExecutor
+
+
+## [v3.0.0]
 
 ### New
 - [Azure Virtual Machines] Added new 'Azure Virtual Machines' standalone backend
@@ -12,6 +29,7 @@
 - [Azure Functions] Added support for python 3.11 runtimes
 - [Google Cloud Functions] Added support for python 3.11 runtimes
 - [IBM CF] Added support for python 3.11 runtimes
+- [Openwhisk] Added support for python 3.11 runtimes
 - [Aliyun Functions] Added support for python 3.10 runtimes
 - [Executor] Allow to set all the compute backend params programatically in the FunctionExecutor()
 - [AWS EC2] Allow to automatically create the VPC and all the necessary resources
@@ -42,7 +60,8 @@
 - [IBM] Improved token manager
 - [Core] Job creation now checks that each element in 'iterdata' is smaller than 8 KB
 - [MapReduce] Make 'results' variable name not mandatory in the reduce function signature
-- [AWS] Replace 'aws_access_key_id' and 'aws_secret_access_key' in lithops 'aws' config in favor of 'config_profile' key and standard AWS SDK config retrieval procedures. 
+- [CLI] Renamed 'lithops test' command to 'lithops hello'
+- [CLI] Renamed 'lithops verify' command to 'lithops test'
 
 ### Fixed
 - [IBM VPC & AWS EC2] Make sure only VMs from the given VPC are removed

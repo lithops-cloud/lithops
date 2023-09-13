@@ -92,6 +92,8 @@ class CodeEngineBackend:
         self.project_name = ce_config.get('project_name', f'lithops-{self.region}-{self.user_key}')
         self.project_id = None
 
+        self.config['project_name'] = self.project_name
+
         self.token_manager = None
         self.code_engine_service_v1 = None
         self.code_engine_service_v2 = None
@@ -108,13 +110,6 @@ class CodeEngineBackend:
             self.core_api = client.CoreV1Api()
         else:
             self._create_k8s_iam_client()
-
-        if not self.namespace and not self.is_lithops_worker:
-            self._get_or_create_namespace()
-            self.config['namespace'] = self.namespace
-
-        logger.debug(f"Set namespace to {self.namespace}")
-        logger.debug(f"Set cluster to {self.cluster}")
 
         self.jobs = []  # list to store executed jobs (job_keys)
 
@@ -138,16 +133,21 @@ class CodeEngineBackend:
         self.code_engine_service_v2 = CodeEngineV2(authenticator=authenticator)
         self.code_engine_service_v2.set_service_url(config.BASE_URL_V2.format(self.region))
 
-    def _get_or_create_namespace(self):
+    def _get_or_create_namespace(self, create=True):
         """
         Gets or creates a new namespace
         """
+        if self.namespace or self.is_lithops_worker:
+            return self.namespace
+
         ce_data = load_yaml_config(self.cache_file)
         self.namespace = ce_data.get('namespace')
         self.project_id = ce_data.get('project_id')
+        self.config['project_id'] = self.project_id
+        self.config['namespace'] = self.namespace
 
         if self.namespace:
-            return
+            return self.namespace
 
         self._create_code_engine_client()
 
@@ -175,8 +175,10 @@ class CodeEngineBackend:
                     logger.debug(f"Found Code Engine project: {self.project_name}")
                     self.project_id = project['id']
                     self.namespace = get_k8s_namespace(self.project_id)
+                    self.config['project_id'] = self.project_id
+                    self.config['namespace'] = self.namespace
 
-        if not self.namespace:
+        if not self.namespace and create:
             logger.debug(f"Creating new Code Engine project: {self.project_name}")
             response = self.code_engine_service_v2.create_project(
                 name=self.project_name,
@@ -185,11 +187,15 @@ class CodeEngineBackend:
             project = response.get_result()
             self.project_id = project['id']
             self.namespace = get_k8s_namespace(self.project_id)
+            self.config['project_id'] = self.project_id
+            self.config['namespace'] = self.namespace
 
         ce_data['project_name'] = self.project_name
         ce_data['project_id'] = self.project_id
         ce_data['namespace'] = self.namespace
         dump_yaml_config(self.cache_file, ce_data)
+
+        return self.namespace
 
     def _create_k8s_iam_client(self):
         """
@@ -286,6 +292,8 @@ class CodeEngineBackend:
         """
         Deploys a new runtime from an already built Docker image
         """
+        self._get_or_create_namespace()
+
         try:
             default_image_name = self._get_default_runtime_image_name()
         except Exception:
@@ -306,6 +314,10 @@ class CodeEngineBackend:
         Deletes a runtime
         We need to delete job definition
         """
+        if not self._get_or_create_namespace(create=False):
+            logger.info(f"Project {self.project_name} does not exist")
+            return
+
         logger.info(f'Deleting runtime: {runtime_name} - {memory}MB')
         self._create_k8s_iam_client()
         try:
@@ -325,6 +337,12 @@ class CodeEngineBackend:
         """
         Deletes all runtimes from all packages
         """
+        if not self._get_or_create_namespace(create=False):
+            logger.info(f"Project {self.project_name} does not exist")
+            if os.path.exists(self.cache_file):
+                os.remove(self.cache_file)
+            return
+
         self._create_k8s_iam_client()
         self.clear()
         runtimes = self.list_runtimes()
@@ -348,15 +366,19 @@ class CodeEngineBackend:
             self.code_engine_service_v2.delete_project(id=self.project_id)
             os.remove(self.cache_file)
 
-        shutil.rmtree(self.cache_dir, ignore_errors=True)
-
     def list_runtimes(self, docker_image_name='all'):
         """
         List all the runtimes
         return: list of tuples (docker_image_name, memory)
         """
-        self._create_k8s_iam_client()
         runtimes = []
+
+        if not self._get_or_create_namespace(create=False):
+            logger.info(f"Project {self.project_name} does not exist")
+            return runtimes
+
+        self._create_k8s_iam_client()
+
         try:
             jobdefs = self.custom_api.list_namespaced_custom_object(
                 group=config.DEFAULT_GROUP,
@@ -387,6 +409,7 @@ class CodeEngineBackend:
         """
         Clean all completed jobruns in the current executor
         """
+        self._get_or_create_namespace()
         self._create_k8s_iam_client()
         jobs_to_delete = job_keys or self.jobs
         for job_key in jobs_to_delete:
@@ -413,6 +436,7 @@ class CodeEngineBackend:
         Invoke -- return information about this invocation
         For array jobs only remote_invocator is allowed
         """
+        self._get_or_create_namespace()
         self._create_k8s_iam_client()
 
         executor_id = job_payload['executor_id']
@@ -573,6 +597,7 @@ class CodeEngineBackend:
         Runtime keys are used to uniquely identify runtimes within the storage,
         in order to know which runtimes are installed and which not.
         """
+        self._get_or_create_namespace()
         jobdef_name = self._format_jobdef_name(docker_image_name, 256, version)
         runtime_key = os.path.join(self.name, version, self.region, self.namespace, jobdef_name)
 

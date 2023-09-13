@@ -49,6 +49,17 @@ class ServerlessHandler:
         """
         pass
 
+    def pre_invoke(self, job):
+        """
+        Pre-invocation task executed just before the actual parallel invocation
+        in the serverless FaaS backends.
+        """
+        runtime_name = job.runtime_name
+        runtime_memory = job.runtime_memory
+
+        if hasattr(self.backend, 'pre_invoke'):
+            self.backend.pre_invoke(runtime_name, runtime_memory)
+
     def invoke(self, job_payload):
         """
         Invoke -- return information about this invocation

@@ -309,14 +309,15 @@ class GCPCloudRunBackend:
         if runtime_name == self._get_default_runtime_image_name():
             self._build_default_runtime(runtime_name)
 
-        logger.info(f"Deploying runtime: {runtime_name} - Memory: {memory} Timeout: {timeout}")
+        img_name = self._format_image_name(runtime_name)
+        logger.info(f"Deploying runtime: {img_name} - Memory: {memory} Timeout: {timeout}")
         self._create_service(runtime_name, memory, timeout)
         runtime_meta = self._generate_runtime_meta(runtime_name, memory)
         return runtime_meta
 
     def delete_runtime(self, runtime_name, runtime_memory, version=__version__):
-        logger.info(f'Deleting runtime: {runtime_name} - {runtime_memory}MB')
         img_name = self._format_image_name(runtime_name)
+        logger.info(f'Deleting runtime: {img_name} - {runtime_memory}MB')
         service_name = self._format_service_name(img_name, runtime_memory, version)
         self._delete_service(service_name)
 

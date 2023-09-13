@@ -118,7 +118,7 @@ class IBMCloudObjectStorageBackend:
 
     def create_bucket(self, bucket_name):
         """
-        Create a bucket if not exists
+        Create a bucket if it doesn't exist
         """
         try:
             self.cos_client.head_bucket(Bucket=bucket_name)
