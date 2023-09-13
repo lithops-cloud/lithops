@@ -36,29 +36,34 @@ logger = logging.getLogger(__name__)
 
 class OracleCloudFunctionsBackend:
 
-    def __init__(self, oracle_config, internal_storage):
+    def __init__(self, oci_config, internal_storage):
         self.name = 'oracle_f'
         self.type = 'faas'
-        self.config = oracle_config
+        self.config = oci_config
 
-        self.user = oracle_config['user']
-        self.region = oracle_config['region']
-        self.key_file = oracle_config['key_file']
-        self.compartment_id = oracle_config['compartment_id']
-        self.subnet_id = oracle_config['subnet_id']
+        self.user = oci_config['user']
+        self.region = oci_config['region']
+        self.key_file = oci_config['key_file']
+        self.compartment_id = oci_config['compartment_id']
+        self.subnet_id = oci_config['subnet_id']
 
-        self.app_name = oracle_config.get(
+        self.app_name = oci_config.get(
             'application_name', f'{config.APP_NAME}_{self.user[-8:-1].lower()}')
 
-        self.cf_client = FunctionsManagementClient(config=self.config)
+        self.cf_client = self._init_functions_client()
 
         self.app_id = self._get_application_id(self.app_name)
-        self.namespace = oracle_config.get("tenancy_namespace", self._get_namespace())
-
-        self.fn_invoke_client = None
+        self.namespace = oci_config.get("tenancy_namespace", self._get_namespace())
 
         msg = COMPUTE_CLI_MSG.format('Oracle Functions')
         logger.info(f"{msg} - Region: {self.region}")
+
+    def _init_functions_client(self):
+        if os.path.isfile(self.key_file):
+            return FunctionsManagementClient(config=self.config)
+        else:
+            self.signer = oci.auth.signers.get_resource_principals_signer()
+            return FunctionsManagementClient(config={}, signer=self.signer)
 
     def _get_namespace(self):
         """

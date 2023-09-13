@@ -30,19 +30,27 @@ logger.setLevel(logging.DEBUG)
 
 class OCIObjectStorageBackend:
 
-    def __init__(self, config):
+    def __init__(self, oci_config):
 
         logger.info("Creating Oracle Object Storage client")
-        self.config = config
-        self.region_name = config['region']
-        self.key_file = config['key_file']
-        self.compartment_id = config['compartment_id']
+        self.config = oci_config
+        self.region_name = oci_config['region']
+        self.key_file = oci_config['key_file']
+        self.compartment_id = oci_config['compartment_id']
 
-        self.object_storage_client = ObjectStorageClient(self.config)
-        self.namespace = config.get("tenancy_namespace", self.object_storage_client.get_namespace().data)
+        self.os_client = self._init_storage_client()
+        self.namespace = oci_config.get(
+            "tenancy_namespace", self.os_client.get_namespace().data)
 
         msg = STORAGE_CLI_MSG.format('Oracle Object Storage')
         logger.info(f"{msg} - Region: {self.region_name}")
+
+    def _init_storage_client(self):
+        if os.path.isfile(self.key_file):
+            return ObjectStorageClient(self.config)
+        else:
+            self.signer = oci.auth.signers.get_resource_principals_signer()
+            return ObjectStorageClient(config={}, signer=self.signer)
 
     def get_client(self):
         return self
@@ -52,7 +60,7 @@ class OCIObjectStorageBackend:
         Create a bucket if it doesn't exist
         """
         try:
-            self.object_storage_client.create_bucket(
+            self.os_client.create_bucket(
                 namespace_name=self.namespace,
                 create_bucket_details=oci.object_storage.models.CreateBucketDetails(
                     name=bucket_name,
@@ -75,7 +83,7 @@ class OCIObjectStorageBackend:
             data = data.getvalue()
 
         try:
-            self.object_storage_client.put_object(self.namespace, bucket_name, key, data)
+            self.os_client.put_object(self.namespace, bucket_name, key, data)
             logger.debug('OSS Object {} uploaded to bucket {} - Size: {}'.format(key, bucket_name, sizeof_fmt(len(data))))
         except oci.exceptions.ServiceError as e:
             logger.debug("ServiceError in put_object: %s", str(e))
@@ -93,9 +101,9 @@ class OCIObjectStorageBackend:
         try:
             if 'Range' in extra_get_args:
                 range = extra_get_args['Range']
-                r = self.object_storage_client.get_object(self.namespace, bucket_name, key, range=range)
+                r = self.os_client.get_object(self.namespace, bucket_name, key, range=range)
             else:
-                r = self.object_storage_client.get_object(self.namespace, bucket_name, key)
+                r = self.os_client.get_object(self.namespace, bucket_name, key)
 
             if stream:
                 data = io.BytesIO(r.data.content)
@@ -125,7 +133,7 @@ class OCIObjectStorageBackend:
 
         try:
             with open(file_name, 'rb') as in_file:
-                self.object_storage_client.put_object(self.namespace, bucket, key, in_file)
+                self.os_client.put_object(self.namespace, bucket, key, in_file)
         except Exception as e:
             logging.error(e)
             return False
@@ -150,7 +158,7 @@ class OCIObjectStorageBackend:
             if dirname and not os.path.exists(dirname):
                 os.makedirs(dirname)
             with open(file_name, 'wb') as out:
-                data_stream = self.object_storage_client.get_object(self.namespace, bucket, key).data.content
+                data_stream = self.os_client.get_object(self.namespace, bucket, key).data.content
                 out.write(data_stream)
         except Exception as e:
             logging.error(e)
@@ -170,7 +178,7 @@ class OCIObjectStorageBackend:
         :rtype: bool
         '''
         try:
-            headobj = self.object_storage_client.head_object(self.namespace, bucket_name, key).headers
+            headobj = self.os_client.head_object(self.namespace, bucket_name, key).headers
             return headobj
         except oci.exceptions.ServiceError:
             raise StorageNoSuchKeyError(bucket_name, key)
@@ -183,7 +191,7 @@ class OCIObjectStorageBackend:
         :param key: The key under which the object is stored
 
         '''
-        self.object_storage_client.delete_object(self.namespace, bucket_name, key)
+        self.os_client.delete_object(self.namespace, bucket_name, key)
 
     def delete_objects(self, bucket_name, keys_list):
         '''
@@ -193,7 +201,7 @@ class OCIObjectStorageBackend:
         :param keys_list: A list of keys under which the objects are stored
         '''
         for key in keys_list:
-            self.object_storage_client.delete_object(self.namespace, bucket_name, key)
+            self.os_client.delete_object(self.namespace, bucket_name, key)
 
     def head_bucket(self, bucket_name):
         '''
@@ -210,7 +218,7 @@ class OCIObjectStorageBackend:
                                  'server': 'OracleStorage'}}
         }
         try:
-            metadata = self.object_storage_client.head_bucket(self.namespace, bucket_name)
+            metadata = self.os_client.head_bucket(self.namespace, bucket_name)
             response['ResponseMetadata']['HTTPStatusCode'] = metadata.status
             return response
         except oci.exceptions.ServiceError:
@@ -229,7 +237,7 @@ class OCIObjectStorageBackend:
         '''
         prefix = '' if prefix is None else prefix
         try:
-            res = self.object_storage_client.list_objects(self.namespace, bucket_name, prefix=prefix, limit=1000, fields="name,size")
+            res = self.os_client.list_objects(self.namespace, bucket_name, prefix=prefix, limit=1000, fields="name,size")
             obj_list = [{'Key': obj.name, 'Size': obj.size} for obj in res.data.objects]
 
             return obj_list
@@ -251,7 +259,7 @@ class OCIObjectStorageBackend:
             objects = []
             next_start = None
             while True:
-                res = self.object_storage_client.list_objects(self.namespace, bucket_name, prefix=prefix, start=next_start)
+                res = self.os_client.list_objects(self.namespace, bucket_name, prefix=prefix, start=next_start)
                 objects.extend(res.data.objects)
                 if res.data.next_start_with is None:
                     break

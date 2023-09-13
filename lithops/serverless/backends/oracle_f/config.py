@@ -94,10 +94,6 @@ def load_config(config_data=None):
             msg = f'"{param}" is mandatory in the "oracle" section of the configuration'
             raise Exception(msg)
 
-    key_file = config_data['oracle']['key_file']
-    if not os.path.isfile(key_file):
-        raise Exception(f"Could not find {key_file} private key")
-
     for param in REQ_PARAMS_2:
         if param not in config_data['oracle_f']:
             msg = f'"{param}" is mandatory in the "oracle_f" section of the configuration'

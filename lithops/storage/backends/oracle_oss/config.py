@@ -35,10 +35,6 @@ def load_config(config_data=None):
             msg = f'"{param}" is mandatory under "oracle" section of the configuration'
             raise Exception(msg)
 
-    key_file = config_data['oracle']['key_file']
-    if not os.path.isfile(key_file):
-        raise Exception(f"Could not find {key_file} private key")
-
     temp = copy.deepcopy(config_data['oracle_oss'])
     config_data['oracle_oss'].update(config_data['oracle'])
     config_data['oracle_oss'].update(temp)
