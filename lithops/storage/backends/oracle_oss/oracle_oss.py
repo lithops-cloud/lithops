@@ -39,7 +39,7 @@ class OCIObjectStorageBackend:
         self.compartment_id = config['compartment_id']
 
         self.object_storage_client = ObjectStorageClient(self.config)
-        self.namespace = self.object_storage_client.get_namespace().data
+        self.namespace = config.get("tenancy_namespace", self.object_storage_client.get_namespace().data)
 
         msg = STORAGE_CLI_MSG.format('Oracle Object Storage')
         logger.info(f"{msg} - Region: {self.region_name}")

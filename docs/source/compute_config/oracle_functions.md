@@ -87,10 +87,10 @@ oracle_f:
 ```
 
 
-Also, remember to login into your Oracle container registry before you build your runtime. This is because runtimes are uploaded to the Oracle container registry. <username> is probably your email address. You can create a new auth token [here](https://cloud.oracle.com/identity/domains/my-profile/auth-tokens)
+Also, remember to login into your Oracle container registry before you build your runtime. This is because runtimes are uploaded to the Oracle container registry. `<username>` is probably your email address. You can create a new auth token [here](https://cloud.oracle.com/identity/domains/my-profile/auth-tokens)
 
 ```
-docker login <region>.ocir.io -u <cr_namespace>/<username> -p <authentication_token>
+docker login <region>.ocir.io -u <tenancy-namespace>/<username> -p <authentication_token>
 ```
 
 ## Summary of configuration keys for Oracle:
@@ -103,7 +103,7 @@ docker login <region>.ocir.io -u <cr_namespace>/<username> -p <authentication_to
 |oracle | tenancy | |yes | Tenancy's OCID from [here](https://cloud.oracle.com/tenancy)|
 |oracle | key_file | |yes | Path to the private key (PEM) file |
 |oracle | compartment_id | |yes | Compartment's ID from [here](https://cloud.oracle.com/identity/compartments)|
-|oracle | namespace_name | |no | Namespace name of your storage account. You cand find it [here](https://cloud.oracle.com/tenancy), under *Object storage namespace*|
+|oracle | tenancy_namespace | |no | Auto-generated Object Storage namespace string of the tenancy. You cand find it [here](https://cloud.oracle.com/tenancy), under *Object storage namespace*|
 
 
 ## Summary of configuration keys for Oracle Functions :

@@ -35,7 +35,7 @@ oracle:
 |oracle | tenancy | |yes | Tenancy's OCID from [here](https://cloud.oracle.com/tenancy)|
 |oracle | key_file | |yes | Path to the private key (PEM) file |
 |oracle | compartment_id | |yes | Compartment's ID from [here](https://cloud.oracle.com/identity/compartments)|
-|oracle | namespace_name | |no | Namespace name of your storage account. You cand find it [here](https://cloud.oracle.com/tenancy), under *Object storage namespace*|
+|oracle | tenancy_namespace | |no | Auto-generated Object Storage namespace string of the tenancy. You cand find it [here](https://cloud.oracle.com/tenancy), under *Object storage namespace*|
 
 ## Summary of configuration keys for Oracle Object Storage Service :
 

@@ -53,7 +53,7 @@ class OracleCloudFunctionsBackend:
         self.cf_client = FunctionsManagementClient(config=self.config)
 
         self.app_id = self._get_application_id(self.app_name)
-        self.namespace_name = oracle_config.get("namespace_name", self._get_namespace())
+        self.namespace = oracle_config.get("tenancy_namespace", self._get_namespace())
 
         self.fn_invoke_client = None
 
@@ -81,7 +81,7 @@ class OracleCloudFunctionsBackend:
         Formats OC image name from runtime name
         """
         if 'ocir.io' not in runtime_name:
-            image_name = f'{self.region}.ocir.io/{self.namespace_name}/{runtime_name}'
+            image_name = f'{self.region}.ocir.io/{self.namespace}/{runtime_name}'
         else:
             image_name = runtime_name
 
@@ -102,7 +102,7 @@ class OracleCloudFunctionsBackend:
             self.name,
             version,
             self.region,
-            self.namespace_name,
+            self.namespace,
             self.app_name,
             function_name
         )
