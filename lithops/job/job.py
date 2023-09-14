@@ -259,8 +259,8 @@ def _create_job(
     # Upload function and data
     upload_function = not config['lithops'].get('customized_runtime', False)
     upload_data = not (
-            (len(str(data_str)) * job.chunksize < 8 * 1204 for data_str in data_strs)
-            and backend in FAAS_BACKENDS
+        (len(str(data_str)) * job.chunksize < 8 * 1204 for data_str in data_strs)
+        and backend in FAAS_BACKENDS
     )
 
     # Upload function and modules

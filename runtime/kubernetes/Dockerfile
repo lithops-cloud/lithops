@@ -22,6 +22,7 @@ RUN pip install --upgrade setuptools six pip \
         flask \
         pika \
         boto3 \
+        ibm-cloud-sdk-core \
         ibm-cos-sdk \
         redis \
         gevent \

@@ -316,7 +316,7 @@ class KubernetesBackend:
         """
         master_ip = self._start_master(docker_image_name)
 
-        workers = job_payload['max_workers']
+        max_workers = job_payload['max_workers']
         executor_id = job_payload['executor_id']
         job_id = job_payload['job_id']
 
@@ -325,7 +325,7 @@ class KubernetesBackend:
 
         total_calls = job_payload['total_calls']
         chunksize = job_payload['chunksize']
-        total_workers = min(workers, total_calls // chunksize + (total_calls % chunksize > 0))
+        total_workers = min(max_workers, total_calls // chunksize + (total_calls % chunksize > 0))
 
         job_res = yaml.safe_load(config.JOB_DEFAULT)
 
@@ -380,6 +380,7 @@ class KubernetesBackend:
 
         container = job_res['spec']['template']['spec']['containers'][0]
         container['image'] = docker_image_name
+        container['imagePullPolicy'] = 'Always'
         container['env'][0]['value'] = 'get_metadata'
         container['env'][1]['value'] = utils.dict_to_b64str(payload)
 
