@@ -41,6 +41,7 @@ RUN pip install --upgrade --ignore-installed setuptools six pip \
         flask \
         pika \
         boto3 \
+        ibm-cloud-sdk-core \
         ibm-cos-sdk \
         redis \
         requests \

@@ -56,8 +56,8 @@ def function_handler(payload):
     job = SimpleNamespace(**payload)
     setup_lithops_logger(job.log_level)
 
-    processes = min(job.worker_processes, len(job.call_ids))
-    logger.info(f'Tasks received: {len(job.call_ids)} - Concurrent processes: {processes}')
+    worker_processes = min(job.worker_processes, len(job.call_ids))
+    logger.info(f'Tasks received: {len(job.call_ids)} - Worker processes: {worker_processes}')
 
     env = job.extra_env
     env['LITHOPS_WORKER'] = 'True'
@@ -69,7 +69,7 @@ def function_handler(payload):
     job.func = get_function_and_modules(job, internal_storage)
     job_data = get_function_data(job, internal_storage)
 
-    if processes == 1:
+    if worker_processes == 1:
         job_queue = queue.Queue()
         for call_id in job.call_ids:
             data = job_data.pop(0)
@@ -86,14 +86,14 @@ def function_handler(payload):
             data = job_data.pop(0)
             job_queue.put((job, call_id, data))
 
-        for i in range(processes):
+        for i in range(worker_processes):
             job_queue.put(ShutdownSentinel())
 
-        for runner_id in range(processes):
+        for runner_id in range(worker_processes):
             p = mp.Process(target=process_runner, args=(job_queue,))
             job_runners.append(p)
             p.start()
-            logger.info('Worker process {} started'.format(runner_id))
+            logger.info(f'Worker process {runner_id} started')
 
         for runner in job_runners:
             runner.join()
@@ -203,8 +203,8 @@ def run_job(job):
 
         if os.path.exists(job.stats_file):
             with open(job.stats_file, 'r') as fid:
-                for l in fid.readlines():
-                    key, value = l.strip().split(" ", 1)
+                for line in fid.readlines():
+                    key, value = line.strip().split(" ", 1)
                     try:
                         call_status.add(key, float(value))
                     except Exception:
