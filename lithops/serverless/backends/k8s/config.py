@@ -33,7 +33,8 @@ FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_k8s.zip')
 
 DOCKERFILE_DEFAULT = """
 RUN apt-get update && apt-get install -y \
-        zip \
+        zip redis-server \
+        && apt-get clean \
         && rm -rf /var/lib/apt/lists/*
 
 RUN pip install --upgrade --ignore-installed setuptools six pip \

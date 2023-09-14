@@ -57,8 +57,14 @@ def get_range(jobkey, total_calls, chunksize):
 
 
 def run_master_server():
+    setup_lithops_logger('DEBUG')
+    # Start Redis Server in the background
+    logger.info("Starting redis server in Master Pod")
+    os.system("redis-server --daemonize yes")
+    logger.info("Redis server started")
+
     proxy.logger.setLevel(logging.DEBUG)
-    proxy.run(debug=True, host='0.0.0.0', port=MASTER_PORT)
+    proxy.run(debug=True, host='0.0.0.0', port=MASTER_PORT, use_reloader=False)
 
 
 def extract_runtime_meta(encoded_payload):

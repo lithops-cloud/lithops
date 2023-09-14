@@ -572,6 +572,15 @@ class KnativeServingBackend:
         finally:
             os.remove(config.FH_ZIP_LOCATION)
 
+        docker_user = self.kn_config.get("docker_user")
+        docker_password = self.kn_config.get("docker_password")
+        docker_server = self.kn_config.get("docker_server")
+
+        if docker_user and docker_password:
+            logger.debug('Container registry credentials found in config. Logging in into the registry')
+            cmd = f'{docker_path} login -u {docker_user} --password-stdin {docker_server}'
+            utils.run_command(cmd, input=docker_password)
+
         logger.debug(f'Pushing runtime {runtime_name} to container registry')
         if utils.is_podman(docker_path):
             cmd = f'{docker_path} push {runtime_name} --format docker --remove-signatures'
