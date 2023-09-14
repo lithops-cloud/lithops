@@ -189,6 +189,7 @@ class IBMCloudFunctionsBackend:
         logger.debug(f'Pushing runtime {docker_image_name} to container registry')
 
         if docker_user and docker_password:
+            logger.debug('Container registry credentials found in config. Logging in into the registry')
             cmd = f'{docker_path} login -u {docker_user} --password-stdin {docker_server}'
             utils.run_command(cmd, input=docker_password)
 
