@@ -22,7 +22,9 @@ import logging
 import flask
 import time
 import requests
+import subprocess
 from functools import partial
+
 
 from lithops.version import __version__
 from lithops.utils import setup_lithops_logger, b64str_to_dict
@@ -57,6 +59,11 @@ def get_range(jobkey, total_calls, chunksize):
 
 
 def run_master_server():
+    # Start Redis Server in the background
+    logger.info("Starting redis server in Master Pod")
+    os.system("redis-server --daemonize yes")
+    logger.info("Redis server started")
+
     proxy.logger.setLevel(logging.DEBUG)
     proxy.run(debug=True, host='0.0.0.0', port=MASTER_PORT)
 
