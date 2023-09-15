@@ -28,6 +28,7 @@ Choose your compute and storage engines from the table below:
 || `Azure Functions <compute_config/azure_functions.html>`_          || `MinIO <storage_config/minio.html>`_                              |
 || `Azure Container Apps <compute_config/azure_containers.html>`_    || `Redis <storage_config/redis.html>`_                              |
 || `Aliyun Function Compute <compute_config/aliyun_functions.html>`_ || `OpenStack Swift <storage_config/swift.html>`_                    |
+|| `Oracle Functions <compute_config/oracle_functions.html>`_        || `Oracle Object Storage <storage_config/oracle_oss.html>`_         |
 || `Kubernetes Jobs <compute_config/k8s_job.html>`_                  ||                                                                   |
 || `Knative <compute_config/knative.html>`_                          ||                                                                   |
 || `OpenWhisk <compute_config/openwhisk.html>`_                      ||                                                                   |
@@ -48,7 +49,10 @@ you have multiple options:
 2. Create a new file called ``.lithops_config`` in the root directory of your project from where you will execute your
    Lithops scripts.
 
-3. Create the config file in any other location and configure the `LITHOPS_CONFIG_FILE` system environment variable
+3. Create a new file called `config` in the `/etc/lithops/` folder (i.e: `/etc/lithops/config`).
+Useful for sharing the config file on multi-user machines.
+
+4. Create the config file in any other location and configure the `LITHOPS_CONFIG_FILE` system environment variable
 indicating the absolute or relative location of the configuration file:
 
 .. code-block::
@@ -73,8 +77,7 @@ Here is an example of providing configuration keys for IBM Cloud Functions and I
               'ibm': {'region': 'REGION',
                       'iam_api_key': 'IAM_API_KEY',
                       'resource_group_id': 'RESOURCE_GROUP_ID'}
-              'ibm_cos': {'api_key': 'API_KEY',
-                          'storage_bucket': 'STORAGE_BUCKET'}}
+              'ibm_cos': {'storage_bucket': 'STORAGE_BUCKET'}}
 
     def hello_world(name):
         return 'Hello {}!'.format(name)

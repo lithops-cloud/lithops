@@ -49,11 +49,11 @@ def get_range(jobkey, total_calls, chunksize):
     range_end = min(range_start + int(chunksize), int(total_calls))
     JOB_INDEXES[jobkey] = range_end
 
-    call_id = "-1" if range_start == int(total_calls) else f'{range_start}-{range_end}'
+    range = "-1" if range_start == int(total_calls) else f'{range_start}-{range_end}'
     remote_host = flask.request.remote_addr
-    proxy.logger.info(f'Sending ID {call_id} to Host {remote_host}')
+    proxy.logger.info(f'Sending range "{range}" to Host {remote_host}')
 
-    return call_id
+    return range
 
 
 def run_master_server():
