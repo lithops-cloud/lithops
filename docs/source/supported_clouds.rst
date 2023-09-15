@@ -82,8 +82,22 @@ Currently, Lithops for Alibaba Cloud (Aliyun) supports these backends:
 
    * - Compute
      - Storage
-   * - `Aliyun Functions Compute <https://www.alibabacloud.com/help/product/50980.htm>`_
-     - `Aliyun Object Storage Service <https://www.alibabacloud.com/help/product/31815.htm>`_
+   * - `Aliyun Functions Compute <https://www.alibabacloud.com/help/en/fc/>`_
+     - `Aliyun Object Storage Service <https://www.alibabacloud.com/help/en/oss/>`_
+
+Oracle Cloud
+--------------
+Oracle Cloud is a cloud computing service offered by Oracle Corporation providing servers, storage, network, applications and services through a global network of Oracle Corporation managed data centers. 
+
+Currently, Lithops for Oracle Cloud supports these backends:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Compute
+     - Storage
+   * - `Oracle Functions <https://docs.oracle.com/en-us/iaas/Content/Functions/home.htm>`_
+     - `Oracle Object Storage <https://docs.oracle.com/en-us/iaas/Content/Object/Concepts/objectstorageoverview.htm>`_
 
 Kubernetes & On-premise
 -----------------------
