@@ -1,1 +1,0 @@
-from .k8s_v2 import KubernetesV2Backend as ServerlessBackend

@@ -55,7 +55,7 @@ def run_job(payload, job_index, running_jobs):
 
     act_id = str(uuid.uuid4()).replace('-', '')[:12]
     os.environ['__LITHOPS_ACTIVATION_ID'] = act_id
-    os.environ['__LITHOPS_BACKEND'] = 'k8s_v2'
+    os.environ['__LITHOPS_BACKEND'] = 'k8s_rabbitmq'
 
     logger.info("Activation ID: {} - Job Index: {}".format(act_id, job_index))
     

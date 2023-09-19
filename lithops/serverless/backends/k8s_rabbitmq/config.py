@@ -28,7 +28,7 @@ DEFAULT_CONFIG_KEYS = {
 DEFAULT_GROUP = "batch"
 DEFAULT_VERSION = "v1"
 
-FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_k8s_v2.zip')
+FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_k8s_rabbitmq.zip')
 
 
 DOCKERFILE_DEFAULT = """
@@ -57,8 +57,8 @@ ENV PYTHONUNBUFFERED TRUE
 ENV APP_HOME /lithops
 WORKDIR $APP_HOME
 
-COPY lithops_k8s_v2.zip .
-RUN unzip lithops_k8s_v2.zip && rm lithops_k8s_v2.zip
+COPY lithops_k8s_rabbitmq.zip .
+RUN unzip lithops_k8s_rabbitmq.zip && rm lithops_k8s_rabbitmq.zip
 """
 
 JOB_DEFAULT = """
@@ -130,11 +130,11 @@ spec:
 
 def load_config(config_data):
     for key in DEFAULT_CONFIG_KEYS:
-        if key not in config_data['k8s_v2']:
-            config_data['k8s_v2'][key] = DEFAULT_CONFIG_KEYS[key]
+        if key not in config_data['k8s_rabbitmq']:
+            config_data['k8s_rabbitmq'][key] = DEFAULT_CONFIG_KEYS[key]
 
-    if 'runtime' in config_data['k8s_v2']:
-        runtime = config_data['k8s_v2']['runtime']
-        registry = config_data['k8s_v2']['docker_server']
+    if 'runtime' in config_data['k8s_rabbitmq']:
+        runtime = config_data['k8s_rabbitmq']['runtime']
+        registry = config_data['k8s_rabbitmq']['docker_server']
         if runtime.count('/') == 1 and registry not in runtime:
-            config_data['k8s_v2']['runtime'] = f'{registry}/{runtime}'
+            config_data['k8s_rabbitmq']['runtime'] = f'{registry}/{runtime}'

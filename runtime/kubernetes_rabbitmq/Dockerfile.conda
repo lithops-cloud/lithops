@@ -47,5 +47,5 @@ ENV PYTHONUNBUFFERED TRUE
 ENV APP_HOME /lithops
 WORKDIR $APP_HOME
 
-COPY lithops_k8_v2s.zip .
-RUN unzip lithops_k8_v2s.zip && rm lithops_k8_v2s.zip
+COPY lithops_k8s_rabbitmq.zip .
+RUN unzip lithops_k8s_rabbitmq.zip && rm lithops_k8s_rabbitmq.zip

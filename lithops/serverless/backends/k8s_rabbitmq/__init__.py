@@ -1,0 +1,1 @@
+from .k8s_rabbitmq import KubernetesRabbitMQBackend as ServerlessBackend

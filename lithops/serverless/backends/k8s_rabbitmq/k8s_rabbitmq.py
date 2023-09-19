@@ -40,14 +40,14 @@ logger = logging.getLogger(__name__)
 urllib3.disable_warnings()
 
 
-class KubernetesV2Backend:
+class KubernetesRabbitMQBackend:
     """
     A wrap-up around Code Engine backend.
     """
 
     def __init__(self, k8s_config, internal_storage):
-        logger.debug("Creating Kubernetes v2 Job client")
-        self.name = 'k8s_v2'
+        logger.debug("Creating Kubernetes RabbitMQ Job client")
+        self.name = 'k8s_rabbitmq'
         self.type = 'batch'
         self.k8s_config = k8s_config
         self.internal_storage = internal_storage
@@ -122,7 +122,7 @@ class KubernetesV2Backend:
         Builds the default runtime
         """
         # Build default runtime using local dokcer
-        dockerfile = "Dockefile.default-k8s_v2-runtime"
+        dockerfile = "Dockefile.default-k8s_rabbitmq-runtime"
         with open(dockerfile, 'w') as f:
             f.write(f"FROM python:{utils.CURRENT_PY_VERSION}-slim-buster\n")
             f.write(config.DOCKERFILE_DEFAULT)
