@@ -251,9 +251,28 @@ class KubernetesRabbitMQBackend:
         for node in list_nodes.items:
             if  node.spec.taints : # if master node: continue
                 continue
+            
+            if isinstance(node.status.allocatable['cpu'], str) and 'm' in node.status.allocatable['cpu']:
+                # Extract the number part and convert it to an integer
+                number_match = re.search(r'\d+', node.status.allocatable['cpu'])
+                if number_match:
+                    number = int(number_match.group())
+                    
+                    # Round to the nearest whole number of CPUs - 1
+                    cpu_info = round(number / 1000) - 1
+
+                    if cpu_info < 1:
+                        cpu_info = 0
+                else:
+                    # Handle the case where 'm' is present but no number is found
+                    cpu_info = 0
+            else:
+                # If it's not a string or doesn't contain 'm', assume it's already in the desired format
+                cpu_info = node.status.allocatable['cpu']
+
             final_list_nodes.append({
                             "name":node.metadata.name,  
-                            "cpu":node.status.allocatable['cpu'],
+                            "cpu":cpu_info,
                             "memory":node.status.allocatable['memory']
                         })
         return final_list_nodes
