@@ -1,8 +1,8 @@
 # Kubernetes v2 (batch/job)
 
-Lithops with kubernetes as serverless compute backend.
+**Lithops for Kubernetes (Lithops K8s)** introduces an innovative architectural approach for deploying and executing functions within a Kubernetes environment. This version is designed to maximize resource utilization and performance by creating a dedicated pod for each cluster node, streamlining function execution through a single RabbitMQ invocation, and implementing various internal optimizations.
 
-This new release represents a highly optimized and efficient iteration of Kubernetes, leveraging advanced parallelization and process optimization techniques to improve task execution.
+With this enhanced architecture, users can harness significantly improved parallelism and resource efficiency, making it easier to leverage the full computational capabilities of their Kubernetes cluster.
 
 
 ## Configuration
