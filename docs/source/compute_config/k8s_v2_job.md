@@ -1,8 +1,18 @@
-# Kubernetes v2 (batch/job)
+# Kubernetes RabbitMQ (batch/job)
 
-**Lithops for Kubernetes (Lithops K8s)** introduces an innovative architectural approach for deploying and executing functions within a Kubernetes environment. This version is designed to maximize resource utilization and performance by creating a dedicated pod for each cluster node, streamlining function execution through a single RabbitMQ invocation, and implementing various internal optimizations.
+**Lithops for Kubernetes RabbitMQ (Lithops K8s-r)** introduces an innovative architectural approach for deploying and executing functions within a Kubernetes environment. This version is designed to maximize resource utilization and performance, providing users with an efficient and streamlined way to harness the full computational capabilities of their Kubernetes cluster.
 
-With this enhanced architecture, users can harness significantly improved parallelism and resource efficiency, making it easier to leverage the full computational capabilities of their Kubernetes cluster.
+Lithops K8s RabbitMQ serves as an **experimental backend** that aims to accelerate parallel programming workflows. By leveraging this cutting-edge technology, users can take advantage of several key benefits over the previous version of Lithops:
+
+### Advantages of Lithops K8s
+
+* **Improved Cold Start Time:** Lithops K8s-r offers a significant enhancement in cold start time, effectively reducing the delay before your functions start executing. This improvement can lead to quicker response times and increased overall efficiency.
+
+* **Warm Start Capability:** Unlike K8s predecessor, Lithops K8s RabbitMQ introduces the ability to perform warm starts. This means that previously executed functions can be cached and reused, further reducing execution time and resource utilization.
+
+* **Efficient Function Invocation:** With Lithops K8s-r, you can execute multiple functions with just a single RabbitMQ invocation. This optimization minimizes overhead and simplifies the process of invoking functions, making your applications more responsive and resource-efficient.
+
+* **Accelerated Parallel Programming:** Lithops K8s-r is specifically designed to accelerate parallel programming tasks. It maximizes resource utilization by creating dedicated pods for each cluster node, allowing for parallel execution of functions across the Kubernetes cluster. This approach results in improved parallelism and resource efficiency, enabling you to make the most of your cluster's computational capabilities.
 
 
 ## Configuration
