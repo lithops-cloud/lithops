@@ -52,29 +52,29 @@ class KubernetesBackend:
         self.k8s_config = k8s_config
         self.internal_storage = internal_storage
 
-        self.kubecfg_path = k8s_config.get('kubecfg_path', KUBE_CONFIG_DEFAULT_LOCATION)
+        self.kubecfg_path = os.path.expanduser(k8s_config.get('kubecfg_path', KUBE_CONFIG_DEFAULT_LOCATION))
         self.kubecfg_context = k8s_config.get('kubecfg_context', 'default')
         self.namespace = k8s_config.get('namespace', 'default')
         self.cluster = k8s_config.get('cluster', 'default')
         self.master_name = k8s_config.get('master_name', config.MASTER_NAME)
 
-        try:
+        if os.path.exists(self.kubecfg_path):
             logger.debug(f"Loading kubeconfig file: {self.kubecfg_path} - Context: {self.kubecfg_context}")
             context = None if self.kubecfg_context == 'default' else self.kubecfg_context
             load_kube_config(config_file=self.kubecfg_path, context=context)
             contexts, current_context = list_kube_config_contexts(config_file=self.kubecfg_path)
-            current_context = current_context if context is None else [it for it in contexts if it['name'] == context]
+            current_context = current_context if context is None else [it for it in contexts if it['name'] == context][0]
             ctx_name = current_context.get('name')
             ctx_context = current_context.get('context')
             self.namespace = ctx_context.get('namespace', 'default')
             self.cluster = ctx_context.get('cluster')
+            self.user = ctx_context.get('user')
             if self.master_name == config.MASTER_NAME:
-                user = ctx_context.get('user', '')
-                user_hash = hashlib.sha1(user.encode()).hexdigest()[:6]
+                user_hash = hashlib.sha1(self.user.encode()).hexdigest()[:6]
                 self.master_name = f'{config.MASTER_NAME}-{user_hash}'
             logger.debug(f"Using kubeconfig conetxt: {ctx_name} - cluster: {self.cluster} - namespace: {self.namespace}")
             self.is_incluster = False
-        except Exception:
+        else:
             logger.debug('kubeconfig file not found, loading incluster config')
             load_incluster_config()
             self.is_incluster = True
