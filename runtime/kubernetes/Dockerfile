@@ -14,7 +14,7 @@
 FROM python:3.10-slim-buster
 
 RUN apt-get update && apt-get install -y \
-        zip redis-server \
+        zip redis-server curl \
         && apt-get clean \
         && rm -rf /var/lib/apt/lists/*
 

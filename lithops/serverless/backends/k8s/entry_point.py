@@ -31,17 +31,16 @@ from lithops.worker.utils import get_runtime_metadata
 from lithops.constants import JOBS_PREFIX
 from lithops.storage.storage import InternalStorage
 
+from lithops.serverless.backends.k8s import config
 
 logger = logging.getLogger('lithops.worker')
 
 proxy = flask.Flask(__name__)
 
-MASTER_PORT = 8080
-
 JOB_INDEXES = {}
 
 
-@proxy.route('/getrange/<jobkey>/<total_calls>/<chunksize>', methods=['GET'])
+@proxy.route('/get-range/<jobkey>/<total_calls>/<chunksize>', methods=['GET'])
 def get_range(jobkey, total_calls, chunksize):
     global JOB_INDEXES
 
@@ -57,22 +56,17 @@ def get_range(jobkey, total_calls, chunksize):
 
 
 def run_master_server():
-    setup_lithops_logger('DEBUG')
     # Start Redis Server in the background
     logger.info("Starting redis server in Master Pod")
-    os.system("redis-server --daemonize yes")
+    os.system("redis-server --bind 0.0.0.0 --daemonize yes")
     logger.info("Redis server started")
 
     proxy.logger.setLevel(logging.DEBUG)
-    proxy.run(debug=True, host='0.0.0.0', port=MASTER_PORT, use_reloader=False)
+    proxy.run(debug=True, host='0.0.0.0', port=config.MASTER_PORT, use_reloader=False)
 
 
-def extract_runtime_meta(encoded_payload):
+def extract_runtime_meta(payload):
     logger.info(f"Lithops v{__version__} - Generating metadata")
-
-    payload = b64str_to_dict(encoded_payload)
-
-    setup_lithops_logger(payload['log_level'])
 
     runtime_meta = get_runtime_metadata()
 
@@ -83,10 +77,7 @@ def extract_runtime_meta(encoded_payload):
     internal_storage.put_data(status_key, dmpd_response_status)
 
 
-def run_job(encoded_payload):
-    payload = b64str_to_dict(encoded_payload)
-    setup_lithops_logger(payload['log_level'])
-
+def run_job(payload):
     logger.info(f"Lithops v{__version__} - Starting kubernetes execution")
 
     os.environ['__LITHOPS_ACTIVATION_ID'] = str(uuid.uuid4()).replace('-', '')[:12]
@@ -110,7 +101,8 @@ def run_job(encoded_payload):
 
         while call_ids_range is None:
             try:
-                url = f'http://{master_ip}:{MASTER_PORT}/getrange/{job_key}/{total_calls}/{chunksize}'
+                server = f'http://{master_ip}:{config.MASTER_PORT}'
+                url = f'{server}/get-range/{job_key}/{total_calls}/{chunksize}'
                 res = requests.get(url)
                 call_ids_range = res.text  # for example: 0-5
             except Exception:
@@ -135,9 +127,12 @@ if __name__ == '__main__':
     action = sys.argv[1]
     encoded_payload = sys.argv[2]
 
+    payload = b64str_to_dict(encoded_payload)
+    setup_lithops_logger(payload.get('log_level', 'INFO'))
+
     switcher = {
-        'get_metadata': partial(extract_runtime_meta, encoded_payload),
-        'run_job': partial(run_job, encoded_payload),
+        'get_metadata': partial(extract_runtime_meta, payload),
+        'run_job': partial(run_job, payload),
         'run_master': run_master_server
     }
 

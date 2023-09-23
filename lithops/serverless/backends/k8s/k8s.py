@@ -24,7 +24,9 @@ import time
 import yaml
 import urllib3
 from kubernetes import client, watch
-from kubernetes.config import load_kube_config, load_incluster_config, list_kube_config_contexts
+from kubernetes.config import load_kube_config, \
+    load_incluster_config, list_kube_config_contexts, \
+    KUBE_CONFIG_DEFAULT_LOCATION
 from kubernetes.client.rest import ApiException
 
 from lithops import utils
@@ -44,45 +46,54 @@ class KubernetesBackend:
     """
 
     def __init__(self, k8s_config, internal_storage):
-        logger.debug("Creating Kubernetes Job client")
+        logger.debug("Creating Kubernetes client")
         self.name = 'k8s'
         self.type = 'batch'
         self.k8s_config = k8s_config
         self.internal_storage = internal_storage
 
-        self.kubecfg_path = k8s_config.get('kubecfg_path')
-        self.user_agent = k8s_config['user_agent']
+        self.kubecfg_path = k8s_config.get('kubecfg_path', KUBE_CONFIG_DEFAULT_LOCATION)
+        self.kubecfg_context = k8s_config.get('kubecfg_context', 'default')
+        self.namespace = k8s_config.get('namespace', 'default')
+        self.cluster = k8s_config.get('cluster', 'default')
+        self.master_name = k8s_config.get('master_name', config.MASTER_NAME)
 
         try:
-            load_kube_config(config_file=self.kubecfg_path)
-            contexts = list_kube_config_contexts(config_file=self.kubecfg_path)
-            current_context = contexts[1].get('context')
-            self.namespace = current_context.get('namespace', 'default')
-            self.cluster = current_context.get('cluster')
-            self.k8s_config['namespace'] = self.namespace
-            self.k8s_config['cluster'] = self.cluster
+            logger.debug(f"Loading kubeconfig file: {self.kubecfg_path} - Context: {self.kubecfg_context}")
+            context = None if self.kubecfg_context == 'default' else self.kubecfg_context
+            load_kube_config(config_file=self.kubecfg_path, context=context)
+            contexts, current_context = list_kube_config_contexts(config_file=self.kubecfg_path)
+            current_context = current_context if context is None else [it for it in contexts if it['name'] == context]
+            ctx_name = current_context.get('name')
+            ctx_context = current_context.get('context')
+            self.namespace = ctx_context.get('namespace', 'default')
+            self.cluster = ctx_context.get('cluster')
+            if self.master_name == config.MASTER_NAME:
+                user = ctx_context.get('user', '')
+                user_hash = hashlib.sha1(user.encode()).hexdigest()[:6]
+                self.master_name = f'{config.MASTER_NAME}-{user_hash}'
+            logger.debug(f"Using kubeconfig conetxt: {ctx_name} - cluster: {self.cluster} - namespace: {self.namespace}")
             self.is_incluster = False
         except Exception:
-            logger.debug('Loading incluster config')
+            logger.debug('kubeconfig file not found, loading incluster config')
             load_incluster_config()
-            self.namespace = self.k8s_config.get('namespace', 'default')
-            self.cluster = self.k8s_config.get('cluster', 'default')
             self.is_incluster = True
 
-        logger.debug(f"Set namespace to {self.namespace}")
-        logger.debug(f"Set cluster to {self.cluster}")
+        self.k8s_config['namespace'] = self.namespace
+        self.k8s_config['cluster'] = self.cluster
+        self.k8s_config['master_name'] = self.master_name
 
         self.batch_api = client.BatchV1Api()
         self.core_api = client.CoreV1Api()
 
         self.jobs = []  # list to store executed jobs (job_keys)
 
-        msg = COMPUTE_CLI_MSG.format('Kubernetes Job')
+        msg = COMPUTE_CLI_MSG.format('Kubernetes')
         logger.info(f"{msg} - Namespace: {self.namespace}")
 
     def _format_job_name(self, runtime_name, runtime_memory, version=__version__):
         name = f'{runtime_name}-{runtime_memory}-{version}'
-        name_hash = hashlib.sha1(name.encode("utf-8")).hexdigest()[:10]
+        name_hash = hashlib.sha1(name.encode()).hexdigest()[:10]
 
         return f'lithops-worker-{version.replace(".", "")}-{name_hash}'
 
@@ -227,7 +238,7 @@ class KubernetesBackend:
         try:
             jobs = self.batch_api.list_namespaced_job(namespace=self.namespace)
             for job in jobs.items:
-                if job.metadata.labels['type'] == 'lithops-runtime'\
+                if job.metadata.labels['type'] == 'lithops-worker'\
                    and (job.status.completion_time is not None or all):
                     job_name = job.metadata.name
                     logger.debug(f'Deleting job {job_name}')
@@ -239,6 +250,13 @@ class KubernetesBackend:
                         )
                     except Exception:
                         pass
+
+            self.core_api.delete_namespaced_pod(
+                name=self.master_name,
+                namespace=self.namespace,
+                propagation_policy='Background'
+            )
+
         except ApiException:
             pass
 
@@ -257,7 +275,7 @@ class KubernetesBackend:
                     namespace=self.namespace,
                     propagation_policy='Background'
                 )
-            except Exception:
+            except ApiException:
                 pass
             try:
                 self.jobs.remove(job_key)
@@ -270,53 +288,87 @@ class KubernetesBackend:
         return: list of tuples (docker_image_name, memory)
         """
         logger.debug('Listing runtimes')
-        logger.debug('Note that k8s job backend does not manage runtimes')
+        logger.debug('Note that this backend does not manage runtimes')
         return []
 
     def _start_master(self, docker_image_name):
 
-        job_name = 'lithops-master'
+        def get_master_ip():
+            try:
+                pod = self.core_api.read_namespaced_pod_status(self.master_name, self.namespace)
+                if pod.status.phase == 'Running':
+                    return pod.status.pod_ip
+                return False
+            except ApiException:
+                return False
 
-        master_pods = self.core_api.list_namespaced_pod(
-            namespace=self.namespace,
-            label_selector=f"job-name={job_name}"
-        )
+        master_ip = get_master_ip()
 
-        if len(master_pods.items) > 0:
-            return master_pods.items[0].status.pod_ip
+        if master_ip:
+            return master_ip
 
         logger.debug('Starting Lithops master Pod')
+
+        def wait_for_pod_deletion(timeout_seconds=60):
+            start_time = time.time()
+            while True:
+                try:
+                    self.core_api.read_namespaced_pod(
+                        self.master_name, self.namespace
+                    )
+                except ApiException as e:
+                    if e.status == 404:
+                        break
+                    else:
+                        raise e
+                elapsed_time = time.time() - start_time
+                if elapsed_time >= timeout_seconds:
+                    raise TimeoutError(
+                        "Timed out waiting for pod "
+                        f"{self.master_name} to be deleted")
+                time.sleep(1)
+
         try:
-            self.batch_api.delete_namespaced_job(
-                name=job_name,
+            self.core_api.delete_namespaced_pod(
+                name=self.master_name,
                 namespace=self.namespace,
                 propagation_policy='Background'
             )
-            time.sleep(2)
-        except Exception as e:
-            pass
+            wait_for_pod_deletion()
+        except ApiException as e:
+            if e.status == 404:
+                pass
+            else:
+                raise e
 
-        job_res = yaml.safe_load(config.JOB_DEFAULT)
-        job_res['metadata']['name'] = job_name
-        job_res['metadata']['namespace'] = self.namespace
-        container = job_res['spec']['template']['spec']['containers'][0]
+        master_res = yaml.safe_load(config.POD_DEFAULT)
+        master_res['metadata']['name'] = self.master_name
+        master_res['metadata']['namespace'] = self.namespace
+        master_res['metadata']['labels']['version'] = 'lithops_v' + __version__
+
+        container = master_res['spec']['containers'][0]
         container['image'] = docker_image_name
         container['env'][0]['value'] = 'run_master'
 
+        payload = {'log_level': 'DEBUG'}
+        container['env'][1]['value'] = utils.dict_to_b64str(payload)
+
         try:
-            self.batch_api.create_namespaced_job(
+            self.core_api.create_namespaced_pod(
                 namespace=self.namespace,
-                body=job_res
+                body=master_res
             )
-        except Exception as e:
+        except ApiException as e:
             raise e
 
-        w = watch.Watch()
-        for event in w.stream(self.core_api.list_namespaced_pod,
-                              namespace=self.namespace,
-                              label_selector=f"job-name={job_name}"):
-            if event['object'].status.phase == "Running":
-                return event['object'].status.pod_ip
+        logger.debug('Waiting Lithops master pod to be ready')
+        master_ip = False
+        while not master_ip:
+            master_ip = get_master_ip()
+            if not master_ip:
+                time.sleep(1)
+
+        return master_ip
 
     def invoke(self, docker_image_name, runtime_memory, job_payload):
         """
@@ -336,10 +388,9 @@ class KubernetesBackend:
         chunksize = job_payload['chunksize']
         total_workers = min(max_workers, total_calls // chunksize + (total_calls % chunksize > 0))
 
-        job_res = yaml.safe_load(config.JOB_DEFAULT)
-
         activation_id = f'lithops-{job_key.lower()}'
 
+        job_res = yaml.safe_load(config.JOB_DEFAULT)
         job_res['metadata']['name'] = activation_id
         job_res['metadata']['namespace'] = self.namespace
         job_res['metadata']['labels']['version'] = 'lithops_v' + __version__
@@ -361,14 +412,15 @@ class KubernetesBackend:
         container['resources']['limits']['memory'] = f'{runtime_memory}Mi'
         container['resources']['limits']['cpu'] = str(self.k8s_config['runtime_cpu'])
 
-        logger.debug('ExecutorID {} | JobID {} - Going '
-                     'to run {} activations in {} workers'
-                     .format(executor_id, job_id, total_calls, total_workers))
+        logger.debug(f'ExecutorID {executor_id} | JobID {job_id} - Going '
+                     f'to run {total_calls} activations in {total_workers} workers')
 
         try:
-            self.batch_api.create_namespaced_job(namespace=self.namespace,
-                                                 body=job_res)
-        except Exception as e:
+            self.batch_api.create_namespaced_job(
+                namespace=self.namespace,
+                body=job_res
+            )
+        except ApiException as e:
             raise e
 
         return activation_id
@@ -465,7 +517,7 @@ class KubernetesBackend:
         in order to know which runtimes are installed and which not.
         """
         jobdef_name = self._format_job_name(docker_image_name, 256, version)
-        runtime_key = os.path.join(self.name, version, self.namespace, jobdef_name)
+        runtime_key = os.path.join(self.name, version, self.cluster, self.namespace, jobdef_name)
 
         return runtime_key
 
