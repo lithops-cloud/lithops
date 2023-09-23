@@ -42,7 +42,7 @@ urllib3.disable_warnings()
 
 class KubernetesBackend:
     """
-    A wrap-up around Code Engine backend.
+    A wrap-up around Kubernetes backend.
     """
 
     def __init__(self, k8s_config, internal_storage):
@@ -229,14 +229,17 @@ class KubernetesBackend:
         """
         pass
 
-    def clean(self, all=False, **kwargs):
+    def clean(self, all=False):
         """
         Deletes all jobs
         """
-        logger.debug('Cleaning kubernetes Jobs')
+        logger.debug('Cleaning lithops resources in kubernetes')
 
         try:
-            jobs = self.batch_api.list_namespaced_job(namespace=self.namespace)
+            jobs = self.batch_api.list_namespaced_job(
+                namespace=self.namespace,
+                label_selector=f'user={self.user}'
+            )
             for job in jobs.items:
                 if job.metadata.labels['type'] == 'lithops-worker'\
                    and (job.status.completion_time is not None or all):
@@ -248,14 +251,19 @@ class KubernetesBackend:
                             namespace=self.namespace,
                             propagation_policy='Background'
                         )
-                    except Exception:
+                    except ApiException:
                         pass
 
-            self.core_api.delete_namespaced_pod(
-                name=self.master_name,
-                namespace=self.namespace,
-                propagation_policy='Background'
-            )
+            try:
+                self.core_api.read_namespaced_pod_status(self.master_name, self.namespace)
+                logger.debug(f'Deleting master pod {self.master_name}')
+                self.core_api.delete_namespaced_pod(
+                    name=self.master_name,
+                    namespace=self.namespace,
+                    propagation_policy='Background'
+                )
+            except ApiException:
+                pass
 
         except ApiException:
             pass
@@ -345,6 +353,7 @@ class KubernetesBackend:
         master_res['metadata']['name'] = self.master_name
         master_res['metadata']['namespace'] = self.namespace
         master_res['metadata']['labels']['version'] = 'lithops_v' + __version__
+        master_res['metadata']['labels']['user'] = self.user
 
         container = master_res['spec']['containers'][0]
         container['image'] = docker_image_name
@@ -352,6 +361,9 @@ class KubernetesBackend:
 
         payload = {'log_level': 'DEBUG'}
         container['env'][1]['value'] = utils.dict_to_b64str(payload)
+
+        if not all(key in self.k8s_config for key in ["docker_user", "docker_password"]):
+            del master_res['spec']['imagePullSecrets']
 
         try:
             self.core_api.create_namespaced_pod(
@@ -394,6 +406,7 @@ class KubernetesBackend:
         job_res['metadata']['name'] = activation_id
         job_res['metadata']['namespace'] = self.namespace
         job_res['metadata']['labels']['version'] = 'lithops_v' + __version__
+        job_res['metadata']['labels']['user'] = self.user
 
         job_res['spec']['activeDeadlineSeconds'] = self.k8s_config['runtime_timeout']
         job_res['spec']['parallelism'] = total_workers
@@ -414,6 +427,9 @@ class KubernetesBackend:
 
         logger.debug(f'ExecutorID {executor_id} | JobID {job_id} - Going '
                      f'to run {total_calls} activations in {total_workers} workers')
+
+        if not all(key in self.k8s_config for key in ["docker_user", "docker_password"]):
+            del job_res['spec']['template']['spec']['imagePullSecrets']
 
         try:
             self.batch_api.create_namespaced_job(
@@ -438,6 +454,8 @@ class KubernetesBackend:
         job_res = yaml.safe_load(config.JOB_DEFAULT)
         job_res['metadata']['name'] = meta_job_name
         job_res['metadata']['namespace'] = self.namespace
+        job_res['metadata']['labels']['version'] = 'lithops_v' + __version__
+        job_res['metadata']['labels']['user'] = self.user
 
         container = job_res['spec']['template']['spec']['containers'][0]
         container['image'] = docker_image_name
@@ -454,7 +472,7 @@ class KubernetesBackend:
                 name=meta_job_name,
                 propagation_policy='Background'
             )
-        except Exception as e:
+        except ApiException as e:
             pass
 
         try:
@@ -462,17 +480,15 @@ class KubernetesBackend:
                 namespace=self.namespace,
                 body=job_res
             )
-        except Exception as e:
+        except ApiException as e:
             raise e
 
         logger.debug("Waiting for runtime metadata")
 
-        done = False
-        failed = False
-
+        done = failed = False
+        w = watch.Watch()
         while not (done or failed):
             try:
-                w = watch.Watch()
                 for event in w.stream(self.batch_api.list_namespaced_job,
                                       namespace=self.namespace,
                                       field_selector=f"metadata.name={meta_job_name}",
@@ -480,10 +496,9 @@ class KubernetesBackend:
                     failed = event['object'].status.failed
                     done = event['object'].status.succeeded
                     logger.debug('...')
-                    if done or failed:
-                        w.stop()
             except Exception as e:
                 pass
+        w.stop()
 
         if done:
             logger.debug("Runtime metadata generated successfully")
@@ -494,7 +509,7 @@ class KubernetesBackend:
                 name=meta_job_name,
                 propagation_policy='Background'
             )
-        except Exception as e:
+        except ApiException as e:
             pass
 
         if failed:

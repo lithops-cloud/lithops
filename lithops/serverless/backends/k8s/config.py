@@ -74,6 +74,7 @@ metadata:
   labels:
     type: lithops-worker
     version: lithops_vX.X.X
+    user: lithops-user
 spec:
   activeDeadlineSeconds: 600
   ttlSecondsAfterFinished: 60
@@ -121,6 +122,7 @@ metadata:
   labels:
     type: lithops-worker
     version: lithops_vX.X.X
+    user: lithops-user
 spec:
   activeDeadlineSeconds: 600
   containers:
