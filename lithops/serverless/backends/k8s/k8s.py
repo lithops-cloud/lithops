@@ -253,18 +253,6 @@ class KubernetesBackend:
                         )
                     except ApiException:
                         pass
-
-            try:
-                self.core_api.read_namespaced_pod_status(self.master_name, self.namespace)
-                logger.debug(f'Deleting master pod {self.master_name}')
-                self.core_api.delete_namespaced_pod(
-                    name=self.master_name,
-                    namespace=self.namespace,
-                    propagation_policy='Background'
-                )
-            except ApiException:
-                pass
-
         except ApiException:
             pass
 
@@ -301,61 +289,32 @@ class KubernetesBackend:
 
     def _start_master(self, docker_image_name):
 
-        def get_master_ip():
-            try:
-                pod = self.core_api.read_namespaced_pod_status(self.master_name, self.namespace)
-                if pod.status.phase == 'Running':
-                    return pod.status.pod_ip
-                return False
-            except ApiException:
-                return False
+        master_pod = self.core_api.list_namespaced_pod(
+            namespace=self.namespace,
+            label_selector=f"job-name={self.master_name}"
+        )
 
-        master_ip = get_master_ip()
-
-        if master_ip:
-            return master_ip
+        if len(master_pod.items) > 0:
+            return master_pod.items[0].status.pod_ip
 
         logger.debug('Starting Lithops master Pod')
-
-        def wait_for_pod_deletion(timeout_seconds=60):
-            start_time = time.time()
-            while True:
-                try:
-                    self.core_api.read_namespaced_pod(
-                        self.master_name, self.namespace
-                    )
-                except ApiException as e:
-                    if e.status == 404:
-                        break
-                    else:
-                        raise e
-                elapsed_time = time.time() - start_time
-                if elapsed_time >= timeout_seconds:
-                    raise TimeoutError(
-                        "Timed out waiting for pod "
-                        f"{self.master_name} to be deleted")
-                time.sleep(1)
-
         try:
-            self.core_api.delete_namespaced_pod(
+            self.batch_api.delete_namespaced_job(
                 name=self.master_name,
                 namespace=self.namespace,
                 propagation_policy='Background'
             )
-            wait_for_pod_deletion()
+            time.sleep(2)
         except ApiException as e:
-            if e.status == 404:
-                pass
-            else:
-                raise e
+            pass
 
-        master_res = yaml.safe_load(config.POD_DEFAULT)
+        master_res = yaml.safe_load(config.JOB_DEFAULT)
         master_res['metadata']['name'] = self.master_name
         master_res['metadata']['namespace'] = self.namespace
         master_res['metadata']['labels']['version'] = 'lithops_v' + __version__
         master_res['metadata']['labels']['user'] = self.user
 
-        container = master_res['spec']['containers'][0]
+        container = master_res['spec']['template']['spec']['containers'][0]
         container['image'] = docker_image_name
         container['env'][0]['value'] = 'run_master'
 
@@ -366,7 +325,7 @@ class KubernetesBackend:
             del master_res['spec']['imagePullSecrets']
 
         try:
-            self.core_api.create_namespaced_pod(
+            self.batch_api.create_namespaced_job(
                 namespace=self.namespace,
                 body=master_res
             )
@@ -374,13 +333,13 @@ class KubernetesBackend:
             raise e
 
         logger.debug('Waiting Lithops master pod to be ready')
-        master_ip = False
-        while not master_ip:
-            master_ip = get_master_ip()
-            if not master_ip:
-                time.sleep(1)
-
-        return master_ip
+        w = watch.Watch()
+        for event in w.stream(self.core_api.list_namespaced_pod,
+                              namespace=self.namespace,
+                              label_selector=f"job-name={self.master_name}"):
+            if event['object'].status.phase == "Running":
+                w.stop()
+                return event['object'].status.pod_ip
 
     def invoke(self, docker_image_name, runtime_memory, job_payload):
         """

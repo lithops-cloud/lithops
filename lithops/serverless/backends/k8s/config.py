@@ -114,38 +114,6 @@ spec:
         - name: lithops-regcred
 """
 
-POD_DEFAULT = """
-apiVersion: v1
-kind: Pod
-metadata:
-  name: lithops-worker-name
-  labels:
-    type: lithops-worker
-    version: lithops_vX.X.X
-    user: lithops-user
-spec:
-  activeDeadlineSeconds: 600
-  containers:
-    - name: "lithops"
-      image: "<INPUT>"
-      command: ["python3"]
-      args:
-        - "/lithops/lithopsentry.py"
-        - "$(ACTION)"
-        - "$(DATA)"
-      env:
-        - name: ACTION
-          value: ''
-        - name: DATA
-          value: ''
-      resources:
-        requests:
-          cpu: '0.5'
-          memory: '256Mi'
-  imagePullSecrets:
-    - name: lithops-regcred
-"""
-
 def load_config(config_data):
     for key in DEFAULT_CONFIG_KEYS:
         if key not in config_data['k8s']:
