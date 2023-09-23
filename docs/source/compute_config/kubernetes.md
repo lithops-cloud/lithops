@@ -1,4 +1,4 @@
-# Kubernetes (batch/job)
+# Kubernetes
 
 Lithops with kubernetes as serverless compute backend.
 
@@ -55,6 +55,7 @@ k8s:
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |k8s | kubecfg_path | |no | Path to kubecfg file. Mandatory if config file not in `~/.kube/config` or KUBECONFIG env var not present|
+|k8s | kubecfg_context |  |no | kubernetes context to use from your kubeconfig file. It will use the default active context if not provided |
 |k8s | docker_server | docker.io |no | Docker server URL |
 |k8s | docker_user | |no | Docker hub username |
 |k8s | docker_password | |no | Login to your docker hub account and generate a new access token [here](https://hub.docker.com/settings/security)|

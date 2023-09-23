@@ -52,7 +52,8 @@ class KubernetesBackend:
         self.k8s_config = k8s_config
         self.internal_storage = internal_storage
 
-        self.kubecfg_path = os.path.expanduser(k8s_config.get('kubecfg_path', KUBE_CONFIG_DEFAULT_LOCATION))
+        self.kubecfg_path = k8s_config.get('kubecfg_path', os.environ.get("KUBECONFIG"))
+        self.kubecfg_path = os.path.expanduser(self.kubecfg_path or KUBE_CONFIG_DEFAULT_LOCATION)
         self.kubecfg_context = k8s_config.get('kubecfg_context', 'default')
         self.namespace = k8s_config.get('namespace', 'default')
         self.cluster = k8s_config.get('cluster', 'default')
@@ -322,7 +323,7 @@ class KubernetesBackend:
         container['env'][1]['value'] = utils.dict_to_b64str(payload)
 
         if not all(key in self.k8s_config for key in ["docker_user", "docker_password"]):
-            del master_res['spec']['imagePullSecrets']
+            del master_res['spec']['template']['spec']['imagePullSecrets']
 
         try:
             self.batch_api.create_namespaced_job(

@@ -7,7 +7,8 @@
 - [OCI Object Storage] Added new 'Oracle Cloud Object storage' storage backend
 
 ### Added
-- 
+- [Kubernetes] Added Redis server in master node for shared data between workers
+- [Kubernetes] Allow to set "conntext" in lithops config
 
 ### Changed
 - [CodeEngine] Create the CE project only when necessary instead of creating it always
