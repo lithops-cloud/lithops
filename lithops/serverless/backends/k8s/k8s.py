@@ -495,7 +495,9 @@ class KubernetesBackend:
         in order to know which runtimes are installed and which not.
         """
         jobdef_name = self._format_job_name(docker_image_name, 256, version)
-        runtime_key = os.path.join(self.name, version, self.cluster, self.namespace, jobdef_name)
+        user_hash = hashlib.sha1(self.user.encode()).hexdigest()[:6]
+        user_data = os.path.join(self.cluster, self.namespace, user_hash)
+        runtime_key = os.path.join(self.name, version, user_data, jobdef_name)
 
         return runtime_key
 
