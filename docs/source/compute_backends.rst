@@ -23,7 +23,7 @@ Compute Backends
    compute_config/azure_containers.md
    compute_config/oracle_functions.md
    compute_config/aliyun_functions.md
-   compute_config/k8s_job.md
+   compute_config/kubernetes.md
    compute_config/knative.md
    compute_config/openwhisk.md
 
