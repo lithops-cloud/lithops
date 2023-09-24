@@ -57,6 +57,7 @@ class KubernetesBackend:
         self.kubecfg_context = k8s_config.get('kubecfg_context', 'default')
         self.namespace = k8s_config.get('namespace', 'default')
         self.cluster = k8s_config.get('cluster', 'default')
+        self.user = k8s_config.get('user', 'default')
         self.master_name = k8s_config.get('master_name', config.MASTER_NAME)
 
         if os.path.exists(self.kubecfg_path):
@@ -67,12 +68,9 @@ class KubernetesBackend:
             current_context = current_context if context is None else [it for it in contexts if it['name'] == context][0]
             ctx_name = current_context.get('name')
             ctx_context = current_context.get('context')
-            self.namespace = ctx_context.get('namespace', 'default')
-            self.cluster = ctx_context.get('cluster')
-            self.user = ctx_context.get('user')
-            if self.master_name == config.MASTER_NAME:
-                user_hash = hashlib.sha1(self.user.encode()).hexdigest()[:6]
-                self.master_name = f'{config.MASTER_NAME}-{user_hash}'
+            self.namespace = ctx_context.get('namespace') or self.namespace
+            self.cluster = ctx_context.get('cluster') or self.cluster
+            self.user = ctx_context.get('user') or self.user
             logger.debug(f"Using kubeconfig conetxt: {ctx_name} - cluster: {self.cluster} - namespace: {self.namespace}")
             self.is_incluster = False
         else:
@@ -80,8 +78,13 @@ class KubernetesBackend:
             load_incluster_config()
             self.is_incluster = True
 
+        if self.master_name == config.MASTER_NAME:
+            user_hash = hashlib.sha1(self.user.encode()).hexdigest()[:6]
+            self.master_name = f'{config.MASTER_NAME}-{user_hash}'
+
         self.k8s_config['namespace'] = self.namespace
         self.k8s_config['cluster'] = self.cluster
+        self.k8s_config['user'] = self.user
         self.k8s_config['master_name'] = self.master_name
 
         self.batch_api = client.BatchV1Api()

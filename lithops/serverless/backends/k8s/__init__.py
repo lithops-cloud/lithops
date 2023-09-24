@@ -1,1 +1,1 @@
-from .kubernetes import KubernetesBackend as ServerlessBackend
+from .k8s import KubernetesBackend as ServerlessBackend
