@@ -86,9 +86,9 @@ code_engine:
 |code_engine | project_name |  |no | Project name that already exists in Code Engine. If not provided lithops will automatically create a new project|
 |code_engine | namespace |  |no | Alternatively to `project_name`, you can provide `namespace`. Get it from you code engine k8s config file.|
 |code_engine | region |  | no | Cluster region. One of: `eu-gb`, `eu-de`, `us-south`, `us-east`, `br-sao`, `ca-tor`, `jp-tok`, `jp-osa`, `au-syd`. Lithops will use the `region` set under the `ibm` section if it is not set here |
-|code_engine | docker_server | docker.io |no | Docker server URL |
-|code_engine | docker_user | |no | Docker hub username |
-|code_engine | docker_password | |no | Login to your docker hub account and generate a new access token [here](https://hub.docker.com/settings/security)|
+|code_engine | docker_server | docker.io |no | Container registry URL |
+|code_engine | docker_user | |no | Container registry user name |
+|code_engine | docker_password | |no | Container registry password/token. In case of Docker hub, login to your docker hub account and generate a new access token [here](https://hub.docker.com/settings/security)|
 |code_engine | max_workers | 1000 | no | Max number of workers per `FunctionExecutor()`|
 |code_engine | worker_processes | 1 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker. It is recommendable to set this value to the same number of CPUs of the container. |
 |code_engine | runtime |  |no | Docker image name.|

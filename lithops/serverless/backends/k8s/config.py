@@ -18,9 +18,9 @@ import os
 
 DEFAULT_CONFIG_KEYS = {
     'runtime_timeout': 600,  # Default: 10 minutes
-    'runtime_memory': 512,  # Default memory: 256 MB
+    'runtime_memory': 512,  # Default memory: 512 MB
     'runtime_cpu': 1,  # 1 vCPU
-    'max_workers': 10,
+    'max_workers': 100,
     'worker_processes': 1,
     'docker_server': 'docker.io'
 }
