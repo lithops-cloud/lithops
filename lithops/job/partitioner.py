@@ -16,7 +16,6 @@
 #
 
 import os
-import sys 
 import logging
 import requests
 from concurrent.futures import ThreadPoolExecutor
@@ -325,12 +324,9 @@ def _split_objects_from_object_storage(
     parts_per_object = []
 
     def _split(bucket, key, entry, obj_size):
-
         if key.endswith('/'):
             logger.debug(f'Discarding object "{key}" as it is a prefix folder (0.0B)')
             return
-
-        #obj_size = keys_dict[bucket][key]
 
         if chunk_number:
             chunk_rest = obj_size % chunk_number
@@ -434,15 +430,12 @@ def _split_objects_from_object_storage(
         total_objects = total_objects + len(objects)
         for dobj in objects:
             key = dobj['Key']
-            entry = {'obj' : f'{sb}://{bucket}/{key}'}
+            entry = {'obj': f'{sb}://{bucket}/{key}'}
             entry.update(params)
-            _split(bucket, key, entry, dobj['Size'] )
-
+            _split(bucket, key, entry, dobj['Size'])
 
     logger.debug(f"Total objects found: {total_objects}")
-    if total_objects == 0 :
-        raise Exception(f'No objects found')
-
-
+    if total_objects == 0:
+        raise Exception('No objects found')
 
     return partitions, parts_per_object
