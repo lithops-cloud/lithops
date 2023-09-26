@@ -24,7 +24,6 @@ import logging
 import urllib3
 import copy
 import yaml
-import shutil
 from kubernetes import client, watch
 from kubernetes.config import load_incluster_config
 from kubernetes.client.rest import ApiException
@@ -55,6 +54,7 @@ def retry_on_except(func):
                     return func(*args, **kwargs)
                 except ApiException as e:
                     if e.status == 409:
+                        ex = e
                         body = json.loads(e.body)
                         if body.get('reason') in {'AlreadyExists', 'Conflict'} or 'already exists' in body.get('message'):
                             logger.debug("Encountered conflict error {}, ignoring".format(body.get('message')))
@@ -410,7 +410,10 @@ class CodeEngineBackend:
         """
         Clean all completed jobruns in the current executor
         """
-        self._get_or_create_namespace()
+        if not self._get_or_create_namespace(create=False):
+            logger.info(f"Project {self.project_name} does not exist")
+            return
+
         self._create_k8s_iam_client()
         jobs_to_delete = job_keys or self.jobs
         for job_key in jobs_to_delete:
@@ -453,7 +456,7 @@ class CodeEngineBackend:
         jobdef_name = self._format_jobdef_name(docker_image_name, runtime_memory)
 
         if not self._job_def_exists(jobdef_name):
-            jobdef_name = self._create_job_definition(docker_image_name, runtime_memory, jobdef_name)
+            jobdef_name = self._create_job_definition(docker_image_name, runtime_memory)
 
         jobrun_res = yaml.safe_load(config.JOBRUN_DEFAULT)
 
@@ -481,7 +484,7 @@ class CodeEngineBackend:
 
         self._run_job(jobrun_res)
 
-        # logger.debug("response - {}".format(res))
+        # logger.debug(f"response - {res}")
 
         return activation_id
 
@@ -543,18 +546,20 @@ class CodeEngineBackend:
                 raise e
 
     @retry_on_except
-    def _create_job_definition(self, docker_image_name, runtime_memory, timeout):
+    def _create_job_definition(self, docker_image_name, runtime_memory, timeout=None):
         """
         Creates a Job definition
         """
         self._create_container_registry_secret()
 
         jobdef_name = self._format_jobdef_name(docker_image_name, runtime_memory)
+        logger.debug(f"Creating job definition {jobdef_name}")
+
         jobdef_res = yaml.safe_load(config.JOBDEF_DEFAULT)
 
         jobdef_res['metadata']['name'] = jobdef_name
         jobdef_res['metadata']['labels']['version'] = 'lithops_v' + __version__
-        jobdef_res['spec']['maxExecutionTime'] = self.config['runtime_timeout']
+        jobdef_res['spec']['maxExecutionTime'] = timeout or self.config['runtime_timeout']
 
         container = jobdef_res['spec']['template']['containers'][0]
         container['image'] = docker_image_name
@@ -574,8 +579,14 @@ class CodeEngineBackend:
                 plural="jobdefinitions",
                 name=jobdef_name,
             )
-        except Exception:
-            pass
+        except ApiException as e:
+            if e.status == 404:
+                pass
+            else:
+                raise e
+
+        while self._job_def_exists(jobdef_name):
+            time.sleep(1)
 
         try:
             self.custom_api.create_namespaced_custom_object(
@@ -585,7 +596,7 @@ class CodeEngineBackend:
                 plural="jobdefinitions",
                 body=jobdef_res,
             )
-        except Exception as e:
+        except ApiException as e:
             raise e
 
         logger.debug(f'Job Definition {jobdef_name} created')
@@ -624,7 +635,7 @@ class CodeEngineBackend:
 
     @retry_on_except
     def _job_def_exists(self, jobdef_name):
-        logger.debug(f"Checking if job_definition {jobdef_name} already exists")
+        logger.debug(f"Checking if job definition {jobdef_name} already exists")
         try:
             self.custom_api.get_namespaced_custom_object(
                 group=config.DEFAULT_GROUP,
@@ -634,10 +645,12 @@ class CodeEngineBackend:
                 name=jobdef_name
             )
         except ApiException as e:
-            # swallow error
-            if (e.status == 404):
+            if e.status == 404:
                 logger.debug(f"Job definition {jobdef_name} not found (404)")
                 return False
+            else:
+                raise e
+
         logger.debug(f"Job definition {jobdef_name} found")
         return True
 
@@ -743,7 +756,8 @@ class CodeEngineBackend:
         cmap.data = {}
         cmap.data["lithops.payload"] = utils.dict_to_b64str(payload)
 
-        logger.debug("Creating ConfigMap {}".format(config_map_name))
+        logger.debug(f"Creating ConfigMap {config_map_name}")
+
         self.core_api.create_namespaced_config_map(
             namespace=self.namespace,
             body=cmap,

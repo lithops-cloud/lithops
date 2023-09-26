@@ -17,6 +17,7 @@
 ### Fixed
 - [Executor] Fixed kwargs mapping in ServerlessExecutor and StandaloneExecutor
 - [Serializer] Fixed issue in serializer when "include_modules" config var is set
+- [CodeEngine] Fixed exception handling
 
 
 ## [v3.0.0]
