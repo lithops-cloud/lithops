@@ -61,7 +61,7 @@ class SerializeIndependent:
 
         # Add modules
         direct_modules = set()
-        mods_paths = set()
+        mod_paths = set()
 
         for module_name in modules:
             if module_name in ['__main__', None]:
@@ -75,11 +75,11 @@ class SerializeIndependent:
             if origin and origin.endswith('.so'):
                 if origin not in exclude_modules and \
                    os.path.basename(origin) not in exclude_modules:
-                    mods_paths.add(origin)
+                    mod_paths.add(origin)
             else:
                 self._modulemgr.add(module_name)
 
-            direct_modules.add(origin if origin != 'built-in' else module_name)
+            direct_modules.add(origin if origin not in ['built-in', None] else module_name)
 
         logger.debug("Referenced modules: {}".format(None if not
                      direct_modules else ", ".join(direct_modules)))
@@ -93,10 +93,10 @@ class SerializeIndependent:
                 for im in include_modules:
                     for mp in tent_mod_paths:
                         if im in mp:
-                            mods_paths.add(mp)
+                            mod_paths.add(mp)
                             break
             else:
-                mod_paths = mods_paths.union(tent_mod_paths)
+                mod_paths = mod_paths.union(tent_mod_paths)
 
         logger.debug("Modules to transmit: {}".format(None if
                      not mod_paths else ", ".join(mod_paths)))

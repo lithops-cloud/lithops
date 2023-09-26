@@ -16,6 +16,7 @@
 
 ### Fixed
 - [Executor] Fixed kwargs mapping in ServerlessExecutor and StandaloneExecutor
+- [Serializer] Fixed issue in serializer when "include_modules" config var is set
 
 
 ## [v3.0.0]
