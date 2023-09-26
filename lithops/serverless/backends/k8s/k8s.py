@@ -61,7 +61,7 @@ class KubernetesBackend:
         self.master_name = k8s_config.get('master_name', config.MASTER_NAME)
 
         if os.path.exists(self.kubecfg_path):
-            logger.debug(f"Loading kubeconfig file: {self.kubecfg_path} - Context: {self.kubecfg_context}")
+            logger.debug(f"Loading kubeconfig file: {self.kubecfg_path}")
             context = None if self.kubecfg_context == 'default' else self.kubecfg_context
             load_kube_config(config_file=self.kubecfg_path, context=context)
             contexts, current_context = list_kube_config_contexts(config_file=self.kubecfg_path)
@@ -71,7 +71,7 @@ class KubernetesBackend:
             self.namespace = ctx_context.get('namespace') or self.namespace
             self.cluster = ctx_context.get('cluster') or self.cluster
             self.user = ctx_context.get('user') or self.user
-            logger.debug(f"Using kubeconfig conetxt: {ctx_name} - cluster: {self.cluster} - namespace: {self.namespace}")
+            logger.debug(f"Using kubeconfig conetxt: {ctx_name} - cluster: {self.cluster}")
             self.is_incluster = False
         else:
             logger.debug('kubeconfig file not found, loading incluster config')
