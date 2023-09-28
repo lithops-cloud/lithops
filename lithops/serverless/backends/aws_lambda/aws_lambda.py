@@ -56,9 +56,6 @@ class AWSLambdaBackend:
         self.lambda_config = lambda_config
         self.internal_storage = internal_storage
         self.user_agent = lambda_config['user_agent']
-
-        self.user_key = lambda_config['access_key_id'][-4:].lower()
-        self.package = f'lithops_v{__version__.replace(".", "-")}_{self.user_key}'
         self.region_name = lambda_config['region']
         self.role_arn = lambda_config['execution_role']
 
@@ -88,7 +85,16 @@ class AWSLambdaBackend:
             sts_client = self.aws_session.client('sts', region_name=self.region_name)
             self.account_id = sts_client.get_caller_identity()["Account"]
 
+        sts_client = self.aws_session.client('sts', region_name=self.region_name)
+        caller_id = sts_client.get_caller_identity()
+
+        if ":" in caller_id["UserId"]:  # SSO user
+            self.user_key = caller_id["UserId"].split(":")[1]
+        else:  # IAM user
+            self.user_key = caller_id["UserId"][-4:].lower()
+
         self.ecr_client = self.aws_session.client('ecr', region_name=self.region_name)
+        self.package = f'lithops_v{__version__.replace(".", "-")}_{self.user_key}'
 
         msg = COMPUTE_CLI_MSG.format('AWS Lambda')
         logger.info(f"{msg} - Region: {self.region_name}")
@@ -115,11 +121,11 @@ class AWSLambdaBackend:
 
     def _get_default_runtime_name(self):
         py_version = utils.CURRENT_PY_VERSION.replace('.', '')
-        return f'lithops-default-runtime-v{py_version}'
+        return f'default-v{py_version}'
 
     def _is_container_runtime(self, runtime_name):
         name = runtime_name.split('/', 1)[-1]
-        return 'lithops-default-runtime-v' not in name
+        return 'default-v' not in name
 
     def _format_repo_name(self, runtime_name):
         if ':' in runtime_name:
