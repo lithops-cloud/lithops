@@ -91,6 +91,7 @@ def run_job(payload):
     # Optimize chunksize to the number of processess if necessary
     chunksize = worker_processes if worker_processes > chunksize else chunksize
 
+    call_ids = payload['call_ids']
     data_byte_ranges = payload['data_byte_ranges']
 
     master_ip = os.environ['MASTER_POD_IP']
@@ -114,9 +115,8 @@ def run_job(payload):
             continue
 
         start, end = map(int, call_ids_range.split('-'))
-        call_ids = payload['call_ids'][start:end]
-        dbr = [data_byte_ranges[int(call_id)] for call_id in call_ids]
-        payload['call_ids'] = call_ids
+        dbr = [data_byte_ranges[int(call_id)] for call_id in call_ids[start:end]]
+        payload['call_ids'] = call_ids[start:end]
         payload['data_byte_ranges'] = dbr
         function_handler(payload)
 
