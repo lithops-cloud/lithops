@@ -2,28 +2,20 @@
 
 Lithops with *AWS Batch* as serverless batch compute backend.
 
-## Installation
+## Configuration
 
-1. Install Amazon Web Services backend dependencies:
-
-```
-python3 -m pip install lithops[aws]
-```
-
-2. [Login](https://console.aws.amazon.com/?nc2=h_m_mc) to Amazon Web Services Console (or signup if you don't have an account)
+1. [Login](https://console.aws.amazon.com/?nc2=h_m_mc) to Amazon Web Services Console (or signup if you don't have an account)
  
-3. Navigate to **IAM > Roles** to create the ECS Task Execution Role. AWS provides a defualt role named `ecsTaskExecutionRole`, which can be used instead. If you want to create another role or it is missing, create a new role attached to `Elastic Container Service Task`, and add the following policies:
+2. Navigate to **IAM > Roles** to create the ECS Task Execution Role. AWS provides a defualt role named `ecsTaskExecutionRole`, which can be used instead. If you want to create another role or it is missing, create a new role attached to `Elastic Container Service Task`, and add the following policies:
     - `SecretsManagerReadWrite`
     - `AmazonEC2ContainerRegistryFullAccess`
     - `CloudWatchFullAccess`
     - `AmazonECSTaskExecutionRolePolicy`
 
-4. Navigate to **IAM > Roles** to create the ECS Instance Role. AWS provides a defualt role named `ecsInstanceRole`, which can be used instead. If you want to create another role or it is missing, create a new role attached to `EC2`, and add the following policy:
+3. Navigate to **IAM > Roles** to create the ECS Instance Role. AWS provides a defualt role named `ecsInstanceRole`, which can be used instead. If you want to create another role or it is missing, create a new role attached to `EC2`, and add the following policy:
     - `AmazonEC2ContainerServiceforEC2Role`
 
-## Configuration
-
-5. Edit your lithops config and add the following keys:
+4. Edit your lithops config and add the following keys:
 
 ```yaml
 aws:

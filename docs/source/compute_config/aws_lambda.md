@@ -2,25 +2,18 @@
 
 Lithops with *AWS Lambda* as serverless compute backend.
 
-## Installation
+## Configuration
 
-1. Install Amazon Web Services backend dependencies:
-
-```
-python3 -m pip install lithops[aws]
-```
-
-2. [Login](https://console.aws.amazon.com/?nc2=h_m_mc) to Amazon Web Services Console (or signup if you don't have an account)
+1. [Login](https://console.aws.amazon.com/?nc2=h_m_mc) to Amazon Web Services Console (or signup if you don't have an account)
  
-3. Navigate to **IAM > Policies**. Click on **Create policy**.
+2. Navigate to **IAM > Policies**. Click on **Create policy**.
 
-4. Select **JSON** tab and paste the following JSON policy:
+3. Select **JSON** tab and paste the following JSON policy:
 ```json
 {
     "Version": "2012-10-17",
     "Statement": [
         {
-            "Sid": "VisualEditor0",
             "Effect": "Allow",
             "Action": [
                 "s3:*",
@@ -38,15 +31,13 @@ python3 -m pip install lithops[aws]
 }
 ```
 
-5. Click **Next: Tags** and **Next: Review**. Fill the policy name field (you can name it `lithops-policy` or simmilar) and create the policy.
+4. Click **Next: Tags** and **Next: Review**. Fill the policy name field (you can name it `lithops-policy` or simmilar) and create the policy.
 
-6. Go back to **IAM** and navigate to **Roles** tab. Click **Create role**.
+5. Go back to **IAM** and navigate to **Roles** tab. Click **Create role**.
 
-7. Choose **Lambda** on the use case list and click **Next: Permissions**. Select the policy created before (`lithops-policy`). Click **Next: Tags** and **Next: Review**. Type a role name, for example `lithops-execution-role`. Click on *Create Role*.
+6. Choose **Lambda** on the use case list and click **Next: Permissions**. Select the policy created before (`lithops-policy`). Click **Next: Tags** and **Next: Review**. Type a role name, for example `lithops-execution-role`. Click on *Create Role*.
 
-## Configuration
-
-6. Edit your lithops config and add the following keys:
+7. Edit your lithops config and add the following keys:
 
 ```yaml
 lithops:

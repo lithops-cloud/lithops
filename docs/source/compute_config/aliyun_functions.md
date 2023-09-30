@@ -10,7 +10,7 @@ Lithops with *Aliyun Function Compute* as serverless compute backend.
 python3 -m pip install lithops[aliyun]
 ```
 
-1. Access to your [console](https://homenew-intl.console.aliyun.com/) and activate your Functions service instance.
+2. Access to your [console](https://homenew-intl.console.aliyun.com/) and activate your Functions service instance.
 
 ## Configuration
 
