@@ -46,28 +46,29 @@ Storage Backends
 <td valign="top">
 
 - [Localhost](../docs/source/compute_config/localhost.md)
-	</p>
-<b>Serverless Backends:</b>
+
+<b>Serverless (FaaS) Backends:</b>
 - [IBM Cloud Functions](../docs/source/compute_config/ibm_cf.md)
-- [IBM Code Engine](../docs/source/compute_config/code_engine.md)
 - [AWS Lambda](../docs/source/compute_config/aws_lambda.md)
-- [AWS Batch](../docs/source/compute_config/aws_batch.md)
 - [Google Cloud Functions](../docs/source/compute_config/gcp_functions.md)
-- [Google Cloud Run](../docs/source/compute_config/gcp_cloudrun.md)
 - [Azure Functions](../docs/source/compute_config/azure_functions.md)
-- [Azure Container APPs](../docs/source/compute_config/azure_containers.md)
 - [Aliyun Functions](../docs/source/compute_config/aliyun_functions.md)
 - [Oracle Cloud Functions](../docs/source/compute_config/oracle_functions.md)
+- [OpenWhisk](../docs/source/compute_config/openwhisk.md)
+
+<b>Serverless (CaaS) Backends:</b>
+- [IBM Code Engine](../docs/source/compute_config/code_engine.md)
+- [AWS Batch](../docs/source/compute_config/aws_batch.md)
+- [Google Cloud Run](../docs/source/compute_config/gcp_cloudrun.md)
+- [Azure Container APPs](../docs/source/compute_config/azure_containers.md)
 - [Kubernetes](../docs/source/compute_config/kubernetes.md)
 - [Knative](../docs/source/compute_config/knative.md)
-- [OpenWhisk](../docs/source/compute_config/openwhisk.md)
-	</p>
+
 <b>Standalone Backends:</b>
 - [Virtual Machine](../docs/source/compute_config/vm.md)
 - [IBM Virtual Private Cloud](../docs/source/compute_config/ibm_vpc.md)
 - [AWS Elastic Compute Cloud (EC2)](../docs/source/compute_config/aws_ec2.md)
 - [Azure Virtual Machines](../docs/source/compute_config/azure_vms.md)
-
 
 </td>
 <td valign="top">

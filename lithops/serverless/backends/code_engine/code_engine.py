@@ -338,6 +338,7 @@ class CodeEngineBackend:
         """
         Deletes all runtimes from all packages
         """
+        logger.info(f'Cleaning project {self.project_name}')
         if not self._get_or_create_namespace(create=False):
             logger.info(f"Project {self.project_name} does not exist")
             if os.path.exists(self.cache_file):
@@ -363,7 +364,7 @@ class CodeEngineBackend:
 
         if all and os.path.exists(self.cache_file):
             self._create_code_engine_client()
-            logger.debug(f"Deleting Code Engine project: {self.project_name}")
+            logger.info(f"Deleting Code Engine project: {self.project_name}")
             self.code_engine_service_v2.delete_project(id=self.project_id)
             os.remove(self.cache_file)
 
