@@ -102,19 +102,13 @@ class KubernetesRabbitMQBackend:
     
     def _get_runtime_name(self):
         list_pods = self.core_api.list_namespaced_pod("default")
-        previous_runtime = ""
+
         current_runtime  = ""
-        first_occurrence = True
         for pod in list_pods.items:
-            if first_occurrence :
-                previous_runtime = pod.spec.containers[0].image
-                first_occurrence = False
-
-            current_runtime = pod.spec.containers[0].image
-
-            if current_runtime != previous_runtime :    # error in runtime
-                    return ""
-
+            if pod.metadata.name.startswith("lithops-pod"):
+                current_runtime = pod.spec.containers[0].image
+                break
+        
         return current_runtime
         
     def _build_default_runtime(self, docker_image_name):
@@ -225,8 +219,9 @@ class KubernetesRabbitMQBackend:
 
     # Returns de number of cpus a pod request to run
     def _create_pod(self, pod, node) :
-        pod["metadata"]["name"] = node["name"]
+        pod["metadata"]["name"] = "lithops-pod-" + node["name"]
         pod["spec"]["nodeName"] = node["name"]
+
         # reducing cpu requeriments to allow kubernetes to create the pod
         cpu = float(node["cpu"])
         cpu = cpu * 0.9
@@ -280,7 +275,7 @@ class KubernetesRabbitMQBackend:
     def _create_nodes(self):
         n_procs = 0
         pod = yaml.load(config.POD, Loader=yaml.loader.SafeLoader)
-        
+
         for node in self.nodes:
             n_procs += self._create_pod(pod, node)
         
