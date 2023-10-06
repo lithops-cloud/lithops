@@ -2,7 +2,7 @@ Worker Granularity
 ==================
 
 Lithops was initially designed with Function as a Service (FaaS) platforms in mind. As such, its default worker 
-granularity is set to 1. In This means that each function activation is executed within its own isolated 
+granularity is set to 1. This means that each function activation is executed within its own isolated 
 runtime instance. This design choice aligns with the nature of FaaS, where functions are typically short-lived 
 and stateless, making it well-suited for tasks like event-driven processing and serverless computing.
 
@@ -14,9 +14,9 @@ allocated to a container.
 
 When using Lithops on a CaaS platform, it can be more advantageous to increase the number of CPUs assigned to each
 worker and subsequently adjust the granularity, rather than adhering to a 1:1 granularity ratio. This approach
-significantly reduces cold start times. For instance, if you need to execute 200 functions with a 1:1 granularity, 
+significantly reduces cold start times. For instance, if you need to execute 100 tasks with a 1:1 granularity, 
 it would attempt to initiate all 100 containers simultaneously, potentially overloading the CaaS platform. However, 
-by configuring each worker to utilize 4 CPUs and updating Lithops accordingly, it would only need to start 25r containers. 
+by configuring each worker to utilize 4 CPUs and updating Lithops accordingly, it would only need to start 25 containers. 
 This allows you to leverage the resource flexibility provided by CaaS without attempting to impose FaaS-like granularity. 
 Understanding these distinctions between FaaS and CaaS platforms is crucial for optimizing the performance and efficient 
 resource utilization of your Lithops-based applications.
@@ -29,8 +29,11 @@ attempting to manage and coordinate eight separate VM instances with single core
 management and optimizes the performance of your Lithops-based applications running on VM backends. As with CaaS, 
 understanding the flexibility VMs provide is essential for effectively utilizing your compute resources.
 
+How to customize worker granularity?
+------------------------------------
+
 To customize the worker granularity, you have to edit your Lithops config and add the ``worker_processes`` parameter into 
-your backend section. The ``worker_processes`` config parameter is employed to define the number of concurrent sub-workers
+your backend section. The ``worker_processes`` config parameter is employed to define the number of parallel sub-workers
 initiated within a single worker. To fully utilize the allocated resources for your containers, it is advisable to set
 this parameter to a value that matches or exceeds the number of CPUs in your container. For example:
 
