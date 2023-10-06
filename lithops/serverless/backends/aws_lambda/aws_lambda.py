@@ -121,11 +121,11 @@ class AWSLambdaBackend:
 
     def _get_default_runtime_name(self):
         py_version = utils.CURRENT_PY_VERSION.replace('.', '')
-        return f'default-wroker-v{py_version}'
+        return f'default-runtime-v{py_version}'
 
     def _is_container_runtime(self, runtime_name):
         name = runtime_name.split('/', 1)[-1]
-        return 'default-wroker-v' not in name
+        return 'default-runtime-v' not in name
 
     def _format_repo_name(self, runtime_name):
         if ':' in runtime_name:
