@@ -29,29 +29,31 @@ attempting to manage and coordinate eight separate VM instances with single core
 management and optimizes the performance of your Lithops-based applications running on VM backends. As with CaaS, 
 understanding the flexibility VMs provide is essential for effectively utilizing your compute resources.
 
-To customize the worker granularity, you have to edit your Lithops config and add the 'worker_processes' parameter into 
-your backend section. For example:
+To customize the worker granularity, you have to edit your Lithops config and add the ``worker_processes`` parameter into 
+your backend section. The ``worker_processes`` config parameter is employed to define the number of concurrent sub-workers
+initiated within a single worker. To fully utilize the allocated resources for your containers, it is advisable to set
+this parameter to a value that matches or exceeds the number of CPUs in your container. For example:
 
 .. code:: yaml
-    code_engine:
+
+    gcp_cloudrun:
         ....
         worker_processes : 4
 
-The 'worker_processes' config parameter is employed to define the number of concurrent sub-workers initiated within a single worker. 
-Alongside the 'worker_processes' configuration parameter, it is essential to specify the 'chunksize' parameter. The 'chunksize' 
-parameter determines the number of functions allocated to each worker for processing.
-
-By default, the 'chunksize' parameter is automatically configured to match the 'worker_processes.' However, you have the 
+Alongside the ``worker_processes`` configuration parameter, it is possible to specify the ``chunksize`` parameter.
+The ``chunksize`` parameter determines the number of functions allocated to each worker for processing.
+By default, the ``chunksize`` parameter is automatically configured to match the ``worker_processes``. However, you have the 
 flexibility to customize it by setting it to a higher value. For example, if you have 200 tasks to execute and you set 
-'worker_processes' to 4 and 'chunksize' to 8, this configuration will result in the initiation of 25 workers (instead of 50).
+``worker_processes`` to 4 and ``chunksize`` to 8, this configuration will result in the initiation of 25 workers (instead of 50).
 Within each worker, 4 parallel sub-workers will start execution. Each worker will receive 8 tasks to process. The first 4 
 tasks will begin immediately since there are 4 available sub-workers per worker. Meanwhile, the remaining 4 tasks will be 
 queued for execution as the initial tasks start to complete.
 
 
-To customize the 'chunksize' parameter, you have to edit your map() or map_reduce() calls and specify the desirde value, for example:
+To customize the ``chunksize`` parameter, you have to edit your ``map()`` or ``map_reduce()`` calls and specify the desirde value, for example:
 
 .. code:: python
+
     import lithops
 
 
