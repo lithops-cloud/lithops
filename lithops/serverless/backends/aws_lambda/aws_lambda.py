@@ -121,11 +121,11 @@ class AWSLambdaBackend:
 
     def _get_default_runtime_name(self):
         py_version = utils.CURRENT_PY_VERSION.replace('.', '')
-        return f'default-v{py_version}'
+        return f'default-wroker-v{py_version}'
 
     def _is_container_runtime(self, runtime_name):
         name = runtime_name.split('/', 1)[-1]
-        return 'default-v' not in name
+        return 'default-wroker-v' not in name
 
     def _format_repo_name(self, runtime_name):
         if ':' in runtime_name:
@@ -260,7 +260,7 @@ class AWSLambdaBackend:
         logger.debug('Creating layer {} ...'.format(layer_name))
         response = self.lambda_client.publish_layer_version(
             LayerName=layer_name,
-            Description='Lithops Function for ' + self.package,
+            Description=f'Lithops layer for v{__version__} and Python v{utils.CURRENT_PY_VERSION}',
             Content={
                 'S3Bucket': self.internal_storage.bucket,
                 'S3Key': layer_name
@@ -417,7 +417,7 @@ class AWSLambdaBackend:
                 Code={
                     'ZipFile': code
                 },
-                Description='Lithops Worker for ' + self.package,
+                Description=f'Lithops worker for v{__version__} and Python v{utils.CURRENT_PY_VERSION}',
                 Timeout=timeout,
                 MemorySize=memory,
                 Layers=[layer_arn],
@@ -491,7 +491,7 @@ class AWSLambdaBackend:
                     'ImageUri': image_uri
                 },
                 PackageType='Image',
-                Description='Lithops Worker for ' + self.package,
+                Description=f'Lithops worker for v{__version__} and Python v{utils.CURRENT_PY_VERSION}',
                 Timeout=timeout,
                 MemorySize=memory,
                 VpcConfig={

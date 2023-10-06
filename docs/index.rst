@@ -123,6 +123,7 @@ Papers
 
    source/api_futures.rst
    source/functions.md
+   source/worker_granularity.rst
    source/notebooks/function_chaining.ipynb
    source/api_stats.rst
 
@@ -156,7 +157,6 @@ Papers
    :maxdepth: 0
    :caption: Advanced Features
 
-   source/worker_granularity.rst
    source/monitoring.rst
    Custom Runtime <https://github.com/lithops-cloud/lithops/tree/master/runtime>
    source/customized_runtime.rst

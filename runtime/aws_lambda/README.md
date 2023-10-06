@@ -5,7 +5,7 @@ The runtime is the place where your functions are executed.
 AWS Lambda provides two methods for packaging the function code and dependencies of a runtime:
 
 ## Using predefined **runtimes** and **layers**
-An AWS Lambda *runtime* is a predefined environment to run code on Lambda. For example, for Lithops we use runtimes `python3.9`, `python3.8`, `python3.7` or `python3.6` that come with already preinstalled modules. A *layer* is a set of packaged dependencies that can be used by multiple runtimes. For example, Lithops dependencies are deployed as a layer, so if multiple runtimes are created with different memory values, they can mount the same layer containing the dependencies, instead
+An AWS Lambda *runtime* is a predefined environment to run code on Lambda. For example, for Lithops we use runtimes for python >= 3.6 that come with already preinstalled modules. A *layer* is a set of packaged dependencies that can be used by multiple runtimes. For example, Lithops dependencies are deployed as a layer, so if multiple runtimes are created with different memory values, they can mount the same layer containing the dependencies, instead
 of deploying them separately for each runtime.
 
 [In this link](https://gist.github.com/gene1wood/4a052f39490fae00e0c3#gistcomment-3131227) you can find which modules are preinstalled by default in an AWS Lambda Python runtime. Moreover, Lithops runtime also ships with the following packages:
@@ -65,16 +65,23 @@ Note that you only need to specify the container name: `my-container-runtime-nam
 As far as possible, avoid using 'points' ('.') in the runtime name.
 
 ```
-$ lithops runtime build -f MyDockerfile -b aws_lambda my-container-runtime-name
+lithops runtime build -f MyDockerfile -b aws_lambda my-container-runtime-name
 ```
 
 For example:
 
 ```
-$ lithops runtime build -f MyDockerfile -b aws_lambda lithops-ndvi-v39:01
+lithops runtime build -f MyDockerfile -b aws_lambda lithops-ndvi-v310:01
 ```
 
-Finally, we can specify this new runtime when creating a Lithops Function Executor:
+Finally, we can specify this new runtime in the lithops config:
+
+```yaml
+aws_lambda:
+    runtime: lithops-ndvi-v310:01
+```
+
+or when creating a Lithops Function Executor:
 
 ```python
 import lithops
@@ -82,8 +89,16 @@ import lithops
 def test():
     return 'hello'
 
-lith = lithops.FunctionExecutor(runtime='lithops-ndvi-v39:01')
+lith = lithops.FunctionExecutor(runtime='lithops-ndvi-v310:01')
 lith.call_async(test, data=())
 res = lith.get_result()
 print(res)  # Prints 'hello'
+```
+
+**View your deployed runtimes**
+
+To view the already deployed runtimes in your account, you can submit the next command in the console:
+
+```
+lithops runtime list -b aws_lambda
 ```
