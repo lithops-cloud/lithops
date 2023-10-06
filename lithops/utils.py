@@ -252,7 +252,7 @@ def create_handler_zip(dst_zip_location, entry_point_files, entry_point_name=Non
 
 def verify_runtime_name(runtime_name):
     """Check if the runtime name has a correct formating"""
-    assert re.match("^[A-Za-z0-9_/.:-]*$", runtime_name),\
+    assert re.match("^[A-Za-z0-9_/.:-]*$", runtime_name), \
         'Runtime name "{}" not valid'.format(runtime_name)
 
 
@@ -316,7 +316,7 @@ def convert_bools_to_string(extra_env):
     Converts all booleans of a dictionary to a string
     """
     for key in extra_env:
-        if type(extra_env[key]) == bool:
+        if type(extra_env[key]) is bool:
             extra_env[key] = str(extra_env[key])
 
     return extra_env
@@ -482,7 +482,7 @@ def format_data(iterdata, extra_args):
     # Format iterdata in a proper way
     if type(iterdata) in [range, set]:
         data = list(iterdata)
-    elif type(iterdata) != list and type(iterdata) != FuturesList:
+    elif type(iterdata) is not list and type(iterdata) is not FuturesList:
         data = [iterdata]
     else:
         data = iterdata
@@ -531,7 +531,7 @@ def verify_args(func, iterdata, extra_args):
 
     new_data = list()
     for elem in data:
-        if type(elem) == dict:
+        if isinstance(elem, dict):
             if set(list(new_func_sig.parameters.keys())) <= set(elem):
                 new_data.append(elem)
             else:
@@ -540,7 +540,7 @@ def verify_args(func, iterdata, extra_args):
                                  "the args must be: {}"
                                  .format(list(elem.keys()),
                                          list(new_func_sig.parameters.keys())))
-        elif type(elem) == tuple:
+        elif isinstance(elem, tuple):
             new_elem = dict(new_func_sig.bind(*list(elem)).arguments)
             new_data.append(new_elem)
         else:
