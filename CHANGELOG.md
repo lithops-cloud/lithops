@@ -1,6 +1,18 @@
 # Changelog
 
-## [v3.0.1.dev0]
+## [v3.0.2.dev0]
+
+### Added
+- 
+
+### Changed
+- 
+
+### Fixed
+- 
+
+
+## [v3.0.1]
 
 ### New
 - [OCI Functions] Added new 'Oracle Cloud Functions' serverless backend
