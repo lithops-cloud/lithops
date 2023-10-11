@@ -27,101 +27,102 @@ from functools import partial
 from multiprocessing import Process, Value
 
 from lithops.version import __version__
-from lithops.utils import setup_lithops_logger, b64str_to_dict, iterchunks
+from lithops.utils import setup_lithops_logger, b64str_to_dict
 from lithops.worker import function_handler
 from lithops.worker.utils import get_runtime_metadata
 from lithops.constants import JOBS_PREFIX
 from lithops.storage.storage import InternalStorage
 
+from lithops.serverless.backends.k8s import config
 
 logger = logging.getLogger('lithops.worker')
 
 proxy = flask.Flask(__name__)
 
-MASTER_PORT = 8080
-
 JOB_INDEXES = {}
 
 
-@proxy.route('/getid/<jobkey>/<total_calls>', methods=['GET'])
-def get_id(jobkey, total_calls):
+@proxy.route('/get-range/<jobkey>/<total_calls>/<chunksize>', methods=['GET'])
+def get_range(jobkey, total_calls, chunksize):
     global JOB_INDEXES
 
-    if jobkey not in JOB_INDEXES:
-        JOB_INDEXES[jobkey] = 0
-    else:
-        JOB_INDEXES[jobkey] += 1
+    range_start = 0 if jobkey not in JOB_INDEXES else JOB_INDEXES[jobkey]
+    range_end = min(range_start + int(chunksize), int(total_calls))
+    JOB_INDEXES[jobkey] = range_end
 
-    call_id = '-1' if JOB_INDEXES[jobkey] >= int(total_calls) else str(JOB_INDEXES[jobkey])
+    range = "-1" if range_start == int(total_calls) else f'{range_start}-{range_end}'
     remote_host = flask.request.remote_addr
-    proxy.logger.info('Sending ID {} to Host {}'.format(call_id, remote_host))
+    proxy.logger.info(f'Sending range "{range}" to Host {remote_host}')
 
-    return call_id
+    return range
 
 
 def run_master_server():
+    # Start Redis Server in the background
+    logger.info("Starting redis server in Master Pod")
+    os.system("redis-server --bind 0.0.0.0 --daemonize yes")
+    logger.info("Redis server started")
+
     proxy.logger.setLevel(logging.DEBUG)
-    proxy.run(debug=True, host='0.0.0.0', port=MASTER_PORT)
+    proxy.run(debug=True, host='0.0.0.0', port=config.MASTER_PORT, use_reloader=False)
 
 
-def extract_runtime_meta(encoded_payload):
+def extract_runtime_meta(payload):
     logger.info(f"Lithops v{__version__} - Generating metadata")
-
-    payload = b64str_to_dict(encoded_payload)
-
-    setup_lithops_logger(payload['log_level'])
 
     runtime_meta = get_runtime_metadata()
 
     internal_storage = InternalStorage(payload)
-    status_key = '/'.join([JOBS_PREFIX, payload['runtime_name']+'.meta'])
+    status_key = '/'.join([JOBS_PREFIX, payload['runtime_name'] + '.meta'])
     logger.info(f"Runtime metadata key {status_key}")
     dmpd_response_status = json.dumps(runtime_meta)
     internal_storage.put_data(status_key, dmpd_response_status)
 
 
-def run_job_k8s(encoded_payload):
+def run_job_k8s(payload):
     logger.info(f"Lithops v{__version__} - Starting kubernetes execution")
 
-    payload = b64str_to_dict(encoded_payload)
-    setup_lithops_logger(payload['log_level'])
+    os.environ['__LITHOPS_ACTIVATION_ID'] = str(uuid.uuid4()).replace('-', '')[:12]
+    os.environ['__LITHOPS_BACKEND'] = 'k8s'
 
     total_calls = payload['total_calls']
     job_key = payload['job_key']
-    master_ip = os.environ['MASTER_POD_IP']
-
+    worker_processes = payload['worker_processes']
     chunksize = payload['chunksize']
-    call_ids_ranges = [call_ids_range for call_ids_range in iterchunks(payload['call_ids'], chunksize)]
+
+    # Optimize chunksize to the number of processess if necessary
+    chunksize = worker_processes if worker_processes > chunksize else chunksize
+
+    call_ids = payload['call_ids']
     data_byte_ranges = payload['data_byte_ranges']
+
+    master_ip = os.environ['MASTER_POD_IP']
 
     job_finished = False
     while not job_finished:
-        job_index = None
+        call_ids_range = None
 
-        while job_index is None:
+        while call_ids_range is None:
             try:
-                url = f'http://{master_ip}:{MASTER_PORT}/getid/{job_key}/{total_calls}'
+                server = f'http://{master_ip}:{config.MASTER_PORT}'
+                url = f'{server}/get-range/{job_key}/{total_calls}/{chunksize}'
                 res = requests.get(url)
-                job_index = int(res.text)
+                call_ids_range = res.text  # for example: 0-5
             except Exception:
                 time.sleep(0.1)
 
-        if job_index == -1:
+        logger.info(f"Received range: {call_ids_range}")
+        if call_ids_range == "-1":
             job_finished = True
             continue
 
-        act_id = str(uuid.uuid4()).replace('-', '')[:12]
-        os.environ['__LITHOPS_ACTIVATION_ID'] = act_id
-        os.environ['__LITHOPS_BACKEND'] = 'k8s'
-
-        logger.info("Activation ID: {} - Job Index: {}".format(act_id, job_index))
-
-        call_ids = call_ids_ranges[job_index]
-        dbr = [data_byte_ranges[int(call_id)] for call_id in call_ids]
-        payload['call_ids'] = call_ids
+        start, end = map(int, call_ids_range.split('-'))
+        dbr = [data_byte_ranges[int(call_id)] for call_id in call_ids[start:end]]
+        payload['call_ids'] = call_ids[start:end]
         payload['data_byte_ranges'] = dbr
-
         function_handler(payload)
+
+    logger.info("Finishing kubernetes execution")
 
 def run_job_k8s_rabbitmq(payload, job_index, running_jobs):
     logger.info(f"Lithops v{__version__} - Starting kubernetes execution")
@@ -270,9 +271,12 @@ if __name__ == '__main__':
         action = sys.argv[1]
         encoded_payload = sys.argv[2]
 
+        payload = b64str_to_dict(encoded_payload)
+        setup_lithops_logger(payload.get('log_level', 'INFO'))
+
         switcher = {
-            'get_metadata': partial(extract_runtime_meta, encoded_payload),
-            'run_job': partial(run_job_k8s, encoded_payload),
+            'get_metadata': partial(extract_runtime_meta, payload),
+            'run_job': partial(run_job_k8s, payload),
             'run_master': run_master_server
         }
 
