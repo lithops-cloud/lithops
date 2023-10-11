@@ -12,6 +12,7 @@
 
 import os
 import sys
+import lithops
 sys.path.insert(0, os.path.abspath('.'))
 
 sys.path.insert(0, os.path.abspath("../"))
@@ -89,8 +90,8 @@ html_theme_options = {
     'show_navbar_depth': 1
 }
 
-# html_title = f"Lithops v{lithops.__version__}"
-html_title = ''
+html_title = f"Lithops v{lithops.__version__}"
+# html_title = ''
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,

@@ -32,16 +32,29 @@ understanding the flexibility VMs provide is essential for effectively utilizing
 How to customize worker granularity?
 ------------------------------------
 
-To customize the worker granularity, you have to edit your Lithops config and add the ``worker_processes`` parameter into 
-your backend section. The ``worker_processes`` config parameter is employed to define the number of parallel sub-workers
-initiated within a single worker. To fully utilize the allocated resources for your containers, it is advisable to set
-this parameter to a value that matches or exceeds the number of CPUs in your container. For example:
+To customize the worker granularity, you first need to use the ``worker_processes`` parameter.
+The ``worker_processes`` config parameter is employed to define the number of parallel sub-workers
+initiated within a single worker. To fully utilize the allocated resources for your containers,
+it is advisable to set this parameter to a value that matches or exceeds the number of CPUs in
+your container or VM. 
+
+You can provide the ``worker_processes`` parameter either in the Lithops config, under the
+compute backend section:
 
 .. code:: yaml
 
     gcp_cloudrun:
         ....
         worker_processes : 4
+
+or during a ``FunctionExecutor()`` instantiation:
+
+.. code:: python
+
+    import lithops
+
+    fexec = lithops.FunctionExecutor(worker_processes=4)
+
 
 Alongside the ``worker_processes`` configuration parameter, it is possible to specify the ``chunksize`` parameter.
 The ``chunksize`` parameter determines the number of functions allocated to each worker for processing.
@@ -66,6 +79,6 @@ To customize the ``chunksize`` parameter, you have to edit your ``map()`` or ``m
 
 
     if __name__ == "__main__":
-        fexec = lithops.FunctionExecutor()
-        fexec.map(my_map_function, range(16), chunksize=4)
+        fexec = lithops.FunctionExecutor(worker_processes=4)
+        fexec.map(my_map_function, range(200), chunksize=8)
         print(fexec.get_result())
