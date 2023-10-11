@@ -70,13 +70,13 @@ In this scenario, it is evident that the cold start times are consistently reduc
 
 #### Plot 1: Kubernetes K8s original with granularity 1. 
 
-*Elapsed time = 26 sec.*
+*Elapsed time = 28 sec.*
 
 ![Kubernetes K8s original with granularity 1 Plot](../images/plots_kubernetes/granularity_1_histogram.png)
 
 #### Plot 2: Kubernetes K8s original with granularity 6. 
 
-*Elapsed time = 19 sec.*
+*Elapsed time = 17 sec.*
 
 ![Kubernetes K8s original (granularity 6) Plot](../images/plots_kubernetes/granularity_6_histogram.png)
 
