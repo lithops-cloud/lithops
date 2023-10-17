@@ -9,7 +9,7 @@
 - 
 
 ### Fixed
-- 
+- [Job] Fixed max data size in the invocation payload
 
 
 ## [v3.0.1]
