@@ -283,7 +283,7 @@ def _create_job(
         function_hash = hashlib.md5(open(function_file, 'rb').read()).hexdigest()[:16]
         mod_hash = hashlib.md5(repr(sorted(mod_paths)).encode('utf-8')).hexdigest()[:16]
         job.func_key = func_key_suffix
-        job.ext_runtime_uuid = '{}{}'.format(function_hash, mod_hash)
+        job.ext_runtime_uuid = f'{function_hash}{mod_hash}'
         job.local_tmp_dir = os.path.join(CUSTOM_RUNTIME_DIR, job.ext_runtime_uuid)
         _store_func_and_modules(job.local_tmp_dir, job.func_key, func_str, module_data)
         host_job_meta['host_func_upload_time'] = 0
