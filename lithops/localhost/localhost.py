@@ -210,10 +210,7 @@ class BaseEnv:
         if is_lithops_worker() and os.path.isfile(RUNNER):
             return
         os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
-        try:
-            shutil.rmtree(os.path.join(LITHOPS_TEMP_DIR, 'lithops'))
-        except FileNotFoundError:
-            pass
+        shutil.rmtree(os.path.join(LITHOPS_TEMP_DIR, 'lithops'), ignore_errors=True)
         shutil.copytree(LITHOPS_LOCATION, os.path.join(LITHOPS_TEMP_DIR, 'lithops'))
         src_handler = os.path.join(LITHOPS_LOCATION, 'localhost', 'runner.py')
         copyfile(src_handler, RUNNER)

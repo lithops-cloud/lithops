@@ -6,11 +6,11 @@
 - 
 
 ### Changed
-- 
+- [Joblib] Update joblib backend for newer versions of joblib
 
 ### Fixed
 - [Job] Fixed max data size in the invocation payload
-
+- [Multiprocessing] Fixed cpu_count
 
 ## [v3.0.1]
 
