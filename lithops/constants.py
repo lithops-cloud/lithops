@@ -49,6 +49,7 @@ EXECUTION_TIMEOUT_DEFAULT = 1800
 EXECUTION_TIMEOUT_LOCALHOST_DEFAULT = 3600
 
 LOCALHOST_RUNTIME_DEFAULT = os.path.basename(sys.executable)
+LOCALHOST_SERVICE_PORT = 32765
 
 SA_INSTALL_DIR = '/opt/lithops'
 SA_TMP_DIR = '/tmp/lithops-root'
@@ -78,9 +79,10 @@ LITHOPS_TEMP_DIR = os.path.join(TEMP_DIR, USER_TEMP_DIR)
 JOBS_DIR = os.path.join(LITHOPS_TEMP_DIR, 'jobs')
 LOGS_DIR = os.path.join(LITHOPS_TEMP_DIR, 'logs')
 MODULES_DIR = os.path.join(LITHOPS_TEMP_DIR, 'modules')
-CUSTOM_RUNTIME_DIR = os.path.join(LITHOPS_TEMP_DIR, 'custom_runtime')
+CUSTOM_RUNTIME_DIR = os.path.join(LITHOPS_TEMP_DIR, 'custom-runtime')
 
-RN_LOG_FILE = os.path.join(LITHOPS_TEMP_DIR, 'runner.log')
+RN_LOG_FILE = os.path.join(LITHOPS_TEMP_DIR, 'localhost-runner.log')
+SV_LOG_FILE = os.path.join(LITHOPS_TEMP_DIR, 'localhost-service.log')
 FN_LOG_FILE = os.path.join(LITHOPS_TEMP_DIR, 'functions.log')
 
 CLEANER_DIR = os.path.join(LITHOPS_TEMP_DIR, 'cleaner')

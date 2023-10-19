@@ -116,7 +116,7 @@ def clean(config, backend, storage, debug, region, all):
     # Clean local lithops runtime cache
     shutil.rmtree(os.path.join(CACHE_DIR, RUNTIMES_PREFIX, backend), ignore_errors=True)
 
-    logger.info('All Lithops data cleaned')
+    logger.info('All Lithops temporary data cleaned')
 
 
 @lithops_cli.command('test')

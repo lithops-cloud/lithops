@@ -77,7 +77,7 @@ def wait_job_completed(job_key):
         time.sleep(1)
 
 
-def run_worker(master_ip, work_queue):
+def run_worker(master_ip, work_queue_name):
     """
     Run a job
     """
@@ -89,7 +89,7 @@ def run_worker(master_ip, work_queue):
     localhos_handler = LocalhostHandler({'pull_runtime': pull_runtime})
 
     while True:
-        url = f'http://{master_ip}:{SA_SERVICE_PORT}/get-task/{work_queue}'
+        url = f'http://{master_ip}:{SA_SERVICE_PORT}/get-task/{work_queue_name}'
         logger.debug(f'Getting task from {url}')
 
         try:
@@ -145,7 +145,7 @@ def main():
         vm_data = json.load(ad)
         worker_ip = vm_data['private_ip']
         master_ip = vm_data['master_ip']
-        work_queue = vm_data['work_queue']
+        work_queue_name = vm_data['work_queue']
 
     # Start the budget keeper. It is responsible to automatically terminate the
     # worker after X seconds
@@ -160,7 +160,7 @@ def main():
     Thread(target=run_wsgi, daemon=True).start()
 
     # Start the worker that will get tasks from the work queue
-    run_worker(master_ip, work_queue)
+    run_worker(master_ip, work_queue_name)
 
     # run_worker will run forever in reuse mode. In create mode it will
     # run until there are no more tasks in the queue.
