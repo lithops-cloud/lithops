@@ -94,7 +94,7 @@ if __name__ == "__main__":
     worker_processes = int(sys.argv[1]) if len(sys.argv) > 1 else mp.cpu_count()
     service_port = int(sys.argv[2]) if len(sys.argv) > 2 else utils.find_free_port()
 
-    server = SimpleXMLRPCServer(('localhost', service_port), logRequests=True)
+    server = SimpleXMLRPCServer(('0.0.0.0', service_port), logRequests=True)
     server.register_function(add_job, 'add_job')
     server.register_function(extract_runtime_meta, 'extract_runtime_meta')
     server.register_function(stop_service, 'stop_service')

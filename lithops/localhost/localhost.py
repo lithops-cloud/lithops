@@ -68,7 +68,6 @@ class LocalhostHandler:
         """
         self.env = DefaultEnv(self.config) if '/' not in self.runtime_name else DockerEnv(self.config)
         self.env.setup()
-        self.env.start_service()
 
     def deploy_runtime(self, runtime_name, *args):
         """
@@ -94,8 +93,7 @@ class LocalhostHandler:
         """
         Generate the runtime key that identifies the runtime
         """
-        env_type = 'default' if '/' not in runtime_name else 'docker'
-        runtime_key = os.path.join('localhost', __version__, env_type, runtime_name.strip("/"))
+        runtime_key = os.path.join('localhost', __version__, runtime_name.strip("/"))
 
         return runtime_key
 
@@ -145,6 +143,7 @@ class BaseEnv:
         copyfile(src_handler, SERVICE_FILE)
 
     def get_metadata(self):
+        self.start_service()
         logger.debug(f"Extracting runtime metadata from: {self.runtime_name}")
 
         while True:
@@ -164,6 +163,7 @@ class BaseEnv:
         """
         Adds a job to the localhost service
         """
+        self.start_service()
         invoked = False
         while not invoked:
             try:
@@ -255,14 +255,13 @@ class DockerEnv(BaseEnv):
 
         tmp_path = Path(TEMP_DIR).as_posix()
         docker_path = utils.get_docker_path()
-        logger.info("getting port")
         service_port = utils.find_free_port()
-        logger.info(service_port)
 
         cmd = f'{docker_path} run --name lithops_{self.container_id} '
         cmd += '--gpus all ' if gpu else ''
         cmd += f'--user {self.uid}:{self.gid} ' if is_unix_system() else ''
         cmd += f'--env USER={os.getenv("USER", "root")} '
+        cmd += f'-p {service_port}:{service_port} '
         cmd += f'--rm -v {tmp_path}:/tmp --entrypoint "python3" '
         cmd += f'{self.runtime_name} /tmp/{USER_TEMP_DIR}/localhost-service.py '
         cmd += f'{str(self.worker_processes)} {str(service_port)}'
@@ -273,10 +272,10 @@ class DockerEnv(BaseEnv):
 
         self.client = xmlrpc.client.ServerProxy(f'http://localhost:{service_port}')
 
-    def stop(self, job_keys=None):
+    def stop(self):
         """
         Stops localhost service container containers
         """
         sp.Popen(shlex.split(f'docker rm -f lithops_{self.container_id}'),
                  stdout=sp.DEVNULL, stderr=sp.DEVNULL)
-        super().stop(job_keys)
+        super().stop()
