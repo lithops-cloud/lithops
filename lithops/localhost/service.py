@@ -2,6 +2,7 @@ import os
 import json
 import sys
 import logging
+import platform
 import threading
 import multiprocessing as mp
 from multiprocessing.managers import SyncManager
@@ -21,6 +22,9 @@ os.makedirs(LOGS_DIR, exist_ok=True)
 logging.basicConfig(stream=log_file_stream, level=logging.INFO, format=LOGGER_FORMAT)
 logger = logging.getLogger('lithops.localhost.service')
 
+# Change spawn method for MacOS
+if platform.system() == 'Darwin':
+    mp.set_start_method("fork")
 
 # Initialize a global variable to hold the server
 server = None
