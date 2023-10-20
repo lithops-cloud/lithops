@@ -6,7 +6,7 @@
 - 
 
 ### Changed
-- [Joblib] Update joblib backend for newer versions of joblib
+- [Joblib] Update joblib backend to make it compatible for newer versions of joblib
 
 ### Fixed
 - [Job] Fixed max data size in the invocation payload

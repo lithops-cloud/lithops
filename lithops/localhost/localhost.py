@@ -35,7 +35,7 @@ from lithops.utils import is_lithops_worker, is_unix_system
 
 logger = logging.getLogger(__name__)
 
-RUNNER = os.path.join(LITHOPS_TEMP_DIR, 'runner.py')
+RUNNER = os.path.join(LITHOPS_TEMP_DIR, 'localhost-runner.py')
 LITHOPS_LOCATION = os.path.dirname(os.path.abspath(lithops.__file__))
 
 
@@ -294,7 +294,7 @@ class DockerEnv(BaseEnv):
         cmd += f'--user {self.uid}:{self.gid} ' if is_unix_system() else ''
         cmd += f'--env USER={os.getenv("USER", "root")} '
         cmd += f'--rm -v {tmp_path}:/tmp --entrypoint "python3" '
-        cmd += f'{self.runtime} /tmp/{USER_TEMP_DIR}/runner.py get_metadata'
+        cmd += f'{self.runtime} /tmp/{USER_TEMP_DIR}/localhost-runner.py get_metadata'
 
         process = sp.run(shlex.split(cmd), check=True, stdout=sp.PIPE,
                          universal_newlines=True, start_new_session=True)
@@ -325,7 +325,7 @@ class DockerEnv(BaseEnv):
         cmd += f'--user {self.uid}:{self.gid} ' if is_unix_system() else ''
         cmd += f'--env USER={os.getenv("USER", "root")} '
         cmd += f'--rm -v {tmp_path}:/tmp --entrypoint "python3" '
-        cmd += f'{self.runtime} /tmp/{USER_TEMP_DIR}/runner.py run_job {job_filename}'
+        cmd += f'{self.runtime} /tmp/{USER_TEMP_DIR}/localhost-runner.py run_job {job_filename}'
 
         log = open(RN_LOG_FILE, 'a')
         process = sp.Popen(shlex.split(cmd), stdout=log, stderr=log, start_new_session=True)

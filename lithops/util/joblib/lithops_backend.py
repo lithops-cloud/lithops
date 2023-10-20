@@ -15,6 +15,7 @@
 #
 
 import logging
+import os
 import pickle
 import diskcache
 from numpy import ndarray
@@ -27,6 +28,7 @@ from joblib.pool import PicklingPool
 from joblib.parallel import register_parallel_backend
 
 from lithops.multiprocessing import Pool, cpu_count
+from lithops.constants import LITHOPS_TEMP_DIR
 from lithops.storage import Storage
 
 logger = logging.getLogger(__name__)
@@ -182,7 +184,7 @@ def handle_call(func, args, kwargs, proxy_positions=[]):
 def replace_with_values(args, kwargs, proxy_positions):
     args_as_list = list(args)
     thread_pool = ThreadPoolExecutor(max_workers=len(proxy_positions))
-    cache = diskcache.Cache('/tmp/lithops/cache')
+    cache = diskcache.Cache(os.path.join(LITHOPS_TEMP_DIR, 'cache'))
 
     def get_arg_obj(idx_or_key):
         if isinstance(idx_or_key, str):
