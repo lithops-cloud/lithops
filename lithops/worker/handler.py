@@ -37,7 +37,7 @@ from lithops.version import __version__
 from lithops.config import extract_storage_config
 from lithops.storage import InternalStorage
 from lithops.worker.jobrunner import JobRunner
-from lithops.worker.utils import LogStream, custom_redirection,\
+from lithops.worker.utils import LogStream, custom_redirection, \
     get_function_and_modules, get_function_data
 from lithops.constants import JOBS_PREFIX, LITHOPS_TEMP_DIR, MODULES_DIR
 from lithops.utils import setup_lithops_logger, is_unix_system
