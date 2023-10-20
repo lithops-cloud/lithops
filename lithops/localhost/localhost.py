@@ -180,7 +180,7 @@ class BaseEnv:
         """
         if self.service_process.poll() is None:
             PID = self.service_process.pid
-            logger.debug(f'Stopping localhost service with PID {PID}')
+            logger.debug(f'Stopping localhost executor service with PID {PID}')
             if is_unix_system():
                 PGID = os.getpgid(PID)
                 os.killpg(PGID, signal.SIGKILL)
@@ -195,10 +195,10 @@ class DefaultEnv(BaseEnv):
 
     def __init__(self, config):
         super().__init__(config)
-        logger.debug(f'Starting Default Environment for {self.runtime_name}')
+        logger.debug(f'Starting python environment for {self.runtime_name}')
 
     def setup(self):
-        logger.debug('Setting up Default python environment')
+        logger.debug('Setting up python environment')
         self._copy_lithops_to_tmp()
 
     def start_service(self):
@@ -209,7 +209,7 @@ class DefaultEnv(BaseEnv):
         if not os.path.isfile(SERVICE_FILE):
             self.setup()
 
-        logger.debug('Starting localhost worker service - Python environment')
+        logger.debug('Starting localhost executor service - Python environment')
 
         service_port = utils.find_free_port()
 
@@ -228,7 +228,7 @@ class DockerEnv(BaseEnv):
 
     def __init__(self, config):
         super().__init__(config)
-        logger.debug(f'Starting Docker Environment for {self.runtime_name}')
+        logger.debug(f'Starting docker environment for {self.runtime_name}')
         self.container_id = str(uuid.uuid4()).replace('-', '')[:12]
         self.uid = os.getuid() if is_unix_system() else None
         self.gid = os.getuid() if is_unix_system() else None
@@ -249,7 +249,7 @@ class DockerEnv(BaseEnv):
         if not os.path.isfile(SERVICE_FILE):
             self.setup()
 
-        logger.debug('Starting localhost worker service - Docker environemnt')
+        logger.debug('Starting localhost executor service - Docker environemnt')
 
         gpu = self.config.get('gpu', False)
 

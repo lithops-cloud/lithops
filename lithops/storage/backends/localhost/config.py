@@ -16,7 +16,7 @@
 
 
 def load_config(config_data):
-    if 'localhost' not in config_data:
+    if 'localhost' not in config_data or config_data['localhost'] is None:
         config_data['localhost'] = {}
 
     config_data['localhost']['storage_bucket'] = 'storage'
