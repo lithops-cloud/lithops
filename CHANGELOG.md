@@ -6,7 +6,7 @@
 - 
 
 ### Changed
-- [Joblib] Update joblib backend to make it compatible for newer versions of 
+- [Joblib] Update joblib backend to make it compatible for newer versions of joblib
 - [localhost] Maximize resource utilization when multiple maps are executed from the same FunctionExecutor
 
 ### Fixed

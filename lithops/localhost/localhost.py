@@ -115,10 +115,7 @@ class LocalhostHandler:
         pass
 
     def clear(self, job_keys=None):
-        """
-        Kills the localhost service
-        """
-        self.env.stop()
+        pass
 
 
 class BaseEnv:
@@ -151,13 +148,13 @@ class BaseEnv:
                 response = self.client.extract_runtime_meta()
                 break
             except ConnectionRefusedError:
-                time.sleep(1)
+                time.sleep(0.1)
 
         if response:
             return json.loads(response)
         else:
             raise Exception("An error ocurred trying to get the runtime metadata. "
-                            f"Check the {SERVICE_FILE.replace('.py', '.log')}")
+                            f"Check {SERVICE_FILE.replace('.py', '.log')}")
 
     def run(self, job_payload):
         """
@@ -169,7 +166,7 @@ class BaseEnv:
             try:
                 invoked = self.client.add_job(json.dumps(job_payload))
             except ConnectionRefusedError:
-                time.sleep(1)
+                time.sleep(0.1)
 
     def start_service(self):
         raise NotImplementedError

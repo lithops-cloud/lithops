@@ -1,10 +1,29 @@
+#
+# (C) Copyright IBM Corp. 2023
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
 import os
+import time
 import json
 import sys
 import logging
 import platform
 import threading
 import multiprocessing as mp
+from enum import Enum
+from types import SimpleNamespace
 from multiprocessing.managers import SyncManager
 from xmlrpc.server import SimpleXMLRPCServer
 
@@ -29,9 +48,12 @@ if platform.system() == 'Darwin':
 # Initialize a global variable to hold the server
 server = None
 
+MAX_IDLE_TIMEOUT = 10
+
 # Initialize a global variable to hold the queue
 manager = SyncManager()
 manager.start()
+status_dict = manager.dict()
 work_queue = manager.Queue()
 
 # Initialize a global variable to hold the worker processes
@@ -39,6 +61,11 @@ job_runners = []
 
 # Set Localhost backend to the env
 os.environ['__LITHOPS_BACKEND'] = 'Localhost'
+
+
+class ProcessStatus(Enum):
+    IDLE = 'idle'
+    BUSY = 'busy'
 
 
 def add_job(job_payload):
@@ -68,7 +95,7 @@ def extract_runtime_meta():
 def stop_service():
     global server
     if server:
-        logger.info('Shutting down the service')
+        logger.info('Shutting down the executor service')
         server.shutdown()
         server.server_close()
         for process_runner in range(len(job_runners)):
@@ -76,18 +103,37 @@ def stop_service():
                 work_queue.put(ShutdownSentinel())
             except Exception:
                 pass
+        for runner in job_runners:
+            runner.join()
         manager.shutdown()
-        logger.info('Lithops localhost service has been stopped')
+        logger.info('Lithops localhost executor service has been stopped')
         log_file_stream.close()
 
 
 def check_inactivity():
-    for runner in job_runners:
-        runner.join()
-    stop_service()
+    max_idle_time = MAX_IDLE_TIMEOUT
+    while True:
+        time.sleep(5)  # Check every 5 seconds
+        all_idle = all(value == ProcessStatus.IDLE.value for value in status_dict.values())
+        if all_idle:
+            max_idle_time -= 5
+            if max_idle_time <= 0:
+                stop_service()
+                break
+
+
+def task_initializer(pid, task):
+    status_dict[pid] = ProcessStatus.BUSY.value
+    logger.info(status_dict)
+
+
+def task_callback(pid: int, task: SimpleNamespace):
+    status_dict[pid] = ProcessStatus.IDLE.value
+    logger.info(status_dict)
 
 
 if __name__ == "__main__":
+    logger.info('*'*60)
     logger.info('Starting Lithops localhost executor service')
 
     worker_processes = int(sys.argv[1]) if len(sys.argv) > 1 else mp.cpu_count()
@@ -100,7 +146,8 @@ if __name__ == "__main__":
 
     # Start worker processes
     for pid in range(int(worker_processes)):
-        p = mp.Process(target=python_queue_consumer, args=(pid, work_queue, 30))
+        status_dict[pid] = ProcessStatus.IDLE.value
+        p = mp.Process(target=python_queue_consumer, args=(pid, work_queue, task_initializer, task_callback))
         job_runners.append(p)
         p.start()
 

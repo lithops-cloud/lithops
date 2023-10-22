@@ -109,14 +109,14 @@ def function_handler(payload):
     os.environ.pop('__LITHOPS_TOTAL_EXECUTORS', None)
 
 
-def python_queue_consumer(pid, work_queue, timeout=30, callback=None):
+def python_queue_consumer(pid, work_queue, initializer=None, callback=None):
     """
     Listens to the job_queue and executes the individual job tasks
     """
     logger.info(f'Worker process {pid} started')
     while True:
         try:
-            event = work_queue.get(block=True, timeout=timeout)
+            event = work_queue.get(block=True)
         except Empty:
             break
         except BrokenPipeError:
@@ -129,9 +129,11 @@ def python_queue_consumer(pid, work_queue, timeout=30, callback=None):
         task.call_id = call_id
         task.data = data
 
+        initializer(pid, task) if initializer is not None else None
+
         prepare_and_run_task(task)
 
-        callback(task) if callback is not None else None
+        callback(pid, task) if callback is not None else None
 
     logger.info(f'Worker process {pid} finished')
 
