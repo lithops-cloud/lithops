@@ -584,7 +584,7 @@ class FunctionExecutor:
             save_data_to_clean(data)
 
         futures = fs or self.futures
-        futures = [futures] if type(futures) != list else futures
+        futures = [futures] if type(futures) is not list else futures
         present_jobs = {create_job_key(f.executor_id, f.job_id) for f in futures
                         if (f.executor_id.count('-') == 1 and f.done) or force}
         jobs_to_clean = present_jobs - self.cleaned_jobs
@@ -646,7 +646,7 @@ class FunctionExecutor:
             init()
 
             futures = self.futures
-            if type(futures) != list:
+            if type(futures) is not list:
                 futures = [futures]
 
             memory = []

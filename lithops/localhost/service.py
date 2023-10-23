@@ -111,25 +111,34 @@ def stop_service():
 
 
 def check_inactivity():
-    max_idle_time = MAX_IDLE_TIMEOUT
+    tasks_running = False
+    last_usage_time = time.time()
+
     while True:
-        time.sleep(5)  # Check every 5 seconds
-        all_idle = all(value == ProcessStatus.IDLE.value for value in status_dict.values())
-        if all_idle:
-            max_idle_time -= 5
-            if max_idle_time <= 0:
-                stop_service()
-                break
+        logger.info(status_dict)
+        if all(value == ProcessStatus.IDLE.value for value in status_dict.values()):
+            if tasks_running:
+                tasks_running = False
+                last_usage_time = time.time()
+        else:
+            tasks_running = True
+            last_usage_time = time.time()
+
+        time_since_last_usage = time.time() - last_usage_time
+        time_to_stop = int(MAX_IDLE_TIMEOUT - time_since_last_usage)
+
+        if time_to_stop <= 0:
+            stop_service()
+            break
+        time.sleep(5)
 
 
 def task_initializer(pid, task):
     status_dict[pid] = ProcessStatus.BUSY.value
-    logger.info(status_dict)
 
 
 def task_callback(pid: int, task: SimpleNamespace):
     status_dict[pid] = ProcessStatus.IDLE.value
-    logger.info(status_dict)
 
 
 if __name__ == "__main__":

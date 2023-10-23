@@ -115,7 +115,7 @@ class LocalhostHandler:
         pass
 
     def clear(self, job_keys=None):
-        pass
+        self.env.stop()
 
 
 class BaseEnv:
@@ -129,6 +129,7 @@ class BaseEnv:
         self.worker_processes = self.config['worker_processes']
         self.service_process = None
         self.client = None
+        self.service_running = False
 
     def _copy_lithops_to_tmp(self):
         if is_lithops_worker() and os.path.isfile(SERVICE_FILE):
@@ -175,14 +176,17 @@ class BaseEnv:
         """
         Stops localhost service
         """
-        if self.service_process.poll() is None:
-            PID = self.service_process.pid
-            logger.debug(f'Stopping localhost executor service with PID {PID}')
-            if is_unix_system():
-                PGID = os.getpgid(PID)
-                os.killpg(PGID, signal.SIGKILL)
-            else:
-                os.kill(PID, signal.SIGTERM)
+        if self.service_running:
+            self.service_running = False
+            if self.service_process and self.service_process.poll() is None:
+                PID = self.service_process.pid
+                logger.debug(f'Stopping localhost executor service with PID {PID}')
+                if is_unix_system():
+                    PGID = os.getpgid(PID)
+                    os.killpg(PGID, signal.SIGKILL)
+                else:
+                    os.kill(PID, signal.SIGTERM)
+            self.service_process = None
 
 
 class DefaultEnv(BaseEnv):
@@ -200,7 +204,6 @@ class DefaultEnv(BaseEnv):
 
     def start_service(self):
         if self.service_process and self.service_process.poll() is None:
-            # The service is running
             return
 
         if not os.path.isfile(SERVICE_FILE):
@@ -216,6 +219,7 @@ class DefaultEnv(BaseEnv):
         self.service_process = process
 
         self.client = xmlrpc.client.ServerProxy(f'http://localhost:{service_port}')
+        self.service_running = True
 
 
 class DockerEnv(BaseEnv):
@@ -240,7 +244,6 @@ class DockerEnv(BaseEnv):
 
     def start_service(self):
         if self.service_process and self.service_process.poll() is None:
-            # The service is running
             return
 
         if not os.path.isfile(SERVICE_FILE):
@@ -268,6 +271,7 @@ class DockerEnv(BaseEnv):
         self.service_process = process
 
         self.client = xmlrpc.client.ServerProxy(f'http://localhost:{service_port}')
+        self.service_running = True
 
     def stop(self):
         """

@@ -38,8 +38,8 @@ except ModuleNotFoundError:
 from lithops.storage import Storage
 from lithops.wait import wait
 from lithops.future import ResponseFuture
-from lithops.utils import WrappedStreamingBody, sizeof_fmt, is_object_processing_function, FuturesList,\
-    verify_args
+from lithops.utils import WrappedStreamingBody, sizeof_fmt, \
+    is_object_processing_function, FuturesList, verify_args
 from lithops.utils import WrappedStreamingBodyPartition
 from lithops.util.metrics import PrometheusExporter
 from lithops.storage.utils import create_output_key
