@@ -257,6 +257,7 @@ class LogStream:
     def flush(self):
         try:
             self._stream.flush()
+            self._stdout.flush()
         except ValueError:
             pass
 

@@ -39,7 +39,7 @@ from lithops.constants import LOCALHOST, CLEANER_DIR, \
     SERVERLESS, STANDALONE
 from lithops.utils import is_notebook, setup_lithops_logger, \
     is_lithops_worker, create_executor_id, create_futures_list
-from lithops.localhost import LocalhostHandler
+from lithops.localhost import LocalhostHandler, LocalhostHandlerV2
 from lithops.standalone import StandaloneHandler
 from lithops.serverless import ServerlessHandler
 from lithops.storage.utils import create_job_key, CloudObject
@@ -118,7 +118,10 @@ class FunctionExecutor:
 
         if self.mode == LOCALHOST:
             localhost_config = extract_localhost_config(self.config)
-            self.compute_handler = LocalhostHandler(localhost_config)
+            if localhost_config.get('version', 1) == 1:
+                self.compute_handler = LocalhostHandler(localhost_config)
+            else:
+                self.compute_handler = LocalhostHandlerV2(localhost_config)
         elif self.mode == SERVERLESS:
             serverless_config = extract_serverless_config(self.config)
             self.compute_handler = ServerlessHandler(serverless_config, self.internal_storage)

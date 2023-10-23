@@ -53,7 +53,7 @@ class LocalhostHandlerV2:
         self.runtime_name = self.config['runtime']
         self.env = None
 
-        msg = COMPUTE_CLI_MSG.format('Localhost compute')
+        msg = COMPUTE_CLI_MSG.format('Localhost compute V2')
         logger.info(f"{msg}")
 
     def get_backend_type(self):
@@ -114,7 +114,7 @@ class LocalhostHandlerV2:
         pass
 
     def clear(self, job_keys=None):
-        self.env.stop()
+        self.env.stop(job_keys)
 
 
 class BaseEnv:
@@ -126,6 +126,7 @@ class BaseEnv:
         self.config = config
         self.runtime_name = self.config['runtime']
         self.worker_processes = self.config['worker_processes']
+        self.job_keys = []
         self.service_process = None
         self.client = None
         self.service_running = False
@@ -161,6 +162,7 @@ class BaseEnv:
         Adds a job to the localhost service
         """
         self.start_service()
+        self.job_keys.append(job_payload['job_key'])
         invoked = False
         while not invoked:
             try:
@@ -171,9 +173,9 @@ class BaseEnv:
     def start_service(self):
         raise NotImplementedError
 
-    def stop(self):
+    def stop(self, job_keys):
         """
-        Stops localhost service
+        Stops localhost executor service
         """
         if self.service_running:
             self.service_running = False
@@ -186,6 +188,11 @@ class BaseEnv:
                 else:
                     os.kill(PID, signal.SIGTERM)
             self.service_process = None
+
+        # job_keys = job_keys or list(self.jobs_keys)
+        # for job_key in job_keys:
+        #     done = os.path.join(JOBS_DIR, job_key + '.done')
+        #     Path(done).touch()
 
 
 class DefaultEnv(BaseEnv):

@@ -54,8 +54,8 @@ class LocalhostHandler:
         self.job_manager = None
         self.should_run = True
 
-        msg = COMPUTE_CLI_MSG.format('Localhost compute')
-        logger.info("{}".format(msg))
+        msg = COMPUTE_CLI_MSG.format('Localhost compute V1')
+        logger.info(f"{msg}")
 
     def init(self):
         """

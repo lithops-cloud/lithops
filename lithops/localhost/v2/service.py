@@ -23,6 +23,7 @@ import platform
 import threading
 import multiprocessing as mp
 from enum import Enum
+from pathlib import Path
 from types import SimpleNamespace
 from multiprocessing.managers import SyncManager
 from xmlrpc.server import SimpleXMLRPCServer
@@ -45,19 +46,15 @@ logger = logging.getLogger('lithops.localhost.service')
 if platform.system() == 'Darwin':
     mp.set_start_method("fork")
 
-# Initialize a global variable to hold the server
-server = None
-
-MAX_IDLE_TIMEOUT = 10
-
-# Initialize a global variable to hold the queue
-manager = SyncManager()
-manager.start()
-status_dict = manager.dict()
-work_queue = manager.Queue()
-
-# Initialize a global variable to hold the worker processes
 job_runners = []
+manager = None
+server = None
+worker_status_dict = None
+job_status_dict = None
+work_queue = None
+job_status_lock = None
+
+MAX_IDLE_TIMEOUT = 2
 
 # Set Localhost backend to the env
 os.environ['__LITHOPS_BACKEND'] = 'Localhost'
@@ -73,6 +70,7 @@ def add_job(job_payload):
     logger.info(f'ExecutorID {job.executor_id} | JobID {job.job_id} - Adding '
                 f'{job.total_calls} tasks in the localhost worker')
     try:
+        job_status_dict[job.job_key] = 0
         for call_id in job.call_ids:
             data = job.data.pop(0)
             work_queue.put((job, call_id, data))
@@ -96,8 +94,6 @@ def stop_service():
     global server
     if server:
         logger.info('Shutting down the executor service')
-        server.shutdown()
-        server.server_close()
         for process_runner in range(len(job_runners)):
             try:
                 work_queue.put(ShutdownSentinel())
@@ -105,9 +101,8 @@ def stop_service():
                 pass
         for runner in job_runners:
             runner.join()
-        manager.shutdown()
-        logger.info('Lithops localhost executor service has been stopped')
-        log_file_stream.close()
+        server.shutdown()
+        server.server_close()
 
 
 def check_inactivity():
@@ -115,8 +110,7 @@ def check_inactivity():
     last_usage_time = time.time()
 
     while True:
-        logger.info(status_dict)
-        if all(value == ProcessStatus.IDLE.value for value in status_dict.values()):
+        if all(value == ProcessStatus.IDLE.value for value in worker_status_dict.values()):
             if tasks_running:
                 tasks_running = False
                 last_usage_time = time.time()
@@ -125,20 +119,28 @@ def check_inactivity():
             last_usage_time = time.time()
 
         time_since_last_usage = time.time() - last_usage_time
-        time_to_stop = int(MAX_IDLE_TIMEOUT - time_since_last_usage)
 
-        if time_to_stop <= 0:
+        if int(MAX_IDLE_TIMEOUT - time_since_last_usage) <= 0:
             stop_service()
             break
+
+        log_file_stream.flush()
         time.sleep(5)
 
 
 def task_initializer(pid, task):
-    status_dict[pid] = ProcessStatus.BUSY.value
+    worker_status_dict[pid] = ProcessStatus.BUSY.value
 
 
 def task_callback(pid: int, task: SimpleNamespace):
-    status_dict[pid] = ProcessStatus.IDLE.value
+    worker_status_dict[pid] = ProcessStatus.IDLE.value
+
+    with job_status_lock:
+        job_status_dict[task.job_key] += 1
+
+    if job_status_dict[task.job_key] == task.total_calls:
+        logger.info(f'ExecutorID {task.executor_id} | JobID {task.job_id} - Execution Finished')
+        job_status_dict[task.job_key] = 'done'
 
 
 if __name__ == "__main__":
@@ -148,6 +150,13 @@ if __name__ == "__main__":
     worker_processes = int(sys.argv[1]) if len(sys.argv) > 1 else mp.cpu_count()
     service_port = int(sys.argv[2]) if len(sys.argv) > 2 else utils.find_free_port()
 
+    manager = SyncManager()
+    manager.start()
+    worker_status_dict = manager.dict()
+    job_status_dict = manager.dict()
+    work_queue = manager.Queue()
+    job_status_lock = manager.Lock()
+
     server = SimpleXMLRPCServer(('0.0.0.0', service_port), logRequests=False)
     server.register_function(add_job, 'add_job')
     server.register_function(extract_runtime_meta, 'extract_runtime_meta')
@@ -155,7 +164,7 @@ if __name__ == "__main__":
 
     # Start worker processes
     for pid in range(int(worker_processes)):
-        status_dict[pid] = ProcessStatus.IDLE.value
+        worker_status_dict[pid] = ProcessStatus.IDLE.value
         p = mp.Process(target=python_queue_consumer, args=(pid, work_queue, task_initializer, task_callback))
         job_runners.append(p)
         p.start()
@@ -166,3 +175,8 @@ if __name__ == "__main__":
     inactivity_thread.start()
 
     server.serve_forever()
+
+    manager.shutdown()
+    log_file_stream.flush()
+    logger.info('Lithops localhost executor service has been stopped')
+    log_file_stream.close()
