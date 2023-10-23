@@ -39,9 +39,9 @@ from lithops.constants import LOCALHOST, CLEANER_DIR, \
     SERVERLESS, STANDALONE
 from lithops.utils import is_notebook, setup_lithops_logger, \
     is_lithops_worker, create_executor_id, create_futures_list
-from lithops.localhost.localhost import LocalhostHandler
-from lithops.standalone.standalone import StandaloneHandler
-from lithops.serverless.serverless import ServerlessHandler
+from lithops.localhost import LocalhostHandler
+from lithops.standalone import StandaloneHandler
+from lithops.serverless import ServerlessHandler
 from lithops.storage.utils import create_job_key, CloudObject
 from lithops.monitor import JobMonitor
 from lithops.utils import FuturesList

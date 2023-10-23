@@ -29,10 +29,10 @@ from gevent.pywsgi import WSGIServer
 from threading import Thread
 from concurrent.futures import ThreadPoolExecutor
 
-from lithops.constants import LITHOPS_TEMP_DIR, SA_LOG_FILE, JOBS_DIR,\
+from lithops.constants import LITHOPS_TEMP_DIR, SA_LOG_FILE, JOBS_DIR, \
     SA_SERVICE_PORT, SA_CONFIG_FILE, SA_DATA_FILE
-from lithops.localhost.localhost import LocalhostHandler
-from lithops.standalone.standalone import LithopsValidationError
+from lithops.localhost import LocalhostHandler
+from lithops.standalone import LithopsValidationError
 from lithops.utils import verify_runtime_name, iterchunks, setup_lithops_logger
 from lithops.standalone.utils import get_worker_setup_script
 from lithops.standalone.keeper import BudgetKeeper

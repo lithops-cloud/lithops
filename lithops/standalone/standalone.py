@@ -31,6 +31,7 @@ from lithops.version import __version__
 
 logger = logging.getLogger(__name__)
 
+
 class LithopsValidationError(Exception):
     pass
 

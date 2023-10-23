@@ -26,7 +26,7 @@ from gevent.pywsgi import WSGIServer
 
 from lithops.constants import LITHOPS_TEMP_DIR, SA_LOG_FILE, JOBS_DIR, \
     SA_SERVICE_PORT, SA_CONFIG_FILE, SA_DATA_FILE
-from lithops.localhost.localhost import LocalhostHandler
+from lithops.localhost import LocalhostHandler
 from lithops.utils import verify_runtime_name, setup_lithops_logger
 from lithops.standalone.keeper import BudgetKeeper
 

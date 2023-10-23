@@ -3,7 +3,7 @@ import os
 import time
 import threading
 import logging
-from lithops.standalone.standalone import StandaloneHandler
+from lithops.standalone import StandaloneHandler
 from lithops.constants import SA_DATA_FILE, JOBS_DIR
 
 

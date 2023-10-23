@@ -31,7 +31,7 @@ from lithops.util.ssh_client import SSHClient
 from lithops.constants import COMPUTE_CLI_MSG, CACHE_DIR, SA_DATA_FILE
 from lithops.config import load_yaml_config, dump_yaml_config
 from lithops.standalone.utils import ExecMode
-from lithops.standalone.standalone import LithopsValidationError
+from lithops.standalone import LithopsValidationError
 
 
 logger = logging.getLogger(__name__)

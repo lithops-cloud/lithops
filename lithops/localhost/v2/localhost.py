@@ -1,5 +1,5 @@
 #
-# (C) Copyright Cloudlab URV 2021
+# (C) Copyright IBM Corp. 2023
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -40,7 +40,7 @@ SERVICE_FILE = os.path.join(LITHOPS_TEMP_DIR, 'localhost-service.py')
 LITHOPS_LOCATION = os.path.dirname(os.path.abspath(lithops.__file__))
 
 
-class LocalhostHandler:
+class LocalhostHandlerV2:
     """
     A localhostHandler object is used by invokers and other components to
     access underlying localhost backend without exposing the implementation
@@ -86,7 +86,6 @@ class LocalhostHandler:
 
         logger.debug(f'ExecutorID {executor_id} | JobID {job_id} - Running '
                      f'{total_calls} activations in the localhost worker')
-
         self.env.run(job_payload)
 
     def get_runtime_key(self, runtime_name, *args):
@@ -137,7 +136,7 @@ class BaseEnv:
         os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
         shutil.rmtree(os.path.join(LITHOPS_TEMP_DIR, 'lithops'), ignore_errors=True)
         shutil.copytree(LITHOPS_LOCATION, os.path.join(LITHOPS_TEMP_DIR, 'lithops'))
-        src_handler = os.path.join(LITHOPS_LOCATION, 'localhost', 'service.py')
+        src_handler = os.path.join(LITHOPS_LOCATION, 'localhost', 'v2', 'service.py')
         copyfile(src_handler, SERVICE_FILE)
 
     def get_metadata(self):
@@ -148,7 +147,7 @@ class BaseEnv:
             try:
                 response = self.client.extract_runtime_meta()
                 break
-            except ConnectionRefusedError:
+            except (ConnectionRefusedError, ConnectionResetError):
                 time.sleep(0.1)
 
         if response:
@@ -166,7 +165,7 @@ class BaseEnv:
         while not invoked:
             try:
                 invoked = self.client.add_job(json.dumps(job_payload))
-            except ConnectionRefusedError:
+            except (ConnectionRefusedError, ConnectionResetError):
                 time.sleep(0.1)
 
     def start_service(self):
