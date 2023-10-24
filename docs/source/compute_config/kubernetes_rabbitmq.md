@@ -12,7 +12,7 @@ All of these changes are **ideal** for pipelines where launching **hundreds of p
 
 * **Improved Cold Start Time:** Lithops K8s RabbitMQ offers a significant enhancement in cold start time, effectively reducing the delay before your functions start executing.
 
-* **CPU Assignment:** In this backend, CPU assignment is employed by allocating identifiers to each CPU. This approach facilitates more effective resource management within our cluster, enabling the creation of pods that match the entire capacity of a machine and allowing the launch of precisely the number of tasks that can run concurrently.
+* **CPU Assignment:** In this backend, CPU assignment is employed by allocating identifiers to each CPU. This approach facilitates more effective resource management within our cluster, enabling the creation of pods that by default match the entire capacity of a machine (runtime_cpu) and allowing the launch of precisely the number of tasks that can run concurrently.
 
 This architecture also comes with certain drawbacks, such as the limitation of launching different simultaneous clients due to its single-tenancy nature. Additionally, the granularity is currently defined by the number of CPUs available on the machine.
 
@@ -91,6 +91,21 @@ In this scenario, it is evident that the cold start times are consistently reduc
 *Elapsed time = 6,5 sec.*
 
 ![Kubernetes K8s RabbitMQ with Warm Start plot](../images/plots_kubernetes/warm_start_histogram.png)
+
+## Summary of configuration keys for kubernetes:
+
+|Group|Key|Default|Mandatory|Additional info|
+|---|---|---|---|---|
+|k8s | kubecfg_path | |no | Path to kubecfg file. Mandatory if config file not in `~/.kube/config` or KUBECONFIG env var not present|
+|k8s | kubecfg_context |  |no | kubernetes context to use from your kubeconfig file. It will use the default active context if not provided |
+|k8s | namespace | default |no | Kubernetes namespace to use for lithops execution |
+|k8s | docker_server | docker.io |no | Container registry URL |
+|k8s | docker_user | |no | Container registry user name |
+|k8s | docker_password | |no | Container registry password/token. In case of Docker hub, login to your docker hub account and generate a new access token [here](https://hub.docker.com/settings/security)|
+|k8s | rabbitmq_executor | False | no | Alternative K8s backend accelerating parallel function execution (map) thanks to rabbitmq group calls and warm-state pods of higher granularity.|
+|k8s | runtime |  |no | Docker image name.|
+|k8s | runtime_cpu |  |no | CPUs per pod. This enables pod granularity. Default gets all cpus of the nodes. |
+|k8s | runtime_memory | 512 |no | Memory limit in MB per pod. Default 512MB |
 
 ## Test Lithops
 

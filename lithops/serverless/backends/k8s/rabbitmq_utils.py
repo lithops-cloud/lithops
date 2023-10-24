@@ -25,10 +25,7 @@ def get_amqp_url():
         logger.info("This version of Kubernetes runtime requires RabbitMQ")
         raise Exception("RabbitMQ amqp_url not found in configuration")
 
-try:
-    rabbitmq_executor = config.load_config()['k8s']['rabbitmq_executor']
-except:
-    rabbitmq_executor = False
+rabbitmq_executor = config.load_config().get('k8s', {}).get('rabbitmq_executor', False)
 
 if rabbitmq_executor:
     params = pika.URLParameters(get_amqp_url())
