@@ -24,6 +24,8 @@ LOGGER_FORMAT = "%(asctime)s [%(levelname)s] %(filename)s:%(lineno)s -- %(messag
 LOGGER_FORMAT_SHORT = "[%(levelname)s] %(filename)s:%(lineno)s -- %(message)s"
 LOGGER_LEVEL_CHOICES = ["debug", "info", "warning", "error", "critical"]
 
+CPU_COUNT = os.cpu_count()
+
 STORAGE_CLI_MSG = '{} client created'
 COMPUTE_CLI_MSG = '{} client created'
 
@@ -49,6 +51,8 @@ EXECUTION_TIMEOUT_DEFAULT = 1800
 EXECUTION_TIMEOUT_LOCALHOST_DEFAULT = 3600
 
 LOCALHOST_RUNTIME_DEFAULT = os.path.basename(sys.executable)
+LOCALHOST_SERVICE_IDLE_TIMEOUT = 3
+LOCALHOST_SERVICE_CHECK_INTERVAL = 2
 
 SA_INSTALL_DIR = '/opt/lithops'
 SA_TMP_DIR = '/tmp/lithops-root'

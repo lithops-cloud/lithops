@@ -418,7 +418,7 @@ class FunctionExecutor:
         :return: `(fs_done, fs_notdone)` where `fs_done` is a list of futures that have completed and `fs_notdone` is a list of futures that have not completed.
         """
         futures = fs or self.futures
-        if type(futures) != list and type(futures) != FuturesList:
+        if type(futures) not in [list, FuturesList]:
             futures = [futures]
 
         # Start waiting for results
@@ -446,7 +446,7 @@ class FunctionExecutor:
                 del self.futures[len(self.futures) - len(futures):]
             if self.data_cleaner:
                 present_jobs = {f.job_key for f in futures}
-                self.compute_handler.clear(present_jobs)
+                self.compute_handler.clear(present_jobs, exception=e)
                 self.clean(clean_cloudobjects=False, force=True)
             raise e
 

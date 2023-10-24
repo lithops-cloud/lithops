@@ -25,19 +25,37 @@ import logging
 import shutil
 import xmlrpc.client
 import subprocess as sp
+from enum import Enum
 from shutil import copyfile
 from pathlib import Path
 
 from lithops import utils
 from lithops.version import __version__
-from lithops.constants import TEMP_DIR, USER_TEMP_DIR, \
-    LITHOPS_TEMP_DIR, COMPUTE_CLI_MSG, SV_LOG_FILE
-from lithops.utils import is_lithops_worker, is_unix_system
+from lithops.constants import (
+    LOCALHOST_SERVICE_CHECK_INTERVAL,
+    LOCALHOST_SERVICE_IDLE_TIMEOUT,
+    LOCALHOST_RUNTIME_DEFAULT,
+    TEMP_DIR,
+    USER_TEMP_DIR,
+    LITHOPS_TEMP_DIR,
+    COMPUTE_CLI_MSG,
+    SV_LOG_FILE,
+    CPU_COUNT,
+)
+from lithops.utils import (
+    is_lithops_worker,
+    is_unix_system
+)
 
 logger = logging.getLogger(__name__)
 
 SERVICE_FILE = os.path.join(LITHOPS_TEMP_DIR, 'localhost-service.py')
 LITHOPS_LOCATION = os.path.dirname(os.path.abspath(lithops.__file__))
+
+
+class LocalhostMode(Enum):
+    CREATE = 'create'
+    REUSE = 'reuse'
 
 
 class LocalhostHandlerV2:
@@ -50,7 +68,8 @@ class LocalhostHandlerV2:
     def __init__(self, localhost_config):
         logger.debug('Creating Localhost compute client')
         self.config = localhost_config
-        self.runtime_name = self.config['runtime']
+        self.mode = self.config.get('mode', LocalhostMode.CREATE.value)
+        self.runtime_name = self.config.get('runtime', LOCALHOST_RUNTIME_DEFAULT)
         self.env = None
 
         msg = COMPUTE_CLI_MSG.format('Localhost compute V2')
@@ -113,8 +132,12 @@ class LocalhostHandlerV2:
     def clean(self, **kwargs):
         pass
 
-    def clear(self, job_keys=None):
-        self.env.stop(job_keys)
+    def clear(self, job_keys=None, exception=None):
+        if self.mode == LocalhostMode.REUSE.value:
+            return
+
+        if exception is not None:
+            self.env.stop(job_keys)
 
 
 class BaseEnv:
@@ -125,7 +148,9 @@ class BaseEnv:
     def __init__(self, config):
         self.config = config
         self.runtime_name = self.config['runtime']
-        self.worker_processes = self.config['worker_processes']
+        self.worker_processes = self.config.get('worker_processes', CPU_COUNT)
+        self.max_idle_timeout = self.config.get('max_idle_timeout', LOCALHOST_SERVICE_IDLE_TIMEOUT)
+        self.check_interval = self.config.get('check_interval', LOCALHOST_SERVICE_CHECK_INTERVAL)
         self.job_keys = []
         self.service_process = None
         self.client = None
@@ -177,6 +202,8 @@ class BaseEnv:
         """
         Stops localhost executor service
         """
+        job_keys = job_keys or list(self.jobs_keys)
+
         if self.service_running:
             self.service_running = False
             if self.service_process and self.service_process.poll() is None:
@@ -188,11 +215,6 @@ class BaseEnv:
                 else:
                     os.kill(PID, signal.SIGTERM)
             self.service_process = None
-
-        # job_keys = job_keys or list(self.jobs_keys)
-        # for job_key in job_keys:
-        #     done = os.path.join(JOBS_DIR, job_key + '.done')
-        #     Path(done).touch()
 
 
 class DefaultEnv(BaseEnv):
@@ -219,7 +241,8 @@ class DefaultEnv(BaseEnv):
 
         service_port = utils.find_free_port()
 
-        cmd = [self.runtime_name, SERVICE_FILE, str(self.worker_processes), str(service_port)]
+        cmd = [self.runtime_name, SERVICE_FILE, str(self.worker_processes),
+               str(service_port), str(self.max_idle_timeout), str(self.check_interval)]
         log = open(SV_LOG_FILE, 'a')
         process = sp.Popen(cmd, stdout=log, stderr=log, start_new_session=True)
         self.service_process = process
@@ -270,7 +293,8 @@ class DockerEnv(BaseEnv):
         cmd += f'-p {service_port}:{service_port} '
         cmd += f'--rm -v {tmp_path}:/tmp --entrypoint "python3" '
         cmd += f'{self.runtime_name} /tmp/{USER_TEMP_DIR}/localhost-service.py '
-        cmd += f'{str(self.worker_processes)} {str(service_port)}'
+        cmd += f'{self.worker_processes} {service_port} '
+        cmd += f'{self.max_idle_timeout} {self.check_interval}'
 
         log = open(SV_LOG_FILE, 'a')
         process = sp.Popen(shlex.split(cmd), stdout=log, stderr=log, start_new_session=True)

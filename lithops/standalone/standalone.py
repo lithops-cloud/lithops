@@ -361,7 +361,7 @@ class StandaloneHandler:
         """
         self.backend.clean(**kwargs)
 
-    def clear(self, job_keys=None):
+    def clear(self, job_keys=None, exception=None):
         """
         Clear all the backend resources.
         clear method is executed after the results are get,

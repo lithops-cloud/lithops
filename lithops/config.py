@@ -33,8 +33,6 @@ os.makedirs(c.JOBS_DIR, exist_ok=True)
 os.makedirs(c.LOGS_DIR, exist_ok=True)
 os.makedirs(c.CLEANER_DIR, exist_ok=True)
 
-CPU_COUNT = os.cpu_count()
-
 
 def load_yaml_config(config_filename):
     import yaml
@@ -184,7 +182,7 @@ def default_config(config_file=None, config_data=None, config_overwrite={}, load
             config_data['lithops']['storage'] = c.LOCALHOST
 
         if 'worker_processes' not in config_data[c.LOCALHOST]:
-            config_data[backend]['worker_processes'] = CPU_COUNT
+            config_data[backend]['worker_processes'] = c.CPU_COUNT
 
         if 'runtime' not in config_data[c.LOCALHOST]:
             config_data[backend]['runtime'] = c.LOCALHOST_RUNTIME_DEFAULT
