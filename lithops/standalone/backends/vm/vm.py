@@ -21,7 +21,7 @@ import time
 from lithops.version import __version__
 from lithops.constants import COMPUTE_CLI_MSG
 from lithops.util.ssh_client import SSHClient
-from lithops.standalone.standalone import LithopsValidationError
+from lithops.standalone import LithopsValidationError
 
 logger = logging.getLogger(__name__)
 

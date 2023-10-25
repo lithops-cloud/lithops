@@ -21,6 +21,7 @@ import os
 import sys
 import uuid
 import json
+import socket
 import shutil
 import base64
 import inspect
@@ -30,6 +31,7 @@ import zipfile
 import platform
 import logging.config
 import subprocess as sp
+from contextlib import closing
 
 from lithops import constants
 from lithops.version import __version__
@@ -435,6 +437,13 @@ def get_docker_username():
             raise Exception('Unable to get the Docker registry user')
 
     return user
+
+
+def find_free_port():
+    with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
+        s.bind(('', 0))
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        return s.getsockname()[1]
 
 
 def split_object_url(obj_url):

@@ -38,8 +38,8 @@ from lithops.constants import CACHE_DIR, LITHOPS_TEMP_DIR, RUNTIMES_PREFIX, \
 from lithops.storage import InternalStorage
 from lithops.serverless import ServerlessHandler
 from lithops.storage.utils import clean_bucket
-from lithops.standalone.standalone import StandaloneHandler
-from lithops.localhost.localhost import LocalhostHandler
+from lithops.standalone import StandaloneHandler
+from lithops.localhost import LocalhostHandler
 
 
 logger = logging.getLogger(__name__)

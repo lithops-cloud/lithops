@@ -1,7 +1,7 @@
 import paramiko
 import logging
 import os
-from lithops.standalone.standalone import LithopsValidationError
+from lithops.standalone import LithopsValidationError
 
 logger = logging.getLogger(__name__)
 

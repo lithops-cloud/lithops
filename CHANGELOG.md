@@ -7,6 +7,7 @@
 
 ### Changed
 - [Joblib] Update joblib backend to make it compatible for newer versions of joblib
+- [localhost] Maximize resource utilization when multiple maps are executed from the same FunctionExecutor
 
 ### Fixed
 - [Job] Fixed max data size in the invocation payload

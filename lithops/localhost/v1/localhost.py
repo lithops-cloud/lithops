@@ -29,7 +29,7 @@ from shutil import copyfile
 from pathlib import Path
 
 from lithops.version import __version__
-from lithops.constants import RN_LOG_FILE, TEMP_DIR, USER_TEMP_DIR,\
+from lithops.constants import RN_LOG_FILE, TEMP_DIR, USER_TEMP_DIR, \
     LITHOPS_TEMP_DIR, COMPUTE_CLI_MSG, JOBS_PREFIX
 from lithops.utils import is_lithops_worker, is_unix_system
 
@@ -54,8 +54,8 @@ class LocalhostHandler:
         self.job_manager = None
         self.should_run = True
 
-        msg = COMPUTE_CLI_MSG.format('Localhost compute')
-        logger.info("{}".format(msg))
+        msg = COMPUTE_CLI_MSG.format('Localhost compute V1')
+        logger.info(f"{msg}")
 
     def init(self):
         """
@@ -212,7 +212,7 @@ class BaseEnv:
         os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
         shutil.rmtree(os.path.join(LITHOPS_TEMP_DIR, 'lithops'), ignore_errors=True)
         shutil.copytree(LITHOPS_LOCATION, os.path.join(LITHOPS_TEMP_DIR, 'lithops'))
-        src_handler = os.path.join(LITHOPS_LOCATION, 'localhost', 'runner.py')
+        src_handler = os.path.join(LITHOPS_LOCATION, 'localhost', 'v1', 'runner.py')
         copyfile(src_handler, RUNNER)
 
     def _prepare_job_file(self, job_payload):
