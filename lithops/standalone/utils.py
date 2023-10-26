@@ -108,17 +108,19 @@ def get_host_setup_script(docker=True):
     apt-get update;
 
     if [ "$INSTALL_DOCKER" = true ] && [ "$DOCKER_REQUIRED" = true ]; then
-    apt-get install unzip python3-pip docker-ce docker-ce-cli containerd.io -y --fix-missing;
+    apt-get install unzip redis-server python3-pip docker-ce docker-ce-cli containerd.io -y --fix-missing;
     else
-    apt-get install unzip python3-pip -y --fix-missing;
+    apt-get install unzip redis-server python3-pip -y --fix-missing;
     fi;
+    sudo systemctl enable redis-server.service;
+    sed -i 's/^bind 127.0.0.1 ::1/bind 0.0.0.0/' /etc/redis/redis.conf;
 
     fi;
 
     if [[ ! $(pip3 list|grep "lithops") ]]; then
     wait_internet_connection;
     echo "--> Installing Lithops python dependencies"
-    pip3 install -U flask gevent lithops[all];
+    pip3 install -U pip flask gevent lithops[all];
     fi;
     }}
     install_packages >> {SA_LOG_FILE} 2>&1
@@ -129,6 +131,7 @@ def get_host_setup_script(docker=True):
 
     return script
 
+
 def docker_login(config):
     backend = config['backend']
     if all(k in config[backend] for k in ("docker_server", "docker_user", "docker_password")):
@@ -138,6 +141,7 @@ def docker_login(config):
         return f"""docker login -u {user} -p {passwd} {server} >> /tmp/kuku 2>&1
     """
     return ""
+
 
 def get_master_setup_script(config, vm_data):
     """
@@ -183,6 +187,7 @@ def get_master_setup_script(config, vm_data):
     """
 
     return script
+
 
 def get_worker_setup_script(config, vm_data):
     """

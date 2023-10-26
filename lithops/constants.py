@@ -60,7 +60,6 @@ SA_LOG_FILE = f'{SA_TMP_DIR}/service.log'
 SA_SERVICE_PORT = 8080
 SA_CONFIG_FILE = os.path.join(SA_INSTALL_DIR, 'config')
 SA_DATA_FILE = os.path.join(SA_INSTALL_DIR, 'access.data')
-SA_IMAGE_NAME_DEFAULT = 'lithops-worker-default'
 
 SA_DEFAULT_CONFIG_KEYS = {
     'runtime': 'python3',

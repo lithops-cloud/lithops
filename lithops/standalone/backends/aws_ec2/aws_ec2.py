@@ -29,7 +29,7 @@ import botocore
 
 from lithops.version import __version__
 from lithops.util.ssh_client import SSHClient
-from lithops.constants import COMPUTE_CLI_MSG, CACHE_DIR, SA_IMAGE_NAME_DEFAULT
+from lithops.constants import COMPUTE_CLI_MSG, CACHE_DIR
 from lithops.config import load_yaml_config, dump_yaml_config
 from lithops.standalone.utils import CLOUD_CONFIG_WORKER, CLOUD_CONFIG_WORKER_PK, ExecMode, get_host_setup_script
 from lithops.standalone.standalone import LithopsValidationError
@@ -42,6 +42,9 @@ INSTANCE_STX_TIMEOUT = 180
 DEFAULT_UBUNTU_IMAGE = 'ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*'
 DEFAULT_UBUNTU_IMAGE_VERSION = DEFAULT_UBUNTU_IMAGE.replace('*', '202306*')
 DEFAULT_UBUNTU_ACCOUNT_ID = '099720109477'
+
+DEFAULT_LITHOPS_IMAGE_NAME = 'lithops-ubuntu-jammy-22.04-amd64-server'
+
 
 def b64s(string):
     """
@@ -121,7 +124,7 @@ class AWSEC2Backend:
         self.vpc_name = self.config.get('vpc_name', f'lithops-vpc-{self.user_key}-{str(uuid.uuid4())[-6:]}')
         logger.debug(f'Setting VPC name to: {self.vpc_name}')
 
-        assert re.match("^[a-z0-9-:-]*$", self.vpc_name),\
+        assert re.match("^[a-z0-9-:-]*$", self.vpc_name), \
             f'VPC name "{self.vpc_name}" not valid'
 
         filter = [{'Name': 'tag:Name', 'Values': [self.vpc_name]}]
@@ -293,12 +296,12 @@ class AWSEC2Backend:
             response = self.ec2_client.describe_images(Filters=[
                 {
                     'Name': 'name',
-                    'Values': [SA_IMAGE_NAME_DEFAULT]
+                    'Values': [DEFAULT_LITHOPS_IMAGE_NAME]
                 }])
 
             for image in response['Images']:
-                if image['Name'] == SA_IMAGE_NAME_DEFAULT:
-                    logger.debug(f"Found default AMI: {SA_IMAGE_NAME_DEFAULT}")
+                if image['Name'] == DEFAULT_LITHOPS_IMAGE_NAME:
+                    logger.debug(f"Found default AMI: {DEFAULT_LITHOPS_IMAGE_NAME}")
                     self.config['target_ami'] = image['ImageId']
                     break
 
@@ -419,18 +422,18 @@ class AWSEC2Backend:
         """
         Builds a new VM Image
         """
+        image_name = image_name or DEFAULT_LITHOPS_IMAGE_NAME
+
         images = self.ec2_client.describe_images(Filters=[
             {
                 'Name': 'name',
                 'Values': [image_name]
             }])['Images']
+
         if len(images) > 0:
             image_id = images[0]['ImageId']
             if overwrite:
-                logger.debug(f"Deleting existing VM Image '{image_name}'")
-                self.ec2_client.deregister_image(ImageId=image_id)
-                while len(self.ec2_client.describe_images(Filters=[{'Name': 'name', 'Values': [image_name]}])['Images']) > 0:
-                    time.sleep(2)
+                self.delete_image(image_name)
             else:
                 raise Exception(f"The image with name '{image_name}' already exists with ID: '{image_id}'."
                                 " Use '--overwrite' or '-o' if you want ot overwrite it")
@@ -438,7 +441,7 @@ class AWSEC2Backend:
         initial_vpc_data = self._load_ec2_data()
         self.init()
 
-        build_vm = EC2Instance(image_name, self.config, self.ec2_client, public=True)
+        build_vm = EC2Instance('building-image-'+image_name, self.config, self.ec2_client, public=True)
         build_vm.delete_on_dismantle = False
         build_vm.create()
         build_vm.wait_ready()
@@ -471,6 +474,7 @@ class AWSEC2Backend:
             Description='Lithops Image'
         )
 
+        logger.debug("Starting VM image creation")
         logger.debug("Be patient, VM imaging can take up to 5 minutes")
 
         while True:
@@ -481,12 +485,34 @@ class AWSEC2Backend:
                     break
             time.sleep(20)
 
-        build_vm.delete()
-
         if not initial_vpc_data:
-            self.clean(all)
+            while not self.clean(all=True):
+                time.sleep(5)
+        else:
+            build_vm.delete()
 
         logger.info(f"VM Image created. Image ID: {images[0]['ImageId']}")
+
+    def delete_image(self, image_name):
+        """
+        Deletes a VM Image
+        """
+        def list_images():
+            return self.ec2_client.describe_images(Filters=[
+                {
+                    'Name': 'name',
+                    'Values': [image_name]
+                }])['Images']
+
+        images = list_images()
+
+        if len(images) > 0:
+            image_id = images[0]['ImageId']
+            logger.debug(f"Deleting existing VM Image '{image_name}'")
+            self.ec2_client.deregister_image(ImageId=image_id)
+            while len(list_images()) > 0:
+                time.sleep(2)
+            logger.debug(f"VM Image '{image_name}' successfully deleted")
 
     def list_images(self):
         """
@@ -521,7 +547,7 @@ class AWSEC2Backend:
                if self.vpc_name else 'Deleting all Lithops worker VMs')
         logger.info(msg)
 
-        vms_prefixes = ('lithops-worker', 'lithops-master') if all else ('lithops-worker',)
+        vms_prefixes = ('lithops-worker', 'lithops-master', 'building-image') if all else ('lithops-worker',)
 
         ins_to_delete = []
         response = self.ec2_client.describe_instances()
@@ -532,7 +558,7 @@ class AWSEC2Backend:
                     for tag in ins['Tags']:
                         if tag['Key'] == 'Name' and tag['Value'].startswith(vms_prefixes):
                             ins_to_delete.append(ins['InstanceId'])
-                            logger.debug(f"Going to delete VM instance {tag['Value']}")
+                            logger.debug(f"Going to delete VM instance {tag['Value']} ({ins['InstanceId']})")
 
         if ins_to_delete:
             self.ec2_client.terminate_instances(InstanceIds=ins_to_delete)
@@ -577,7 +603,8 @@ class AWSEC2Backend:
             )
             total_correct += 1
         except ClientError as e:
-            if e.response['ResponseMetadata']['HTTPStatusCode'] == 400:
+            if e.response['ResponseMetadata']['HTTPStatusCode'] == 400 and \
+               'does not exist' in e.response['Error']['Message']:
                 total_correct += 1
             logger.debug(e.response['Error']['Message'])
         try:
@@ -585,26 +612,30 @@ class AWSEC2Backend:
             self.ec2_client.delete_subnet(SubnetId=self.ec2_data['subnet_id'])
             total_correct += 1
         except ClientError as e:
-            if e.response['ResponseMetadata']['HTTPStatusCode'] == 400:
+            if e.response['ResponseMetadata']['HTTPStatusCode'] == 400 and \
+               'does not exist' in e.response['Error']['Message']:
                 total_correct += 1
             logger.debug(e.response['Error']['Message'])
         try:
-            logger.debug(f"Deleting internet gateway {self.ec2_data['internet_gateway_id']}")
+            logger.debug(f"Detaching internet gateway {self.ec2_data['internet_gateway_id']}")
             self.ec2_client.detach_internet_gateway(
                 InternetGatewayId=self.ec2_data['internet_gateway_id'],
                 VpcId=self.ec2_data['vpc_id'])
             total_correct += 1
         except ClientError as e:
-            if e.response['ResponseMetadata']['HTTPStatusCode'] == 400:
+            if e.response['ResponseMetadata']['HTTPStatusCode'] == 400 and \
+               'does not exist' in e.response['Error']['Message']:
                 total_correct += 1
             logger.debug(e.response['Error']['Message'])
         try:
+            logger.debug(f"Deleting internet gateway {self.ec2_data['internet_gateway_id']}")
             self.ec2_client.delete_internet_gateway(
                 InternetGatewayId=self.ec2_data['internet_gateway_id']
             )
             total_correct += 1
         except ClientError as e:
-            if e.response['ResponseMetadata']['HTTPStatusCode'] == 400:
+            if e.response['ResponseMetadata']['HTTPStatusCode'] == 400 and \
+               'does not exist' in e.response['Error']['Message']:
                 total_correct += 1
             logger.debug(e.response['Error']['Message'])
         try:
@@ -612,11 +643,15 @@ class AWSEC2Backend:
             self.ec2_client.delete_vpc(VpcId=self.ec2_data['vpc_id'])
             total_correct += 1
         except ClientError as e:
-            if e.response['ResponseMetadata']['HTTPStatusCode'] == 400:
+            if e.response['ResponseMetadata']['HTTPStatusCode'] == 400 and \
+               'does not exist' in e.response['Error']['Message']:
                 total_correct += 1
             logger.debug(e.response['Error']['Message'])
 
-        assert total_correct == 5, "Couldn't delete all the VPC resources, try againg in a few seconds"
+        if total_correct < 5:
+            logger.error("Couldn't delete all the VPC resources, try againg in a few seconds")
+
+        return total_correct == 5
 
     def _delete_ssh_key(self):
         """
@@ -648,17 +683,22 @@ class AWSEC2Backend:
         self._load_ec2_data()
 
         if not self.ec2_data:
-            return
+            return True
 
         if self.ec2_data['mode'] == ExecMode.CONSUME.value:
             if os.path.exists(self.cache_file):
                 os.remove(self.cache_file)
+            return True
         else:
             self._delete_vm_instances(all=all)
-            self._delete_vpc() if all else None
-            self._delete_ssh_key() if all else None
-            if all and os.path.exists(self.cache_file):
-                os.remove(self.cache_file)
+            if all:
+                if self._delete_vpc():
+                    self._delete_ssh_key()
+                    if os.path.exists(self.cache_file):
+                        os.remove(self.cache_file)
+                    return True
+                else:
+                    return False
 
     def clear(self, job_keys=None):
         """
@@ -1055,7 +1095,7 @@ class EC2Instance:
         """
         Starts the VM instance
         """
-        logger.info(f"Starting VM instance {self.name}")
+        logger.info(f"Starting VM instance {self.name} ({self.instance_id})")
 
         try:
             self.ec2_client.start_instances(InstanceIds=[self.instance_id])
@@ -1072,7 +1112,7 @@ class EC2Instance:
         """
         Deletes the VM instance and the associated volume
         """
-        logger.debug(f"Deleting VM instance {self.name}")
+        logger.debug(f"Deleting VM instance {self.name} ({self.instance_id})")
 
         self.ec2_client.terminate_instances(InstanceIds=[self.instance_id])
 
@@ -1086,7 +1126,7 @@ class EC2Instance:
         """
         Stops the VM instance
         """
-        logger.debug(f"Stopping VM instance {self.name}")
+        logger.debug(f"Stopping VM instance {self.name} ({self.instance_id})")
         self.ec2_client.stop_instances(InstanceIds=[self.instance_id])
 
     def stop(self):

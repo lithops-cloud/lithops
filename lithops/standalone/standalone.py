@@ -70,6 +70,12 @@ class StandaloneHandler:
         """
         self.backend.build_image(image_name, script_file, overwrite, extra_args)
 
+    def delete_image(self, name):
+        """
+        Deletes VM Image
+        """
+        self.backend.delete_image(name)
+
     def list_images(self):
         """
         Lists VM Images

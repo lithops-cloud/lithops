@@ -28,13 +28,37 @@ from concurrent.futures import ThreadPoolExecutor
 import lithops
 from lithops import Storage
 from lithops.version import __version__
-from lithops.tests.tests_main import print_test_functions, print_test_groups, run_tests
-from lithops.utils import get_mode, setup_lithops_logger, verify_runtime_name, sizeof_fmt
-from lithops.config import default_config, extract_storage_config, \
-    extract_serverless_config, extract_standalone_config, \
-    extract_localhost_config, load_yaml_config
-from lithops.constants import CACHE_DIR, LITHOPS_TEMP_DIR, RUNTIMES_PREFIX, \
-    JOBS_PREFIX, LOCALHOST, SA_IMAGE_NAME_DEFAULT, SERVERLESS, STANDALONE, LOGS_DIR, FN_LOG_FILE
+from lithops.tests.tests_main import (
+    print_test_functions,
+    print_test_groups,
+    run_tests
+)
+from lithops.utils import (
+    get_mode,
+    setup_lithops_logger,
+    verify_runtime_name,
+    sizeof_fmt
+)
+from lithops.config import (
+    default_config,
+    extract_storage_config,
+    extract_serverless_config,
+    extract_standalone_config,
+    extract_localhost_config,
+    load_yaml_config
+)
+from lithops.constants import (
+    CACHE_DIR,
+    LITHOPS_TEMP_DIR,
+    RUNTIMES_PREFIX,
+    JOBS_PREFIX,
+    LOCALHOST,
+    SERVERLESS,
+    STANDALONE,
+    LOGS_DIR,
+    FN_LOG_FILE,
+    STANDALONE_BACKENDS
+)
 from lithops.storage import InternalStorage
 from lithops.serverless import ServerlessHandler
 from lithops.storage.utils import clean_bucket
@@ -200,10 +224,11 @@ def attach(config, backend, start, debug, region):
     setup_lithops_logger(log_level)
 
     config_ow = set_config_ow(backend=backend, region=region)
-    config = default_config(config_data=config, config_overwrite=config_ow)
+    config = default_config(config_data=config, config_overwrite=config_ow, load_storage_config=False)
 
     if config['lithops']['mode'] != STANDALONE:
-        raise Exception('lithops attach method is only available for standalone backends')
+        raise Exception('lithops attach method is only available for standalone backends. '
+                        f'Please use "lithops attach -b {set(STANDALONE_BACKENDS)}"')
 
     compute_config = extract_standalone_config(config)
     compute_handler = StandaloneHandler(compute_config)
@@ -493,6 +518,7 @@ def deploy(name, storage, backend, memory, timeout, config, debug):
 
     logger.info('Runtime deployed')
 
+
 @runtime.command('list')
 @click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
 @click.option('--backend', '-b', default=None, help='compute backend')
@@ -574,6 +600,7 @@ def update(name, config, backend, storage, debug):
 
     logger.info('Runtime updated')
 
+
 @runtime.command('delete')
 @click.argument('name', required=True)
 @click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
@@ -644,21 +671,51 @@ def build_image(ctx, name, file, config, backend, region, debug, overwrite):
     """ build a VM image """
     setup_lithops_logger(logging.DEBUG)
 
-    name = SA_IMAGE_NAME_DEFAULT if not name else name
-    verify_runtime_name(name)
+    if name:
+        verify_runtime_name(name)
 
     config = load_yaml_config(config) if config else None
     config_ow = set_config_ow(backend=backend, region=region)
     config = default_config(config_data=config, config_overwrite=config_ow, load_storage_config=False)
 
     if config['lithops']['mode'] != STANDALONE:
-        raise Exception('"lithops image build" command is only available for standalone backends')
+        raise Exception('"lithops image build" command is only available for standalone backends. '
+                        f'Please use "lithops image build -b {set(STANDALONE_BACKENDS)}"')
 
     compute_config = extract_standalone_config(config)
     compute_handler = StandaloneHandler(compute_config)
     compute_handler.build_image(name, file, overwrite, ctx.args)
 
     logger.info('VM Image built')
+
+
+@image.command('delete', context_settings=dict(ignore_unknown_options=True, allow_extra_args=True))
+@click.argument('name', required=True)
+@click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
+@click.option('--backend', '-b', default=None, help='compute backend')
+@click.option('--region', '-r', default=None, help='compute backend region')
+@click.option('--debug', '-d', is_flag=True, help='debug mode')
+@click.pass_context
+def delete_image(ctx, name, config, backend, region, debug):
+    """ Delete a VM image """
+    setup_lithops_logger(logging.DEBUG)
+
+    if name:
+        verify_runtime_name(name)
+
+    config = load_yaml_config(config) if config else None
+    config_ow = set_config_ow(backend=backend, region=region)
+    config = default_config(config_data=config, config_overwrite=config_ow, load_storage_config=False)
+
+    if config['lithops']['mode'] != STANDALONE:
+        raise Exception('"lithops image delete" command is only available for standalone backends. '
+                        f'Please use "lithops image delete -b {set(STANDALONE_BACKENDS)}"')
+
+    compute_config = extract_standalone_config(config)
+    compute_handler = StandaloneHandler(compute_config)
+    compute_handler.delete_image(name)
+
+    logger.info('VM Image deleted')
 
 
 @image.command('list', context_settings=dict(ignore_unknown_options=True, allow_extra_args=True))
@@ -676,7 +733,8 @@ def list_images(config, backend, region, debug):
     config = default_config(config_data=config, config_overwrite=config_ow, load_storage_config=False)
 
     if config['lithops']['mode'] != STANDALONE:
-        raise Exception('"lithops image build" command is only available for standalone backends')
+        raise Exception('"lithops image build" command is only available for standalone backends. '
+                        f'Please use "lithops image list -b {set(STANDALONE_BACKENDS)}"')
 
     compute_config = extract_standalone_config(config)
     compute_handler = StandaloneHandler(compute_config)
