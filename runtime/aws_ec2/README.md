@@ -12,7 +12,7 @@ For building the default VM image that contains all dependencies required by Lit
 lithops image build -b aws_ec2
 ```
 
-This command will create an image called "lithops-worker-default" in the target region.
+This command will create an image called "lithops-ubuntu-jammy-22.04-amd64-server" in the target region.
 If the image already exists, and you want to updete it, use the '--overwrite' or '-o' flag:
 
 ```

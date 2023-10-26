@@ -12,7 +12,7 @@ For building the default VM image that contains all dependencies required by Lit
 lithops image build -b ibm_vpc
 ```
 
-This command will create an image called "lithops-worker-default" in the target region.
+This command will create an image called "lithops-ubuntu-22-04-3-minimal-amd64-1" in the target region.
 If the image already exists, and you want to updete it, use the '--overwrite' or '-o' flag:
 
 ```

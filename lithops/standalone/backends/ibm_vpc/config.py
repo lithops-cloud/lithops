@@ -44,6 +44,7 @@ VPC_ENDPOINT = "https://{}.iaas.cloud.ibm.com"
 
 REGIONS = ["jp-tok", "jp-osa", "au-syd", "eu-gb", "eu-de", "eu-es", "us-south", "us-east", "br-sao", "ca-tor"]
 
+
 def load_config(config_data):
 
     if 'ibm' in config_data and config_data['ibm'] is not None:

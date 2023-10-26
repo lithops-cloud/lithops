@@ -255,7 +255,7 @@ def create_handler_zip(dst_zip_location, entry_point_files, entry_point_name=Non
 def verify_runtime_name(runtime_name):
     """Check if the runtime name has a correct formating"""
     assert re.match("^[A-Za-z0-9_/.:-]*$", runtime_name), \
-        'Runtime name "{}" not valid'.format(runtime_name)
+        f'Runtime name "{runtime_name}" not valid'
 
 
 def timeout_handler(error_msg, signum, frame):

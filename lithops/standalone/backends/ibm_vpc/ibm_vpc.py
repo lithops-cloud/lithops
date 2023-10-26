@@ -31,7 +31,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from lithops.version import __version__
 from lithops.util.ssh_client import SSHClient
-from lithops.constants import COMPUTE_CLI_MSG, CACHE_DIR, SA_IMAGE_NAME_DEFAULT
+from lithops.constants import COMPUTE_CLI_MSG, CACHE_DIR
 from lithops.config import load_yaml_config, dump_yaml_config
 from lithops.standalone.utils import CLOUD_CONFIG_WORKER, CLOUD_CONFIG_WORKER_PK, ExecMode, get_host_setup_script
 from lithops.standalone import LithopsValidationError
@@ -40,6 +40,8 @@ logger = logging.getLogger(__name__)
 
 INSTANCE_START_TIMEOUT = 180
 VPC_API_VERSION = '2021-09-21'
+
+DEFAULT_LITHOPS_IMAGE_NAME = 'lithops-ubuntu-22-04-3-minimal-amd64-1'
 
 
 class IBMVPCBackend:
@@ -125,7 +127,7 @@ class IBMVPCBackend:
         self.vpc_name = self.config.get('vpc_name', f'lithops-vpc-{iam_id}-{str(uuid.uuid4())[-6:]}')
         logger.debug(f'Setting VPC name to: {self.vpc_name}')
 
-        assert re.match("^[a-z0-9-:-]*$", self.vpc_name),\
+        assert re.match("^[a-z0-9-:-]*$", self.vpc_name), \
             f'VPC name "{self.vpc_name}" not valid'
 
         vpcs_info = self.vpc_cli.list_vpcs().get_result()
@@ -386,8 +388,8 @@ class IBMVPCBackend:
 
         if 'image_id' not in self.config:
             for image in images_def:
-                if image['name'] == SA_IMAGE_NAME_DEFAULT:
-                    logger.debug(f"Found default VM image: {SA_IMAGE_NAME_DEFAULT}")
+                if image['name'] == DEFAULT_LITHOPS_IMAGE_NAME:
+                    logger.debug(f"Found default VM image: {DEFAULT_LITHOPS_IMAGE_NAME}")
                     self.config['image_id'] = image['id']
                     break
 
@@ -486,14 +488,17 @@ class IBMVPCBackend:
         """
         Builds a new VM Image
         """
-        images = self.vpc_cli.list_images(name=image_name, resource_group_id=self.config['resource_group_id']).result['images']
+        image_name = image_name or DEFAULT_LITHOPS_IMAGE_NAME
+
+        images = self.vpc_cli.list_images(
+            name=image_name,
+            resource_group_id=self.config['resource_group_id']
+        ).result['images']
+
         if len(images) > 0:
             image_id = images[0]['id']
             if overwrite:
-                logger.debug(f"Deleting existing VM Image '{image_name}'")
-                self.vpc_cli.delete_image(id=image_id)
-                while len(self.vpc_cli.list_images(name=image_name, resource_group_id=self.config['resource_group_id']).result['images']) > 0:
-                    time.sleep(2)
+                self.delete_image(image_name)
             else:
                 raise Exception(f"The image with name '{image_name}' already exists with ID: '{image_id}'."
                                 " Use '--overwrite' or '-o' if you want ot overwrite it")
@@ -506,7 +511,7 @@ class IBMVPCBackend:
         self.config['floating_ip'] = fip
         self.config['floating_ip_id'] = fip_id
 
-        build_vm = IBMVPCInstance(image_name, self.config, self.vpc_cli, public=True)
+        build_vm = IBMVPCInstance('building-image-'+image_name, self.config, self.vpc_cli, public=True)
         build_vm.public_ip = self.config['floating_ip']
         build_vm.profile_name = self.config['master_profile_name']
         build_vm.delete_on_dismantle = False
@@ -542,6 +547,7 @@ class IBMVPCBackend:
         image_prototype['resource_group'] = {'id': self.config['resource_group_id']}
         self.vpc_cli.create_image(image_prototype)
 
+        logger.debug("Starting VM image creation")
         logger.debug("Be patient, VM imaging can take up to 6 minutes")
 
         while True:
@@ -552,12 +558,32 @@ class IBMVPCBackend:
                     break
             time.sleep(30)
 
-        build_vm.delete()
-
         if not initial_vpc_data:
-            self.clean(all)
+            self.clean(all=True)
+        else:
+            build_vm.delete()
 
         logger.info(f"VM Image created. Image ID: {images[0]['id']}")
+
+    def delete_image(self, image_name):
+        """
+        Deletes a VM Image
+        """
+        def list_images():
+            return self.vpc_cli.list_images(
+                name=image_name,
+                resource_group_id=self.config['resource_group_id']
+            ).result['images']
+
+        images = list_images()
+
+        if len(images) > 0:
+            image_id = images[0]['id']
+            logger.debug(f"Deleting VM Image '{image_name}'")
+            self.vpc_cli.delete_image(id=image_id)
+            while len(list_images()) > 0:
+                time.sleep(2)
+            logger.debug(f"VM Image '{image_name}' successfully deleted")
 
     def list_images(self):
         """
@@ -600,7 +626,7 @@ class IBMVPCBackend:
                 else:
                     raise err
 
-        vms_prefixes = ('lithops-worker', 'lithops-master') if all else ('lithops-worker',)
+        vms_prefixes = ('lithops-worker', 'lithops-master', 'building-image') if all else ('lithops-worker',)
 
         def get_instances():
             instances = set()
@@ -877,7 +903,6 @@ class IBMVPCInstance:
             initialization_data = self.vpc_cli.get_instance_initialization(self.instance_id).get_result()
 
             private_res = paramiko.RSAKey(filename=key_filename).get_base64()
-            key = None
             names = []
             for k in initialization_data['keys']:
                 public_res = self.vpc_cli.get_key(k['id']).get_result()['public_key'].split(' ')[1]
