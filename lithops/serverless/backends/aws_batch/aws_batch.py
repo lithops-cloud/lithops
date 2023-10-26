@@ -43,7 +43,7 @@ class AWSBatchBackend:
         logger.debug('Creating AWS Lambda client')
 
         self.name = 'aws_batch'
-        self.type = 'batch'
+        self.type = utils.BackendType.BATCH.value
         self.aws_batch_config = aws_batch_config
 
         self.user_key = aws_batch_config['access_key_id'][-4:]

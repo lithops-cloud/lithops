@@ -3,11 +3,15 @@
 ## [v3.0.2.dev0]
 
 ### Added
-- 
+- [Cli] Added new 'lithops image delete' command for standalone backends
+- [AWS EC2] Added delete_image() method for deleting VM images through the cli
+- [IBM VPC] Added delete_image() method for deleting VM images through the cli
+- [localhost] New localhost backend v2 to maximize resource utilization when multiple maps are executed from the same FunctionExecutor
 
 ### Changed
 - [Joblib] Update joblib backend to make it compatible for newer versions of joblib
-- [localhost] Maximize resource utilization when multiple maps are executed from the same FunctionExecutor
+- [AWS EC2] Changed default image name from "lithops-worker-default" to "lithops-ubuntu-jammy-22.04-amd64-server"
+- [IBM VPC] Changed default image name from "lithops-worker-default" to "lithops-ubuntu-22-04-3-minimal-amd64-1"
 
 ### Fixed
 - [Job] Fixed max data size in the invocation payload

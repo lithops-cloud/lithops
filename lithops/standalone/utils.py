@@ -10,10 +10,7 @@ from lithops.constants import (
 )
 
 
-class ExecMode(Enum):
-    """
-    Mode of execution
-    """
+class StandaloneMode(Enum):
     CONSUME = "consume"
     CREATE = "create"
     REUSE = "reuse"

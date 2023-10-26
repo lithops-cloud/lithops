@@ -31,7 +31,7 @@ from lithops.version import __version__
 from lithops.util.ssh_client import SSHClient
 from lithops.constants import COMPUTE_CLI_MSG, CACHE_DIR
 from lithops.config import load_yaml_config, dump_yaml_config
-from lithops.standalone.utils import CLOUD_CONFIG_WORKER, CLOUD_CONFIG_WORKER_PK, ExecMode, get_host_setup_script
+from lithops.standalone.utils import CLOUD_CONFIG_WORKER, CLOUD_CONFIG_WORKER_PK, StandaloneMode, get_host_setup_script
 from lithops.standalone.standalone import LithopsValidationError
 
 
@@ -320,7 +320,7 @@ class AWSEC2Backend:
         """
         name = self.config.get('master_name') or f'lithops-master-{self.vpc_key}'
         self.master = EC2Instance(name, self.config, self.ec2_client, public=True)
-        self.master.instance_id = self.config['instance_id'] if self.mode == ExecMode.CONSUME.value else None
+        self.master.instance_id = self.config['instance_id'] if self.mode == StandaloneMode.CONSUME.value else None
         self.master.instance_type = self.config['master_instance_type']
         self.master.delete_on_dismantle = False
         self.master.ssh_credentials.pop('password')
@@ -354,7 +354,7 @@ class AWSEC2Backend:
         if self.mode != self.ec2_data.get('mode'):
             self.ec2_data = {}
 
-        if self.mode == ExecMode.CONSUME.value:
+        if self.mode == StandaloneMode.CONSUME.value:
             ins_id = self.config['instance_id']
             if not self.ec2_data or ins_id != self.ec2_data.get('instance_id'):
                 instances = self.ec2_client.describe_instances(InstanceIds=[ins_id])
@@ -375,7 +375,7 @@ class AWSEC2Backend:
                 'master_id': self.master.instance_id
             }
 
-        elif self.mode in [ExecMode.CREATE.value, ExecMode.REUSE.value]:
+        elif self.mode in [StandaloneMode.CREATE.value, StandaloneMode.REUSE.value]:
 
             # Create the VPC if not exists
             self._create_vpc()
@@ -685,7 +685,7 @@ class AWSEC2Backend:
         if not self.ec2_data:
             return True
 
-        if self.ec2_data['mode'] == ExecMode.CONSUME.value:
+        if self.ec2_data['mode'] == StandaloneMode.CONSUME.value:
             if os.path.exists(self.cache_file):
                 os.remove(self.cache_file)
             return True
@@ -716,7 +716,7 @@ class AWSEC2Backend:
                 ex.map(lambda worker: worker.stop(), self.workers)
             self.workers = []
 
-        if include_master or self.mode == ExecMode.CONSUME.value:
+        if include_master or self.mode == StandaloneMode.CONSUME.value:
             # in consume mode master VM is a worker
             self.master.stop()
 

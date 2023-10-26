@@ -33,7 +33,12 @@ from lithops.version import __version__
 from lithops.util.ssh_client import SSHClient
 from lithops.constants import COMPUTE_CLI_MSG, CACHE_DIR
 from lithops.config import load_yaml_config, dump_yaml_config
-from lithops.standalone.utils import CLOUD_CONFIG_WORKER, CLOUD_CONFIG_WORKER_PK, ExecMode, get_host_setup_script
+from lithops.standalone.utils import (
+    CLOUD_CONFIG_WORKER,
+    CLOUD_CONFIG_WORKER_PK,
+    StandaloneMode,
+    get_host_setup_script
+)
 from lithops.standalone import LithopsValidationError
 
 logger = logging.getLogger(__name__)
@@ -407,7 +412,7 @@ class IBMVPCBackend:
         name = self.config.get('master_name') or f'lithops-master-{self.vpc_key}'
         self.master = IBMVPCInstance(name, self.config, self.vpc_cli, public=True)
         self.master.public_ip = self.config['floating_ip']
-        self.master.instance_id = self.config['instance_id'] if self.mode == ExecMode.CONSUME.value else None
+        self.master.instance_id = self.config['instance_id'] if self.mode == StandaloneMode.CONSUME.value else None
         self.master.profile_name = self.config['master_profile_name']
         self.master.delete_on_dismantle = False
         self.master.ssh_credentials.pop('password')
@@ -422,7 +427,7 @@ class IBMVPCBackend:
         if self.mode != self.vpc_data.get('mode'):
             self.vpc_data = {}
 
-        if self.mode == ExecMode.CONSUME.value:
+        if self.mode == StandaloneMode.CONSUME.value:
 
             ins_id = self.config['instance_id']
             if not self.vpc_data or ins_id != self.vpc_data.get('instance_id'):
@@ -441,7 +446,7 @@ class IBMVPCBackend:
                 'floating_ip': self.master.public_ip
             }
 
-        elif self.mode in [ExecMode.CREATE.value, ExecMode.REUSE.value]:
+        elif self.mode in [StandaloneMode.CREATE.value, StandaloneMode.REUSE.value]:
 
             # Create the VPC if not exists
             self._create_vpc()
@@ -761,7 +766,7 @@ class IBMVPCBackend:
         if not self.vpc_data:
             return
 
-        if self.vpc_data['mode'] == ExecMode.CONSUME.value:
+        if self.vpc_data['mode'] == StandaloneMode.CONSUME.value:
             if os.path.exists(self.cache_file):
                 os.remove(self.cache_file)
         else:
@@ -787,7 +792,7 @@ class IBMVPCBackend:
                 ex.map(lambda worker: worker.stop(), self.workers)
             self.workers = []
 
-        if include_master or self.mode == ExecMode.CONSUME.value:
+        if include_master or self.mode == StandaloneMode.CONSUME.value:
             # in consume mode master VM is a worker
             self.master.stop()
 

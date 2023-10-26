@@ -29,7 +29,6 @@ from enum import Enum
 from shutil import copyfile
 from pathlib import Path
 
-from lithops import utils
 from lithops.version import __version__
 from lithops.constants import (
     LOCALHOST_SERVICE_CHECK_INTERVAL,
@@ -43,6 +42,9 @@ from lithops.constants import (
     CPU_COUNT,
 )
 from lithops.utils import (
+    BackendType,
+    find_free_port,
+    get_docker_path,
     is_lithops_worker,
     is_unix_system
 )
@@ -72,14 +74,14 @@ class LocalhostHandlerV2:
         self.runtime_name = self.config.get('runtime', LOCALHOST_RUNTIME_DEFAULT)
         self.env = None
 
-        msg = COMPUTE_CLI_MSG.format('Localhost compute V2')
+        msg = COMPUTE_CLI_MSG.format('Localhost compute v2')
         logger.info(f"{msg}")
 
     def get_backend_type(self):
         """
         Wrapper method that returns the type of the backend (Batch or FaaS)
         """
-        return 'batch'
+        return BackendType.BATCH.value
 
     def init(self):
         """
@@ -239,7 +241,7 @@ class DefaultEnv(BaseEnv):
 
         logger.debug('Starting localhost executor service - Python environment')
 
-        service_port = utils.find_free_port()
+        service_port = find_free_port()
 
         cmd = [self.runtime_name, SERVICE_FILE, str(self.worker_processes),
                str(service_port), str(self.max_idle_timeout), str(self.check_interval)]
@@ -283,8 +285,8 @@ class DockerEnv(BaseEnv):
         gpu = self.config.get('gpu', False)
 
         tmp_path = Path(TEMP_DIR).as_posix()
-        docker_path = utils.get_docker_path()
-        service_port = utils.find_free_port()
+        docker_path = get_docker_path()
+        service_port = find_free_port()
 
         cmd = f'{docker_path} run --name lithops_{self.container_id} '
         cmd += '--gpus all ' if gpu else ''

@@ -31,7 +31,7 @@ from pathlib import Path
 from lithops.version import __version__
 from lithops.constants import RN_LOG_FILE, TEMP_DIR, USER_TEMP_DIR, \
     LITHOPS_TEMP_DIR, COMPUTE_CLI_MSG, JOBS_PREFIX
-from lithops.utils import is_lithops_worker, is_unix_system
+from lithops.utils import BackendType, is_lithops_worker, is_unix_system
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +54,7 @@ class LocalhostHandler:
         self.job_manager = None
         self.should_run = True
 
-        msg = COMPUTE_CLI_MSG.format('Localhost compute V1')
+        msg = COMPUTE_CLI_MSG.format('Localhost compute v1')
         logger.info(f"{msg}")
 
     def init(self):
@@ -168,7 +168,7 @@ class LocalhostHandler:
         """
         Wrapper method that returns the type of the backend (Batch or FaaS)
         """
-        return 'batch'
+        return BackendType.BATCH.value
 
     def clean(self, **kwargs):
         """

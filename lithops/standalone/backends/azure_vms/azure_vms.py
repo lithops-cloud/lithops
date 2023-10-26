@@ -30,7 +30,7 @@ from lithops.version import __version__
 from lithops.util.ssh_client import SSHClient
 from lithops.constants import COMPUTE_CLI_MSG, CACHE_DIR, SA_DATA_FILE
 from lithops.config import load_yaml_config, dump_yaml_config
-from lithops.standalone.utils import ExecMode
+from lithops.standalone.utils import StandaloneMode
 from lithops.standalone import LithopsValidationError
 
 
@@ -112,7 +112,7 @@ class AzureVMSBackend:
         self.vnet_name = self.config.get('vnet_name', f'lithops-vnet-{str(uuid.uuid4())[-6:]}')
         logger.debug(f'Setting virtual network name to: {self.vnet_name}')
 
-        assert re.match("^[a-z0-9-:-]*$", self.vnet_name),\
+        assert re.match("^[a-z0-9-:-]*$", self.vnet_name), \
             f'Virtual network name "{self.vnet_name}" not valid'
 
         vnets_info = list(self.network_client.virtual_networks.list(self.config['resource_group']))
@@ -308,7 +308,7 @@ class AzureVMSBackend:
         """
         name = self.config.get('master_name') or f'lithops-master-{self.vnet_key}'
         self.master = VMInstance(name, self.config, self.compute_client, public=True)
-        self.master.name = self.config['instance_name'] if self.mode == ExecMode.CONSUME.value else name
+        self.master.name = self.config['instance_name'] if self.mode == StandaloneMode.CONSUME.value else name
         self.master.public_ip = self.config['floating_ip']
         self.master.instance_type = self.config['master_instance_type']
         self.master.delete_on_dismantle = False
@@ -326,7 +326,7 @@ class AzureVMSBackend:
         if self.mode != self.azure_data.get('mode'):
             self.azure_data = {}
 
-        if self.mode == ExecMode.CONSUME.value:
+        if self.mode == StandaloneMode.CONSUME.value:
             instance_name = self.config['instance_name']
             if not self.azure_data or instance_name != self.azure_data.get('instance_name'):
                 try:
@@ -351,7 +351,7 @@ class AzureVMSBackend:
                 'ssh_key_filename': self.config['ssh_key_filename'],
             }
 
-        elif self.mode in [ExecMode.CREATE.value, ExecMode.REUSE.value]:
+        elif self.mode in [StandaloneMode.CREATE.value, StandaloneMode.REUSE.value]:
 
             # Create the Virtual Netowrk if not exists
             self._create_vnet()
@@ -530,7 +530,7 @@ class AzureVMSBackend:
         if not self.azure_data:
             return
 
-        if self.azure_data['mode'] == ExecMode.CONSUME.value:
+        if self.azure_data['mode'] == StandaloneMode.CONSUME.value:
             if os.path.exists(self.cache_file):
                 os.remove(self.cache_file)
         else:
@@ -556,7 +556,7 @@ class AzureVMSBackend:
                 ex.map(lambda worker: worker.stop(), self.workers)
             self.workers = []
 
-        if include_master or self.mode == ExecMode.CONSUME.value:
+        if include_master or self.mode == StandaloneMode.CONSUME.value:
             # in consume mode master VM is a worker
             self.master.stop()
 
