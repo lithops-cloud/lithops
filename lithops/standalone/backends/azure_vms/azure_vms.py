@@ -573,6 +573,12 @@ class AzureVMSBackend:
 
         return instance
 
+    def get_worker_instance_type(self):
+        """
+        Return the worker profile name
+        """
+        return self.config['worker_instance_type']
+
     def create_worker(self, name):
         """
         Creates a new worker VM instance
@@ -618,6 +624,8 @@ class VMInstance:
         self.private_ip = None
         self.public_ip = '0.0.0.0'
         self.home_dir = '/home/ubuntu'
+
+        self.runtime_name = None
 
         self.ssh_credentials = {
             'username': self.config['ssh_username'],

@@ -72,7 +72,7 @@ class SSHClient():
 
         try:
             stdin, stdout, stderr = self.ssh_client.exec_command(cmd, timeout=timeout)
-        except Exception as e:
+        except Exception:
             # Normally this is a timeout exception
             self.ssh_client = self.create_client()
             stdin, stdout, stderr = self.ssh_client.exec_command(cmd, timeout=timeout)

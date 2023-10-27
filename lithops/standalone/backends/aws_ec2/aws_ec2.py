@@ -733,6 +733,12 @@ class AWSEC2Backend:
 
         return instance
 
+    def get_worker_instance_type(self):
+        """
+        Return the worker instance type
+        """
+        return self.config['worker_instance_type']
+
     def create_worker(self, name):
         """
         Creates a new worker VM instance
@@ -790,6 +796,8 @@ class EC2Instance:
         self.public_ip = '0.0.0.0'
         self.fast_io = self.config.get('fast_io', False)
         self.home_dir = '/home/ubuntu'
+
+        self.runtime_name = None
 
         self.ssh_credentials = {
             'username': self.config['ssh_username'],

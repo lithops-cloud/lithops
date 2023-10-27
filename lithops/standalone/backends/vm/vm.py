@@ -65,6 +65,9 @@ class VMBackend:
     def dismantle(self, **kwargs):
         pass
 
+    def get_worker_instance_type(self):
+        return None
+
     def get_runtime_key(self, runtime_name, version=__version__):
         runtime = runtime_name.replace('/', '-').replace(':', '-')
         runtime_key = os.path.join(self.name, version, self.config['ip_address'], runtime)

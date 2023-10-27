@@ -413,7 +413,7 @@ class IBMVPCBackend:
         self.master = IBMVPCInstance(name, self.config, self.vpc_cli, public=True)
         self.master.public_ip = self.config['floating_ip']
         self.master.instance_id = self.config['instance_id'] if self.mode == StandaloneMode.CONSUME.value else None
-        self.master.profile_name = self.config['master_profile_name']
+        self.master.instance_type = self.config['master_profile_name']
         self.master.delete_on_dismantle = False
         self.master.ssh_credentials.pop('password')
 
@@ -518,7 +518,7 @@ class IBMVPCBackend:
 
         build_vm = IBMVPCInstance('building-image-'+image_name, self.config, self.vpc_cli, public=True)
         build_vm.public_ip = self.config['floating_ip']
-        build_vm.profile_name = self.config['master_profile_name']
+        build_vm.instance_type = self.config['master_profile_name']
         build_vm.delete_on_dismantle = False
         build_vm.create()
         build_vm.wait_ready()
@@ -809,6 +809,12 @@ class IBMVPCBackend:
 
         return instance
 
+    def get_worker_instance_type(self):
+        """
+        Return the worker profile name
+        """
+        return self.config['worker_profile_name']
+
     def create_worker(self, name):
         """
         Creates a new worker VM instance
@@ -852,7 +858,7 @@ class IBMVPCInstance:
         self.config = ibm_vpc_config
 
         self.delete_on_dismantle = self.config['delete_on_dismantle']
-        self.profile_name = self.config['worker_profile_name']
+        self.instance_type = self.config['worker_profile_name']
 
         self.vpc_cli = ibm_vpc_client or self._create_vpc_client()
         self.public = public
@@ -863,6 +869,8 @@ class IBMVPCInstance:
         self.private_ip = None
         self.public_ip = None
         self.home_dir = '/root'
+
+        self.runtime_name = None
 
         self.ssh_credentials = {
             'username': self.config['ssh_username'],
@@ -1004,7 +1012,7 @@ class IBMVPCInstance:
         instance_prototype = {}
         instance_prototype['name'] = self.name
         instance_prototype['keys'] = [key_identity_model]
-        instance_prototype['profile'] = {'name': self.profile_name}
+        instance_prototype['profile'] = {'name': self.instance_type}
         instance_prototype['resource_group'] = {'id': self.config['resource_group_id']}
         instance_prototype['vpc'] = {'id': self.config['vpc_id']}
         instance_prototype['image'] = {'id': self.config['image_id']}

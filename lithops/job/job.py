@@ -38,6 +38,7 @@ logger = logging.getLogger(__name__)
 FUNCTION_CACHE = set()
 MAX_DATA_IN_PAYLOAD = 8 * 1024  # Per invocation. 8KB
 
+
 def create_map_job(
     config,
     internal_storage,
