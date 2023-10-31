@@ -66,27 +66,21 @@ In these graphs, we will compare the usage of the original K8s architecture with
 
 All of these tests consist of running 225 functions on a 2-node cluster, each with 128 CPUs. The executed function involves a 5-second sleep.
 
-In this scenario, it is evident that the cold start times are consistently reduced by a factor of **up to 7x**, and task execution times are improved by a factor of **2x** across all cases. This represents a significant enhancement for parallel function execution.
+In this scenario, it is evident that the cold start times are consistently reduced by a factor of **up to 6x**, and task execution times are improved by a factor of **2x** across all cases. This represents a significant enhancement for parallel function execution.
 
 #### Plot 1: Kubernetes K8s original with granularity 1. 
 
-*Elapsed time = 28 sec.*
+*Elapsed time = 26,5 sec.*
 
-![Kubernetes K8s original with granularity 1 Plot](../images/plots_kubernetes/granularity_1_histogram.png)
+![Kubernetes K8s original plot](../images/plots_kubernetes/k8s_original_histogram.png)
 
-#### Plot 2: Kubernetes K8s original with granularity 6. 
-
-*Elapsed time = 17 sec.*
-
-![Kubernetes K8s original (granularity 6) Plot](../images/plots_kubernetes/granularity_6_histogram.png)
-
-#### Plot 3: Kubernetes K8s RabbitMQ. 
+#### Plot 2: Kubernetes K8s RabbitMQ. 
 
 *Elapsed time = 8 sec.*
 
 ![Kubernetes K8s RabbitMQ plot](../images/plots_kubernetes/rabbitmq_histogram.png)
 
-#### Plot 4: Kubernetes K8s RabbitMQ with Warm Start. 
+#### Plot 3: Kubernetes K8s RabbitMQ with Warm Start. 
 
 *Elapsed time = 6,5 sec.*
 
