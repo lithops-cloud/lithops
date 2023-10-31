@@ -47,7 +47,7 @@ logger = logging.getLogger(__name__)
 class GCPFunctionsBackend:
     def __init__(self, gcf_config, internal_storage):
         self.name = 'gcp_functions'
-        self.type = 'faas'
+        self.type = utils.BackendType.FAAS.value
         self.gcf_config = gcf_config
         self.region = gcf_config['region']
         self.num_retries = gcf_config['retries']

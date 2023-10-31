@@ -31,6 +31,7 @@ import zipfile
 import platform
 import logging.config
 import subprocess as sp
+from enum import Enum
 from contextlib import closing
 
 from lithops import constants
@@ -734,6 +735,11 @@ def is_podman(docker_path):
         return True
     except Exception:
         return False
+
+
+class BackendType(Enum):
+    BATCH = 'batch'
+    FAAS = 'faas'
 
 
 CURRENT_PY_VERSION = version_str(sys.version_info)

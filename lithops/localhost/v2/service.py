@@ -24,7 +24,7 @@ import threading
 import multiprocessing as mp
 from enum import Enum
 from pathlib import Path
-from types import SimpleNamespace
+from queue import Empty
 from multiprocessing.managers import SyncManager
 from xmlrpc.server import SimpleXMLRPCServer
 
@@ -33,7 +33,7 @@ from lithops.worker.utils import get_runtime_metadata
 from lithops.worker.handler import (
     ShutdownSentinel,
     create_job,
-    python_queue_consumer
+    prepare_and_run_task
 )
 from lithops.constants import (
     CPU_COUNT,
@@ -60,12 +60,6 @@ if platform.system() == 'Darwin':
     mp.set_start_method("fork")
 
 task_runners = []
-manager = None
-server = None
-worker_status_dict = None
-job_status_dict = None
-work_queue = None
-job_status_lock = None
 
 # Set Localhost backend to the env
 os.environ['__LITHOPS_BACKEND'] = 'Localhost'
@@ -76,47 +70,65 @@ class ProcessStatus(Enum):
     BUSY = 'busy'
 
 
-def add_job(job_payload):
-    logger.info("Received new job")
-    job = create_job(json.loads(job_payload))
-    logger.info(f'ExecutorID {job.executor_id} | JobID {job.job_id} - Adding '
-                f'{job.total_calls} tasks in the localhost worker')
-    try:
-        job_status_dict[job.job_key] = 0
-        for call_id in job.call_ids:
-            data = job.data.pop(0)
-            work_queue.put((job, call_id, data))
-        return True
-    except Exception as e:
-        logger.debug(e)
-        return False
+class ServerThread(threading.Thread):
 
+    def __init__(self, service_port, work_queue):
+        super().__init__()
 
-def extract_runtime_meta():
-    logger.info('Requesting runtime metadata')
-    try:
-        runtime_meta = get_runtime_metadata()
-        return json.dumps(runtime_meta)
-    except Exception as e:
-        logger.debug(e)
-        return False
+        self.server = SimpleXMLRPCServer(('0.0.0.0', service_port), logRequests=False)
 
+        self.service_port = service_port
+        self.work_queue = work_queue
 
-def stop_service():
-    if server:
+        self.server.register_function(self.add_job, 'add_job')
+        self.server.register_function(self.extract_runtime_meta, 'extract_runtime_meta')
+
+    def add_job(self, job_payload):
+        logger.info("Received new job")
+        job = create_job(json.loads(job_payload))
+        logger.info(f'ExecutorID {job.executor_id} | JobID {job.job_id} - Adding '
+                    f'{job.total_calls} tasks in the localhost worker')
+        try:
+            job_status_dict[job.job_key] = 0
+            for call_id in job.call_ids:
+                data = job.data.pop(0)
+                self.work_queue.put((job, call_id, data))
+            return True
+        except Exception as e:
+            logger.debug(e)
+            return False
+
+    def extract_runtime_meta(self):
+        logger.info('Requesting runtime metadata')
+        try:
+            runtime_meta = get_runtime_metadata()
+            return json.dumps(runtime_meta)
+        except Exception as e:
+            logger.debug(e)
+            return False
+
+    def start(self):
+        logger.info(f'Lithops localhost executor service started on port {self.service_port}')
+        self.server.serve_forever()
+
+    def stop(self):
         logger.info('Shutting down the executor service')
         for process_runner in range(len(task_runners)):
             try:
-                work_queue.put(ShutdownSentinel())
+                self.work_queue.put(ShutdownSentinel())
             except Exception:
                 pass
         for runner in task_runners:
             runner.join()
-        server.shutdown()
-        server.server_close()
+        self.server.shutdown()
+        self.server.server_close()
 
 
-def check_inactivity(max_idle_timeout, check_interval):
+def check_inactivity(server_thread, max_idle_timeout, check_interval):
+    """
+    A thread that checks if the service is inactive every 'check_interval'
+    until 'max_idle_timeout,' where it automatically stops itself.
+    """
     tasks_running = False
     last_usage_time = time.time()
 
@@ -134,24 +146,54 @@ def check_inactivity(max_idle_timeout, check_interval):
         time_since_last_usage = time.time() - last_usage_time
 
         if int(max_idle_timeout - time_since_last_usage) <= 0:
-            stop_service()
+            server_thread.stop()
             break
 
 
-def task_initializer(pid, task):
+def process_event(
+        event,
+        worker_status_dict
+):
+    """
+    Processes the events received from the work queue
+    """
+    task, call_id, data = event
+    task.call_id = call_id
+    task.data = data
+
     worker_status_dict[pid] = ProcessStatus.BUSY.value
 
+    prepare_and_run_task(task)
 
-def task_callback(pid: int, task: SimpleNamespace):
     worker_status_dict[pid] = ProcessStatus.IDLE.value
 
-    if task.job_key in job_status_dict:
-        with job_status_lock:
-            job_status_dict[task.job_key] += 1
-        if job_status_dict[task.job_key] == task.total_calls:
-            logger.info(f'ExecutorID {task.executor_id} | JobID {task.job_id} - Execution Finished')
-            job_status_dict[task.job_key] = 'done'
-            Path(os.path.join(JOBS_DIR, task.job_key + '.done')).touch()
+    # task_id = f'{task.job_key}-{task.call_id}'
+    # Path(os.path.join(JOBS_DIR, f'{task_id}' + '.done')).touch()
+
+
+def python_queue_consumer(
+        pid,
+        work_queue,
+        worker_status_dict
+):
+    """
+    Listens to the job_queue and executes the individual job tasks
+    """
+    logger.info(f'Worker process {pid} started')
+    while True:
+        try:
+            event = work_queue.get(block=True)
+        except Empty:
+            break
+        except BrokenPipeError:
+            break
+
+        if isinstance(event, ShutdownSentinel):
+            break
+
+        process_event(event, worker_status_dict)
+
+    logger.info(f'Worker process {pid} finished')
 
 
 if __name__ == "__main__":
@@ -166,32 +208,40 @@ if __name__ == "__main__":
 
     manager = SyncManager()
     manager.start()
+    work_queue = manager.Queue()
     worker_status_dict = manager.dict()
     job_status_dict = manager.dict()
-    work_queue = manager.Queue()
     job_status_lock = manager.Lock()
 
-    server = SimpleXMLRPCServer(('0.0.0.0', service_port), logRequests=False)
-    server.register_function(add_job, 'add_job')
-    server.register_function(extract_runtime_meta, 'extract_runtime_meta')
-    logger.info(f'Lithops localhost executor service started on port {service_port}')
+    server_thread = ServerThread(service_port, work_queue)
 
     # Start worker processes
     for pid in range(int(worker_processes)):
         worker_status_dict[pid] = ProcessStatus.IDLE.value
-        p = mp.Process(target=python_queue_consumer, args=(pid, work_queue, task_initializer, task_callback))
+        p = mp.Process(
+            target=python_queue_consumer,
+            args=(
+                pid,
+                work_queue,
+                worker_status_dict
+            )
+        )
         task_runners.append(p)
         p.start()
 
     if max_idle_timeout >= 0:
-        logger.info(f'Starting inactivity checker thread: Idle timeout: {max_idle_timeout} - Check interval {check_interval}')
-        inactivity_thread = threading.Thread(target=check_inactivity, args=(max_idle_timeout, check_interval))
-        inactivity_thread.daemon = True
-        inactivity_thread.start()
+        logger.info('Starting inactivity checker thread: Idle timeout: '
+                    f'{max_idle_timeout} - Check interval {check_interval}')
+        threading.Thread(
+            target=check_inactivity,
+            args=(server_thread, max_idle_timeout, check_interval),
+            daemon=True
+        ).start()
     else:
-        logger.info(f'Inactivity checker thread is disabled because of: Idle timeout: {max_idle_timeout}')
+        logger.info('Inactivity checker thread is disabled because '
+                    f'of: Idle timeout: {max_idle_timeout}')
 
-    server.serve_forever()
+    server_thread.start()
 
     manager.shutdown()
     log_file_stream.flush()
