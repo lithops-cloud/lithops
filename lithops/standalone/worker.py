@@ -36,7 +36,7 @@ logger = logging.getLogger('lithops.standalone.worker')
 
 app = flask.Flask(__name__)
 
-stanbdalone_config = None
+standalone_config = None
 budget_keeper = None
 localhos_handler = None
 last_job_key = None
@@ -77,7 +77,7 @@ def wait_job_completed(job_key):
         time.sleep(1)
 
 
-def run_worker(master_ip, work_queue_name):
+def run_worker(master_ip, work_queue_name, instance_type, runtime_name):
     """
     Run a job
     """
@@ -85,7 +85,13 @@ def run_worker(master_ip, work_queue_name):
     global localhos_handler
     global last_job_key
 
-    pull_runtime = stanbdalone_config.get('pull_runtime', False)
+    backend = standalone_config['backend']
+    worker_processes = standalone_config[backend]['worker_processes']
+
+    logger.info(f"Starting Worker - Instace type: {instance_type} - Runtime "
+                f"name: {runtime_name} - Worker processes: {worker_processes}")
+
+    pull_runtime = standalone_config.get('pull_runtime', False)
     localhos_handler = LocalhostHandler({'pull_runtime': pull_runtime})
 
     while True:
@@ -99,7 +105,7 @@ def run_worker(master_ip, work_queue_name):
             continue
 
         if resp.status_code != 200:
-            if stanbdalone_config.get('exec_mode') == 'reuse':
+            if standalone_config.get('exec_mode') == 'reuse':
                 time.sleep(1)
                 continue
             else:
@@ -118,7 +124,6 @@ def run_worker(master_ip, work_queue_name):
         last_job_key = job_key
 
         budget_keeper.last_usage_time = time.time()
-        budget_keeper.update_config(job_payload['config']['standalone'])
         budget_keeper.jobs[job_key] = 'running'
 
         try:
@@ -130,14 +135,14 @@ def run_worker(master_ip, work_queue_name):
 
 
 def main():
-    global stanbdalone_config
+    global standalone_config
     global budget_keeper
 
     os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
 
     # read the Lithops standaole configuration file
     with open(SA_CONFIG_FILE, 'r') as cf:
-        stanbdalone_config = json.load(cf)
+        standalone_config = json.load(cf)
 
     # Read the VM data file that contains the instance id, the master IP,
     # and the queue for getting tasks
@@ -145,11 +150,13 @@ def main():
         vm_data = json.load(ad)
         worker_ip = vm_data['private_ip']
         master_ip = vm_data['master_ip']
-        work_queue_name = vm_data['work_queue']
+        work_queue_name = vm_data['work_queue_name']
+        instance_type = vm_data['instance_type']
+        runtime_name = vm_data['runtime_name']
 
     # Start the budget keeper. It is responsible to automatically terminate the
     # worker after X seconds
-    budget_keeper = BudgetKeeper(stanbdalone_config)
+    budget_keeper = BudgetKeeper(standalone_config)
     budget_keeper.start()
 
     # Start the http server. This will be used by the master VM to pìng this
@@ -160,7 +167,7 @@ def main():
     Thread(target=run_wsgi, daemon=True).start()
 
     # Start the worker that will get tasks from the work queue
-    run_worker(master_ip, work_queue_name)
+    run_worker(master_ip, work_queue_name, instance_type, runtime_name)
 
     # run_worker will run forever in reuse mode. In create mode it will
     # run until there are no more tasks in the queue.

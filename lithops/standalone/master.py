@@ -34,7 +34,7 @@ from lithops.constants import LITHOPS_TEMP_DIR, SA_LOG_FILE, JOBS_DIR, \
 from lithops.localhost import LocalhostHandler
 from lithops.standalone import LithopsValidationError
 from lithops.utils import verify_runtime_name, iterchunks, setup_lithops_logger
-from lithops.standalone.utils import get_worker_setup_script
+from lithops.standalone.utils import StandaloneMode, get_worker_setup_script
 from lithops.standalone.keeper import BudgetKeeper
 from lithops.version import __version__ as lithops_version
 
@@ -48,9 +48,9 @@ app = flask.Flask(__name__)
 MAX_INSTANCE_CREATE_RETRIES = 2
 REUSE_WORK_QUEUE_NAME = 'all'
 
-exec_mode = 'consume'
+exec_mode = None
 workers = {}
-workers_state = {}
+worker_status = {}
 
 standalone_config = None
 standalone_handler = None
@@ -82,7 +82,7 @@ def setup_worker(worker_info, work_queue_name):
     Install all the Lithops dependencies into the worker.
     Runs the job
     """
-    global workers, workers_state
+    global workers, worker_status
 
     worker = standalone_handler.backend.get_instance(**worker_info, public=False)
     logger.debug(f'Starting setup for {worker}')
@@ -94,11 +94,11 @@ def setup_worker(worker_info, work_queue_name):
 
         while instance_ready_retries <= max_instance_create_retries:
             try:
-                workers_state[worker.name] = {'state': 'starting'}
+                worker_status[worker.name] = {'status': 'starting'}
                 worker.wait_ready()
                 break
             except TimeoutError as e:  # VM not started in time
-                workers_state[worker.name] = {'state': 'error', 'err': str(e)}
+                worker_status[worker.name] = {'status': 'error', 'err': str(e)}
                 if instance_ready_retries == max_instance_create_retries:
                     raise e
                 logger.warning(f'Timeout Error. Recreating VM instance {worker.name}')
@@ -116,9 +116,9 @@ def setup_worker(worker_info, work_queue_name):
             break
         except LithopsValidationError as e:
             logger.debug(f'{worker.name} validation error: {e}')
-            workers_state[worker.name] = {'state': 'error', 'err': str(e)}
+            worker_status[worker.name] = {'status': 'error', 'err': str(e)}
             if instance_validate_retries == max_instance_create_retries:
-                workers_state[worker.name] = {'state': 'setup', 'err': str(e)}
+                worker_status[worker.name] = {'status': 'setup', 'err': str(e)}
                 break
             logger.warning(f'Worker {worker.name} setup failed with error {e} after {instance_validate_retries} retries')
             worker.delete()
@@ -138,8 +138,10 @@ def setup_worker(worker_info, work_queue_name):
                'private_ip': worker.private_ip,
                'instance_id': worker.instance_id,
                'ssh_credentials': worker.ssh_credentials,
+               'instance_type': worker.instance_type,
+               'runtime_name': worker.runtime_name,
                'master_ip': master_ip,
-               'work_queue': work_queue_name}
+               'work_queue_name': work_queue_name}
 
     remote_script = "/tmp/install_lithops.sh"
     script = get_worker_setup_script(standalone_config, vm_data)
@@ -148,7 +150,7 @@ def setup_worker(worker_info, work_queue_name):
     worker.get_ssh_client().run_remote_command(cmd, run_async=True)
     worker.del_ssh_client()
     logger.debug(f'Installation script submitted to {worker}')
-    workers_state[worker.name] = {'state': 'running', 'err': workers_state[worker.name].get('err')}
+    worker_status[worker.name] = {'status': 'running', 'err': worker_status[worker.name].get('err')}
 
     logger.debug(f'Appending {worker.name} to Worker list')
     workers[worker.name] = worker
@@ -172,10 +174,10 @@ def start_workers(job_payload, work_queue_name):
         try:
             future.result()
         except Exception as e:
-            # TODO consider to update worker state
+            # TODO consider to update worker status
             logger.error(e)
 
-    logger.debug(f'All workers set up for work queue "{work_queue_name}"')
+    logger.debug(f'All workers set up for work queue {work_queue_name}')
 
 
 def run_job_local(work_queue):
@@ -211,8 +213,8 @@ def run_job_local(work_queue):
 
 def run_job_worker(job_payload, work_queue):
     """
-    Process responsible to wait for workers to become ready, and
-    submit individual tasks of the job to them
+    Process responsible to put all the individual tasks in
+    queue and wait until the job is completely finished.
     """
     job_key = job_payload['job_key']
     call_ids = job_payload['call_ids']
@@ -240,8 +242,8 @@ def error(msg):
     return response
 
 
-@app.route('/workers', methods=['GET'])
-def get_workers():
+@app.route('/workers/<worker_instance_type>/<runtime_name>', methods=['GET'])
+def get_workers(worker_instance_type, runtime_name):
     """
     Returns the number of free workers
     """
@@ -251,8 +253,14 @@ def get_workers():
     # update last_usage_time to prevent race condition when keeper stops the vm
     budget_keeper.last_usage_time = time.time()
 
-    current_workers = [(worker.name, worker.private_ip) for worker in workers.values()]
-    logger.debug(f'Current workers: {current_workers}')
+    logger.debug(f'Total workers: {len(workers)}')
+
+    active_workers = []
+    for worker in workers.values():
+        if worker.instance_type == worker_instance_type \
+           and worker.runtime_name == runtime_name:
+            active_workers.append(worker)
+    logger.debug(f'Active workers for {worker_instance_type}-{runtime_name}: {len(active_workers)}')
 
     free_workers = []
 
@@ -262,28 +270,22 @@ def get_workers():
                 worker.name,
                 worker.private_ip,
                 worker.instance_id,
-                worker.ssh_credentials)
+                worker.ssh_credentials,
+                worker.instance_type,
+                worker.runtime_name
+                )
             )
 
-    if workers:
-        with ThreadPoolExecutor(len(workers)) as ex:
-            ex.map(check_worker, workers.values())
+    if active_workers:
+        with ThreadPoolExecutor(len(active_workers)) as ex:
+            ex.map(check_worker, active_workers)
 
-    logger.debug(f'Total free workers: {len(free_workers)}')
+    logger.debug(f'Free workers for {worker_instance_type}-{runtime_name}: {len(free_workers)}')
 
     response = flask.jsonify(free_workers)
     response.status_code = 200
 
     return response
-
-
-@app.route('/workers-state', methods=['GET'])
-def get_workers_state():
-    """
-    Returns the current workers state
-    """
-    logger.debug(f'Workers state: {workers_state}')
-    return flask.jsonify(workers_state)
 
 
 @app.route('/get-task/<work_queue_name>', methods=['GET'])
@@ -317,15 +319,14 @@ def stop_job_process(job_key_list):
     for job_key in job_key_list:
         logger.debug(f'Received SIGTERM: Stopping job process {job_key}')
 
-        if exec_mode == 'consume':
+        if exec_mode == StandaloneMode.CONSUME.value:
             if job_key == last_job_key:
                 # kill current running job process
                 localhos_handler.clear()
-                done = os.path.join(JOBS_DIR, job_key + '.done')
-                Path(done).touch()
+                Path(os.path.join(JOBS_DIR, job_key + '.done')).touch()
             else:
                 # Delete job_payload from pending queue
-                work_queue = work_queues['local']
+                work_queue = work_queues.setdefault('localhost', queue.Queue())
                 tmp_queue = []
                 while not work_queue.empty():
                     try:
@@ -338,7 +339,7 @@ def stop_job_process(job_key_list):
                     work_queue.put(job_payload)
 
         else:
-            wqn = job_key if exec_mode == 'create' else REUSE_WORK_QUEUE_NAME
+            wqn = job_key if exec_mode == StandaloneMode.CREATE.value else REUSE_WORK_QUEUE_NAME
             # empty work queue
             work_queue = work_queues.setdefault(wqn, queue.Queue())
             while not work_queue.empty():
@@ -385,8 +386,8 @@ def run():
         return error('The action did not receive a dictionary as an argument.')
 
     try:
-        runtime = job_payload['runtime_name']
-        verify_runtime_name(runtime)
+        runtime_name = job_payload['runtime_name']
+        verify_runtime_name(runtime_name)
     except Exception as e:
         return error(str(e))
 
@@ -397,12 +398,11 @@ def run():
     budget_keeper.update_config(job_payload['config']['standalone'])
     budget_keeper.jobs[job_key] = 'running'
 
-    exec_mode = job_payload['config']['standalone'].get('exec_mode', 'consume')
+    exec_mode = job_payload['config']['standalone'].get('exec_mode', StandaloneMode.CONSUME.value)
 
-    if exec_mode == 'consume':
+    if exec_mode == StandaloneMode.CONSUME.value:
         # Consume mode runs jobs in this master VM
-        work_queue_name = 'local'
-        work_queue = work_queues.setdefault(work_queue_name, queue.Queue())
+        work_queue = work_queues.setdefault('localhost', queue.Queue())
         if not localhost_manager_process:
             logger.debug('Starting manager process for localhost jobs')
             lmp = Thread(target=run_job_local, args=(work_queue, ), daemon=True)
@@ -411,12 +411,13 @@ def run():
         logger.debug(f'Putting job {job_key} into master queue')
         work_queue.put(job_payload)
 
-    elif exec_mode in ['create', 'reuse']:
+    elif exec_mode in [StandaloneMode.CREATE.value, StandaloneMode.REUSE.value]:
         # Create and reuse mode runs jobs on woker VMs
         logger.debug(f'Starting process for job {job_key}')
-        work_queue_name = job_key if exec_mode == 'create' else REUSE_WORK_QUEUE_NAME
-        work_queue = work_queues.setdefault(work_queue_name, queue.Queue())
-        Thread(target=start_workers, args=(job_payload, work_queue_name)).start()
+        worker_it = job_payload['worker_instance_type']
+        queue_name = f'{worker_it}-{runtime_name}' if exec_mode == StandaloneMode.REUSE.value else job_key
+        work_queue = work_queues.setdefault(queue_name, queue.Queue())
+        Thread(target=start_workers, args=(job_payload, queue_name)).start()
         Thread(target=run_job_worker, args=(job_payload, work_queue), daemon=True).start()
 
     act_id = str(uuid.uuid4()).replace('-', '')[:12]
