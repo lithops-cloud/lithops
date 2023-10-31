@@ -252,6 +252,13 @@ class DefaultEnv(BaseEnv):
         self.client = xmlrpc.client.ServerProxy(f'http://localhost:{service_port}')
         self.service_running = True
 
+    def join(self):
+        """
+        Waits until the underlying service finishes its execution
+        """
+        while self.service_process and self.service_process.poll() is None:
+            time.sleep(5)
+
 
 class DockerEnv(BaseEnv):
     """
