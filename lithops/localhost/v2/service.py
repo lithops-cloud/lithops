@@ -21,7 +21,6 @@ import sys
 import logging
 import platform
 import threading
-import socketserver
 import multiprocessing as mp
 from enum import Enum
 from pathlib import Path
@@ -71,16 +70,18 @@ class ProcessStatus(Enum):
     BUSY = 'busy'
 
 
-class ServerThread(socketserver.ThreadingMixIn, SimpleXMLRPCServer):
+class ServerThread(threading.Thread):
 
     def __init__(self, service_port, work_queue):
-        super().__init__(('0.0.0.0', service_port), logRequests=False, allow_none=True)
+        super().__init__()
+
+        self.server = SimpleXMLRPCServer(('0.0.0.0', service_port), logRequests=False)
 
         self.service_port = service_port
         self.work_queue = work_queue
 
-        self.register_function(self.add_job, 'add_job')
-        self.register_function(self.extract_runtime_meta, 'extract_runtime_meta')
+        self.server.register_function(self.add_job, 'add_job')
+        self.server.register_function(self.extract_runtime_meta, 'extract_runtime_meta')
 
     def add_job(self, job_payload):
         logger.info("Received new job")
@@ -108,7 +109,7 @@ class ServerThread(socketserver.ThreadingMixIn, SimpleXMLRPCServer):
 
     def start(self):
         logger.info(f'Lithops localhost executor service started on port {self.service_port}')
-        self.serve_forever()
+        self.server.serve_forever()
 
     def stop(self):
         logger.info('Shutting down the executor service')
@@ -119,8 +120,8 @@ class ServerThread(socketserver.ThreadingMixIn, SimpleXMLRPCServer):
                 pass
         for runner in task_runners:
             runner.join()
-        self.shutdown()
-        self.server_close()
+        self.server.shutdown()
+        self.server.server_close()
 
 
 def check_inactivity(server_thread, max_idle_timeout, check_interval):
@@ -166,8 +167,8 @@ def process_event(
 
     worker_status_dict[pid] = ProcessStatus.IDLE.value
 
-    task_id = f'{task.job_key}-{task.call_id}'
-    Path(os.path.join(JOBS_DIR, f'{task_id}' + '.done')).touch()
+    # task_id = f'{task.job_key}-{task.call_id}'
+    # Path(os.path.join(JOBS_DIR, f'{task_id}' + '.done')).touch()
 
 
 def python_queue_consumer(
