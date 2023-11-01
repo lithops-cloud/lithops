@@ -29,14 +29,31 @@ from gevent.pywsgi import WSGIServer
 from threading import Thread
 from concurrent.futures import ThreadPoolExecutor
 
-from lithops.constants import LITHOPS_TEMP_DIR, SA_LOG_FILE, JOBS_DIR, \
-    SA_SERVICE_PORT, SA_CONFIG_FILE, SA_DATA_FILE
 from lithops.localhost import LocalhostHandler
 from lithops.standalone import LithopsValidationError
-from lithops.utils import verify_runtime_name, iterchunks, setup_lithops_logger
-from lithops.standalone.utils import StandaloneMode, get_worker_setup_script
 from lithops.standalone.keeper import BudgetKeeper
+from lithops.config import extract_standalone_config
+from lithops.standalone.standalone import StandaloneHandler
 from lithops.version import __version__ as lithops_version
+from lithops.constants import (
+    LITHOPS_TEMP_DIR,
+    SA_LOG_FILE,
+    JOBS_DIR,
+    SA_SERVICE_PORT,
+    SA_CONFIG_FILE,
+    SA_DATA_FILE
+)
+from lithops.utils import (
+    verify_runtime_name,
+    iterchunks,
+    setup_lithops_logger
+)
+from lithops.standalone.utils import (
+    JobStatus,
+    StandaloneMode,
+    WorkerStatus,
+    get_worker_setup_script
+)
 
 
 log_format = "%(asctime)s\t[%(levelname)s] %(name)s:%(lineno)s -- %(message)s"
@@ -48,15 +65,13 @@ app = flask.Flask(__name__)
 MAX_INSTANCE_CREATE_RETRIES = 2
 REUSE_WORK_QUEUE_NAME = 'all'
 
-exec_mode = None
 workers = {}
-worker_status = {}
-
-standalone_config = None
-standalone_handler = None
-budget_keeper = None
 work_queues = {}
+jobs_list = {}
+
+budget_keeper = None
 master_ip = None
+exec_mode = None
 
 # variables for consume mode
 localhost_manager_process = None
@@ -76,29 +91,32 @@ def is_worker_free(worker):
     return False
 
 
-def setup_worker(worker_info, work_queue_name):
+def setup_worker(standalone_handler, worker_info, work_queue_name):
     """
     Run worker process
     Install all the Lithops dependencies into the worker.
     Runs the job
     """
-    global workers, worker_status
+    global workers
 
     worker = standalone_handler.backend.get_instance(**worker_info, public=False)
+    worker.metadata = standalone_handler.config
+
     logger.debug(f'Starting setup for {worker}')
 
-    max_instance_create_retries = standalone_config.get('worker_create_retries', MAX_INSTANCE_CREATE_RETRIES)
+    max_instance_create_retries = worker.metadata.get('worker_create_retries', MAX_INSTANCE_CREATE_RETRIES)
 
     def wait_worker_ready(worker):
         instance_ready_retries = 1
 
         while instance_ready_retries <= max_instance_create_retries:
             try:
-                worker_status[worker.name] = {'status': 'starting'}
+                worker.status = WorkerStatus.STARTING.value
                 worker.wait_ready()
                 break
             except TimeoutError as e:  # VM not started in time
-                worker_status[worker.name] = {'status': 'error', 'err': str(e)}
+                worker.status = WorkerStatus.ERROR.value
+                worker.err = str(e)
                 if instance_ready_retries == max_instance_create_retries:
                     raise e
                 logger.warning(f'Timeout Error. Recreating VM instance {worker.name}')
@@ -116,9 +134,10 @@ def setup_worker(worker_info, work_queue_name):
             break
         except LithopsValidationError as e:
             logger.debug(f'{worker.name} validation error: {e}')
-            worker_status[worker.name] = {'status': 'error', 'err': str(e)}
+            worker.status = WorkerStatus.ERROR.value
+            worker.err = str(e)
             if instance_validate_retries == max_instance_create_retries:
-                worker_status[worker.name] = {'status': 'setup', 'err': str(e)}
+                worker.status = WorkerStatus.SETUP.value
                 break
             logger.warning(f'Worker {worker.name} setup failed with error {e} after {instance_validate_retries} retries')
             worker.delete()
@@ -139,18 +158,19 @@ def setup_worker(worker_info, work_queue_name):
                'instance_id': worker.instance_id,
                'ssh_credentials': worker.ssh_credentials,
                'instance_type': worker.instance_type,
-               'runtime_name': worker.runtime_name,
                'master_ip': master_ip,
                'work_queue_name': work_queue_name}
 
     remote_script = "/tmp/install_lithops.sh"
-    script = get_worker_setup_script(standalone_config, vm_data)
+    script = get_worker_setup_script(worker.metadata, vm_data)
     worker.get_ssh_client().upload_data_to_file(script, remote_script)
     cmd = f"chmod 777 {remote_script}; sudo {remote_script};"
     worker.get_ssh_client().run_remote_command(cmd, run_async=True)
     worker.del_ssh_client()
     logger.debug(f'Installation script submitted to {worker}')
-    worker_status[worker.name] = {'status': 'running', 'err': worker_status[worker.name].get('err')}
+
+    worker.status = WorkerStatus.RUNNING.value
+    worker.err = None
 
     logger.debug(f'Appending {worker.name} to Worker list')
     workers[worker.name] = worker
@@ -161,6 +181,8 @@ def start_workers(job_payload, work_queue_name):
     Creates the workers (if any)
     """
     workers = job_payload['worker_instances']
+    standalone_config = extract_standalone_config(job_payload['config'])
+    standalone_handler = StandaloneHandler(standalone_config)
 
     if not workers:
         return
@@ -168,7 +190,7 @@ def start_workers(job_payload, work_queue_name):
     futures = []
     with ThreadPoolExecutor(len(workers)) as executor:
         for worker_info in workers:
-            futures.append(executor.submit(setup_worker, worker_info, work_queue_name))
+            futures.append(executor.submit(setup_worker, standalone_handler, worker_info, work_queue_name))
 
     for future in cf.as_completed(futures):
         try:
@@ -187,8 +209,6 @@ def run_job_local(work_queue):
     global localhos_handler
     global last_job_key
 
-    pull_runtime = standalone_config.get('pull_runtime', False)
-
     def wait_job_completed(job_key):
         done = os.path.join(JOBS_DIR, job_key + '.done')
         while True:
@@ -197,15 +217,17 @@ def run_job_local(work_queue):
             time.sleep(1)
 
     try:
-        localhos_handler = LocalhostHandler({'pull_runtime': pull_runtime})
-
         while True:
             job_payload = work_queue.get()
+            pull_runtime = job_payload['config']['standalone'].get('pull_runtime', False)
+            localhos_handler = LocalhostHandler({'pull_runtime': pull_runtime})
             job_key = job_payload['job_key']
+            jobs_list[job_key]['status'] = JobStatus.RUNNING.value
             last_job_key = job_key
             job_payload['config']['lithops']['backend'] = 'localhost'
             localhos_handler.invoke(job_payload)
             wait_job_completed(job_key)
+            jobs_list[job_key]['status'] = JobStatus.DONE.value
 
     except Exception as e:
         logger.error(e)
@@ -227,11 +249,13 @@ def run_job_worker(job_payload, work_queue):
         task_payload['data_byte_ranges'] = [dbr[int(call_id)] for call_id in call_ids_range]
         work_queue.put(task_payload)
 
+    jobs_list[job_key]['status'] = JobStatus.RUNNING.value
+
     while not work_queue.empty():
         time.sleep(1)
 
-    done = os.path.join(JOBS_DIR, job_key + '.done')
-    Path(done).touch()
+    Path(os.path.join(JOBS_DIR, job_key + '.done')).touch()
+    jobs_list[job_key]['status'] = JobStatus.DONE.value
 
     logger.debug(f'Job process {job_key} finished')
 
@@ -242,15 +266,26 @@ def error(msg):
     return response
 
 
+@app.route('/workers/status', methods=['GET'])
+def get_workers_state():
+    """
+    Returns the current workers state
+    """
+    global budget_keeper
+
+    budget_keeper.last_usage_time = time.time()
+
+    logger.debug(f'Workers status: {workers}')
+    return flask.jsonify()
+
+
 @app.route('/workers/<worker_instance_type>/<runtime_name>', methods=['GET'])
 def get_workers(worker_instance_type, runtime_name):
     """
     Returns the number of free workers
     """
-    global workers
     global budget_keeper
 
-    # update last_usage_time to prevent race condition when keeper stops the vm
     budget_keeper.last_usage_time = time.time()
 
     logger.debug(f'Total workers: {len(workers)}')
@@ -258,9 +293,9 @@ def get_workers(worker_instance_type, runtime_name):
     active_workers = []
     for worker in workers.values():
         if worker.instance_type == worker_instance_type \
-           and worker.runtime_name == runtime_name:
+           and worker.metadata['runtime'] == runtime_name:
             active_workers.append(worker)
-    logger.debug(f'Active workers for {worker_instance_type}-{runtime_name}: {len(active_workers)}')
+    logger.debug(f'Workers for {worker_instance_type}-{runtime_name}: {len(active_workers)}')
 
     free_workers = []
 
@@ -272,7 +307,7 @@ def get_workers(worker_instance_type, runtime_name):
                 worker.instance_id,
                 worker.ssh_credentials,
                 worker.instance_type,
-                worker.runtime_name
+                runtime_name
                 )
             )
 
@@ -319,14 +354,16 @@ def stop_job_process(job_key_list):
     for job_key in job_key_list:
         logger.debug(f'Received SIGTERM: Stopping job process {job_key}')
 
-        if exec_mode == StandaloneMode.CONSUME.value:
+        work_queue_name = jobs_list[job_key]['queue_name']
+
+        if work_queue_name == 'localhost':
             if job_key == last_job_key:
                 # kill current running job process
                 localhos_handler.clear()
                 Path(os.path.join(JOBS_DIR, job_key + '.done')).touch()
             else:
                 # Delete job_payload from pending queue
-                work_queue = work_queues.setdefault('localhost', queue.Queue())
+                work_queue = work_queues.setdefault(work_queue_name, queue.Queue())
                 tmp_queue = []
                 while not work_queue.empty():
                     try:
@@ -339,9 +376,7 @@ def stop_job_process(job_key_list):
                     work_queue.put(job_payload)
 
         else:
-            wqn = job_key if exec_mode == StandaloneMode.CREATE.value else REUSE_WORK_QUEUE_NAME
-            # empty work queue
-            work_queue = work_queues.setdefault(wqn, queue.Queue())
+            work_queue = work_queues.setdefault(work_queue_name, queue.Queue())
             while not work_queue.empty():
                 try:
                     work_queue.get(False)
@@ -349,8 +384,7 @@ def stop_job_process(job_key_list):
                     pass
 
             def stop_task(worker):
-                private_ip = worker['private_ip']
-                url = f"http://{private_ip}:{SA_SERVICE_PORT}/stop/{job_key}"
+                url = f"http://{worker.private_ip}:{SA_SERVICE_PORT}/stop/{job_key}"
                 requests.post(url, timeout=0.5)
 
             # Send stop signal to all workers
@@ -371,7 +405,20 @@ def stop():
     return ('', 204)
 
 
-@app.route('/run-job', methods=['POST'])
+@app.route('/jobs/status', methods=['GET'])
+def get_jobs_status():
+    """
+    Returns the current workers state
+    """
+    global budget_keeper
+
+    budget_keeper.last_usage_time = time.time()
+
+    logger.debug(f'Jobs status: {jobs_list}')
+    return flask.jsonify()
+
+
+@app.route('/jobs/run', methods=['POST'])
 def run():
     """
     Run a job locally, in consume mode
@@ -392,16 +439,22 @@ def run():
         return error(str(e))
 
     job_key = job_payload['job_key']
-    logger.debug('Received job {}'.format(job_key))
+    logger.debug(f'Received job {job_key}')
 
     budget_keeper.last_usage_time = time.time()
-    budget_keeper.update_config(job_payload['config']['standalone'])
-    budget_keeper.jobs[job_key] = 'running'
+    budget_keeper.jobs[job_key] = JobStatus.RUNNING.value
 
-    exec_mode = job_payload['config']['standalone'].get('exec_mode', StandaloneMode.CONSUME.value)
+    exec_mode = job_payload['config']['standalone']['exec_mode']
+
+    jobs_list[job_key] = {
+        'status': JobStatus.RECEIVED.value,
+        'total_tasks': len(job_payload['call_ids']),
+        'queue_name': None
+    }
 
     if exec_mode == StandaloneMode.CONSUME.value:
         # Consume mode runs jobs in this master VM
+        jobs_list[job_key]['queue_name'] = 'localhost'
         work_queue = work_queues.setdefault('localhost', queue.Queue())
         if not localhost_manager_process:
             logger.debug('Starting manager process for localhost jobs')
@@ -417,6 +470,7 @@ def run():
         worker_it = job_payload['worker_instance_type']
         queue_name = f'{worker_it}-{runtime_name}' if exec_mode == StandaloneMode.REUSE.value else job_key
         work_queue = work_queues.setdefault(queue_name, queue.Queue())
+        jobs_list[job_key]['queue_name'] = queue_name
         Thread(target=start_workers, args=(job_payload, queue_name)).start()
         Thread(target=run_job_worker, args=(job_payload, work_queue), daemon=True).start()
 
@@ -434,19 +488,20 @@ def ping():
     return response
 
 
-@app.route('/get-metadata', methods=['GET'])
+@app.route('/metadata', methods=['GET'])
 def get_metadata():
     payload = flask.request.get_json(force=True, silent=True)
     if payload and not isinstance(payload, dict):
         return error('The action did not receive a dictionary as an argument.')
 
+    runtime = payload['runtime']
+    pull_runtime = payload['pull_runtime']
+
     try:
-        runtime = payload['runtime']
         verify_runtime_name(runtime)
     except Exception as e:
         return error(str(e))
 
-    pull_runtime = standalone_config.get('pull_runtime', False)
     lh = LocalhostHandler({'runtime': runtime, 'pull_runtime': pull_runtime})
     runtime_meta = lh.deploy_runtime(runtime)
 
@@ -460,8 +515,6 @@ def get_metadata():
 
 
 def main():
-    global standalone_config
-    global standalone_handler
     global budget_keeper
     global master_ip
 
@@ -470,18 +523,11 @@ def main():
     with open(SA_CONFIG_FILE, 'r') as cf:
         standalone_config = json.load(cf)
 
-    # Delete ssh_key_filename
-    backend = standalone_config['backend']
-    if 'ssh_key_filename' in standalone_config[backend]:
-        del standalone_config[backend]['ssh_key_filename']
-
     with open(SA_DATA_FILE, 'r') as ad:
         master_ip = json.load(ad)['private_ip']
 
     budget_keeper = BudgetKeeper(standalone_config)
     budget_keeper.start()
-
-    standalone_handler = budget_keeper.sh
 
     server = WSGIServer(('0.0.0.0', SA_SERVICE_PORT), app, log=app.logger)
     server.serve_forever()

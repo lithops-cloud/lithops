@@ -5,6 +5,7 @@ import threading
 import logging
 from lithops.standalone import StandaloneHandler
 from lithops.constants import SA_DATA_FILE, JOBS_DIR
+from lithops.standalone.utils import JobStatus
 
 
 logger = logging.getLogger(__name__)
@@ -32,9 +33,8 @@ class BudgetKeeper(threading.Thread):
         self.standalone_handler = StandaloneHandler(self.standalone_config)
         self.instance = self.standalone_handler.backend.get_instance(**instance_data)
 
-        logger.debug("Starting BudgetKeeper for {} ({}), instance ID: {}"
-                     .format(self.instance.name, self.instance.private_ip,
-                             self.instance.instance_id))
+        logger.debug(f"Starting BudgetKeeper for {self.instance.name} ({self.instance.private_ip}), "
+                     f"instance ID: {self.instance.instance_id}")
         logger.debug(f"Delete {self.instance.name} on dismantle: {self.instance.delete_on_dismantle}")
 
     def update_config(self, config):
@@ -52,14 +52,12 @@ class BudgetKeeper(threading.Thread):
 
         if self.auto_dismantle:
             logger.debug('Auto dismantle activated - Soft timeout: {}s, Hard Timeout: {}s'
-                         .format(self.soft_dismantle_timeout,
-                                 self.hard_dismantle_timeout))
+                         .format(self.soft_dismantle_timeout, self.hard_dismantle_timeout))
         else:
             # If auto_dismantle is deactivated, the VM will be always automatically
             # stopped after hard_dismantle_timeout. This will prevent the VM
             # being started forever due a wrong configuration
-            logger.debug('Auto dismantle deactivated - Hard Timeout: {}s'
-                         .format(self.hard_dismantle_timeout))
+            logger.debug(f'Auto dismantle deactivated - Hard Timeout: {self.hard_dismantle_timeout}s')
 
         while runing:
             time_since_last_usage = time.time() - self.last_usage_time
@@ -67,11 +65,9 @@ class BudgetKeeper(threading.Thread):
             for job_key in self.jobs.keys():
                 done = os.path.join(JOBS_DIR, job_key + '.done')
                 if os.path.isfile(done):
-                    self.jobs[job_key] = 'done'
+                    self.jobs[job_key] = JobStatus.DONE.value
 
-            logger.debug(f"self.jobs: {self.jobs}")
-
-            if len(self.jobs) > 0 and all(value == 'done' for value in self.jobs.values()) \
+            if len(self.jobs) > 0 and all(value == JobStatus.DONE.value for value in self.jobs.values()) \
                and self.auto_dismantle:
 
                 # here we need to catch a moment when number of running JOBS become zero.

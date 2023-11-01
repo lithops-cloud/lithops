@@ -259,7 +259,7 @@ class StandaloneHandler:
         ]
 
         # invoke Job
-        self._make_request('POST', 'run-job', job_payload)
+        self._make_request('POST', 'jobs/run', job_payload)
         logger.debug(f'Job invoked on {self.backend.master}')
 
         self.jobs.append(job_payload['job_key'])
@@ -278,7 +278,7 @@ class StandaloneHandler:
 
         logger.debug('Extracting runtime metadata information')
         payload = {'runtime': runtime_name, 'pull_runtime': True}
-        runtime_meta = self._make_request('GET', 'get-metadata', payload)
+        runtime_meta = self._make_request('GET', 'metadata', payload)
 
         return runtime_meta
 

@@ -29,6 +29,7 @@ from lithops.constants import LITHOPS_TEMP_DIR, SA_LOG_FILE, JOBS_DIR, \
 from lithops.localhost import LocalhostHandler
 from lithops.utils import verify_runtime_name, setup_lithops_logger
 from lithops.standalone.keeper import BudgetKeeper
+from lithops.standalone.utils import StandaloneMode
 
 log_format = "%(asctime)s\t[%(levelname)s] %(name)s:%(lineno)s -- %(message)s"
 setup_lithops_logger(logging.DEBUG, filename=SA_LOG_FILE, log_format=log_format)
@@ -36,7 +37,6 @@ logger = logging.getLogger('lithops.standalone.worker')
 
 app = flask.Flask(__name__)
 
-standalone_config = None
 budget_keeper = None
 localhos_handler = None
 last_job_key = None
@@ -55,8 +55,7 @@ def stop(job_key):
     if job_key == last_job_key:
         logger.debug(f'Received SIGTERM: Stopping job process {job_key}')
         localhos_handler.clear()
-        done = os.path.join(JOBS_DIR, job_key + '.done')
-        Path(done).touch()
+        Path(os.path.join(JOBS_DIR, job_key + '.done')).touch()
     response = flask.jsonify({'response': 'cancel'})
     response.status_code = 200
     return response
@@ -77,7 +76,15 @@ def wait_job_completed(job_key):
         time.sleep(1)
 
 
-def run_worker(master_ip, work_queue_name, instance_type, runtime_name):
+def run_worker(
+        master_ip,
+        work_queue_name,
+        instance_type,
+        runtime_name,
+        worker_processes,
+        exec_mode,
+        pull_runtime
+):
     """
     Run a job
     """
@@ -85,13 +92,9 @@ def run_worker(master_ip, work_queue_name, instance_type, runtime_name):
     global localhos_handler
     global last_job_key
 
-    backend = standalone_config['backend']
-    worker_processes = standalone_config[backend]['worker_processes']
-
     logger.info(f"Starting Worker - Instace type: {instance_type} - Runtime "
                 f"name: {runtime_name} - Worker processes: {worker_processes}")
 
-    pull_runtime = standalone_config.get('pull_runtime', False)
     localhos_handler = LocalhostHandler({'pull_runtime': pull_runtime})
 
     while True:
@@ -105,7 +108,7 @@ def run_worker(master_ip, work_queue_name, instance_type, runtime_name):
             continue
 
         if resp.status_code != 200:
-            if standalone_config.get('exec_mode') == 'reuse':
+            if exec_mode == StandaloneMode.REUSE.value:
                 time.sleep(1)
                 continue
             else:
@@ -115,8 +118,7 @@ def run_worker(master_ip, work_queue_name, instance_type, runtime_name):
         job_payload = resp.json()
 
         try:
-            runtime = job_payload['runtime_name']
-            verify_runtime_name(runtime)
+            verify_runtime_name(runtime_name)
         except Exception:
             return
 
@@ -135,7 +137,6 @@ def run_worker(master_ip, work_queue_name, instance_type, runtime_name):
 
 
 def main():
-    global standalone_config
     global budget_keeper
 
     os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
@@ -143,6 +144,11 @@ def main():
     # read the Lithops standaole configuration file
     with open(SA_CONFIG_FILE, 'r') as cf:
         standalone_config = json.load(cf)
+        backend = standalone_config['backend']
+        runtime_name = standalone_config['runtime']
+        exec_mode = standalone_config['exec_mode']
+        worker_processes = standalone_config[backend]['worker_processes']
+        pull_runtime = standalone_config['pull_runtime']
 
     # Read the VM data file that contains the instance id, the master IP,
     # and the queue for getting tasks
@@ -152,7 +158,6 @@ def main():
         master_ip = vm_data['master_ip']
         work_queue_name = vm_data['work_queue_name']
         instance_type = vm_data['instance_type']
-        runtime_name = vm_data['runtime_name']
 
     # Start the budget keeper. It is responsible to automatically terminate the
     # worker after X seconds
@@ -167,7 +172,8 @@ def main():
     Thread(target=run_wsgi, daemon=True).start()
 
     # Start the worker that will get tasks from the work queue
-    run_worker(master_ip, work_queue_name, instance_type, runtime_name)
+    run_worker(master_ip, work_queue_name, instance_type, runtime_name,
+               worker_processes, exec_mode, pull_runtime)
 
     # run_worker will run forever in reuse mode. In create mode it will
     # run until there are no more tasks in the queue.
