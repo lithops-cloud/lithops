@@ -609,6 +609,10 @@ class VMInstance:
         """
         self.name = name.lower()
         self.config = config
+        self.metadata = {}
+
+        self.status = None
+        self.err = None
 
         self.delete_on_dismantle = self.config['delete_on_dismantle']
         self.instance_type = self.config['worker_instance_type']
@@ -624,8 +628,6 @@ class VMInstance:
         self.private_ip = None
         self.public_ip = '0.0.0.0'
         self.home_dir = '/home/ubuntu'
-
-        self.runtime_name = None
 
         self.ssh_credentials = {
             'username': self.config['ssh_username'],

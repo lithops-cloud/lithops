@@ -16,6 +16,13 @@ class StandaloneMode(Enum):
     REUSE = "reuse"
 
 
+class WorkerStatus(Enum):
+    STARTING = "starting"
+    ERROR = "error"
+    SETUP = "setup"
+    RUNNING = "running"
+
+
 MASTER_SERVICE_NAME = 'lithops-master.service'
 MASTER_SERVICE_FILE = f"""
 [Unit]

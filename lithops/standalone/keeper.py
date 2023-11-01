@@ -29,8 +29,8 @@ class BudgetKeeper(threading.Thread):
         with open(SA_DATA_FILE, 'r') as ad:
             instance_data = json.load(ad)
 
-        self.sh = StandaloneHandler(self.standalone_config)
-        self.instance = self.sh.backend.get_instance(**instance_data)
+        self.standalone_handler = StandaloneHandler(self.standalone_config)
+        self.instance = self.standalone_handler.backend.get_instance(**instance_data)
 
         logger.debug("Starting BudgetKeeper for {} ({}), instance ID: {}"
                      .format(self.instance.name, self.instance.private_ip,
@@ -89,7 +89,7 @@ class BudgetKeeper(threading.Thread):
 
             if time_to_dismantle > 0:
                 logger.debug(f"Time to dismantle: {time_to_dismantle} seconds")
-                check_interval = max(time_to_dismantle / 10, 1)
+                check_interval = min(60, max(time_to_dismantle / 10, 1))
                 time.sleep(check_interval)
             else:
                 logger.debug("Dismantling setup")

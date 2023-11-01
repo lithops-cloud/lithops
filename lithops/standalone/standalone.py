@@ -244,20 +244,21 @@ class StandaloneHandler:
             self._validate_master_service_setup()
             self._wait_master_service_ready()
 
+        # delete ssh key
+        backend = job_payload['config']['lithops']['backend']
+        job_payload['config'][backend].pop('ssh_key_filename', None)
+
+        # prepare worker instances data
         job_payload['worker_instances'] = [
             {'name': inst.name,
              'private_ip': inst.private_ip,
              'instance_id': inst.instance_id,
              'ssh_credentials': inst.ssh_credentials,
-             'instance_type': inst.instance_type,
-             'runtime_name': job_payload['runtime_name']}
+             'instance_type': inst.instance_type}
             for inst in new_workers
         ]
 
-        # delete ssh key
-        backend = job_payload['config']['lithops']['backend']
-        job_payload['config'][backend].pop('ssh_key_filename', None)
-
+        # invoke Job
         self._make_request('POST', 'run-job', job_payload)
         logger.debug(f'Job invoked on {self.backend.master}')
 

@@ -80,7 +80,7 @@ class IBMVPCBackend:
         self.vpc_cli = VpcV1(VPC_API_VERSION, authenticator=authenticator)
         self.vpc_cli.set_service_url(self.config['endpoint'] + '/v1')
 
-        user_agent_string = 'ibm_vpc_{}'.format(self.config['user_agent'])
+        user_agent_string = f"ibm_vpc_{self.config['user_agent']}"
         self.vpc_cli._set_user_agent_header(user_agent_string)
 
         # decorate instance public methods with except/retry logic
@@ -856,6 +856,10 @@ class IBMVPCInstance:
         """
         self.name = name.lower()
         self.config = ibm_vpc_config
+        self.metadata = {}
+
+        self.status = None
+        self.err = None
 
         self.delete_on_dismantle = self.config['delete_on_dismantle']
         self.instance_type = self.config['worker_profile_name']
@@ -869,8 +873,6 @@ class IBMVPCInstance:
         self.private_ip = None
         self.public_ip = None
         self.home_dir = '/root'
-
-        self.runtime_name = None
 
         self.ssh_credentials = {
             'username': self.config['ssh_username'],

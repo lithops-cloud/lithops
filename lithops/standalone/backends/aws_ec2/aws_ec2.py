@@ -780,6 +780,10 @@ class EC2Instance:
         """
         self.name = name.lower()
         self.config = ec2_config
+        self.metadata = {}
+
+        self.status = None
+        self.err = None
 
         self.delete_on_dismantle = self.config['delete_on_dismantle']
         self.instance_type = self.config['worker_instance_type']
