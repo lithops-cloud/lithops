@@ -15,14 +15,14 @@
 # limitations under the License.
 #
 
-import functools
-import inspect
 import re
 import os
 import paramiko
 import time
 import logging
 import uuid
+import functools
+import inspect
 from datetime import datetime
 from ibm_vpc import VpcV1
 from ibm_cloud_sdk_core.authenticators import IAMAuthenticator
@@ -88,6 +88,12 @@ class IBMVPCBackend:
 
         msg = COMPUTE_CLI_MSG.format('IBM VPC')
         logger.info(f"{msg} - Region: {self.region}")
+
+    def is_initialized(self):
+        """
+        Checks if the backend is initialized
+        """
+        return os.path.isfile(self.cache_file)
 
     def _load_vpc_data(self):
         """

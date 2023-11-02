@@ -75,6 +75,12 @@ class AzureVMSBackend:
         msg = COMPUTE_CLI_MSG.format('Azure Virtual Machines')
         logger.info(f"{msg} - Region: {self.location}")
 
+    def is_initialized(self):
+        """
+        Checks if the backend is initialized
+        """
+        return os.path.isfile(self.cache_file)
+
     def _load_azure_vms_data(self):
         """
         Loads Azure data from local cache

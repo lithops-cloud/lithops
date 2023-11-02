@@ -275,7 +275,7 @@ def get_workers_state():
 
     budget_keeper.last_usage_time = time.time()
 
-    result = []
+    result = [['Worker Name', 'Instance Type', 'Worker Processes', 'Execution Mode', 'Status']]
 
     for worker_name in workers:
         status = workers[worker_name].status
@@ -423,7 +423,7 @@ def get_jobs_status():
 
     budget_keeper.last_usage_time = time.time()
 
-    result = []
+    result = [['Job Name', 'Total Tasks', 'Status'], ]
 
     for job_key in jobs_list:
         status = jobs_list[job_key]['status']

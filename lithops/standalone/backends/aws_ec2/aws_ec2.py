@@ -89,6 +89,12 @@ class AWSEC2Backend:
         msg = COMPUTE_CLI_MSG.format('AWS EC2')
         logger.info(f"{msg} - Region: {self.region_name}")
 
+    def is_initialized(self):
+        """
+        Checks if the backend is initialized
+        """
+        return os.path.isfile(self.cache_file)
+
     def _load_ec2_data(self):
         """
         Loads EC2 data from local cache

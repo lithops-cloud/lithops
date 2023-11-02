@@ -63,6 +63,12 @@ class StandaloneHandler:
         """
         self.backend.init()
 
+    def is_initialized(self):
+        """
+        Check if the backend is initialized
+        """
+        return self.backend.is_initialized()
+
     def build_image(self, image_name, script_file, overwrite, extra_args=[]):
         """
         Builds a new VM Image
