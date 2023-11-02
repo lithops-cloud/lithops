@@ -165,7 +165,7 @@ class StandaloneHandler:
         """
         workers_on_master = []
         try:
-            endpoint = f'workers/{worker_instance_type}/{runtime_name}'
+            endpoint = f'worker/{worker_instance_type}/{runtime_name}'
             workers_on_master = self._make_request('GET', endpoint)
         except Exception:
             pass
@@ -253,13 +253,12 @@ class StandaloneHandler:
             {'name': inst.name,
              'private_ip': inst.private_ip,
              'instance_id': inst.instance_id,
-             'ssh_credentials': inst.ssh_credentials,
-             'instance_type': inst.instance_type}
+             'ssh_credentials': inst.ssh_credentials}
             for inst in new_workers
         ]
 
         # invoke Job
-        self._make_request('POST', 'jobs/run', job_payload)
+        self._make_request('POST', 'job/run', job_payload)
         logger.debug(f'Job invoked on {self.backend.master}')
 
         self.jobs.append(job_payload['job_key'])
@@ -307,6 +306,18 @@ class StandaloneHandler:
 
         if self.exec_mode != StandaloneMode.REUSE.value:
             self.backend.clear(job_keys)
+
+    def list_jobs(self):
+        """
+        Lists jobs in master VM
+        """
+        return self._make_request('GET', 'job/list')
+
+    def list_workers(self):
+        """
+        Lists available workers in master VM
+        """
+        return self._make_request('GET', 'worker/list')
 
     def get_runtime_key(self, runtime_name, runtime_memory, version=__version__):
         """

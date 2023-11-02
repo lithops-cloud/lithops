@@ -169,7 +169,7 @@ def setup_worker(standalone_handler, worker_info, work_queue_name):
     worker.del_ssh_client()
     logger.debug(f'Installation script submitted to {worker}')
 
-    worker.status = WorkerStatus.RUNNING.value
+    worker.status = WorkerStatus.ACTIVE.value
     worker.err = None
 
     logger.debug(f'Appending {worker.name} to Worker list')
@@ -266,20 +266,29 @@ def error(msg):
     return response
 
 
-@app.route('/workers/status', methods=['GET'])
+@app.route('/worker/list', methods=['GET'])
 def get_workers_state():
     """
-    Returns the current workers state
+    Returns the current workers list
     """
     global budget_keeper
 
     budget_keeper.last_usage_time = time.time()
 
-    logger.debug(f'Workers status: {workers}')
-    return flask.jsonify()
+    result = []
+
+    for worker_name in workers:
+        status = workers[worker_name].status
+        instance_type = workers[worker_name].instance_type
+        worker_processes = str(workers[worker_name].config['worker_processes'])
+        exec_mode = workers[worker_name].metadata['exec_mode']
+        result.append((worker_name, instance_type, worker_processes, exec_mode, status))
+
+    logger.debug(f'Listing workers: {result}')
+    return flask.jsonify(result)
 
 
-@app.route('/workers/<worker_instance_type>/<runtime_name>', methods=['GET'])
+@app.route('/worker/<worker_instance_type>/<runtime_name>', methods=['GET'])
 def get_workers(worker_instance_type, runtime_name):
     """
     Returns the number of free workers
@@ -405,7 +414,7 @@ def stop():
     return ('', 204)
 
 
-@app.route('/jobs/status', methods=['GET'])
+@app.route('/job/list', methods=['GET'])
 def get_jobs_status():
     """
     Returns the current workers state
@@ -414,11 +423,18 @@ def get_jobs_status():
 
     budget_keeper.last_usage_time = time.time()
 
-    logger.debug(f'Jobs status: {jobs_list}')
-    return flask.jsonify()
+    result = []
+
+    for job_key in jobs_list:
+        status = jobs_list[job_key]['status']
+        total_tasks = str(jobs_list[job_key]['total_tasks'])
+        result.append((job_key, total_tasks, status))
+
+    logger.debug(f'Listing jobs: {result}')
+    return flask.jsonify(result)
 
 
-@app.route('/jobs/run', methods=['POST'])
+@app.route('/job/run', methods=['POST'])
 def run():
     """
     Run a job locally, in consume mode

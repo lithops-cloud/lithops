@@ -20,7 +20,7 @@ class WorkerStatus(Enum):
     STARTING = "starting"
     ERROR = "error"
     SETUP = "setup"
-    RUNNING = "running"
+    ACTIVE = "active"
 
 
 class JobStatus(Enum):
