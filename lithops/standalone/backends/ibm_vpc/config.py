@@ -22,7 +22,8 @@ from lithops.constants import SA_DEFAULT_CONFIG_KEYS
 
 MANDATORY_PARAMETERS_1 = ('instance_id',
                           'floating_ip',
-                          'iam_api_key')
+                          'iam_api_key',
+                          'worker_processes')
 
 MANDATORY_PARAMETERS_2 = ('resource_group_id',
                           'iam_api_key')
@@ -36,7 +37,6 @@ DEFAULT_CONFIG_KEYS = {
     'ssh_key_filename': '~/.ssh/id_rsa',
     'delete_on_dismantle': True,
     'max_workers': 100,
-    'worker_processes': 2,
     'boot_volume_capacity': 100
 }
 
@@ -76,8 +76,9 @@ def load_config(config_data):
             msg = f"'{param}' is mandatory in 'ibm_vpc' section of the configuration"
             raise Exception(msg)
 
-    if "profile_name" in config_data['ibm_vpc']:
-        config_data['ibm_vpc']['worker_profile_name'] = config_data['ibm_vpc']['profile_name']
+    if "worker_processes" not in config_data['ibm_vpc']:
+        procs = config_data['ibm_vpc']['worker_profile_name'].split('-')[1].split('x')[0]
+        config_data['ibm_vpc']['worker_processes'] = int(procs)
 
     if "region" not in config_data['ibm_vpc'] and "endpoint" not in config_data['ibm_vpc']:
         msg = "'region' or 'endpoint' parameter is mandatory in 'ibm_vpc' section of the configuration"

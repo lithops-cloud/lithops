@@ -107,7 +107,11 @@ class StandaloneHandler:
                 data_str = shlex.quote(json.dumps(data))
                 cmd = f'{cmd} -d {data_str}'
             out = self.backend.master.get_ssh_client().run_remote_command(cmd)
-            return json.loads(out)
+            try:
+                resp = json.loads(out)
+            except Exception:
+                raise Exception(f"Failed to deserialize the response: {out}")
+            return resp
 
     def _is_master_service_ready(self):
         """

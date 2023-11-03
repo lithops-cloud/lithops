@@ -238,7 +238,7 @@ def attach(config, backend, start, debug, region):
         logger.info("The backend is not initialized")
         return
     compute_handler.init()
-    if not start and not compute_handler._is_master_service_ready():
+    if not start and not compute_handler.backend.master.is_ready():
         logger.info(f"{compute_handler.backend.master} is stopped")
         return
 

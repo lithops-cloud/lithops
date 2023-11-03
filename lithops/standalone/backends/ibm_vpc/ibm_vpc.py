@@ -66,9 +66,11 @@ class IBMVPCBackend:
 
         self.endpoint = self.config['endpoint']
         self.region = self.config['region']
-        self.cache_dir = os.path.join(CACHE_DIR, self.name)
-        self.cache_file = os.path.join(self.cache_dir, self.region + '_data')
         self.custom_image = self.config.get('custom_lithops_image')
+
+        suffix = 'vm' if self.mode == StandaloneMode.CONSUME.value else 'vpc'
+        self.cache_dir = os.path.join(CACHE_DIR, self.name)
+        self.cache_file = os.path.join(self.cache_dir, f'{self.region}_{suffix}_data')
 
         logger.debug(f'Setting VPC endpoint to: {self.endpoint}')
 
@@ -115,6 +117,13 @@ class IBMVPCBackend:
         Dumps VPC data to local cache
         """
         dump_yaml_config(self.cache_file, self.vpc_data)
+
+    def _delete_vpc_data(self):
+        """
+        Deletes the vpc data file
+        """
+        if os.path.exists(self.cache_file):
+            os.remove(self.cache_file)
 
     def _create_vpc(self):
         """
@@ -772,15 +781,13 @@ class IBMVPCBackend:
         if not self.vpc_data:
             return
 
-        if self.vpc_data['mode'] == StandaloneMode.CONSUME.value:
-            if os.path.exists(self.cache_file):
-                os.remove(self.cache_file)
+        if self.mode == StandaloneMode.CONSUME.value:
+            self._delete_vpc_data()
         else:
             self._delete_vm_instances(all=all)
             self._delete_vpc() if all else None
             self._delete_ssh_key() if all else None
-            if all and os.path.exists(self.cache_file):
-                os.remove(self.cache_file)
+            self._delete_vpc_data() if all else None
 
     def clear(self, job_keys=None):
         """

@@ -9,7 +9,6 @@
 - [AWS EC2] Added delete_image() method for deleting VM images through the cli
 - [IBM VPC] Added delete_image() method for deleting VM images through the cli
 - [localhost] New localhost backend v2 to maximize resource utilization when multiple maps are executed from the same FunctionExecutor
-- [Standalone] Added new methods for listing jobs and workers present in the master VM
 
 ### Changed
 - [Joblib] Update joblib backend to make it compatible for newer versions of joblib
@@ -19,7 +18,8 @@
 ### Fixed
 - [Job] Fixed max data size in the invocation payload
 - [Multiprocessing] Fixed cpu_count
-- [Standalone] Start new workers when the VM instance profile changes to a different one (in reuse mode)
+- [Standalone] Start new workers when the VM instance type changes (in reuse mode)
+- [GCP Functions] Fixed issue with "function_url" variable
 
 
 ## [v3.0.1]

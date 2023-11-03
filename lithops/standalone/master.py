@@ -276,7 +276,7 @@ def list_workers():
 
     budget_keeper.last_usage_time = time.time()
 
-    result = [['Worker Name', 'Instance Type', 'Worker Processes', 'Runtime', 'Execution Mode', 'Status']]
+    result = [['Worker Name', 'Instance Type', 'Processes', 'Runtime', 'Execution Mode', 'Status']]
 
     for worker_name in workers:
         status = workers[worker_name].status
@@ -425,16 +425,17 @@ def list_jobs():
 
     budget_keeper.last_usage_time = time.time()
 
-    result = [['Job ID', 'Function Name', 'Submitted', 'Total Tasks', 'Status']]
+    result = [['Job ID', 'Function Name', 'Submitted', 'Runtime', 'Total Tasks', 'Status']]
 
     for job_key in jobs_list:
         job_data = jobs_list[job_key]
         status = job_data['status']
         func_name = job_data['func_name'] + "()"
         timestamp = job_data['submitted']
+        runtime = job_data['runtime_name']
         submitted = datetime.utcfromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S UTC')
         total_tasks = str(job_data['total_tasks'])
-        result.append((job_key, func_name, submitted, total_tasks, status))
+        result.append((job_key, func_name, submitted, runtime, total_tasks, status))
 
     logger.debug(f'Listing jobs: {result}')
     return flask.jsonify(result)
@@ -472,6 +473,7 @@ def run():
         'status': JobStatus.RECEIVED.value,
         'submitted': job_payload['host_submit_tstamp'],
         'func_name': job_payload['func_name'],
+        'runtime_name': job_payload['runtime_name'],
         'total_tasks': len(job_payload['call_ids']),
         'queue_name': None
     }
@@ -492,7 +494,7 @@ def run():
         # Create and reuse mode runs jobs on woker VMs
         logger.debug(f'Starting process for job {job_key}')
         worker_it = job_payload['worker_instance_type']
-        queue_name = f'{worker_it}-{runtime_name}' if exec_mode == StandaloneMode.REUSE.value else job_key
+        queue_name = f'{worker_it}-{runtime_name.replace("/", "-")}' if exec_mode == StandaloneMode.REUSE.value else job_key
         work_queue = work_queues.setdefault(queue_name, queue.Queue())
         jobs_list[job_key]['queue_name'] = queue_name
         Thread(target=start_workers, args=(job_payload, queue_name)).start()

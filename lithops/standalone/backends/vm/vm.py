@@ -18,6 +18,7 @@ import os
 import logging
 import time
 
+from lithops.standalone.utils import StandaloneMode
 from lithops.version import __version__
 from lithops.constants import COMPUTE_CLI_MSG
 from lithops.util.ssh_client import SSHClient
@@ -39,6 +40,12 @@ class VMBackend:
         self.master = None
 
         logger.info(COMPUTE_CLI_MSG.format('Virtual Machine'))
+
+    def is_initialized(self):
+        """
+        Checks if the backend is initialized
+        """
+        return self.mode == StandaloneMode.CONSUME.value
 
     def init(self):
         """
