@@ -15,14 +15,14 @@
 # limitations under the License.
 #
 
-import functools
-import inspect
 import re
 import os
 import paramiko
 import time
 import logging
 import uuid
+import functools
+import inspect
 from datetime import datetime
 from ibm_vpc import VpcV1
 from ibm_cloud_sdk_core.authenticators import IAMAuthenticator
@@ -66,9 +66,11 @@ class IBMVPCBackend:
 
         self.endpoint = self.config['endpoint']
         self.region = self.config['region']
-        self.cache_dir = os.path.join(CACHE_DIR, self.name)
-        self.cache_file = os.path.join(self.cache_dir, self.region + '_data')
         self.custom_image = self.config.get('custom_lithops_image')
+
+        suffix = 'vm' if self.mode == StandaloneMode.CONSUME.value else 'vpc'
+        self.cache_dir = os.path.join(CACHE_DIR, self.name)
+        self.cache_file = os.path.join(self.cache_dir, f'{self.region}_{suffix}_data')
 
         logger.debug(f'Setting VPC endpoint to: {self.endpoint}')
 
@@ -80,7 +82,7 @@ class IBMVPCBackend:
         self.vpc_cli = VpcV1(VPC_API_VERSION, authenticator=authenticator)
         self.vpc_cli.set_service_url(self.config['endpoint'] + '/v1')
 
-        user_agent_string = 'ibm_vpc_{}'.format(self.config['user_agent'])
+        user_agent_string = f"ibm_vpc_{self.config['user_agent']}"
         self.vpc_cli._set_user_agent_header(user_agent_string)
 
         # decorate instance public methods with except/retry logic
@@ -88,6 +90,12 @@ class IBMVPCBackend:
 
         msg = COMPUTE_CLI_MSG.format('IBM VPC')
         logger.info(f"{msg} - Region: {self.region}")
+
+    def is_initialized(self):
+        """
+        Checks if the backend is initialized
+        """
+        return os.path.isfile(self.cache_file)
 
     def _load_vpc_data(self):
         """
@@ -109,6 +117,13 @@ class IBMVPCBackend:
         Dumps VPC data to local cache
         """
         dump_yaml_config(self.cache_file, self.vpc_data)
+
+    def _delete_vpc_data(self):
+        """
+        Deletes the vpc data file
+        """
+        if os.path.exists(self.cache_file):
+            os.remove(self.cache_file)
 
     def _create_vpc(self):
         """
@@ -766,15 +781,13 @@ class IBMVPCBackend:
         if not self.vpc_data:
             return
 
-        if self.vpc_data['mode'] == StandaloneMode.CONSUME.value:
-            if os.path.exists(self.cache_file):
-                os.remove(self.cache_file)
+        if self.mode == StandaloneMode.CONSUME.value:
+            self._delete_vpc_data()
         else:
             self._delete_vm_instances(all=all)
             self._delete_vpc() if all else None
             self._delete_ssh_key() if all else None
-            if all and os.path.exists(self.cache_file):
-                os.remove(self.cache_file)
+            self._delete_vpc_data() if all else None
 
     def clear(self, job_keys=None):
         """
@@ -856,6 +869,10 @@ class IBMVPCInstance:
         """
         self.name = name.lower()
         self.config = ibm_vpc_config
+        self.metadata = {}
+
+        self.status = None
+        self.err = None
 
         self.delete_on_dismantle = self.config['delete_on_dismantle']
         self.instance_type = self.config['worker_profile_name']
@@ -869,8 +886,6 @@ class IBMVPCInstance:
         self.private_ip = None
         self.public_ip = None
         self.home_dir = '/root'
-
-        self.runtime_name = None
 
         self.ssh_credentials = {
             'username': self.config['ssh_username'],

@@ -55,10 +55,13 @@ class AzureVMSBackend:
         self.config = config
         self.mode = mode
         self.location = config['region']
-        self.cache_dir = os.path.join(CACHE_DIR, self.name)
-        self.cache_file = os.path.join(self.cache_dir, self.location + '_data')
+
         self.vnet_data_type = 'provided' if 'vnet_name' in self.config else 'created'
         self.ssh_data_type = 'provided' if 'ssh_key_filename' in config else 'created'
+
+        suffix = 'vm' if self.mode == StandaloneMode.CONSUME.value else 'vpc'
+        self.cache_dir = os.path.join(CACHE_DIR, self.name)
+        self.cache_file = os.path.join(self.cache_dir, f'{self.location}_{suffix}_data')
 
         self.azure_data = None
         self.vnet_name = None
@@ -74,6 +77,12 @@ class AzureVMSBackend:
 
         msg = COMPUTE_CLI_MSG.format('Azure Virtual Machines')
         logger.info(f"{msg} - Region: {self.location}")
+
+    def is_initialized(self):
+        """
+        Checks if the backend is initialized
+        """
+        return os.path.isfile(self.cache_file)
 
     def _load_azure_vms_data(self):
         """
@@ -93,6 +102,13 @@ class AzureVMSBackend:
         Dumps Azure data to local cache
         """
         dump_yaml_config(self.cache_file, self.azure_data)
+
+    def _delete_vpc_data(self):
+        """
+        Deletes the vpc data file
+        """
+        if os.path.exists(self.cache_file):
+            os.remove(self.cache_file)
 
     def _create_vnet(self):
         """
@@ -323,8 +339,6 @@ class AzureVMSBackend:
         logger.debug(f'Initializing Azure Virtual Machines backend ({self.mode} mode)')
 
         self._load_azure_vms_data()
-        if self.mode != self.azure_data.get('mode'):
-            self.azure_data = {}
 
         if self.mode == StandaloneMode.CONSUME.value:
             instance_name = self.config['instance_name']
@@ -531,14 +545,12 @@ class AzureVMSBackend:
             return
 
         if self.azure_data['mode'] == StandaloneMode.CONSUME.value:
-            if os.path.exists(self.cache_file):
-                os.remove(self.cache_file)
+            self._delete_vpc_data()
         else:
             self._delete_vm_instances(all=all)
             self._delete_vnet_and_subnet() if all else None
             self._delete_ssh_key() if all else None
-            if all and os.path.exists(self.cache_file):
-                os.remove(self.cache_file)
+            self._delete_vpc_data() if all else None
 
     def clear(self, job_keys=None):
         """
@@ -609,6 +621,10 @@ class VMInstance:
         """
         self.name = name.lower()
         self.config = config
+        self.metadata = {}
+
+        self.status = None
+        self.err = None
 
         self.delete_on_dismantle = self.config['delete_on_dismantle']
         self.instance_type = self.config['worker_instance_type']
@@ -624,8 +640,6 @@ class VMInstance:
         self.private_ip = None
         self.public_ip = '0.0.0.0'
         self.home_dir = '/home/ubuntu'
-
-        self.runtime_name = None
 
         self.ssh_credentials = {
             'username': self.config['ssh_username'],

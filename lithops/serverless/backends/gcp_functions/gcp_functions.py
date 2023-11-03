@@ -37,9 +37,9 @@ from lithops import utils
 from lithops.version import __version__
 from lithops.constants import COMPUTE_CLI_MSG, JOBS_PREFIX, TEMP_DIR
 
-invoke_mutex = Lock()
-
 from . import config
+
+invoke_mutex = Lock()
 
 logger = logging.getLogger(__name__)
 
@@ -143,7 +143,7 @@ class GCPFunctionsBackend:
             if self.credentials_path and os.path.isfile(self.credentials_path):
                 os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = self.credentials_path
             auth_req = google.auth.transport.requests.Request()
-            self._api_token = google.oauth2.id_token.fetch_id_token(auth_req, self.function_url)
+            self._api_token = google.oauth2.id_token.fetch_id_token(auth_req, self._function_url)
 
         invoke_mutex.release()
 

@@ -5,6 +5,7 @@ from itertools import chain
 
 install_requires = [
     'Click',
+    'tabulate',
     'pandas',
     'PyYAML',
     'python-dateutil',

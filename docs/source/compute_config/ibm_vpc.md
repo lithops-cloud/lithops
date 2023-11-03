@@ -91,7 +91,7 @@ ibm_vpc:
 |ibm_vpc | master_profile_name | cx2-2x4 | no | Profile name for the master VM |
 |ibm_vpc | delete_on_dismantle | True | no | Delete the worekr VMs when they are stopped |
 |ibm_vpc | max_workers | 100 | no | Max number of workers per `FunctionExecutor()`|
-|ibm_vpc | worker_processes | 2 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker. It is recommendable to set this value to the same number of CPUs of a worker VM. |
+|ibm_vpc | worker_processes | AUTO | no | Number of Lithops processes within a given worker. This is used to parallelize function activations within a worker. By default it detects the amount of CPUs in the worker VM|
 |ibm_vpc | singlesocket | False | no | Try to allocate workers with single socket CPU. If eventually running on multiple socket, a warning message printed to user. Is **True** standalone **workers_policy** must be set to **strict** to trace workers states|
 |ibm_vpc | runtime | python3 | no | Runtime name to run the functions. Can be a container image name. If not set Lithops will use the default python3 interpreter of the VM |
 |ibm_vpc | auto_dismantle | True |no | If False then the VM is not stopped automatically.|

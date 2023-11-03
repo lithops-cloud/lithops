@@ -63,6 +63,12 @@ class StandaloneHandler:
         """
         self.backend.init()
 
+    def is_initialized(self):
+        """
+        Check if the backend is initialized
+        """
+        return self.backend.is_initialized()
+
     def build_image(self, image_name, script_file, overwrite, extra_args=[]):
         """
         Builds a new VM Image
@@ -101,7 +107,11 @@ class StandaloneHandler:
                 data_str = shlex.quote(json.dumps(data))
                 cmd = f'{cmd} -d {data_str}'
             out = self.backend.master.get_ssh_client().run_remote_command(cmd)
-            return json.loads(out)
+            try:
+                resp = json.loads(out)
+            except Exception:
+                raise Exception(f"Failed to deserialize the response: {out}")
+            return resp
 
     def _is_master_service_ready(self):
         """
@@ -165,7 +175,7 @@ class StandaloneHandler:
         """
         workers_on_master = []
         try:
-            endpoint = f'workers/{worker_instance_type}/{runtime_name}'
+            endpoint = f'worker/{worker_instance_type}/{runtime_name}'
             workers_on_master = self._make_request('GET', endpoint)
         except Exception:
             pass
@@ -244,21 +254,21 @@ class StandaloneHandler:
             self._validate_master_service_setup()
             self._wait_master_service_ready()
 
-        job_payload['worker_instances'] = [
-            {'name': inst.name,
-             'private_ip': inst.private_ip,
-             'instance_id': inst.instance_id,
-             'ssh_credentials': inst.ssh_credentials,
-             'instance_type': inst.instance_type,
-             'runtime_name': job_payload['runtime_name']}
-            for inst in new_workers
-        ]
-
         # delete ssh key
         backend = job_payload['config']['lithops']['backend']
         job_payload['config'][backend].pop('ssh_key_filename', None)
 
-        self._make_request('POST', 'run-job', job_payload)
+        # prepare worker instances data
+        job_payload['worker_instances'] = [
+            {'name': inst.name,
+             'private_ip': inst.private_ip,
+             'instance_id': inst.instance_id,
+             'ssh_credentials': inst.ssh_credentials}
+            for inst in new_workers
+        ]
+
+        # invoke Job
+        self._make_request('POST', 'job/run', job_payload)
         logger.debug(f'Job invoked on {self.backend.master}')
 
         self.jobs.append(job_payload['job_key'])
@@ -277,7 +287,7 @@ class StandaloneHandler:
 
         logger.debug('Extracting runtime metadata information')
         payload = {'runtime': runtime_name, 'pull_runtime': True}
-        runtime_meta = self._make_request('GET', 'get-metadata', payload)
+        runtime_meta = self._make_request('GET', 'metadata', payload)
 
         return runtime_meta
 
@@ -306,6 +316,18 @@ class StandaloneHandler:
 
         if self.exec_mode != StandaloneMode.REUSE.value:
             self.backend.clear(job_keys)
+
+    def list_jobs(self):
+        """
+        Lists jobs in master VM
+        """
+        return self._make_request('GET', 'job/list')
+
+    def list_workers(self):
+        """
+        Lists available workers in master VM
+        """
+        return self._make_request('GET', 'worker/list')
 
     def get_runtime_key(self, runtime_name, runtime_memory, version=__version__):
         """

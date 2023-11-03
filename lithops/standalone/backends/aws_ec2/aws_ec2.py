@@ -61,8 +61,11 @@ class AWSEC2Backend:
         self.config = config
         self.mode = mode
         self.region_name = self.config['region']
+
+        suffix = 'vm' if self.mode == StandaloneMode.CONSUME.value else 'vpc'
         self.cache_dir = os.path.join(CACHE_DIR, self.name)
-        self.cache_file = os.path.join(self.cache_dir, self.region_name + '_data')
+        self.cache_file = os.path.join(self.cache_dir, f'{self.region_name}_{suffix}_data')
+
         self.vpc_data_type = 'provided' if 'vpc_id' in self.config else 'created'
         self.ssh_data_type = 'provided' if 'ssh_key_name' in self.config else 'created'
 
@@ -89,6 +92,12 @@ class AWSEC2Backend:
         msg = COMPUTE_CLI_MSG.format('AWS EC2')
         logger.info(f"{msg} - Region: {self.region_name}")
 
+    def is_initialized(self):
+        """
+        Checks if the backend is initialized
+        """
+        return os.path.isfile(self.cache_file)
+
     def _load_ec2_data(self):
         """
         Loads EC2 data from local cache
@@ -107,6 +116,13 @@ class AWSEC2Backend:
         Dumps EC2 data to local cache
         """
         dump_yaml_config(self.cache_file, self.ec2_data)
+
+    def _delete_vpc_data(self):
+        """
+        Deletes the vpc data file
+        """
+        if os.path.exists(self.cache_file):
+            os.remove(self.cache_file)
 
     def _create_vpc(self):
         """
@@ -351,8 +367,6 @@ class AWSEC2Backend:
         logger.debug(f'Initializing AWS EC2 backend ({self.mode} mode)')
 
         self._load_ec2_data()
-        if self.mode != self.ec2_data.get('mode'):
-            self.ec2_data = {}
 
         if self.mode == StandaloneMode.CONSUME.value:
             ins_id = self.config['instance_id']
@@ -685,17 +699,15 @@ class AWSEC2Backend:
         if not self.ec2_data:
             return True
 
-        if self.ec2_data['mode'] == StandaloneMode.CONSUME.value:
-            if os.path.exists(self.cache_file):
-                os.remove(self.cache_file)
+        if self.mode == StandaloneMode.CONSUME.value:
+            self._delete_vpc_data()
             return True
         else:
             self._delete_vm_instances(all=all)
             if all:
                 if self._delete_vpc():
                     self._delete_ssh_key()
-                    if os.path.exists(self.cache_file):
-                        os.remove(self.cache_file)
+                    self._delete_vpc_data()
                     return True
                 else:
                     return False
@@ -780,6 +792,10 @@ class EC2Instance:
         """
         self.name = name.lower()
         self.config = ec2_config
+        self.metadata = {}
+
+        self.status = None
+        self.err = None
 
         self.delete_on_dismantle = self.config['delete_on_dismantle']
         self.instance_type = self.config['worker_instance_type']

@@ -230,7 +230,7 @@ class JobRunner:
                 )
             )
 
-            logger.info("Going to execute '{}()'".format(str(fn_name)))
+            logger.info(f"Going to execute '{str(fn_name)}()'")
             print('---------------------- FUNCTION LOG ----------------------')
             function_start_tstamp = time.time()
             result = func(**data)
@@ -246,7 +246,7 @@ class JobRunner:
             if result is not None:
                 # Check for new futures
                 if isinstance(result, ResponseFuture) or isinstance(result, FuturesList) \
-                   or (type(result) == list and len(result) > 0 and isinstance(result[0], ResponseFuture)):
+                   or (type(result) is list and len(result) > 0 and isinstance(result[0], ResponseFuture)):
                     self.stats.write('new_futures', pickle.dumps(result))
                     result = None
                 else:

@@ -23,6 +23,7 @@ import shutil
 import shlex
 import subprocess as sp
 from itertools import cycle
+from tabulate import tabulate
 from concurrent.futures import ThreadPoolExecutor
 
 import lithops
@@ -232,7 +233,14 @@ def attach(config, backend, start, debug, region):
 
     compute_config = extract_standalone_config(config)
     compute_handler = StandaloneHandler(compute_config)
+
+    if not compute_handler.is_initialized():
+        logger.info("The backend is not initialized")
+        return
     compute_handler.init()
+    if not start and not compute_handler.backend.master.is_ready():
+        logger.info(f"{compute_handler.backend.master} is stopped")
+        return
 
     if start:
         compute_handler.backend.master.start()
@@ -368,23 +376,17 @@ def list_bucket(prefix, bucket, backend, debug, config):
     logger.info('Listing objects in bucket {}'.format(bucket))
     objects = storage.list_objects(bucket, prefix=prefix)
 
-    if objects:
-        width = max([len(obj['Key']) for obj in objects])
+    objs = []
+    for obj in objects:
+        key = obj['Key']
+        date = obj['LastModified'].strftime("%b %d %Y %H:%M:%S")
+        size = sizeof_fmt(obj['Size'])
+        objs.append([key, date, size])
 
-        print('\n{:{width}} \t {} \t\t {:>9}'.format('Key', 'Last modified', 'Size', width=width))
-        print('-' * width, '\t', '-' * 20, '\t', '-' * 9)
-        for obj in objects:
-            key = obj['Key']
-            date = obj['LastModified'].strftime("%b %d %Y %H:%M:%S")
-            size = sizeof_fmt(obj['Size'])
-            print('{:{width}} \t {} \t {:>9}'.format(key, date, size, width=width))
-        print()
-        print('Total objects: {}'.format(len(objects)))
-    else:
-        width = 10
-        print('\n{:{width}} \t {} \t\t {:>9}'.format('Key', 'Last modified', 'Size', width=width))
-        print('-' * width, '\t', '-' * 20, '\t', '-' * 9)
-        print('\nThe bucket is empty')
+    headers = ['Key', 'Last modified', 'Size']
+    print()
+    print(tabulate(objs, headers=headers))
+    print(f'\nTotal objects: {len(objs)}')
 
 
 # /---------------------------------------------------------------------------/
@@ -540,23 +542,11 @@ def list_runtimes(config, backend, storage, debug):
     compute_handler = ServerlessHandler(compute_config, None)
     runtimes = compute_handler.list_runtimes()
 
-    if runtimes:
-        width = max([len(runtime[0]) for runtime in runtimes])
+    headers = ['Runtime Name', 'Memory Size', 'Lithops Version']
 
-        print('\n{:{width}} \t {} \t {}'.format('Runtime Name', 'Memory Size', 'Lithops Version', width=width))
-        print('-' * width, '\t', '-' * 13, '\t', '-' * 17)
-        for runtime in runtimes:
-            name = runtime[0]
-            mem = runtime[1]
-            ver = runtime[2] if len(runtime) == 3 else 'NaN'
-            print('{:{width}} \t {} MB \t {}'.format(name, mem, ver, width=width))
-        print()
-        print('Total runtimes: {}'.format(len(runtimes)))
-    else:
-        width = 14
-        print('\n{:{width}} \t {} \t {}'.format('Runtime Name', 'Memory Size', 'Lithops Version', width=width))
-        print('-' * width, '\t', '-' * 13, '\t', '-' * 17)
-        print('\nNo runtimes deployed')
+    print()
+    print(tabulate(runtimes, headers=headers))
+    print(f'\nTotal runtimes: {len(runtimes)}')
 
 
 @runtime.command('update')
@@ -644,6 +634,106 @@ def delete(name, config, memory, version, backend, storage, debug):
             internal_storage.delete_runtime_meta(runtime_key)
 
     logger.info('Runtime deleted')
+
+
+# /---------------------------------------------------------------------------/
+#
+# lithops jobs
+#
+# /---------------------------------------------------------------------------/
+
+@click.group('job')
+@click.pass_context
+def job(ctx):
+    pass
+
+
+@job.command('list', context_settings=dict(ignore_unknown_options=True, allow_extra_args=True))
+@click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
+@click.option('--backend', '-b', default=None, help='compute backend')
+@click.option('--region', '-r', default=None, help='compute backend region')
+@click.option('--debug', '-d', is_flag=True, help='debug mode')
+def list_jobs(config, backend, region, debug):
+    """ List Standalone Jobs """
+    log_level = logging.INFO if not debug else logging.DEBUG
+    setup_lithops_logger(log_level)
+
+    config = load_yaml_config(config) if config else None
+    config_ow = set_config_ow(backend=backend, region=region)
+    config = default_config(config_data=config, config_overwrite=config_ow, load_storage_config=False)
+
+    if config['lithops']['mode'] != STANDALONE:
+        raise Exception('"lithops job list" command is only available for standalone backends. '
+                        f'Please use "lithops job list -b {set(STANDALONE_BACKENDS)}"')
+
+    compute_config = extract_standalone_config(config)
+    compute_handler = StandaloneHandler(compute_config)
+
+    if not compute_handler.is_initialized():
+        logger.info("The backend is not initialized")
+        return
+    compute_handler.init()
+    if not compute_handler._is_master_service_ready():
+        logger.info(f"{compute_handler.backend.master} is stopped")
+        return
+
+    logger.info(f'Listing jobs submitted to {compute_handler.backend.master}')
+    job_list = compute_handler.list_jobs()
+
+    headers = job_list.pop(0)
+    print()
+    print(tabulate(job_list, headers=headers))
+    print(f'\nTotal jobs: {len(job_list)}')
+
+
+# /---------------------------------------------------------------------------/
+#
+# lithops workers
+#
+# /---------------------------------------------------------------------------/
+
+@click.group('worker')
+@click.pass_context
+def worker(ctx):
+    pass
+
+
+@worker.command('list', context_settings=dict(ignore_unknown_options=True, allow_extra_args=True))
+@click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
+@click.option('--backend', '-b', default=None, help='compute backend')
+@click.option('--region', '-r', default=None, help='compute backend region')
+@click.option('--debug', '-d', is_flag=True, help='debug mode')
+def list_workers(config, backend, region, debug):
+    """ List Standalone Jobs """
+    log_level = logging.INFO if not debug else logging.DEBUG
+    setup_lithops_logger(log_level)
+
+    config = load_yaml_config(config) if config else None
+    config_ow = set_config_ow(backend=backend, region=region)
+    config = default_config(config_data=config, config_overwrite=config_ow, load_storage_config=False)
+
+    if config['lithops']['mode'] != STANDALONE:
+        raise Exception('"lithops worker list" command is only available for standalone backends. '
+                        f'Please use "lithops worker list -b {set(STANDALONE_BACKENDS)}"')
+
+    compute_config = extract_standalone_config(config)
+    compute_handler = StandaloneHandler(compute_config)
+
+    if not compute_handler.is_initialized():
+        logger.info("The backend is not initialized")
+        return
+    compute_handler.init()
+    if not compute_handler._is_master_service_ready():
+        logger.info(f"{compute_handler.backend.master} is stopped")
+        return
+
+    logger.info(f'Listing available workers in {compute_handler.backend.master}')
+    worker_list = compute_handler.list_workers()
+
+    headers = worker_list.pop(0)
+    print()
+    print(tabulate(worker_list, headers=headers))
+    print(f'\nTotal workers: {len(worker_list)}')
 
 
 # /---------------------------------------------------------------------------/
@@ -740,28 +830,19 @@ def list_images(config, backend, region, debug):
     compute_handler = StandaloneHandler(compute_config)
 
     logger.info('Listing all Ubuntu Linux 22.04 VM Images')
-    images = compute_handler.list_images()
+    vm_images = compute_handler.list_images()
 
-    if images:
-        width1 = max([len(img[0]) for img in images])
-        width2 = max([len(img[1]) for img in images])
-        width3 = max([len(img[2]) for img in images])
+    headers = ['Image Name', 'Image ID', 'Creation Date']
 
-        print('\n{:{width1}} \t {:{width2}}   {:{width3}}'.format('Image Name', 'Image ID', 'Creation Date', width1=width1, width2=width2, width3=width3))
-        print('-' * width1, '\t', '-' * width2, ' ', '-' * width3)
-        for image in images:
-            print('{:{width1}} \t {:{width2}}   {:{width3}}'.format(image[0], image[1], image[2], width1=width1, width2=width2, width3=width3))
-        print()
-        print(f'Total VM images: {len(images)}')
-    else:
-        width = 14
-        print('\n{:{width}} \t {}   {}'.format('Image Name', 'Image ID', 'Creation Date', width=width))
-        print('-' * width, '\t', '-' * width, '   ', '-' * width)
-        print('\nNo VM Images found')
+    print()
+    print(tabulate(vm_images, headers=headers))
+    print(f'\nTotal VM images: {len(vm_images)}')
 
 
 lithops_cli.add_command(runtime)
 lithops_cli.add_command(image)
+lithops_cli.add_command(job)
+lithops_cli.add_command(worker)
 lithops_cli.add_command(logs)
 lithops_cli.add_command(storage)
 

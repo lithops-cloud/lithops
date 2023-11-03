@@ -4,6 +4,8 @@
 
 ### Added
 - [Cli] Added new 'lithops image delete' command for standalone backends
+- [Cli] Added new 'lithops job list' command for standalone backends
+- [Cli] Added new 'lithops worker list' command for standalone backends
 - [AWS EC2] Added delete_image() method for deleting VM images through the cli
 - [IBM VPC] Added delete_image() method for deleting VM images through the cli
 - [localhost] New localhost backend v2 to maximize resource utilization when multiple maps are executed from the same FunctionExecutor
@@ -16,6 +18,9 @@
 ### Fixed
 - [Job] Fixed max data size in the invocation payload
 - [Multiprocessing] Fixed cpu_count
+- [Standalone] Start new workers when the VM instance type changes (in reuse mode)
+- [GCP Functions] Fixed issue with "function_url" variable
+
 
 ## [v3.0.1]
 

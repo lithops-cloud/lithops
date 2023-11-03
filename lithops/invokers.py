@@ -138,6 +138,7 @@ class Invoker:
         payload = {'config': self.config,
                    'chunksize': job.chunksize,
                    'log_level': self.log_level,
+                   'func_name': job.function_name,
                    'func_key': job.func_key,
                    'data_key': job.data_key,
                    'extra_env': job.extra_env,
