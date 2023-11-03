@@ -376,23 +376,17 @@ def list_bucket(prefix, bucket, backend, debug, config):
     logger.info('Listing objects in bucket {}'.format(bucket))
     objects = storage.list_objects(bucket, prefix=prefix)
 
-    if objects:
-        width = max([len(obj['Key']) for obj in objects])
+    objs = []
+    for obj in objects:
+        key = obj['Key']
+        date = obj['LastModified'].strftime("%b %d %Y %H:%M:%S")
+        size = sizeof_fmt(obj['Size'])
+        objs.append([key, date, size])
 
-        print('\n{:{width}} \t {} \t\t {:>9}'.format('Key', 'Last modified', 'Size', width=width))
-        print('-' * width, '\t', '-' * 20, '\t', '-' * 9)
-        for obj in objects:
-            key = obj['Key']
-            date = obj['LastModified'].strftime("%b %d %Y %H:%M:%S")
-            size = sizeof_fmt(obj['Size'])
-            print('{:{width}} \t {} \t {:>9}'.format(key, date, size, width=width))
-        print()
-        print('Total objects: {}'.format(len(objects)))
-    else:
-        width = 10
-        print('\n{:{width}} \t {} \t\t {:>9}'.format('Key', 'Last modified', 'Size', width=width))
-        print('-' * width, '\t', '-' * 20, '\t', '-' * 9)
-        print('\nThe bucket is empty')
+    headers = ['Key', 'Last modified', 'Size']
+    print()
+    print(tabulate(objs, headers=headers))
+    print(f'\nTotal objects: {len(objs)}')
 
 
 # /---------------------------------------------------------------------------/
@@ -548,23 +542,11 @@ def list_runtimes(config, backend, storage, debug):
     compute_handler = ServerlessHandler(compute_config, None)
     runtimes = compute_handler.list_runtimes()
 
-    if runtimes:
-        width = max([len(runtime[0]) for runtime in runtimes])
+    headers = ['Runtime Name', 'Memory Size', 'Lithops Version']
 
-        print('\n{:{width}} \t {} \t {}'.format('Runtime Name', 'Memory Size', 'Lithops Version', width=width))
-        print('-' * width, '\t', '-' * 13, '\t', '-' * 17)
-        for runtime in runtimes:
-            name = runtime[0]
-            mem = runtime[1]
-            ver = runtime[2] if len(runtime) == 3 else 'NaN'
-            print('{:{width}} \t {} MB \t {}'.format(name, mem, ver, width=width))
-        print()
-        print('Total runtimes: {}'.format(len(runtimes)))
-    else:
-        width = 14
-        print('\n{:{width}} \t {} \t {}'.format('Runtime Name', 'Memory Size', 'Lithops Version', width=width))
-        print('-' * width, '\t', '-' * 13, '\t', '-' * 17)
-        print('\nNo runtimes deployed')
+    print()
+    print(tabulate(runtimes, headers=headers))
+    print(f'\nTotal runtimes: {len(runtimes)}')
 
 
 @runtime.command('update')

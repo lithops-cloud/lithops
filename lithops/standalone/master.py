@@ -23,8 +23,9 @@ import flask
 import queue
 import logging
 import requests
-from pathlib import Path
 import concurrent.futures as cf
+from pathlib import Path
+from datetime import datetime
 from gevent.pywsgi import WSGIServer
 from threading import Thread
 from concurrent.futures import ThreadPoolExecutor
@@ -267,7 +268,7 @@ def error(msg):
 
 
 @app.route('/worker/list', methods=['GET'])
-def get_workers_state():
+def list_workers():
     """
     Returns the current workers list
     """
@@ -275,14 +276,15 @@ def get_workers_state():
 
     budget_keeper.last_usage_time = time.time()
 
-    result = [['Worker Name', 'Instance Type', 'Worker Processes', 'Execution Mode', 'Status']]
+    result = [['Worker Name', 'Instance Type', 'Worker Processes', 'Runtime', 'Execution Mode', 'Status']]
 
     for worker_name in workers:
         status = workers[worker_name].status
         instance_type = workers[worker_name].instance_type
         worker_processes = str(workers[worker_name].config['worker_processes'])
         exec_mode = workers[worker_name].metadata['exec_mode']
-        result.append((worker_name, instance_type, worker_processes, exec_mode, status))
+        runtime = workers[worker_name].metadata['runtime']
+        result.append((worker_name, instance_type, worker_processes, runtime, exec_mode, status))
 
     logger.debug(f'Listing workers: {result}')
     return flask.jsonify(result)
@@ -415,7 +417,7 @@ def stop():
 
 
 @app.route('/job/list', methods=['GET'])
-def get_jobs_status():
+def list_jobs():
     """
     Returns the current workers state
     """
@@ -423,12 +425,16 @@ def get_jobs_status():
 
     budget_keeper.last_usage_time = time.time()
 
-    result = [['Job Name', 'Total Tasks', 'Status'], ]
+    result = [['Job ID', 'Function Name', 'Submitted', 'Total Tasks', 'Status']]
 
     for job_key in jobs_list:
-        status = jobs_list[job_key]['status']
-        total_tasks = str(jobs_list[job_key]['total_tasks'])
-        result.append((job_key, total_tasks, status))
+        job_data = jobs_list[job_key]
+        status = job_data['status']
+        func_name = job_data['func_name'] + "()"
+        timestamp = job_data['submitted']
+        submitted = datetime.utcfromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S UTC')
+        total_tasks = str(job_data['total_tasks'])
+        result.append((job_key, func_name, submitted, total_tasks, status))
 
     logger.debug(f'Listing jobs: {result}')
     return flask.jsonify(result)
@@ -464,6 +470,8 @@ def run():
 
     jobs_list[job_key] = {
         'status': JobStatus.RECEIVED.value,
+        'submitted': job_payload['host_submit_tstamp'],
+        'func_name': job_payload['func_name'],
         'total_tasks': len(job_payload['call_ids']),
         'queue_name': None
     }
