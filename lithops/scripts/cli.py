@@ -1,5 +1,6 @@
 #
 # (C) Copyright Cloudlab URV 2020
+# (C) Copyright IBM Corp. 2023
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -673,7 +674,7 @@ def list_jobs(config, backend, region, debug):
         logger.info("The backend is not initialized")
         return
     compute_handler.init()
-    if not compute_handler._is_master_service_ready():
+    if not compute_handler.backend.master.is_ready():
         logger.info(f"{compute_handler.backend.master} is stopped")
         return
 
@@ -723,7 +724,7 @@ def list_workers(config, backend, region, debug):
         logger.info("The backend is not initialized")
         return
     compute_handler.init()
-    if not compute_handler._is_master_service_ready():
+    if not compute_handler.backend.master.is_ready():
         logger.info(f"{compute_handler.backend.master} is stopped")
         return
 

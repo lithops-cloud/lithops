@@ -1,5 +1,6 @@
 #
-# Copyright Cloudlab URV 2020
+# (C) Copyright Cloudlab URV 2020
+# (C) Copyright IBM Corp. 2023
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -46,7 +47,6 @@ class StandaloneHandler:
         self.backend_name = self.config['backend']
         self.start_timeout = self.config['start_timeout']
         self.exec_mode = self.config['exec_mode']
-        self.workers_policy = self.config.get('workers_policy', 'permissive')  # by default not forcing the creation of all workers
         self.is_lithops_worker = is_lithops_worker()
 
         module_location = f'lithops.standalone.backends.{self.backend_name}'
@@ -107,11 +107,7 @@ class StandaloneHandler:
                 data_str = shlex.quote(json.dumps(data))
                 cmd = f'{cmd} -d {data_str}'
             out = self.backend.master.get_ssh_client().run_remote_command(cmd)
-            try:
-                resp = json.loads(out)
-            except Exception:
-                raise Exception(f"Failed to deserialize the response: {out}")
-            return resp
+            return json.loads(out)
 
     def _is_master_service_ready(self):
         """
@@ -123,8 +119,7 @@ class StandaloneHandler:
                 raise LithopsValidationError(
                     f"{self.backend.master} is running Lithops {resp['response']} and "
                     f"it doesn't match local lithops version {__version__}, consider "
-                    "running 'lithops clean' to delete runtime metadata leftovers or "
-                    "'lithops clean --all' to delete master instance as well")
+                    "running 'lithops clean --all' to delete the master instance")
             return True
         except LithopsValidationError as e:
             raise e
@@ -282,8 +277,9 @@ class StandaloneHandler:
             self.backend.master.create(check_if_exists=True)
             self.backend.master.wait_ready()
 
-        self._setup_master_service()
-        self._wait_master_service_ready()
+        if not self._is_master_service_ready():
+            self._setup_master_service()
+            self._wait_master_service_ready()
 
         logger.debug('Extracting runtime metadata information')
         payload = {'runtime': runtime_name, 'pull_runtime': True}
@@ -388,11 +384,8 @@ class StandaloneHandler:
         ssh_client.upload_data_to_file(script, remote_script)
         ssh_client.run_remote_command(f"chmod 777 {remote_script}; sudo {remote_script};")
 
-        try:
-            # Download the master VM public key generated with the installation script
-            # This public key will be used to create to worker
-            ssh_client.download_remote_file(
-                f'{self.backend.master.home_dir}/.ssh/id_rsa.pub',
-                f'{self.backend.cache_dir}/{self.backend.master.name}-id_rsa.pub')
-        except FileNotFoundError:
-            pass
+        # Download the master VM public key generated with the installation script
+        # This public key will be used to create the workers
+        ssh_client.download_remote_file(
+            f'{self.backend.master.home_dir}/.ssh/id_rsa.pub',
+            f'{self.backend.cache_dir}/{self.backend.master.name}-id_rsa.pub')
