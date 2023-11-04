@@ -426,17 +426,19 @@ def list_jobs():
 
     budget_keeper.last_usage_time = time.time()
 
-    result = [['Job ID', 'Function Name', 'Submitted', 'Runtime', 'Total Tasks', 'Status']]
+    result = [['Job ID', 'Function Name', 'Submitted', 'Worker Type', 'Runtime', 'Total Tasks', 'Status']]
 
     for job_key in jobs_list:
         job_data = jobs_list[job_key]
+        exec_mode = job_data['exec_mode']
         status = job_data['status']
         func_name = job_data['func_name'] + "()"
         timestamp = job_data['submitted']
         runtime = job_data['runtime_name']
+        worker_type = job_data['worker_type'] if exec_mode != StandaloneMode.CONSUME.value else 'VM'
         submitted = datetime.utcfromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S UTC')
         total_tasks = str(job_data['total_tasks'])
-        result.append((job_key, func_name, submitted, runtime, total_tasks, status))
+        result.append((job_key, func_name, submitted, worker_type, runtime, total_tasks, status))
 
     logger.debug(f'Listing jobs: {result}')
     return flask.jsonify(result)
@@ -474,7 +476,9 @@ def run():
         'status': JobStatus.RECEIVED.value,
         'submitted': job_payload['host_submit_tstamp'],
         'func_name': job_payload['func_name'],
+        'worker_type': job_payload['worker_instance_type'],
         'runtime_name': job_payload['runtime_name'],
+        'exec_mode': exec_mode,
         'total_tasks': len(job_payload['call_ids']),
         'queue_name': None
     }
