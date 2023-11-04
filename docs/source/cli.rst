@@ -58,7 +58,7 @@ this page <testing.md>`__.
 | --keep\_datasets, -k   | Keeps datasets in storage after the test run (Flag)            |
 +------------------------+----------------------------------------------------------------+
 
--  **Usage example**: ``lithops test -b ibm_cf -s ibm_cos -f``
+-  **Usage example**: ``lithops test -b ibm_cf -s ibm_cos``
 
 ``lithops clean``
 ~~~~~~~~~~~~~~~~~
@@ -107,6 +107,44 @@ Open an ssh connection to the master VM (Only available for standalone backends)
 +------------------------+----------------------------------------------------------------+
 
 -  **Usage example**: ``lithops attach -b ibm_vpc``
+
+``lithops worker list``
+~~~~~~~~~~~~~~~~~~
+
+ Lists the available workers in the master VM (Only available for standalone backends)
+
++------------------------+----------------------------------------------------------------+
+| Parameter              | Description                                                    |
++========================+================================================================+
+| --config, -c           | Path to your config file                                       |
++------------------------+----------------------------------------------------------------+
+| --backend, -b          | Compute backend name                                           |
++------------------------+----------------------------------------------------------------+
+| --region, -r           | Compute backend region                                         |
++------------------------+----------------------------------------------------------------+
+| --debug, -d            | Activate debug logs (Flag)                                     |
++------------------------+----------------------------------------------------------------+
+
+-  **Usage example**: ``lithops worker list -b ibm_vpc``
+
+``lithops job list``
+~~~~~~~~~~~~~~~~~~
+
+Lists the jobs submitted to the master VM (Only available for standalone backends)
+
++------------------------+----------------------------------------------------------------+
+| Parameter              | Description                                                    |
++========================+================================================================+
+| --config, -c           | Path to your config file                                       |
++------------------------+----------------------------------------------------------------+
+| --backend, -b          | Compute backend name                                           |
++------------------------+----------------------------------------------------------------+
+| --region, -r           | Compute backend region                                         |
++------------------------+----------------------------------------------------------------+
+| --debug, -d            | Activate debug logs (Flag)                                     |
++------------------------+----------------------------------------------------------------+
+
+-  **Usage example**: ``lithops job list -b ibm_vpc``
 
 
 Runtime management
