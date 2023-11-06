@@ -767,6 +767,7 @@ def build_image(ctx, name, file, config, backend, region, debug, overwrite):
 
     config = load_yaml_config(config) if config else None
     config_ow = set_config_ow(backend=backend, region=region)
+    config_ow['backend']['exec_mode'] = 'create'
     config = default_config(config_data=config, config_overwrite=config_ow, load_storage_config=False)
 
     if config['lithops']['mode'] != STANDALONE:
@@ -796,6 +797,7 @@ def delete_image(ctx, name, config, backend, region, debug):
 
     config = load_yaml_config(config) if config else None
     config_ow = set_config_ow(backend=backend, region=region)
+    config_ow['backend']['exec_mode'] = 'create'
     config = default_config(config_data=config, config_overwrite=config_ow, load_storage_config=False)
 
     if config['lithops']['mode'] != STANDALONE:
@@ -821,6 +823,7 @@ def list_images(config, backend, region, debug):
 
     config = load_yaml_config(config) if config else None
     config_ow = set_config_ow(backend=backend, region=region)
+    config_ow['backend']['exec_mode'] = 'create'
     config = default_config(config_data=config, config_overwrite=config_ow, load_storage_config=False)
 
     if config['lithops']['mode'] != STANDALONE:
