@@ -120,11 +120,11 @@ def setup_worker(standalone_handler, worker_info, work_queue_name):
                 break
             except TimeoutError as e:  # VM not started in time
                 worker.status = WorkerStatus.ERROR.value
-                worker.err = 'Timeout waitting the VM to get ready'
+                worker.err = 'Timeout Error while waitting the VM to get ready'
                 if instance_ready_retries == max_instance_create_retries:
                     logger.debug(f'Readiness probe expired for {worker}')
                     raise e
-                logger.warning(f'Timeout Error. Recreating VM instance {worker.name}')
+                logger.warning(f'Timeout Error. Recreating {worker}')
                 worker.delete()
                 worker.create()
                 instance_ready_retries += 1
