@@ -20,7 +20,9 @@ class WorkerStatus(Enum):
     STARTING = "starting"
     STARTED = "started"
     ERROR = "error"
-    ACTIVE = "active"
+    INSTALLING = "installing"
+    BUSSY = "active/bussy"
+    IDLE = "active/idle"
 
 
 class JobStatus(Enum):

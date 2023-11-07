@@ -149,12 +149,17 @@ def setup_worker(standalone_handler, worker_info, work_queue_name):
             instance_validate_retries += 1
             wait_worker_ready(worker)
 
+    workers[worker.private_ip] = workers.pop(worker.name)
     worker.status = WorkerStatus.STARTED.value
     worker.err = None
 
     try:
-        logger.debug(f'Executing lithops installation process on {worker}')
-
+        logger.debug(f'Uploading lithops files to {worker}')
+        worker.get_ssh_client().upload_local_file(
+            '/opt/lithops/lithops_standalone.zip',
+            '/tmp/lithops_standalone.zip')
+        
+        logger.debug(f'Preparing installation script for {worker}')
         vm_data = {
             'name': worker.name,
             'private_ip': worker.private_ip,
@@ -164,22 +169,18 @@ def setup_worker(standalone_handler, worker_info, work_queue_name):
             'master_ip': master_ip,
             'work_queue_name': work_queue_name
         }
-
-        # upload zip lithops package
-        logger.debug(f'Uploading lithops files to {worker}')
-        worker.get_ssh_client().upload_local_file(
-            '/opt/lithops/lithops_standalone.zip',
-            '/tmp/lithops_standalone.zip')
-
         remote_script = "/tmp/install_lithops.sh"
         script = get_worker_setup_script(worker.metadata, vm_data)
+
+        logger.debug(f'Submitting installation script to {worker}')
         worker.get_ssh_client().upload_data_to_file(script, remote_script)
         cmd = f"chmod 777 {remote_script}; sudo {remote_script};"
         worker.get_ssh_client().run_remote_command(cmd, run_async=True)
         worker.del_ssh_client()
+    
         logger.debug(f'Installation script submitted to {worker}')
 
-        worker.status = WorkerStatus.ACTIVE.value
+        worker.status = WorkerStatus.INSTALLING.value
 
     except Exception as e:
         worker.status = WorkerStatus.ERROR.value
@@ -212,7 +213,7 @@ def start_workers(job_payload, work_queue_name):
         except Exception as e:
             logger.error(e)
 
-    logger.info(f'{total_correct} of {len(workers)} workers started for work queue {work_queue_name}')
+    logger.debug(f'{total_correct} of {len(workers)} workers started for work queue {work_queue_name}')
 
 
 def run_job_local(work_queue):
@@ -290,13 +291,14 @@ def list_workers():
 
     result = [['Worker Name', 'Instance Type', 'Processes', 'Runtime', 'Execution Mode', 'Status']]
 
-    for worker_name in workers:
-        status = workers[worker_name].status
-        instance_type = workers[worker_name].instance_type
-        worker_processes = str(workers[worker_name].config['worker_processes'])
-        exec_mode = workers[worker_name].metadata['exec_mode']
-        runtime = workers[worker_name].metadata['runtime']
-        result.append((worker_name, instance_type, worker_processes, runtime, exec_mode, status))
+    for worker_key in workers:
+        worker = workers[worker_key]
+        status = worker.status
+        instance_type = worker.instance_type
+        worker_processes = str(worker.config['worker_processes'])
+        exec_mode = worker.metadata['exec_mode']
+        runtime = worker.metadata['runtime']
+        result.append((worker.name, instance_type, worker_processes, runtime, exec_mode, status))
 
     logger.debug(f'Listing workers: {result}')
     return flask.jsonify(result)
@@ -353,13 +355,16 @@ def get_task(work_queue_name):
     """
     global work_queues
 
+    worker_ip = flask.request.remote_addr
+    workers[worker_ip].status = WorkerStatus.IDLE.value
+
     try:
         task_payload = work_queues.setdefault(work_queue_name, queue.Queue()).get(False)
         response = flask.jsonify(task_payload)
         response.status_code = 200
         job_key = task_payload['job_key']
         calls = task_payload['call_ids']
-        worker_ip = flask.request.remote_addr
+        workers[worker_ip].status = WorkerStatus.BUSSY.value
         logger.debug(f'Worker {worker_ip} retrieved Job {job_key} - Calls {calls}')
     except queue.Empty:
         response = ('', 204)
