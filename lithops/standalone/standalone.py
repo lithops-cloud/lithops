@@ -387,5 +387,5 @@ class StandaloneHandler:
         # Download the master VM public key generated with the installation script
         # This public key will be used to create the workers
         ssh_client.download_remote_file(
-            f'{self.backend.master.home_dir}/.ssh/id_rsa.pub',
+            f'{self.backend.master.home_dir}/.ssh/lithops_id_rsa.pub',
             f'{self.backend.cache_dir}/{self.backend.master.name}-id_rsa.pub')

@@ -578,7 +578,7 @@ class AWSEC2Backend:
             self.ec2_client.terminate_instances(InstanceIds=ins_to_delete)
 
         master_pk = os.path.join(self.cache_dir, f"{self.ec2_data['master_name']}-id_rsa.pub")
-        if os.path.isfile(master_pk):
+        if all and os.path.isfile(master_pk):
             os.remove(master_pk)
 
         if self.ec2_data['vpc_data_type'] == 'provided':
@@ -764,9 +764,10 @@ class AWSEC2Backend:
             with open(pub_key, 'r') as pk:
                 pk_data = pk.read().strip()
             user_data = CLOUD_CONFIG_WORKER_PK.format(user, pk_data)
-            worker.ssh_credentials['key_filename'] = '~/.ssh/id_rsa'
+            worker.ssh_credentials['key_filename'] = '~/.ssh/lithops_id_rsa'
             worker.ssh_credentials.pop('password')
         else:
+            logger.error(f'Unable to locate {pub_key}')
             worker.ssh_credentials.pop('key_filename')
             token = worker.ssh_credentials['password']
             user_data = CLOUD_CONFIG_WORKER.format(user, token)

@@ -104,6 +104,8 @@ def setup_worker(standalone_handler, worker_info, work_queue_name):
     worker = standalone_handler.backend.get_instance(**worker_info, public=False)
     worker.metadata = standalone_handler.config
 
+    workers[worker.name] = worker
+
     logger.debug(f'Starting setup for {worker}')
 
     max_instance_create_retries = worker.metadata.get('worker_create_retries', MAX_INSTANCE_CREATE_RETRIES)
@@ -118,8 +120,9 @@ def setup_worker(standalone_handler, worker_info, work_queue_name):
                 break
             except TimeoutError as e:  # VM not started in time
                 worker.status = WorkerStatus.ERROR.value
-                worker.err = str(e)
+                worker.err = 'Timeout waitting the VM to get ready'
                 if instance_ready_retries == max_instance_create_retries:
+                    logger.debug(f'Readiness probe expired for {worker}')
                     raise e
                 logger.warning(f'Timeout Error. Recreating VM instance {worker.name}')
                 worker.delete()
@@ -131,51 +134,57 @@ def setup_worker(standalone_handler, worker_info, work_queue_name):
     instance_validate_retries = 1
     while instance_validate_retries <= max_instance_create_retries:
         try:
-            logger.debug(f'Validating {worker.name}')
+            logger.debug(f'Validating {worker}')
             worker.validate_capabilities()
             break
         except LithopsValidationError as e:
-            logger.debug(f'{worker.name} validation error: {e}')
             worker.status = WorkerStatus.ERROR.value
-            worker.err = str(e)
+            worker.err = f'Validation error: {e}'
             if instance_validate_retries == max_instance_create_retries:
-                worker.status = WorkerStatus.SETUP.value
-                break
-            logger.warning(f'Worker {worker.name} setup failed with error {e} after {instance_validate_retries} retries')
+                logger.debug(f'Validation probe expired for {worker}')
+                raise e
+            logger.warning(f'{worker} validation error: {e}')
             worker.delete()
             worker.create()
             instance_validate_retries += 1
             wait_worker_ready(worker)
 
-    # upload zip lithops package
-    logger.debug(f'Uploading lithops files to {worker}')
-    worker.get_ssh_client().upload_local_file(
-        '/opt/lithops/lithops_standalone.zip',
-        '/tmp/lithops_standalone.zip')
-
-    logger.debug(f'Executing lithops installation process on {worker}')
-
-    vm_data = {'name': worker.name,
-               'private_ip': worker.private_ip,
-               'instance_id': worker.instance_id,
-               'ssh_credentials': worker.ssh_credentials,
-               'instance_type': worker.instance_type,
-               'master_ip': master_ip,
-               'work_queue_name': work_queue_name}
-
-    remote_script = "/tmp/install_lithops.sh"
-    script = get_worker_setup_script(worker.metadata, vm_data)
-    worker.get_ssh_client().upload_data_to_file(script, remote_script)
-    cmd = f"chmod 777 {remote_script}; sudo {remote_script};"
-    worker.get_ssh_client().run_remote_command(cmd, run_async=True)
-    worker.del_ssh_client()
-    logger.debug(f'Installation script submitted to {worker}')
-
-    worker.status = WorkerStatus.ACTIVE.value
+    worker.status = WorkerStatus.STARTED.value
     worker.err = None
 
-    logger.debug(f'Appending {worker.name} to Worker list')
-    workers[worker.name] = worker
+    try:
+        logger.debug(f'Executing lithops installation process on {worker}')
+
+        vm_data = {
+            'name': worker.name,
+            'private_ip': worker.private_ip,
+            'instance_id': worker.instance_id,
+            'ssh_credentials': worker.ssh_credentials,
+            'instance_type': worker.instance_type,
+            'master_ip': master_ip,
+            'work_queue_name': work_queue_name
+        }
+
+        # upload zip lithops package
+        logger.debug(f'Uploading lithops files to {worker}')
+        worker.get_ssh_client().upload_local_file(
+            '/opt/lithops/lithops_standalone.zip',
+            '/tmp/lithops_standalone.zip')
+
+        remote_script = "/tmp/install_lithops.sh"
+        script = get_worker_setup_script(worker.metadata, vm_data)
+        worker.get_ssh_client().upload_data_to_file(script, remote_script)
+        cmd = f"chmod 777 {remote_script}; sudo {remote_script};"
+        worker.get_ssh_client().run_remote_command(cmd, run_async=True)
+        worker.del_ssh_client()
+        logger.debug(f'Installation script submitted to {worker}')
+
+        worker.status = WorkerStatus.ACTIVE.value
+
+    except Exception as e:
+        worker.status = WorkerStatus.ERROR.value
+        worker.err = f'Unable to setup lithops in the VM: {str(e)}'
+        raise e
 
 
 def start_workers(job_payload, work_queue_name):
@@ -190,6 +199,8 @@ def start_workers(job_payload, work_queue_name):
         return
 
     futures = []
+    total_correct = 0
+
     with ThreadPoolExecutor(len(workers)) as executor:
         for worker_info in workers:
             futures.append(executor.submit(setup_worker, standalone_handler, worker_info, work_queue_name))
@@ -197,11 +208,11 @@ def start_workers(job_payload, work_queue_name):
     for future in cf.as_completed(futures):
         try:
             future.result()
+            total_correct += 1
         except Exception as e:
-            # TODO consider to update worker status
             logger.error(e)
 
-    logger.debug(f'All workers set up for work queue {work_queue_name}')
+    logger.info(f'{total_correct} of {len(workers)} workers started for work queue {work_queue_name}')
 
 
 def run_job_local(work_queue):
