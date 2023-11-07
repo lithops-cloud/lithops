@@ -139,7 +139,7 @@ class IBMVPCBackend:
                 self.config['security_group_id'] = self.vpc_data['security_group_id']
                 return
             except ApiException:
-                pass
+                raise Exception(f"Unable to find VPC {self.vpc_data['vpc_name']}")
 
         vpc_info = None
 
@@ -439,8 +439,6 @@ class IBMVPCBackend:
         logger.debug(f'Initializing IBM VPC backend ({self.mode} mode)')
 
         self._load_vpc_data()
-        if self.mode != self.vpc_data.get('mode'):
-            self.vpc_data = {}
 
         if self.mode == StandaloneMode.CONSUME.value:
 
