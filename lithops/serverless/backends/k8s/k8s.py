@@ -38,7 +38,6 @@ from lithops.constants import COMPUTE_CLI_MSG, JOBS_PREFIX
 
 from . import config
 from . import rabbitmq_utils
-from multiprocessing import Process, Value
 
 
 logger = logging.getLogger(__name__)
