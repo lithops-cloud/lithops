@@ -164,44 +164,48 @@ def callback_run_jobs(ch, method, properties, body):
 
     logger.info(f"Call from lithops received.")
 
-    # Calculate the number of executions of this pod
-    if total_calls > range_start:
-        if range_end > total_calls - 1:
-            requested_cpus = total_calls - range_start
-        else:
-            requested_cpus = range_end - range_start + 1
-    else:  # No more executions to do to this pod
-        return
-    
-    pod_cpus = range_end - range_start + 1
-    total_executions, bases_executions = calculate_executions(total_cpus_cluster, pod_cpus, [range_start, range_end], total_calls)
-    
-    logger.info(f"Total executions: {total_executions}")
-    logger.info(f"Starting {requested_cpus} processes")
+    try:
+        # Calculate the number of executions of this pod
+        if total_calls > range_start:
+            if range_end > total_calls - 1:
+                requested_cpus = total_calls - range_start
+            else:
+                requested_cpus = range_end - range_start + 1
+        else:  # No more executions to do to this pod
+            return
 
-    running_jobs = Value('i', 0)  # Shared variable to track completed jobs
-    
-    # Start the first stack of processes
-    num_processes = requested_cpus if total_executions == requested_cpus else pod_cpus
-    for i in range(num_processes):
-        running_jobs.value += 1
-        p = Process(target=run_job_k8s_rabbitmq, args=(payload, range_start + i, running_jobs)).start()
+        pod_cpus = range_end - range_start + 1
+        total_executions, bases_executions = calculate_executions(total_cpus_cluster, pod_cpus, [range_start, range_end], total_calls)
 
-    # Check and start if there is more stacks to run
-    if total_executions != requested_cpus:
-        total_executions -= pod_cpus
-        
-        for bases in range(bases_executions + 2):
-            execution_id = 0
-            while execution_id < pod_cpus and total_executions != 0:
-                if running_jobs.value < pod_cpus:
-                    running_jobs.value += 1
-                    p = Process(target=run_job_k8s_rabbitmq, args=(payload, (total_cpus_cluster * (bases + 1)) + range_start + execution_id, running_jobs)).start()
+        logger.info(f"Total executions: {total_executions}")
+        logger.info(f"Starting {requested_cpus} processes")
 
-                    execution_id += 1
-                    total_executions = total_executions - 1
+        running_jobs = Value('i', 0)  # Shared variable to track completed jobs
 
-    logger.info(f"All processes completed")
+        # Start the first stack of processes
+        num_processes = requested_cpus if total_executions == requested_cpus else pod_cpus
+        for i in range(num_processes):
+            running_jobs.value += 1
+            p = Process(target=run_job_k8s_rabbitmq, args=(payload, range_start + i, running_jobs)).start()
+
+        # Check and start if there is more stacks to run
+        if total_executions != requested_cpus:
+            total_executions -= pod_cpus
+            
+            for bases in range(bases_executions + 2):
+                execution_id = 0
+                while execution_id < pod_cpus and total_executions != 0:
+                    if running_jobs.value < pod_cpus:
+                        running_jobs.value += 1
+                        p = Process(target=run_job_k8s_rabbitmq, args=(payload, (total_cpus_cluster * (bases + 1)) + range_start + execution_id, running_jobs)).start()
+
+                        execution_id += 1
+                        total_executions = total_executions - 1
+
+        logger.info(f"All processes completed")
+    except:
+        # The IDs are not assigned yet
+        pass
 
 # Callback to receive the range of IDs of this pod
 def callback_ranges_ids(ch, method, properties, body):
