@@ -132,13 +132,14 @@ class AWSEC2Backend:
             return
 
         if 'vpc_id' in self.ec2_data:
+            logger.debug(f'Using VPC {self.ec2_data["vpc_name"]}')
             vpcs_info = self.ec2_client.describe_vpcs(VpcIds=[self.ec2_data['vpc_id']])
             if len(vpcs_info) > 0:
                 self.config['vpc_id'] = self.ec2_data['vpc_id']
                 return
 
         self.vpc_name = self.config.get('vpc_name', f'lithops-vpc-{self.user_key}-{str(uuid.uuid4())[-6:]}')
-        logger.debug(f'Setting VPC name to: {self.vpc_name}')
+        logger.debug(f'Setting VPC name to {self.vpc_name}')
 
         assert re.match("^[a-z0-9-:-]*$", self.vpc_name), \
             f'VPC name "{self.vpc_name}" not valid'

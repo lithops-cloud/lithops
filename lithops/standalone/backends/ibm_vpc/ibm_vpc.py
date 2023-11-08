@@ -133,19 +133,21 @@ class IBMVPCBackend:
             return
 
         if 'vpc_id' in self.vpc_data:
+            logger.debug(f'Using VPC {self.vpc_data["vpc_name"]}')
             try:
                 self.vpc_cli.get_vpc(self.vpc_data['vpc_id'])
                 self.config['vpc_id'] = self.vpc_data['vpc_id']
                 self.config['security_group_id'] = self.vpc_data['security_group_id']
                 return
-            except ApiException:
-                raise Exception(f"Unable to find VPC {self.vpc_data['vpc_name']}")
+            except ApiException as e:
+                logger.error(f"Unable to find VPC {self.vpc_data['vpc_name']}")
+                raise e
 
         vpc_info = None
 
         iam_id = self.iam_api_key[:4].lower()
         self.vpc_name = self.config.get('vpc_name', f'lithops-vpc-{iam_id}-{str(uuid.uuid4())[-6:]}')
-        logger.debug(f'Setting VPC name to: {self.vpc_name}')
+        logger.debug(f'Setting VPC name to {self.vpc_name}')
 
         assert re.match("^[a-z0-9-:-]*$", self.vpc_name), \
             f'VPC name "{self.vpc_name}" not valid'
