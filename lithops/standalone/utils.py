@@ -18,9 +18,11 @@ class StandaloneMode(Enum):
 
 class WorkerStatus(Enum):
     STARTING = "starting"
+    STARTED = "started"
     ERROR = "error"
-    SETUP = "setup"
-    ACTIVE = "active"
+    INSTALLING = "installing"
+    BUSSY = "active/bussy"
+    IDLE = "active/idle"
 
 
 class JobStatus(Enum):
@@ -188,12 +190,12 @@ def get_master_setup_script(config, vm_data):
     generate_ssh_key(){{
     echo '    StrictHostKeyChecking no
     UserKnownHostsFile=/dev/null' >> /etc/ssh/ssh_config;
-    ssh-keygen -f $USER_HOME/.ssh/id_rsa -t rsa -N '';
-    chown ${{SUDO_USER}}:${{SUDO_USER}} $USER_HOME/.ssh/id_rsa*;
+    ssh-keygen -f $USER_HOME/.ssh/lithops_id_rsa -t rsa -N '';
+    chown ${{SUDO_USER}}:${{SUDO_USER}} $USER_HOME/.ssh/lithops_id_rsa*;
     cp $USER_HOME/.ssh/* /root/.ssh;
     echo '127.0.0.1 lithops-master' >> /etc/hosts;
     }}
-    test -f $USER_HOME/.ssh/id_rsa || generate_ssh_key >> {SA_LOG_FILE} 2>&1;
+    test -f $USER_HOME/.ssh/lithops_id_rsa || generate_ssh_key >> {SA_LOG_FILE} 2>&1;
     """
 
     return script
@@ -207,7 +209,7 @@ def get_worker_setup_script(config, vm_data):
     ssh_user = vm_data['ssh_credentials']['username']
     home_dir = '/root' if ssh_user == 'root' else f'/home/{ssh_user}'
     try:
-        master_pub_key = open(f'{home_dir}/.ssh/id_rsa.pub', 'r').read()
+        master_pub_key = open(f'{home_dir}/.ssh/lithops_id_rsa.pub', 'r').read()
     except Exception:
         master_pub_key = ''
 

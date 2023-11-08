@@ -475,7 +475,7 @@ class AzureVMSBackend:
                 [fut.result() for fut in futures]
 
         master_pk = os.path.join(self.cache_dir, f"{self.azure_data['master_name']}-id_rsa.pub")
-        if os.path.isfile(master_pk):
+        if all and os.path.isfile(master_pk):
             os.remove(master_pk)
 
         if self.azure_data['vnet_data_type'] == 'provided':
@@ -600,7 +600,7 @@ class AzureVMSBackend:
         worker.ssh_credentials['key_filename'] = ssh_key
         worker.ssh_credentials.pop('password')
         worker.create()
-        worker.ssh_credentials['key_filename'] = '~/.ssh/id_rsa'
+        worker.ssh_credentials['key_filename'] = '~/.ssh/lithops_id_rsa'
         self.workers.append(worker)
 
     def get_runtime_key(self, runtime_name, version=__version__):

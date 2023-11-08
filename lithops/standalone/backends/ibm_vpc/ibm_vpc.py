@@ -133,19 +133,21 @@ class IBMVPCBackend:
             return
 
         if 'vpc_id' in self.vpc_data:
+            logger.debug(f'Using VPC {self.vpc_data["vpc_name"]}')
             try:
                 self.vpc_cli.get_vpc(self.vpc_data['vpc_id'])
                 self.config['vpc_id'] = self.vpc_data['vpc_id']
                 self.config['security_group_id'] = self.vpc_data['security_group_id']
                 return
-            except ApiException:
-                pass
+            except ApiException as e:
+                logger.error(f"Unable to find VPC {self.vpc_data['vpc_name']}")
+                raise e
 
         vpc_info = None
 
         iam_id = self.iam_api_key[:4].lower()
         self.vpc_name = self.config.get('vpc_name', f'lithops-vpc-{iam_id}-{str(uuid.uuid4())[-6:]}')
-        logger.debug(f'Setting VPC name to: {self.vpc_name}')
+        logger.debug(f'Setting VPC name to {self.vpc_name}')
 
         assert re.match("^[a-z0-9-:-]*$", self.vpc_name), \
             f'VPC name "{self.vpc_name}" not valid'
@@ -439,8 +441,6 @@ class IBMVPCBackend:
         logger.debug(f'Initializing IBM VPC backend ({self.mode} mode)')
 
         self._load_vpc_data()
-        if self.mode != self.vpc_data.get('mode'):
-            self.vpc_data = {}
 
         if self.mode == StandaloneMode.CONSUME.value:
 
@@ -672,7 +672,7 @@ class IBMVPCBackend:
                 break
 
         master_pk = os.path.join(self.cache_dir, f"{self.vpc_data['master_name']}-id_rsa.pub")
-        if os.path.isfile(master_pk):
+        if all and os.path.isfile(master_pk):
             os.remove(master_pk)
 
         if self.vpc_data['vpc_data_type'] == 'provided':
@@ -841,9 +841,10 @@ class IBMVPCBackend:
             with open(pub_key, 'r') as pk:
                 pk_data = pk.read().strip()
             user_data = CLOUD_CONFIG_WORKER_PK.format(user, pk_data)
-            worker.ssh_credentials['key_filename'] = '~/.ssh/id_rsa'
+            worker.ssh_credentials['key_filename'] = '~/.ssh/lithops_id_rsa'
             worker.ssh_credentials.pop('password')
         else:
+            logger.error(f'Unable to locate {pub_key}')
             worker.ssh_credentials.pop('key_filename')
             token = worker.ssh_credentials['password']
             user_data = CLOUD_CONFIG_WORKER.format(user, token)

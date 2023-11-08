@@ -65,6 +65,7 @@ from lithops.storage import InternalStorage
 from lithops.serverless import ServerlessHandler
 from lithops.storage.utils import clean_bucket
 from lithops.standalone import StandaloneHandler
+from lithops.standalone.utils import StandaloneMode
 from lithops.localhost import LocalhostHandler
 
 
@@ -673,9 +674,15 @@ def list_jobs(config, backend, region, debug):
     if not compute_handler.is_initialized():
         logger.info("The backend is not initialized")
         return
+
     compute_handler.init()
+
     if not compute_handler.backend.master.is_ready():
         logger.info(f"{compute_handler.backend.master} is stopped")
+        return
+
+    if not compute_handler._is_master_service_ready():
+        logger.info(f"Lithops service is not running in {compute_handler.backend.master}")
         return
 
     logger.info(f'Listing jobs submitted to {compute_handler.backend.master}')
@@ -723,9 +730,15 @@ def list_workers(config, backend, region, debug):
     if not compute_handler.is_initialized():
         logger.info("The backend is not initialized")
         return
+
     compute_handler.init()
+
     if not compute_handler.backend.master.is_ready():
         logger.info(f"{compute_handler.backend.master} is stopped")
+        return
+
+    if not compute_handler._is_master_service_ready():
+        logger.info(f"Lithops service is not running in {compute_handler.backend.master}")
         return
 
     logger.info(f'Listing available workers in {compute_handler.backend.master}')
@@ -767,7 +780,7 @@ def build_image(ctx, name, file, config, backend, region, debug, overwrite):
 
     config = load_yaml_config(config) if config else None
     config_ow = set_config_ow(backend=backend, region=region)
-    config_ow['backend']['exec_mode'] = 'create'
+    config_ow['backend']['exec_mode'] = StandaloneMode.CREATE.value
     config = default_config(config_data=config, config_overwrite=config_ow, load_storage_config=False)
 
     if config['lithops']['mode'] != STANDALONE:
@@ -797,7 +810,7 @@ def delete_image(ctx, name, config, backend, region, debug):
 
     config = load_yaml_config(config) if config else None
     config_ow = set_config_ow(backend=backend, region=region)
-    config_ow['backend']['exec_mode'] = 'create'
+    config_ow['backend']['exec_mode'] = StandaloneMode.CREATE.value
     config = default_config(config_data=config, config_overwrite=config_ow, load_storage_config=False)
 
     if config['lithops']['mode'] != STANDALONE:
@@ -823,7 +836,7 @@ def list_images(config, backend, region, debug):
 
     config = load_yaml_config(config) if config else None
     config_ow = set_config_ow(backend=backend, region=region)
-    config_ow['backend']['exec_mode'] = 'create'
+    config_ow['backend']['exec_mode'] = StandaloneMode.CREATE.value
     config = default_config(config_data=config, config_overwrite=config_ow, load_storage_config=False)
 
     if config['lithops']['mode'] != STANDALONE:
