@@ -38,6 +38,7 @@ from lithops.constants import COMPUTE_CLI_MSG, JOBS_PREFIX
 
 from . import config
 from . import rabbitmq_utils
+from multiprocessing import Process, Value
 
 
 logger = logging.getLogger(__name__)
@@ -46,7 +47,7 @@ urllib3.disable_warnings()
 
 class KubernetesBackend:
     """
-    A wrap-up around Code Engine backend.
+    A wrap-up around Kubernetes backend.
     """
 
     def __init__(self, k8s_config, internal_storage):
@@ -68,14 +69,16 @@ class KubernetesBackend:
         self.rabbitmq_executor = self.lithops_actual_config.get('k8s', {}).get('rabbitmq_executor', False)
 
         if self.rabbitmq_executor:
-            # rabbitmq start
-            self.amqp_url = rabbitmq_utils.get_amqp_url()
-            params = pika.URLParameters(self.amqp_url)
-            self.connection = pika.BlockingConnection(params)
+            # Init rabbitmq on workers
+            self.rabbitmq = rabbitmq_utils.RabbitMQ_utils()
 
+            # Init rabbitmq on client
+            self.amqp_url = self.rabbitmq.get_amqp_url()
+            params = pika.URLParameters(self.amqp_url)
+
+            self.connection = pika.BlockingConnection(params)
             self.channel = self.connection.channel()
             self.channel.exchange_declare(exchange='lithops', exchange_type='fanout')
-            # rabbitmq end
 
         if os.path.exists(self.kubecfg_path):
             logger.debug(f"Loading kubeconfig file: {self.kubecfg_path}")
@@ -109,22 +112,11 @@ class KubernetesBackend:
 
         self.jobs = []  # list to store executed jobs (job_keys)
 
-        self.nodes = self._get_nodes()
+        self._get_nodes()
         self.image = ""
 
         msg = COMPUTE_CLI_MSG.format('Kubernetes')
         logger.info(f"{msg} - Namespace: {self.namespace}")
-    
-    def _get_runtime_name(self):
-        list_pods = self.core_api.list_namespaced_pod("default")
-
-        current_runtime  = ""
-        for pod in list_pods.items:
-            if pod.metadata.name.startswith("lithops-pod-"):
-                current_runtime = pod.spec.containers[0].image
-                break
-        
-        return current_runtime
 
     def _format_job_name(self, runtime_name, runtime_memory, version=__version__):
         name = f'{runtime_name}-{runtime_memory}-{version}'
@@ -139,12 +131,6 @@ class KubernetesBackend:
         return utils.get_default_container_name(
             self.name, self.k8s_config, 'lithops-kubernetes-default'
         )
-
-    def _send_rabbitmq(self, payload) :
-        msg = {
-            "payload"   : payload,
-        }
-        self.channel.basic_publish(exchange='lithops', routing_key='', body=json.dumps(msg))
 
     def build_runtime(self, docker_image_name, dockerfile, extra_args=[]):
         """
@@ -328,29 +314,30 @@ class KubernetesBackend:
         logger.debug('Note that this backend does not manage runtimes')
         return []
 
-    # Returns de number of cpus a pod request to run
     def _create_pod(self, pod, node, granularity, runtime_memory, i):
         pod["metadata"]["name"] = f"lithops-pod-{node['name']}-{i}"
         pod["spec"]["nodeName"] = node["name"]
 
-        cpu, mem = self._calculate_resource_requirements(node, granularity, runtime_memory)
+        cpu_pod, mem_pod = self._calculate_resource_requirements(node, granularity, runtime_memory)
         
         pod["spec"]["containers"][0]["image"] = self.image
-        pod["spec"]["containers"][0]["resources"]["requests"]["cpu"] = str(cpu)
-        pod["spec"]["containers"][0]["resources"]["requests"]["memory"] = mem
+        pod["spec"]["containers"][0]["resources"]["requests"]["cpu"] = str(cpu_pod)
+        pod["spec"]["containers"][0]["resources"]["requests"]["memory"] = mem_pod
         pod["spec"]["containers"][0]["args"][1] = self.amqp_url
-        pod["spec"]["containers"][0]["args"][2] = str(int(cpu))
-
+        pod["spec"]["containers"][0]["args"][2] = str(cpu_pod)
+        
         self.core_api.create_namespaced_pod(body=pod, namespace='default')
-        return int(cpu)
+        return int(cpu_pod)
 
     def _get_nodes(self) :
-        final_list_nodes = []
-        list_nodes = self.core_api.list_node()
-        for node in list_nodes.items:
-            if  node.spec.taints : # if master node: continue
+        self.nodes = []
+        list_all_nodes = self.core_api.list_node()
+        for node in list_all_nodes.items:
+            # If the node is tainted, skip it
+            if node.spec.taints :
                 continue
-            
+
+            # Check if the CPU is in millicores
             if isinstance(node.status.allocatable['cpu'], str) and 'm' in node.status.allocatable['cpu']:
                 # Extract the number part and convert it to an integer
                 number_match = re.search(r'\d+', node.status.allocatable['cpu'])
@@ -363,31 +350,31 @@ class KubernetesBackend:
                     if cpu_info < 1:
                         cpu_info = 0
                 else:
-                    # Handle the case where 'm' is present but no number is found
+                    # Handle the case where the CPU is in millicores but no number is found
                     cpu_info = 0
             else:
-                # If it's not a string or doesn't contain 'm', assume it's already in the desired format
+                # CPU is not in millicores
                 cpu_info = node.status.allocatable['cpu']
 
-            final_list_nodes.append({
+            self.nodes.append({
                             "name":node.metadata.name,  
                             "cpu":cpu_info,
                             "memory":node.status.allocatable['memory']
                         })
-        return final_list_nodes
+        return self.nodes
     
     def _calculate_resource_requirements(self, node, granularity, runtime_memory):
         if granularity:
             cpu = granularity
             mem = str(runtime_memory)
         else:
-            # Reduce CPU and memory requirements to allow Kubernetes to create the pod
+            # Use the 90% of the node cpu
             cpu = float(node["cpu"]) * 0.9
 
             # If runtime_memory is not defined in the config, use 80% of the node memory
             if runtime_memory == 512:
-                mem_num = int(int(node["memory"][:-2]) * 0.8)
-                mem_uni = node["memory"][-2:]
+                mem_num, mem_uni = re.match(r'(\d+)(\D*)', node["memory"]).groups()
+                mem_num = int(float(mem_num) * 0.8)
                 mem = f"{mem_num}{mem_uni}"
             else:
                 mem = str(runtime_memory)
@@ -395,26 +382,27 @@ class KubernetesBackend:
         return cpu, mem
 
     def _create_nodes(self, runtime_memory):
-        n_procs = 0
-        pod = yaml.load(config.POD, Loader=yaml.loader.SafeLoader)
+        num_cpus_cluster = 0
+        default_pod_config = yaml.load(config.POD, Loader=yaml.loader.SafeLoader)
 
-        granularity = self.lithops_actual_config.get('k8s', {}).get('runtime_cpu', False)
+        granularity = self.lithops_actual_config.get('k8s', {}).get('worker_processes', False)
         if granularity <= 0:
             granularity = False
-
+        
         for node in self.nodes:
             cpus_node = int(float(node["cpu"]) * 0.9)
 
             if granularity:
                 times, res = divmod(cpus_node, granularity)
+                
                 for i in range(times):
-                    n_procs += self._create_pod(pod, node, granularity, runtime_memory, i)
+                    num_cpus_cluster += self._create_pod(default_pod_config, node, granularity, runtime_memory, i)
                 if res != 0:
-                    n_procs += self._create_pod(pod, node, res, runtime_memory, times)
+                    num_cpus_cluster += self._create_pod(default_pod_config, node, res, runtime_memory, times)
             else:
-                n_procs += self._create_pod(pod, node, granularity, runtime_memory, 0)
+                num_cpus_cluster += self._create_pod(default_pod_config, node, granularity, runtime_memory, 0)
         
-        rabbitmq_utils._start_cpu_assignation(n_procs)
+        self.rabbitmq._start_cpu_assignation(num_cpus_cluster)
 
     def _delete_nodes(self):
         list_pods = self.core_api.list_namespaced_pod("default")
@@ -422,6 +410,8 @@ class KubernetesBackend:
         for pod in list_pods.items:
             if pod.metadata.name.startswith("lithops-pod-"):
                 self.core_api.delete_namespaced_pod(pod.metadata.name, "default")
+        
+        time.sleep(60)
 
     def _start_master(self, docker_image_name):
 
@@ -477,39 +467,69 @@ class KubernetesBackend:
                 w.stop()
                 return event['object'].status.pod_ip
 
-    # Detect if granularity and memory changed or not
+    # Detect if granularity, memory or runtime image changed or not
     def _has_config_changed(self, config, nodes, runtime_mem):
         config_k8s = config.get('k8s', {})
-        config_granularity = config_k8s.get('runtime_cpu', False)
+        config_granularity = config_k8s.get('worker_processes', False)
         config_memory = config_k8s.get('runtime_memory', False)
+        self.current_runtime = ""
 
         list_pods = self.core_api.list_namespaced_pod("default")
 
         for pod in list_pods.items:
             pod_name = pod.metadata.name
-            pod_config_node = pod.spec.node_name
-            is_lithops_pod = pod_name.startswith("lithops-pod-")
-            is_numeric_suffix = re.search(r'-[1-9]$', pod_name)
 
-            if is_lithops_pod:
-                pod_config_granularity = pod.spec.containers[0].resources.requests.get('cpu', '0m')
-                pod_config_memory = pod.spec.containers[0].resources.requests.get('memory', '0Mi')
-                # Get the cpus of the node where the pod is running
-                node_cpu = next((int(float(node["cpu"]) * 0.9) for node in nodes if node["name"] == pod_config_node), 0)
+            if pod_name.startswith("lithops-pod-"):
+                # Get the node info where the pod is running
+                node_info = next((node for node in nodes if node["name"] == pod.spec.node_name), False)
+                if not node_info:
+                    return True
 
-                if is_numeric_suffix:
+                # Get the pod info
+                self.current_runtime = pod.spec.containers[0].image
+                pod_resource_cpu = pod.spec.containers[0].resources.requests.get('cpu', '0m')
+                pod_resource_memory = pod.spec.containers[0].resources.requests.get('memory', '0Mi')
+
+                multiples_pods_per_node = re.search(r'-\d+(?<!-0)$', pod_name)
+
+                node_cpu = int(float(node_info["cpu"]) * 0.9)
+                node_mem_num, node_mem_uni = re.match(r'(\d+)(\D*)', node_info["memory"]).groups()
+                pod_mem_num, pod_mem_uni = re.match(r'(\d+)(\D*)', pod_resource_memory).groups()
+
+                pod_mem_num = int(pod_mem_num) 
+                node_mem_num = int(float(node_mem_num) * 0.8)
+
+                # There are pods with cpu granularity
+                if multiples_pods_per_node:
+                    # Is lithops pod with granularity and the user doesn't want it
                     if not config_granularity:
                         return True
-                    if not config_memory and pod_config_memory != str(runtime_mem):
+                    # There is granularity but the pod doesn't have the default memory
+                    if not config_memory and pod_mem_num != runtime_mem:
                         return True
+                    # There is granularity but the pod doesn't have the desired memory
+                    if config_memory and pod_mem_num != config_memory:
+                        return True
+                else:
+                    # There is a custom memory but the pod doesn't have the desired memory
+                    if config_memory:
+                        if pod_mem_num != config_memory:
+                            return True
+                    # The pod has custom_memory and the user doesn't want it
+                    else:
+                        if pod_mem_num != node_mem_num and pod_mem_num != runtime_mem:
+                            return True
 
+
+                # The cpu granularity changed
                 if config_granularity:
                     node_granularity_cpu = node_cpu % config_granularity
-                    if pod_config_granularity != str(config_granularity) and pod_config_granularity != str(node_cpu) and pod_config_granularity != str(node_granularity_cpu):
+                    if pod_resource_cpu != str(config_granularity) and pod_resource_cpu != str(node_cpu) and pod_resource_cpu != str(node_granularity_cpu):
                         return True
-
-                if config_memory and pod_config_memory != str(config_memory):
-                    return True
+                
+        # The runtime image changed
+        if self.current_runtime and self.current_runtime != self.image:
+            return True
 
         return False
 
@@ -519,31 +539,25 @@ class KubernetesBackend:
         For array jobs only remote_invocator is allowed
         """
         if self.rabbitmq_executor:
-            k8s_image = self._get_runtime_name()
+            self.image = docker_image_name
             config_changed = self._has_config_changed(self.lithops_actual_config, self.nodes, runtime_memory)
 
             if config_changed:
-                self._delete_nodes()
                 logger.info(f"Waiting for kubernetes to change the configuration")
-                time.sleep(60)
-                k8s_image = False
+                self._delete_nodes()
+                self._create_nodes(runtime_memory)
 
-            if docker_image_name != k8s_image:
-                if k8s_image : 
-                    self._delete_nodes()
-                    logger.info(f"Waiting for kubernetes to update the image {docker_image_name}")
-                    time.sleep(60)
-                self.image = docker_image_name
+            # First init
+            elif self.current_runtime != self.image:
                 self._create_nodes(runtime_memory)
 
             job_key = job_payload['job_key']
             self.jobs.append(job_key)
 
-            #rabbitmq - sending payload to worker
-            self._send_rabbitmq(utils.dict_to_b64str(job_payload))
+            # Send the payload from the client to the workers through rabbitmq
+            self.channel.basic_publish(exchange='lithops', routing_key='', body=json.dumps(job_payload))
 
             activation_id = f'lithops-{job_key.lower()}'
-
         else:
             master_ip = self._start_master(docker_image_name)
 
@@ -579,9 +593,9 @@ class KubernetesBackend:
             container['env'][2]['value'] = master_ip
 
             container['resources']['requests']['memory'] = f'{runtime_memory}Mi'
-            container['resources']['requests']['cpu'] = str(self.k8s_config['runtime_cpu'])
+            container['resources']['requests']['cpu'] = str(self.k8s_config['worker_processes'])
             container['resources']['limits']['memory'] = f'{runtime_memory}Mi'
-            container['resources']['limits']['cpu'] = str(self.k8s_config['runtime_cpu'])
+            container['resources']['limits']['cpu'] = str(self.k8s_config['worker_processes'])
 
             logger.debug(f'ExecutorID {executor_id} | JobID {job_id} - Going '
                         f'to run {total_calls} activations in {total_workers} workers')
