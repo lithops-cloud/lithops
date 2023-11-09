@@ -70,7 +70,6 @@ class LocalhostHandlerV2:
     def __init__(self, localhost_config):
         logger.debug('Creating Localhost compute client')
         self.config = localhost_config
-        self.mode = self.config.get('mode', LocalhostMode.CREATE.value)
         self.runtime_name = self.config.get('runtime', LOCALHOST_RUNTIME_DEFAULT)
         self.env = None
 
@@ -122,22 +121,23 @@ class LocalhostHandlerV2:
         Method that returns a dictionary with all the relevant runtime
         information set in config
         """
-        runtime_info = {
+        return {
             'runtime_name': self.config['runtime'],
             'runtime_memory': self.config.get('runtime_memory'),
             'runtime_timeout': self.config.get('runtime_timeout'),
             'max_workers': self.config['max_workers'],
         }
 
-        return runtime_info
-
     def clean(self, **kwargs):
+        """
+        Deletes all local runtimes
+        """
         pass
 
     def clear(self, job_keys=None, exception=None):
-        if self.mode == LocalhostMode.REUSE.value:
-            return
-
+        """
+        Kills the running service in case of exception
+        """
         if exception is not None:
             self.env.stop(job_keys)
 
@@ -196,9 +196,6 @@ class BaseEnv:
                 invoked = self.client.add_job(json.dumps(job_payload))
             except (ConnectionRefusedError, ConnectionResetError):
                 time.sleep(0.1)
-
-    def start_service(self):
-        raise NotImplementedError
 
     def stop(self, job_keys):
         """
@@ -267,6 +264,7 @@ class DockerEnv(BaseEnv):
 
     def __init__(self, config):
         super().__init__(config)
+        self.use_gpu = self.config.get('use_gpu', False)
         logger.debug(f'Starting docker environment for {self.runtime_name}')
         self.container_id = str(uuid.uuid4()).replace('-', '')[:12]
         self.uid = os.getuid() if is_unix_system() else None
@@ -289,14 +287,12 @@ class DockerEnv(BaseEnv):
 
         logger.debug('Starting localhost executor service - Docker environemnt')
 
-        gpu = self.config.get('gpu', False)
-
         tmp_path = Path(TEMP_DIR).as_posix()
         docker_path = get_docker_path()
         service_port = find_free_port()
 
         cmd = f'{docker_path} run --name lithops_{self.container_id} '
-        cmd += '--gpus all ' if gpu else ''
+        cmd += '--gpus all ' if self.use_gpu else ''
         cmd += f'--user {self.uid}:{self.gid} ' if is_unix_system() else ''
         cmd += f'--env USER={os.getenv("USER", "root")} '
         cmd += f'-p {service_port}:{service_port} '

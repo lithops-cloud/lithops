@@ -64,6 +64,7 @@ SA_DATA_FILE = os.path.join(SA_INSTALL_DIR, 'access.data')
 SA_DEFAULT_CONFIG_KEYS = {
     'runtime': 'python3',
     'exec_mode': 'consume',
+    'use_gpu': False,
     'start_timeout': 300,
     'pull_runtime': False,
     'auto_dismantle': True,

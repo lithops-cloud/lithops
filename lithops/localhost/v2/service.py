@@ -151,7 +151,7 @@ def check_inactivity(server_thread, max_idle_timeout, check_interval):
 
 
 def process_event(
-        event,
+        event, pid,
         worker_status_dict
 ):
     """
@@ -191,7 +191,7 @@ def python_queue_consumer(
         if isinstance(event, ShutdownSentinel):
             break
 
-        process_event(event, worker_status_dict)
+        process_event(event, pid, worker_status_dict)
 
     logger.info(f'Worker process {pid} finished')
 
