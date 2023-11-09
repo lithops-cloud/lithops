@@ -39,7 +39,7 @@ app = flask.Flask(__name__)
 
 budget_keeper = None
 localhos_handler = None
-last_job_key = None
+running_job_key = None
 
 
 @app.route('/ping', methods=['GET'])
@@ -52,7 +52,7 @@ def ping():
 
 @app.route('/stop/<job_key>', methods=['POST'])
 def stop(job_key):
-    if job_key == last_job_key:
+    if job_key == running_job_key:
         logger.debug(f'Received SIGTERM: Stopping job process {job_key}')
         localhos_handler.clear()
         Path(os.path.join(JOBS_DIR, job_key + '.done')).touch()
@@ -77,25 +77,29 @@ def wait_job_completed(job_key):
 
 
 def run_worker(
+        worker_name,
         master_ip,
         work_queue_name,
         instance_type,
         runtime_name,
         worker_processes,
         exec_mode,
-        pull_runtime
+        pull_runtime,
+        use_gpu
 ):
     """
     Run a job
     """
     global budget_keeper
     global localhos_handler
-    global last_job_key
+    global running_job_key
 
     logger.info(f"Starting Worker - Instace type: {instance_type} - Runtime "
                 f"name: {runtime_name} - Worker processes: {worker_processes}")
 
-    localhos_handler = LocalhostHandler({'pull_runtime': pull_runtime})
+    config = {'runtime': runtime_name, 'pull_runtime': pull_runtime, 'use_gpu': use_gpu}
+    localhos_handler = LocalhostHandler(config)
+    localhos_handler.init()
 
     while True:
         url = f'http://{master_ip}:{SA_SERVICE_PORT}/get-task/{work_queue_name}'
@@ -122,18 +126,17 @@ def run_worker(
         except Exception:
             return
 
-        job_key = job_payload['job_key']
-        last_job_key = job_key
+        running_job_key = job_payload['job_key']
 
         budget_keeper.last_usage_time = time.time()
-        budget_keeper.jobs[job_key] = 'running'
+        budget_keeper.jobs[running_job_key] = 'running'
 
         try:
             localhos_handler.invoke(job_payload)
         except Exception as e:
             logger.error(e)
 
-        wait_job_completed(job_key)
+        wait_job_completed(running_job_key)
 
 
 def main():
@@ -149,11 +152,13 @@ def main():
         exec_mode = standalone_config['exec_mode']
         worker_processes = standalone_config[backend]['worker_processes']
         pull_runtime = standalone_config['pull_runtime']
+        use_gpu = standalone_config['use_gpu']
 
     # Read the VM data file that contains the instance id, the master IP,
     # and the queue for getting tasks
     with open(SA_DATA_FILE, 'r') as ad:
         vm_data = json.load(ad)
+        worker_name = vm_data['name']
         worker_ip = vm_data['private_ip']
         master_ip = vm_data['master_ip']
         work_queue_name = vm_data['work_queue_name']
@@ -172,8 +177,8 @@ def main():
     Thread(target=run_wsgi, daemon=True).start()
 
     # Start the worker that will get tasks from the work queue
-    run_worker(master_ip, work_queue_name, instance_type, runtime_name,
-               worker_processes, exec_mode, pull_runtime)
+    run_worker(worker_name, master_ip, work_queue_name, instance_type, runtime_name,
+               worker_processes, exec_mode, pull_runtime, use_gpu)
 
     # run_worker will run forever in reuse mode. In create mode it will
     # run until there are no more tasks in the queue.

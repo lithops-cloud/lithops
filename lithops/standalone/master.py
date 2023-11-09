@@ -78,7 +78,7 @@ exec_mode = None
 # variables for consume mode
 localhost_manager_process = None
 localhos_handler = None
-last_job_key = None
+running_job_key = None
 
 
 def is_worker_free(worker):
@@ -158,7 +158,7 @@ def setup_worker(standalone_handler, worker_info, work_queue_name):
         worker.get_ssh_client().upload_local_file(
             '/opt/lithops/lithops_standalone.zip',
             '/tmp/lithops_standalone.zip')
-        
+
         logger.debug(f'Preparing installation script for {worker}')
         vm_data = {
             'name': worker.name,
@@ -177,7 +177,7 @@ def setup_worker(standalone_handler, worker_info, work_queue_name):
         cmd = f"chmod 777 {remote_script}; sudo {remote_script};"
         worker.get_ssh_client().run_remote_command(cmd, run_async=True)
         worker.del_ssh_client()
-    
+
         logger.debug(f'Installation script submitted to {worker}')
 
         worker.status = WorkerStatus.INSTALLING.value
@@ -221,7 +221,7 @@ def run_job_local(work_queue):
     Localhost jobs manager process for consume mode
     """
     global localhos_handler
-    global last_job_key
+    global running_job_key
 
     def wait_job_completed(job_key):
         done = os.path.join(JOBS_DIR, job_key + '.done')
@@ -233,15 +233,14 @@ def run_job_local(work_queue):
     try:
         while True:
             job_payload = work_queue.get()
-            pull_runtime = job_payload['config']['standalone'].get('pull_runtime', False)
-            localhos_handler = LocalhostHandler({'pull_runtime': pull_runtime})
-            job_key = job_payload['job_key']
-            jobs_list[job_key]['status'] = JobStatus.RUNNING.value
-            last_job_key = job_key
-            job_payload['config']['lithops']['backend'] = 'localhost'
+            localhos_handler = LocalhostHandler(job_payload['config']['standalone'])
+            localhos_handler.init()
+            running_job_key = job_payload['job_key']
+            jobs_list[running_job_key]['status'] = JobStatus.RUNNING.value
             localhos_handler.invoke(job_payload)
-            wait_job_completed(job_key)
-            jobs_list[job_key]['status'] = JobStatus.DONE.value
+            wait_job_completed(running_job_key)
+            jobs_list[running_job_key]['status'] = JobStatus.DONE.value
+            localhos_handler.clear()
 
     except Exception as e:
         logger.error(e)
@@ -385,7 +384,7 @@ def stop_job_process(job_key_list):
         work_queue_name = jobs_list[job_key]['queue_name']
 
         if work_queue_name == 'localhost':
-            if job_key == last_job_key:
+            if job_key == running_job_key:
                 # kill current running job process
                 localhos_handler.clear()
                 Path(os.path.join(JOBS_DIR, job_key + '.done')).touch()
@@ -541,16 +540,14 @@ def get_metadata():
     if payload and not isinstance(payload, dict):
         return error('The action did not receive a dictionary as an argument.')
 
-    runtime = payload['runtime']
-    pull_runtime = payload['pull_runtime']
-
     try:
-        verify_runtime_name(runtime)
+        verify_runtime_name(payload['runtime'])
     except Exception as e:
         return error(str(e))
 
-    lh = LocalhostHandler({'runtime': runtime, 'pull_runtime': pull_runtime})
-    runtime_meta = lh.deploy_runtime(runtime)
+    localhos_handler = LocalhostHandler(payload)
+    localhos_handler.init()
+    runtime_meta = localhos_handler.deploy_runtime(payload['runtime'])
 
     if 'lithops_version' in runtime_meta:
         logger.debug("Runtime metdata extracted correctly: Lithops "

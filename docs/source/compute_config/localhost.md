@@ -66,6 +66,7 @@ In this mode of execution, you can use any docker image that contains all the re
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |localhost | runtime | python3 | no | By default it uses the `python3` interpreter. It can be a container image name |
+|localhost | version | 1 | no | There are 2 diferent localhost implementations. Use '2' for using the alterantive version (beta) |
 |localhost | worker_processes | CPU_COUNT | no | Number of Lithops processes. This is used to parallelize function activations. By default it is set to the number of CPUs of your machine |
 
 ## Test Lithops

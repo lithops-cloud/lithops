@@ -192,6 +192,8 @@ def get_master_setup_script(config, vm_data):
     UserKnownHostsFile=/dev/null' >> /etc/ssh/ssh_config;
     ssh-keygen -f $USER_HOME/.ssh/lithops_id_rsa -t rsa -N '';
     chown ${{SUDO_USER}}:${{SUDO_USER}} $USER_HOME/.ssh/lithops_id_rsa*;
+    cp $USER_HOME/.ssh/lithops_id_rsa $USER_HOME/.ssh/id_rsa
+    cp $USER_HOME/.ssh/lithops_id_rsa.pub $USER_HOME/.ssh/id_rsa.pub
     cp $USER_HOME/.ssh/* /root/.ssh;
     echo '127.0.0.1 lithops-master' >> /etc/hosts;
     }}

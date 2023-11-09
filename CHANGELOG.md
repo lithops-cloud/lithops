@@ -20,8 +20,8 @@
 - [Multiprocessing] Fixed cpu_count
 - [Standalone] Start new workers when the VM instance type changes (in reuse mode)
 - [GCP Functions] Fixed issue with "function_url" variable
-- [Standalone] Fixed multiple runtimes usage at the same time in master VM
-
+- [Standalone] Fixed multiple runtime usage at the same time in master VM
+- [localhost] Get the correct docker/podman path for jobs that run in a container
 
 ## [v3.0.1]
 
