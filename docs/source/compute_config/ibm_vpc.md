@@ -56,6 +56,7 @@ ibm_vpc:
     docker_server    : us.icr.io  # Change-me if you have the CR in another region
     docker_user      : iamapikey
     docker_password  : <IBM IAM API KEY>
+    docker_namespace : <namespace>  # namespace name from https://cloud.ibm.com/registry/namespaces
 ```
 
 
@@ -115,7 +116,7 @@ Edit your lithops config and add the relevant keys:
 	  backend: ibm_vpc
 
    ibm:
-	  iam_api_key: <iam-api-key>
+      iam_api_key: <iam-api-key>
 
    ibm_vpc:
       exec_mode: consume
