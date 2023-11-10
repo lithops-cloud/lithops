@@ -72,7 +72,7 @@
     #singlesocket: <True/False> # Optional, default is False
 
     #runtime: <RUNTIME_NAME>
-    #exec_mode: consume
+    #exec_mode: reuse
     #auto_dismantle: True
     #pull_runtime: <false, true>
     #hard_dismantle_timeout: 3600
@@ -100,7 +100,7 @@
     #worker_processes: <WORKER_GRANULARITY> Default is 2
 
     #runtime: <RUNTIME_NAME>
-    #exec_mode: consume
+    #exec_mode: reuse
     #auto_dismantle: True
     #pull_runtime: <false, true>
     #hard_dismantle_timeout: 3600

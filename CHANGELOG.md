@@ -11,6 +11,7 @@
 - [localhost] New localhost backend v2 to maximize resource utilization when multiple maps are executed from the same FunctionExecutor
 
 ### Changed
+- [Standalone] Changed default mode of execution from 'consume' to 'reuse'
 - [Joblib] Updated the joblib backend to make it compatible for newer versions of joblib
 - [AWS EC2] Changed default image name from "lithops-worker-default" to "lithops-ubuntu-jammy-22.04-amd64-server"
 - [IBM VPC] Changed default image name from "lithops-worker-default" to "lithops-ubuntu-22-04-3-minimal-amd64-1"
