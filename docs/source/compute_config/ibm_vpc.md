@@ -56,6 +56,7 @@ ibm_vpc:
     docker_server    : us.icr.io  # Change-me if you have the CR in another region
     docker_user      : iamapikey
     docker_password  : <IBM IAM API KEY>
+    docker_namespace : <namespace>  # namespace name from https://cloud.ibm.com/registry/namespaces
 ```
 
 
@@ -97,7 +98,7 @@ ibm_vpc:
 |ibm_vpc | auto_dismantle | True |no | If False then the VM is not stopped automatically.|
 |ibm_vpc | soft_dismantle_timeout | 300 |no| Time in seconds to stop the VM instance after a job **completed** its execution |
 |ibm_vpc | hard_dismantle_timeout | 3600 | no | Time in seconds to stop the VM instance after a job **started** its execution |
-|ibm_vpc | exec_mode | consume | no | One of: **consume**, **create** or **reuse**. If set to  **create**, Lithops will automatically create new VMs for each map() call based on the number of elements in iterdata. If set to **reuse** will try to reuse running workers if exist |
+|ibm_vpc | exec_mode | reuse | no | One of: **consume**, **create** or **reuse**. If set to  **create**, Lithops will automatically create new VMs for each map() call based on the number of elements in iterdata. If set to **reuse** will try to reuse running workers if exist |
 |ibm_vpc | pull_runtime | False | no | If set to True, Lithops will execute the command `docker pull <runtime_name>` in each VSI before executing the a job (in case of using a docker runtime)|
 |ibm_vpc | workers_policy | permissive | no | One of: **permissive**, **strict**. If set to **strict** will force creation of required workers number |
 |ibm_vpc | gpu | False | no | If True docker started with gpu support. Requires host to have neccessary hardware and software preconfigured and docker image runtime with gpu support specified |
@@ -115,9 +116,10 @@ Edit your lithops config and add the relevant keys:
 	  backend: ibm_vpc
 
    ibm:
-	  iam_api_key: <iam-api-key>
+      iam_api_key: <iam-api-key>
 
    ibm_vpc:
+      exec_mode: consume
       region   : <REGION>
       instance_id : <INSTANCE ID OF THE VM>
       floating_ip  : <FLOATING IP ADDRESS OF THE VM>
