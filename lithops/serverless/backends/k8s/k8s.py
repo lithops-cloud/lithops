@@ -71,6 +71,7 @@ class KubernetesBackend:
             self.namespace = ctx_context.get('namespace') or self.namespace
             self.cluster = ctx_context.get('cluster') or self.cluster
             self.user = ctx_context.get('user') or self.user
+            self.user = self.user[:62]
             logger.debug(f"Using kubeconfig conetxt: {ctx_name} - cluster: {self.cluster}")
             self.is_incluster = False
         else:
@@ -99,7 +100,7 @@ class KubernetesBackend:
         name = f'{runtime_name}-{runtime_memory}-{version}'
         name_hash = hashlib.sha1(name.encode()).hexdigest()[:10]
 
-        return f'lithops-worker-{version.replace(".", "")}-{name_hash}'[:62]
+        return f'lithops-worker-{version.replace(".", "")}-{name_hash}'
 
     def _get_default_runtime_image_name(self):
         """
@@ -406,7 +407,7 @@ class KubernetesBackend:
 
     def _generate_runtime_meta(self, docker_image_name):
         runtime_name = self._format_job_name(docker_image_name, 128)
-        meta_job_name = f'{runtime_name[:57]}-meta'
+        meta_job_name = f'{runtime_name}-meta'
 
         logger.info(f"Extracting metadata from: {docker_image_name}")
 
