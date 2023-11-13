@@ -70,8 +70,8 @@ class KubernetesBackend:
             ctx_context = current_context.get('context')
             self.namespace = ctx_context.get('namespace') or self.namespace
             self.cluster = ctx_context.get('cluster') or self.cluster
-            self.user = ctx_context.get('user') or self.user
-            self.user = self.user[:62]
+            ctx_user = ctx_context.get('user')
+            self.user = hashlib.sha1(ctx_user.encode()).hexdigest()[:10] if ctx_user else self.user
             logger.debug(f"Using kubeconfig conetxt: {ctx_name} - cluster: {self.cluster}")
             self.is_incluster = False
         else:
@@ -80,8 +80,7 @@ class KubernetesBackend:
             self.is_incluster = True
 
         if self.master_name == config.MASTER_NAME:
-            user_hash = hashlib.sha1(self.user.encode()).hexdigest()[:6]
-            self.master_name = f'{config.MASTER_NAME}-{user_hash}'
+            self.master_name = f'{config.MASTER_NAME}-{self.user}'
 
         self.k8s_config['namespace'] = self.namespace
         self.k8s_config['cluster'] = self.cluster
@@ -496,8 +495,7 @@ class KubernetesBackend:
         in order to know which runtimes are installed and which not.
         """
         jobdef_name = self._format_job_name(docker_image_name, 256, version)
-        user_hash = hashlib.sha1(self.user.encode()).hexdigest()[:6]
-        user_data = os.path.join(self.cluster, self.namespace, user_hash)
+        user_data = os.path.join(self.cluster, self.namespace, self.user)
         runtime_key = os.path.join(self.name, version, user_data, jobdef_name)
 
         return runtime_key
