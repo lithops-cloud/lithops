@@ -70,7 +70,8 @@ class KubernetesBackend:
             ctx_context = current_context.get('context')
             self.namespace = ctx_context.get('namespace') or self.namespace
             self.cluster = ctx_context.get('cluster') or self.cluster
-            self.user = hashlib.sha1(ctx_context.get('user').encode()).hexdigest()[:10] or self.user
+            ctx_user = ctx_context.get('user')
+            self.user = hashlib.sha1(ctx_user.encode()).hexdigest()[:10] if ctx_user else self.user
             logger.debug(f"Using kubeconfig conetxt: {ctx_name} - cluster: {self.cluster}")
             self.is_incluster = False
         else:
