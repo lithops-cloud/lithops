@@ -23,7 +23,8 @@
 - [GCP Functions] Fixed issue with "function_url" variable
 - [Standalone] Fixed multiple runtime usage at the same time in master VM
 - [localhost] Get the correct docker/podman path for jobs that run in a container
-- [k8s] Limit the size of the worker pod name as the maximum allowed is 63 chars
+- [k8s] Limit the size of the "user" label as the maximum allowed is 63 chars
+
 
 ## [v3.0.1]
 
