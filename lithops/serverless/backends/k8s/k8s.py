@@ -99,7 +99,7 @@ class KubernetesBackend:
         name = f'{runtime_name}-{runtime_memory}-{version}'
         name_hash = hashlib.sha1(name.encode()).hexdigest()[:10]
 
-        return f'lithops-worker-{version.replace(".", "")}-{name_hash}'
+        return f'lithops-worker-{version.replace(".", "")}-{name_hash}'[:62]
 
     def _get_default_runtime_image_name(self):
         """
@@ -406,7 +406,7 @@ class KubernetesBackend:
 
     def _generate_runtime_meta(self, docker_image_name):
         runtime_name = self._format_job_name(docker_image_name, 128)
-        meta_job_name = f'{runtime_name}-meta'
+        meta_job_name = f'{runtime_name[:57]}-meta'
 
         logger.info(f"Extracting metadata from: {docker_image_name}")
 
