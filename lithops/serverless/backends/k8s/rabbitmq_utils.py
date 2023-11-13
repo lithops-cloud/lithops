@@ -12,8 +12,8 @@ logger = logging.getLogger(__name__)
 
 
 class RabbitMQ_utils:
-    def __init__(self):
-        params = pika.URLParameters(self.get_amqp_url())
+    def __init__(self, amqp_url):
+        params = pika.URLParameters(amqp_url)
         self.connection = pika.BlockingConnection(params)
         self.channel = self.connection.channel()
 
@@ -52,14 +52,3 @@ class RabbitMQ_utils:
             raise ValueError("Total CPUs of the cluster cannot be 0")
         
         self.channel.start_consuming()
-
-    # Get amqp url from configuration
-    def get_amqp_url(self):
-        config_data = config.load_config()
-        
-        try:
-            amqp_url = config_data['rabbitmq']['amqp_url']
-            return amqp_url
-        except:
-            logger.info("This version of Kubernetes runtime requires RabbitMQ")
-            raise Exception("RabbitMQ amqp_url not found in configuration")

@@ -219,46 +219,46 @@ def callback_ranges_ids(ch, method, properties, body):
     logger.info(f"Range assigned {range_start} - {range_end}")
     logger.info(f"Total cpus {total_cpus_cluster}")
 
+def start_rabbitmq_listening(payload):
+    rabbitmq_url = payload['amqp_url']
+    n_processes = int(round(float(payload['cpu'])))
+
+    params = pika.URLParameters(rabbitmq_url)
+    connection = pika.BlockingConnection(params)
+    channel = connection.channel()
+
+    # Declare queue to receive the range of IDs of this pod
+    id_pod = str(uuid.uuid4())
+    channel.queue_declare(queue='id-assignation')
+    channel.queue_declare(queue=id_pod)
+
+    # Declare and bind exchange to get the payload
+    channel.exchange_declare(exchange='lithops', exchange_type='fanout')
+    random_queue_id = channel.queue_declare(queue='', exclusive=True).method.queue
+    channel.queue_bind(exchange='lithops', queue=random_queue_id)
+
+    # Start the assignation and listening to the new job
+    channel.basic_consume(queue=id_pod, on_message_callback=callback_ranges_ids, auto_ack=True)
+    channel.basic_consume(queue=random_queue_id, on_message_callback=callback_run_jobs, auto_ack=True)
+    channel.basic_publish(exchange='', routing_key='id-assignation',
+                        body=json.dumps({"num_cpus": n_processes, "data_reception_id": id_pod, }))
+
+    logger.info(f"Listening to rabbitmq...")
+    channel.start_consuming()
+
 if __name__ == '__main__':
-    # Checking if is an alternative backend or not
-    if "amqp" in sys.argv[1]:
-        rabbitmq_url = sys.argv[1]
-        n_processes = int(round(float(sys.argv[2])))
+    action = sys.argv[1]
+    encoded_payload = sys.argv[2]
 
-        params = pika.URLParameters(rabbitmq_url)
-        connection = pika.BlockingConnection(params)
-        channel = connection.channel()
+    payload = b64str_to_dict(encoded_payload)
+    setup_lithops_logger(payload.get('log_level', 'INFO'))
 
-        # Declare queue to receive the range of IDs of this pod
-        id_pod = str(uuid.uuid4())
-        channel.queue_declare(queue='id-assignation')
-        channel.queue_declare(queue=id_pod)
+    switcher = {
+        'get_metadata': partial(extract_runtime_meta, payload),
+        'run_job': partial(run_job_k8s, payload),
+        'run_master': run_master_server,
+        'start_rabbitmq': partial(start_rabbitmq_listening, payload)
+    }
 
-        # Declare and bind exchange to get the payload
-        channel.exchange_declare(exchange='lithops', exchange_type='fanout')
-        random_queue_id = channel.queue_declare(queue='', exclusive=True).method.queue
-        channel.queue_bind(exchange='lithops', queue=random_queue_id)
-
-        # Start the assignation and listening to the new job
-        channel.basic_consume(queue=id_pod, on_message_callback=callback_ranges_ids, auto_ack=True)
-        channel.basic_consume(queue=random_queue_id, on_message_callback=callback_run_jobs, auto_ack=True)
-        channel.basic_publish(exchange='', routing_key='id-assignation',
-                            body=json.dumps({"num_cpus": n_processes, "data_reception_id": id_pod, }))
-
-        logger.info(f"Listening to rabbitmq...")
-        channel.start_consuming()
-    else:
-        action = sys.argv[1]
-        encoded_payload = sys.argv[2]
-
-        payload = b64str_to_dict(encoded_payload)
-        setup_lithops_logger(payload.get('log_level', 'INFO'))
-
-        switcher = {
-            'get_metadata': partial(extract_runtime_meta, payload),
-            'run_job': partial(run_job_k8s, payload),
-            'run_master': run_master_server
-        }
-
-        func = switcher.get(action, lambda: "Invalid command")
-        func()
+    func = switcher.get(action, lambda: "Invalid command")
+    func()
