@@ -217,8 +217,15 @@ def _create_job(
     exclude_modules_cfg = config['lithops'].get('exclude_modules', [])
     include_modules_cfg = config['lithops'].get('include_modules', [])
 
+    if type(include_modules_cfg) is str:
+        if include_modules_cfg.lower() == 'none':
+            include_modules_cfg = None
+        else:
+            raise ValueError("'include_modules' parameter in config must be a list")
+
     exc_modules = set()
     inc_modules = set()
+
     if exclude_modules_cfg:
         exc_modules.update(exclude_modules_cfg)
     if exclude_modules:
@@ -232,7 +239,7 @@ def _create_job(
     if include_modules is None:
         inc_modules = None
 
-    logger.debug('ExecutorID {} | JobID {} - Serializing function and data'.format(executor_id, job_id))
+    logger.debug(f'ExecutorID {executor_id} | JobID {job_id} - Serializing function and data')
     job_serialize_start = time.time()
     serializer = SerializeIndependent(runtime_meta['preinstalls'])
     func_and_data_ser, mod_paths = serializer([func] + iterdata, inc_modules, exc_modules)

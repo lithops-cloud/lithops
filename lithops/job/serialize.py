@@ -51,17 +51,34 @@ class SerializeIndependent:
         if not include_modules:
             self._modulemgr.ignore(exclude_modules)
 
-        # Inspect modules
         strs = []
         modules = set()
+        analyzed_modules = set()
+        mod_paths = set()
 
         for obj in list_of_objs:
-            modules.update(self._module_inspect(obj))
             strs.append(cloudpickle.dumps(obj))
 
-        # Add modules
-        direct_modules = set()
-        mod_paths = set()
+        if include_modules is None:
+            # If include_modules is explicitly set to None, no module is included
+            return (strs, mod_paths)
+
+        if len(include_modules) == 0:
+            # If include_modules is not provided (empty list by default),
+            # inspect the objects and explore for referenced modules
+            for obj in list_of_objs:
+                modules.update(self._module_inspect(obj))
+        else:
+            # If include_modules is provided, include only the provided list
+            logger.debug("Include modules: {}".format(", ".join(include_modules)))
+            for module in include_modules:
+                abspath = os.path.abspath(module)
+                if os.path.exists(abspath):
+                    logger.debug(f"Found {module} in {abspath}")
+                    mod_paths.add(abspath)
+                    analyzed_modules.add(module)
+                else:
+                    modules.add(module)
 
         for module_name in modules:
             if module_name in ['__main__', None]:
@@ -79,27 +96,15 @@ class SerializeIndependent:
             else:
                 self._modulemgr.add(module_name)
 
-            direct_modules.add(origin if origin not in ['built-in', None] else module_name)
+            # analyzed_modules is only for the logs, it is not used anywhere else
+            analyzed_modules.add(origin if origin not in ['built-in', None] else module_name)
 
-        logger.debug("Referenced modules: {}".format(None if not
-                     direct_modules else ", ".join(direct_modules)))
+        logger.debug("Analyzed Modules: {}".format(None if not analyzed_modules else ", ".join(analyzed_modules)))
 
-        if include_modules is not None:
-            tent_mod_paths = self._modulemgr.get_and_clear_paths()
-            if include_modules:
-                logger.debug("Tentative modules to transmit: {}"
-                             .format(None if not tent_mod_paths else ", ".join(tent_mod_paths)))
-                logger.debug("Include modules: {}".format(", ".join(include_modules)))
-                for im in include_modules:
-                    for mp in tent_mod_paths:
-                        if im in mp:
-                            mod_paths.add(mp)
-                            break
-            else:
-                mod_paths = mod_paths.union(tent_mod_paths)
+        tent_mod_paths = self._modulemgr.get_and_clear_paths()
+        mod_paths = mod_paths.union(tent_mod_paths)
 
-        logger.debug("Modules to transmit: {}".format(None if
-                     not mod_paths else ", ".join(mod_paths)))
+        logger.debug("Modules to transmit: {}".format(None if not mod_paths else ", ".join(mod_paths)))
 
         return (strs, mod_paths)
 
@@ -121,7 +126,7 @@ class SerializeIndependent:
                 if k == '__globals__':
                     mods.add(v['__file__'])
 
-        elif type(obj) == dict:
+        elif type(obj) is dict:
             # the obj is the user's iterdata
             for param in obj.values():
                 if type(param).__module__ == "__builtin__":
