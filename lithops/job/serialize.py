@@ -17,6 +17,7 @@
 #
 
 import os
+import imp
 import glob
 import importlib
 import logging
@@ -48,12 +49,9 @@ class SerializeIndependent:
         self._modulemgr = ModuleDependencyAnalyzer()
         preinstalled_modules = [name for name, _ in self.preinstalled_modules]
         self._modulemgr.ignore(preinstalled_modules)
-        if not include_modules:
-            self._modulemgr.ignore(exclude_modules)
+        self._modulemgr.ignore(exclude_modules)
 
         strs = []
-        modules = set()
-        analyzed_modules = set()
         mod_paths = set()
 
         for obj in list_of_objs:
@@ -65,41 +63,44 @@ class SerializeIndependent:
 
         if len(include_modules) == 0:
             # If include_modules is not provided (empty list by default),
-            # inspect the objects and explore for referenced modules
+            # inspect the objects looking for referenced modules
+            ref_modules = set()
+
             for obj in list_of_objs:
-                modules.update(self._module_inspect(obj))
+                ref_modules.update(self._module_inspect(obj))
+
+            logger.debug("Referenced Modules: {}".format(None if not
+                         ref_modules else ", ".join(ref_modules)))
+
+            for module_name in ref_modules:
+                if module_name in ['__main__', None]:
+                    continue
+                try:
+                    mod_spec = importlib.util.find_spec(module_name)
+                except Exception:
+                    mod_spec = None
+
+                origin = mod_spec.origin if mod_spec else module_name
+                if origin and origin.endswith('.so'):
+                    if origin not in exclude_modules and \
+                       os.path.basename(origin) not in exclude_modules:
+                        mod_paths.add(origin)
+                else:
+                    self._modulemgr.add(module_name)
         else:
             # If include_modules is provided, include only the provided list
-            logger.debug("Include modules: {}".format(", ".join(include_modules)))
-            for module in include_modules:
-                abspath = os.path.abspath(module)
-                if os.path.exists(abspath):
-                    logger.debug(f"Found {module} in {abspath}")
-                    mod_paths.add(abspath)
-                    analyzed_modules.add(module)
-                else:
-                    modules.add(module)
-
-        for module_name in modules:
-            if module_name in ['__main__', None]:
-                continue
-            try:
-                mod_spec = importlib.util.find_spec(module_name)
-            except Exception:
-                mod_spec = None
-
-            origin = mod_spec.origin if mod_spec else module_name
-            if origin and origin.endswith('.so'):
-                if origin not in exclude_modules and \
-                   os.path.basename(origin) not in exclude_modules:
-                    mod_paths.add(origin)
-            else:
-                self._modulemgr.add(module_name)
-
-            # analyzed_modules is only for the logs, it is not used anywhere else
-            analyzed_modules.add(origin if origin not in ['built-in', None] else module_name)
-
-        logger.debug("Analyzed Modules: {}".format(None if not analyzed_modules else ", ".join(analyzed_modules)))
+            logger.debug("Include Modules: {}".format(", ".join(include_modules)))
+            for module_name in include_modules:
+                try:
+                    module_root = module_name.split('.')[0]
+                    if module_root in preinstalled_modules:
+                        logger.debug(f"Module '{module_root}' is already installed in the runtime, skipping")
+                        continue
+                    fp, pathname, description = imp.find_module(module_root)
+                    logger.debug(f"Module '{module_name}' found in {pathname}")
+                    mod_paths.add(pathname)
+                except ImportError:
+                    logger.debug(f"Could not find module '{module_root}', skipping")
 
         tent_mod_paths = self._modulemgr.get_and_clear_paths()
         mod_paths = mod_paths.union(tent_mod_paths)
