@@ -15,6 +15,7 @@
 - [Joblib] Updated the joblib backend to make it compatible for newer versions of joblib
 - [AWS EC2] Changed default image name from "lithops-worker-default" to "lithops-ubuntu-jammy-22.04-amd64-server"
 - [IBM VPC] Changed default image name from "lithops-worker-default" to "lithops-ubuntu-22-04-3-minimal-amd64-1"
+- [Serializer] Improve serializer performance when include_modules is set in config
 
 ### Fixed
 - [Job] Fixed max data size in the invocation payload

@@ -59,6 +59,7 @@ class LithopsBackend(MultiprocessingBackend):
     ):
         self.lithops_args = lithops_args
         self.eff_n_jobs = None
+        self.prefer = None
         super().__init__(
             nesting_level=nesting_level,
             inner_max_num_threads=inner_max_num_threads,
@@ -78,6 +79,7 @@ class LithopsBackend(MultiprocessingBackend):
         line is a patch, which changes the inheritance of Pool to be from
         lithops.multiprocessing.pool
         """
+        self.prefer = prefer
         PicklingPool.__bases__ = (Pool,)
 
         if n_jobs == -1:
