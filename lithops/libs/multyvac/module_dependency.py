@@ -27,9 +27,9 @@ From
 https://github.com/cloudpipe/multyvac-fork/blob/master/multyvac/util/module_dependency.py
 """
 import ast
-import imp
 import logging
 import pkgutil
+from lithops.libs import imp
 
 logger = logging.getLogger(__name__)
 

@@ -19,6 +19,7 @@ import os
 import pickle
 import diskcache
 from numpy import ndarray
+from multiprocessing.pool import ThreadPool
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, Optional
 
@@ -113,10 +114,11 @@ class LithopsBackend(MultiprocessingBackend):
 
     def apply_async(self, func, callback=None):
         """Schedule a func to be run"""
-        # return self._get_pool().map_async(handle_call, func.items, callback=callback) # bypass
-
         mem_opt_calls = find_shared_objects(func.items)
-        return self._get_pool().starmap_async(handle_call, mem_opt_calls, callback=callback)
+        if self.prefer == "threads":
+            return self._get_pool().apply_async(handle_call_threads, (mem_opt_calls, ), callback=callback)
+        else:
+            return self._get_pool().starmap_async(handle_call_process, mem_opt_calls, callback=callback)
 
 
 def find_shared_objects(calls):
@@ -176,7 +178,14 @@ def find_shared_objects(calls):
     return [tuple(item) for item in calls]
 
 
-def handle_call(func, args, kwargs, proxy_positions=[]):
+def handle_call_threads(mem_opt_calls):
+    with ThreadPool(processes=len(mem_opt_calls)) as pool:
+        results = pool.starmap(handle_call_process, mem_opt_calls)
+
+    return list(results)
+
+
+def handle_call_process(func, args, kwargs, proxy_positions=[]):
     if len(proxy_positions) > 0:
         args, kwargs = replace_with_values(args, kwargs, proxy_positions)
 

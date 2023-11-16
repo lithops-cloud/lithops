@@ -12,7 +12,8 @@
 
 ### Changed
 - [Standalone] Changed default mode of execution from 'consume' to 'reuse'
-- [Joblib] Updated the joblib backend to make it compatible for newer versions of joblib
+- [Joblib] Updated the joblib backend to make it compatible with new versions of joblib
+- [Joblib] Spawn only one function when 'prefer' is set to 'threads'
 - [AWS EC2] Changed default image name from "lithops-worker-default" to "lithops-ubuntu-jammy-22.04-amd64-server"
 - [IBM VPC] Changed default image name from "lithops-worker-default" to "lithops-ubuntu-22-04-3-minimal-amd64-1"
 - [Serializer] Improve serializer performance when include_modules is set in config

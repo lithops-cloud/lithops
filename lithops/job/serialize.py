@@ -17,7 +17,6 @@
 #
 
 import os
-import imp
 import glob
 import importlib
 import logging
@@ -29,6 +28,7 @@ from functools import reduce
 from importlib import import_module
 from types import CodeType, FunctionType, ModuleType
 
+from lithops.libs import imp
 from lithops.utils import bytes_to_b64str
 from lithops.libs.multyvac.module_dependency import ModuleDependencyAnalyzer
 
@@ -46,10 +46,7 @@ class SerializeIndependent:
         """
         Serialize f, args, kwargs independently
         """
-        self._modulemgr = ModuleDependencyAnalyzer()
         preinstalled_modules = [name for name, _ in self.preinstalled_modules]
-        self._modulemgr.ignore(preinstalled_modules)
-        self._modulemgr.ignore(exclude_modules)
 
         strs = []
         mod_paths = set()
@@ -64,6 +61,10 @@ class SerializeIndependent:
         if len(include_modules) == 0:
             # If include_modules is not provided (empty list by default),
             # inspect the objects looking for referenced modules
+            self._modulemgr = ModuleDependencyAnalyzer()
+            self._modulemgr.ignore(preinstalled_modules)
+            self._modulemgr.ignore(exclude_modules)
+
             ref_modules = set()
 
             for obj in list_of_objs:
@@ -87,23 +88,32 @@ class SerializeIndependent:
                         mod_paths.add(origin)
                 else:
                     self._modulemgr.add(module_name)
+
+            tent_mod_paths = self._modulemgr.get_and_clear_paths()
+            mod_paths = mod_paths.union(tent_mod_paths)
+
         else:
             # If include_modules is provided, include only the provided list
             logger.debug("Include Modules: {}".format(", ".join(include_modules)))
             for module_name in include_modules:
+                if module_name.endswith('.so') or module_name.endswith('.py'):
+                    pathname = os.path.abspath(module_name)
+                    if os.path.isfile(pathname):
+                        logger.debug(f"Module '{module_name}' found in {pathname}")
+                        mod_paths.add(pathname)
+                    else:
+                        logger.debug(f"Could not find module '{module_name}', skipping")
+                    continue
+                module_root = module_name.split('.')[0]
+                if module_root in preinstalled_modules:
+                    logger.debug(f"Module '{module_name}' is already installed in the runtime, skipping")
+                    continue
                 try:
-                    module_root = module_name.split('.')[0]
-                    if module_root in preinstalled_modules:
-                        logger.debug(f"Module '{module_root}' is already installed in the runtime, skipping")
-                        continue
                     fp, pathname, description = imp.find_module(module_root)
                     logger.debug(f"Module '{module_name}' found in {pathname}")
                     mod_paths.add(pathname)
                 except ImportError:
-                    logger.debug(f"Could not find module '{module_root}', skipping")
-
-        tent_mod_paths = self._modulemgr.get_and_clear_paths()
-        mod_paths = mod_paths.union(tent_mod_paths)
+                    logger.debug(f"Could not find module '{module_name}', skipping")
 
         logger.debug("Modules to transmit: {}".format(None if not mod_paths else ", ".join(mod_paths)))
 
@@ -190,7 +200,7 @@ class SerializeIndependent:
                     elif inspect.iscode(v):
                         codeworklist.append(v)
 
-        return mods
+        return set([mod_name.split('.')[0] for mod_name in mods])
 
     def _inner_module_inspect(self, inst):
         """
