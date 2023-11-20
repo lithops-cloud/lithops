@@ -26,7 +26,7 @@
 - [Standalone] Fixed multiple runtime usage at the same time in master VM
 - [localhost] Get the correct docker/podman path for jobs that run in a container
 - [k8s] Limit the size of the "user" label as the maximum allowed is 63 chars
-
+- [Joblib] Fix shared objects utility when multiple maps run from the same executor
 
 ## [v3.0.1]
 
