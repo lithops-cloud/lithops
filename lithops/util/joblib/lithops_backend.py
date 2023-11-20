@@ -29,7 +29,7 @@ from joblib.pool import PicklingPool
 from joblib.parallel import register_parallel_backend
 
 from lithops.multiprocessing import Pool, cpu_count
-from lithops.constants import LITHOPS_TEMP_DIR
+from lithops.constants import LITHOPS_TEMP_DIR, TEMP_PREFIX
 from lithops.storage import Storage
 
 logger = logging.getLogger(__name__)
@@ -151,7 +151,9 @@ def find_shared_objects(calls):
         if len(positions) > 1 and consider_sharing(obj):
             logger.debug('Proxying {}'.format(type(obj)))
             obj_bin = pickle.dumps(obj)
-            cloud_object = storage.put_cloudobject(obj_bin)
+            prefix = os.environ.get('__LITHOPS_SESSION_ID', '')
+            key = '/'.join([TEMP_PREFIX, prefix, str(id(obj))])
+            cloud_object = storage.put_cloudobject(obj_bin, key=key)
 
             for pos in positions:
                 call_n, idx_or_key = pos
