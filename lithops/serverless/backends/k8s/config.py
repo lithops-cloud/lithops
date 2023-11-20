@@ -143,3 +143,6 @@ def load_config(config_data):
         registry = config_data['k8s']['docker_server']
         if runtime.count('/') == 1 and registry not in runtime:
             config_data['k8s']['runtime'] = f'{registry}/{runtime}'
+
+    if config_data['k8s'].get('rabbitmq_executor', False):
+      config_data['k8s']['amqp_url'] = config_data['rabbitmq']['amqp_url']

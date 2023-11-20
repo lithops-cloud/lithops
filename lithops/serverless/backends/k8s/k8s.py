@@ -32,7 +32,6 @@ from kubernetes.config import load_kube_config, \
 from kubernetes.client.rest import ApiException
 
 from lithops import utils
-from lithops import config as lithops_config
 from lithops.version import __version__
 from lithops.constants import COMPUTE_CLI_MSG, JOBS_PREFIX
 
@@ -75,7 +74,8 @@ class KubernetesBackend:
             ctx_context = current_context.get('context')
             self.namespace = ctx_context.get('namespace') or self.namespace
             self.cluster = ctx_context.get('cluster') or self.cluster
-            self.user = ctx_context.get('user') or self.user
+            ctx_user = ctx_context.get('user')
+            self.user = hashlib.sha1(ctx_user.encode()).hexdigest()[:10] if ctx_user else self.user
             logger.debug(f"Using kubeconfig conetxt: {ctx_name} - cluster: {self.cluster}")
             self.is_incluster = False
         else:
@@ -84,8 +84,7 @@ class KubernetesBackend:
             self.is_incluster = True
 
         if self.master_name == config.MASTER_NAME:
-            user_hash = hashlib.sha1(self.user.encode()).hexdigest()[:6]
-            self.master_name = f'{config.MASTER_NAME}-{user_hash}'
+            self.master_name = f'{config.MASTER_NAME}-{self.user}'
 
         self.k8s_config['namespace'] = self.namespace
         self.k8s_config['cluster'] = self.cluster
@@ -96,9 +95,8 @@ class KubernetesBackend:
         self.core_api = client.CoreV1Api()
 
         if self.rabbitmq_executor:
-            # Get the amqp url from lithops config
-            self.lithops_actual_config = lithops_config.load_config()
-            self.amqp_url = self.lithops_actual_config['rabbitmq']['amqp_url']
+            # Get the amqp url from k8s config
+            self.amqp_url = self.k8s_config['amqp_url']
 
             # Init rabbitmq on workers
             self.rabbitmq = rabbitmq_utils.RabbitMQ_utils(self.amqp_url)
@@ -247,7 +245,7 @@ class KubernetesBackend:
 
         logger.info(f"Deploying runtime: {docker_image_name} - Memory: {memory} Timeout: {timeout}")
         self._create_container_registry_secret()
-        runtime_meta = self._generate_runtime_meta(docker_image_name, memory)
+        runtime_meta = self._generate_runtime_meta(docker_image_name)
 
         return runtime_meta
 
@@ -264,6 +262,7 @@ class KubernetesBackend:
         logger.debug('Cleaning lithops resources in kubernetes')
 
         try:
+            self._delete_nodes()
             jobs = self.batch_api.list_namespaced_job(
                 namespace=self.namespace,
                 label_selector=f'user={self.user}'
@@ -393,8 +392,9 @@ class KubernetesBackend:
         num_cpus_cluster = 0
         default_pod_config = yaml.load(config.POD, Loader=yaml.loader.SafeLoader)
 
-        granularity = self.lithops_actual_config.get('k8s', {}).get('worker_processes', False)
-        if granularity <= 0:
+        granularity = self.k8s_config['worker_processes']
+
+        if granularity <= 1:
             granularity = False
         
         for node in self.nodes:
@@ -481,9 +481,9 @@ class KubernetesBackend:
 
     # Detect if granularity, memory or runtime image changed or not
     def _has_config_changed(self, runtime_mem):
-        config_k8s = self.lithops_actual_config.get('k8s', {})
-        config_granularity = config_k8s.get('worker_processes', False)
-        config_memory = config_k8s.get('runtime_memory', False)
+        config_granularity = False if self.k8s_config['worker_processes'] <= 1 else self.k8s_config['worker_processes']
+        config_memory = self.k8s_config['runtime_memory'] if self.k8s_config['runtime_memory'] != 512 else False
+
         self.current_runtime = ""
 
         list_pods = self.core_api.list_namespaced_pod("default", label_selector="app=lithops-pod")
@@ -624,8 +624,8 @@ class KubernetesBackend:
 
         return activation_id
 
-    def _generate_runtime_meta(self, docker_image_name, memory):
-        runtime_name = self._format_job_name(docker_image_name, memory)
+    def _generate_runtime_meta(self, docker_image_name):
+        runtime_name = self._format_job_name(docker_image_name, 128)
         meta_job_name = f'{runtime_name}-meta'
 
         logger.info(f"Extracting metadata from: {docker_image_name}")
@@ -715,8 +715,7 @@ class KubernetesBackend:
         in order to know which runtimes are installed and which not.
         """
         jobdef_name = self._format_job_name(docker_image_name, 256, version)
-        user_hash = hashlib.sha1(self.user.encode()).hexdigest()[:6]
-        user_data = os.path.join(self.cluster, self.namespace, user_hash)
+        user_data = os.path.join(self.cluster, self.namespace, self.user)
         runtime_key = os.path.join(self.name, version, user_data, jobdef_name)
 
         return runtime_key

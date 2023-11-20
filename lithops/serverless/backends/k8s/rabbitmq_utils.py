@@ -1,11 +1,7 @@
-import yaml
 import pika
 import json
 import logging
-from multiprocessing import Value,Process
-from yaml.loader import SafeLoader
-
-from lithops import config
+from multiprocessing import Value
 
 
 logger = logging.getLogger(__name__)
