@@ -27,6 +27,7 @@
 - [localhost] Get the correct docker/podman path for jobs that run in a container
 - [k8s] Limit the size of the "user" label as the maximum allowed is 63 chars
 - [Joblib] Fix shared objects utility when multiple maps run from the same executor
+- [Docs] Fix documentation regarding execution stats. "host_result_query_count" and "host_status_query_count" were swapped.
 
 ## [v3.0.1]
 
