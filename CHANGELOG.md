@@ -9,6 +9,7 @@
 - [AWS EC2] Added delete_image() method for deleting VM images through the cli
 - [IBM VPC] Added delete_image() method for deleting VM images through the cli
 - [localhost] New localhost backend v2 to maximize resource utilization when multiple maps are executed from the same FunctionExecutor
+- [Standalone] Automatically retrieve the CPU_COUNT from the VM in case worker_processes is not set in config
 
 ### Changed
 - [Standalone] Changed default mode of execution from 'consume' to 'reuse'
@@ -17,6 +18,7 @@
 - [AWS EC2] Changed default image name from "lithops-worker-default" to "lithops-ubuntu-jammy-22.04-amd64-server"
 - [IBM VPC] Changed default image name from "lithops-worker-default" to "lithops-ubuntu-22-04-3-minimal-amd64-1"
 - [Serializer] Improve serializer performance when include_modules is set in config
+- [SSH Client] Do not raise LithopsValidationError on Authentication failed
 
 ### Fixed
 - [Job] Fixed max data size in the invocation payload
@@ -27,7 +29,8 @@
 - [localhost] Get the correct docker/podman path for jobs that run in a container
 - [k8s] Limit the size of the "user" label as the maximum allowed is 63 chars
 - [Joblib] Fix shared objects utility when multiple maps run from the same executor
-- [Docs] Fix documentation regarding execution stats. "host_result_query_count" and "host_status_query_count" were swapped.
+- [Azure VMs] Fix wrong exception when trying to connect to the master VM for the first time
+
 
 ## [v3.0.1]
 

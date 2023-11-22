@@ -19,14 +19,17 @@ REQ_PARAMETERS = ('ip_address', 'ssh_username')
 
 def load_config(config_data):
 
-    config_data['vm']['max_workers'] = 1
-
-    if 'worker_processes' not in config_data['vm']:
-        config_data['vm']['worker_processes'] = 1
-
     for param in REQ_PARAMETERS:
         if param not in config_data['vm']:
             msg = f"'{param}' is mandatory in 'vm' section of the configuration"
             raise Exception(msg)
+
+    config_data['vm']['max_workers'] = 1
+
+    if "worker_processes" not in config_data['vm']:
+        config_data['vm']['worker_processes'] = "AUTO"
+
+    if "chunksize" not in config_data['lithops']:
+        config_data['lithops']['chunksize'] = 0
 
     config_data['standalone']['auto_dismantle'] = False

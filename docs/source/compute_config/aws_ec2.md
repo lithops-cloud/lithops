@@ -53,7 +53,7 @@ aws_ec2:
 |aws_ec2 | region | |no | Region name of the VPC. For example `us-east-1`. Lithops will use the region set under the `aws` section if it is not set here |
 |aws_ec2 | ssh_username | ubuntu |no | Username to access the VM |
 |aws_ec2 | ssh_key_filename | ~/.ssh/id_rsa | no | Path to the ssh key file provided to create the VM. It will use the default path if not provided |
-|aws_ec2 | worker_processes | 2 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker. It is recommendable to set this value to the same number of CPUs of the VM. |
+|aws_ec2 | worker_processes | AUTO | no | Number of Lithops processes within a given worker. This is used to parallelize function activations within the worker. By default it detects the amount of CPUs in the VM|
 |aws_ec2 | runtime | python3 | no | Runtime name to run the functions. Can be a container image name. If not set Lithops will use the defeuv python3 interpreter of the VM |
 |aws_ec2 | auto_dismantle | True |no | If False then the VM is not stopped automatically.|
 |aws_ec2 | soft_dismantle_timeout | 300 |no| Time in seconds to stop the VM instance after a job **completed** its execution |

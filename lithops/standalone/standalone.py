@@ -26,14 +26,10 @@ import concurrent.futures as cf
 
 from lithops.utils import BackendType, is_lithops_worker, create_handler_zip
 from lithops.constants import SA_SERVICE_PORT, SA_INSTALL_DIR, TEMP_DIR
-from lithops.standalone.utils import StandaloneMode, get_master_setup_script
+from lithops.standalone.utils import StandaloneMode, LithopsValidationError, get_master_setup_script
 from lithops.version import __version__
 
 logger = logging.getLogger(__name__)
-
-
-class LithopsValidationError(Exception):
-    pass
 
 
 class StandaloneHandler:
@@ -131,7 +127,6 @@ class StandaloneHandler:
         Checks the master VM is correctly installed
         """
         logger.debug(f'Validating lithops master service is installed on {self.backend.master}')
-
         ssh_client = self.backend.master.get_ssh_client()
         res = ssh_client.run_remote_command(f'cat {SA_INSTALL_DIR}/access.data')
         if not res:
@@ -183,14 +178,25 @@ class StandaloneHandler:
         executor_id = job_payload['executor_id']
         job_id = job_payload['job_id']
         total_calls = job_payload['total_calls']
-        chunksize = job_payload['chunksize']
 
-        job_payload['worker_instance_type'] = self.backend.get_worker_instance_type()
+        if self.exec_mode != StandaloneMode.CONSUME.value:
+            worker_instance_type = self.backend.get_worker_instance_type()
+            worker_processes = self.backend.get_worker_cpu_count()
 
-        total_required_workers = (
-            total_calls // chunksize + (total_calls % chunksize > 0)
-            if self.exec_mode in [StandaloneMode.CREATE.value, StandaloneMode.REUSE.value] else 1
-        )
+            job_payload['worker_instance_type'] = worker_instance_type
+
+            if job_payload['worker_processes'] == "AUTO":
+                job_payload['worker_processes'] = worker_processes
+                job_payload['config'][self.backend_name]['worker_processes'] = worker_processes
+
+            if job_payload['chunksize'] == 0:
+                job_payload['chunksize'] = worker_processes
+                job_payload['config']['lithops']['chunksize'] = worker_processes
+
+            # Make sure only max_workers are started
+            chunksize = job_payload['chunksize']
+            max_workers = job_payload['max_workers']
+            required_workers = min(max_workers, total_calls // chunksize + (total_calls % chunksize > 0))
 
         def create_workers(workers_to_create):
             current_workers_old = set(self.backend.workers)
@@ -216,10 +222,10 @@ class StandaloneHandler:
         new_workers = []
 
         if self.exec_mode == StandaloneMode.CONSUME.value:
-            total_workers = total_required_workers
+            total_workers = 1
 
         elif self.exec_mode == StandaloneMode.CREATE.value:
-            new_workers = create_workers(total_required_workers)
+            new_workers = create_workers(required_workers)
             total_workers = len(new_workers)
 
         elif self.exec_mode == StandaloneMode.REUSE.value:
@@ -229,9 +235,9 @@ class StandaloneHandler:
             )
             total_workers = len(workers)
             logger.debug(f"Found {total_workers} free workers connected to {self.backend.master}")
-            if total_workers < total_required_workers:
+            if total_workers < required_workers:
                 # create missing delta of workers
-                workers_to_create = total_required_workers - total_workers
+                workers_to_create = required_workers - total_workers
                 logger.debug(f'Going to create {workers_to_create} new workers')
                 new_workers = create_workers(workers_to_create)
                 total_workers += len(new_workers)
@@ -239,8 +245,8 @@ class StandaloneHandler:
         if total_workers == 0:
             raise Exception('It was not possible to create any worker')
 
-        logger.debug(f'ExecutorID {executor_id} | JobID {job_id} - Going to run {total_calls} '
-                     f'activations in {min(total_workers, total_required_workers)} workers')
+        logger.debug(f'ExecutorID {executor_id} | JobID {job_id} - Going to run '
+                     f'{total_calls} activations in {total_workers} workers')
 
         logger.debug(f"Checking if {self.backend.master} is ready")
         if not self._is_master_service_ready():

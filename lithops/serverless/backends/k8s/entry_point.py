@@ -85,11 +85,7 @@ def run_job(payload):
 
     total_calls = payload['total_calls']
     job_key = payload['job_key']
-    worker_processes = payload['worker_processes']
     chunksize = payload['chunksize']
-
-    # Optimize chunksize to the number of processess if necessary
-    chunksize = worker_processes if worker_processes > chunksize else chunksize
 
     call_ids = payload['call_ids']
     data_byte_ranges = payload['data_byte_ranges']

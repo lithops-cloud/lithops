@@ -22,8 +22,7 @@ from lithops.constants import SA_DEFAULT_CONFIG_KEYS
 
 MANDATORY_PARAMETERS_1 = ('instance_id',
                           'floating_ip',
-                          'iam_api_key',
-                          'worker_processes')
+                          'iam_api_key')
 
 MANDATORY_PARAMETERS_2 = ('resource_group_id',
                           'iam_api_key')
@@ -71,14 +70,16 @@ def load_config(config_data):
     else:
         params_to_check = MANDATORY_PARAMETERS_2
 
+    if "worker_processes" not in config_data['ibm_vpc']:
+        config_data['ibm_vpc']['worker_processes'] = "AUTO"
+
+    if "chunksize" not in config_data['lithops']:
+        config_data['lithops']['chunksize'] = 0
+
     for param in params_to_check:
         if param not in config_data['ibm_vpc']:
             msg = f"'{param}' is mandatory in 'ibm_vpc' section of the configuration"
             raise Exception(msg)
-
-    if "worker_processes" not in config_data['ibm_vpc']:
-        procs = config_data['ibm_vpc']['worker_profile_name'].split('-')[1].split('x')[0]
-        config_data['ibm_vpc']['worker_processes'] = int(procs)
 
     if "region" not in config_data['ibm_vpc'] and "endpoint" not in config_data['ibm_vpc']:
         msg = "'region' or 'endpoint' parameter is mandatory in 'ibm_vpc' section of the configuration"

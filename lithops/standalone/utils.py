@@ -31,6 +31,10 @@ class JobStatus(Enum):
     DONE = 'done'
 
 
+class LithopsValidationError(Exception):
+    pass
+
+
 MASTER_SERVICE_NAME = 'lithops-master.service'
 MASTER_SERVICE_FILE = f"""
 [Unit]

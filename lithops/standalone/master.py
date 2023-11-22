@@ -43,7 +43,8 @@ from lithops.constants import (
     JOBS_DIR,
     SA_SERVICE_PORT,
     SA_CONFIG_FILE,
-    SA_DATA_FILE
+    SA_DATA_FILE,
+    CPU_COUNT
 )
 from lithops.utils import (
     verify_runtime_name,
@@ -237,6 +238,8 @@ def run_job_local(work_queue):
             localhos_handler.init()
             running_job_key = job_payload['job_key']
             jobs_list[running_job_key]['status'] = JobStatus.RUNNING.value
+            wp = job_payload['worker_processes']
+            job_payload['worker_processes'] = CPU_COUNT if wp == "AUTO" else wp
             localhos_handler.invoke(job_payload)
             wait_job_completed(running_job_key)
             jobs_list[running_job_key]['status'] = JobStatus.DONE.value

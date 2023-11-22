@@ -74,6 +74,7 @@ class AzureVMSBackend:
 
         self.master = None
         self.workers = []
+        self.instance_types = {}
 
         msg = COMPUTE_CLI_MSG.format('Azure Virtual Machines')
         logger.info(f"{msg} - Region: {self.location}")
@@ -261,7 +262,7 @@ class AzureVMSBackend:
 
         def get_floating_ip(fip_name):
             try:
-                fip_info = self.network_client.network_security_groups.get(
+                fip_info = self.network_client.public_ip_addresses.get(
                     self.config['resource_group'], fip_name
                 )
                 self.config['floating_ip'] = fip_info.ip_address
@@ -317,6 +318,25 @@ class AzureVMSBackend:
             logger.debug(f"SHH key pair generated: {key_filename}")
 
         self.config['ssh_key_filename'] = key_filename
+
+    def _get_all_instance_types(self):
+        """
+        Get all virtual machine sizes in the specified location
+        """
+        if 'instance_types' in self.azure_data:
+            self.instance_types = self.azure_data['instance_types']
+            return
+
+        vm_sizes = self.compute_client.virtual_machine_sizes.list(self.location)
+
+        instances = {}
+
+        for vm_size in vm_sizes:
+            instance_name = vm_size.name
+            cpu_count = vm_size.number_of_cores
+            instances[instance_name] = cpu_count
+
+        self.instance_types = instances
 
     def _create_master_instance(self):
         """
@@ -381,6 +401,8 @@ class AzureVMSBackend:
             self._create_master_floating_ip()
             # Create the ssh key pair if not exists
             self._create_ssh_key()
+            # Request instance types
+            self._get_all_instance_types()
 
             # Create the master VM instance
             self._create_master_instance()
@@ -399,7 +421,8 @@ class AzureVMSBackend:
                 'security_group_id': self.config['security_group_id'],
                 'security_group_name': self.config['security_group_name'],
                 'floating_ip_id': self.config['floating_ip_id'],
-                'floating_ip_name': self.config['floating_ip_name']
+                'floating_ip_name': self.config['floating_ip_name'],
+                'instance_types': self.instance_types
             }
 
         self._dump_azure_vms_data()
@@ -590,6 +613,12 @@ class AzureVMSBackend:
         Return the worker profile name
         """
         return self.config['worker_instance_type']
+
+    def get_worker_cpu_count(self):
+        """
+        Returns the number of CPUs in the worker instance type
+        """
+        return self.instance_types[self.config['worker_instance_type']]
 
     def create_worker(self, name):
         """

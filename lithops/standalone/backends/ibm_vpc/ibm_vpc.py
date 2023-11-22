@@ -37,9 +37,9 @@ from lithops.standalone.utils import (
     CLOUD_CONFIG_WORKER,
     CLOUD_CONFIG_WORKER_PK,
     StandaloneMode,
-    get_host_setup_script
+    get_host_setup_script,
+    LithopsValidationError
 )
-from lithops.standalone import LithopsValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -827,6 +827,12 @@ class IBMVPCBackend:
         Return the worker profile name
         """
         return self.config['worker_profile_name']
+
+    def get_worker_cpu_count(self):
+        """
+        Returns the number of CPUs in the worker instance type
+        """
+        return int(self.config['worker_profile_name'].split('-')[1].split('x')[0])
 
     def create_worker(self, name):
         """

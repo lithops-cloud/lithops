@@ -33,9 +33,9 @@ from lithops import utils
 from lithops.constants import COMPUTE_CLI_MSG
 from lithops.version import __version__
 
-invoke_mutex = Lock()
-
 from . import config
+
+invoke_mutex = Lock()
 
 logger = logging.getLogger(__name__)
 
