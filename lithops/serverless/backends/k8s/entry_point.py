@@ -137,9 +137,9 @@ def run_job_k8s_rabbitmq(payload, job_index, running_jobs):
     logger.info("Finishing kubernetes execution")
 
 # Function to calculate the number of executions of this pod
-def calculate_executions(total_cpus_cluster, pod_cpus, range_ids_pod, total_functions):
-    base_executions = total_functions // total_cpus_cluster
-    remaining_executions = total_functions % total_cpus_cluster
+def calculate_executions(num_cpus_cluster, pod_cpus, range_ids_pod, total_functions):
+    base_executions = total_functions // num_cpus_cluster
+    remaining_executions = total_functions % num_cpus_cluster
 
     # Calculate the number of executions based on the pod CPUs and the number of executions
     pod_executions = pod_cpus * base_executions
@@ -156,7 +156,7 @@ def calculate_executions(total_cpus_cluster, pod_cpus, range_ids_pod, total_func
 
 # Callback to receive the payload and run the jobs
 def callback_run_jobs(ch, method, properties, body):
-    global range_start, range_end, total_cpus_cluster
+    global range_start, range_end, num_cpus_cluster
     payload = json.loads(body)
 
     total_calls = payload['total_calls']
@@ -175,8 +175,8 @@ def callback_run_jobs(ch, method, properties, body):
             return
 
         pod_cpus = range_end - range_start + 1
-        total_executions, bases_executions = calculate_executions(total_cpus_cluster, pod_cpus, [range_start, range_end], total_calls)
-
+        total_executions, bases_executions = calculate_executions(num_cpus_cluster, pod_cpus, [range_start, range_end], total_calls)
+        
         logger.info(f"Total executions: {total_executions}")
         logger.info(f"Starting {requested_cpus} processes")
 
@@ -197,7 +197,7 @@ def callback_run_jobs(ch, method, properties, body):
                 while execution_id < pod_cpus and total_executions != 0:
                     if running_jobs.value < pod_cpus:
                         running_jobs.value += 1
-                        p = Process(target=run_job_k8s_rabbitmq, args=(payload, (total_cpus_cluster * (bases + 1)) + range_start + execution_id, running_jobs)).start()
+                        p = Process(target=run_job_k8s_rabbitmq, args=(payload, (num_cpus_cluster * (bases + 1)) + range_start + execution_id, running_jobs)).start()
 
                         execution_id += 1
                         total_executions = total_executions - 1
@@ -207,41 +207,27 @@ def callback_run_jobs(ch, method, properties, body):
         # The IDs are not assigned yet
         pass
 
-# Callback to receive the range of IDs of this pod
-def callback_ranges_ids(ch, method, properties, body):
-    global range_start, range_end, total_cpus_cluster
-    msg = json.loads(body)
-
-    range_start = msg["range_start"]
-    range_end = msg["range_end"]
-    total_cpus_cluster = msg["total_cpus"]
-
-    logger.info(f"Range assigned {range_start} - {range_end}")
-    logger.info(f"Total cpus {total_cpus_cluster}")
-
 def start_rabbitmq_listening(payload):
-    rabbitmq_url = payload['amqp_url']
-    n_processes = int(round(float(payload['cpu'])))
-
-    params = pika.URLParameters(rabbitmq_url)
+    global range_start, range_end, num_cpus_cluster
+    params = pika.URLParameters(payload['amqp_url'])
     connection = pika.BlockingConnection(params)
     channel = connection.channel()
 
-    # Declare queue to receive the range of IDs of this pod
-    id_pod = str(uuid.uuid4())
-    channel.queue_declare(queue='id-assignation')
-    channel.queue_declare(queue=id_pod)
+    # Get the range of IDs of this pod
+    range_start = payload['range_start']
+    range_end = payload['range_end']
+    num_cpus_cluster = payload['num_cpus_cluster']
+    queue_name = payload['queue_name']
 
     # Declare and bind exchange to get the payload
-    channel.exchange_declare(exchange='lithops', exchange_type='fanout')
-    random_queue_id = channel.queue_declare(queue='', exclusive=True).method.queue
-    channel.queue_bind(exchange='lithops', queue=random_queue_id)
+    channel.exchange_declare(exchange='lithops', exchange_type='fanout', durable=True)
 
-    # Start the assignation and listening to the new job
-    channel.basic_consume(queue=id_pod, on_message_callback=callback_ranges_ids, auto_ack=True)
-    channel.basic_consume(queue=random_queue_id, on_message_callback=callback_run_jobs, auto_ack=True)
-    channel.basic_publish(exchange='', routing_key='id-assignation',
-                        body=json.dumps({"num_cpus": n_processes, "data_reception_id": id_pod, }))
+    # Use a durable queue with a unique name
+    channel.queue_declare(queue=queue_name, durable=True)
+    channel.queue_bind(exchange='lithops', queue=queue_name)
+
+    # Start listening to the new job
+    channel.basic_consume(queue=queue_name, on_message_callback=callback_run_jobs, auto_ack=True)
 
     logger.info(f"Listening to rabbitmq...")
     channel.start_consuming()

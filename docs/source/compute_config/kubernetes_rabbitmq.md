@@ -82,7 +82,7 @@ In this scenario, it is evident that the invocation time is consistently reduced
 
 #### Plot 3: Kubernetes K8s RabbitMQ. 
 
-*Elapsed time = 8,4 sec.*
+*Elapsed time = 8,35 sec.*
 
 ![Kubernetes K8s RabbitMQ plot](../images/plots_kubernetes/rabbitmq_histogram.png)
 
