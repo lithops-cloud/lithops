@@ -452,7 +452,14 @@ class CodeEngineBackend:
 
         total_calls = job_payload['total_calls']
         chunksize = job_payload['chunksize']
+        max_workers = job_payload['max_workers']
+
+        # Make sure only max_workers are started
         total_workers = total_calls // chunksize + (total_calls % chunksize > 0)
+        if max_workers < total_workers:
+            chunksize = total_calls // max_workers + (total_calls % max_workers > 0)
+            total_workers = total_calls // chunksize + (total_calls % chunksize > 0)
+            job_payload['chunksize'] = chunksize
 
         jobdef_name = self._format_jobdef_name(docker_image_name, runtime_memory)
 

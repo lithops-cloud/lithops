@@ -111,19 +111,19 @@ In this mode, Lithops can start and stop an existing VM, and deploy an entire jo
 
 Edit your lithops config and add the relevant keys:
 
-   ```yaml
-   lithops:
-	  backend: ibm_vpc
+```yaml
+lithops:
+    backend: ibm_vpc
 
-   ibm:
-      iam_api_key: <iam-api-key>
+ibm:
+    iam_api_key: <iam-api-key>
 
-   ibm_vpc:
-      exec_mode: consume
-      region   : <REGION>
-      instance_id : <INSTANCE ID OF THE VM>
-      floating_ip  : <FLOATING IP ADDRESS OF THE VM>
-   ```
+ibm_vpc:
+    exec_mode: consume
+    region   : <REGION>
+    instance_id : <INSTANCE ID OF THE VM>
+    floating_ip  : <FLOATING IP ADDRESS OF THE VM>
+```
 
 If you need to create new VM, then follow the steps to create and update Lithops configuration:
 
@@ -151,7 +151,7 @@ If you need to create new VM, then follow the steps to create and update Lithops
 |ibm_vpc | floating_ip | | yes | Floatting IP address atached to your VM instance|
 |ibm_vpc | ssh_username | root |no | Username to access the VM |
 |ibm_vpc | ssh_key_filename | ~/.ssh/id_rsa | no | Path to the ssh key file provided to create the VM. It will use the default path if not provided |
-|ibm_vpc | worker_processes | 2 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker. It is recommendable to set this value to the same number of CPUs of the VM. |
+|ibm_vpc | worker_processes | AUTO | no | Number of Lithops processes within a given worker. This is used to parallelize function activations within the worker. By default it detects the amount of CPUs in the VM|
 |ibm_vpc | runtime | python3 | no | Runtime name to run the functions. Can be a container image name. If not set Lithops will use the defeuv python3 interpreter of the VM |
 |ibm_vpc | auto_dismantle | True |no | If False then the VM is not stopped automatically.|
 |ibm_vpc | soft_dismantle_timeout | 300 |no| Time in seconds to stop the VM instance after a job **completed** its execution |

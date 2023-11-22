@@ -352,15 +352,16 @@ class KubernetesBackend:
         """
         master_ip = self._start_master(docker_image_name)
 
-        max_workers = job_payload['max_workers']
         executor_id = job_payload['executor_id']
         job_id = job_payload['job_id']
-
         job_key = job_payload['job_key']
         self.jobs.append(job_key)
 
         total_calls = job_payload['total_calls']
         chunksize = job_payload['chunksize']
+        max_workers = job_payload['max_workers']
+
+        # Make sure only max_workers are started
         total_workers = min(max_workers, total_calls // chunksize + (total_calls % chunksize > 0))
 
         activation_id = f'lithops-{job_key.lower()}'

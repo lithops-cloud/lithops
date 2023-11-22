@@ -74,6 +74,8 @@ class AWSEC2Backend:
         self.vpc_key = None
         self.user_key = self.config['access_key_id'][-4:].lower()
 
+        self.instance_types = {}
+
         client_config = botocore.client.Config(
             user_agent_extra=self.config['user_agent']
         )
@@ -361,6 +363,35 @@ class AWSEC2Backend:
             self.config["spot_price"] = max(spot_prices)
             logger.debug(f'Current spot instance price for {wit} is ${self.config["spot_price"]}')
 
+    def _get_all_instance_types(self):
+        """
+        Gets all instance types and their CPU COUNT
+        """
+        if 'instance_types' in self.ec2_data:
+            self.instance_types = self.ec2_data['instance_types']
+            return
+
+        instances = {}
+        next_token = None
+
+        while True:
+            if next_token:
+                response = self.ec2_client.describe_instance_types(NextToken=next_token)
+            else:
+                response = self.ec2_client.describe_instance_types()
+
+            for instance_type in response['InstanceTypes']:
+                instance_name = instance_type['InstanceType']
+                cpu_count = instance_type['VCpuInfo']['DefaultVCpus']
+                instances[instance_name] = cpu_count
+
+            next_token = response.get('NextToken')
+
+            if not next_token:
+                break
+
+        self.instance_types = instances
+
     def init(self):
         """
         Initialize the backend by defining the Master VM
@@ -410,6 +441,8 @@ class AWSEC2Backend:
             self._request_image_id()
             # Request SPOT price
             self._request_spot_price()
+            # Request instance types
+            self._get_all_instance_types()
 
             # Create the master VM instance
             self._create_master_instance()
@@ -428,7 +461,8 @@ class AWSEC2Backend:
                 'ssh_key_filename': self.config['ssh_key_filename'],
                 'subnet_id': self.config['subnet_id'],
                 'security_group_id': self.config['security_group_id'],
-                'internet_gateway_id': self.config['internet_gateway_id']
+                'internet_gateway_id': self.config['internet_gateway_id'],
+                'instance_types': self.instance_types
             }
 
         self._dump_ec2_data()
@@ -751,6 +785,12 @@ class AWSEC2Backend:
         Return the worker instance type
         """
         return self.config['worker_instance_type']
+
+    def get_worker_cpu_count(self):
+        """
+        Returns the number of CPUs in the worker instance type
+        """
+        return self.instance_types[self.config['worker_instance_type']]
 
     def create_worker(self, name):
         """

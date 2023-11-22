@@ -22,7 +22,7 @@ import json
 import flask
 import logging
 from lithops.version import __version__
-from lithops.utils import setup_lithops_logger, b64str_to_dict,\
+from lithops.utils import setup_lithops_logger, b64str_to_dict, \
     iterchunks
 from lithops.worker import function_handler
 from lithops.worker import function_invoker

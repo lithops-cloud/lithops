@@ -21,8 +21,8 @@ def load_config(config_data):
 
     config_data['vm']['max_workers'] = 1
 
-    if 'worker_processes' not in config_data['vm']:
-        config_data['vm']['worker_processes'] = 1
+    if "worker_processes" not in config_data['vm']:
+        config_data['vm']['worker_processes'] = "AUTO"
 
     for param in REQ_PARAMETERS:
         if param not in config_data['vm']:
