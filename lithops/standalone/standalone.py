@@ -26,14 +26,10 @@ import concurrent.futures as cf
 
 from lithops.utils import BackendType, is_lithops_worker, create_handler_zip
 from lithops.constants import SA_SERVICE_PORT, SA_INSTALL_DIR, TEMP_DIR
-from lithops.standalone.utils import StandaloneMode, get_master_setup_script
+from lithops.standalone.utils import StandaloneMode, LithopsValidationError, get_master_setup_script
 from lithops.version import __version__
 
 logger = logging.getLogger(__name__)
-
-
-class LithopsValidationError(Exception):
-    pass
 
 
 class StandaloneHandler:

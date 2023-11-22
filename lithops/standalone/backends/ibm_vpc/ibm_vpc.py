@@ -37,9 +37,9 @@ from lithops.standalone.utils import (
     CLOUD_CONFIG_WORKER,
     CLOUD_CONFIG_WORKER_PK,
     StandaloneMode,
-    get_host_setup_script
+    get_host_setup_script,
+    LithopsValidationError
 )
-from lithops.standalone import LithopsValidationError
 
 logger = logging.getLogger(__name__)
 

@@ -51,9 +51,6 @@ class SSHClient():
 
             logger.debug(f"{self.ip_address} ssh client created")
         except Exception as e:
-            pk = self.ssh_credentials.get('key_filename')
-            if pk and str(e) == 'Authentication failed.':
-                raise LithopsValidationError(f'Private key {pk} is not valid')
             raise e
 
         return self.ssh_client
