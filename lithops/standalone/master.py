@@ -494,7 +494,7 @@ def run():
         'status': JobStatus.RECEIVED.value,
         'submitted': job_payload['host_submit_tstamp'],
         'func_name': job_payload['func_name'],
-        'worker_type': job_payload['worker_instance_type'],
+        'worker_type': job_payload.get('worker_instance_type'),
         'runtime_name': job_payload['runtime_name'],
         'exec_mode': exec_mode,
         'total_tasks': len(job_payload['call_ids']),
