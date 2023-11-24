@@ -10,6 +10,7 @@
 - [IBM VPC] Added delete_image() method for deleting VM images through the cli
 - [localhost] New localhost backend v2 to maximize resource utilization when multiple maps are executed from the same FunctionExecutor
 - [Standalone] Automatically retrieve the CPU_COUNT from the VM in case worker_processes is not set in config
+- [Storage] Include "Config" paramater to download_file() and upload_file() methods for boto3 related backends
 
 ### Changed
 - [Standalone] Changed default mode of execution from 'consume' to 'reuse'

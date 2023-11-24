@@ -116,7 +116,7 @@ class OCIObjectStorageBackend:
                 raise e
         return data
 
-    def upload_file(self, file_name, bucket, key=None, extra_args={}):
+    def upload_file(self, file_name, bucket, key=None, extra_args={}, config=None):
         '''
         Uploads a file to OCI Object Storage. The file is read in binary mode and uploaded under a specified key.
         If no key is provided, the base name of the file is used as the key.
@@ -139,7 +139,7 @@ class OCIObjectStorageBackend:
             return False
         return True
 
-    def download_file(self, bucket, key, file_name=None, extra_args={}):
+    def download_file(self, bucket, key, file_name=None, extra_args={}, config=None):
         '''
         Download a file from the specified bucket and key in the object storage.
         :param bucket: Name of the bucket

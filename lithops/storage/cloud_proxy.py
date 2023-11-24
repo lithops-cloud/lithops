@@ -24,8 +24,8 @@ from lithops.constants import JOBS_PREFIX, TEMP_PREFIX, LOGS_PREFIX, RUNTIMES_PR
 
 
 def remove_lithops_keys(keys):
-    return list(filter(lambda key: not any([key.startswith(prefix) for prefix in
-                                            [JOBS_PREFIX, TEMP_PREFIX, LOGS_PREFIX, RUNTIMES_PREFIX]]), keys))
+    return list(filter(lambda key: not any([key.startswith(prefix) for prefix in [
+                JOBS_PREFIX, TEMP_PREFIX, LOGS_PREFIX, RUNTIMES_PREFIX]]), keys))
 
 
 #
@@ -88,13 +88,15 @@ class CloudFileProxy:
         paths = self._storage.list_bucket_keys(prefix=prefix)
         names = set()
         for p in paths:
-            if any([p.startswith(prefix) for prefix in [JOBS_PREFIX, TEMP_PREFIX, LOGS_PREFIX, RUNTIMES_PREFIX]]):
+            if any([p.startswith(prefix) for prefix in [
+                   JOBS_PREFIX, TEMP_PREFIX, LOGS_PREFIX, RUNTIMES_PREFIX]]):
                 continue
             p = p[len(prefix):] if p.startswith(prefix) else p
             if p.startswith('/'):
                 p = p[1:]
             splits = p.split('/')
-            name = splits[0] + '/' if suffix_dirs and len(splits) > 1 else splits[0]
+            name = splits[0] + \
+                '/' if suffix_dirs and len(splits) > 1 else splits[0]
             names |= {name}
         return list(names)
 
@@ -113,11 +115,23 @@ class CloudFileProxy:
         elif topdown:
             yield top, dirs, files
             for dir_name in dirs:
-                for result in self.walk(base_os.path.join(top, dir_name), topdown, onerror, followlinks):
+                for result in self.walk(
+                        base_os.path.join(
+                            top,
+                            dir_name),
+                        topdown,
+                        onerror,
+                        followlinks):
                     yield result
         else:
             for dir_name in dirs:
-                for result in self.walk(base_os.path.join(top, dir_name), topdown, onerror, followlinks):
+                for result in self.walk(
+                        base_os.path.join(
+                            top,
+                            dir_name),
+                        topdown,
+                        onerror,
+                        followlinks):
                     yield result
             yield top, dirs, files
 
@@ -144,7 +158,9 @@ class _path:
         if path.startswith('/'):
             prefix = path[1:]
 
-        keys = remove_lithops_keys(self._storage.list_bucket_keys(prefix=prefix))
+        keys = remove_lithops_keys(
+            self._storage.list_bucket_keys(
+                prefix=prefix))
         if len(keys) == 1:
             key = keys.pop()
             key = key[len(prefix):]
@@ -160,7 +176,9 @@ class _path:
         if prefix != '' and not prefix.endswith('/'):
             prefix = prefix + '/'
 
-        keys = remove_lithops_keys(self._storage.list_bucket_keys(prefix=prefix))
+        keys = remove_lithops_keys(
+            self._storage.list_bucket_keys(
+                prefix=prefix))
         return bool(keys)
 
     def exists(self, path):
