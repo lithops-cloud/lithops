@@ -45,6 +45,10 @@ class StandaloneHandler:
         self.exec_mode = self.config['exec_mode']
         self.is_lithops_worker = is_lithops_worker()
 
+        exec_modes = [StandaloneMode.CONSUME.value, StandaloneMode.CREATE.value, StandaloneMode.REUSE.value]
+        if self.exec_mode not in exec_modes:
+            raise Exception(f"Invalid execution mode '{self.exec_mode}'. Use one of {exec_modes}")
+
         module_location = f'lithops.standalone.backends.{self.backend_name}'
         sb_module = importlib.import_module(module_location)
         StandaloneBackend = getattr(sb_module, 'StandaloneBackend')

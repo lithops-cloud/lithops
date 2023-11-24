@@ -20,7 +20,7 @@ import json
 import logging
 import itertools
 import importlib
-from typing import Optional, List, Union, Tuple, Dict, TextIO, BinaryIO
+from typing import Optional, List, Union, Tuple, Dict, TextIO, BinaryIO, Any
 
 from lithops.constants import CACHE_DIR, RUNTIMES_PREFIX, JOBS_PREFIX, TEMP_PREFIX
 from lithops.utils import is_lithops_worker
@@ -31,6 +31,7 @@ logger = logging.getLogger(__name__)
 
 
 RUNTIME_META_CACHE = {}
+COBJECTS_INDEX = itertools.count()
 
 
 class Storage:
@@ -38,6 +39,7 @@ class Storage:
     An Storage object is used by partitioner and other components to access
     underlying storage backend without exposing the the implementation details.
     """
+
     def __init__(self, config=None, backend=None, storage_config=None):
         """ Creates an Storage instance
 
@@ -51,7 +53,8 @@ class Storage:
         if storage_config:
             self.config = storage_config
         else:
-            storage_config = default_storage_config(config_data=config, backend=backend)
+            storage_config = default_storage_config(
+                config_data=config, backend=backend)
             self.config = extract_storage_config(storage_config)
 
         self.backend = self.config['backend']
@@ -66,8 +69,6 @@ class Storage:
             logger.error("An exception was produced trying to create the "
                          f"'{self.backend}' storage backend")
             raise e
-
-        self._created_cobjects_n = itertools.count()
 
     def get_client(self) -> object:
         """
@@ -94,7 +95,8 @@ class Storage:
         if hasattr(self.storage_handler, 'create_bucket'):
             return self.storage_handler.create_bucket(bucket)
 
-    def put_object(self, bucket: str, key: str, body: Union[str, bytes, TextIO, BinaryIO]):
+    def put_object(self, bucket: str, key: str,
+                   body: Union[str, bytes, TextIO, BinaryIO]):
         """
         Adds an object to a bucket of the storage backend.
 
@@ -104,23 +106,37 @@ class Storage:
         """
         return self.storage_handler.put_object(bucket, key, body)
 
-    def get_object(self, bucket: str, key: str,
+    def get_object(self,
+                   bucket: str,
+                   key: str,
                    stream: Optional[bool] = False,
-                   extra_get_args: Optional[Dict] = {}) -> Union[str, bytes, TextIO, BinaryIO]:
+                   extra_get_args: Optional[Dict] = {}) -> Union[str,
+                                                                 bytes,
+                                                                 TextIO,
+                                                                 BinaryIO]:
         """
         Retrieves objects from the storage backend.
 
         :param bucket: Name of the bucket
         :param key: Key of the object
         :param stream: Get the object data or a file-like object
-        :param extra_get_args: Extra get arguments to be passed to the underlying backend implementation (dict). For example, to specify the byte-range to read: ``extra_get_args={'Range': 'bytes=0-100'}``.
+        :param extra_get_args: Extra get arguments to be passed to the underlying backend implementation (dict).
+            For example, to specify the byte-range to read: ``extra_get_args={'Range': 'bytes=0-100'}``.
 
         :return: Object, as a binary array or as a file-like stream if parameter `stream` is enabled
         """
-        return self.storage_handler.get_object(bucket, key, stream, extra_get_args)
+        return self.storage_handler.get_object(
+            bucket, key, stream, extra_get_args)
 
-    def upload_file(self, file_name: str, bucket: str, key: Optional[str] = None,
-                    extra_args: Optional[Dict] = {}) -> Union[str, bytes, TextIO, BinaryIO]:
+    def upload_file(self,
+                    file_name: str,
+                    bucket: str,
+                    key: Optional[str] = None,
+                    extra_args: Optional[Dict] = {},
+                    config: Optional[Any] = None) -> Union[str,
+                                                           bytes,
+                                                           TextIO,
+                                                           BinaryIO]:
         """
         Upload a file to a bucket of the storage backend. (Multipart upload)
 
@@ -128,11 +144,19 @@ class Storage:
         :param bucket: Name of the bucket
         :param key: Key of the object
         :param extra_args: Extra get arguments to be passed to the underlying backend implementation (dict).
+        :param config: The transfer configuration to be used when performing the transfer (boto3.s3.transfer.TransferConfig).
         """
-        return self.storage_handler.upload_file(file_name, bucket, key, extra_args)
+        return self.storage_handler.upload_file(file_name, bucket, key, extra_args, config)
 
-    def download_file(self, bucket: str, key: str, file_name: Optional[str] = None,
-                      extra_args: Optional[Dict] = {}) -> Union[str, bytes, TextIO, BinaryIO]:
+    def download_file(self,
+                      bucket: str,
+                      key: str,
+                      file_name: Optional[str] = None,
+                      extra_args: Optional[Dict] = {},
+                      config: Optional[Any] = None) -> Union[str,
+                                                             bytes,
+                                                             TextIO,
+                                                             BinaryIO]:
         """
         Download a file from the storage backend. (Multipart download)
 
@@ -140,10 +164,11 @@ class Storage:
         :param key: Key of the object
         :param file_name: Name of the file to save the object data
         :param extra_args: Extra get arguments to be passed to the underlying backend implementation (dict).
+        :param config: The transfer configuration to be used when performing the transfer (boto3.s3.transfer.TransferConfig).
 
         :return: Object, as a binary array or as a file-like stream if parameter `stream` is enabled
         """
-        return self.storage_handler.download_file(bucket, key, file_name, extra_args)
+        return self.storage_handler.download_file(bucket, key, file_name, extra_args, config)
 
     def head_object(self, bucket: str, key: str) -> Dict:
         """
@@ -189,7 +214,11 @@ class Storage:
         """
         return self.storage_handler.head_bucket(bucket)
 
-    def list_objects(self, bucket: str, prefix: Optional[str] = None, match_pattern: Optional[str] = None) -> List[Tuple[str, int]]:
+    def list_objects(self,
+                     bucket: str,
+                     prefix: Optional[str] = None,
+                     match_pattern: Optional[str] = None) -> List[Tuple[str,
+                                                                        int]]:
         """
         Returns all of the object keys in a bucket. For each object, the list contains the name
         of the object (key) and the size.
@@ -214,8 +243,13 @@ class Storage:
         """
         return self.storage_handler.list_keys(bucket, prefix)
 
-    def put_cloudobject(self, body: Union[str, bytes, TextIO, BinaryIO],
-                        bucket: Optional[str] = None, key: Optional[str] = None) -> utils.CloudObject:
+    def put_cloudobject(self,
+                        body: Union[str,
+                                    bytes,
+                                    TextIO,
+                                    BinaryIO],
+                        bucket: Optional[str] = None,
+                        key: Optional[str] = None) -> utils.CloudObject:
         """
         Put a CloudObject into storage.
 
@@ -226,7 +260,7 @@ class Storage:
         :return: CloudObject instance
         """
         prefix = os.environ.get('__LITHOPS_SESSION_ID', '')
-        coid = hex(next(self._created_cobjects_n))[2:]
+        coid = hex(next(COBJECTS_INDEX))[2:]
         coname = 'cloudobject_{}'.format(coid)
         name = '/'.join([prefix, coname]) if prefix else coname
         key = key or '/'.join([TEMP_PREFIX, name])
@@ -235,8 +269,12 @@ class Storage:
 
         return utils.CloudObject(self.backend, bucket, key)
 
-    def get_cloudobject(self, cloudobject: utils.CloudObject,
-                        stream: Optional[bool] = False) -> Union[str, bytes, TextIO, BinaryIO]:
+    def get_cloudobject(self,
+                        cloudobject: utils.CloudObject,
+                        stream: Optional[bool] = False) -> Union[str,
+                                                                 bytes,
+                                                                 TextIO,
+                                                                 BinaryIO]:
         """
         Get a CloudObject's content from storage.
 
@@ -282,7 +320,8 @@ class Storage:
         for backend in cobjs:
             if backend == self.backend:
                 for bucket in cobjs[backend]:
-                    self.storage_handler.delete_objects(bucket, cobjs[backend][co.bucket])
+                    self.storage_handler.delete_objects(
+                        bucket, cobjs[backend][co.bucket])
             else:
                 raise Exception("CloudObject: Invalid Storage backend")
 
@@ -304,8 +343,9 @@ class InternalStorage:
         self.bucket = self.storage.bucket
 
         if not self.bucket:
-            raise Exception(f"'storage_bucket' is mandatory under '{self.backend}'"
-                            " section of the configuration")
+            raise Exception(
+                f"'storage_bucket' is mandatory under '{self.backend}'"
+                " section of the configuration")
 
         self.storage.create_bucket(self.bucket)
 
@@ -347,7 +387,8 @@ class InternalStorage:
         :param key: data key
         :return: data content
         """
-        return self.storage.get_object(self.bucket, key, stream, extra_get_args)
+        return self.storage.get_object(
+            self.bucket, key, stream, extra_get_args)
 
     def get_func(self, key):
         """
@@ -374,12 +415,14 @@ class InternalStorage:
         callset_prefix = '/'.join([JOBS_PREFIX, executor_id])
         keys = self.storage.list_keys(self.bucket, callset_prefix)
 
-        running_keys = [k.split('/') for k in keys if utils.init_key_suffix in k]
+        running_keys = [k.split('/')
+                        for k in keys if utils.init_key_suffix in k]
         running_callids = [(tuple(k[1].rsplit("-", 1) + [k[2]]),
                             k[3].replace(utils.init_key_suffix, ''))
                            for k in running_keys]
 
-        done_keys = [k.split('/')[1:] for k in keys if utils.status_key_suffix in k]
+        done_keys = [k.split('/')[1:]
+                     for k in keys if utils.status_key_suffix in k]
         done_callids = [tuple(k[0].rsplit("-", 1) + [k[1]]) for k in done_keys]
 
         return set(running_callids), set(done_callids)
@@ -435,24 +478,28 @@ class InternalStorage:
             return runtime_meta
 
         else:
-            logger.debug("Runtime metadata not found in local cache. Retrieving it from storage")
+            logger.debug(
+                "Runtime metadata not found in local cache. Retrieving it from storage")
             try:
                 obj_key = '/'.join(path).replace('\\', '/')
-                logger.debug('Trying to download runtime metadata from: {}://{}/{}'
-                             .format(self.backend, self.bucket, obj_key))
+                logger.debug(
+                    'Trying to download runtime metadata from: {}://{}/{}' .format(
+                        self.backend, self.bucket, obj_key))
                 json_str = self.storage.get_object(self.bucket, obj_key)
                 logger.debug('Runtime metadata found in storage')
                 runtime_meta = json.loads(json_str.decode("ascii"))
 
                 # Save runtime meta to cache
                 try:
-                    if not os.path.exists(os.path.dirname(filename_local_path)):
+                    if not os.path.exists(
+                            os.path.dirname(filename_local_path)):
                         os.makedirs(os.path.dirname(filename_local_path))
 
                     with open(filename_local_path, "w") as f:
                         f.write(json.dumps(runtime_meta))
                 except Exception as e:
-                    logger.error("Could not save runtime meta to local cache: {}".format(e))
+                    logger.error(
+                        "Could not save runtime meta to local cache: {}".format(e))
 
                 RUNTIME_META_CACHE['/'.join(path)] = runtime_meta
                 return runtime_meta
@@ -474,7 +521,8 @@ class InternalStorage:
 
         if not is_lithops_worker():
             filename_local_path = os.path.join(CACHE_DIR, *path)
-            logger.debug("Storing runtime metadata into local cache: {}".format(filename_local_path))
+            logger.debug(
+                "Storing runtime metadata into local cache: {}".format(filename_local_path))
 
             if not os.path.exists(os.path.dirname(filename_local_path)):
                 os.makedirs(os.path.dirname(filename_local_path))

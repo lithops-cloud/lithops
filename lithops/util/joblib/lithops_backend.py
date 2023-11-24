@@ -151,9 +151,7 @@ def find_shared_objects(calls):
         if len(positions) > 1 and consider_sharing(obj):
             logger.debug('Proxying {}'.format(type(obj)))
             obj_bin = pickle.dumps(obj)
-            prefix = os.environ.get('__LITHOPS_SESSION_ID', '')
-            key = '/'.join([TEMP_PREFIX, prefix, str(id(obj))])
-            cloud_object = storage.put_cloudobject(obj_bin, key=key)
+            cloud_object = storage.put_cloudobject(obj_bin)
 
             for pos in positions:
                 call_n, idx_or_key = pos

@@ -139,7 +139,7 @@ class CephStorageBackend:
                 retries += 1
         return data
 
-    def upload_file(self, file_name, bucket, key=None, extra_args={}):
+    def upload_file(self, file_name, bucket, key=None, extra_args={}, config=None):
         """Upload a file to an S3 bucket
 
         :param file_name: File to upload
@@ -151,15 +151,16 @@ class CephStorageBackend:
         if key is None:
             key = os.path.basename(file_name)
 
-        # Upload the file
+        kwargs = {'ExtraArgs': extra_args} if extra_args else {}
+        kwargs.update({'Config': config} if config else {})
         try:
-            self.s3_client.upload_file(file_name, bucket, key, ExtraArgs=extra_args)
+            self.s3_client.upload_file(Filename=file_name, Bucket=bucket, Key=key, **kwargs)
         except botocore.exceptions.ClientError as e:
             logging.error(e)
             return False
         return True
 
-    def download_file(self, bucket, key, file_name=None, extra_args={}):
+    def download_file(self, bucket, key, file_name=None, extra_args={}, config=None):
         """Download a file from an S3 bucket
 
         :param bucket: Bucket to download from
@@ -171,9 +172,10 @@ class CephStorageBackend:
         if file_name is None:
             file_name = key
 
-        # Download the file
+        kwargs = {'ExtraArgs': extra_args} if extra_args else {}
+        kwargs.update({'Config': config} if config else {})
         try:
-            self.s3_client.download_file(bucket, key, file_name, ExtraArgs=extra_args)
+            self.s3_client.download_file(Bucket=bucket, Key=key, Filename=file_name, **kwargs)
         except botocore.exceptions.ClientError as e:
             logging.error(e)
             return False

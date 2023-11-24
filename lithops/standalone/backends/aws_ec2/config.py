@@ -31,7 +31,7 @@ DEFAULT_CONFIG_KEYS = {
 }
 
 REQ_PARAMS_1 = ('instance_id',)
-REQ_PARAMS_2 = ('iam_role', )
+REQ_PARAMS_2 = ('iam_role',)
 
 
 def load_config(config_data):
