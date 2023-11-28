@@ -101,7 +101,6 @@ class KubernetesBackend:
             params = pika.URLParameters(self.amqp_url)
             self.connection = pika.BlockingConnection(params)
             self.channel = self.connection.channel()
-            self.channel.exchange_declare(exchange='lithops', exchange_type='fanout', durable=True)
 
             # Define some needed variables
             self._get_nodes()
@@ -309,7 +308,7 @@ class KubernetesBackend:
         logger.debug('Note that this backend does not manage runtimes')
         return []
 
-    def _create_pod(self, pod, pod_name, cpu, memory, cluster_info_cpu, num_cpus_cluster):
+    def _create_pod(self, pod, pod_name, cpu, memory):
         pod["metadata"]["name"] = f"lithops-pod-{pod_name}"
         pod["spec"]["nodeName"] = pod_name.split("-")[0]
         pod["spec"]["containers"][0]["image"] = self.image
@@ -317,30 +316,16 @@ class KubernetesBackend:
         pod["spec"]["containers"][0]["resources"]["requests"]["memory"] = memory
         pod["metadata"]["labels"] = {"app": "lithops-pod"}
 
-        range_start = sum(value for pod_name_cluster, value in cluster_info_cpu.items() if pod_name_cluster < pod_name)
-        range_end = range_start + cpu - 1
-
-        # Queue name: pod_name + hour + minute
-        t = time.localtime()
-        queue_name = f"{pod_name}-{t.tm_hour}-{t.tm_min}"
-
         payload = {
             'log_level': 'DEBUG',
             'amqp_url': self.amqp_url,
-            'queue_name': queue_name,
-            'range_start': range_start,
-            'range_end': range_end,
-            'num_cpus_cluster': num_cpus_cluster
+            'cpus_pod': cpu,
         }
 
         pod["spec"]["containers"][0]["args"][1] = "start_rabbitmq"
         pod["spec"]["containers"][0]["args"][2] = utils.dict_to_b64str(payload)
         
         self.core_api.create_namespaced_pod(body=pod, namespace='default')
-
-        # Init rabbitmq queues to not lose any message
-        self.channel.queue_declare(queue=queue_name, durable=True)
-        self.channel.queue_bind(exchange='lithops', queue=queue_name)
 
     def _get_nodes(self) :
         self.nodes = []
@@ -416,7 +401,7 @@ class KubernetesBackend:
 
         # Create all the pods
         for pod_name in cluster_info_cpu.keys():
-            self._create_pod(default_pod_config, pod_name, cluster_info_cpu[pod_name], cluster_info_mem[pod_name], cluster_info_cpu, num_cpus_cluster)
+            self._create_pod(default_pod_config, pod_name, cluster_info_cpu[pod_name], cluster_info_mem[pod_name])
 
         logger.info(f"Total cpus of the cluster: {num_cpus_cluster}")        
 
@@ -573,8 +558,28 @@ class KubernetesBackend:
             job_key = job_payload['job_key']
             self.jobs.append(job_key)
 
-            # Send the payload from the client to the workers through rabbitmq
-            self.channel.basic_publish(exchange='lithops', routing_key='', body=json.dumps(job_payload))
+            # Send packages of tasks to the queue
+            granularity = job_payload['total_calls'] // len(self.nodes) if self.k8s_config['worker_processes'] <= 1 else self.k8s_config['worker_processes']
+            times, res = divmod(job_payload['total_calls'], granularity)
+
+            for i in range(times + (1 if res != 0 else 0)):
+                num_tasks = granularity if i < times else res
+                payload_edited = job_payload.copy()
+
+                start_index = i * granularity
+                end_index = start_index + num_tasks 
+
+                payload_edited['call_ids']  = payload_edited['call_ids'][start_index:end_index]
+                payload_edited['data_byte_ranges'] = payload_edited['data_byte_ranges'][start_index:end_index]
+                payload_edited['total_calls'] = num_tasks
+
+                self.channel.basic_publish(
+                    exchange='',
+                    routing_key='task_queue',
+                    body=json.dumps(payload_edited),
+                    properties=pika.BasicProperties(
+                        delivery_mode=pika.spec.PERSISTENT_DELIVERY_MODE
+                    ))
 
             activation_id = f'lithops-{job_key.lower()}'
         else:

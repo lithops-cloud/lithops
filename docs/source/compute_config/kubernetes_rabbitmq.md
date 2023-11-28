@@ -66,7 +66,7 @@ In these graphs, we will compare the usage of the original K8s architecture with
 
 All of these tests consist of running 225 functions on a 2-node cluster, each with 128 CPUs. The executed function involves a 5-second sleep.
 
-In this scenario, it is evident that the invocation time is consistently reduced by a factor of **up to 4x** on cold start and **up to 5x** on warm start. This represents a significant enhancement for parallel function execution.
+In this scenario, it is evident that the invocation time is consistently reduced by a factor of **up to 5x** on cold start and **up to 7x** on warm start. This represents a significant enhancement for parallel function execution.
 
 #### Plot 1: Kubernetes K8s original. 
 
@@ -82,13 +82,13 @@ In this scenario, it is evident that the invocation time is consistently reduced
 
 #### Plot 3: Kubernetes K8s RabbitMQ. 
 
-*Elapsed time = 8,35 sec.*
+*Elapsed time = 8 sec.*
 
 ![Kubernetes K8s RabbitMQ plot](../images/plots_kubernetes/rabbitmq_histogram.png)
 
 #### Plot 4: Kubernetes K8s RabbitMQ with workers on Warm Start. 
 
-*Elapsed time = 6,5 sec.*
+*Elapsed time = 5,9 sec.*
 
 ![Kubernetes K8s RabbitMQ with Warm Start plot](../images/plots_kubernetes/rabbitmq_warm_start_histogram.png)
 
