@@ -543,7 +543,7 @@ def list_runtimes(config, backend, storage, debug):
     compute_handler = ServerlessHandler(compute_config, None)
     runtimes = compute_handler.list_runtimes()
 
-    headers = ['Runtime Name', 'Memory Size', 'Lithops Version']
+    headers = ['Runtime Name', 'Memory Size', 'Lithops Version', 'Worker Name']
 
     print()
     print(tabulate(runtimes, headers=headers))
@@ -623,6 +623,8 @@ def delete(name, config, memory, version, backend, storage, debug):
     runtime_name = runtime_info['runtime_name']
 
     runtimes = compute_handler.list_runtimes(runtime_name)
+    runtimes_to_delete = []
+
     for runtime in runtimes:
         to_delete = True
         if memory is not None and runtime[1] != int(memory):
@@ -630,11 +632,18 @@ def delete(name, config, memory, version, backend, storage, debug):
         if version is not None and runtime[2] != version:
             to_delete = False
         if to_delete:
-            compute_handler.delete_runtime(runtime[0], runtime[1], runtime[2])
-            runtime_key = compute_handler.get_runtime_key(runtime[0], runtime[1], runtime[2])
-            internal_storage.delete_runtime_meta(runtime_key)
+            runtimes_to_delete.append((runtime[0], runtime[1], runtime[2]))
 
-    logger.info('Runtime deleted')
+    if not runtimes_to_delete:
+        logger.info("Runtime not found")
+        return
+
+    for runtime in runtimes_to_delete:
+        compute_handler.delete_runtime(runtime[0], runtime[1], runtime[2])
+        runtime_key = compute_handler.get_runtime_key(runtime[0], runtime[1], runtime[2])
+        internal_storage.delete_runtime_meta(runtime_key)
+
+    logger.info("Runtime deleted")
 
 
 # /---------------------------------------------------------------------------/

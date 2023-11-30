@@ -11,6 +11,7 @@
 - [localhost] New localhost backend v2 to maximize resource utilization when multiple maps are executed from the same FunctionExecutor
 - [Standalone] Automatically retrieve the CPU_COUNT from the VM in case worker_processes is not set in config
 - [Storage] Include "Config" paramater to download_file() and upload_file() methods for boto3 related backends
+- [Cli] Include 'worker name' in the 'lithops runtime list' cmd
 
 ### Changed
 - [Standalone] Changed default mode of execution from 'consume' to 'reuse'
@@ -20,6 +21,7 @@
 - [IBM VPC] Changed default image name from "lithops-worker-default" to "lithops-ubuntu-22-04-3-minimal-amd64-1"
 - [Serializer] Improve serializer performance when include_modules is set in config
 - [SSH Client] Do not raise LithopsValidationError on Authentication failed
+- [AWS Lambda] Renamed function name to "lithops-worker-xxxx"
 
 ### Fixed
 - [Job] Fixed max data size in the invocation payload

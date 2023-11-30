@@ -96,7 +96,7 @@ class KubernetesBackend:
         logger.info(f"{msg} - Namespace: {self.namespace}")
 
     def _format_job_name(self, runtime_name, runtime_memory, version=__version__):
-        name = f'{runtime_name}-{runtime_memory}-{version}'
+        name = f'{runtime_name}-{runtime_memory}-{version}-{self.user}'
         name_hash = hashlib.sha1(name.encode()).hexdigest()[:10]
 
         return f'lithops-worker-{version.replace(".", "")}-{name_hash}'

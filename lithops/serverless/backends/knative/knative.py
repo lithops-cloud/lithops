@@ -610,13 +610,13 @@ class KnativeServingBackend:
         Deletes all runtimes deployed in knative
         """
         runtimes = self.list_runtimes()
-        for img_name, memory, version in runtimes:
+        for img_name, memory, version, wk_name in runtimes:
             self.delete_runtime(img_name, memory, version)
 
     def list_runtimes(self, runtime_name='all'):
         """
         List all the runtimes deployed in knative
-        return: list of tuples [runtime_name, memory, version]
+        return: list of tuples [runtime_name, memory, version, worker_name]
         """
         knative_services = self.custom_api.list_namespaced_custom_object(
             group=config.DEFAULT_GROUP,
@@ -630,13 +630,14 @@ class KnativeServingBackend:
             try:
                 template = service['spec']['template']
                 labels = template['metadata']['labels']
+                wk_name = service['metadata']['name']
                 if labels and 'type' in labels and labels['type'] == 'lithops-runtime':
                     version = labels['lithops-version'].replace('-', '.')
                     container = template['spec']['containers'][0]
                     memory = container['resources']['requests']['memory'].replace('Mi', '')
                     memory = int(memory.replace('Gi', '')) * 1024 if 'Gi' in memory else memory
                     if runtime_name in container['image'] or runtime_name == 'all':
-                        runtimes.append((container['image'], memory, version))
+                        runtimes.append((container['image'], memory, version, wk_name))
             except Exception:
                 # It is not a lithops runtime
                 pass
