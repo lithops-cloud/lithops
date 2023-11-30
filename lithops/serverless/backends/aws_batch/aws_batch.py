@@ -516,7 +516,7 @@ class AWSBatchBackend:
             rt_name, rt_mem, version = self._unformat_jobdef_name(jobdef_name=job_def['jobDefinitionName'])
             if runtime_name != 'all' and runtime_name != rt_name:
                 continue
-            runtimes.append((rt_name, rt_mem, version))
+            runtimes.append((rt_name, rt_mem, version, job_def['jobDefinitionName']))
 
         return runtimes
 

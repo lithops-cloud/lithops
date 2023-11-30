@@ -372,12 +372,13 @@ class GCPCloudRunBackend:
         runtimes = []
         for item in res['items']:
             labels = item['spec']['template']['metadata']['labels']
+            wk_name = item['metadata']['name']
             if labels and 'type' in labels and labels['type'] == 'lithops-runtime':
                 version = labels['lithops-version'].replace('-', '.')
                 container = item['spec']['template']['spec']['containers'][0]
                 memory = container['resources']['limits']['memory'].replace('Mi', '')
                 if runtime_name in container['image'] or runtime_name == 'all':
-                    runtimes.append((container['image'], memory, version))
+                    runtimes.append((container['image'], memory, version, wk_name))
 
         return runtimes
 

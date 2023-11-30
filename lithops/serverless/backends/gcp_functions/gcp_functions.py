@@ -176,7 +176,7 @@ class GCPFunctionsBackend:
                     time.sleep(self.retry_sleep)
                 else:
                     raise Exception(f'Unknown status: {response["status"]}')
-            except Exception as e:
+            except Exception:
                 logger.debug('Function status is DELETED')
                 break
 
@@ -351,7 +351,7 @@ class GCPFunctionsBackend:
     def clean(self, **kwargs):
         logger.debug('Going to delete all deployed runtimes')
         runtimes = self.list_runtimes()
-        for runtime_name, runtime_memory, version in runtimes:
+        for runtime_name, runtime_memory, version, wk_name in runtimes:
             self.delete_runtime(runtime_name, runtime_memory, version)
 
     def list_runtimes(self, runtime_name='all'):
@@ -364,11 +364,12 @@ class GCPFunctionsBackend:
         for func in response.get('functions', []):
             if func['labels'] and 'type' in func['labels'] \
                and func['labels']['type'] == 'lithops-runtime':
+                fn_name = func['name'].rsplit('/', 1)[-1]
                 version = func['labels']['lithops_version'].replace('-', '.')
-                name = func['labels']['runtime_name']
+                rt_name = func['labels']['runtime_name']
                 memory = func['availableMemoryMb']
-                if runtime_name == name or runtime_name == 'all':
-                    runtimes.append((name, memory, version))
+                if runtime_name == rt_name or runtime_name == 'all':
+                    runtimes.append((rt_name, memory, version, fn_name))
 
         return runtimes
 
