@@ -12,6 +12,7 @@
 - [Standalone] Automatically retrieve the CPU_COUNT from the VM in case worker_processes is not set in config
 - [Storage] Include "Config" paramater to download_file() and upload_file() methods for boto3 related backends
 - [Cli] Include 'worker name' in the 'lithops runtime list' cmd
+- [AWS Lambda] Created 'namespace' config key to virtualy separate worker deployments
 
 ### Changed
 - [Standalone] Changed default mode of execution from 'consume' to 'reuse'

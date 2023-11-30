@@ -59,6 +59,7 @@ class AWSLambdaBackend:
         self.user_agent = lambda_config['user_agent']
         self.region_name = lambda_config['region']
         self.role_arn = lambda_config['execution_role']
+        self.namespace = lambda_config.get('namespace')
 
         logger.debug('Creating Boto3 AWS Session and Lambda Client')
 
@@ -98,12 +99,16 @@ class AWSLambdaBackend:
         self.package = f'lithops_v{__version__.replace(".", "")}_{self.user_key}'
 
         msg = COMPUTE_CLI_MSG.format('AWS Lambda')
-        logger.info(f"{msg} - Region: {self.region_name}")
+        if self.namespace:
+            logger.info(f"{msg} - Region: {self.region_name} - Namespace: {self.namespace}")
+        else:
+            logger.info(f"{msg} - Region: {self.region_name}")
 
     def _format_function_name(self, runtime_name, runtime_memory, version=__version__):
         name = f'{runtime_name}-{runtime_memory}-{version}'
         name_hash = hashlib.sha1(name.encode("utf-8")).hexdigest()[:10]
-        return f'lithops-worker-{self.user_key}-{version.replace(".", "")}-{name_hash}'
+        fn_name = f'lithops-worker-{self.user_key}-{version.replace(".", "")}-{name_hash}'
+        return f'{self.namespace}-{fn_name}' if self.namespace else fn_name
 
     def _format_layer_name(self, runtime_name, version=__version__):
         package = self.package.replace(__version__.replace(".", ""), version.replace(".", ""))
@@ -556,9 +561,12 @@ class AWSLambdaBackend:
         """
         logger.debug('Deleting all runtimes')
 
+        prefix = f'{self.namespace}-lithops-worker-{self.user_key}' \
+            if self.namespace else f'lithops-worker-{self.user_key}'
+
         def delete_runtimes(response):
             for function in response['Functions']:
-                if function['FunctionName'].startswith(f'lithops-worker-{self.user_key}'):
+                if function['FunctionName'].startswith(prefix):
                     self._delete_function(function['FunctionName'])
 
         response = self.lambda_client.list_functions(FunctionVersion='ALL')
@@ -579,9 +587,12 @@ class AWSLambdaBackend:
         """
         runtimes = []
 
+        prefix = f'{self.namespace}-lithops-worker-{self.user_key}' \
+            if self.namespace else f'lithops-worker-{self.user_key}'
+
         def get_runtimes(response):
             for function in response['Functions']:
-                if not function['FunctionName'].startswith(f'lithops-worker-{self.user_key}'):
+                if not function['FunctionName'].startswith(prefix):
                     continue
                 fn_name = function['FunctionName']
                 rt_memory = function['MemorySize']
