@@ -66,21 +66,22 @@ aws_lambda:
 
 ### AWS Lambda
 
-| Group      | Key                 | Default | Mandatory | Additional info                                                                                                                                                                    |
-|------------|---------------------|---------|-----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| aws_lambda | execution_role      |         | yes       | ARN of the execution role created at step 3. You can find it in the Role page at the *Roles* list in the *IAM* section (e.g. `arn:aws:iam::1234567890:role/lithops-execution-role` |
-| aws_lambda | region         |         | no       | Region where Lambda functions will be invoked (e.g. `us-east-1`). Lithops will use the `region` set under the `aws` section if it is not set here |
-| aws_lambda | max_workers         | 1000    | no        | Max number of workers per `FunctionExecutor()`                                                                                                                                     |
-| aws_lambda | worker_processes    | 1       | no        | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker                                                            |
-| aws_lambda | runtime             |         | no        | Docker image name                                                                                                                                                                  |
-| aws_lambda | runtime_memory      | 256     | no        | Memory limit in MB. Default 256MB                                                                                                                                                  |
-| aws_lambda | runtime_timeout     | 180     | no        | Runtime timeout in seconds. Default 3 minutes                                                                                                                                      |
-| aws_lambda | invoke_pool_threads | 64      | no        | Number of concurrent threads used for invocation                                                                                                                                   |
-| aws_lambda | remote_invoker      | False   | no        | Activate the remote invoker feature that uses one cloud function to spawn all the actual `map()` activations                                                                       |
-| aws_lambda | architecture        | x86_64  | no        | Runtime architecture. One of **x86_64** or **arm64**                                                                                                                               |
-| aws_lambda | ephemeral_storage   | 512     | no         | Ephemeral storage (`/tmp`) size in MB (must be between 512 MB and 10240 MB)                                                                                                        |
-| aws_lambda | env_vars   | {}      | no         | List of {name: ..., value: ...} pairs for Lambda instance environment variables                                                                                                    |
- 
+| Group | Key | Default | Mandatory | Additional info |
+| --- | --- | --- | --- | --- |
+| aws_lambda | execution_role |  | yes | ARN of the execution role created at step 3. You can find it in the Role page at the *Roles* list in the *IAM* section (e.g. `arn:aws:iam::1234567890:role/lithops-execution-role` |
+| aws_lambda | region |  | no | Region where Lambda functions will be invoked (e.g. `us-east-1`). Lithops will use the `region` set under the `aws` section if it is not set here |
+| aws_lambda | max_workers | 1000 | no | Max number of workers per `FunctionExecutor()` |
+| aws_lambda | worker_processes | 1 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker |
+| aws_lambda | runtime |  | no | Docker image name |
+| aws_lambda | runtime_memory | 256 | no | Memory limit in MB. Default 256MB |
+| aws_lambda | runtime_timeout | 180 | no | Runtime timeout in seconds. Default 3 minutes |
+| aws_lambda | invoke_pool_threads | 64 | no | Number of concurrent threads used for invocation |
+| aws_lambda | remote_invoker | False | no | Activate the remote invoker feature that uses one cloud function to spawn all the actual `map()` activations |
+| aws_lambda | architecture | x86_64 | no | Runtime architecture. One of **x86_64** or **arm64** |
+| aws_lambda | ephemeral_storage | 512 | no | Ephemeral storage (`/tmp`) size in MB (must be between 512 MB and 10240 MB) |
+| aws_lambda | env_vars | {} | no | List of {name: ..., value: ...} pairs for Lambda instance environment variables |
+| aws_lambda | namespace |  | no | Virtual namesapce. This can be usefull to virtually group Lithops function workers. The functions deployed by lithops will be prefixed by this namespace. For example you can set it to differentiate between `prod`, `dev` and `stage` environments.  |
+
 ## Additional configuration
 
 ### VPC
