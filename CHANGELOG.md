@@ -35,7 +35,7 @@
 - [k8s] Limit the size of the "user" label as the maximum allowed is 63 chars
 - [Joblib] Fix shared objects utility when multiple maps run from the same executor
 - [Azure VMs] Fix wrong exception when trying to connect to the master VM for the first time
-
+- [Partitioner] Fix partitioner
 
 ## [v3.0.1]
 

@@ -668,8 +668,8 @@ class WrappedStreamingBodyPartition(WrappedStreamingBody):
             self._first_byte = self.sb.read(self._plusbytes)
 
         retval = self.sb.read(n)
-
-        self.pos += len(retval)
+        last_row_end_pos = len(retval)
+        self.pos += last_row_end_pos
         first_row_start_pos = 0
 
         if self._first_read and self._first_byte and \
@@ -680,11 +680,11 @@ class WrappedStreamingBodyPartition(WrappedStreamingBody):
             first_row_start_pos = retval.find(self.newline_char) + 1
             self._first_read = False
 
-        last_row_end_pos = self.pos
         # Find end of the line in threshold
-        if self.pos > self.size:
-            last_byte_pos = retval[self.size - 1:].find(self.newline_char)
-            last_row_end_pos = self.size + last_byte_pos
+        if self.pos >= self.size:
+            current_end_pos = last_row_end_pos - (self.pos - self.size)
+            last_byte_pos = retval[current_end_pos - 1:].find(self.newline_char)
+            last_row_end_pos = current_end_pos + last_byte_pos
             self._eof = True
 
         return retval[first_row_start_pos:last_row_end_pos]

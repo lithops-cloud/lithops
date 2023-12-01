@@ -23,7 +23,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from lithops.storage import Storage
 from lithops.storage.utils import clean_bucket
-from lithops.constants import JOBS_PREFIX, TEMP_PREFIX, CLEANER_DIR,\
+from lithops.constants import JOBS_PREFIX, TEMP_PREFIX, CLEANER_DIR, \
     CLEANER_PID_FILE, CLEANER_LOG_FILE
 
 log_file_stream = open(CLEANER_LOG_FILE, 'a')

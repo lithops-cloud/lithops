@@ -64,6 +64,12 @@ def my_map_function_obj(obj, id):
     counter = {}
     data = obj.data_stream.read()
 
+    # chunk = obj.data_stream.read(10000)
+    # data = b""
+    # while chunk:
+    #     data += chunk
+    #     chunk = obj.data_stream.read(10000)
+
     print('Data lenght: {}'.format(len(data)))
 
     for line in data.splitlines():
