@@ -10,9 +10,10 @@
 - [IBM VPC] Added delete_image() method for deleting VM images through the cli
 - [localhost] New localhost backend v2 to maximize resource utilization when multiple maps are executed from the same FunctionExecutor
 - [Standalone] Automatically retrieve the CPU_COUNT from the VM in case worker_processes is not set in config
+- [Standalone] Keep track of the worker and job status
 - [Storage] Include "Config" paramater to download_file() and upload_file() methods for boto3 related backends
 - [Cli] Include 'worker name' in the 'lithops runtime list' cmd
-- [AWS Lambda] Created 'namespace' config key to virtualy separate worker deployments
+- [AWS Lambda] Created 'namespace' config key to virtually separate worker deployments
 
 ### Changed
 - [Standalone] Changed default mode of execution from 'consume' to 'reuse'

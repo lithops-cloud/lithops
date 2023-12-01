@@ -282,6 +282,26 @@ def error(msg):
     return response
 
 
+@app.route('/worker/status/stop', methods=['POST'])
+def stop_worker():
+    """
+    Returns the current workers list
+    """
+    worker_ip = flask.request.remote_addr
+    workers[worker_ip].status = WorkerStatus.STOPPED.value
+    return ('', 204)
+
+
+@app.route('/worker/status/idle', methods=['POST'])
+def idle_worker():
+    """
+    Returns the current workers list
+    """
+    worker_ip = flask.request.remote_addr
+    workers[worker_ip].status = WorkerStatus.IDLE.value
+    return ('', 204)
+
+
 @app.route('/worker/list', methods=['GET'])
 def list_workers():
     """
@@ -358,7 +378,6 @@ def get_task(work_queue_name):
     global work_queues
 
     worker_ip = flask.request.remote_addr
-    workers[worker_ip].status = WorkerStatus.IDLE.value
 
     try:
         task_payload = work_queues.setdefault(work_queue_name, queue.Queue()).get(False)
@@ -485,8 +504,7 @@ def run():
     job_key = job_payload['job_key']
     logger.debug(f'Received job {job_key}')
 
-    budget_keeper.last_usage_time = time.time()
-    budget_keeper.jobs[job_key] = JobStatus.RUNNING.value
+    budget_keeper.add_job(job_key)
 
     exec_mode = job_payload['config']['standalone']['exec_mode']
 
