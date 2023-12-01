@@ -23,6 +23,7 @@ class WorkerStatus(Enum):
     INSTALLING = "installing"
     BUSSY = "active/bussy"
     IDLE = "active/idle"
+    STOPPED = "stopped"
 
 
 class JobStatus(Enum):

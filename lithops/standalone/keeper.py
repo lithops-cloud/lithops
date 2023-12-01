@@ -15,16 +15,18 @@ class BudgetKeeper(threading.Thread):
     """
     BudgetKeeper class used to automatically stop the VM instance
     """
-    def __init__(self, config):
+    def __init__(self, config, stop_callback=None):
         threading.Thread.__init__(self)
         self.last_usage_time = time.time()
 
         self.standalone_config = config
+        self.stop_callback = stop_callback
         self.auto_dismantle = config['auto_dismantle']
         self.soft_dismantle_timeout = config['soft_dismantle_timeout']
         self.hard_dismantle_timeout = config['hard_dismantle_timeout']
         self.exec_mode = config['exec_mode']
 
+        self.runing = False
         self.jobs = {}
 
         with open(SA_DATA_FILE, 'r') as ad:
@@ -37,15 +39,12 @@ class BudgetKeeper(threading.Thread):
                      f"instance ID: {self.instance.instance_id}")
         logger.debug(f"Delete {self.instance.name} on dismantle: {self.instance.delete_on_dismantle}")
 
-    def update_config(self, config):
-        self.standalone_config.update(config)
-        self.auto_dismantle = config['auto_dismantle']
-        self.soft_dismantle_timeout = config['soft_dismantle_timeout']
-        self.hard_dismantle_timeout = config['hard_dismantle_timeout']
-        self.exec_mode = config['exec_mode']
+    def add_job(self, job_key):
+        self.last_usage_time = time.time()
+        self.jobs[job_key] = JobStatus.RUNNING.value
 
     def run(self):
-        runing = True
+        self.runing = True
         jobs_running = False
 
         logger.debug("BudgetKeeper started")
@@ -59,7 +58,7 @@ class BudgetKeeper(threading.Thread):
             # being started forever due a wrong configuration
             logger.debug(f'Auto dismantle deactivated - Hard Timeout: {self.hard_dismantle_timeout}s')
 
-        while runing:
+        while self.runing:
             time_since_last_usage = time.time() - self.last_usage_time
 
             for job_key in self.jobs.keys():
@@ -88,10 +87,16 @@ class BudgetKeeper(threading.Thread):
                 check_interval = min(60, max(time_to_dismantle / 10, 1))
                 time.sleep(check_interval)
             else:
-                logger.debug("Dismantling setup")
-                try:
-                    self.instance.stop()
-                    runing = False
-                except Exception as e:
-                    logger.debug(f"Dismantle error {e}")
-                    time.sleep(5)
+                self.stop_instance()
+
+    def stop_instance(self):
+        logger.debug("Dismantling setup")
+
+        self.stop_callback() if self.stop_callback is not None else None
+
+        try:
+            self.instance.stop()
+            self.runing = False
+        except Exception as e:
+            logger.debug(f"Dismantle error {e}")
+            time.sleep(5)

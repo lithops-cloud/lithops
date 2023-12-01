@@ -22,6 +22,7 @@ import flask
 import requests
 from pathlib import Path
 from threading import Thread
+from functools import partial
 from gevent.pywsgi import WSGIServer
 
 from lithops.constants import LITHOPS_TEMP_DIR, SA_LOG_FILE, JOBS_DIR, \
@@ -59,6 +60,24 @@ def stop(job_key):
     response = flask.jsonify({'response': 'cancel'})
     response.status_code = 200
     return response
+
+
+def notify_stop(master_ip):
+    try:
+        url = f'http://{master_ip}:{SA_SERVICE_PORT}/worker/status/stop'
+        resp = requests.post(url)
+        logger.debug("Stop worker: " + str(resp.status_code))
+    except Exception as e:
+        logger.error(e)
+
+
+def notify_idle(master_ip):
+    try:
+        url = f'http://{master_ip}:{SA_SERVICE_PORT}/worker/status/idle'
+        resp = requests.post(url)
+        logger.debug("Free worker: " + str(resp.status_code))
+    except Exception as e:
+        logger.error(e)
 
 
 def wait_job_completed(job_key):
@@ -128,8 +147,7 @@ def run_worker(
 
         running_job_key = job_payload['job_key']
 
-        budget_keeper.last_usage_time = time.time()
-        budget_keeper.jobs[running_job_key] = 'running'
+        budget_keeper.add_job(running_job_key)
 
         try:
             localhos_handler.invoke(job_payload)
@@ -137,6 +155,7 @@ def run_worker(
             logger.error(e)
 
         wait_job_completed(running_job_key)
+        notify_idle(master_ip)
 
 
 def main():
@@ -166,7 +185,7 @@ def main():
 
     # Start the budget keeper. It is responsible to automatically terminate the
     # worker after X seconds
-    budget_keeper = BudgetKeeper(standalone_config)
+    budget_keeper = BudgetKeeper(standalone_config, partial(notify_stop, master_ip))
     budget_keeper.start()
 
     # Start the http server. This will be used by the master VM to pìng this
@@ -187,7 +206,7 @@ def main():
     try:
         # Try to stop the current worker VM once no more pending tasks to run
         # in case of create mode
-        budget_keeper.vm.stop()
+        budget_keeper.stop_instance()
     except Exception:
         pass
 

@@ -96,7 +96,8 @@ class AWSLambdaBackend:
             self.user_key = caller_id["UserId"][-4:].lower()
 
         self.ecr_client = self.aws_session.client('ecr', region_name=self.region_name)
-        self.package = f'lithops_v{__version__.replace(".", "")}_{self.user_key}'
+        package = f'lithops_v{__version__.replace(".", "")}_{self.user_key}'
+        self.package = f"{package}_{self.namespace}" if self.namespace else package
 
         msg = COMPUTE_CLI_MSG.format('AWS Lambda')
         if self.namespace:
@@ -116,11 +117,11 @@ class AWSLambdaBackend:
 
     def _get_default_runtime_name(self):
         py_version = utils.CURRENT_PY_VERSION.replace('.', '')
-        return f'default-layer-runtime-v{py_version}'
+        return f'default-runtime-v{py_version}'
 
     def _is_container_runtime(self, runtime_name):
         name = runtime_name.split('/', 1)[-1]
-        return 'default-layer-runtime-v' not in name
+        return 'default-runtime-v' not in name
 
     def _format_repo_name(self, runtime_name):
         if ':' in runtime_name:
