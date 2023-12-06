@@ -73,8 +73,6 @@ jupyter_execute_notebooks = 'never'
 # html_theme = 'sphinx_material'
 # html_theme = 'karma_sphinx_theme'
 html_theme = 'sphinx_book_theme'
-
-html_logo = "_static/lithops_logo_readme.png"
 html_favicon = '_static/favicon.png'
 
 language = 'en'
@@ -82,16 +80,23 @@ language = 'en'
 html_theme_options = {
     'repository_url': 'https://github.com/lithops-cloud/lithops',
     'repository_branch': 'master',
-    'google_analytics_id': 'G-7YKZHZYDCR',
     'use_issues_button': False,
     'use_download_button': True,
     'use_fullscreen_button': False,
     'use_repository_button': True,
-    'show_navbar_depth': 1
+    'show_navbar_depth': 1,
+    # https://pydata-sphinx-theme.readthedocs.io/en/latest/user_guide/branding.html
+    "logo": {
+        "text": f"Lithops v{lithops.__version__}",
+        "image_light": "_static/lithops_logo_readme.png",
+        "image_dark": "_static/lithops_logo_readme.png",
+    },
+    # https://pydata-sphinx-theme.readthedocs.io/en/latest/user_guide/analytics.html
+    "analytics": {
+        "google_analytics_id": "G-7YKZHZYDCR",
+    }
 }
 
-html_title = f"Lithops v{lithops.__version__}"
-# html_title = ''
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,

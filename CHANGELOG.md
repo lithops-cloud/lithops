@@ -1,6 +1,18 @@
 # Changelog
 
-## [v3.0.2.dev0]
+## [v3.1.1.dev0]
+
+### Added
+- 
+
+### Changed
+- 
+
+### Fixed
+- 
+
+
+## [v3.1.0]
 
 ### Added
 - [Cli] Added new 'lithops image delete' command for standalone backends
