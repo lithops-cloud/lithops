@@ -26,16 +26,17 @@ from types import SimpleNamespace
 
 from lithops import utils
 from lithops.job.partitioner import create_partitions
-from lithops.storage.utils import create_func_key, create_data_key,\
+from lithops.storage.utils import create_func_key, create_data_key, \
     create_job_key, func_key_suffix
 from lithops.job.serialize import SerializeIndependent, create_module_data
-from lithops.constants import MAX_AGG_DATA_SIZE, LOCALHOST,\
+from lithops.constants import MAX_AGG_DATA_SIZE, LOCALHOST, \
     SERVERLESS, STANDALONE, CUSTOM_RUNTIME_DIR, FAAS_BACKENDS
 
 
 logger = logging.getLogger(__name__)
 
 FUNCTION_CACHE = set()
+MAX_DATA_IN_PAYLOAD = 8 * 1024  # Per invocation. 8KB
 
 
 def create_map_job(
@@ -216,8 +217,15 @@ def _create_job(
     exclude_modules_cfg = config['lithops'].get('exclude_modules', [])
     include_modules_cfg = config['lithops'].get('include_modules', [])
 
+    if type(include_modules_cfg) is str:
+        if include_modules_cfg.lower() == 'none':
+            include_modules_cfg = None
+        else:
+            raise ValueError("'include_modules' parameter in config must be a list")
+
     exc_modules = set()
     inc_modules = set()
+
     if exclude_modules_cfg:
         exc_modules.update(exclude_modules_cfg)
     if exclude_modules:
@@ -231,7 +239,7 @@ def _create_job(
     if include_modules is None:
         inc_modules = None
 
-    logger.debug('ExecutorID {} | JobID {} - Serializing function and data'.format(executor_id, job_id))
+    logger.debug(f'ExecutorID {executor_id} | JobID {job_id} - Serializing function and data')
     job_serialize_start = time.time()
     serializer = SerializeIndependent(runtime_meta['preinstalls'])
     func_and_data_ser, mod_paths = serializer([func] + iterdata, inc_modules, exc_modules)
@@ -258,10 +266,7 @@ def _create_job(
 
     # Upload function and data
     upload_function = not config['lithops'].get('customized_runtime', False)
-    upload_data = not (
-        (len(str(data_str)) * job.chunksize < 8 * 1204 for data_str in data_strs)
-        and backend in FAAS_BACKENDS
-    )
+    upload_data = any([(len(data_str) * job.chunksize) > MAX_DATA_IN_PAYLOAD for data_str in data_strs])
 
     # Upload function and modules
     if upload_function:
@@ -286,14 +291,14 @@ def _create_job(
         function_hash = hashlib.md5(open(function_file, 'rb').read()).hexdigest()[:16]
         mod_hash = hashlib.md5(repr(sorted(mod_paths)).encode('utf-8')).hexdigest()[:16]
         job.func_key = func_key_suffix
-        job.ext_runtime_uuid = '{}{}'.format(function_hash, mod_hash)
+        job.ext_runtime_uuid = f'{function_hash}{mod_hash}'
         job.local_tmp_dir = os.path.join(CUSTOM_RUNTIME_DIR, job.ext_runtime_uuid)
         _store_func_and_modules(job.local_tmp_dir, job.func_key, func_str, module_data)
         host_job_meta['host_func_upload_time'] = 0
 
     # upload data
-    if upload_data:
-        # Upload iterdata to COS only if a single element is greater than 8KB
+    if upload_data or backend not in FAAS_BACKENDS:
+        # Upload iterdata to COS only if a single element is greater than MAX_DATA_IN_PAYLOAD
         logger.debug('ExecutorID {} | JobID {} - Uploading data to the storage backend'
                      .format(executor_id, job_id))
         # pass_iteradata through an object storage file
@@ -310,7 +315,7 @@ def _create_job(
         # pass iteradata as part of the invocation payload
         logger.debug('ExecutorID {} | JobID {} - Data per activation is < '
                      '{}. Passing data through invocation payload'
-                     .format(executor_id, job_id, utils.sizeof_fmt(8 * 1024)))
+                     .format(executor_id, job_id, utils.sizeof_fmt(MAX_DATA_IN_PAYLOAD)))
         job.data_key = None
         job.data_byte_ranges = None
         job.data_byte_strs = data_strs

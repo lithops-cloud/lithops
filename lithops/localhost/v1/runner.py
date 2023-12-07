@@ -25,7 +25,7 @@ from pathlib import Path
 
 from lithops.worker import function_handler
 from lithops.worker.utils import get_runtime_metadata
-from lithops.constants import LITHOPS_TEMP_DIR, JOBS_DIR, LOGS_DIR,\
+from lithops.constants import LITHOPS_TEMP_DIR, JOBS_DIR, LOGS_DIR, \
     RN_LOG_FILE, LOGGER_FORMAT
 
 log_file_stream = open(RN_LOG_FILE, 'a')

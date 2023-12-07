@@ -27,8 +27,11 @@ import traceback
 from six import reraise
 
 from lithops.storage import InternalStorage
-from lithops.storage.utils import check_storage_path, get_storage_path,\
+from lithops.storage.utils import (
+    check_storage_path,
+    get_storage_path,
     create_job_key
+)
 from lithops.constants import FN_LOG_FILE, LOGS_DIR
 
 logger = logging.getLogger(__name__)

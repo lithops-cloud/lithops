@@ -35,7 +35,7 @@ class OpenWhiskBackend:
     def __init__(self, ow_config, internal_storage):
         logger.debug("Creating OpenWhisk client")
         self.name = 'openwhisk'
-        self.type = 'faas'
+        self.type = utils.BackendType.FAAS.value
         self.ow_config = ow_config
         self.is_lithops_worker = utils.is_lithops_worker()
 
@@ -176,7 +176,7 @@ class OpenWhiskBackend:
                 for action in actions:
                     version, image_name, memory = self._unformat_function_name(action['name'])
                     if docker_image_name == image_name or docker_image_name == 'all':
-                        runtimes.append((image_name, memory, version))
+                        runtimes.append((action['name'], memory, version, image_name))
         return runtimes
 
     def invoke(self, docker_image_name, runtime_memory, payload):

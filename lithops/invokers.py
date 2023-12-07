@@ -138,6 +138,7 @@ class Invoker:
         payload = {'config': self.config,
                    'chunksize': job.chunksize,
                    'log_level': self.log_level,
+                   'func_name': job.function_name,
                    'func_key': job.func_key,
                    'data_key': job.data_key,
                    'extra_env': job.extra_env,
@@ -174,7 +175,7 @@ class Invoker:
                             job.function_name, job.total_calls))
 
         logger.debug('ExecutorID {} | JobID {} - Worker processes: {} - Chunksize: {}'
-                     .format(job.executor_id, job.job_id, job.worker_processes, job.chunksize))
+                     .format(job.executor_id, job.job_id, job.worker_processes, job.chunksize or "AUTO"))
 
         self.prometheus.send_metric(
             name='job_total_calls',
@@ -256,12 +257,6 @@ class BatchInvoker(Invoker):
         """
         Run a job
         """
-        # Ensure only self.max_workers are started
-        total_workers = job.total_calls // job.chunksize + (job.total_calls % job.chunksize > 0)
-        if self.max_workers < total_workers:
-            job.chunksize = job.total_calls // self.max_workers + (job.total_calls % self.max_workers > 0)
-
-        # Perform the invocation
         futures = self._run_job(job)
         self.job_monitor.start(futures)
 

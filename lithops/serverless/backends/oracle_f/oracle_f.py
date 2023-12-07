@@ -38,7 +38,7 @@ class OracleCloudFunctionsBackend:
 
     def __init__(self, oci_config, internal_storage):
         self.name = 'oracle_f'
-        self.type = 'faas'
+        self.type = utils.BackendType.FAAS.value
         self.config = oci_config
 
         self.user = oci_config['user']
@@ -83,7 +83,7 @@ class OracleCloudFunctionsBackend:
             raise Exception(f"An error occurred: ({response.status}) {response.data}")
 
     def _format_function_name(self, runtime_name, runtime_memory, version=__version__):
-        name = f'{runtime_name}-{runtime_memory}-{version}'
+        name = f'{runtime_name}-{runtime_memory}-{version}-{self.user}'
         name_hash = hashlib.sha1(name.encode("utf-8")).hexdigest()[:10]
         return f'lithops-worker-{runtime_name.split("/")[-1]}-v{version}-{name_hash}'
 
@@ -353,7 +353,7 @@ class OracleCloudFunctionsBackend:
                 image_name = function.image
                 version = function.freeform_tags['lithops_version']
                 if runtime_name == 'all' or self._format_image_name(runtime_name) == image_name:
-                    runtimes.append((image_name, memory, version))
+                    runtimes.append((image_name, memory, version, function.display_name))
 
         return runtimes
 

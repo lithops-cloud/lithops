@@ -24,6 +24,8 @@ LOGGER_FORMAT = "%(asctime)s [%(levelname)s] %(filename)s:%(lineno)s -- %(messag
 LOGGER_FORMAT_SHORT = "[%(levelname)s] %(filename)s:%(lineno)s -- %(message)s"
 LOGGER_LEVEL_CHOICES = ["debug", "info", "warning", "error", "critical"]
 
+CPU_COUNT = os.cpu_count()
+
 STORAGE_CLI_MSG = '{} client created'
 COMPUTE_CLI_MSG = '{} client created'
 
@@ -49,6 +51,8 @@ EXECUTION_TIMEOUT_DEFAULT = 1800
 EXECUTION_TIMEOUT_LOCALHOST_DEFAULT = 3600
 
 LOCALHOST_RUNTIME_DEFAULT = os.path.basename(sys.executable)
+LOCALHOST_SERVICE_IDLE_TIMEOUT = 3
+LOCALHOST_SERVICE_CHECK_INTERVAL = 2
 
 SA_INSTALL_DIR = '/opt/lithops'
 SA_TMP_DIR = '/tmp/lithops-root'
@@ -56,11 +60,11 @@ SA_LOG_FILE = f'{SA_TMP_DIR}/service.log'
 SA_SERVICE_PORT = 8080
 SA_CONFIG_FILE = os.path.join(SA_INSTALL_DIR, 'config')
 SA_DATA_FILE = os.path.join(SA_INSTALL_DIR, 'access.data')
-SA_IMAGE_NAME_DEFAULT = 'lithops-worker-default'
 
 SA_DEFAULT_CONFIG_KEYS = {
     'runtime': 'python3',
-    'exec_mode': 'consume',
+    'exec_mode': 'reuse',
+    'use_gpu': False,
     'start_timeout': 300,
     'pull_runtime': False,
     'auto_dismantle': True,
@@ -78,9 +82,10 @@ LITHOPS_TEMP_DIR = os.path.join(TEMP_DIR, USER_TEMP_DIR)
 JOBS_DIR = os.path.join(LITHOPS_TEMP_DIR, 'jobs')
 LOGS_DIR = os.path.join(LITHOPS_TEMP_DIR, 'logs')
 MODULES_DIR = os.path.join(LITHOPS_TEMP_DIR, 'modules')
-CUSTOM_RUNTIME_DIR = os.path.join(LITHOPS_TEMP_DIR, 'custom_runtime')
+CUSTOM_RUNTIME_DIR = os.path.join(LITHOPS_TEMP_DIR, 'custom-runtime')
 
-RN_LOG_FILE = os.path.join(LITHOPS_TEMP_DIR, 'runner.log')
+RN_LOG_FILE = os.path.join(LITHOPS_TEMP_DIR, 'localhost-runner.log')
+SV_LOG_FILE = os.path.join(LITHOPS_TEMP_DIR, 'localhost-service.log')
 FN_LOG_FILE = os.path.join(LITHOPS_TEMP_DIR, 'functions.log')
 
 CLEANER_DIR = os.path.join(LITHOPS_TEMP_DIR, 'cleaner')

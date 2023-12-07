@@ -44,7 +44,7 @@ class AzureFunctionAppBackend:
     def __init__(self, af_config, internal_storage):
         logger.debug("Creating Azure Functions client")
         self.name = 'azure_functions'
-        self.type = 'faas'
+        self.type = utils.BackendType.FAAS.value
         self.af_config = af_config
         self.trigger = af_config['trigger']
         self.resource_group = af_config['resource_group']
@@ -230,7 +230,7 @@ class AzureFunctionAppBackend:
                 time.sleep(10)
                 utils.run_command(cmd)
                 break
-            except Exception as e:
+            except Exception:
                 pass
 
         time.sleep(10)
@@ -295,7 +295,7 @@ class AzureFunctionAppBackend:
                     raise Exception(f'Invocation error: {resp.reason} - {resp_text}')
                 try:
                     resp_text = json.loads(resp_text)
-                except Exception as e:
+                except Exception:
                     raise Exception(f'Unable to load runtime metadata: {resp_text}')
             else:
                 # logger.debug('Invoking calls {}'.format(', '.join(payload['call_ids'])))
@@ -328,7 +328,7 @@ class AzureFunctionAppBackend:
 
         runtimes = self.list_runtimes()
 
-        for runtime_name, runtime_memory, version in runtimes:
+        for runtime_name, runtime_memory, version, wk_name in runtimes:
             self.delete_runtime(runtime_name, runtime_memory, version)
 
     def _generate_runtime_meta(self, runtime_name, memory):
@@ -367,7 +367,7 @@ class AzureFunctionAppBackend:
                 name = functionapp['Tags']['runtime_name']
                 memory = config.DEFAULT_CONFIG_KEYS['runtime_memory']
                 if runtime_name == functionapp['Name'] or runtime_name == 'all':
-                    runtimes.append((name, memory, version))
+                    runtimes.append((name, memory, version, functionapp['Name']))
 
         return runtimes
 

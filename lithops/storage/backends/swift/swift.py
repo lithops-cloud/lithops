@@ -138,7 +138,7 @@ class StorageBackend:
             print(e)
             raise StorageNoSuchKeyError(container_name, key)
 
-    def upload_file(self, file_name, bucket, key=None, extra_args={}):
+    def upload_file(self, file_name, bucket, key=None, extra_args={}, config=None):
         """Upload a file
 
         :param file_name: File to upload
@@ -159,7 +159,7 @@ class StorageBackend:
             return False
         return True
 
-    def download_file(self, bucket, key, file_name=None, extra_args={}):
+    def download_file(self, bucket, key, file_name=None, extra_args={}, config=None):
         """Download a file
 
         :param bucket: Bucket to download from

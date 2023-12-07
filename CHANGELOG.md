@@ -1,6 +1,55 @@
 # Changelog
 
-## [v3.0.1.dev0]
+## [v3.1.1.dev0]
+
+### Added
+- 
+
+### Changed
+- 
+
+### Fixed
+- 
+
+
+## [v3.1.0]
+
+### Added
+- [Cli] Added new 'lithops image delete' command for standalone backends
+- [Cli] Added new 'lithops job list' command for standalone backends
+- [Cli] Added new 'lithops worker list' command for standalone backends
+- [AWS EC2] Added delete_image() method for deleting VM images through the cli
+- [IBM VPC] Added delete_image() method for deleting VM images through the cli
+- [localhost] New localhost backend v2 to maximize resource utilization when multiple maps are executed from the same FunctionExecutor
+- [Standalone] Automatically retrieve the CPU_COUNT from the VM in case worker_processes is not set in config
+- [Standalone] Keep track of the worker and job status
+- [Storage] Include "Config" paramater to download_file() and upload_file() methods for boto3 related backends
+- [Cli] Include 'worker name' in the 'lithops runtime list' cmd
+- [AWS Lambda] Created 'namespace' config key to virtually separate worker deployments
+
+### Changed
+- [Standalone] Changed default mode of execution from 'consume' to 'reuse'
+- [Joblib] Updated the joblib backend to make it compatible with new versions of joblib
+- [Joblib] Spawn only one function when 'prefer' is set to 'threads'
+- [AWS EC2] Changed default image name from "lithops-worker-default" to "lithops-ubuntu-jammy-22.04-amd64-server"
+- [IBM VPC] Changed default image name from "lithops-worker-default" to "lithops-ubuntu-22-04-3-minimal-amd64-1"
+- [Serializer] Improve serializer performance when include_modules is set in config
+- [SSH Client] Do not raise LithopsValidationError on Authentication failed
+- [AWS Lambda] Renamed function name to "lithops-worker-xxxx"
+
+### Fixed
+- [Job] Fixed max data size in the invocation payload
+- [Multiprocessing] Fixed cpu_count
+- [Standalone] Start new workers when the VM instance type changes (in reuse mode)
+- [GCP Functions] Fixed issue with "function_url" variable
+- [Standalone] Fixed multiple runtime usage at the same time in master VM
+- [localhost] Get the correct docker/podman path for jobs that run in a container
+- [k8s] Limit the size of the "user" label as the maximum allowed is 63 chars
+- [Joblib] Fix shared objects utility when multiple maps run from the same executor
+- [Azure VMs] Fix wrong exception when trying to connect to the master VM for the first time
+- [Partitioner] Fix partitioner
+
+## [v3.0.1]
 
 ### New
 - [OCI Functions] Added new 'Oracle Cloud Functions' serverless backend

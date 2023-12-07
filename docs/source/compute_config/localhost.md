@@ -44,19 +44,19 @@ The Docker environment runs the functions within a ``docker container``. In this
 
 ```yaml
 localhost:
-    runtime: ibmfunctions/action-python-v3.8
+    runtime: lithopscloud/ibmcf-python-v310
 ```
 
 or by using the ``runtime`` param in a function executor:
 
 ```python
-# As we use the default FunctionExecutor(), backend must be set to localhost in config
-fexec = lithops.FunctionExecutor(runtime='jsampe/action-python-v3.8')
+# As we use the default FunctionExecutor(), the "backend" config parameter must be set to localhost in config
+fexec = lithops.FunctionExecutor(runtime='lithopscloud/ibmcf-python-v310')
 ```
 
 ```python
-# As we use/force the LocalhostExecutor(), backend does not need to be set to localhost in config
-fexec = lithops.LocalhostExecutor(runtime='jsampe/action-python-v3.8')
+# As we use/force the LocalhostExecutor(), the "backend" config parameter does not need to be set to localhost in config
+fexec = lithops.LocalhostExecutor(runtime='lithopscloud/ibmcf-python-v310')
 ```
 
 In this mode of execution, you can use any docker image that contains all the required dependencies. For example, the IBM Cloud Functions and Knative runtimes are compatible with it.
@@ -65,7 +65,8 @@ In this mode of execution, you can use any docker image that contains all the re
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|localhost | runtime |  python3  | no | Docker image name |
+|localhost | runtime | python3 | no | By default it uses the `python3` interpreter. It can be a container image name |
+|localhost | version | 1 | no | There are 2 diferent localhost implementations. Use '2' for using the alterantive version (beta) |
 |localhost | worker_processes | CPU_COUNT | no | Number of Lithops processes. This is used to parallelize function activations. By default it is set to the number of CPUs of your machine |
 
 ## Test Lithops

@@ -58,9 +58,9 @@ def get_range(jobkey, total_calls, chunksize):
 
 def run_master_server():
     # Start Redis Server in the background
-    logger.info("Starting redis server in Master Pod")
-    os.system("redis-server --bind 0.0.0.0 --daemonize yes")
-    logger.info("Redis server started")
+    # logger.info("Starting redis server in Master Pod")
+    # os.system("redis-server --bind 0.0.0.0 --daemonize yes")
+    # logger.info("Redis server started")
 
     proxy.logger.setLevel(logging.DEBUG)
     proxy.run(debug=True, host='0.0.0.0', port=config.MASTER_PORT, use_reloader=False)
@@ -84,11 +84,7 @@ def run_job_k8s(payload):
 
     total_calls = payload['total_calls']
     job_key = payload['job_key']
-    worker_processes = payload['worker_processes']
     chunksize = payload['chunksize']
-
-    # Optimize chunksize to the number of processess if necessary
-    chunksize = worker_processes if worker_processes > chunksize else chunksize
 
     call_ids = payload['call_ids']
     data_byte_ranges = payload['data_byte_ranges']
@@ -103,7 +99,7 @@ def run_job_k8s(payload):
             try:
                 server = f'http://{master_ip}:{config.MASTER_PORT}'
                 url = f'{server}/get-range/{job_key}/{total_calls}/{chunksize}'
-                res = requests.get(url)
+                res = requests.get(url, timeout=0.1)
                 call_ids_range = res.text  # for example: 0-5
             except Exception:
                 time.sleep(0.1)

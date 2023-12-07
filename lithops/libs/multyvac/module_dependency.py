@@ -27,9 +27,9 @@ From
 https://github.com/cloudpipe/multyvac-fork/blob/master/multyvac/util/module_dependency.py
 """
 import ast
-import imp
 import logging
 import pkgutil
+from lithops.libs import imp
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +63,7 @@ class ModuleDependencyAnalyzer:
         Adds a module to be analyzed.
         :param module_name: String of module name.
         """
-        logger.debug('Queuing module %r', module_name)
+        # logger.debug('Queuing module %r', module_name)
         root_module_name = self._extract_root_module(module_name)
         self._modules_to_inspect.add(root_module_name)
 
@@ -103,23 +103,22 @@ class ModuleDependencyAnalyzer:
         Determines what resources to send over (if any) for a given module.
         """
         if root_module_name in self._inspected_modules:
-            logger.debug('Already inspected module %r, skipping',
-                         root_module_name)
+            # logger.debug('Already inspected module %r, skipping', root_module_name)
             return
         elif root_module_name in self._modules_to_ignore:
-            logger.debug('Module %r is to be ignored, skipping',
+            logger.debug('Module %r is already installed in the runtime, skipping',
                          root_module_name)
             return
         else:
             # Add module to set of scanned modules, before we've analyzed it
             self._inspected_modules.add(root_module_name)
 
-        logger.debug('Inspecting module %r', root_module_name)
+        # logger.debug('Inspecting module %r', root_module_name)
         try:
             fp, pathname, description = imp.find_module(root_module_name)
+            logger.debug(f"Module '{root_module_name}' found in {pathname}")
         except ImportError:
-            logger.debug('Could not find module %r, skipping',
-                         root_module_name)
+            logger.debug('Could not find module %r, skipping', root_module_name)
             return
         _, _, mod_type = description
         if mod_type == imp.PY_SOURCE:

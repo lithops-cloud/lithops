@@ -98,7 +98,7 @@ class Monitor(threading.Thread):
         Checks if running futures exceeded the timeout
         """
         current_time = time.time()
-        futures_running = [f for f in futures if f.running]
+        futures_running = [f for f in futures if f.running and f._call_status]
         for fut in futures_running:
             try:
                 start_tstamp = fut._call_status['worker_start_tstamp']

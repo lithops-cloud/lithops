@@ -30,6 +30,7 @@ aws:
     secret_access_key: <AWS_SECRET_ACCESS_KEY>
 
 aws_ec2:
+    exec_mode: consume
     instance_id : <INSTANCE ID OF THE VM>
 ```
 
@@ -52,7 +53,7 @@ aws_ec2:
 |aws_ec2 | region | |no | Region name of the VPC. For example `us-east-1`. Lithops will use the region set under the `aws` section if it is not set here |
 |aws_ec2 | ssh_username | ubuntu |no | Username to access the VM |
 |aws_ec2 | ssh_key_filename | ~/.ssh/id_rsa | no | Path to the ssh key file provided to create the VM. It will use the default path if not provided |
-|aws_ec2 | worker_processes | 2 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker. It is recommendable to set this value to the same number of CPUs of the VM. |
+|aws_ec2 | worker_processes | AUTO | no | Number of Lithops processes within a given worker. This is used to parallelize function activations within the worker. By default it detects the amount of CPUs in the VM|
 |aws_ec2 | runtime | python3 | no | Runtime name to run the functions. Can be a container image name. If not set Lithops will use the defeuv python3 interpreter of the VM |
 |aws_ec2 | auto_dismantle | True |no | If False then the VM is not stopped automatically.|
 |aws_ec2 | soft_dismantle_timeout | 300 |no| Time in seconds to stop the VM instance after a job **completed** its execution |
@@ -116,7 +117,7 @@ aws_ec2:
 |aws_ec2 | auto_dismantle | True |no | If False then the VM is not stopped automatically.|
 |aws_ec2 | soft_dismantle_timeout | 300 |no| Time in seconds to stop the VM instance after a job **completed** its execution |
 |aws_ec2 | hard_dismantle_timeout | 3600 | no | Time in seconds to stop the VM instance after a job **started** its execution |
-|aws_ec2 | exec_mode | consume | no | One of: **consume**, **create** or **reuse**. If set to  **create**, Lithops will automatically create new VMs for each map() call based on the number of elements in iterdata. If set to **reuse** will try to reuse running workers if exist |
+|aws_ec2 | exec_mode | reuse | no | One of: **consume**, **create** or **reuse**. If set to  **create**, Lithops will automatically create new VMs for each map() call based on the number of elements in iterdata. If set to **reuse** will try to reuse running workers if exist |
 |aws_ec2 | pull_runtime | False | no | If set to True, Lithops will execute the command `docker pull <runtime_name>` in each VSI before executing the a job (in case of using a docker runtime)|
 |aws_ec2 | workers_policy | permissive | no | One of: **permissive**, **strict**. If set to **strict** will force creation of required workers number |
 

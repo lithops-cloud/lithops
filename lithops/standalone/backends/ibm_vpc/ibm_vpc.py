@@ -15,14 +15,14 @@
 # limitations under the License.
 #
 
-import functools
-import inspect
 import re
 import os
 import paramiko
 import time
 import logging
 import uuid
+import functools
+import inspect
 from datetime import datetime
 from ibm_vpc import VpcV1
 from ibm_cloud_sdk_core.authenticators import IAMAuthenticator
@@ -31,15 +31,22 @@ from concurrent.futures import ThreadPoolExecutor
 
 from lithops.version import __version__
 from lithops.util.ssh_client import SSHClient
-from lithops.constants import COMPUTE_CLI_MSG, CACHE_DIR, SA_IMAGE_NAME_DEFAULT
+from lithops.constants import COMPUTE_CLI_MSG, CACHE_DIR
 from lithops.config import load_yaml_config, dump_yaml_config
-from lithops.standalone.utils import CLOUD_CONFIG_WORKER, CLOUD_CONFIG_WORKER_PK, ExecMode, get_host_setup_script
-from lithops.standalone.standalone import LithopsValidationError
+from lithops.standalone.utils import (
+    CLOUD_CONFIG_WORKER,
+    CLOUD_CONFIG_WORKER_PK,
+    StandaloneMode,
+    get_host_setup_script,
+    LithopsValidationError
+)
 
 logger = logging.getLogger(__name__)
 
 INSTANCE_START_TIMEOUT = 180
 VPC_API_VERSION = '2021-09-21'
+
+DEFAULT_LITHOPS_IMAGE_NAME = 'lithops-ubuntu-22-04-3-minimal-amd64-1'
 
 
 class IBMVPCBackend:
@@ -59,9 +66,11 @@ class IBMVPCBackend:
 
         self.endpoint = self.config['endpoint']
         self.region = self.config['region']
-        self.cache_dir = os.path.join(CACHE_DIR, self.name)
-        self.cache_file = os.path.join(self.cache_dir, self.region + '_data')
         self.custom_image = self.config.get('custom_lithops_image')
+
+        suffix = 'vm' if self.mode == StandaloneMode.CONSUME.value else 'vpc'
+        self.cache_dir = os.path.join(CACHE_DIR, self.name)
+        self.cache_file = os.path.join(self.cache_dir, f'{self.region}_{suffix}_data')
 
         logger.debug(f'Setting VPC endpoint to: {self.endpoint}')
 
@@ -73,7 +82,7 @@ class IBMVPCBackend:
         self.vpc_cli = VpcV1(VPC_API_VERSION, authenticator=authenticator)
         self.vpc_cli.set_service_url(self.config['endpoint'] + '/v1')
 
-        user_agent_string = 'ibm_vpc_{}'.format(self.config['user_agent'])
+        user_agent_string = f"ibm_vpc_{self.config['user_agent']}"
         self.vpc_cli._set_user_agent_header(user_agent_string)
 
         # decorate instance public methods with except/retry logic
@@ -81,6 +90,12 @@ class IBMVPCBackend:
 
         msg = COMPUTE_CLI_MSG.format('IBM VPC')
         logger.info(f"{msg} - Region: {self.region}")
+
+    def is_initialized(self):
+        """
+        Checks if the backend is initialized
+        """
+        return os.path.isfile(self.cache_file)
 
     def _load_vpc_data(self):
         """
@@ -103,6 +118,13 @@ class IBMVPCBackend:
         """
         dump_yaml_config(self.cache_file, self.vpc_data)
 
+    def _delete_vpc_data(self):
+        """
+        Deletes the vpc data file
+        """
+        if os.path.exists(self.cache_file):
+            os.remove(self.cache_file)
+
     def _create_vpc(self):
         """
         Creates a new VPC
@@ -111,21 +133,23 @@ class IBMVPCBackend:
             return
 
         if 'vpc_id' in self.vpc_data:
+            logger.debug(f'Using VPC {self.vpc_data["vpc_name"]}')
             try:
                 self.vpc_cli.get_vpc(self.vpc_data['vpc_id'])
                 self.config['vpc_id'] = self.vpc_data['vpc_id']
                 self.config['security_group_id'] = self.vpc_data['security_group_id']
                 return
-            except ApiException:
-                pass
+            except ApiException as e:
+                logger.error(f"Unable to find VPC {self.vpc_data['vpc_name']}")
+                raise e
 
         vpc_info = None
 
         iam_id = self.iam_api_key[:4].lower()
         self.vpc_name = self.config.get('vpc_name', f'lithops-vpc-{iam_id}-{str(uuid.uuid4())[-6:]}')
-        logger.debug(f'Setting VPC name to: {self.vpc_name}')
+        logger.debug(f'Setting VPC name to {self.vpc_name}')
 
-        assert re.match("^[a-z0-9-:-]*$", self.vpc_name),\
+        assert re.match("^[a-z0-9-:-]*$", self.vpc_name), \
             f'VPC name "{self.vpc_name}" not valid'
 
         vpcs_info = self.vpc_cli.list_vpcs().get_result()
@@ -386,8 +410,8 @@ class IBMVPCBackend:
 
         if 'image_id' not in self.config:
             for image in images_def:
-                if image['name'] == SA_IMAGE_NAME_DEFAULT:
-                    logger.debug(f"Found default VM image: {SA_IMAGE_NAME_DEFAULT}")
+                if image['name'] == DEFAULT_LITHOPS_IMAGE_NAME:
+                    logger.debug(f"Found default VM image: {DEFAULT_LITHOPS_IMAGE_NAME}")
                     self.config['image_id'] = image['id']
                     break
 
@@ -405,8 +429,8 @@ class IBMVPCBackend:
         name = self.config.get('master_name') or f'lithops-master-{self.vpc_key}'
         self.master = IBMVPCInstance(name, self.config, self.vpc_cli, public=True)
         self.master.public_ip = self.config['floating_ip']
-        self.master.instance_id = self.config['instance_id'] if self.mode == ExecMode.CONSUME.value else None
-        self.master.profile_name = self.config['master_profile_name']
+        self.master.instance_id = self.config['instance_id'] if self.mode == StandaloneMode.CONSUME.value else None
+        self.master.instance_type = self.config['master_profile_name']
         self.master.delete_on_dismantle = False
         self.master.ssh_credentials.pop('password')
 
@@ -417,10 +441,8 @@ class IBMVPCBackend:
         logger.debug(f'Initializing IBM VPC backend ({self.mode} mode)')
 
         self._load_vpc_data()
-        if self.mode != self.vpc_data.get('mode'):
-            self.vpc_data = {}
 
-        if self.mode == ExecMode.CONSUME.value:
+        if self.mode == StandaloneMode.CONSUME.value:
 
             ins_id = self.config['instance_id']
             if not self.vpc_data or ins_id != self.vpc_data.get('instance_id'):
@@ -439,7 +461,7 @@ class IBMVPCBackend:
                 'floating_ip': self.master.public_ip
             }
 
-        elif self.mode in [ExecMode.CREATE.value, ExecMode.REUSE.value]:
+        elif self.mode in [StandaloneMode.CREATE.value, StandaloneMode.REUSE.value]:
 
             # Create the VPC if not exists
             self._create_vpc()
@@ -486,14 +508,17 @@ class IBMVPCBackend:
         """
         Builds a new VM Image
         """
-        images = self.vpc_cli.list_images(name=image_name, resource_group_id=self.config['resource_group_id']).result['images']
+        image_name = image_name or DEFAULT_LITHOPS_IMAGE_NAME
+
+        images = self.vpc_cli.list_images(
+            name=image_name,
+            resource_group_id=self.config['resource_group_id']
+        ).result['images']
+
         if len(images) > 0:
             image_id = images[0]['id']
             if overwrite:
-                logger.debug(f"Deleting existing VM Image '{image_name}'")
-                self.vpc_cli.delete_image(id=image_id)
-                while len(self.vpc_cli.list_images(name=image_name, resource_group_id=self.config['resource_group_id']).result['images']) > 0:
-                    time.sleep(2)
+                self.delete_image(image_name)
             else:
                 raise Exception(f"The image with name '{image_name}' already exists with ID: '{image_id}'."
                                 " Use '--overwrite' or '-o' if you want ot overwrite it")
@@ -506,9 +531,9 @@ class IBMVPCBackend:
         self.config['floating_ip'] = fip
         self.config['floating_ip_id'] = fip_id
 
-        build_vm = IBMVPCInstance(image_name, self.config, self.vpc_cli, public=True)
+        build_vm = IBMVPCInstance('building-image-'+image_name, self.config, self.vpc_cli, public=True)
         build_vm.public_ip = self.config['floating_ip']
-        build_vm.profile_name = self.config['master_profile_name']
+        build_vm.instance_type = self.config['master_profile_name']
         build_vm.delete_on_dismantle = False
         build_vm.create()
         build_vm.wait_ready()
@@ -542,6 +567,7 @@ class IBMVPCBackend:
         image_prototype['resource_group'] = {'id': self.config['resource_group_id']}
         self.vpc_cli.create_image(image_prototype)
 
+        logger.debug("Starting VM image creation")
         logger.debug("Be patient, VM imaging can take up to 6 minutes")
 
         while True:
@@ -552,12 +578,32 @@ class IBMVPCBackend:
                     break
             time.sleep(30)
 
-        build_vm.delete()
-
         if not initial_vpc_data:
-            self.clean(all)
+            self.clean(all=True)
+        else:
+            build_vm.delete()
 
         logger.info(f"VM Image created. Image ID: {images[0]['id']}")
+
+    def delete_image(self, image_name):
+        """
+        Deletes a VM Image
+        """
+        def list_images():
+            return self.vpc_cli.list_images(
+                name=image_name,
+                resource_group_id=self.config['resource_group_id']
+            ).result['images']
+
+        images = list_images()
+
+        if len(images) > 0:
+            image_id = images[0]['id']
+            logger.debug(f"Deleting VM Image '{image_name}'")
+            self.vpc_cli.delete_image(id=image_id)
+            while len(list_images()) > 0:
+                time.sleep(2)
+            logger.debug(f"VM Image '{image_name}' successfully deleted")
 
     def list_images(self):
         """
@@ -600,7 +646,7 @@ class IBMVPCBackend:
                 else:
                     raise err
 
-        vms_prefixes = ('lithops-worker', 'lithops-master') if all else ('lithops-worker',)
+        vms_prefixes = ('lithops-worker', 'lithops-master', 'building-image') if all else ('lithops-worker',)
 
         def get_instances():
             instances = set()
@@ -626,7 +672,7 @@ class IBMVPCBackend:
                 break
 
         master_pk = os.path.join(self.cache_dir, f"{self.vpc_data['master_name']}-id_rsa.pub")
-        if os.path.isfile(master_pk):
+        if all and os.path.isfile(master_pk):
             os.remove(master_pk)
 
         if self.vpc_data['vpc_data_type'] == 'provided':
@@ -735,15 +781,13 @@ class IBMVPCBackend:
         if not self.vpc_data:
             return
 
-        if self.vpc_data['mode'] == ExecMode.CONSUME.value:
-            if os.path.exists(self.cache_file):
-                os.remove(self.cache_file)
+        if self.mode == StandaloneMode.CONSUME.value:
+            self._delete_vpc_data()
         else:
             self._delete_vm_instances(all=all)
             self._delete_vpc() if all else None
             self._delete_ssh_key() if all else None
-            if all and os.path.exists(self.cache_file):
-                os.remove(self.cache_file)
+            self._delete_vpc_data() if all else None
 
     def clear(self, job_keys=None):
         """
@@ -761,7 +805,7 @@ class IBMVPCBackend:
                 ex.map(lambda worker: worker.stop(), self.workers)
             self.workers = []
 
-        if include_master or self.mode == ExecMode.CONSUME.value:
+        if include_master or self.mode == StandaloneMode.CONSUME.value:
             # in consume mode master VM is a worker
             self.master.stop()
 
@@ -778,6 +822,18 @@ class IBMVPCBackend:
 
         return instance
 
+    def get_worker_instance_type(self):
+        """
+        Return the worker profile name
+        """
+        return self.config['worker_profile_name']
+
+    def get_worker_cpu_count(self):
+        """
+        Returns the number of CPUs in the worker instance type
+        """
+        return int(self.config['worker_profile_name'].split('-')[1].split('x')[0])
+
     def create_worker(self, name):
         """
         Creates a new worker VM instance
@@ -791,9 +847,10 @@ class IBMVPCBackend:
             with open(pub_key, 'r') as pk:
                 pk_data = pk.read().strip()
             user_data = CLOUD_CONFIG_WORKER_PK.format(user, pk_data)
-            worker.ssh_credentials['key_filename'] = '~/.ssh/id_rsa'
+            worker.ssh_credentials['key_filename'] = '~/.ssh/lithops_id_rsa'
             worker.ssh_credentials.pop('password')
         else:
+            logger.error(f'Unable to locate {pub_key}')
             worker.ssh_credentials.pop('key_filename')
             token = worker.ssh_credentials['password']
             user_data = CLOUD_CONFIG_WORKER.format(user, token)
@@ -819,9 +876,13 @@ class IBMVPCInstance:
         """
         self.name = name.lower()
         self.config = ibm_vpc_config
+        self.metadata = {}
+
+        self.status = None
+        self.err = None
 
         self.delete_on_dismantle = self.config['delete_on_dismantle']
-        self.profile_name = self.config['worker_profile_name']
+        self.instance_type = self.config['worker_profile_name']
 
         self.vpc_cli = ibm_vpc_client or self._create_vpc_client()
         self.public = public
@@ -877,7 +938,6 @@ class IBMVPCInstance:
             initialization_data = self.vpc_cli.get_instance_initialization(self.instance_id).get_result()
 
             private_res = paramiko.RSAKey(filename=key_filename).get_base64()
-            key = None
             names = []
             for k in initialization_data['keys']:
                 public_res = self.vpc_cli.get_key(k['id']).get_result()['public_key'].split(' ')[1]
@@ -974,7 +1034,7 @@ class IBMVPCInstance:
         instance_prototype = {}
         instance_prototype['name'] = self.name
         instance_prototype['keys'] = [key_identity_model]
-        instance_prototype['profile'] = {'name': self.profile_name}
+        instance_prototype['profile'] = {'name': self.instance_type}
         instance_prototype['resource_group'] = {'id': self.config['resource_group_id']}
         instance_prototype['vpc'] = {'id': self.config['vpc_id']}
         instance_prototype['image'] = {'id': self.config['image_id']}

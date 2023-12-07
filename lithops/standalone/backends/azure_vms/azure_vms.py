@@ -30,8 +30,8 @@ from lithops.version import __version__
 from lithops.util.ssh_client import SSHClient
 from lithops.constants import COMPUTE_CLI_MSG, CACHE_DIR, SA_DATA_FILE
 from lithops.config import load_yaml_config, dump_yaml_config
-from lithops.standalone.utils import ExecMode
-from lithops.standalone.standalone import LithopsValidationError
+from lithops.standalone.utils import StandaloneMode
+from lithops.standalone import LithopsValidationError
 
 
 logger = logging.getLogger(__name__)
@@ -55,10 +55,13 @@ class AzureVMSBackend:
         self.config = config
         self.mode = mode
         self.location = config['region']
-        self.cache_dir = os.path.join(CACHE_DIR, self.name)
-        self.cache_file = os.path.join(self.cache_dir, self.location + '_data')
+
         self.vnet_data_type = 'provided' if 'vnet_name' in self.config else 'created'
         self.ssh_data_type = 'provided' if 'ssh_key_filename' in config else 'created'
+
+        suffix = 'vm' if self.mode == StandaloneMode.CONSUME.value else 'vpc'
+        self.cache_dir = os.path.join(CACHE_DIR, self.name)
+        self.cache_file = os.path.join(self.cache_dir, f'{self.location}_{suffix}_data')
 
         self.azure_data = None
         self.vnet_name = None
@@ -71,9 +74,16 @@ class AzureVMSBackend:
 
         self.master = None
         self.workers = []
+        self.instance_types = {}
 
         msg = COMPUTE_CLI_MSG.format('Azure Virtual Machines')
         logger.info(f"{msg} - Region: {self.location}")
+
+    def is_initialized(self):
+        """
+        Checks if the backend is initialized
+        """
+        return os.path.isfile(self.cache_file)
 
     def _load_azure_vms_data(self):
         """
@@ -94,6 +104,13 @@ class AzureVMSBackend:
         """
         dump_yaml_config(self.cache_file, self.azure_data)
 
+    def _delete_vpc_data(self):
+        """
+        Deletes the vpc data file
+        """
+        if os.path.exists(self.cache_file):
+            os.remove(self.cache_file)
+
     def _create_vnet(self):
         """
         Creates a new Virtual Network
@@ -112,7 +129,7 @@ class AzureVMSBackend:
         self.vnet_name = self.config.get('vnet_name', f'lithops-vnet-{str(uuid.uuid4())[-6:]}')
         logger.debug(f'Setting virtual network name to: {self.vnet_name}')
 
-        assert re.match("^[a-z0-9-:-]*$", self.vnet_name),\
+        assert re.match("^[a-z0-9-:-]*$", self.vnet_name), \
             f'Virtual network name "{self.vnet_name}" not valid'
 
         vnets_info = list(self.network_client.virtual_networks.list(self.config['resource_group']))
@@ -245,7 +262,7 @@ class AzureVMSBackend:
 
         def get_floating_ip(fip_name):
             try:
-                fip_info = self.network_client.network_security_groups.get(
+                fip_info = self.network_client.public_ip_addresses.get(
                     self.config['resource_group'], fip_name
                 )
                 self.config['floating_ip'] = fip_info.ip_address
@@ -302,13 +319,32 @@ class AzureVMSBackend:
 
         self.config['ssh_key_filename'] = key_filename
 
+    def _get_all_instance_types(self):
+        """
+        Get all virtual machine sizes in the specified location
+        """
+        if 'instance_types' in self.azure_data:
+            self.instance_types = self.azure_data['instance_types']
+            return
+
+        vm_sizes = self.compute_client.virtual_machine_sizes.list(self.location)
+
+        instances = {}
+
+        for vm_size in vm_sizes:
+            instance_name = vm_size.name
+            cpu_count = vm_size.number_of_cores
+            instances[instance_name] = cpu_count
+
+        self.instance_types = instances
+
     def _create_master_instance(self):
         """
         Creates the master VM insatnce
         """
         name = self.config.get('master_name') or f'lithops-master-{self.vnet_key}'
         self.master = VMInstance(name, self.config, self.compute_client, public=True)
-        self.master.name = self.config['instance_name'] if self.mode == ExecMode.CONSUME.value else name
+        self.master.name = self.config['instance_name'] if self.mode == StandaloneMode.CONSUME.value else name
         self.master.public_ip = self.config['floating_ip']
         self.master.instance_type = self.config['master_instance_type']
         self.master.delete_on_dismantle = False
@@ -323,10 +359,8 @@ class AzureVMSBackend:
         logger.debug(f'Initializing Azure Virtual Machines backend ({self.mode} mode)')
 
         self._load_azure_vms_data()
-        if self.mode != self.azure_data.get('mode'):
-            self.azure_data = {}
 
-        if self.mode == ExecMode.CONSUME.value:
+        if self.mode == StandaloneMode.CONSUME.value:
             instance_name = self.config['instance_name']
             if not self.azure_data or instance_name != self.azure_data.get('instance_name'):
                 try:
@@ -351,7 +385,7 @@ class AzureVMSBackend:
                 'ssh_key_filename': self.config['ssh_key_filename'],
             }
 
-        elif self.mode in [ExecMode.CREATE.value, ExecMode.REUSE.value]:
+        elif self.mode in [StandaloneMode.CREATE.value, StandaloneMode.REUSE.value]:
 
             # Create the Virtual Netowrk if not exists
             self._create_vnet()
@@ -367,6 +401,8 @@ class AzureVMSBackend:
             self._create_master_floating_ip()
             # Create the ssh key pair if not exists
             self._create_ssh_key()
+            # Request instance types
+            self._get_all_instance_types()
 
             # Create the master VM instance
             self._create_master_instance()
@@ -385,7 +421,8 @@ class AzureVMSBackend:
                 'security_group_id': self.config['security_group_id'],
                 'security_group_name': self.config['security_group_name'],
                 'floating_ip_id': self.config['floating_ip_id'],
-                'floating_ip_name': self.config['floating_ip_name']
+                'floating_ip_name': self.config['floating_ip_name'],
+                'instance_types': self.instance_types
             }
 
         self._dump_azure_vms_data()
@@ -461,7 +498,7 @@ class AzureVMSBackend:
                 [fut.result() for fut in futures]
 
         master_pk = os.path.join(self.cache_dir, f"{self.azure_data['master_name']}-id_rsa.pub")
-        if os.path.isfile(master_pk):
+        if all and os.path.isfile(master_pk):
             os.remove(master_pk)
 
         if self.azure_data['vnet_data_type'] == 'provided':
@@ -530,15 +567,13 @@ class AzureVMSBackend:
         if not self.azure_data:
             return
 
-        if self.azure_data['mode'] == ExecMode.CONSUME.value:
-            if os.path.exists(self.cache_file):
-                os.remove(self.cache_file)
+        if self.azure_data['mode'] == StandaloneMode.CONSUME.value:
+            self._delete_vpc_data()
         else:
             self._delete_vm_instances(all=all)
             self._delete_vnet_and_subnet() if all else None
             self._delete_ssh_key() if all else None
-            if all and os.path.exists(self.cache_file):
-                os.remove(self.cache_file)
+            self._delete_vpc_data() if all else None
 
     def clear(self, job_keys=None):
         """
@@ -556,7 +591,7 @@ class AzureVMSBackend:
                 ex.map(lambda worker: worker.stop(), self.workers)
             self.workers = []
 
-        if include_master or self.mode == ExecMode.CONSUME.value:
+        if include_master or self.mode == StandaloneMode.CONSUME.value:
             # in consume mode master VM is a worker
             self.master.stop()
 
@@ -573,6 +608,18 @@ class AzureVMSBackend:
 
         return instance
 
+    def get_worker_instance_type(self):
+        """
+        Return the worker profile name
+        """
+        return self.config['worker_instance_type']
+
+    def get_worker_cpu_count(self):
+        """
+        Returns the number of CPUs in the worker instance type
+        """
+        return self.instance_types[self.config['worker_instance_type']]
+
     def create_worker(self, name):
         """
         Creates a new worker VM instance
@@ -582,7 +629,7 @@ class AzureVMSBackend:
         worker.ssh_credentials['key_filename'] = ssh_key
         worker.ssh_credentials.pop('password')
         worker.create()
-        worker.ssh_credentials['key_filename'] = '~/.ssh/id_rsa'
+        worker.ssh_credentials['key_filename'] = '~/.ssh/lithops_id_rsa'
         self.workers.append(worker)
 
     def get_runtime_key(self, runtime_name, version=__version__):
@@ -603,6 +650,10 @@ class VMInstance:
         """
         self.name = name.lower()
         self.config = config
+        self.metadata = {}
+
+        self.status = None
+        self.err = None
 
         self.delete_on_dismantle = self.config['delete_on_dismantle']
         self.instance_type = self.config['worker_instance_type']

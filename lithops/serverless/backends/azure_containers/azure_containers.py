@@ -39,7 +39,7 @@ class AzureContainerAppBackend:
     def __init__(self, ac_config, internal_storage):
         logger.debug("Creating Azure Container Apps client")
         self.name = 'azure_containers'
-        self.type = 'faas'
+        self.type = utils.BackendType.FAAS.value
         self.ac_config = ac_config
         self.internal_storage = internal_storage
         self.trigger = ac_config['trigger']
@@ -258,7 +258,7 @@ class AzureContainerAppBackend:
 
         runtimes = self.list_runtimes()
 
-        for runtime_name, runtime_memory, version in runtimes:
+        for runtime_name, runtime_memory, version, wk_name in runtimes:
             self.delete_runtime(runtime_name, runtime_memory, version)
 
     def _generate_runtime_meta(self, runtime_name, memory):
@@ -310,7 +310,7 @@ class AzureContainerAppBackend:
                 memory = containerapp['Tags']['runtime_memory']
                 version = containerapp['Tags']['lithops_version']
                 if runtime_name == containerapp['Name'] or runtime_name == 'all':
-                    runtimes.append((name, memory, version))
+                    runtimes.append((name, memory, version, containerapp['Name']))
 
         return runtimes
 

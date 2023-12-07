@@ -78,7 +78,7 @@ def clean_bucket(storage, bucket, prefix, sleep=5):
     Deletes all the files from COS. These files include the function,
     the data serialization and the function invocation results.
     """
-    msg = f"Going to delete all objects from bucket '{bucket}'"
+    msg = f"Deleting objects from bucket '{bucket}'"
     msg = msg + f" and prefix '{prefix}'" if prefix else msg
     logger.info(msg)
     total_objects = 0

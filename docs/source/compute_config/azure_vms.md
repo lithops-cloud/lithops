@@ -26,6 +26,7 @@ Edit your lithops config and add the relevant keys:
         subscription_id: <SUBSCRIPTION_ID>
 
     azure_vms:
+        exec_mode: consume
         instance_name: <VM_NAME>
         ssh_username: <SSH_USERNAME>
         ssh_key_filename: <SSH_KEY_PATH>
@@ -48,7 +49,7 @@ Edit your lithops config and add the relevant keys:
 |azure_vms | ssh_username | ubuntu | yes | Username to access the VM. It will use `ubuntu` if not provided |
 |azure_vms | ssh_key_filename | ~/.ssh/id_rsa | yes | Path to the ssh key file provided to create the VM. It will use the default path if not provided |
 |azure_vms | region | |no | Location of the resource group, for example: `westeurope`, `westus2`, etc. Lithops will use the region set under the `azure` section if it is not set here |
-|azure_vms | worker_processes | 2 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker. It is recommendable to set this value to the same number of CPUs of the VM. |
+|azure_vms | worker_processes | AUTO | no | Number of Lithops processes within a given worker. This is used to parallelize function activations within the worker. By default it detects the amount of CPUs in the VM|
 |azure_vms | runtime | python3 | no | Runtime name to run the functions. Can be a container image name. If not set Lithops will use the defeuv python3 interpreter of the VM |
 |azure_vms | auto_dismantle | True |no | If False then the VM is not stopped automatically.|
 |azure_vms | soft_dismantle_timeout | 300 |no| Time in seconds to stop the VM instance after a job **completed** its execution |
@@ -103,7 +104,7 @@ Edit your lithops config and add the relevant keys:
 |azure_vms | auto_dismantle | True |no | If False then the VM is not stopped automatically.|
 |azure_vms | soft_dismantle_timeout | 300 |no| Time in seconds to stop the VM instance after a job **completed** its execution |
 |azure_vms | hard_dismantle_timeout | 3600 | no | Time in seconds to stop the VM instance after a job **started** its execution |
-|azure_vms | exec_mode | consume | no | One of: **consume**, **create** or **reuse**. If set to  **create**, Lithops will automatically create new VMs for each map() call based on the number of elements in iterdata. If set to **reuse** will try to reuse running workers if exist |
+|azure_vms | exec_mode | reuse | no | One of: **consume**, **create** or **reuse**. If set to  **create**, Lithops will automatically create new VMs for each map() call based on the number of elements in iterdata. If set to **reuse** will try to reuse running workers if exist |
 |azure_vms | pull_runtime | False | no | If set to True, Lithops will execute the command `docker pull <runtime_name>` in each VSI before executing the a job (in case of using a docker runtime)|
 |azure_vms | workers_policy | permissive | no | One of: **permissive**, **strict**. If set to **strict** will force creation of required workers number |
 

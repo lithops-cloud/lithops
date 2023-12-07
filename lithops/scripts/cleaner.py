@@ -23,7 +23,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from lithops.storage import Storage
 from lithops.storage.utils import clean_bucket
-from lithops.constants import JOBS_PREFIX, TEMP_PREFIX, CLEANER_DIR,\
+from lithops.constants import JOBS_PREFIX, TEMP_PREFIX, CLEANER_DIR, \
     CLEANER_PID_FILE, CLEANER_LOG_FILE
 
 log_file_stream = open(CLEANER_LOG_FILE, 'a')
@@ -41,7 +41,8 @@ logger.setLevel('DEBUG')
 def clean_executor_jobs(executor_id, executor_data):
 
     storage = None
-    prefix = '/'.join([JOBS_PREFIX, executor_id])
+
+    logger.debug(f"Cleaning Executor ID: {executor_id}")
 
     for file_data in executor_data:
         file_location = file_data['file_location']
@@ -49,32 +50,21 @@ def clean_executor_jobs(executor_id, executor_data):
 
         storage_config = data['storage_config']
         clean_cloudobjects = data['clean_cloudobjects']
+
+        logger.debug(f"File location: {file_location}")
+
         if not storage:
             storage = Storage(storage_config=storage_config)
 
-        logger.info(f'Cleaning jobs {", ".join([job_key for job_key in data["jobs_to_clean"]])}')
-
-        objects = storage.list_keys(storage.bucket, prefix)
-
-        objects_to_delete = [
-            key for key in objects
-            if '-'.join(key.split('/')[1].split('-')[0:3])
-            in data['jobs_to_clean']
-        ]
-
-        while objects_to_delete:
-            storage.delete_objects(storage.bucket, objects_to_delete)
-            time.sleep(5)
-            objects = storage.list_keys(storage.bucket, prefix)
-            objects_to_delete = [
-                key for key in objects
-                if '-'.join(key.split('/')[1].split('-')[0:3])
-                in data['jobs_to_clean']
-            ]
+        for job_key in data['jobs_to_clean']:
+            prefix = '/'.join([JOBS_PREFIX, job_key]) + '/'
+            logger.debug(f"Cleaning data from {prefix}")
+            clean_bucket(storage, storage.bucket, prefix)
 
         if clean_cloudobjects:
             for job_key in data['jobs_to_clean']:
-                prefix = '/'.join([TEMP_PREFIX, job_key])
+                prefix = '/'.join([TEMP_PREFIX, job_key]) + '/'
+                logger.debug(f"Cleaning cloudobjects from {prefix}")
                 clean_bucket(storage, storage.bucket, prefix)
 
         if os.path.exists(file_location):
@@ -108,10 +98,10 @@ def clean_functions(functions_data):
     data = functions_data['data']
 
     executor_id = data['fn_to_clean']
-    logger.info(f'Going to clean functions from {executor_id}')
     storage_config = data['storage_config']
     storage = Storage(storage_config=storage_config)
     prefix = '/'.join([JOBS_PREFIX, executor_id]) + '/'
+    logger.info(f'Cleaning functions from {prefix}')
     key_list = storage.list_keys(storage.bucket, prefix)
     storage.delete_objects(storage.bucket, key_list)
 

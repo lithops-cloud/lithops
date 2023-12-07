@@ -43,7 +43,7 @@ class AWSBatchBackend:
         logger.debug('Creating AWS Lambda client')
 
         self.name = 'aws_batch'
-        self.type = 'batch'
+        self.type = utils.BackendType.BATCH.value
         self.aws_batch_config = aws_batch_config
 
         self.user_key = aws_batch_config['access_key_id'][-4:]
@@ -516,14 +516,21 @@ class AWSBatchBackend:
             rt_name, rt_mem, version = self._unformat_jobdef_name(jobdef_name=job_def['jobDefinitionName'])
             if runtime_name != 'all' and runtime_name != rt_name:
                 continue
-            runtimes.append((rt_name, rt_mem, version))
+            runtimes.append((rt_name, rt_mem, version, job_def['jobDefinitionName']))
 
         return runtimes
 
     def invoke(self, runtime_name, runtime_memory, payload):
         total_calls = payload['total_calls']
+        max_workers = payload['max_workers']
         chunksize = payload['chunksize']
+
+        # Make sure only max_workers are started
         total_workers = total_calls // chunksize + (total_calls % chunksize > 0)
+        if max_workers < total_workers:
+            chunksize = total_calls // max_workers + (total_calls % max_workers > 0)
+            total_workers = total_calls // chunksize + (total_calls % chunksize > 0)
+            payload['chunksize'] = chunksize
 
         job_name = '{}_{}'.format(self._format_jobdef_name(runtime_name, runtime_memory), payload['job_key'])
 

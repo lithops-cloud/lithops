@@ -17,6 +17,7 @@
 import os
 import logging
 import boto3
+import hashlib
 import time
 import json
 import zipfile
@@ -52,12 +53,13 @@ class AWSLambdaBackend:
         logger.debug('Creating AWS Lambda client')
 
         self.name = 'aws_lambda'
-        self.type = 'faas'
+        self.type = utils.BackendType.FAAS.value
         self.lambda_config = lambda_config
         self.internal_storage = internal_storage
         self.user_agent = lambda_config['user_agent']
         self.region_name = lambda_config['region']
         self.role_arn = lambda_config['execution_role']
+        self.namespace = lambda_config.get('namespace')
 
         logger.debug('Creating Boto3 AWS Session and Lambda Client')
 
@@ -94,26 +96,20 @@ class AWSLambdaBackend:
             self.user_key = caller_id["UserId"][-4:].lower()
 
         self.ecr_client = self.aws_session.client('ecr', region_name=self.region_name)
-        self.package = f'lithops_v{__version__.replace(".", "-")}_{self.user_key}'
+        package = f'lithops_v{__version__.replace(".", "")}_{self.user_key}'
+        self.package = f"{package}_{self.namespace}" if self.namespace else package
 
         msg = COMPUTE_CLI_MSG.format('AWS Lambda')
-        logger.info(f"{msg} - Region: {self.region_name}")
+        if self.namespace:
+            logger.info(f"{msg} - Region: {self.region_name} - Namespace: {self.namespace}")
+        else:
+            logger.info(f"{msg} - Region: {self.region_name}")
 
     def _format_function_name(self, runtime_name, runtime_memory, version=__version__):
-        runtime_name = runtime_name.replace('/', '__').replace('.', '').replace(':', '--')
-        package = self.package.replace(__version__.replace(".", "-"), version.replace(".", "-"))
-        runtime_name = package + '__' + runtime_name
-
-        return f'{runtime_name}_{runtime_memory}MB'
-
-    @staticmethod
-    def _unformat_function_name(function_name):
-        version, runtime = function_name.split('__', 1)
-        version = version.replace('lithops_v', '').split('_')[0].replace('-', '.')
-        runtime = runtime.replace('__', '/')
-        runtime = runtime.replace('--', ':')
-        runtime_name, runtime_memory = runtime.rsplit('_', 1)
-        return version, runtime_name, runtime_memory.replace('MB', '')
+        name = f'{runtime_name}-{runtime_memory}-{version}'
+        name_hash = hashlib.sha1(name.encode("utf-8")).hexdigest()[:10]
+        fn_name = f'lithops-worker-{self.user_key}-{version.replace(".", "")}-{name_hash}'
+        return f'{self.namespace}-{fn_name}' if self.namespace else fn_name
 
     def _format_layer_name(self, runtime_name, version=__version__):
         package = self.package.replace(__version__.replace(".", ""), version.replace(".", ""))
@@ -197,7 +193,7 @@ class AWSLambdaBackend:
         @param runtime_name: runtime name from which to create the layer
         @return: ARN of the created layer
         """
-        logger.info('Creating default lambda layer for runtime {}'.format(runtime_name))
+        logger.info(f'Creating lambda layer for runtime {runtime_name}')
 
         with zipfile.ZipFile(BUILD_LAYER_FUNCTION_ZIP, 'w') as build_layer_zip:
             current_location = os.path.dirname(os.path.abspath(__file__))
@@ -226,11 +222,11 @@ class AWSLambdaBackend:
 
             # wait until the function is created
             if resp['ResponseMetadata']['HTTPStatusCode'] not in (200, 201):
-                msg = 'An error occurred creating/updating action {}: {}'.format(runtime_name, resp)
+                msg = f'An error occurred creating/updating action {runtime_name}: {resp}'
                 raise Exception(msg)
 
             self._wait_for_function_deployed(func_name)
-            logger.debug('OK --> Created "layer builder" function {}'.format(runtime_name))
+            logger.debug(f'OK --> Created "layer builder" function {runtime_name}'.format())
 
             dependencies = [dependency.strip().replace(' ', '') for dependency in config.DEFAULT_REQUIREMENTS]
             layer_name = self._format_layer_name(runtime_name)
@@ -243,9 +239,9 @@ class AWSLambdaBackend:
             logger.debug('Invoking "layer builder" function')
             response = self.lambda_client.invoke(FunctionName=func_name, Payload=json.dumps(payload))
             if response['ResponseMetadata']['HTTPStatusCode'] == 200:
-                logger.debug('OK --> Layer {} built'.format(layer_name))
+                logger.debug(f'OK --> Layer {layer_name} built')
             else:
-                msg = 'An error occurred creating layer {}: {}'.format(layer_name, response)
+                msg = f'An error occurred creating layer {layer_name}: {response}'
                 raise Exception(msg)
         finally:
             os.remove(BUILD_LAYER_FUNCTION_ZIP)
@@ -257,7 +253,7 @@ class AWSLambdaBackend:
                     raise
 
         # Publish layer from S3
-        logger.debug('Creating layer {} ...'.format(layer_name))
+        logger.debug(f'Creating layer {layer_name} ...')
         response = self.lambda_client.publish_layer_version(
             LayerName=layer_name,
             Description=f'Lithops layer for v{__version__} and Python v{utils.CURRENT_PY_VERSION}',
@@ -284,7 +280,7 @@ class AWSLambdaBackend:
         Delete a layer
         @param layer_name: Formatted layer name
         """
-        logger.debug('Deleting lambda layer: {}'.format(layer_name))
+        logger.debug(f'Deleting lambda layer: {layer_name}')
 
         versions = []
         response = self.lambda_client.list_layer_versions(LayerName=layer_name)
@@ -300,7 +296,7 @@ class AWSLambdaBackend:
                 VersionNumber=version
             )
             if response['ResponseMetadata']['HTTPStatusCode'] == 204:
-                logger.debug('OK --> Layer {} version {} deleted'.format(layer_name, version))
+                logger.debug(f'OK --> Layer {layer_name} version {version} deleted')
 
     def _list_layers(self):
         """
@@ -504,7 +500,7 @@ class AWSLambdaBackend:
                     for efs_conf in self.lambda_config['efs']
                 ],
                 Tags={
-                    'runtime_name': self.package + '/' + runtime_name,
+                    'runtime_name': runtime_name,
                     'lithops_version': __version__
                 },
                 Architectures=[self.lambda_config['architecture']],
@@ -556,28 +552,9 @@ class AWSLambdaBackend:
 
         self._delete_function(func_name)
 
-        # Check if layer/container image has to also be deleted
-        if not self.list_runtimes(runtime_name):
-            runtime_name = runtime_name.split('/', 1)[1] if '/' in runtime_name else runtime_name
-            if self._is_container_runtime(runtime_name):
-                if ':' in runtime_name:
-                    image, tag = runtime_name.split(':')
-                else:
-                    image, tag = runtime_name, 'latest'
-                package = '_'.join(func_name.split('_')[:3])
-                repo_name = f"{package}/{image}"
-                logger.debug(f'Going to delete ECR repository {repo_name} tag {tag}')
-                try:
-                    self.ecr_client.batch_delete_image(repositoryName=repo_name, imageIds=[{'imageTag': tag}])
-                    images = self.ecr_client.list_images(repositoryName=repo_name, filter={'tagStatus': 'TAGGED'})
-                    if not images['imageIds']:
-                        logger.debug(f'Going to delete ECR repository {repo_name}')
-                        self.ecr_client.delete_repository(repositoryName=repo_name, force=True)
-                except Exception:
-                    pass
-            else:
-                layer = self._format_layer_name(runtime_name, version)
-                self._delete_layer(layer)
+        if not self._is_container_runtime(runtime_name):
+            layer = self._format_layer_name(runtime_name, version)
+            self._delete_layer(layer)
 
     def clean(self, **kwargs):
         """
@@ -585,9 +562,12 @@ class AWSLambdaBackend:
         """
         logger.debug('Deleting all runtimes')
 
+        prefix = f'{self.namespace}-lithops-worker-{self.user_key}' \
+            if self.namespace else f'lithops-worker-{self.user_key}'
+
         def delete_runtimes(response):
             for function in response['Functions']:
-                if function['FunctionName'].startswith('lithops_v') and self.user_key in function['FunctionName']:
+                if function['FunctionName'].startswith(prefix):
                     self._delete_function(function['FunctionName'])
 
         response = self.lambda_client.list_functions(FunctionVersion='ALL')
@@ -608,11 +588,20 @@ class AWSLambdaBackend:
         """
         runtimes = []
 
+        prefix = f'{self.namespace}-lithops-worker-{self.user_key}' \
+            if self.namespace else f'lithops-worker-{self.user_key}'
+
         def get_runtimes(response):
             for function in response['Functions']:
-                if function['FunctionName'].startswith('lithops_v') and self.user_key in function['FunctionName']:
-                    version, rt_name, rt_memory = self._unformat_function_name(function['FunctionName'])
-                    runtimes.append((rt_name, rt_memory, version))
+                if not function['FunctionName'].startswith(prefix):
+                    continue
+                fn_name = function['FunctionName']
+                rt_memory = function['MemorySize']
+                function_arn = function['FunctionArn'].replace(':$LATEST', '')
+                tags_response = self.lambda_client.list_tags(Resource=function_arn)['Tags']
+                rt_name = tags_response['runtime_name']
+                version = tags_response['lithops_version']
+                runtimes.append((rt_name, rt_memory, version, fn_name))
 
         response = self.lambda_client.list_functions(FunctionVersion='ALL')
         get_runtimes(response)
@@ -658,10 +647,10 @@ class AWSLambdaBackend:
             raise Exception('Unauthorized - Invalid API Key')
         elif r.status_code == 404:
             logger.debug(r.text)
-            raise Exception('Lithops Runtime: {} not deployed'.format(runtime_name))
+            raise Exception(f'Lithops Runtime: {runtime_name} not deployed')
         else:
             logger.debug(r.text)
-            raise Exception('Error {}: {}'.format(r.status_code, r.text))
+            raise Exception(f'Error {r.status_code}: {r.text}')
 
         # response = self.lambda_client.invoke(
         #    FunctionName=function_name,
@@ -733,4 +722,4 @@ class AWSLambdaBackend:
         if 'lithops_version' in result:
             return result
         else:
-            raise Exception('An error occurred: {}'.format(result))
+            raise Exception(f'An error occurred: {result}')

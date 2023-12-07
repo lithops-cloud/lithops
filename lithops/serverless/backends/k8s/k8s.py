@@ -50,7 +50,7 @@ class KubernetesBackend:
     def __init__(self, k8s_config, internal_storage):
         logger.debug("Creating Kubernetes client")
         self.name = 'k8s'
-        self.type = 'batch'
+        self.type = utils.BackendType.BATCH.value
         self.k8s_config = k8s_config
         self.internal_storage = internal_storage
 
@@ -75,6 +75,8 @@ class KubernetesBackend:
             self.cluster = ctx_context.get('cluster') or self.cluster
             ctx_user = ctx_context.get('user')
             self.user = hashlib.sha1(ctx_user.encode()).hexdigest()[:10] if ctx_user else self.user
+            ctx_user = ctx_context.get('user')
+            self.user = hashlib.sha1(ctx_user.encode()).hexdigest()[:10] if ctx_user else self.user
             logger.debug(f"Using kubeconfig conetxt: {ctx_name} - cluster: {self.cluster}")
             self.is_incluster = False
         else:
@@ -83,6 +85,7 @@ class KubernetesBackend:
             self.is_incluster = True
 
         if self.master_name == config.MASTER_NAME:
+            self.master_name = f'{config.MASTER_NAME}-{self.user}'
             self.master_name = f'{config.MASTER_NAME}-{self.user}'
 
         self.k8s_config['namespace'] = self.namespace
@@ -112,7 +115,7 @@ class KubernetesBackend:
         logger.info(f"{msg} - Namespace: {self.namespace}")
 
     def _format_job_name(self, runtime_name, runtime_memory, version=__version__):
-        name = f'{runtime_name}-{runtime_memory}-{version}'
+        name = f'{runtime_name}-{runtime_memory}-{version}-{self.user}'
         name_hash = hashlib.sha1(name.encode()).hexdigest()[:10]
 
         return f'lithops-worker-{version.replace(".", "")}-{name_hash}'
@@ -728,6 +731,7 @@ class KubernetesBackend:
         in order to know which runtimes are installed and which not.
         """
         jobdef_name = self._format_job_name(docker_image_name, 256, version)
+        user_data = os.path.join(self.cluster, self.namespace, self.user)
         user_data = os.path.join(self.cluster, self.namespace, self.user)
         runtime_key = os.path.join(self.name, version, user_data, jobdef_name)
 

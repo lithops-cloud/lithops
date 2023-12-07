@@ -56,6 +56,7 @@ ibm_vpc:
     docker_server    : us.icr.io  # Change-me if you have the CR in another region
     docker_user      : iamapikey
     docker_password  : <IBM IAM API KEY>
+    docker_namespace : <namespace>  # namespace name from https://cloud.ibm.com/registry/namespaces
 ```
 
 
@@ -91,13 +92,13 @@ ibm_vpc:
 |ibm_vpc | master_profile_name | cx2-2x4 | no | Profile name for the master VM |
 |ibm_vpc | delete_on_dismantle | True | no | Delete the worekr VMs when they are stopped |
 |ibm_vpc | max_workers | 100 | no | Max number of workers per `FunctionExecutor()`|
-|ibm_vpc | worker_processes | 2 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker. It is recommendable to set this value to the same number of CPUs of a worker VM. |
+|ibm_vpc | worker_processes | AUTO | no | Number of Lithops processes within a given worker. This is used to parallelize function activations within a worker. By default it detects the amount of CPUs in the worker VM|
 |ibm_vpc | singlesocket | False | no | Try to allocate workers with single socket CPU. If eventually running on multiple socket, a warning message printed to user. Is **True** standalone **workers_policy** must be set to **strict** to trace workers states|
 |ibm_vpc | runtime | python3 | no | Runtime name to run the functions. Can be a container image name. If not set Lithops will use the default python3 interpreter of the VM |
 |ibm_vpc | auto_dismantle | True |no | If False then the VM is not stopped automatically.|
 |ibm_vpc | soft_dismantle_timeout | 300 |no| Time in seconds to stop the VM instance after a job **completed** its execution |
 |ibm_vpc | hard_dismantle_timeout | 3600 | no | Time in seconds to stop the VM instance after a job **started** its execution |
-|ibm_vpc | exec_mode | consume | no | One of: **consume**, **create** or **reuse**. If set to  **create**, Lithops will automatically create new VMs for each map() call based on the number of elements in iterdata. If set to **reuse** will try to reuse running workers if exist |
+|ibm_vpc | exec_mode | reuse | no | One of: **consume**, **create** or **reuse**. If set to  **create**, Lithops will automatically create new VMs for each map() call based on the number of elements in iterdata. If set to **reuse** will try to reuse running workers if exist |
 |ibm_vpc | pull_runtime | False | no | If set to True, Lithops will execute the command `docker pull <runtime_name>` in each VSI before executing the a job (in case of using a docker runtime)|
 |ibm_vpc | workers_policy | permissive | no | One of: **permissive**, **strict**. If set to **strict** will force creation of required workers number |
 |ibm_vpc | gpu | False | no | If True docker started with gpu support. Requires host to have neccessary hardware and software preconfigured and docker image runtime with gpu support specified |
@@ -110,18 +111,19 @@ In this mode, Lithops can start and stop an existing VM, and deploy an entire jo
 
 Edit your lithops config and add the relevant keys:
 
-   ```yaml
-   lithops:
-	  backend: ibm_vpc
+```yaml
+lithops:
+    backend: ibm_vpc
 
-   ibm:
-	  iam_api_key: <iam-api-key>
+ibm:
+    iam_api_key: <iam-api-key>
 
-   ibm_vpc:
-      region   : <REGION>
-      instance_id : <INSTANCE ID OF THE VM>
-      floating_ip  : <FLOATING IP ADDRESS OF THE VM>
-   ```
+ibm_vpc:
+    exec_mode: consume
+    region   : <REGION>
+    instance_id : <INSTANCE ID OF THE VM>
+    floating_ip  : <FLOATING IP ADDRESS OF THE VM>
+```
 
 If you need to create new VM, then follow the steps to create and update Lithops configuration:
 
@@ -149,7 +151,7 @@ If you need to create new VM, then follow the steps to create and update Lithops
 |ibm_vpc | floating_ip | | yes | Floatting IP address atached to your VM instance|
 |ibm_vpc | ssh_username | root |no | Username to access the VM |
 |ibm_vpc | ssh_key_filename | ~/.ssh/id_rsa | no | Path to the ssh key file provided to create the VM. It will use the default path if not provided |
-|ibm_vpc | worker_processes | 2 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker. It is recommendable to set this value to the same number of CPUs of the VM. |
+|ibm_vpc | worker_processes | AUTO | no | Number of Lithops processes within a given worker. This is used to parallelize function activations within the worker. By default it detects the amount of CPUs in the VM|
 |ibm_vpc | runtime | python3 | no | Runtime name to run the functions. Can be a container image name. If not set Lithops will use the defeuv python3 interpreter of the VM |
 |ibm_vpc | auto_dismantle | True |no | If False then the VM is not stopped automatically.|
 |ibm_vpc | soft_dismantle_timeout | 300 |no| Time in seconds to stop the VM instance after a job **completed** its execution |

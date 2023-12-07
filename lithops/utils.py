@@ -21,6 +21,7 @@ import os
 import sys
 import uuid
 import json
+import socket
 import shutil
 import base64
 import inspect
@@ -30,6 +31,8 @@ import zipfile
 import platform
 import logging.config
 import subprocess as sp
+from enum import Enum
+from contextlib import closing
 
 from lithops import constants
 from lithops.version import __version__
@@ -253,7 +256,7 @@ def create_handler_zip(dst_zip_location, entry_point_files, entry_point_name=Non
 def verify_runtime_name(runtime_name):
     """Check if the runtime name has a correct formating"""
     assert re.match("^[A-Za-z0-9_/.:-]*$", runtime_name), \
-        'Runtime name "{}" not valid'.format(runtime_name)
+        f'Runtime name "{runtime_name}" not valid'
 
 
 def timeout_handler(error_msg, signum, frame):
@@ -435,6 +438,13 @@ def get_docker_username():
             raise Exception('Unable to get the Docker registry user')
 
     return user
+
+
+def find_free_port():
+    with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
+        s.bind(('', 0))
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        return s.getsockname()[1]
 
 
 def split_object_url(obj_url):
@@ -658,8 +668,8 @@ class WrappedStreamingBodyPartition(WrappedStreamingBody):
             self._first_byte = self.sb.read(self._plusbytes)
 
         retval = self.sb.read(n)
-
-        self.pos += len(retval)
+        last_row_end_pos = len(retval)
+        self.pos += last_row_end_pos
         first_row_start_pos = 0
 
         if self._first_read and self._first_byte and \
@@ -670,11 +680,11 @@ class WrappedStreamingBodyPartition(WrappedStreamingBody):
             first_row_start_pos = retval.find(self.newline_char) + 1
             self._first_read = False
 
-        last_row_end_pos = self.pos
         # Find end of the line in threshold
-        if self.pos > self.size:
-            last_byte_pos = retval[self.size - 1:].find(self.newline_char)
-            last_row_end_pos = self.size + last_byte_pos
+        if self.pos >= self.size:
+            current_end_pos = last_row_end_pos - (self.pos - self.size)
+            last_byte_pos = retval[current_end_pos - 1:].find(self.newline_char)
+            last_row_end_pos = current_end_pos + last_byte_pos
             self._eof = True
 
         return retval[first_row_start_pos:last_row_end_pos]
@@ -725,6 +735,11 @@ def is_podman(docker_path):
         return True
     except Exception:
         return False
+
+
+class BackendType(Enum):
+    BATCH = 'batch'
+    FAAS = 'faas'
 
 
 CURRENT_PY_VERSION = version_str(sys.version_info)

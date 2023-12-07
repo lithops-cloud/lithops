@@ -1,7 +1,7 @@
 import paramiko
 import logging
 import os
-from lithops.standalone.standalone import LithopsValidationError
+from lithops.standalone import LithopsValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -51,9 +51,6 @@ class SSHClient():
 
             logger.debug(f"{self.ip_address} ssh client created")
         except Exception as e:
-            pk = self.ssh_credentials.get('key_filename')
-            if pk and str(e) == 'Authentication failed.':
-                raise LithopsValidationError(f'Private key {pk} is not valid')
             raise e
 
         return self.ssh_client
@@ -72,7 +69,7 @@ class SSHClient():
 
         try:
             stdin, stdout, stderr = self.ssh_client.exec_command(cmd, timeout=timeout)
-        except Exception as e:
+        except Exception:
             # Normally this is a timeout exception
             self.ssh_client = self.create_client()
             stdin, stdout, stderr = self.ssh_client.exec_command(cmd, timeout=timeout)

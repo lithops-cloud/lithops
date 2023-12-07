@@ -39,9 +39,9 @@ from lithops.constants import LOCALHOST, CLEANER_DIR, \
     SERVERLESS, STANDALONE
 from lithops.utils import is_notebook, setup_lithops_logger, \
     is_lithops_worker, create_executor_id, create_futures_list
-from lithops.localhost.localhost import LocalhostHandler
-from lithops.standalone.standalone import StandaloneHandler
-from lithops.serverless.serverless import ServerlessHandler
+from lithops.localhost import LocalhostHandler, LocalhostHandlerV2
+from lithops.standalone import StandaloneHandler
+from lithops.serverless import ServerlessHandler
 from lithops.storage.utils import create_job_key, CloudObject
 from lithops.monitor import JobMonitor
 from lithops.utils import FuturesList
@@ -118,7 +118,10 @@ class FunctionExecutor:
 
         if self.mode == LOCALHOST:
             localhost_config = extract_localhost_config(self.config)
-            self.compute_handler = LocalhostHandler(localhost_config)
+            if localhost_config.get('version', 1) == 1:
+                self.compute_handler = LocalhostHandler(localhost_config)
+            else:
+                self.compute_handler = LocalhostHandlerV2(localhost_config)
         elif self.mode == SERVERLESS:
             serverless_config = extract_serverless_config(self.config)
             self.compute_handler = ServerlessHandler(serverless_config, self.internal_storage)
@@ -415,7 +418,7 @@ class FunctionExecutor:
         :return: `(fs_done, fs_notdone)` where `fs_done` is a list of futures that have completed and `fs_notdone` is a list of futures that have not completed.
         """
         futures = fs or self.futures
-        if type(futures) != list and type(futures) != FuturesList:
+        if type(futures) not in [list, FuturesList]:
             futures = [futures]
 
         # Start waiting for results
@@ -443,7 +446,7 @@ class FunctionExecutor:
                 del self.futures[len(self.futures) - len(futures):]
             if self.data_cleaner:
                 present_jobs = {f.job_key for f in futures}
-                self.compute_handler.clear(present_jobs)
+                self.compute_handler.clear(present_jobs, exception=e)
                 self.clean(clean_cloudobjects=False, force=True)
             raise e
 
@@ -584,7 +587,7 @@ class FunctionExecutor:
             save_data_to_clean(data)
 
         futures = fs or self.futures
-        futures = [futures] if type(futures) != list else futures
+        futures = [futures] if type(futures) is not list else futures
         present_jobs = {create_job_key(f.executor_id, f.job_id) for f in futures
                         if (f.executor_id.count('-') == 1 and f.done) or force}
         jobs_to_clean = present_jobs - self.cleaned_jobs
@@ -646,7 +649,7 @@ class FunctionExecutor:
             init()
 
             futures = self.futures
-            if type(futures) != list:
+            if type(futures) is not list:
                 futures = [futures]
 
             memory = []

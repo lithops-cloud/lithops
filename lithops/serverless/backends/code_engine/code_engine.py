@@ -40,6 +40,7 @@ urllib3.disable_warnings()
 
 logger = logging.getLogger(__name__)
 
+
 # Decorator to wrap a function to reinit clients and retry on except.
 def retry_on_except(func):
     def decorated_func(*args, **kwargs):
@@ -78,7 +79,7 @@ class CodeEngineBackend:
     def __init__(self, ce_config, internal_storage):
         logger.debug("Creating IBM Code Engine client")
         self.name = 'code_engine'
-        self.type = 'batch'
+        self.type = utils.BackendType.BATCH.value
         self.config = ce_config
         self.internal_storage = internal_storage
         self.is_lithops_worker = utils.is_lithops_worker()
@@ -224,7 +225,7 @@ class CodeEngineBackend:
         name = f'{runtime_name}-{runtime_memory}-{version}'
         name_hash = hashlib.sha1(name.encode("utf-8")).hexdigest()[:10]
 
-        return f'lithops-worker-{version.replace(".", "")}-{name_hash}'
+        return f'lithops-worker-{self.user_key}-{version.replace(".", "")}-{name_hash}'
 
     def _get_default_runtime_image_name(self):
         """
@@ -394,14 +395,18 @@ class CodeEngineBackend:
 
         for jobdef in jobdefs['items']:
             try:
-                if jobdef['metadata']['labels']['type'] == 'lithops-runtime':
-                    version = jobdef['metadata']['labels']['version'].replace('lithops_v', '')
-                    container = jobdef['spec']['template']['containers'][0]
-                    image_name = container['image']
-                    memory = container['resources']['requests']['memory'].replace('M', '')
-                    memory = int(int(memory) / 1000 * 1024)
-                    if docker_image_name in image_name or docker_image_name == 'all':
-                        runtimes.append((image_name, memory, version))
+                if not jobdef['metadata']['name'].startswith(f'lithops-worker-{self.user_key}'):
+                    continue
+                if not jobdef['metadata']['labels']['type'] == 'lithops-runtime':
+                    continue
+                fn_name = jobdef['metadata']['name']
+                version = jobdef['metadata']['labels']['version'].replace('lithops_v', '')
+                container = jobdef['spec']['template']['containers'][0]
+                image_name = container['image']
+                memory = container['resources']['requests']['memory'].replace('M', '')
+                memory = int(int(memory) / 1000 * 1024)
+                if docker_image_name in image_name or docker_image_name == 'all':
+                    runtimes.append((image_name, memory, version, fn_name))
             except Exception:
                 pass
 
@@ -452,7 +457,14 @@ class CodeEngineBackend:
 
         total_calls = job_payload['total_calls']
         chunksize = job_payload['chunksize']
+        max_workers = job_payload['max_workers']
+
+        # Make sure only max_workers are started
         total_workers = total_calls // chunksize + (total_calls % chunksize > 0)
+        if max_workers < total_workers:
+            chunksize = total_calls // max_workers + (total_calls % max_workers > 0)
+            total_workers = total_calls // chunksize + (total_calls % chunksize > 0)
+            job_payload['chunksize'] = chunksize
 
         jobdef_name = self._format_jobdef_name(docker_image_name, runtime_memory)
 
@@ -537,7 +549,7 @@ class CodeEngineBackend:
 
         try:
             self.core_api.delete_namespaced_secret("lithops-regcred", self.namespace)
-        except ApiException as e:
+        except ApiException:
             pass
 
         try:

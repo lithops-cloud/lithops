@@ -16,7 +16,6 @@
 
 import os
 import logging
-import shutil
 from threading import Lock
 
 from lithops import utils
@@ -40,7 +39,7 @@ class IBMCloudFunctionsBackend:
     def __init__(self, cf_config, internal_storage):
         logger.debug("Creating IBM Cloud Functions client")
         self.name = 'ibm_cf'
-        self.type = 'faas'
+        self.type = utils.BackendType.FAAS.value
         self.config = cf_config
         self.is_lithops_worker = utils.is_lithops_worker()
 
@@ -290,7 +289,7 @@ class IBMCloudFunctionsBackend:
                 for action in actions:
                     version, image_name, memory = self._unformat_function_name(action['name'])
                     if docker_image_name == image_name or docker_image_name == 'all':
-                        runtimes.append((image_name, memory, version))
+                        runtimes.append((image_name, memory, version, action['name']))
         return runtimes
 
     def pre_invoke(self, docker_image_name, runtime_memory):

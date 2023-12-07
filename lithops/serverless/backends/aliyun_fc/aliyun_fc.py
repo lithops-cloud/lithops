@@ -40,7 +40,7 @@ class AliyunFunctionComputeBackend:
     def __init__(self, afc_config, internal_storage):
         logger.debug("Creating Aliyun Function Compute client")
         self.name = 'aliyun_fc'
-        self.type = 'faas'
+        self.type = utils.BackendType.FAAS.value
         self.config = afc_config
         self.user_agent = afc_config['user_agent']
 
@@ -239,9 +239,9 @@ class AliyunFunctionComputeBackend:
         for function in functions:
             if function['functionName'].startswith('lithops-worker'):
                 memory = function['memorySize']
-                version, name = self._unformat_function_name(function['functionName'])
-                if runtime_name == name or runtime_name == 'all':
-                    runtimes.append((name, memory, version))
+                version, img_name = self._unformat_function_name(function['functionName'])
+                if runtime_name == img_name or runtime_name == 'all':
+                    runtimes.append((img_name, memory, version, function['functionName']))
         return runtimes
 
     def invoke(self, runtime_name, memory, payload={}):
