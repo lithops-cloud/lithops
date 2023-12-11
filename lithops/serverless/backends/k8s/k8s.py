@@ -75,8 +75,6 @@ class KubernetesBackend:
             self.cluster = ctx_context.get('cluster') or self.cluster
             ctx_user = ctx_context.get('user')
             self.user = hashlib.sha1(ctx_user.encode()).hexdigest()[:10] if ctx_user else self.user
-            ctx_user = ctx_context.get('user')
-            self.user = hashlib.sha1(ctx_user.encode()).hexdigest()[:10] if ctx_user else self.user
             logger.debug(f"Using kubeconfig conetxt: {ctx_name} - cluster: {self.cluster}")
             self.is_incluster = False
         else:
@@ -85,7 +83,6 @@ class KubernetesBackend:
             self.is_incluster = True
 
         if self.master_name == config.MASTER_NAME:
-            self.master_name = f'{config.MASTER_NAME}-{self.user}'
             self.master_name = f'{config.MASTER_NAME}-{self.user}'
 
         self.k8s_config['namespace'] = self.namespace
@@ -328,7 +325,7 @@ class KubernetesBackend:
         pod["spec"]["containers"][0]["args"][1] = "start_rabbitmq"
         pod["spec"]["containers"][0]["args"][2] = utils.dict_to_b64str(payload)
         
-        self.core_api.create_namespaced_pod(body=pod, namespace='default')
+        self.core_api.create_namespaced_pod(body=pod, namespace=self.namespace)
 
     def _get_nodes(self) :
         self.nodes = []
@@ -409,13 +406,13 @@ class KubernetesBackend:
         logger.info(f"Total cpus of the cluster: {num_cpus_cluster}")        
 
     def _delete_workers(self):
-        list_pods = self.core_api.list_namespaced_pod("default", label_selector="app=lithops-pod")
+        list_pods = self.core_api.list_namespaced_pod(self.namespace, label_selector="app=lithops-pod")
         for pod in list_pods.items:
-            self.core_api.delete_namespaced_pod(pod.metadata.name, "default")
+            self.core_api.delete_namespaced_pod(pod.metadata.name, self.namespace)
 
         # Wait until all pods are deleted
         while True:
-            list_pods = self.core_api.list_namespaced_pod("default", label_selector="app=lithops-pod")
+            list_pods = self.core_api.list_namespaced_pod(self.namespace, label_selector="app=lithops-pod")
 
             if not list_pods.items:
                 break  # All pods are deleted
@@ -483,7 +480,7 @@ class KubernetesBackend:
 
         self.current_runtime = ""
 
-        list_pods = self.core_api.list_namespaced_pod("default", label_selector="app=lithops-pod")
+        list_pods = self.core_api.list_namespaced_pod(self.namespace, label_selector="app=lithops-pod")
 
         for pod in list_pods.items:
             pod_name = pod.metadata.name
@@ -731,7 +728,6 @@ class KubernetesBackend:
         in order to know which runtimes are installed and which not.
         """
         jobdef_name = self._format_job_name(docker_image_name, 256, version)
-        user_data = os.path.join(self.cluster, self.namespace, self.user)
         user_data = os.path.join(self.cluster, self.namespace, self.user)
         runtime_key = os.path.join(self.name, version, user_data, jobdef_name)
 
