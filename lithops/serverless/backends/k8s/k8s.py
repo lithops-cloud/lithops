@@ -617,9 +617,9 @@ class KubernetesBackend:
             container['env'][2]['value'] = master_ip
 
             container['resources']['requests']['memory'] = f'{runtime_memory}Mi'
-            container['resources']['requests']['cpu'] = str(self.k8s_config['worker_processes'])
+            container['resources']['requests']['cpu'] = str(self.k8s_config['runtime_cpu'])
             container['resources']['limits']['memory'] = f'{runtime_memory}Mi'
-            container['resources']['limits']['cpu'] = str(self.k8s_config['worker_processes'])
+            container['resources']['limits']['cpu'] = str(self.k8s_config['runtime_cpu'])
 
             logger.debug(f'ExecutorID {executor_id} | JobID {job_id} - Going '
                         f'to run {total_calls} activations in {total_workers} workers')
