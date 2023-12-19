@@ -113,6 +113,25 @@ spec:
       imagePullSecrets:
         - name: lithops-regcred
 """
+POD="""
+apiVersion: v1
+kind: Pod
+metadata:
+  name: lithops-worker
+spec:
+  containers:
+    - name: "lithops-worker"
+      image: "<INPUT>"
+      command: ["python3"]
+      args:
+        - "/lithops/lithopsentry.py"
+        - "--"
+        - "--"
+      resources:
+        requests:
+          cpu: '1'
+          memory: '512Mi'
+"""
 
 def load_config(config_data):
     for key in DEFAULT_CONFIG_KEYS:
@@ -124,3 +143,6 @@ def load_config(config_data):
         registry = config_data['k8s']['docker_server']
         if runtime.count('/') == 1 and registry not in runtime:
             config_data['k8s']['runtime'] = f'{registry}/{runtime}'
+
+    if config_data['k8s'].get('rabbitmq_executor', False):
+      config_data['k8s']['amqp_url'] = config_data['rabbitmq']['amqp_url']
