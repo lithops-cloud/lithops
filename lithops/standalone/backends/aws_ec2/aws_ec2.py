@@ -153,7 +153,7 @@ class AWSEC2Backend:
 
         if 'vpc_id' not in self.config:
             logger.debug(f'Creating VPC {self.vpc_name}')
-            response = self.ec2_client.create_vpc(CidrBlock='192.168.0.0/16')
+            response = self.ec2_client.create_vpc(CidrBlock='10.0.0.0/16')
             tags = [{"Key": "Name", "Value": self.vpc_name}]
             self.ec2_client.create_tags(Resources=[response['Vpc']['VpcId']], Tags=tags)
 
@@ -197,28 +197,32 @@ class AWSEC2Backend:
 
     def _create_subnet(self):
         """
-        Creates a new Subnet
+        Creates a public and a private subnets
         """
-        if 'subnet_id' in self.config:
+        if 'public_subnet_id' in self.config and 'private_subnet_id' in self.config:
             return
 
-        if 'subnet_id' in self.ec2_data:
-            sg_info = self.ec2_client.describe_subnets(SubnetIds=[self.ec2_data['subnet_id']])
+        if 'public_subnet_id' in self.ec2_data:
+            sg_info = self.ec2_client.describe_subnets(SubnetIds=[self.ec2_data['public_subnet_id']])
             if len(sg_info) > 0:
-                self.config['subnet_id'] = self.ec2_data['subnet_id']
-                return
+                self.config['public_subnet_id'] = self.ec2_data['public_subnet_id']
 
-        response = self.ec2_client.describe_subnets()
-        for subnet in response['Subnets']:
-            if subnet['VpcId'] == self.config['vpc_id']:
-                subnet_id = subnet['SubnetId']
-                self.config['subnet_id'] = subnet_id
+        if 'private_subnet_id' in self.ec2_data:
+            sg_info = self.ec2_client.describe_subnets(SubnetIds=[self.ec2_data['private_subnet_id']])
+            if len(sg_info) > 0:
+                self.config['private_subnet_id'] = self.ec2_data['private_subnet_id']
 
-        if 'subnet_id' not in self.config:
-            logger.debug(f'Creating new subnet in VPC {self.vpc_name}')
-            response = self.ec2_client.create_subnet(CidrBlock='192.168.0.0/16', VpcId=self.config['vpc_id'])
-            subnet_id = response['Subnet']['SubnetId']
-            self.config['subnet_id'] = subnet_id
+        if 'public_subnet_id' not in self.config:
+            logger.debug(f'Creating new public subnet in VPC {self.vpc_name}')
+            response = self.ec2_client.create_subnet(CidrBlock='10.0.1.0/24', VpcId=self.config['vpc_id'])
+            public_subnet_id = response['Subnet']['SubnetId']
+            self.config['public_subnet_id'] = public_subnet_id
+
+        if 'private_subnet_id' not in self.config:
+            logger.debug(f'Creating new private subnet in VPC {self.vpc_name}')
+            response = self.ec2_client.create_subnet(CidrBlock='10.0.2.0/24', VpcId=self.config['vpc_id'])
+            private_subnet_id = response['Subnet']['SubnetId']
+            self.config['private_subnet_id'] = private_subnet_id
 
     def _create_security_group(self):
         """
@@ -252,7 +256,7 @@ class AWSEC2Backend:
                     {'IpProtocol': 'tcp',
                         'FromPort': 8080,
                         'ToPort': 8080,
-                        'IpRanges': [{'CidrIp': '192.168.0.0/16'}]},
+                        'IpRanges': [{'CidrIp': '10.0.2.0/24'}]},
                     {'IpProtocol': 'tcp',
                         'FromPort': 22,
                         'ToPort': 22,
@@ -261,6 +265,28 @@ class AWSEC2Backend:
             )
 
             self.config['security_group_id'] = response['GroupId']
+
+    def _create_nat_gateway(self):
+        """
+        Creates a new internet gateway
+        """
+        if 'nat_gateway_id' in self.config:
+            return
+
+        if 'nat_gateway_id' in self.ec2_data:
+            ig_info = self.ec2_client.describe_nat_gateways(InternetGatewayIds=[self.ec2_data['nat_gateway_id']])
+            if len(ig_info) > 0:
+                self.config['nat_gateway_id'] = self.ec2_data['nat_gateway_id']
+                return
+
+        response = self.ec2_client.describe_nat_gateways()
+        for ng in response['NatGateways']:
+            if ng['SubnetId'] == self.config['private_subnet_id']:
+                self.config['nat_gateway_id'] = ng['NatGatewayId']
+
+        if 'nat_gateway_id' not in self.config:
+            # Create the Nat Gateway for the private subnet
+            pass
 
     def _create_ssh_key(self):
         """
@@ -435,6 +461,8 @@ class AWSEC2Backend:
             self._create_subnet()
             # Create the security group if not exists
             self._create_security_group()
+            # Create the NAT gateway
+            self._create_nat_gateway()
             # Create the ssh key pair if not exists
             self._create_ssh_key()
             # Requests the Ubuntu image ID
@@ -459,7 +487,8 @@ class AWSEC2Backend:
                 'target_ami': self.config['target_ami'],
                 'ssh_key_name': self.config['ssh_key_name'],
                 'ssh_key_filename': self.config['ssh_key_filename'],
-                'subnet_id': self.config['subnet_id'],
+                'public_subnet_id': self.config['public_subnet_id'],
+                'private_subnet_id': self.config['private_subnet_id'],
                 'security_group_id': self.config['security_group_id'],
                 'internet_gateway_id': self.config['internet_gateway_id'],
                 'instance_types': self.instance_types
@@ -657,8 +686,17 @@ class AWSEC2Backend:
                 total_correct += 1
             logger.debug(e.response['Error']['Message'])
         try:
-            logger.debug(f"Deleting {self.ec2_data['subnet_id']}")
-            self.ec2_client.delete_subnet(SubnetId=self.ec2_data['subnet_id'])
+            logger.debug(f"Deleting {self.ec2_data['public_subnet_id']}")
+            self.ec2_client.delete_subnet(SubnetId=self.ec2_data['public_subnet_id'])
+            total_correct += 1
+        except ClientError as e:
+            if e.response['ResponseMetadata']['HTTPStatusCode'] == 400 and \
+               'does not exist' in e.response['Error']['Message']:
+                total_correct += 1
+            logger.debug(e.response['Error']['Message'])
+        try:
+            logger.debug(f"Deleting {self.ec2_data['private_subnet_id']}")
+            self.ec2_client.delete_subnet(SubnetId=self.ec2_data['private_subnet_id'])
             total_correct += 1
         except ClientError as e:
             if e.response['ResponseMetadata']['HTTPStatusCode'] == 400 and \
@@ -697,10 +735,10 @@ class AWSEC2Backend:
                 total_correct += 1
             logger.debug(e.response['Error']['Message'])
 
-        if total_correct < 5:
+        if total_correct < 6:
             logger.error("Couldn't delete all the VPC resources, try againg in a few seconds")
 
-        return total_correct == 5
+        return total_correct == 6
 
     def _delete_ssh_key(self):
         """
@@ -1001,9 +1039,9 @@ class EC2Instance:
         }
 
         LaunchSpecification['NetworkInterfaces'] = [{
-            'AssociatePublicIpAddress': True,
+            'AssociatePublicIpAddress': False,
             'DeviceIndex': 0,
-            'SubnetId': self.config['subnet_id'],
+            'SubnetId': self.config['private_subnet_id'],
             'Groups': [self.config['security_group_id']]
         }]
 
@@ -1058,12 +1096,46 @@ class EC2Instance:
             if user_data:
                 LaunchSpecification['UserData'] = user_data
 
+            if self.public:
+                LaunchSpecification['NetworkInterfaces'] = [{
+                    'AssociatePublicIpAddress': True,
+                    'DeviceIndex': 0,
+                    'SubnetId': self.config['public_subnet_id'],
+                    'Groups': [self.config['security_group_id']]
+                }]
+
             resp = self.ec2_client.run_instances(**LaunchSpecification)
 
-        logger.debug(f"VM instance {self.name} created successfully ")
+            self.instance_data = resp['Instances'][0]
+            self.instance_id = self.instance_data['InstanceId']
 
-        self.instance_data = resp['Instances'][0]
-        self.instance_id = self.instance_data['InstanceId']
+            if self.public:
+                network_interface_resp = self.ec2_client.create_network_interface(
+                    SubnetId=self.config['private_subnet_id'],
+                    Groups=[self.config['security_group_id']]
+                )
+                network_interface_id = network_interface_resp['NetworkInterface']['NetworkInterfaceId']
+
+                self.ec2_client.get_waiter('instance_running').wait(
+                    InstanceIds=[self.instance_id],
+                    WaiterConfig={'Delay': 5, 'MaxAttempts': 40}
+                )
+
+                attachment_resp = self.ec2_client.attach_network_interface(
+                    NetworkInterfaceId=network_interface_id,
+                    InstanceId=self.instance_id,
+                    DeviceIndex=1
+                )
+
+                self.ec2_client.modify_network_interface_attribute(
+                    NetworkInterfaceId=network_interface_id,
+                    Attachment={
+                        'AttachmentId': attachment_resp['AttachmentId'],
+                        'DeleteOnTermination': True
+                    }
+                )
+
+        logger.debug(f"VM instance {self.name} created successfully ")
 
         return self.instance_data
 
@@ -1084,7 +1156,6 @@ class EC2Instance:
         if instance_data and instance_data['State']['Name'] != 'terminated':
             self.instance_data = instance_data
             self.instance_id = instance_data['InstanceId']
-            self.private_ip = self.instance_data.get('PrivateIpAddress')
             self.public_ip = self.instance_data.get('PublicIpAddress')
 
         return self.instance_data
@@ -1110,12 +1181,18 @@ class EC2Instance:
         Requests the private IP address
         """
         if not self.private_ip and self.instance_data:
-            self.private_ip = self.instance_data.get('PrivateIpAddress')
+            if 'NetworkInterfaces' in self.instance_data:
+                for device in self.instance_data['NetworkInterfaces']:
+                    if device['PrivateIpAddress'].startswith('10.0.0'):
+                        self.private_ip = device['PrivateIpAddress']
 
         while not self.private_ip:
             instance_data = self.get_instance_data()
-            if instance_data and 'PrivateIpAddress' in instance_data:
-                self.private_ip = instance_data['PrivateIpAddress']
+
+            if instance_data and 'NetworkInterfaces' in instance_data:
+                for device in instance_data['NetworkInterfaces']:
+                    if device['PrivateIpAddress'].startswith('10.0.0'):
+                        self.private_ip = device['PrivateIpAddress']
             else:
                 time.sleep(1)
 
