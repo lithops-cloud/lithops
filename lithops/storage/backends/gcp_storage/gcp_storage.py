@@ -51,6 +51,13 @@ class GCPStorageBackend:
     def get_client(self):
         return self.client
 
+    def exists_bucket(self, bucket_name):
+        try:
+            self.client.get_bucket(bucket_name, timeout=TIMEOUT)
+            return True
+        except google_exceptions.NotFound:
+            return False
+
     def create_bucket(self, bucket_name):
         """
         Create a bucket if it doesn't exist
@@ -58,9 +65,12 @@ class GCPStorageBackend:
         try:
             bucket = self.client.bucket(bucket_name)
             bucket.storage_class = "STANDARD"
-            self.client.create_bucket(bucket, location=self.region)
-        except google_exceptions.Conflict:
-            pass
+            if not self.exists_bucket(bucket_name):
+                logger.debug(f"Could not find the bucket {bucket_name} in the GCP storage backend")
+                logger.debug(f"Creating new bucket {bucket_name} in the GCP storage backend")
+                self.client.create_bucket(bucket, location=self.region)
+        except google_exceptions.Forbidden:
+            raise StorageNoSuchKeyError(bucket_name, '')
 
     def put_object(self, bucket_name, key, data):
         done = False
