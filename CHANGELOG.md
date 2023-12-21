@@ -3,7 +3,7 @@
 ## [v3.1.1.dev0]
 
 ### Added
-- 
+- [k8s] Added a new way of invoking functions using a RabbitMQ work queue
 
 ### Changed
 - 
@@ -48,6 +48,7 @@
 - [Joblib] Fix shared objects utility when multiple maps run from the same executor
 - [Azure VMs] Fix wrong exception when trying to connect to the master VM for the first time
 - [Partitioner] Fix partitioner
+
 
 ## [v3.0.1]
 
@@ -125,6 +126,7 @@
 - [AWS Lambda] Fixed error with urllib3. Pin urllib3 to <2 as for now botocore does not support urllib3 2.0
 - [Multiprocessing] Check redis connection before starting to submit jobs
 - [Redis] Fixed redis backend exception regarding storage_bucket
+
 
 ## [v2.9.0]
 
