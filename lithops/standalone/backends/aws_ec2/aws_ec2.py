@@ -1239,6 +1239,7 @@ class EC2Instance:
         if instance_data and instance_data['State']['Name'] != 'terminated':
             self.instance_data = instance_data
             self.instance_id = instance_data['InstanceId']
+            self.private_ip = self.instance_data.get('PrivateIpAddress')
             self.public_ip = self.instance_data.get('PublicIpAddress')
 
         return self.instance_data
@@ -1268,7 +1269,6 @@ class EC2Instance:
 
         while not self.private_ip:
             instance_data = self.get_instance_data()
-
             if instance_data and 'PrivateIpAddress' in instance_data:
                 self.private_ip = instance_data['PrivateIpAddress']
             else:
