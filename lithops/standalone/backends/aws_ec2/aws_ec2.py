@@ -153,11 +153,48 @@ class AWSEC2Backend:
 
         if 'vpc_id' not in self.config:
             logger.debug(f'Creating VPC {self.vpc_name}')
-            response = self.ec2_client.create_vpc(CidrBlock='192.168.0.0/16')
+            response = self.ec2_client.create_vpc(CidrBlock='10.0.0.0/16')
             tags = [{"Key": "Name", "Value": self.vpc_name}]
             self.ec2_client.create_tags(Resources=[response['Vpc']['VpcId']], Tags=tags)
 
             self.config['vpc_id'] = response['Vpc']['VpcId']
+
+    def _create_subnets(self):
+        """
+        Creates a public and a private subnets
+        """
+        if 'public_subnet_id' in self.config:
+            return
+
+        if 'public_subnet_id' in self.ec2_data:
+            sg_info = self.ec2_client.describe_subnets(
+                SubnetIds=[self.ec2_data['public_subnet_id']]
+            )
+            if len(sg_info) > 0:
+                self.config['public_subnet_id'] = self.ec2_data['public_subnet_id']
+
+        # if 'private_subnet_id' in self.ec2_data:
+        #     sg_info = self.ec2_client.describe_subnets(
+        #         SubnetIds=[self.ec2_data['private_subnet_id']]
+        #     )
+        #     if len(sg_info) > 0:
+        #         self.config['private_subnet_id'] = self.ec2_data['private_subnet_id']
+
+        if 'public_subnet_id' not in self.config:
+            logger.debug(f'Creating new public subnet in VPC {self.vpc_name}')
+            response = self.ec2_client.create_subnet(
+                CidrBlock='10.0.1.0/24', VpcId=self.config['vpc_id'],
+            )
+            public_subnet_id = response['Subnet']['SubnetId']
+            self.config['public_subnet_id'] = public_subnet_id
+
+        # if 'private_subnet_id' not in self.config:
+        #     logger.debug(f'Creating new private subnet in VPC {self.vpc_name}')
+        #     response = self.ec2_client.create_subnet(
+        #         CidrBlock='10.0.2.0/24', VpcId=self.config['vpc_id']
+        #     )
+        #     private_subnet_id = response['Subnet']['SubnetId']
+        #     self.config['private_subnet_id'] = private_subnet_id
 
     def _create_internet_gateway(self):
         """
@@ -167,7 +204,9 @@ class AWSEC2Backend:
             return
 
         if 'internet_gateway_id' in self.ec2_data:
-            ig_info = self.ec2_client.describe_internet_gateways(InternetGatewayIds=[self.ec2_data['internet_gateway_id']])
+            ig_info = self.ec2_client.describe_internet_gateways(
+                InternetGatewayIds=[self.ec2_data['internet_gateway_id']]
+            )
             if len(ig_info) > 0:
                 self.config['internet_gateway_id'] = self.ec2_data['internet_gateway_id']
                 return
@@ -179,46 +218,119 @@ class AWSEC2Backend:
 
         if 'internet_gateway_id' not in self.config:
             # Create and Attach the Internet Gateway
+            logger.debug(f'Creating Internet Gateway in VPC {self.vpc_name}')
             response = self.ec2_client.create_internet_gateway()
             internet_gateway_id = response['InternetGateway']['InternetGatewayId']
-            self.ec2_client.attach_internet_gateway(VpcId=self.config['vpc_id'], InternetGatewayId=internet_gateway_id)
+            self.ec2_client.attach_internet_gateway(
+                VpcId=self.config['vpc_id'], InternetGatewayId=internet_gateway_id
+            )
             self.config['internet_gateway_id'] = internet_gateway_id
 
-            # Create a public route to Internet Gateway
+    def _create_nat_gateway(self):
+        """
+        Creates a new internet gateway
+        """
+        if 'nat_gateway_id' in self.config:
+            return
+
+        if 'nat_gateway_id' in self.ec2_data:
+            ig_info = self.ec2_client.describe_nat_gateways(
+                NatGatewayIds=[self.ec2_data['nat_gateway_id']]
+            )
+            if len(ig_info) > 0:
+                self.config['nat_gateway_id'] = self.ec2_data['nat_gateway_id']
+                return
+
+        response = self.ec2_client.describe_nat_gateways()
+        for ng in response['NatGateways']:
+            if ng['SubnetId'] == self.config['public_subnet_id']:
+                self.config['nat_gateway_id'] = ng['NatGatewayId']
+
+        if 'nat_gateway_id' not in self.config:
+            logger.debug(f'Creating NAT Gateway in VPC {self.vpc_name}')
+            # Create an Elastic IP address for the NAT Gateway
+            # Create the NAT gateway can take up to 2 minutes
+            # TODO: Reuse Elastic IP adress if available
+            eip_resp = self.ec2_client.allocate_address(Domain='vpc')
+            allocation_id = eip_resp['AllocationId']
+
+            # Create a NAT Gateway
+            nat_gateway_resp = self.ec2_client.create_nat_gateway(
+                SubnetId=self.config['public_subnet_id'],
+                AllocationId=allocation_id
+            )
+            nat_gateway_id = nat_gateway_resp['NatGateway']['NatGatewayId']
+            self.config['nat_gateway_id'] = nat_gateway_id
+
+            self.ec2_client.get_waiter('nat_gateway_available').wait(
+                NatGatewayIds=[nat_gateway_id],
+                WaiterConfig={'Delay': 5, 'MaxAttempts': 40}
+            )
+
+    def _create_routing_tables(self):
+        """
+        Creates the routing tables
+        """
+        if 'public_rtb_id' in self.config:
+            return
+
+        if 'public_rtb_id' in self.ec2_data:
+            sg_info = self.ec2_client.describe_route_tables(
+                RouteTableIds=[self.ec2_data['public_rtb_id']]
+            )
+            if len(sg_info) > 0:
+                self.config['public_rtb_id'] = self.ec2_data['public_rtb_id']
+
+        # if 'private_rtb_id' in self.ec2_data:
+        #     sg_info = self.ec2_client.describe_route_tables(
+        #         RouteTableIds=[self.ec2_data['private_rtb_id']]
+        #     )
+        #     if len(sg_info) > 0:
+        #         self.config['private_rtb_id'] = self.ec2_data['private_rtb_id']
+
+        if 'public_rtb_id' not in self.config:
+            logger.debug(f'Creating public routing table in VPC {self.vpc_name}')
+            # The default RT is the public RT
             response = self.ec2_client.describe_route_tables()
             for rt in response['RouteTables']:
                 if rt['VpcId'] == self.config['vpc_id']:
-                    route_table_id = rt['RouteTableId']
-            self.ec2_client.create_route(
-                DestinationCidrBlock='0.0.0.0/0',
-                GatewayId=internet_gateway_id,
-                RouteTableId=route_table_id
+                    publ_route_table_id = rt['RouteTableId']
+            self.ec2_client.create_tags(
+                Resources=[publ_route_table_id],
+                Tags=[{'Key': 'Name', 'Value': f'{self.vpc_name}-publ'}]
             )
+            self.ec2_client.associate_route_table(
+                RouteTableId=publ_route_table_id,
+                SubnetId=self.config['public_subnet_id']
+            )
+            self.ec2_client.create_route(
+                RouteTableId=publ_route_table_id,
+                DestinationCidrBlock='0.0.0.0/0',
+                GatewayId=self.config['internet_gateway_id']
+            )
+            self.config['public_rtb_id'] = publ_route_table_id
 
-    def _create_subnet(self):
-        """
-        Creates a new Subnet
-        """
-        if 'subnet_id' in self.config:
-            return
-
-        if 'subnet_id' in self.ec2_data:
-            sg_info = self.ec2_client.describe_subnets(SubnetIds=[self.ec2_data['subnet_id']])
-            if len(sg_info) > 0:
-                self.config['subnet_id'] = self.ec2_data['subnet_id']
-                return
-
-        response = self.ec2_client.describe_subnets()
-        for subnet in response['Subnets']:
-            if subnet['VpcId'] == self.config['vpc_id']:
-                subnet_id = subnet['SubnetId']
-                self.config['subnet_id'] = subnet_id
-
-        if 'subnet_id' not in self.config:
-            logger.debug(f'Creating new subnet in VPC {self.vpc_name}')
-            response = self.ec2_client.create_subnet(CidrBlock='192.168.0.0/16', VpcId=self.config['vpc_id'])
-            subnet_id = response['Subnet']['SubnetId']
-            self.config['subnet_id'] = subnet_id
+        # if 'private_rtb_id' not in self.config:
+        #     logger.debug(f'Creating private routing table in VPC {self.vpc_name}')
+        #     # Create private RT
+        #     priv_route_table_resp = self.ec2_client.create_route_table(
+        #         VpcId=self.config['vpc_id']
+        #     )
+        #     priv_route_table_id = priv_route_table_resp['RouteTable']['RouteTableId']
+        #     self.ec2_client.create_tags(
+        #         Resources=[priv_route_table_id],
+        #         Tags=[{'Key': 'Name', 'Value': f'{self.vpc_name}-priv'}]
+        #     )
+        #     self.ec2_client.associate_route_table(
+        #         RouteTableId=priv_route_table_id,
+        #         SubnetId=self.config['private_subnet_id']
+        #     )
+        #     self.ec2_client.create_route(
+        #         RouteTableId=priv_route_table_id,
+        #         DestinationCidrBlock='0.0.0.0/0',
+        #         GatewayId=self.config['nat_gateway_id']
+        #     )
+        #     self.config['private_rtb_id'] = priv_route_table_id
 
     def _create_security_group(self):
         """
@@ -228,7 +340,9 @@ class AWSEC2Backend:
             return
 
         if 'security_group_id' in self.ec2_data:
-            sg_info = self.ec2_client.describe_security_groups(GroupIds=[self.ec2_data['security_group_id']])
+            sg_info = self.ec2_client.describe_security_groups(
+                GroupIds=[self.ec2_data['security_group_id']]
+            )
             if len(sg_info) > 0:
                 self.config['security_group_id'] = self.ec2_data['security_group_id']
                 return
@@ -239,7 +353,7 @@ class AWSEC2Backend:
                 self.config['security_group_id'] = sg['GroupId']
 
         if 'security_group_id' not in self.config:
-            logger.debug(f'Creating new security group in VPC {self.vpc_name}')
+            logger.debug(f'Creating Security Group in VPC {self.vpc_name}')
             response = self.ec2_client.create_security_group(
                 GroupName=self.vpc_name,
                 Description=self.vpc_name,
@@ -252,7 +366,7 @@ class AWSEC2Backend:
                     {'IpProtocol': 'tcp',
                         'FromPort': 8080,
                         'ToPort': 8080,
-                        'IpRanges': [{'CidrIp': '192.168.0.0/16'}]},
+                        'IpRanges': [{'CidrIp': '10.0.0.0/16'}]},
                     {'IpProtocol': 'tcp',
                         'FromPort': 22,
                         'ToPort': 22,
@@ -429,10 +543,14 @@ class AWSEC2Backend:
             # Set the suffix used for the VPC resources
             self.vpc_key = self.config['vpc_id'][-6:]
 
+            # Create the Subnet if not exists
+            self._create_subnets()
             # Create the internet gateway if not exists
             self. _create_internet_gateway()
-            # Create the Subnet if not exists
-            self._create_subnet()
+            # Create the NAT gateway
+            # self._create_nat_gateway()
+            # Create routing tables
+            self._create_routing_tables()
             # Create the security group if not exists
             self._create_security_group()
             # Create the ssh key pair if not exists
@@ -459,9 +577,13 @@ class AWSEC2Backend:
                 'target_ami': self.config['target_ami'],
                 'ssh_key_name': self.config['ssh_key_name'],
                 'ssh_key_filename': self.config['ssh_key_filename'],
-                'subnet_id': self.config['subnet_id'],
+                'public_subnet_id': self.config['public_subnet_id'],
+                # 'private_subnet_id': self.config['private_subnet_id'],
                 'security_group_id': self.config['security_group_id'],
                 'internet_gateway_id': self.config['internet_gateway_id'],
+                # 'nat_gateway_id': self.config['nat_gateway_id'],
+                # 'private_rtb_id': self.config['private_rtb_id'],
+                'public_rtb_id': self.config['public_rtb_id'],
                 'instance_types': self.instance_types
             }
 
@@ -645,6 +767,7 @@ class AWSEC2Backend:
 
         total_correct = 0
 
+        # Security Group
         try:
             logger.debug(f"Deleting security group {self.ec2_data['security_group_id']}")
             self.ec2_client.delete_security_group(
@@ -656,15 +779,45 @@ class AWSEC2Backend:
                'does not exist' in e.response['Error']['Message']:
                 total_correct += 1
             logger.debug(e.response['Error']['Message'])
+
+        # NAT Gateway
+        # try:
+        #     logger.debug(f"Deleting nat gateway {self.ec2_data['nat_gateway_id']}")
+        #     self.ec2_client.delete_nat_gateway(
+        #         NatGatewayId=self.ec2_data['nat_gateway_id']
+        #     )
+        #     self.ec2_client.get_waiter('nat_gateway_deleted').wait(
+        #         NatGatewayIds=[self.ec2_data['nat_gateway_id']],
+        #         WaiterConfig={'Delay': 5, 'MaxAttempts': 40}
+        #     )
+        #     total_correct += 1
+        # except ClientError as e:
+        #     if e.response['ResponseMetadata']['HTTPStatusCode'] == 400 and \
+        #        'does not exist' in e.response['Error']['Message']:
+        #         total_correct += 1
+        #     logger.debug(e.response['Error']['Message'])
+
+        # Subnets
         try:
-            logger.debug(f"Deleting {self.ec2_data['subnet_id']}")
-            self.ec2_client.delete_subnet(SubnetId=self.ec2_data['subnet_id'])
+            logger.debug(f"Deleting public {self.ec2_data['public_subnet_id']}")
+            self.ec2_client.delete_subnet(SubnetId=self.ec2_data['public_subnet_id'])
             total_correct += 1
         except ClientError as e:
             if e.response['ResponseMetadata']['HTTPStatusCode'] == 400 and \
                'does not exist' in e.response['Error']['Message']:
                 total_correct += 1
             logger.debug(e.response['Error']['Message'])
+        # try:
+        #     logger.debug(f"Deleting private {self.ec2_data['private_subnet_id']}")
+        #     self.ec2_client.delete_subnet(SubnetId=self.ec2_data['private_subnet_id'])
+        #     total_correct += 1
+        # except ClientError as e:
+        #     if e.response['ResponseMetadata']['HTTPStatusCode'] == 400 and \
+        #        'does not exist' in e.response['Error']['Message']:
+        #         total_correct += 1
+        #     logger.debug(e.response['Error']['Message'])
+
+        # Internet gateway
         try:
             logger.debug(f"Detaching internet gateway {self.ec2_data['internet_gateway_id']}")
             self.ec2_client.detach_internet_gateway(
@@ -687,6 +840,8 @@ class AWSEC2Backend:
                'does not exist' in e.response['Error']['Message']:
                 total_correct += 1
             logger.debug(e.response['Error']['Message'])
+
+        # VPC
         try:
             logger.debug(f"Deleting VPC {self.ec2_data['vpc_id']}")
             self.ec2_client.delete_vpc(VpcId=self.ec2_data['vpc_id'])
@@ -1003,7 +1158,7 @@ class EC2Instance:
         LaunchSpecification['NetworkInterfaces'] = [{
             'AssociatePublicIpAddress': True,
             'DeviceIndex': 0,
-            'SubnetId': self.config['subnet_id'],
+            'SubnetId': self.config['public_subnet_id'],
             'Groups': [self.config['security_group_id']]
         }]
 
@@ -1060,10 +1215,10 @@ class EC2Instance:
 
             resp = self.ec2_client.run_instances(**LaunchSpecification)
 
-        logger.debug(f"VM instance {self.name} created successfully ")
+            self.instance_data = resp['Instances'][0]
+            self.instance_id = self.instance_data['InstanceId']
 
-        self.instance_data = resp['Instances'][0]
-        self.instance_id = self.instance_data['InstanceId']
+        logger.debug(f"VM instance {self.name} created successfully ")
 
         return self.instance_data
 
@@ -1084,7 +1239,6 @@ class EC2Instance:
         if instance_data and instance_data['State']['Name'] != 'terminated':
             self.instance_data = instance_data
             self.instance_id = instance_data['InstanceId']
-            self.private_ip = self.instance_data.get('PrivateIpAddress')
             self.public_ip = self.instance_data.get('PublicIpAddress')
 
         return self.instance_data
@@ -1114,6 +1268,7 @@ class EC2Instance:
 
         while not self.private_ip:
             instance_data = self.get_instance_data()
+
             if instance_data and 'PrivateIpAddress' in instance_data:
                 self.private_ip = instance_data['PrivateIpAddress']
             else:
