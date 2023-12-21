@@ -781,21 +781,21 @@ class AWSEC2Backend:
             logger.debug(e.response['Error']['Message'])
 
         # NAT Gateway
-        try:
-            logger.debug(f"Deleting nat gateway {self.ec2_data['nat_gateway_id']}")
-            self.ec2_client.delete_nat_gateway(
-                NatGatewayId=self.ec2_data['nat_gateway_id']
-            )
-            self.ec2_client.get_waiter('nat_gateway_deleted').wait(
-                NatGatewayIds=[self.ec2_data['nat_gateway_id']],
-                WaiterConfig={'Delay': 5, 'MaxAttempts': 40}
-            )
-            total_correct += 1
-        except ClientError as e:
-            if e.response['ResponseMetadata']['HTTPStatusCode'] == 400 and \
-               'does not exist' in e.response['Error']['Message']:
-                total_correct += 1
-            logger.debug(e.response['Error']['Message'])
+        # try:
+        #     logger.debug(f"Deleting nat gateway {self.ec2_data['nat_gateway_id']}")
+        #     self.ec2_client.delete_nat_gateway(
+        #         NatGatewayId=self.ec2_data['nat_gateway_id']
+        #     )
+        #     self.ec2_client.get_waiter('nat_gateway_deleted').wait(
+        #         NatGatewayIds=[self.ec2_data['nat_gateway_id']],
+        #         WaiterConfig={'Delay': 5, 'MaxAttempts': 40}
+        #     )
+        #     total_correct += 1
+        # except ClientError as e:
+        #     if e.response['ResponseMetadata']['HTTPStatusCode'] == 400 and \
+        #        'does not exist' in e.response['Error']['Message']:
+        #         total_correct += 1
+        #     logger.debug(e.response['Error']['Message'])
 
         # Subnets
         try:
@@ -807,15 +807,15 @@ class AWSEC2Backend:
                'does not exist' in e.response['Error']['Message']:
                 total_correct += 1
             logger.debug(e.response['Error']['Message'])
-        try:
-            logger.debug(f"Deleting private {self.ec2_data['private_subnet_id']}")
-            self.ec2_client.delete_subnet(SubnetId=self.ec2_data['private_subnet_id'])
-            total_correct += 1
-        except ClientError as e:
-            if e.response['ResponseMetadata']['HTTPStatusCode'] == 400 and \
-               'does not exist' in e.response['Error']['Message']:
-                total_correct += 1
-            logger.debug(e.response['Error']['Message'])
+        # try:
+        #     logger.debug(f"Deleting private {self.ec2_data['private_subnet_id']}")
+        #     self.ec2_client.delete_subnet(SubnetId=self.ec2_data['private_subnet_id'])
+        #     total_correct += 1
+        # except ClientError as e:
+        #     if e.response['ResponseMetadata']['HTTPStatusCode'] == 400 and \
+        #        'does not exist' in e.response['Error']['Message']:
+        #         total_correct += 1
+        #     logger.debug(e.response['Error']['Message'])
 
         # Internet gateway
         try:
@@ -852,10 +852,10 @@ class AWSEC2Backend:
                 total_correct += 1
             logger.debug(e.response['Error']['Message'])
 
-        if total_correct < 7:
+        if total_correct < 5:
             logger.error("Couldn't delete all the VPC resources, try againg in a few seconds")
 
-        return total_correct == 7
+        return total_correct == 5
 
     def _delete_ssh_key(self):
         """
