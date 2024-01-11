@@ -4,6 +4,7 @@
 
 ### Added
 - [k8s] Added a new way of invoking functions using a RabbitMQ work queue
+- [IBM VPC] Add "zone" config parameter
 
 ### Changed
 - 

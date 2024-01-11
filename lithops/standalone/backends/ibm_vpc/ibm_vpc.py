@@ -66,6 +66,7 @@ class IBMVPCBackend:
 
         self.endpoint = self.config['endpoint']
         self.region = self.config['region']
+        self.zone = self.config['zone']
         self.custom_image = self.config.get('custom_lithops_image')
 
         suffix = 'vm' if self.mode == StandaloneMode.CONSUME.value else 'vpc'
@@ -89,7 +90,7 @@ class IBMVPCBackend:
         decorate_instance(self.vpc_cli, vpc_retry_on_except)
 
         msg = COMPUTE_CLI_MSG.format('IBM VPC')
-        logger.info(f"{msg} - Region: {self.region}")
+        logger.info(f"{msg} - Region: {self.region} - Zone: {self.zone}")
 
     def is_initialized(self):
         """
@@ -292,7 +293,7 @@ class IBMVPCBackend:
         if not subnet_data:
             logger.debug(f'Creating Subnet {subnet_name}')
             subnet_prototype = {}
-            subnet_prototype['zone'] = {'name': self.region + '-1'}
+            subnet_prototype['zone'] = {'name': self.zone}
             subnet_prototype['ip_version'] = 'ipv4'
             subnet_prototype['name'] = subnet_name
             subnet_prototype['resource_group'] = {'id': self.config['resource_group_id']}
@@ -354,7 +355,8 @@ class IBMVPCBackend:
 
         floating_ips_info = self.vpc_cli.list_floating_ips().get_result()
         for fip in floating_ips_info['floating_ips']:
-            if fip['name'].startswith("lithops-recyclable") and 'target' not in fip:
+            if fip['name'].startswith("lithops-recyclable") and 'target' not in fip \
+               and fip['zone']['name'] == self.config['zone_name']:
                 fip_data = fip
 
         if not fip_data:

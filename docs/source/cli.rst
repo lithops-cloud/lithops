@@ -111,7 +111,7 @@ Open an ssh connection to the master VM (Only available for standalone backends)
 ``lithops worker list``
 ~~~~~~~~~~~~~~~~~~
 
- Lists the available workers in the master VM (Only available for standalone backends)
+Lists the available workers in the master VM (Only available for standalone backends)
 
 +------------------------+----------------------------------------------------------------+
 | Parameter              | Description                                                    |
