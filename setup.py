@@ -74,7 +74,7 @@ setup(
     url='https://github.com/lithops-cloud/lithops',
     author='Gil Vernik, Josep Sampe',
     description='Lithops lets you transparently run your Python applications in the Cloud',
-    author_email='gilv@il.ibm.com, josep.sampe@gmail.com',
+    author_email='gilv@ibm.com, josep.sampe@gmail.com',
     packages=find_packages(),
     install_requires=install_requires,
     extras_require=extras_require,

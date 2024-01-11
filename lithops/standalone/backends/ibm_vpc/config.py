@@ -87,10 +87,21 @@ def load_config(config_data):
 
     if 'endpoint' in config_data['ibm_vpc']:
         endpoint = config_data['ibm_vpc']['endpoint']
-        config_data['ibm_vpc']['region'] = endpoint.split('//')[1].split('.')[0]
+        region = endpoint.split('//')[1].split('.')[0]
+        config_data['ibm_vpc']['region'] = region
+        config_data['ibm_vpc']['zone'] = region + '-1'
 
     elif "region" in config_data['ibm_vpc']:
         region = config_data['ibm_vpc']['region']
+
+        if region.count('-') == 2:
+            config_data['ibm_vpc']['zone'] = region
+            region = region.rsplit('-', 1)[0]
+        else:
+            config_data['ibm_vpc']['zone'] = region + '-1'
+
+        config_data['ibm_vpc']['region'] = region
+
         if region not in REGIONS:
             msg = f"'region' conig parameter in 'ibm_vpc' section must be one of {REGIONS}"
             raise Exception(msg)
