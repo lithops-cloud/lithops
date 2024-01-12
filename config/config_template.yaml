@@ -1,6 +1,6 @@
 #lithops: 
-    #backend: ibm_cf
-    #storage: ibm_cos
+    #backend: aws_lambda
+    #storage: aws_s3
     #data_cleaner: <True/False>
     #monitoring: storage
     #monitoring_interval: 2

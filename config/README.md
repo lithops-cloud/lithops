@@ -48,13 +48,13 @@ Storage Backends
 - [Localhost](../docs/source/compute_config/localhost.md)
 
 <b>Serverless (FaaS) Backends:</b>
-- [IBM Cloud Functions](../docs/source/compute_config/ibm_cf.md)
 - [AWS Lambda](../docs/source/compute_config/aws_lambda.md)
 - [Google Cloud Functions](../docs/source/compute_config/gcp_functions.md)
 - [Azure Functions](../docs/source/compute_config/azure_functions.md)
 - [Aliyun Functions](../docs/source/compute_config/aliyun_functions.md)
 - [Oracle Cloud Functions](../docs/source/compute_config/oracle_functions.md)
 - [OpenWhisk](../docs/source/compute_config/openwhisk.md)
+- [IBM Cloud Functions](../docs/source/compute_config/ibm_cf.md)
 
 <b>Serverless (CaaS) Backends:</b>
 - [IBM Code Engine](../docs/source/compute_config/code_engine.md)
@@ -118,7 +118,7 @@ Example of providing configuration keys for IBM Cloud Functions and IBM Cloud Ob
 ```python
 import lithops
 
-config = {'lithops': {'backend': 'ibm_cf', 'storage': 'ibm_cos'},
+config = {'lithops': {'backend': 'code_engine', 'storage': 'ibm_cos'},
           'ibm': {'region': 'REGION',
                   'iam_api_key': 'IAM_API_KEY',
                   'resource_group_id': 'RESOURCE_GROUP_ID'},
