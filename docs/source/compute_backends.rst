@@ -13,13 +13,13 @@ Compute Backends
    :glob:
    :maxdepth: 1
 
-   compute_config/ibm_cf.md
    compute_config/aws_lambda.md
    compute_config/gcp_functions.md
    compute_config/azure_functions.md
    compute_config/oracle_functions.md
    compute_config/aliyun_functions.md
    compute_config/openwhisk.md
+   compute_config/ibm_cf.md
 
 **Serverless (CaaS) Backends:**
 
