@@ -137,8 +137,8 @@ if __name__ == '__main__':
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|lithops | backend | ibm_cf | no | Compute backend implementation. IBM Cloud Functions is the default |
-|lithops | storage | ibm_cos | no | Storage backend implementation. IBM Cloud Object Storage is the default |
+|lithops | backend | aws_lambda | no | Compute backend implementation. IBM Cloud Functions is the default |
+|lithops | storage | aws_s3 | no | Storage backend implementation. IBM Cloud Object Storage is the default |
 |lithops | data_cleaner | True | no |If set to True, then the cleaner will automatically delete all the temporary data that was written into `storage_bucket/lithops.jobs`|
 |lithops | monitoring | storage | no | Monitoring system implementation. One of: **storage** or **rabbitmq** |
 |lithops | monitoring_interval | 2 | no | Monitoring check interval in seconds in case of **storage** monitoring |
