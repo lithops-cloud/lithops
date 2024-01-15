@@ -1,7 +1,8 @@
-# IBM Cloud Functions (Deprecated)
+# IBM Cloud Functions
 
 Lithops with *IBM Cloud Functions* as compute backend.
-([Deprecation Overview](https://cloud.ibm.com/docs/openwhisk?topic=openwhisk-dep-overview)).
+
+**Note**: This backend is deprecated. See the [deprecation overview](https://cloud.ibm.com/docs/openwhisk?topic=openwhisk-dep-overview)
 
 ## Configuration
 

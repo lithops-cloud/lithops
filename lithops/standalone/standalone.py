@@ -194,8 +194,8 @@ class StandaloneHandler:
                 job_payload['config'][self.backend_name]['worker_processes'] = worker_processes
 
             if job_payload['chunksize'] == 0:
-                job_payload['chunksize'] = worker_processes
-                job_payload['config']['lithops']['chunksize'] = worker_processes
+                job_payload['chunksize'] = job_payload['worker_processes']
+                job_payload['config']['lithops']['chunksize'] = job_payload['worker_processes']
 
             # Make sure only max_workers are started
             chunksize = job_payload['chunksize']

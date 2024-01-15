@@ -4,13 +4,13 @@
 
 ### Added
 - [k8s] Added a new way of invoking functions using a RabbitMQ work queue
-- [IBM VPC] Add "zone" config parameter
+- [IBM VPC] Added "zone" config parameter
 
 ### Changed
 - 
 
 ### Fixed
-- 
+- [Standalone] Fixed issue with a wrong value of "chunksize"
 
 
 ## [v3.1.0]
