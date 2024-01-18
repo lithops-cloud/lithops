@@ -11,7 +11,7 @@
 
 ### Fixed
 - [Standalone] Fixed issue with a wrong value of "chunksize"
-
+- [IBM Code Engine] Fixed missing parameter on clean
 
 ## [v3.1.0]
 
