@@ -1,5 +1,7 @@
 # Minimal Docker image for Lithops
 
+#FROM python:3.6-slim-buster
+#FROM python:3.7-slim-buster
 #FROM python:3.8-slim-buster
 #FROM python:3.9-slim-buster
 #FROM python:3.10-slim-buster
@@ -11,6 +13,7 @@ RUN pip install --upgrade setuptools six \
     && pip install --no-cache-dir \
         flask \
         pika \
+        boto3 \
         ibm-cloud-sdk-core \
         ibm-cos-sdk \
         scikit-learn \
@@ -22,7 +25,8 @@ RUN pip install --upgrade setuptools six \
         numpy \
         cloudpickle \
         ps-mem \
-        tblib
+        tblib \
+        psutil
 
 # create action working directory
 RUN mkdir -p /action \
