@@ -716,8 +716,9 @@ class CodeEngineBackend:
 
         done = False
         failed = False
+        failed_message = ""
 
-        while not done or failed:
+        while not done and not failed:
             try:
                 w = watch.Watch()
                 for event in w.stream(self.custom_api.list_namespaced_custom_object,
@@ -728,6 +729,14 @@ class CodeEngineBackend:
                     failed = int(event['object'].get('status')['failed'])
                     done = int(event['object'].get('status')['succeeded'])
                     logger.debug('...')
+                    if failed:
+                        try:
+                            pod_description = self.core_api.read_namespaced_pod(
+                                name=f'{jobrun_name}-1-0', namespace=self.namespace
+                            )
+                            failed_message = pod_description.status.container_statuses[0].state.terminated.message
+                        except Exception:
+                            pass
                     if done or failed:
                         w.stop()
             except Exception:
@@ -750,7 +759,7 @@ class CodeEngineBackend:
         self._delete_config_map(config_map_name)
 
         if failed:
-            raise Exception("Unable to extract Python preinstalled modules from the runtime")
+            raise Exception(f"Unable to extract Python preinstalled modules from the runtime: {failed_message}")
 
         data_key = '/'.join([JOBS_PREFIX, jobdef_name + '.meta'])
         json_str = self.internal_storage.get_data(key=data_key)

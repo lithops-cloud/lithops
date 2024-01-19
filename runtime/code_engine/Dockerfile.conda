@@ -1,20 +1,20 @@
 # Python 3.6
-#FROM continuumio/miniconda3:4.5.4 
+#FROM docker.io/continuumio/miniconda3:4.5.4 
 
 # Python 3.7
-#FROM continuumio/miniconda3:4.7.12
+#FROM docker.io/continuumio/miniconda3:4.7.12
 
 # Python 3.8
-#FROM continuumio/miniconda3:4.9.2
+#FROM docker.io/continuumio/miniconda3:4.9.2
 
 # Python 3.9
-#FROM continuumio/miniconda3:4.10.3
+#FROM docker.io/continuumio/miniconda3:4.10.3
 
 # Python 3.10
-#FROM continuumio/miniconda3:23.3.1-0
+FROM docker.io/continuumio/miniconda3:23.3.1-0
 
 # Python 3.11
-FROM continuumio/miniconda3:23.10.0-1
+#FROM docker.io/continuumio/miniconda3:23.10.0-1
 
 # YOU MUST PIN THE PYTHON VERSION TO PREVENT IT TO BE UPDATED
 # For python 3.6 use "python==3.6.5"
@@ -23,7 +23,7 @@ FROM continuumio/miniconda3:23.10.0-1
 # For python 3.9 use "python==3.9.5"
 # For python 3.10 use "python==3.10.10"
 # For python 3.11 use "python==3.11.7"
-RUN echo "python==3.11.7" >> /opt/conda/conda-meta/pinned
+RUN echo "python==3.10.10" >> /opt/conda/conda-meta/pinned
 
 ENV FLASK_PROXY_PORT 8080
 
@@ -66,5 +66,7 @@ WORKDIR $APP_HOME
 
 COPY lithops_codeengine.zip .
 RUN unzip lithops_codeengine.zip && rm lithops_codeengine.zip
+
+RUN ln -s /opt/conda/bin/python /usr/local/bin/python
 
 CMD exec gunicorn --bind :$PORT --workers $CONCURRENCY --timeout $TIMEOUT lithopsentry:proxy
