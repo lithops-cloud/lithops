@@ -349,7 +349,7 @@ class CodeEngineBackend:
         self._create_k8s_iam_client()
         self.clear()
         runtimes = self.list_runtimes()
-        for image_name, memory, version in runtimes:
+        for image_name, memory, version, fn_name in runtimes:
             self.delete_runtime(image_name, memory, version)
 
         logger.debug('Deleting all lithops configmaps')
