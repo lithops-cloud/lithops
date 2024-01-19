@@ -1,6 +1,7 @@
 import paramiko
 import logging
 import os
+from lithops.standalone import LithopsValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -12,10 +13,10 @@ class SSHClient():
         self.ssh_credentials = ssh_credentials
         self.ssh_client = None
 
-        if 'key_filename' in self.ssh_credentials and \
-           self.ssh_credentials['key_filename'] and \
-           '~' in self.ssh_credentials['key_filename']:
+        if 'key_filename' in self.ssh_credentials:
             fpath = os.path.expanduser(self.ssh_credentials['key_filename'])
+            if not os.path.exists(fpath):
+                raise LithopsValidationError(f"Private key file {fpath} doesn't exist")
             self.ssh_credentials['key_filename'] = fpath
 
     def close(self):
@@ -29,12 +30,28 @@ class SSHClient():
         """
         Crate the SSH client connection
         """
-        self.ssh_client = paramiko.SSHClient()
-        self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        self.ssh_client.connect(self.ip_address, **self.ssh_credentials,
-                                timeout=timeout, banner_timeout=200)
+        try:
+            self.ssh_client = paramiko.SSHClient()
+            self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
-        logger.debug("{} ssh client created".format(self.ip_address))
+            user = self.ssh_credentials.get('username')
+            password = self.ssh_credentials.get('password')
+            pkey = None
+
+            if self.ssh_credentials.get('key_filename'):
+                with open(self.ssh_credentials['key_filename']) as f:
+                    pkey = paramiko.RSAKey.from_private_key(f)
+
+            self.ssh_client.connect(
+                self.ip_address, username=user,
+                password=password, pkey=pkey,
+                timeout=timeout, banner_timeout=200,
+                allow_agent=False, look_for_keys=False
+            )
+
+            logger.debug(f"{self.ip_address} ssh client created")
+        except Exception as e:
+            raise e
 
         return self.ssh_client
 
@@ -44,12 +61,15 @@ class SSHClient():
         param: timeout: execution timeout
         param: run_async: do not wait for command completion
         """
+        if not self.ip_address or self.ip_address == '0.0.0.0':
+            raise Exception('Invalid IP Address')
+
         if self.ssh_client is None:
             self.ssh_client = self.create_client()
 
         try:
             stdin, stdout, stderr = self.ssh_client.exec_command(cmd, timeout=timeout)
-        except Exception as e:
+        except Exception:
             # Normally this is a timeout exception
             self.ssh_client = self.create_client()
             stdin, stdout, stderr = self.ssh_client.exec_command(cmd, timeout=timeout)
@@ -61,9 +81,26 @@ class SSHClient():
 
         return out
 
+    def download_remote_file(self, remote_src, local_dst):
+        """
+        Downloads a remote file to a local destination
+        param: local_src: local file path source
+        param: remote_dst: remote file path destination
+        """
+        if self.ssh_client is None:
+            self.ssh_client = self.create_client()
+
+        dirname = os.path.dirname(local_dst)
+        if dirname and not os.path.exists(dirname):
+            os.makedirs(dirname)
+
+        ftp_client = self.ssh_client.open_sftp()
+        ftp_client.get(remote_src, local_dst)
+        ftp_client.close()
+
     def upload_local_file(self, local_src, remote_dst):
         """
-        Upload local file to a rempote destination
+        Upload a local file to a rempote destination
         param: local_src: local file path source
         param: remote_dst: remote file path destination
         """

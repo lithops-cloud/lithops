@@ -25,9 +25,13 @@ import pickle
 import logging
 import traceback
 from six import reraise
+
 from lithops.storage import InternalStorage
-from lithops.storage.utils import check_storage_path, get_storage_path,\
+from lithops.storage.utils import (
+    check_storage_path,
+    get_storage_path,
     create_job_key
+)
 from lithops.constants import FN_LOG_FILE, LOGS_DIR
 
 logger = logging.getLogger(__name__)
@@ -70,7 +74,6 @@ class ResponseFuture:
         self._state = ResponseFuture.State.New
         self._exception = Exception()
         self._handler_exception = False
-        self._return_val = None
         self._new_futures = None
         self._traceback = None
         self._call_status = None
@@ -80,7 +83,7 @@ class ResponseFuture:
         self._output_query_count = 0
 
         for key in job_metadata:
-            if any(ss in key for ss in ['time', 'tstamp', 'count', 'size']):
+            if any(key.startswith(ss) for ss in ['func', 'host', 'worker']):
                 self.stats[key] = job_metadata[key]
 
         self._storage_path = get_storage_path(self._storage_config)
@@ -167,7 +170,7 @@ class ResponseFuture:
 
         :param check_only: Return None immediately if job is not complete. Default False.
         :param throw_except: Reraise exception if call raised. Default true.
-        :param storage_handler: Storage handler to poll cloud storage. Default None.
+        :param internal_storage: Storage handler to poll cloud storage. Default None.
         :return: Result of the call.
         :raises CancelledError: If the job is cancelled before completed.
         :raises TimeoutError: If job is not complete after `timeout` seconds.
@@ -205,14 +208,14 @@ class ResponseFuture:
         if 'logs' in self._call_status:
             self.logs = zlib.decompress(base64.b64decode(self._call_status['logs'].encode())).decode()
             job_key = create_job_key(self.executor_id, self.job_id)
-            log_file = os.path.join(LOGS_DIR, job_key+'.log')
+            log_file = os.path.join(LOGS_DIR, job_key + '.log')
             header = "Activation: '{}' ({})\n[\n".format(self.runtime_name, self.activation_id)
             tail = ']\n\n'
-            output = self.logs.replace('\r', '').replace('\n', '\n    ', self.logs.count('\n')-1)
+            output = self.logs.replace('\r', '').replace('\n', '\n    ', self.logs.count('\n') - 1)
             with open(log_file, 'a') as lf:
-                lf.write(header+'    '+output+tail)
+                lf.write(header + '    ' + output + tail)
             with open(FN_LOG_FILE, 'a') as lf:
-                lf.write(header+'    '+output+tail)
+                lf.write(header + '    ' + output + tail)
 
         if self._call_status['exception']:
             self._set_state(ResponseFuture.State.Error)
@@ -261,22 +264,18 @@ class ResponseFuture:
                 return None
 
         for key in self._call_status:
-            if any(ss in key for ss in ['time', 'tstamp', 'count', 'size', 'container']):
+            if any(key.startswith(ss) for ss in ['func', 'host', 'worker']):
                 self.stats[key] = self._call_status[key]
 
         self.stats['worker_exec_time'] = round(self.stats['worker_end_tstamp'] - self.stats['worker_start_tstamp'], 8)
         total_time = format(round(self.stats['worker_exec_time'], 2), '.2f')
 
-        logger.debug('ExecutorID {} | JobID {} - Got status from call {} - Activation '
-                     'ID: {} - Time: {} seconds'.format(self.executor_id,
-                                                        self.job_id,
-                                                        self.call_id,
-                                                        self.activation_id,
-                                                        str(total_time)))
+        logger.debug(f'ExecutorID {self.executor_id} | JobID {self.job_id} - Got status from call {self.call_id} '
+                     f'- Activation ID: {self.activation_id} - Time: {str(total_time)} seconds')
 
         self._set_state(ResponseFuture.State.Success)
 
-        if not self._call_status['result']:
+        if self._call_status['func_result_size'] == 0:
             self._produce_output = False
 
         if not self._produce_output:
@@ -286,6 +285,14 @@ class ResponseFuture:
             new_futures = pickle.loads(eval(self._call_status['new_futures']))
             self._new_futures = [new_futures] if type(new_futures) == ResponseFuture else new_futures
             self._set_state(ResponseFuture.State.Futures)
+
+        if 'result' in self._call_status:
+            self._call_output = pickle.loads(eval(self._call_status['result']))
+            self.stats['host_result_done_tstamp'] = time.time()
+            self.stats['host_result_query_count'] = 0
+            logger.debug(f'ExecutorID {self.executor_id} | JobID {self.job_id} - Got output '
+                         f'from call {self.call_id} - Activation ID: {self.activation_id}')
+            self._set_state(ResponseFuture.State.Done)
 
         return self._call_status
 
@@ -301,14 +308,15 @@ class ResponseFuture:
         :raises CancelledError: If the job is cancelled before completed.
         :raises TimeoutError: If job is not complete after `timeout` seconds.
         """
+        if self._state == ResponseFuture.State.New:
+            raise ValueError("Task not yet invoked")
+
         if not self._produce_output:
+            self.status(throw_except=throw_except, internal_storage=internal_storage)
             self._set_state(ResponseFuture.State.Done)
 
-        if self._state == ResponseFuture.State.New:
-            raise ValueError("task not yet invoked")
-
-        if self._state == ResponseFuture.State.Done:
-            return self._return_val
+        if self.done:
+            return self._call_output
 
         if self._state == ResponseFuture.State.Futures:
             return self._new_futures
@@ -318,10 +326,10 @@ class ResponseFuture:
 
         self.status(throw_except=throw_except, internal_storage=internal_storage)
 
-        if self._state == ResponseFuture.State.Done:
-            return self._return_val
+        if self.done:
+            return self._call_output
 
-        if not self._call_output:
+        if self._call_output is None:
             call_output = internal_storage.get_call_output(self.executor_id, self.job_id, self.call_id)
             self._output_query_count += 1
 
@@ -332,8 +340,10 @@ class ResponseFuture:
 
             if call_output is None:
                 if throw_except:
-                    raise Exception('Unable to get the result from call {} - '
-                                    'Activation ID: {}'.format(self.call_id, self.activation_id))
+                    raise Exception(
+                        f'ExecutorID {self.executor_id} | JobID {self.job_id} - Unable to get '
+                        f'the result from call {self.call_id} - Activation ID: {self.activation_id}'
+                    )
                 else:
                     self._set_state(ResponseFuture.State.Error)
                     return None
@@ -342,9 +352,8 @@ class ResponseFuture:
 
             self.stats['host_result_done_tstamp'] = time.time()
             self.stats['host_result_query_count'] = self._output_query_count
-            logger.debug('ExecutorID {} | JobID {} - Got output from call {} - Activation '
-                         'ID: {}'.format(self.executor_id, self.job_id, self.call_id, self.activation_id))
+            logger.debug(f'ExecutorID {self.executor_id} | JobID {self.job_id} - Got output '
+                         f'from call {self.call_id} - Activation ID: {self.activation_id}')
 
-        self._return_val = self._call_output['result'] if not self._return_val else self._return_val
         self._set_state(ResponseFuture.State.Done)
-        return self._return_val
+        return self._call_output

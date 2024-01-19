@@ -1,0 +1,42 @@
+FROM public.ecr.aws/lambda/python:3.8-arm64
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        build-essential \
+        unzip \
+        vim \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-cache search linux-headers-generic
+
+RUN pip install --upgrade pip six && \
+    pip install --no-cache-dir \
+        awslambdaric \
+        boto3 \
+        redis \
+        httplib2 \
+        requests \
+        numpy \
+        scipy \
+        pandas \
+        pika \
+        kafka-python \
+        cloudpickle \
+        ps-mem \
+        tblib
+
+# Define custom function directory
+ARG FUNCTION_DIR="/function"
+
+# Set working directory to function root directory
+WORKDIR ${FUNCTION_DIR}
+
+# Add Lithops
+COPY lithops_lambda.zip ${FUNCTION_DIR}
+RUN unzip lithops_lambda.zip \
+    && rm lithops_lambda.zip \
+    && mkdir handler \
+    && touch handler/__init__.py \
+    && mv entry_point.py handler/
+
+ENTRYPOINT [ "/usr/local/bin/python", "-m", "awslambdaric" ]
+CMD [ "handler.entry_point.lambda_handler" ]

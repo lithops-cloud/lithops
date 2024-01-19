@@ -15,38 +15,36 @@
 #
 
 import os
-import sys
-import shutil
 
-from lithops.utils import version_str, get_docker_username
-from lithops.version import __version__
-
-RUNTIME_NAME = 'lithops-k8sjob'
-
-DOCKER_PATH = shutil.which('docker')
-
-RUNTIME_TIMEOUT = 600  # Default: 600 seconds => 10 minutes
-RUNTIME_MEMORY = 256  # Default memory: 256 MB
-RUNTIME_CPU = 0.5  # 0.5 vCPU
-MAX_CONCURRENT_WORKERS = 1000
-INVOKE_POOL_THREADS_DEFAULT = 4
+DEFAULT_CONFIG_KEYS = {
+    'runtime_timeout': 600,  # Default: 10 minutes
+    'runtime_memory': 512,  # Default memory: 512 MB
+    'runtime_cpu': 1,  # 1 vCPU
+    'max_workers': 100,
+    'worker_processes': 1,
+    'docker_server': 'docker.io'
+}
 
 DEFAULT_GROUP = "batch"
 DEFAULT_VERSION = "v1"
+MASTER_NAME = "lithops-master"
+MASTER_PORT = 8080
 
 FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_k8s.zip')
 
 
 DOCKERFILE_DEFAULT = """
 RUN apt-get update && apt-get install -y \
-        zip \
+        zip redis-server curl \
+        && apt-get clean \
         && rm -rf /var/lib/apt/lists/*
 
-RUN pip install --upgrade setuptools six pip \
-    && pip install --no-cache-dir \
+RUN pip install --upgrade --ignore-installed setuptools six pip \
+    && pip install --upgrade --no-cache-dir --ignore-installed \
         flask \
         pika \
-        glob2 \
+        boto3 \
+        ibm-cloud-sdk-core \
         ibm-cos-sdk \
         redis \
         requests \
@@ -71,9 +69,12 @@ JOB_DEFAULT = """
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: "<INPUT>"
+  name: lithops-worker-name
+  namespace: default
   labels:
-    type: lithops-runtime
+    type: lithops-worker
+    version: lithops_vX.X.X
+    user: lithops-user
 spec:
   activeDeadlineSeconds: 600
   ttlSecondsAfterFinished: 60
@@ -85,17 +86,18 @@ spec:
       containers:
         - name: "lithops"
           image: "<INPUT>"
+          # imagePullPolicy: IfNotPresent
           command: ["python3"]
           args:
             - "/lithops/lithopsentry.py"
             - "$(ACTION)"
-            - "$(PAYLOAD)"
+            - "$(DATA)"
           env:
             - name: ACTION
               value: ''
-            - name: PAYLOAD
+            - name: DATA
               value: ''
-            - name: IDGIVER_POD_IP
+            - name: MASTER_POD_IP
               value: ''
             - name: POD_IP
               valueFrom:
@@ -111,44 +113,36 @@ spec:
       imagePullSecrets:
         - name: lithops-regcred
 """
-
+POD="""
+apiVersion: v1
+kind: Pod
+metadata:
+  name: lithops-worker
+spec:
+  containers:
+    - name: "lithops-worker"
+      image: "<INPUT>"
+      command: ["python3"]
+      args:
+        - "/lithops/lithopsentry.py"
+        - "--"
+        - "--"
+      resources:
+        requests:
+          cpu: '1'
+          memory: '512Mi'
+"""
 
 def load_config(config_data):
-    if 'k8s' not in config_data:
-        config_data['k8s'] = {}
+    for key in DEFAULT_CONFIG_KEYS:
+        if key not in config_data['k8s']:
+            config_data['k8s'][key] = DEFAULT_CONFIG_KEYS[key]
 
     if 'runtime' in config_data['k8s']:
-        config_data['serverless']['runtime'] = config_data['k8s']['runtime']
-    if 'runtime_memory' in config_data['k8s']:
-        config_data['serverless']['runtime_memory'] = config_data['k8s']['runtime_memory']
-    if 'runtime_timeout' in config_data['k8s']:
-        config_data['serverless']['runtime_timeout'] = config_data['k8s']['runtime_timeout']
+        runtime = config_data['k8s']['runtime']
+        registry = config_data['k8s']['docker_server']
+        if runtime.count('/') == 1 and registry not in runtime:
+            config_data['k8s']['runtime'] = f'{registry}/{runtime}'
 
-    if 'runtime_cpu' not in config_data['k8s']:
-        config_data['k8s']['runtime_cpu'] = RUNTIME_CPU
-    if 'runtime_memory' not in config_data['serverless']:
-        config_data['serverless']['runtime_memory'] = RUNTIME_MEMORY
-    if 'runtime_timeout' not in config_data['serverless']:
-        config_data['serverless']['runtime_timeout'] = RUNTIME_TIMEOUT
-    if 'runtime' not in config_data['serverless']:
-        if not DOCKER_PATH:
-            raise Exception('docker command not found. Install docker or use '
-                            'an already built runtime')
-        if 'docker_user' not in config_data['k8s']:
-            config_data['k8s']['docker_user'] = get_docker_username()
-        if not config_data['k8s']['docker_user']:
-            raise Exception('You must provide "docker_user" param in config '
-                            'or execute "docker login"')
-        docker_user = config_data['k8s']['docker_user']
-        python_version = version_str(sys.version_info).replace('.', '')
-        revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
-        runtime_name = '{}/{}-v{}:{}'.format(docker_user, RUNTIME_NAME, python_version, revision)
-        config_data['serverless']['runtime'] = runtime_name
-
-    if 'workers' not in config_data['lithops'] or \
-       config_data['lithops']['workers'] > MAX_CONCURRENT_WORKERS:
-        config_data['lithops']['workers'] = MAX_CONCURRENT_WORKERS
-
-    if 'invoke_pool_threads' not in config_data['k8s']:
-        config_data['k8s']['invoke_pool_threads'] = INVOKE_POOL_THREADS_DEFAULT
-    config_data['serverless']['invoke_pool_threads'] = config_data['k8s']['invoke_pool_threads']
+    if config_data['k8s'].get('rabbitmq_executor', False):
+      config_data['k8s']['amqp_url'] = config_data['rabbitmq']['amqp_url']

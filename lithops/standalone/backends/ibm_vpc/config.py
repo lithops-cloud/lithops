@@ -1,87 +1,115 @@
-import datetime
+#
+# (C) Copyright Cloudlab URV 2020
+# (C) Copyright IBM Corp. 2023
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 
+import copy
+import uuid
 
-MANDATORY_PARAMETERS_1 = ['endpoint',
-                          'vpc_name',
-                          'resource_group_id',
-                          'key_id']
+from lithops.constants import SA_DEFAULT_CONFIG_KEYS
 
-MANDATORY_PARAMETERS_2 = ['endpoint',
-                          'vpc_id',
-                          'resource_group_id',
-                          'key_id',
-                          'subnet_id',
-                          'security_group_id']
+MANDATORY_PARAMETERS_1 = ('instance_id',
+                          'floating_ip',
+                          'iam_api_key')
 
+MANDATORY_PARAMETERS_2 = ('resource_group_id',
+                          'iam_api_key')
 
-MANDATORY_PARAMETERS_3 = ['endpoint',
-                          'instance_id',
-                          'ip_address']
+DEFAULT_CONFIG_KEYS = {
+    'master_profile_name': 'cx2-2x4',
+    'worker_profile_name': 'cx2-2x4',
+    'boot_volume_profile': 'general-purpose',
+    'ssh_username': 'root',
+    'ssh_password': str(uuid.uuid4()),
+    'ssh_key_filename': '~/.ssh/id_rsa',
+    'delete_on_dismantle': True,
+    'max_workers': 100,
+    'boot_volume_capacity': 100
+}
 
+VPC_ENDPOINT = "https://{}.iaas.cloud.ibm.com"
 
-IMAGE_ID_DEFAULT = 'r014-b7da49af-b46a-4099-99a4-c183d2d40ea8'  # ubuntu 20.04
-PROFILE_NAME_DEFAULT = 'cx2-2x4'
-VOLUME_TIER_NAME_DEFAULT = 'general-purpose'
-SSH_USER = 'root'
-SSH_PASSWD = 'lithops'
-
-CLOUD_CONFIG = """
-#cloud-config
-bootcmd:
-    - echo '{0}:{1}' | chpasswd
-    - sed -i '/PasswordAuthentication no/c\PasswordAuthentication yes' /etc/ssh/sshd_config
-    - echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config
-runcmd:
-    - echo '{0}:{1}' | chpasswd
-    - sed -i '/PasswordAuthentication no/c\PasswordAuthentication yes' /etc/ssh/sshd_config
-    - echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config
-    - systemctl restart sshd
-""".format(SSH_USER, SSH_PASSWD)
+REGIONS = ["jp-tok", "jp-osa", "au-syd", "eu-gb", "eu-de", "eu-es", "us-south", "us-east", "br-sao", "ca-tor"]
 
 
 def load_config(config_data):
-    section = 'ibm_vpc'
 
     if 'ibm' in config_data and config_data['ibm'] is not None:
-        config_data[section].update(config_data['ibm'])
-    else:
-        msg = 'IBM IAM api key is mandatory in ibm section of the configuration'
-        raise Exception(msg)
+        temp = copy.deepcopy(config_data['ibm_vpc'])
+        config_data['ibm_vpc'].update(config_data['ibm'])
+        config_data['ibm_vpc'].update(temp)
 
-    if 'exec_mode' in config_data['standalone'] \
-       and config_data['standalone']['exec_mode'] == 'create':
-        params_to_check = MANDATORY_PARAMETERS_2
+    for key in DEFAULT_CONFIG_KEYS:
+        if key not in config_data['ibm_vpc']:
+            config_data['ibm_vpc'][key] = DEFAULT_CONFIG_KEYS[key]
+
+    if 'standalone' not in config_data or config_data['standalone'] is None:
+        config_data['standalone'] = {}
+
+    for key in SA_DEFAULT_CONFIG_KEYS:
+        if key in config_data['ibm_vpc']:
+            config_data['standalone'][key] = config_data['ibm_vpc'].pop(key)
+        elif key not in config_data['standalone']:
+            config_data['standalone'][key] = SA_DEFAULT_CONFIG_KEYS[key]
+
+    if config_data['standalone']['exec_mode'] == 'consume':
+        params_to_check = MANDATORY_PARAMETERS_1
+        config_data['ibm_vpc']['max_workers'] = 1
     else:
-        params_to_check = MANDATORY_PARAMETERS_3
+        params_to_check = MANDATORY_PARAMETERS_2
+
+    if "worker_processes" not in config_data['ibm_vpc']:
+        config_data['ibm_vpc']['worker_processes'] = "AUTO"
+
+    if "chunksize" not in config_data['lithops']:
+        config_data['lithops']['chunksize'] = 0
 
     for param in params_to_check:
-        if param not in config_data[section]:
-            msg = '{} is mandatory in {} section of the configuration'.format(param, section)
+        if param not in config_data['ibm_vpc']:
+            msg = f"'{param}' is mandatory in 'ibm_vpc' section of the configuration"
             raise Exception(msg)
 
-    if 'version' not in config_data:
-        # it is not safe to use version as today() due to timezone differences. may fail at midnight. better use yesterday
-        yesterday = datetime.date.today() - datetime.timedelta(days=1)
-        config_data[section]['version'] = yesterday.strftime('%Y-%m-%d')
+    if "region" not in config_data['ibm_vpc'] and "endpoint" not in config_data['ibm_vpc']:
+        msg = "'region' or 'endpoint' parameter is mandatory in 'ibm_vpc' section of the configuration"
+        raise Exception(msg)
 
-    if 'ssh_user' not in config_data[section]:
-        config_data[section]['ssh_user'] = SSH_USER
+    if 'endpoint' in config_data['ibm_vpc']:
+        endpoint = config_data['ibm_vpc']['endpoint']
+        region = endpoint.split('//')[1].split('.')[0]
+        config_data['ibm_vpc']['region'] = region
+        config_data['ibm_vpc']['zone'] = region + '-1'
 
-    if 'volume_tier_name' not in config_data[section]:
-        config_data[section]['volume_tier_name'] = VOLUME_TIER_NAME_DEFAULT
+    elif "region" in config_data['ibm_vpc']:
+        region = config_data['ibm_vpc']['region']
 
-    if 'profile_name' not in config_data[section]:
-        config_data[section]['profile_name'] = PROFILE_NAME_DEFAULT
+        if region.count('-') == 2:
+            config_data['ibm_vpc']['zone'] = region
+            region = region.rsplit('-', 1)[0]
+            config_data['ibm_vpc']['region'] = region
+        else:
+            config_data['ibm_vpc']['zone'] = region + '-1'
 
-    if 'master_profile_name' not in config_data[section]:
-        config_data[section]['master_profile_name'] = PROFILE_NAME_DEFAULT
+        if region not in REGIONS:
+            msg = f"'region' conig parameter in 'ibm_vpc' section must be one of {REGIONS}"
+            raise Exception(msg)
+        config_data['ibm_vpc']['endpoint'] = VPC_ENDPOINT.format(region)
 
-    if 'image_id' not in config_data[section]:
-        config_data[section]['image_id'] = IMAGE_ID_DEFAULT
+    config_data['ibm_vpc']['endpoint'] = config_data['ibm_vpc']['endpoint'].replace('/v1', '')
 
-    region = config_data[section]['endpoint'].split('//')[1].split('.')[0]
-    if 'zone_name' not in config_data[section]:
-        config_data[section]['zone_name'] = '{}-2'.format(region)
+    if 'ibm' not in config_data or config_data['ibm'] is None:
+        config_data['ibm'] = {}
 
-    if 'delete_on_dismantle' not in config_data[section]:
-        config_data[section]['delete_on_dismantle'] = True
+    if 'region' not in config_data['ibm']:
+        config_data['ibm']['region'] = config_data['ibm_vpc']['region']

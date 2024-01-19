@@ -5,22 +5,28 @@
 #FROM python:3.7-slim-buster
 
 # Python 3.8
-FROM python:3.8-slim-buster
+#FROM python:3.8-slim-buster
 
 # Python 3.9
 #FROM python:3.9-slim-buster
 
+# Python 3.10
+FROM python:3.10-slim-buster
+
 RUN apt-get update && apt-get install -y \
-        zip \
+        zip redis-server curl \
+        && apt-get clean \
         && rm -rf /var/lib/apt/lists/*
 
 RUN pip install --upgrade setuptools six pip \
     && pip install --no-cache-dir \
         flask \
         pika \
-        glob2 \
+        boto3 \
+        ibm-cloud-sdk-core \
         ibm-cos-sdk \
         redis \
+        gevent \
         requests \
         PyYAML \
         kubernetes \

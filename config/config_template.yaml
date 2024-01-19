@@ -1,10 +1,9 @@
-lithops: 
-    #storage: ibm_cos
-    #storage_bucket: <BUCKET_NAME>
-    #mode: serverless
-    #monitoring: storage
+#lithops: 
+    #backend: aws_lambda
+    #storage: aws_s3
     #data_cleaner: <True/False>
-    #workers: <MAX_NUM_OF_WORKERS>
+    #monitoring: storage
+    #monitoring_interval: 2
     #data_limit: 4  # in MiB
     #execution_timeout: 1800
     #include_modules: <LIST_OF_MODULES>
@@ -13,92 +12,145 @@ lithops:
     #log_format: "%(asctime)s [%(levelname)s] %(name)s -- %(message)s"
     #log_stream: ext://sys.stdout
     #log_filename <path_to_a_file>
-    
-#serverless:
-    #backend: ibm_cf
+    #customized_runtime: <True/False>
+
+#localhost:
+    #runtime: python3
+    #worker_processes: CPU_COUNT
+
+
+#ibm:
+    #iam_api_key: <IAM KEY>
+    #region : <REGION>
+    #resource_group_id: <RESOURCE_GROUP_ID>
+
+#ibm_cf:
+    #region : <REGION>
+    #endpoint : <REGION_ENDPOINT>
+    #namespace : <NAMESPACE>
+    #api_key : <API_KEY>
+    #namespace_id : <NAMESPACE_ID> # Only for IAM auth
     #runtime : <RUNTIME_NAME>
     #runtime_timeout: 600
     #runtime_memory: 256
     #remote_invoker: <True/False>
+    #max_workers: <MAX_WORKERS> Default is 1200
+    #worker_processes: <WORKER_GRANULARITY> Default is 1
 
-#standalone:
-    #backend: ibm_vpc
+#code_engine:
+    #namespace: <namespace id>
+    #region: <namespace region>
+    #docker_server: <registry server url>
+    #docker_user: <registry username>
+    #docker_password: <registry password>
+    #kubecfg_path: <Location for kubectl yaml file>
+    #runtime : <RUNTIME_NAME>
+    #runtime_timeout: 600
+    #runtime_memory: 256
+    #runtime_cpu : 0.125
+    #max_workers: <MAX_WORKERS> Default is 1000
+    #worker_processes: <WORKER_GRANULARITY> Default is 1
+    #connection_retries: <RETRIES_NUMBER>
+
+#ibm_vpc:
+    #region : <REGION>
+    #endpoint: <REGION_ENDPOINT>
+    #vpc_id: <VPC_ID>
+    #resource_group_id: <RESOURCE_GROUP_ID>
+    #security_group_id: <SECURITY_GROUP_ID>
+    #subnet_id: <SUBNET_ID>
+    #key_id: <PUBLIC_KEY_ID>
+    #image_id: <IMAGE_ID_FOR_VMs> # Default is ubuntu 20.04
+    #ssh_username : <SSH_USER_FOR_VPC> # Default is 'root'
+    #ssh_password : <SSH_PASS_FOR_WORKER_VMS> # Default is randomly generated
+    #ssh_key_filename : <PATH_TO_SSH_KEYFILE_FOR_MASTER_VM> # Default path in OS
+    #worker_profile_name: <PROFILE_NAME> # Default is 'cx2-2x4'
+    #master_profile_name:  <PROFILE_NAME> # Default is 'cx2-2x4'
+    #delete_on_dismantle: <True/False> # Default is 'True
+    #max_workers: <MAX_WORKERS> Default is 100
+    #worker_processes: <WORKER_GRANULARITY> Default is 2
+    #singlesocket: <True/False> # Optional, default is False
+
     #runtime: <RUNTIME_NAME>
-    #exec_mode: consume
+    #exec_mode: reuse
     #auto_dismantle: True
     #pull_runtime: <false, true>
     #hard_dismantle_timeout: 3600
     #soft_dismantle_timeout: 300
+    #workers_policy: <Workers create policy> # Optional, strict/permissive. Default is 'permissive'
+    #docker_server: <registry server url>
+    #docker_user: <registry username>
+    #docker_password: <registry password>
 
-#ibm:
-    #iam_api_key: <IAM KEY>
-
-#ibm_cf:
-    #endpoint    : <REGION_ENDPOINT>
-    #namespace   : <NAMESPACE>
-    #api_key     : <API_KEY>
-    #namespace_id : <NAMESPACE_ID> # Only for IAM auth
-    #runtime: <RUNTIME_NAME>
-
-#code_engine:
-    #kubectl_config: <Location for kubectl yaml file>
-    #runtime: <RUNTIME_NAME>
-
-#ibm_cos:
-    region : <REGION>
-    #endpoint    : <REGION_ENDPOINT>
-    #private_endpoint: <PRIVATE_REGION_ENDPOINT>
-    #api_key     : <API_KEY>
-    #access_key : <ACCESS_KEY>  # Optional
-    #secret_key : <SECRET_KEY>  # Optional
-
-#ibm_vpc:
-    #endpoint    : <REGION_ENDPOINT> # https://eu-de.iaas.cloud.ibm.com
-    #instance_id : <INSTANCE_ID>  # Optional
-    #ip_address  : <FLOATING_IP_ADDRESS>
-    #version     : <VPC_VERSION>
-    #generation  : <VPC_GENERATION>
-    #ssh_user    : <SSH_USERNAME>
-    #ssh_key_filename: <SSH_PASSWORD>
-    #security_group_id: <SECURITY_GROUP_ID>
-    #subnet_id: <SUBNET_ID>
-    #key_id: <PUBLIC_KEY_ID>
-    #resource_group_id: <RESOURCE_GROUP_ID>
+#aws_ec2:
+    #region: <REGION_NAME>
     #vpc_id: <VPC_ID>
-    #image_id: <IMAGE_ID>
-    #custom_lithops_image: <True/False> # Optional
-    #zone_name: <ZONE_NAME>
-    #volume_tier_name: <VOLUME_TIER_NAME>  # Optional
-    #profile_name: <PROFILE_NAME>  # Optional
-    #delete_on_dismantle: False  # Optional
+    #execution_role: <IAM_ROLE>
+    #key_name: <SSH_KEY_NAME>
+    #security_group_id: <SECURITY_GROUP_ID>
+    #master_instance_type: t2.micro
+    #worker_instance_type: t2.medium
+    #ssh_username : <SSH_USER_FOR_VPC> # Default is 'ubuntu'
+    #ssh_password : <SSH_PASS_FOR_WORKER_VMS> # Default is randomly generated
+    #ssh_key_filename : <PATH_TO_SSH_KEYFILE_FOR_MASTER_VM> # Default path in OS
+    #target_ami: <TARGET_AMI>  # Default is Ubuntu 20.04
+    #request_spot_instances: <true/false>
+    #delete_on_dismantle: <True/False> # Default is 'True
+    #max_workers: <MAX_WORKERS> Default is 100
+    #worker_processes: <WORKER_GRANULARITY> Default is 2
+
+    #runtime: <RUNTIME_NAME>
+    #exec_mode: reuse
+    #auto_dismantle: True
+    #pull_runtime: <false, true>
+    #hard_dismantle_timeout: 3600
+    #soft_dismantle_timeout: 300
+    #workers_policy: <Workers create policy> # Optional, strict/permissive. Default is 'permissive'
+    #docker_server: <registry server url>
+    #docker_user: <registry username>
+    #docker_password: <registry password>
 
 #vm:
     #ip_address: <IP_ADDRESS>
     #ssh_user: <SSH_USERNAME>
     #ssh_password: <SSH_PASSWORD>
-
-#rabbitmq:
-    #amqp_url   : <RABBIT_AMQP_URL>  # amqp://
+    #ssh_key_filename : <PATH_TO_SSH_KEYFILE_FOR_MASTER_VM> # Default path in OS
+    #runtime : <RUNTIME_NAME>
+    #worker_processes: <WORKER_GRANULARITY> Default is 1
 
 #knative:
    #istio_endpoint  : <ISTIO_INGRESS_ENDPOINT>
    #docker_user     : <DOCKER_HUB_USERNAME>
    #docker_token    : <DOCKER_HUB_TOKEN>
    #runtime: <RUNTIME_NAME>
-
-#docker:
-    #host: <HOST_IP>
-    #ssh_user: <SSH_USER>
-    #ssh_password: <SSH_PASSWORD>
+   #runtime_timeout: 600
+   #runtime_memory: 256
+   #runtime_cpu : 0.5
+   #max_workers: <MAX_WORKERS> Default is 250
+   #worker_processes: <WORKER_GRANULARITY> Default is 1
 
 #openwhisk:
-    #endpoint    : <OW_ENDPOINT>
-    #namespace   : <NAMESPACE>
-    #api_key     : <AUTH_KEY>
-    #insecure    : <True/False>
+    #endpoint: <OW_ENDPOINT>
+    #namespace: <NAMESPACE>
+    #api_key: <AUTH_KEY>
+    #insecure: <True/False>
     #runtime: <RUNTIME_NAME>
+    #runtime_timeout: 600
+    #runtime_memory: 256
+    #max_workers: <MAX_WORKERS> Default is 100
+    #worker_processes: <WORKER_GRANULARITY> Default is 1
+
+#ibm_cos:
+    #storage_bucket: <BUCKET_NAME>
+    #region: <REGION>
+    #endpoint: <REGION_ENDPOINT>
+    #private_endpoint: <PRIVATE_REGION_ENDPOINT>
+    #api_key: <API_KEY>
+    #access_key_id: <ACCESS_KEY>  # Optional
+    #secret_access_key: <SECRET_KEY>  # Optional
 
 #swift:
+    #storage_bucket: <BUCKET_NAME>
     #auth_url   : <SWIFT_AUTH_URL>
     #region     : <SWIFT_REGION>
     #user_id    : <SWIFT_USER_ID>
@@ -112,6 +164,13 @@ lithops:
     #cache_manager : <CACHE MANAGER> # Optional
   
 #ceph:
+    #storage_bucket: <BUCKET_NAME>
+    #endpoint: <ENDPOINT_URL>
+    #access_key: <ACCESS_KEY>
+    #secret_key: <ACCESS_KEY>
+    
+#minio:
+    #storage_bucket: <BUCKET_NAME>
     #endpoint: <ENDPOINT_URL>
     #access_key: <ACCESS_KEY>
     #secret_key: <ACCESS_KEY>
@@ -120,4 +179,6 @@ lithops:
     #host: <ENDPOINT_URL>
     #port: <ACCESS_KEY>
     #password: <ACCESS_KEY>
-    
+
+#rabbitmq:
+    #amqp_url   : <RABBIT_AMQP_URL>  # amqp://

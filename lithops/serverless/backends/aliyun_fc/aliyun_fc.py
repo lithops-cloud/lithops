@@ -14,18 +14,20 @@
 # limitations under the License.
 #
 
+import hashlib
 import os
+import sys
 import logging
 import shutil
 import json
-import sys
 import lithops
 import fc2
 
-from lithops.utils import uuid_str, is_lithops_worker, version_str
+from lithops import utils
 from lithops.version import __version__
-from lithops.constants import COMPUTE_CLI_MSG, TEMP
-from . import config as aliyunfc_config
+from lithops.constants import COMPUTE_CLI_MSG, TEMP_DIR
+
+from . import config
 
 logger = logging.getLogger(__name__)
 
@@ -35,225 +37,285 @@ class AliyunFunctionComputeBackend:
     A wrap-up around Aliyun Function Compute backend.
     """
 
-    def __init__(self, aliyun_fc_config, storage_config):
+    def __init__(self, afc_config, internal_storage):
         logger.debug("Creating Aliyun Function Compute client")
-        self.log_active = logger.getEffectiveLevel() != logging.WARNING
         self.name = 'aliyun_fc'
-        self.type = 'faas'
-        self.config = aliyun_fc_config
-        self.is_lithops_worker = is_lithops_worker()
-        self.version = 'lithops_{}'.format(__version__)
+        self.type = utils.BackendType.FAAS.value
+        self.config = afc_config
+        self.user_agent = afc_config['user_agent']
 
-        self.user_agent = aliyun_fc_config['user_agent']
-        if 'service' in aliyun_fc_config:
-            self.service_name = aliyun_fc_config['service']
-        else:
-            self.service_name = aliyunfc_config.SERVICE_NAME
+        self.endpoint = afc_config['public_endpoint']
+        self.access_key_id = afc_config['access_key_id']
+        self.access_key_secret = afc_config['access_key_secret']
+        self.role_arn = afc_config['role_arn']
+        self.region = afc_config['region']
 
-        self.endpoint = aliyun_fc_config['public_endpoint']
-        self.access_key_id = aliyun_fc_config['access_key_id']
-        self.access_key_secret = aliyun_fc_config['access_key_secret']
+        self.default_service_name = f'{config.SERVICE_NAME}_{self.access_key_id[0:4].lower()}'
+        self.service_name = afc_config.get('service', self.default_service_name)
 
-        logger.debug("Set Aliyun FC Service to {}".format(self.service_name))
-        logger.debug("Set Aliyun FC Endpoint to {}".format(self.endpoint))
+        logger.debug(f"Set Aliyun FC Service to {self.service_name}")
+        logger.debug(f"Set Aliyun FC Endpoint to {self.endpoint}")
 
         self.fc_client = fc2.Client(endpoint=self.endpoint,
                                     accessKeyID=self.access_key_id,
                                     accessKeySecret=self.access_key_secret)
 
         msg = COMPUTE_CLI_MSG.format('Aliyun Function Compute')
-        logger.info("{}".format(msg))
+        logger.info(f"{msg} - Region: {self.region}")
 
-    def _format_action_name(self, runtime_name, runtime_memory):
-        runtime_name = runtime_name.replace('/', '_').replace(':', '_')
-        return '{}_{}MB'.format(runtime_name, runtime_memory)
+    def _format_function_name(self, runtime_name, runtime_memory, version=__version__):
+        name = f'{runtime_name}-{runtime_memory}-{version}'
+        name_hash = hashlib.sha1(name.encode("utf-8")).hexdigest()[:10]
 
-    def _unformat_action_name(self, action_name):
-        runtime_name, memory = action_name.rsplit('_', 1)
-        image_name = runtime_name.replace('_', '/', 1)
-        image_name = image_name.replace('_', ':', -1)
-        return image_name, int(memory.replace('MB', ''))
+        return f'lithops-worker-{runtime_name}-v{version.replace(".", "-")}-{name_hash}'
 
-    def _get_default_runtime_image_name(self):
-        python_version = version_str(sys.version_info)
-        return aliyunfc_config.RUNTIME_DEFAULT[python_version]
+    def _unformat_function_name(self, function_name):
+        runtime_name, hash = function_name.rsplit('-', 1)
+        runtime_name = runtime_name.replace('lithops-worker-', '')
+        runtime_name, version = runtime_name.rsplit('-v', 1)
+        version = version.replace('-', '.')
+        return version, runtime_name
 
-    def _delete_function_handler_zip(self):
-        os.remove(aliyunfc_config.FH_ZIP_LOCATION)
+    def _get_default_runtime_name(self):
+        py_version = utils.CURRENT_PY_VERSION.replace('.', '')
+        return f'default-runtime-v{py_version}'
 
-    def create_runtime(self, docker_image_name, memory=aliyunfc_config.RUNTIME_TIMEOUT_DEFAULT,
-                       timeout=aliyunfc_config.RUNTIME_TIMEOUT_DEFAULT):
-        """
-        Creates a new runtime into Aliyun Function Compute
-        with the custom modules for lithops
-        """
+    def build_runtime(self, runtime_name, requirements_file, extra_args=[]):
+        if not requirements_file:
+            raise Exception('Please provide a "requirements.txt" file with the necessary modules')
 
-        logger.info('Creating new Lithops runtime for Aliyun Function Compute')
+        logger.info(f'Building runtime {runtime_name} from {requirements_file}')
 
-        res = self.fc_client.list_services(prefix=self.service_name).data
+        build_dir = os.path.join(config.BUILD_DIR, runtime_name)
 
-        if len(res['services']) == 0:
-            logger.info("creating service {}".format(self.service_name))
-            self.fc_client.create_service(self.service_name)
+        shutil.rmtree(build_dir, ignore_errors=True)
+        os.makedirs(build_dir)
 
-        if docker_image_name == 'default':
-            handler_path = aliyunfc_config.HANDLER_FOLDER_LOCATION
-            is_custom = False
-        elif os.path.isdir(docker_image_name):
-            handler_path = docker_image_name
-            is_custom = True
+        # Add lithops base modules
+        logger.debug("Downloading base modules (via pip install)")
+        req_file = os.path.join(build_dir, 'requirements.txt')
+        with open(req_file, 'w') as reqf:
+            reqf.write(config.REQUIREMENTS_FILE)
+
+        def download_requirements():
+            cmd = f'{sys.executable} -m pip install -t {build_dir} -r {req_file} --no-deps'
+            utils.run_command(cmd)
+
+        if utils.is_linux_system():
+            download_requirements()
         else:
-            raise Exception('The path you provided for the custom runtime'
-                            'does not exist: {}'.format(docker_image_name))
+            docker_path = utils.get_docker_path()
+            if docker_path:
+                # Build the runtime in a docker
+                cmd = 'python3 -m pip install -U -t . -r requirements.txt'
+                cmd = f'docker run -w /tmp -v {build_dir}:/tmp python:{utils.CURRENT_PY_VERSION}-slim-buster {cmd}'
+                utils.run_command(cmd)
+            else:
+                logger.warning('Aliyun Functions use a Linux environment. Building'
+                               'a runtime from a non-Linux environemnt might cause issues')
+                download_requirements()
 
-        try:
-            self._create_function_handler_folder(handler_path, is_custom=is_custom)
-            metadata = self._generate_runtime_meta(handler_path)
-            function_name = self._format_action_name(docker_image_name, memory)
-
-            self.fc_client.create_function(serviceName=self.service_name,
-                                           functionName=function_name,
-                                           runtime=self._get_default_runtime_image_name(),
-                                           handler='entry_point.main',
-                                           codeDir=handler_path,
-                                           memorySize=memory,
-                                           timeout=timeout)
-
-        finally:
-            if not is_custom:
-                self._delete_function_handler_folder(handler_path)
-
-        return metadata
-
-    def delete_runtime(self, docker_image_name, memory):
-        """
-        Deletes a runtime
-        """
-        if docker_image_name == 'default':
-            docker_image_name = self._get_default_runtime_image_name()
-        action_name = self._format_action_name(docker_image_name, memory)
-        self.fc_client.delete_function(self.service_name, action_name)
-
-    def clean(self):
-        """"
-        deletes all runtimes from the current service
-        """
-        actions = self.fc_client.list_functions(self, self.service_name, prefix="lithops")
-        for action in actions:
-            self.fc_client.delete_function(self.service_name, action)
-        if self.service_name.startswith("lithops"):
-            self.fc_client.delete_service(self.service_name)
-
-    def list_runtimes(self, docker_image_name='all'):
-        """
-        List all the runtimes deployed in the Aliyun FC service
-        return: list of tuples (docker_image_name, memory)
-        """
-        if docker_image_name == 'default':
-            docker_image_name = self._get_default_runtime_image_name()
-
-        runtimes = []
-        actions = self.fc_client.list_functions(self.service_name)
-
-        for action in actions:
-            action_image_name, memory = self._unformat_action_name(action['name'])
-            if docker_image_name == action_image_name or docker_image_name == 'all':
-                runtimes.append((action_image_name, memory))
-        return runtimes
-
-    def invoke(self, docker_image_name, memory=None, payload={}):
-        """
-        Invoke function
-        """
-        action_name = self._format_action_name(docker_image_name, memory)
-
-        res = self.fc_client.invoke_function(serviceName=self.service_name,
-                                             functionName=action_name,
-                                             payload=json.dumps(payload),
-                                             headers={'x-fc-invocation-type': 'Async'})
-
-        return res.headers['X-Fc-Request-Id']
-
-    def get_runtime_key(self, docker_image_name, runtime_memory):
-        """
-        Method that creates and returns the runtime key.
-        Runtime keys are used to uniquely identify runtimes within the storage,
-        in order to know which runtimes are installed and which not.
-        """
-        action_name = self._format_action_name(docker_image_name, runtime_memory)
-        runtime_key = os.path.join(self.name, self.config['public_endpoint'].split('.')[1], action_name)
-
-        return runtime_key
-
-    def _create_function_handler_folder(self, handler_path, is_custom):
-        # logger.debug("Creating function handler folder in {}".format(handler_path))
-        print("Creating function handler folder in {}".format(handler_path))
-
-        if not is_custom:
-            os.mkdir(handler_path)
-
-            # Add lithops base modules
-            logger.debug("Installing base modules (via pip install)")
-            req_file = os.path.join(TEMP, 'requirements.txt')
-            with open(req_file, 'w') as reqf:
-                reqf.write(aliyunfc_config.REQUIREMENTS_FILE)
-
-            cmd = 'pip3 install -t {} -r {} --no-deps'.format(handler_path, req_file)
-            if logger.getEffectiveLevel() != logging.DEBUG:
-                cmd = cmd + " >{} 2>&1".format(os.devnull)
-            res = os.system(cmd)
-            if res != 0:
-                raise Exception('There was an error building the runtime')
-
-        # Add function handler
+        # Add function handlerd
         current_location = os.path.dirname(os.path.abspath(__file__))
         handler_file = os.path.join(current_location, 'entry_point.py')
-        shutil.copy(handler_file, handler_path)
+        shutil.copy(handler_file, build_dir)
 
         # Add lithops module
         module_location = os.path.dirname(os.path.abspath(lithops.__file__))
-        dst_location = os.path.join(handler_path, 'lithops')
+        dst_location = os.path.join(build_dir, 'lithops')
 
         if os.path.isdir(dst_location):
             logger.warning("Using user specified 'lithops' module from the custom runtime folder. "
                            "Please refrain from including it as it will be automatically installed anyway.")
         else:
-            shutil.copytree(module_location, dst_location)
+            shutil.copytree(module_location, dst_location, ignore=shutil.ignore_patterns('__pycache__'))
 
-    def _delete_function_handler_folder(self, handler_path):
-        shutil.rmtree(handler_path)
+        # Create zip file
+        os.chdir(build_dir)
+        runtime_zip = f'{config.BUILD_DIR}/{runtime_name}.zip'
+        if os.path.exists(runtime_zip):
+            os.remove(runtime_zip)
+        utils.run_command(f'zip -r {runtime_zip} .')
+        shutil.rmtree(build_dir, ignore_errors=True)
 
-    def _generate_runtime_meta(self, handler_path):
+    def _service_exists(self, service_name):
+        """
+        Checks if a given service exists
+        """
+        services = self.fc_client.list_services(prefix=service_name).data['services']
+        for serv in services:
+            if serv['serviceName'] == service_name:
+                return True
+        return False
+
+    def _build_default_runtime(self, runtime_name):
+        """
+        Builds the default runtime
+        """
+        requirements_file = os.path.join(TEMP_DIR, 'aliyun_default_requirements.txt')
+        with open(requirements_file, 'w') as reqf:
+            reqf.write(config.REQUIREMENTS_FILE)
+        try:
+            self.build_runtime(runtime_name, requirements_file)
+        finally:
+            os.remove(requirements_file)
+
+    def deploy_runtime(self, runtime_name, memory, timeout):
+        """
+        Deploys a new runtime into Aliyun Function Compute
+        with the custom modules for lithops
+        """
+        logger.info(f"Deploying runtime: {runtime_name} - Memory: {memory} Timeout: {timeout}")
+
+        if not self._service_exists(self.service_name):
+            logger.debug(f"creating service {self.service_name}")
+            self.fc_client.create_service(self.service_name, role=self.role_arn)
+
+        if runtime_name == self._get_default_runtime_name():
+            self._build_default_runtime(runtime_name)
+
+        function_name = self._format_function_name(runtime_name, memory)
+
+        logger.debug(f'Crating function {function_name}')
+        functions = self.fc_client.list_functions(self.service_name).data['functions']
+        for function in functions:
+            if function['functionName'] == function_name:
+                logger.debug(f'Function {function_name} already exists. Deleting it')
+                self.delete_runtime(runtime_name, memory)
+
+        self.fc_client.create_function(
+            serviceName=self.service_name,
+            functionName=function_name,
+            runtime=config.AVAILABLE_PY_RUNTIMES[utils.CURRENT_PY_VERSION],
+            handler='entry_point.main',
+            codeZipFile=f'{config.BUILD_DIR}/{runtime_name}.zip',
+            memorySize=memory,
+            timeout=timeout
+        )
+
+        metadata = self._generate_runtime_meta(function_name)
+
+        return metadata
+
+    def delete_runtime(self, runtime_name, memory, version=__version__):
+        """
+        Deletes a runtime
+        """
+        logger.info(f'Deleting runtime: {runtime_name} - {memory}MB')
+        function_name = self._format_function_name(runtime_name, memory, version)
+        self.fc_client.delete_function(self.service_name, function_name)
+
+    def clean(self, **kwargs):
+        """"
+        Deletes all runtimes from the current service
+        """
+        logger.debug('Going to delete all deployed runtimes')
+        if not self._service_exists(self.service_name):
+            return
+
+        functions = self.fc_client.list_functions(self.service_name).data['functions']
+
+        for function in functions:
+            function_name = function['functionName']
+            if function_name.startswith('lithops-worker'):
+                logger.info(f'Going to delete runtime {function_name}')
+                self.fc_client.delete_function(self.service_name, function_name)
+
+        self.fc_client.delete_service(self.service_name)
+
+    def list_runtimes(self, runtime_name='all'):
+        """
+        List all the runtimes deployed in the Aliyun FC service
+        return: list of tuples (container_image_name, memory, version)
+        """
+        logger.debug('Listing deployed runtimes')
+        runtimes = []
+
+        if not self._service_exists(self.service_name):
+            return runtimes
+
+        functions = self.fc_client.list_functions(self.service_name).data['functions']
+
+        for function in functions:
+            if function['functionName'].startswith('lithops-worker'):
+                memory = function['memorySize']
+                version, img_name = self._unformat_function_name(function['functionName'])
+                if runtime_name == img_name or runtime_name == 'all':
+                    runtimes.append((img_name, memory, version, function['functionName']))
+        return runtimes
+
+    def invoke(self, runtime_name, memory, payload={}):
+        """
+        Invoke function
+        """
+        function_name = self._format_function_name(runtime_name, memory)
+
+        try:
+            res = self.fc_client.invoke_function(
+                serviceName=self.service_name,
+                functionName=function_name,
+                payload=json.dumps(payload, default=str),
+                headers={'x-fc-invocation-type': 'Async'}
+            )
+        except fc2.fc_exceptions.FcError as e:
+            raise (e)
+
+        return res.headers['X-Fc-Request-Id']
+
+    def _generate_runtime_meta(self, function_name):
         """
         Extract installed Python modules from Aliyun runtime
         """
+        logger.info(f'Extracting runtime metadata from: {function_name}')
+        payload = {'log_level': logger.getEffectiveLevel(), 'get_metadata': True}
 
-        logger.info('Extracting preinstalls for Aliyun runtime')
-        function_name = 'lithops-extract-preinstalls-' + uuid_str()[:8]
-
-        self.fc_client.create_function(serviceName=self.service_name,
-                                       functionName=function_name,
-                                       runtime=self._get_default_runtime_image_name(),
-                                       handler='entry_point.extract_preinstalls',
-                                       codeDir=handler_path,
-                                       memorySize=128)
-
-        logger.info("Invoking 'extract-preinstalls' function")
         try:
-            res = self.fc_client.invoke_function(self.service_name, function_name,
-                headers={'x-fc-invocation-type': 'Sync'})
+            res = self.fc_client.invoke_function(
+                self.service_name, function_name,
+                payload=json.dumps(payload, default=str),
+                headers={'x-fc-invocation-type': 'Sync'}
+            )
             runtime_meta = json.loads(res.data)
 
         except Exception:
-            raise Exception("Unable to invoke 'extract-preinstalls' function")
-        finally:
-            try:
-                self.fc_client.delete_function(self.service_name, function_name)
-            except Exception:
-                raise Exception("Unable to delete 'extract-preinstalls' function")
+            raise Exception("Unable to extract runtime metadata")
 
         if not runtime_meta or 'preinstalls' not in runtime_meta:
             raise Exception(runtime_meta)
 
-        logger.info("Extracted metadata succesfully")
+        logger.debug("Metadata extracted successfully")
         return runtime_meta
+
+    def get_runtime_key(self, runtime_name, runtime_memory, version=__version__):
+        """
+        Method that creates and returns the runtime key.
+        Runtime keys are used to uniquely identify runtimes within the storage,
+        in order to know which runtimes are installed and which not.
+        """
+        function_name = self._format_function_name(runtime_name, runtime_memory, version)
+        runtime_key = os.path.join(self.name, version, self.region, self.service_name, function_name)
+
+        return runtime_key
+
+    def get_runtime_info(self):
+        """
+        Method that returns all the relevant information about the runtime set
+        in config
+        """
+        if utils.CURRENT_PY_VERSION not in config.AVAILABLE_PY_RUNTIMES:
+            raise Exception(
+                f'Python {utils.CURRENT_PY_VERSION} is not available for Aliyun '
+                f'Functions. Please use one of {list(config.AVAILABLE_PY_RUNTIMES.keys())}'
+            )
+
+        if 'runtime' not in self.config or self.config['runtime'] == 'default':
+            self.config['runtime'] = self._get_default_runtime_name()
+
+        runtime_info = {
+            'runtime_name': self.config['runtime'],
+            'runtime_memory': self.config['runtime_memory'],
+            'runtime_timeout': self.config['runtime_timeout'],
+            'max_workers': self.config['max_workers'],
+        }
+
+        return runtime_info

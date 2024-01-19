@@ -20,7 +20,7 @@ def my_function_reader(queue_name, rabbitmq):
         ch.stop_consuming()
         nonlocal message
         message = body.decode('utf-8')
-        print('Received message: {}'.format(message))
+        print(f'Received message: {message}')
 
     channel = rabbitmq.channel()
     channel.queue_declare(queue=queue_name, auto_delete=True)  # No effect if the queue already exists

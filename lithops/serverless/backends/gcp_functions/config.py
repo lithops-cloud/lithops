@@ -14,98 +14,105 @@
 # limitations under the License.
 #
 
-import sys
-from os.path import exists, isfile
-from lithops.utils import version_str
+import copy
+import os
 
-RUNTIME_TIMEOUT_DEFAULT = 90  # 90 s == 1:30'
-RUNTIME_MEMORY_DEFAULT = 256  # 256 MB
-RUNTIME_MEMORY_MAX = 2048  # 2048 MB
-RUNTIME_MEMORY_OPTIONS = {128, 256, 512, 1024, 2048, 4096}
+from lithops.constants import TEMP_DIR
 
-MAX_CONCURRENT_WORKERS = 1000
+FH_ZIP_LOCATION = os.path.join(TEMP_DIR, 'lithops_gcp_functions/{}.zip')
+SCOPES = ('https://www.googleapis.com/auth/cloud-platform',
+          'https://www.googleapis.com/auth/pubsub')
+FUNCTIONS_API_VERSION = 'v1'
+PUBSUB_API_VERSION = 'v1'
+AUDIENCE = "https://pubsub.googleapis.com/google.pubsub.v1.Publisher"
 
-RETRIES = 15
-RETRY_SLEEP = 45
+RUNTIME_MEMORY_MAX = 8192  # 8GB
+RUNTIME_MEMORY_OPTIONS = {128, 256, 512, 1024, 2048, 4096, 8192}
 
-DEFAULT_RUNTIMES = ['python3.7', 'python3.8']
+RETRIES = 5
+RETRY_SLEEP = 20
+
+AVAILABLE_PY_RUNTIMES = {
+    '3.7': 'python37',
+    '3.8': 'python38',
+    '3.9': 'python39',
+    '3.10': 'python310',
+    '3.11': 'python311'
+}
+
 USER_RUNTIMES_PREFIX = 'lithops.user_runtimes'
 
-DEFAULT_REQUIREMENTS = [
-    'numpy',
-    'scipy',
-    'scikit-learn',
-    'pandas',
-    'google-cloud',
-    'google-cloud-storage',
-    'google-cloud-pubsub',
-    'google-auth',
-    'certifi',
-    'chardet',
-    'docutils',
-    'httplib2',
-    'idna',
-    'jmespath',
-    'kafka-python',
-    'lxml',
-    'pika',
-    'redis',
-    'requests',
-    'six',
-    'urllib3',
-    'virtualenv',
-    'PyYAML',
-    'cloudpickle',
-    'ps-mem',
-    'tblib'
-]
+DEFAULT_CONFIG_KEYS = {
+    'runtime_timeout': 300,  # Default: 5 minutes
+    'runtime_memory': 256,  # Default memory: 256 MB
+    'max_workers': 1000,
+    'worker_processes': 1,
+    'invoke_pool_threads': 1000,
+    'trigger': 'pub/sub'
+}
+
+REQUIREMENTS_FILE = """
+numpy
+scipy
+scikit-learn
+pandas
+google-cloud
+google-cloud-storage
+google-cloud-pubsub
+google-auth
+google-api-python-client
+certifi
+chardet
+docutils
+httplib2
+idna
+jmespath
+kafka-python
+lxml
+pika
+redis
+requests
+six
+urllib3
+virtualenv
+PyYAML
+cloudpickle
+ps-mem
+tblib
+"""
 
 
 def load_config(config_data=None):
-    if config_data is None:
-        config_data = {}
-
     if 'gcp' not in config_data:
         raise Exception("'gcp' section is mandatory in the configuration")
 
-    if 'runtime_memory' not in config_data['serverless']:
-        config_data['serverless']['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
-    if 'runtime_timeout' not in config_data['serverless']:
-        config_data['serverless']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
+    if 'credentials_path' not in config_data['gcp']:
+        if 'GOOGLE_APPLICATION_CREDENTIALS' in os.environ:
+            config_data['gcp']['credentials_path'] = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
 
-    if 'runtime' in config_data['gcp']:
-        config_data['serverless']['runtime'] = config_data['gcp']['runtime']
-    if 'runtime' not in config_data['serverless']:
-        config_data['serverless']['runtime'] = 'python' + version_str(sys.version_info)
+    if 'credentials_path' in config_data['gcp']:
+        config_data['gcp']['credentials_path'] = os.path.expanduser(config_data['gcp']['credentials_path'])
 
-    if 'workers' not in config_data['lithops']:
-        config_data['lithops']['workers'] = MAX_CONCURRENT_WORKERS
+    temp = copy.deepcopy(config_data['gcp_functions'])
+    config_data['gcp_functions'].update(config_data['gcp'])
+    config_data['gcp_functions'].update(temp)
 
-    if config_data['serverless']['runtime_memory'] not in RUNTIME_MEMORY_OPTIONS:
-        raise Exception('{} MB runtime is not available (Only one of {} MB is available)'.format(
-            config_data['serverless']['runtime_memory'], RUNTIME_MEMORY_OPTIONS))
-
-    if config_data['serverless']['runtime_memory'] > RUNTIME_MEMORY_MAX:
-        config_data['serverless']['runtime_memory'] = RUNTIME_MEMORY_MAX
-    if config_data['serverless']['runtime_timeout'] > RUNTIME_TIMEOUT_DEFAULT:
-        config_data['serverless']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
-
-    config_data['gcp']['retries'] = RETRIES
-    config_data['gcp']['retry_sleep'] = RETRY_SLEEP
-
-    required_parameters = ('project_name',
-                           'service_account',
-                           'credentials_path')
-    if not set(required_parameters) <= set(config_data['gcp']):
-        raise Exception("'project_name', 'service_account' and 'credentials_path' are mandatory under 'gcp' section")
-
-    if not exists(config_data['gcp']['credentials_path']) or not isfile(config_data['gcp']['credentials_path']):
-        raise Exception("Path {} must be credentials JSON file.".format(config_data['gcp']['credentials_path']))
-
-    config_data['gcp_functions'] = config_data['gcp'].copy()
     if 'region' not in config_data['gcp_functions']:
-        config_data['gcp_functions']['region'] = config_data['pywren']['compute_backend_region']
+        raise Exception("'region' parameter is mandatory under 'gcp_functions' or 'gcp' section of the configuration")
 
-    if 'invoke_pool_threads' not in config_data['gcp']:
-        config_data['gcp']['invoke_pool_threads'] = config_data['lithops']['workers']
-    config_data['serverless']['invoke_pool_threads'] = config_data['gcp']['invoke_pool_threads']
+    for key in DEFAULT_CONFIG_KEYS:
+        if key not in config_data['gcp_functions']:
+            config_data['gcp_functions'][key] = DEFAULT_CONFIG_KEYS[key]
+
+    if config_data['gcp_functions']['runtime_memory'] not in RUNTIME_MEMORY_OPTIONS:
+        raise Exception('{} MB runtime is not available (Only one of {} MB is available)'.format(
+            config_data['gcp_functions']['runtime_memory'], RUNTIME_MEMORY_OPTIONS))
+
+    if config_data['gcp_functions']['runtime_memory'] > RUNTIME_MEMORY_MAX:
+        config_data['gcp_functions']['runtime_memory'] = RUNTIME_MEMORY_MAX
+
+    config_data['gcp_functions']['retries'] = RETRIES
+    config_data['gcp_functions']['retry_sleep'] = RETRY_SLEEP
+
+    if 'region' not in config_data['gcp']:
+        config_data['gcp']['region'] = config_data['gcp_functions']['region']

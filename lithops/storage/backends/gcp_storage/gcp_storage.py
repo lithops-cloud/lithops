@@ -15,6 +15,8 @@
 #
 
 import re
+import os
+import shutil
 import time
 import logging
 from requests.exceptions import SSLError as TooManyConnectionsError
@@ -25,30 +27,56 @@ from google.cloud.exceptions import NotFound
 from lithops.constants import STORAGE_CLI_MSG
 from lithops.storage.utils import StorageNoSuchKeyError
 
-logging.getLogger('urllib3').setLevel(logging.CRITICAL)
-
 logger = logging.getLogger(__name__)
 
+TIMEOUT = 5
 
 class GCPStorageBackend:
+
     def __init__(self, gcp_storage_config):
         logger.debug("Creating GCP Storage client")
-        self.credentials_path = gcp_storage_config['credentials_path']
-        try:  # Get credenitals from JSON file
+        self.credentials_path = gcp_storage_config.get('credentials_path')
+        self.region = gcp_storage_config['region']
+
+        if self.credentials_path and os.path.isfile(self.credentials_path):
+            logger.debug(f'Getting GCP credentials from {self.credentials_path}')
             self.client = storage.Client.from_service_account_json(self.credentials_path)
-        except Exception:  # Get credentials from gcp function environment
+        else:
+            logger.debug('Getting GCP credentials from the environment')
             self.client = storage.Client()
-        msg = STORAGE_CLI_MSG.format('GCP')
-        logger.info("{}".format(msg))
+
+        msg = STORAGE_CLI_MSG.format('Google Cloud Storage')
+        logger.info(f"{msg} - Region: {self.region}")
 
     def get_client(self):
         return self.client
+
+    def exists_bucket(self, bucket_name):
+        try:
+            self.client.get_bucket(bucket_name, timeout=TIMEOUT)
+            return True
+        except google_exceptions.NotFound:
+            return False
+
+    def create_bucket(self, bucket_name):
+        """
+        Create a bucket if it doesn't exist
+        """
+        try:
+            bucket = self.client.bucket(bucket_name)
+            bucket.storage_class = "STANDARD"
+            if not self.exists_bucket(bucket_name):
+                logger.debug(f"Could not find the bucket {bucket_name} in the GCP storage backend")
+                logger.debug(f"Creating new bucket {bucket_name} in the GCP storage backend")
+                self.client.create_bucket(bucket, location=self.region)
+        except google_exceptions.Forbidden:
+            raise StorageNoSuchKeyError(bucket_name, '')
 
     def put_object(self, bucket_name, key, data):
         done = False
         while not done:
             try:
-                bucket = self.client.get_bucket(bucket_name)
+                bucket = self.client.get_bucket(bucket_name, timeout=TIMEOUT)
                 blob = bucket.blob(blob_name=key)
                 if hasattr(data, 'read'):
                     blob.upload_from_file(file_obj=data)
@@ -62,7 +90,7 @@ class GCPStorageBackend:
 
     def get_object(self, bucket_name, key, stream=False, extra_get_args={}):
         try:
-            bucket = self.client.get_bucket(bucket_name)
+            bucket = self.client.get_bucket(bucket_name, timeout=TIMEOUT)
             blob = bucket.blob(blob_name=key)
         except google_exceptions.NotFound:
             raise StorageNoSuchKeyError(bucket_name, key)
@@ -86,9 +114,55 @@ class GCPStorageBackend:
         else:
             return blob.download_as_string(start=start, end=end)
 
+    def upload_file(self, file_name, bucket, key=None, extra_args={}, config=None):
+        """Upload a file
+
+        :param file_name: File to upload
+        :param bucket: Bucket to upload to
+        :param key: object name. If not specified then file_name is used
+        :return: True if file was uploaded, else False
+        """
+        # If S3 key was not specified, use file_name
+        if key is None:
+            key = os.path.basename(file_name)
+
+        # Upload the file
+        try:
+            with open(file_name, 'rb') as in_file:
+                self.put_object(bucket, key, in_file)
+        except Exception as e:
+            logging.error(e)
+            return False
+        return True
+
+    def download_file(self, bucket, key, file_name=None, extra_args={}, config=None):
+        """Download a file
+
+        :param bucket: Bucket to download from
+        :param key: object name. If not specified then file_name is used
+        :param file_name: File to upload
+        :return: True if file was downloaded, else False
+        """
+        # If file_name was not specified, use S3 key
+        if file_name is None:
+            file_name = key
+
+        # Download the file
+        try:
+            dirname = os.path.dirname(file_name)
+            if dirname and not os.path.exists(dirname):
+                os.makedirs(dirname)
+            with open(file_name, 'wb') as out:
+                data_stream = self.get_object(bucket, key, stream=True)
+                shutil.copyfileobj(data_stream, out)
+        except Exception as e:
+            logging.error(e)
+            return False
+        return True
+
     def head_object(self, bucket_name, key):
         try:
-            bucket = self.client.get_bucket(bucket_name)
+            bucket = self.client.get_bucket(bucket_name, timeout=TIMEOUT)
             blob = bucket.get_blob(blob_name=key)
         except google_exceptions.NotFound:
             raise StorageNoSuchKeyError(bucket_name, key)
@@ -106,7 +180,7 @@ class GCPStorageBackend:
 
     def delete_object(self, bucket_name, key):
         try:
-            bucket = self.client.get_bucket(bucket_name)
+            bucket = self.client.get_bucket(bucket_name, timeout=TIMEOUT)
         except google_exceptions.NotFound:
             raise StorageNoSuchKeyError(bucket_name, key)
         blob = bucket.get_blob(blob_name=key)
@@ -115,25 +189,35 @@ class GCPStorageBackend:
         blob.delete()
 
     def delete_objects(self, bucket_name, key_list):
-        bucket = self.client.get_bucket(bucket_name)
+        bucket = self.client.get_bucket(bucket_name, timeout=TIMEOUT)
         try:
             bucket.delete_blobs(blobs=key_list)
         except google_exceptions.NotFound:
             pass
 
     def head_bucket(self, bucket_name):
-        pass
+        bucket = self.client.get_bucket(bucket_name, timeout=TIMEOUT)
+        response = {
+            'ResponseMetadata':
+                {'HTTPStatusCode': 200,
+                 'HTTPHeaders': {'content-type': 'application/xml',
+                                 'server': 'GoogleStorage'}}
+        }
+        response['ResponseMetadata']['HTTPHeaders'].update(bucket._properties)
+        return response
 
-    def list_objects(self, bucket_name, prefix=None):
+    def list_objects(self, bucket_name, prefix=None, match_pattern=None):
         try:
-            page = self.client.get_bucket(bucket_name).list_blobs(prefix=prefix)
+            bucket = self.client.get_bucket(bucket_name, timeout=TIMEOUT)
+            page = bucket.list_blobs(prefix=prefix)
         except google_exceptions.ClientError:
             raise StorageNoSuchKeyError(bucket_name, '')
-        return [{'Key': blob.name, 'Size': blob.size} for blob in page]
+        return [{'Key': blob.name, 'Size': blob.size, 'LastModified': blob.updated} for blob in page]
 
     def list_keys(self, bucket_name, prefix=None):
         try:
-            page = list(self.client.get_bucket(bucket_name).list_blobs(prefix=prefix))
+            bucket = self.client.get_bucket(bucket_name, timeout=TIMEOUT)
+            page = bucket.list_blobs(prefix=prefix)
         except google_exceptions.ClientError:
             raise StorageNoSuchKeyError(bucket_name, '')
         return [blob.name for blob in page]

@@ -15,6 +15,7 @@
 #
 
 import os
+import sys
 import time
 import pickle
 import logging
@@ -22,64 +23,141 @@ from concurrent.futures import ThreadPoolExecutor
 
 from lithops.storage import Storage
 from lithops.storage.utils import clean_bucket
-from lithops.constants import JOBS_PREFIX, TEMP_PREFIX, CLEANER_DIR,\
+from lithops.constants import JOBS_PREFIX, TEMP_PREFIX, CLEANER_DIR, \
     CLEANER_PID_FILE, CLEANER_LOG_FILE
 
-logger = logging.getLogger('cleaner')
-logging.basicConfig(filename=CLEANER_LOG_FILE, level=logging.INFO,
+log_file_stream = open(CLEANER_LOG_FILE, 'a')
+sys.stdout = log_file_stream
+sys.stderr = log_file_stream
+
+
+logger = logging.getLogger('lithops')
+logging.basicConfig(stream=log_file_stream, level=logging.INFO,
                     format=('%(asctime)s [%(levelname)s] %(module)s'
-                            ' - %(funcName)s: %(message)s'))
+                            ' [%(threadName)s] - %(funcName)s: %(message)s'))
+logger.setLevel('DEBUG')
+
+
+def clean_executor_jobs(executor_id, executor_data):
+
+    storage = None
+
+    logger.debug(f"Cleaning Executor ID: {executor_id}")
+
+    for file_data in executor_data:
+        file_location = file_data['file_location']
+        data = file_data['data']
+
+        storage_config = data['storage_config']
+        clean_cloudobjects = data['clean_cloudobjects']
+
+        logger.debug(f"File location: {file_location}")
+
+        if not storage:
+            storage = Storage(storage_config=storage_config)
+
+        for job_key in data['jobs_to_clean']:
+            prefix = '/'.join([JOBS_PREFIX, job_key]) + '/'
+            logger.debug(f"Cleaning data from {prefix}")
+            clean_bucket(storage, storage.bucket, prefix)
+
+        if clean_cloudobjects:
+            for job_key in data['jobs_to_clean']:
+                prefix = '/'.join([TEMP_PREFIX, job_key]) + '/'
+                logger.debug(f"Cleaning cloudobjects from {prefix}")
+                clean_bucket(storage, storage.bucket, prefix)
+
+        if os.path.exists(file_location):
+            os.remove(file_location)
+        logger.info('Finished')
+
+
+def clean_cloudobjects(cloudobjects_data):
+    file_location = cloudobjects_data['file_location']
+    data = cloudobjects_data['data']
+
+    logger.info('Going to clean cloudobjects')
+    cos_to_clean = data['cos_to_clean']
+    storage_config = data['storage_config']
+    storage = Storage(storage_config=storage_config)
+
+    for co in cos_to_clean:
+        if co.backend == storage.backend:
+            logging.info('Cleaning {}://{}/{}'.format(co.backend,
+                                                      co.bucket,
+                                                      co.key))
+            storage.delete_object(co.bucket, co.key)
+
+    if os.path.exists(file_location):
+        os.remove(file_location)
+    logger.info('Finished')
+
+
+def clean_functions(functions_data):
+    file_location = functions_data['file_location']
+    data = functions_data['data']
+
+    executor_id = data['fn_to_clean']
+    storage_config = data['storage_config']
+    storage = Storage(storage_config=storage_config)
+    prefix = '/'.join([JOBS_PREFIX, executor_id]) + '/'
+    logger.info(f'Cleaning functions from {prefix}')
+    key_list = storage.list_keys(storage.bucket, prefix)
+    storage.delete_objects(storage.bucket, key_list)
+
+    if os.path.exists(file_location):
+        os.remove(file_location)
+    logger.info('Finished')
 
 
 def clean():
 
-    def clean_file(file_name):
-        file_location = os.path.join(CLEANER_DIR, file_name)
-
-        if file_location in [CLEANER_LOG_FILE, CLEANER_PID_FILE]:
-            return
-
-        with open(file_location, 'rb') as pk:
-            data = pickle.load(pk)
-
-        if 'jobs_to_clean' in data:
-            jobs_to_clean = data['jobs_to_clean']
-            storage_config = data['storage_config']
-            clean_cloudobjects = data['clean_cloudobjects']
-            storage = Storage(storage_config=storage_config)
-
-            for job_key in jobs_to_clean:
-                logger.info('Going to clean: {}'.format(job_key))
-
-                prefix = '/'.join([JOBS_PREFIX, job_key])
-                clean_bucket(storage, storage.bucket, prefix)
-
-                if clean_cloudobjects:
-                    prefix = '/'.join([TEMP_PREFIX, job_key])
-                    clean_bucket(storage, storage.bucket, prefix)
-
-        if 'cos_to_clean' in data:
-            logger.info('Going to clean cloudobjects')
-            cos_to_clean = data['cos_to_clean']
-            storage_config = data['storage_config']
-            storage = Storage(storage_config=storage_config)
-
-            for co in cos_to_clean:
-                if co.backend == storage.backend:
-                    logging.info('Cleaning {}://{}/{}'.format(co.backend,
-                                                              co.bucket,
-                                                              co.key))
-                    storage.delete_object(co.bucket, co.key)
-
-        if os.path.exists(file_location):
-            os.remove(file_location)
-
     while True:
+        executor_jobs = {}
+        cloudobjects = []
+        functions = []
+
         files_to_clean = os.listdir(CLEANER_DIR)
+
         if len(files_to_clean) <= 2:
             break
-        with ThreadPoolExecutor(max_workers=32) as ex:
-            ex.map(clean_file, files_to_clean)
+
+        for file_name in files_to_clean:
+            file_location = os.path.join(CLEANER_DIR, file_name)
+            if file_location in [CLEANER_LOG_FILE, CLEANER_PID_FILE]:
+                continue
+
+            with open(file_location, 'rb') as pk:
+                data = pickle.load(pk)
+
+            if 'jobs_to_clean' in data:
+                # group data by executor_id
+                executor_id, job_id = next(iter(data['jobs_to_clean'])).rsplit('-', 1)
+                if executor_id not in executor_jobs:
+                    executor_jobs[executor_id] = []
+                executor_jobs[executor_id].append({'file_location': file_location, 'data': data})
+
+            elif 'cos_to_clean' in data:
+                cloudobjects.append({'file_location': file_location, 'data': data})
+
+            elif 'fn_to_clean' in data:
+                functions.append({'file_location': file_location, 'data': data})
+
+        if executor_jobs:
+            with ThreadPoolExecutor(max_workers=32) as ex:
+                for executor_id in executor_jobs:
+                    ex.submit(clean_executor_jobs, executor_id, executor_jobs[executor_id])
+
+        if cloudobjects:
+            with ThreadPoolExecutor(max_workers=32) as ex:
+                for cloudobjects_data in cloudobjects:
+                    ex.submit(clean_cloudobjects, cloudobjects_data)
+
+        if functions:
+            with ThreadPoolExecutor(max_workers=32) as ex:
+                for function_data in functions:
+                    ex.submit(clean_functions, function_data)
+
         time.sleep(5)
 
 

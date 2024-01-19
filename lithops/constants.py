@@ -20,11 +20,13 @@ import tempfile
 
 LOGGER_LEVEL = 'info'
 LOGGER_STREAM = 'ext://sys.stderr'
-LOGGER_FORMAT = "%(asctime)s [%(levelname)s] %(name)s -- %(message)s"
-LOGGER_FORMAT_SHORT = "[%(levelname)s] %(filename)s -- %(message)s"
+LOGGER_FORMAT = "%(asctime)s [%(levelname)s] %(filename)s:%(lineno)s -- %(message)s"
+LOGGER_FORMAT_SHORT = "[%(levelname)s] %(filename)s:%(lineno)s -- %(message)s"
 LOGGER_LEVEL_CHOICES = ["debug", "info", "warning", "error", "critical"]
 
-STORAGE_CLI_MSG = '{} Storage client created'
+CPU_COUNT = os.cpu_count()
+
+STORAGE_CLI_MSG = '{} client created'
 COMPUTE_CLI_MSG = '{} client created'
 
 LOCALHOST = 'localhost'
@@ -32,9 +34,13 @@ SERVERLESS = 'serverless'
 STANDALONE = 'standalone'
 
 MODE_DEFAULT = SERVERLESS
-SERVERLESS_BACKEND_DEFAULT = 'ibm_cf'
-STANDALONE_BACKEND_DEFAULT = 'ibm_vpc'
-STORAGE_BACKEND_DEFAULT = 'ibm_cos'
+
+MONITORING_DEFAULT = 'storage'
+MONITORING_INTERVAL = 2
+
+SERVERLESS_BACKEND_DEFAULT = 'aws_lambda'
+STANDALONE_BACKEND_DEFAULT = 'aws_ec2'
+STORAGE_BACKEND_DEFAULT = 'aws_s3'
 
 JOBS_PREFIX = "lithops.jobs"
 TEMP_PREFIX = "lithops.jobs/tmp"
@@ -42,28 +48,44 @@ LOGS_PREFIX = "lithops.logs"
 RUNTIMES_PREFIX = "lithops.runtimes"
 
 EXECUTION_TIMEOUT_DEFAULT = 1800
+EXECUTION_TIMEOUT_LOCALHOST_DEFAULT = 3600
 
 LOCALHOST_RUNTIME_DEFAULT = os.path.basename(sys.executable)
+LOCALHOST_SERVICE_IDLE_TIMEOUT = 3
+LOCALHOST_SERVICE_CHECK_INTERVAL = 2
 
-STANDALONE_RUNTIME_DEFAULT = LOCALHOST_RUNTIME_DEFAULT
-STANDALONE_AUTO_DISMANTLE_DEFAULT = True
-STANDALONE_SOFT_DISMANTLE_TIMEOUT_DEFAULT = 300
-STANDALONE_HARD_DISMANTLE_TIMEOUT_DEFAULT = 3600
-STANDALONE_INSTALL_DIR = '/opt/lithops'
-STANDALONE_LOG_FILE = '/tmp/lithops/service.log'
-STANDALONE_SERVICE_PORT = 8080
-STANDALONE_SSH_CREDNTIALS = {'username': 'root', 'password': 'lithops'}
-STANDALONE_CONFIG_FILE = os.path.join(STANDALONE_INSTALL_DIR, 'config')
+SA_INSTALL_DIR = '/opt/lithops'
+SA_TMP_DIR = '/tmp/lithops-root'
+SA_LOG_FILE = f'{SA_TMP_DIR}/service.log'
+SA_SERVICE_PORT = 8080
+SA_CONFIG_FILE = os.path.join(SA_INSTALL_DIR, 'config')
+SA_DATA_FILE = os.path.join(SA_INSTALL_DIR, 'access.data')
+
+SA_DEFAULT_CONFIG_KEYS = {
+    'runtime': 'python3',
+    'exec_mode': 'reuse',
+    'use_gpu': False,
+    'start_timeout': 300,
+    'pull_runtime': False,
+    'auto_dismantle': True,
+    'soft_dismantle_timeout': 300,
+    'hard_dismantle_timeout': 3600
+}
 
 MAX_AGG_DATA_SIZE = 4  # 4MiB
 
-TEMP = os.path.realpath(tempfile.gettempdir())
-LITHOPS_TEMP_DIR = os.path.join(TEMP, 'lithops')
+WORKER_PROCESSES_DEFAULT = 1
+
+TEMP_DIR = os.path.realpath(tempfile.gettempdir())
+USER_TEMP_DIR = 'lithops-' + os.getenv("USER", "root")
+LITHOPS_TEMP_DIR = os.path.join(TEMP_DIR, USER_TEMP_DIR)
 JOBS_DIR = os.path.join(LITHOPS_TEMP_DIR, 'jobs')
 LOGS_DIR = os.path.join(LITHOPS_TEMP_DIR, 'logs')
 MODULES_DIR = os.path.join(LITHOPS_TEMP_DIR, 'modules')
+CUSTOM_RUNTIME_DIR = os.path.join(LITHOPS_TEMP_DIR, 'custom-runtime')
 
-RN_LOG_FILE = os.path.join(LITHOPS_TEMP_DIR, 'runner.log')
+RN_LOG_FILE = os.path.join(LITHOPS_TEMP_DIR, 'localhost-runner.log')
+SV_LOG_FILE = os.path.join(LITHOPS_TEMP_DIR, 'localhost-service.log')
 FN_LOG_FILE = os.path.join(LITHOPS_TEMP_DIR, 'functions.log')
 
 CLEANER_DIR = os.path.join(LITHOPS_TEMP_DIR, 'cleaner')
@@ -74,13 +96,52 @@ HOME_DIR = os.path.expanduser('~')
 CONFIG_DIR = os.path.join(HOME_DIR, '.lithops')
 CACHE_DIR = os.path.join(CONFIG_DIR, 'cache')
 CONFIG_FILE = os.path.join(CONFIG_DIR, 'config')
+CONFIG_FILE_GLOBAL = os.path.join("/etc", "lithops", "config")
 
-SERVERLESS_BACKENDS = ['ibm_cf', 'code_engine', 'knative', 'openwhisk',
-                       'aws_lambda', 'gcp_functions', 'cloudrun',
-                       'azure_functions', 'aliyun_fc', 'k8s']
-STANDALONE_BACKENDS = ['ibm_vpc', 'vm']
+SERVERLESS_BACKENDS = [
+    'ibm_cf',
+    'code_engine',
+    'knative',
+    'openwhisk',
+    'aws_lambda',
+    'aws_batch',
+    'gcp_cloudrun',
+    'gcp_functions',
+    'cloudrun',
+    'azure_functions',
+    'azure_containers',
+    'aliyun_fc',
+    'oracle_f',
+    'k8s'
+]
 
-CHUNKSIZE_DEFAULT = 1
-WORKER_PROCESSES_DEFAULT = 1
+STANDALONE_BACKENDS = [
+    'ibm_vpc',
+    'aws_ec2',
+    'azure_vms',
+    'vm'
+]
 
-MONITORING_DEFAULT = 'storage'
+FAAS_BACKENDS = [
+    'ibm_cf',
+    'knative',
+    'openwhisk',
+    'aws_lambda',
+    'gcp_cloudrun',
+    'gcp_functions',
+    'cloudrun',
+    'azure_functions',
+    'azure_containers',
+    'aliyun_fc',
+    'oracle_f'
+]
+
+BATCH_BACKENDS = [
+    'ibm_vpc',
+    'aws_ec2',
+    'azure_vms',
+    'aws_batch',
+    'k8s',
+    'code_engine'
+    'vm'
+]

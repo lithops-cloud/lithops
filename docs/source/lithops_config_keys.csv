@@ -1,0 +1,15 @@
+Group;Key;Default;Mandatory;Additional info
+lithops;backend;``ibm_cf``;no;Compute backend implementation. IBM Cloud Functions is the default. If not set, Lithops will check the `mode` and use the `backend` set under the `serverless` or `standalone` sections described below.
+lithops;storage;``ibm_cos``;no;Storage backend implementation. IBM Cloud Object Storage is the default.
+lithops;data_cleaner;``True``;no;If set to True, then the cleaner will automatically delete all the temporary data that was written into `storage_bucket/lithops.jobs`.
+lithops;monitoring;``storage``;no;Monitoring system implementation. One of: **storage** or **rabbitmq**.
+lithops;monitoring_interval;``2``;no;Monitoring check interval in seconds in case of **storage** monitoring.
+lithops;data_limit;``4``;no;Max (iter)data size (in MB). Set to False for unlimited size.
+lithops;execution_timeout;``1800``;no;Functions will be automatically killed if they exceed this execution time (in seconds). Alternatively, it can be set in the `call_async()`, `map()` or `map_reduce()` calls using the `timeout` parameter.
+lithops;include_modules;``[]``;no;Explicitly pickle these dependencies. All required dependencies are pickled if default empty list. No one dependency is pickled if it is explicitly set to None.
+lithops;exclude_modules;``[]``;no;Explicitly keep these modules from pickled dependencies. It is not taken into account if you set include_modules.
+lithops;log_level;``INFO``;no;Logging level. One of: WARNING, INFO, DEBUG, ERROR, CRITICAL, Set to None to disable logging.
+lithops;log_format;``%(asctime)s [%(levelname)s] %(name)s -- %(message)``;no; Logging format string.
+lithops;log_stream;``ext://sys.stderr``;no;Logging stream. eg.: ext://sys.stderr,  ext://sys.stdout
+lithops;log_filename;```` ;no;Path to a file. log_filename has preference over log_stream.
+lithops;customized_runtime;False;no;Enables to build a new runtime with the map() function and its dependencies integrated. Only docker-based backends support this feature. |

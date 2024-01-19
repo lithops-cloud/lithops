@@ -16,24 +16,26 @@
 
 import os
 import re
-import sys
+import pika
 import base64
+import hashlib
 import json
 import logging
 import copy
 import time
 import yaml
 import urllib3
-from kubernetes import client, config, watch
+from kubernetes import client, watch
+from kubernetes.config import load_kube_config, \
+    load_incluster_config, list_kube_config_contexts, \
+    KUBE_CONFIG_DEFAULT_LOCATION
 from kubernetes.client.rest import ApiException
 
-from lithops.utils import version_str, dict_to_b64str
+from lithops import utils
 from lithops.version import __version__
-from lithops.utils import create_handler_zip
 from lithops.constants import COMPUTE_CLI_MSG, JOBS_PREFIX
-from lithops.storage.utils import StorageNoSuchKeyError
 
-from . import config as k8s_config
+from . import config
 
 
 logger = logging.getLogger(__name__)
@@ -42,123 +44,140 @@ urllib3.disable_warnings()
 
 class KubernetesBackend:
     """
-    A wrap-up around Code Engine backend.
+    A wrap-up around Kubernetes backend.
     """
 
     def __init__(self, k8s_config, internal_storage):
-        logger.debug("Creating Kubernetes Job client")
+        logger.debug("Creating Kubernetes client")
         self.name = 'k8s'
-        self.type = 'batch'
+        self.type = utils.BackendType.BATCH.value
         self.k8s_config = k8s_config
         self.internal_storage = internal_storage
 
-        self.kubecfg_path = k8s_config.get('kubecfg_path')
-        self.user_agent = k8s_config['user_agent']
+        self.kubecfg_path = k8s_config.get('kubecfg_path', os.environ.get("KUBECONFIG"))
+        self.kubecfg_path = os.path.expanduser(self.kubecfg_path or KUBE_CONFIG_DEFAULT_LOCATION)
+        self.kubecfg_context = k8s_config.get('kubecfg_context', 'default')
+        self.namespace = k8s_config.get('namespace', 'default')
+        self.cluster = k8s_config.get('cluster', 'default')
+        self.user = k8s_config.get('user', 'default')
+        self.master_name = k8s_config.get('master_name', config.MASTER_NAME)
+        self.rabbitmq_executor = self.k8s_config.get('rabbitmq_executor', False)
 
-        try:
-            config.load_kube_config(config_file=self.kubecfg_path)
-            contexts = config.list_kube_config_contexts(config_file=self.kubecfg_path)
-            current_context = contexts[1].get('context')
-            self.namespace = current_context.get('namespace', 'default')
-            self.cluster = current_context.get('cluster')
-            self.k8s_config['namespace'] = self.namespace
-            self.k8s_config['cluster'] = self.cluster
+        if os.path.exists(self.kubecfg_path):
+            logger.debug(f"Loading kubeconfig file: {self.kubecfg_path}")
+            context = None if self.kubecfg_context == 'default' else self.kubecfg_context
+            load_kube_config(config_file=self.kubecfg_path, context=context)
+            contexts, current_context = list_kube_config_contexts(config_file=self.kubecfg_path)
+            current_context = current_context if context is None else [it for it in contexts if it['name'] == context][0]
+            ctx_name = current_context.get('name')
+            ctx_context = current_context.get('context')
+            self.namespace = ctx_context.get('namespace') or self.namespace
+            self.cluster = ctx_context.get('cluster') or self.cluster
+            ctx_user = ctx_context.get('user')
+            self.user = hashlib.sha1(ctx_user.encode()).hexdigest()[:10] if ctx_user else self.user
+            logger.debug(f"Using kubeconfig conetxt: {ctx_name} - cluster: {self.cluster}")
             self.is_incluster = False
-        except Exception:
-            logger.debug('Loading incluster config')
-            config.load_incluster_config()
-            self.namespace = self.k8s_config.get('namespace', 'default')
-            self.cluster = self.k8s_config.get('cluster', 'default')
+        else:
+            logger.debug('kubeconfig file not found, loading incluster config')
+            load_incluster_config()
             self.is_incluster = True
 
-        logger.debug("Set namespace to {}".format(self.namespace))
-        logger.debug("Set cluster to {}".format(self.cluster))
+        if self.master_name == config.MASTER_NAME:
+            self.master_name = f'{config.MASTER_NAME}-{self.user}'
+
+        self.k8s_config['namespace'] = self.namespace
+        self.k8s_config['cluster'] = self.cluster
+        self.k8s_config['user'] = self.user
+        self.k8s_config['master_name'] = self.master_name
 
         self.batch_api = client.BatchV1Api()
         self.core_api = client.CoreV1Api()
 
+        if self.rabbitmq_executor:
+            # Get the amqp url from k8s config
+            self.amqp_url = self.k8s_config['amqp_url']
+
+            # Init rabbitmq
+            params = pika.URLParameters(self.amqp_url)
+            self.connection = pika.BlockingConnection(params)
+            self.channel = self.connection.channel()
+
+            # Define some needed variables
+            self._get_nodes()
+            self.image = ""
+
         self.jobs = []  # list to store executed jobs (job_keys)
 
-        msg = COMPUTE_CLI_MSG.format('Kubernetes Job')
-        logger.info("{} - Namespace: {}".format(msg, self.namespace))
+        msg = COMPUTE_CLI_MSG.format('Kubernetes')
+        logger.info(f"{msg} - Namespace: {self.namespace}")
 
-    def _format_job_name(self, runtime_name, runtime_memory):
-        runtime_name = runtime_name.replace('/', '--').replace(':', '--')
-        return '{}--{}mb'.format(runtime_name, runtime_memory)
+    def _format_job_name(self, runtime_name, runtime_memory, version=__version__):
+        name = f'{runtime_name}-{runtime_memory}-{version}-{self.user}'
+        name_hash = hashlib.sha1(name.encode()).hexdigest()[:10]
 
-    def _unformat_job_name(self, service_name):
-        runtime_name, memory = service_name.rsplit('--', 1)
-        image_name = runtime_name.replace('--', '/', 1)
-        image_name = image_name.replace('--', ':', -1)
-        return image_name, int(memory.replace('mb', ''))
+        return f'lithops-worker-{version.replace(".", "")}-{name_hash}'
 
     def _get_default_runtime_image_name(self):
-        docker_user = self.k8s_config.get('docker_user')
-        python_version = version_str(sys.version_info).replace('.', '')
-        revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
-        return '{}/{}-v{}:{}'.format(docker_user, k8s_config.RUNTIME_NAME, python_version, revision)
-
-    def _delete_function_handler_zip(self):
-        os.remove(k8s_config.FH_ZIP_LOCATION)
-
-    def build_runtime(self, docker_image_name, dockerfile):
         """
-        Builds a new runtime from a Docker file and pushes it to the Docker hub
+        Generates the default runtime image name
         """
-        logger.debug('Building new docker image from Dockerfile')
-        logger.debug('Docker image name: {}'.format(docker_image_name))
+        return utils.get_default_container_name(
+            self.name, self.k8s_config, 'lithops-kubernetes-default'
+        )
 
-        expression = '^([a-z0-9]+)/([-a-z0-9]+)(:[a-z0-9]+)?'
-        result = re.match(expression, docker_image_name)
+    def build_runtime(self, docker_image_name, dockerfile, extra_args=[]):
+        """
+        Builds a new runtime from a Docker file and pushes it to the registry
+        """
+        logger.info(f'Building runtime {docker_image_name} from {dockerfile or "Dockerfile"}')
 
-        if not result or result.group() != docker_image_name:
-            raise Exception("Invalid docker image name: All letters must be "
-                            "lowercase and '.' or '_' characters are not allowed")
-
-        entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
-        create_handler_zip(k8s_config.FH_ZIP_LOCATION, entry_point, 'lithopsentry.py')
+        docker_path = utils.get_docker_path()
 
         if dockerfile:
-            cmd = '{} build -t {} -f {} .'.format(k8s_config.DOCKER_PATH,
-                                                  docker_image_name,
-                                                  dockerfile)
+            assert os.path.isfile(dockerfile), f'Cannot locate "{dockerfile}"'
+            cmd = f'{docker_path} build -t {docker_image_name} -f {dockerfile} . '
         else:
-            cmd = '{} build -t {} .'.format(k8s_config.DOCKER_PATH, docker_image_name)
+            cmd = f'{docker_path} build -t {docker_image_name} . '
+        cmd = cmd + ' '.join(extra_args)
 
-        if logger.getEffectiveLevel() != logging.DEBUG:
-            cmd = cmd + " >{} 2>&1".format(os.devnull)
+        try:
+            entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
+            utils.create_handler_zip(config.FH_ZIP_LOCATION, entry_point, 'lithopsentry.py')
+            utils.run_command(cmd)
+        finally:
+            os.remove(config.FH_ZIP_LOCATION)
 
-        logger.info('Building default runtime')
-        res = os.system(cmd)
-        if res != 0:
-            raise Exception('There was an error building the runtime')
+        docker_user = self.k8s_config.get("docker_user")
+        docker_password = self.k8s_config.get("docker_password")
+        docker_server = self.k8s_config.get("docker_server")
 
-        self._delete_function_handler_zip()
+        if docker_user and docker_password:
+            logger.debug('Container registry credentials found in config. Logging in into the registry')
+            cmd = f'{docker_path} login -u {docker_user} --password-stdin {docker_server}'
+            utils.run_command(cmd, input=docker_password)
 
-        cmd = '{} push {}'.format(k8s_config.DOCKER_PATH, docker_image_name)
-        if logger.getEffectiveLevel() != logging.DEBUG:
-            cmd = cmd + " >{} 2>&1".format(os.devnull)
-        res = os.system(cmd)
-        if res != 0:
-            raise Exception('There was an error pushing the runtime to the container registry')
-        logger.debug('Done!')
+        logger.debug(f'Pushing runtime {docker_image_name} to container registry')
+        if utils.is_podman(docker_path):
+            cmd = f'{docker_path} push {docker_image_name} --format docker --remove-signatures'
+        else:
+            cmd = f'{docker_path} push {docker_image_name}'
+        utils.run_command(cmd)
 
-    def _build_default_runtime(self, default_runtime_img_name):
+        logger.debug('Building done!')
+
+    def _build_default_runtime(self, docker_image_name):
         """
         Builds the default runtime
         """
-        if os.system('{} --version >{} 2>&1'.format(k8s_config.DOCKER_PATH, os.devnull)) == 0:
-            # Build default runtime using local dokcer
-            python_version = version_str(sys.version_info)
-            dockerfile = "Dockefile.default-k8s-runtime"
-            with open(dockerfile, 'w') as f:
-                f.write("FROM python:{}-slim-buster\n".format(python_version))
-                f.write(k8s_config.DOCKERFILE_DEFAULT)
-            self.build_runtime(default_runtime_img_name, dockerfile)
+        # Build default runtime using local dokcer
+        dockerfile = "Dockefile.default-k8s-runtime"
+        with open(dockerfile, 'w') as f:
+            f.write(f"FROM python:{utils.CURRENT_PY_VERSION}-slim-buster\n")
+            f.write(config.DOCKERFILE_DEFAULT)
+        try:
+            self.build_runtime(docker_image_name, dockerfile)
+        finally:
             os.remove(dockerfile)
-        else:
-            raise Exception('docker command not found. Install docker or use '
-                            'an already built runtime')
 
     def _create_container_registry_secret(self):
         """
@@ -169,9 +188,9 @@ class KubernetesBackend:
             return
 
         logger.debug('Creating container registry secret')
-        docker_server = self.k8s_config.get('docker_server', 'https://index.docker.io/v1/')
-        docker_user = self.k8s_config.get('docker_user')
-        docker_password = self.k8s_config.get('docker_password')
+        docker_server = self.k8s_config['docker_server']
+        docker_user = self.k8s_config['docker_user']
+        docker_password = self.k8s_config['docker_password']
 
         cred_payload = {
             "auths": {
@@ -207,46 +226,53 @@ class KubernetesBackend:
             if e.status != 409:
                 raise e
 
-    def create_runtime(self, docker_image_name, memory, timeout):
+    def deploy_runtime(self, docker_image_name, memory, timeout):
         """
-        Creates a new runtime from an already built Docker image
+        Deploys a new runtime
         """
-        default_runtime_img_name = self._get_default_runtime_image_name()
-        if docker_image_name in ['default', default_runtime_img_name]:
-            # We only build the default image. rest of images must already exist
-            # in the docker registry.
-            docker_image_name = default_runtime_img_name
-            self._build_default_runtime(default_runtime_img_name)
+        try:
+            default_image_name = self._get_default_runtime_image_name()
+        except Exception:
+            default_image_name = None
+        if docker_image_name == default_image_name:
+            self._build_default_runtime(docker_image_name)
 
+        logger.info(f"Deploying runtime: {docker_image_name} - Memory: {memory} Timeout: {timeout}")
         self._create_container_registry_secret()
-        runtime_meta = self._generate_runtime_meta(docker_image_name, memory)
+        runtime_meta = self._generate_runtime_meta(docker_image_name)
 
         return runtime_meta
 
-    def delete_runtime(self, docker_image_name, memory):
+    def delete_runtime(self, docker_image_name, memory, version=__version__):
         """
         Deletes a runtime
         """
         pass
 
-    def clean(self, force=True):
+    def clean(self, all=False):
         """
         Deletes all jobs
         """
-        logger.debug('Cleaning kubernetes Jobs')
+        logger.debug('Cleaning lithops resources in kubernetes')
 
         try:
-            jobs = self.batch_api.list_namespaced_job(namespace=self.namespace)
+            self._delete_workers()
+            jobs = self.batch_api.list_namespaced_job(
+                namespace=self.namespace,
+                label_selector=f'user={self.user}'
+            )
             for job in jobs.items:
-                if job.metadata.labels['type'] == 'lithops-runtime'\
-                   and (job.status.completion_time is not None or force):
+                if job.metadata.labels['type'] == 'lithops-worker'\
+                   and (job.status.completion_time is not None or all):
                     job_name = job.metadata.name
-                    logger.debug('Deleting job {}'.format(job_name))
+                    logger.debug(f'Deleting job {job_name}')
                     try:
-                        self.batch_api.delete_namespaced_job(name=job_name,
-                                                             namespace=self.namespace,
-                                                             propagation_policy='Background')
-                    except Exception:
+                        self.batch_api.delete_namespaced_job(
+                            name=job_name,
+                            namespace=self.namespace,
+                            propagation_policy='Background'
+                        )
+                    except ApiException:
                         pass
         except ApiException:
             pass
@@ -255,29 +281,23 @@ class KubernetesBackend:
         """
         Delete only completed jobs
         """
-        if job_keys:
-            for job_key in job_keys:
-                if job_key in self.jobs:
-                    job_name = 'lithops-{}'.format(job_key.lower())
-                    logger.debug('Deleting job {}'.format(job_name))
-                    try:
-                        self.batch_api.delete_namespaced_job(name=job_name,
-                                                             namespace=self.namespace,
-                                                             propagation_policy='Background')
-                    except Exception:
-                        pass
-                    self.jobs.remove(job_key)
-        else:
-            for job_key in self.jobs:
-                job_name = 'lithops-{}'.format(job_key.lower())
-                logger.debug('Deleting job {}'.format(job_name))
-                try:
-                    self.batch_api.delete_namespaced_job(name=job_name,
-                                                         namespace=self.namespace,
-                                                         propagation_policy='Background')
-                except Exception:
-                    pass
-            self.jobs = []
+        jobs_to_delete = job_keys or self.jobs
+
+        for job_key in jobs_to_delete:
+            job_name = f'lithops-{job_key.lower()}'
+            logger.debug(f'Deleting job {job_name}')
+            try:
+                self.batch_api.delete_namespaced_job(
+                    name=job_name,
+                    namespace=self.namespace,
+                    propagation_policy='Background'
+                )
+            except ApiException:
+                pass
+            try:
+                self.jobs.remove(job_key)
+            except ValueError:
+                pass
 
     def list_runtimes(self, docker_image_name='all'):
         """
@@ -285,167 +305,448 @@ class KubernetesBackend:
         return: list of tuples (docker_image_name, memory)
         """
         logger.debug('Listing runtimes')
-        logger.debug('Note that k8s job backend does not manage runtimes')
+        logger.debug('Note that this backend does not manage runtimes')
         return []
 
-    def _start_id_giver(self, docker_image_name):
+    def _create_pod(self, pod, pod_name, cpu, memory):
+        pod["metadata"]["name"] = f"lithops-pod-{pod_name}"
+        pod["spec"]["nodeName"] = pod_name.split("-")[0]
+        pod["spec"]["containers"][0]["image"] = self.image
+        pod["spec"]["containers"][0]["resources"]["requests"]["cpu"] = str(cpu)
+        pod["spec"]["containers"][0]["resources"]["requests"]["memory"] = memory
+        pod["metadata"]["labels"] = {"app": "lithops-pod"}
 
-        job_name = 'lithops-idgiver'
+        payload = {
+            'log_level': 'DEBUG',
+            'amqp_url': self.amqp_url,
+            'cpus_pod': cpu,
+        }
 
-        idgiver_pods = self.core_api.list_namespaced_pod(
-            namespace=self.namespace, label_selector="job-name={}".format(job_name)
-            )
+        pod["spec"]["containers"][0]["args"][1] = "start_rabbitmq"
+        pod["spec"]["containers"][0]["args"][2] = utils.dict_to_b64str(payload)
+        
+        self.core_api.create_namespaced_pod(body=pod, namespace=self.namespace)
 
-        if len(idgiver_pods.items) > 0:
-            return idgiver_pods.items[0].status.pod_ip
+    def _get_nodes(self) :
+        self.nodes = []
+        list_all_nodes = self.core_api.list_node()
+        for node in list_all_nodes.items:
+            # If the node is tainted, skip it
+            if node.spec.taints :
+                continue
 
+            # Check if the CPU is in millicores
+            if isinstance(node.status.allocatable['cpu'], str) and 'm' in node.status.allocatable['cpu']:
+                # Extract the number part and convert it to an integer
+                number_match = re.search(r'\d+', node.status.allocatable['cpu'])
+                if number_match:
+                    number = int(number_match.group())
+                    
+                    # Round to the nearest whole number of CPUs - 1
+                    cpu_info = round(number / 1000) - 1
+
+                    if cpu_info < 1:
+                        cpu_info = 0
+                else:
+                    # Handle the case where the CPU is in millicores but no number is found
+                    cpu_info = 0
+            else:
+                # CPU is not in millicores
+                cpu_info = node.status.allocatable['cpu']
+
+            self.nodes.append({
+                            "name":node.metadata.name,  
+                            "cpu":cpu_info,
+                            "memory":node.status.allocatable['memory']
+                        })
+    
+    def _create_workers(self, runtime_memory):
+        default_pod_config = yaml.load(config.POD, Loader=yaml.loader.SafeLoader)
+        granularity = self.k8s_config['worker_processes']
+        cluster_info_cpu = {}
+        cluster_info_mem = {}
+        num_cpus_cluster = 0
+
+        if granularity <= 1:
+            granularity = False
+
+        for node in self.nodes:
+            cpus_node = int(float(node["cpu"]) * 0.9)
+
+            if granularity:
+                times, res = divmod(cpus_node, granularity)
+                
+                for i in range(times):
+                    cluster_info_cpu[f"{node['name']}-{i}"] = granularity
+                    cluster_info_mem[f"{node['name']}-{i}"] = runtime_memory
+                    num_cpus_cluster += granularity
+                if res != 0:
+                    cluster_info_cpu[f"{node['name']}-{times}"] = res
+                    cluster_info_mem[f"{node['name']}-{times}"] = runtime_memory
+                    num_cpus_cluster += res
+            else:
+                cluster_info_cpu[node["name"] + "-0"] = cpus_node
+                num_cpus_cluster += cpus_node
+
+                # If runtime_memory is not defined in the config, use 80% of the node memory
+                if runtime_memory == 512:
+                    mem_num, mem_uni = re.match(r'(\d+)(\D*)', node["memory"]).groups()
+                    mem_num = int(float(mem_num) * 0.8)
+                    cluster_info_mem[node["name"] + "-0"] = f"{mem_num}{mem_uni}"
+                else:
+                    cluster_info_mem[node["name"] + "-0"] = str(runtime_memory)
+
+        if num_cpus_cluster == 0:
+            raise ValueError("Total CPUs of the cluster cannot be 0")
+
+        # Create all the pods
+        for pod_name in cluster_info_cpu.keys():
+            self._create_pod(default_pod_config, pod_name, cluster_info_cpu[pod_name], cluster_info_mem[pod_name])
+
+        logger.info(f"Total cpus of the cluster: {num_cpus_cluster}")        
+
+    def _delete_workers(self):
+        list_pods = self.core_api.list_namespaced_pod(self.namespace, label_selector="app=lithops-pod")
+        for pod in list_pods.items:
+            self.core_api.delete_namespaced_pod(pod.metadata.name, self.namespace)
+
+        # Wait until all pods are deleted
+        while True:
+            list_pods = self.core_api.list_namespaced_pod(self.namespace, label_selector="app=lithops-pod")
+
+            if not list_pods.items:
+                break  # All pods are deleted
+
+        logger.info('All pods are deleted.')
+
+    def _start_master(self, docker_image_name):
+
+        master_pod = self.core_api.list_namespaced_pod(
+            namespace=self.namespace,
+            label_selector=f"job-name={self.master_name}"
+        )
+
+        if len(master_pod.items) > 0:
+            return master_pod.items[0].status.pod_ip
+
+        logger.debug('Starting Lithops master Pod')
         try:
-            self.batch_api.delete_namespaced_job(name=job_name,
-                                                 namespace=self.namespace,
-                                                 propagation_policy='Background')
+            self.batch_api.delete_namespaced_job(
+                name=self.master_name,
+                namespace=self.namespace,
+                propagation_policy='Background'
+            )
             time.sleep(2)
-        except Exception as e:
+        except ApiException as e:
             pass
 
-        job_res = yaml.safe_load(k8s_config.JOB_DEFAULT)
-        job_res['metadata']['name'] = job_name
-        job_res['metadata']['namespace'] = self.namespace
-        container = job_res['spec']['template']['spec']['containers'][0]
+        master_res = yaml.safe_load(config.JOB_DEFAULT)
+        master_res['metadata']['name'] = self.master_name
+        master_res['metadata']['namespace'] = self.namespace
+        master_res['metadata']['labels']['version'] = 'lithops_v' + __version__
+        master_res['metadata']['labels']['user'] = self.user
+
+        container = master_res['spec']['template']['spec']['containers'][0]
         container['image'] = docker_image_name
-        container['env'][0]['value'] = 'id_giver'
+        container['env'][0]['value'] = 'run_master'
+
+        payload = {'log_level': 'DEBUG'}
+        container['env'][1]['value'] = utils.dict_to_b64str(payload)
+
+        if not all(key in self.k8s_config for key in ["docker_user", "docker_password"]):
+            del master_res['spec']['template']['spec']['imagePullSecrets']
 
         try:
-            self.batch_api.create_namespaced_job(namespace=self.namespace,
-                                                 body=job_res)
-        except Exception as e:
+            self.batch_api.create_namespaced_job(
+                namespace=self.namespace,
+                body=master_res
+            )
+        except ApiException as e:
             raise e
 
+        logger.debug('Waiting Lithops master pod to be ready')
         w = watch.Watch()
-        for event in w.stream(self.core_api.list_namespaced_pod, namespace=self.namespace,
-                              label_selector="job-name={}".format(job_name)):
+        for event in w.stream(self.core_api.list_namespaced_pod,
+                              namespace=self.namespace,
+                              label_selector=f"job-name={self.master_name}"):
             if event['object'].status.phase == "Running":
+                w.stop()
                 return event['object'].status.pod_ip
+
+    # Detect if granularity, memory or runtime image changed or not
+    def _has_config_changed(self, runtime_mem):
+        config_granularity = False if self.k8s_config['worker_processes'] <= 1 else self.k8s_config['worker_processes']
+        config_memory = self.k8s_config['runtime_memory'] if self.k8s_config['runtime_memory'] != 512 else False
+
+        self.current_runtime = ""
+
+        list_pods = self.core_api.list_namespaced_pod(self.namespace, label_selector="app=lithops-pod")
+
+        for pod in list_pods.items:
+            pod_name = pod.metadata.name
+
+            # Get the node info where the pod is running
+            node_info = next((node for node in self.nodes if node["name"] == pod.spec.node_name), False)
+            if not node_info:
+                return True
+
+            # Get the pod info
+            self.current_runtime = pod.spec.containers[0].image
+            pod_resource_cpu = int(pod.spec.containers[0].resources.requests.get('cpu', '0m'))
+            pod_resource_memory = pod.spec.containers[0].resources.requests.get('memory', '0Mi')
+
+            multiples_pods_per_node = re.search(r'-\d+(?<!-0)$', pod_name)
+
+            node_cpu = int(float(node_info["cpu"]) * 0.9)
+            node_mem_num, node_mem_uni = re.match(r'(\d+)(\D*)', node_info["memory"]).groups()
+            pod_mem_num, pod_mem_uni = re.match(r'(\d+)(\D*)', pod_resource_memory).groups()
+
+            pod_mem_num = int(pod_mem_num) 
+            node_mem_num = int(float(node_mem_num) * 0.8)
+
+            # There are pods with cpu granularity
+            if multiples_pods_per_node:
+                # Is lithops pod with granularity and the user doesn't want it
+                if not config_granularity:
+                    return True
+                # There is granularity but the pod doesn't have the default memory
+                if not config_memory and pod_mem_num != runtime_mem:
+                    return True
+                # There is granularity but the pod doesn't have the desired memory
+                if config_memory and pod_mem_num != config_memory:
+                    return True
+            else:
+                # There is a custom memory but the pod doesn't have the desired memory
+                if config_memory:
+                    if pod_mem_num != config_memory:
+                        return True
+                # The pod has custom_memory and the user doesn't want it
+                else:
+                    if pod_mem_num != node_mem_num and pod_mem_num != runtime_mem:
+                        return True
+
+            # The cpu granularity changed
+            if config_granularity:
+                node_granularity_cpu = node_cpu % config_granularity
+                if pod_resource_cpu != config_granularity and pod_resource_cpu != node_granularity_cpu:
+                    return True
+                
+        # The runtime image changed
+        if self.current_runtime and self.current_runtime != self.image:
+            return True
+
+        return False
 
     def invoke(self, docker_image_name, runtime_memory, job_payload):
         """
         Invoke -- return information about this invocation
         For array jobs only remote_invocator is allowed
         """
-        idgiver_ip = self._start_id_giver(docker_image_name)
+        if self.rabbitmq_executor:
+            self.image = docker_image_name
+            config_changed = self._has_config_changed(runtime_memory)
 
-        executor_id = job_payload['executor_id']
-        job_id = job_payload['job_id']
+            if config_changed:
+                logger.info(f"Waiting for kubernetes to change the configuration")
+                self._delete_workers()
+                self._create_workers(runtime_memory)
 
-        job_key = job_payload['job_key']
-        self.jobs.append(job_key)
+            # First init
+            elif self.current_runtime != self.image:
+                self._create_workers(runtime_memory)
 
-        total_calls = job_payload['total_calls']
-        chunksize = job_payload['chunksize']
-        total_workers = total_calls // chunksize + (total_calls % chunksize > 0)
+            job_key = job_payload['job_key']
+            self.jobs.append(job_key)
 
-        job_res = yaml.safe_load(k8s_config.JOB_DEFAULT)
+            # Send packages of tasks to the queue
+            granularity = job_payload['total_calls'] // len(self.nodes) if self.k8s_config['worker_processes'] <= 1 else self.k8s_config['worker_processes']
+            times, res = divmod(job_payload['total_calls'], granularity)
 
-        activation_id = 'lithops-{}'.format(job_key.lower())
+            for i in range(times + (1 if res != 0 else 0)):
+                num_tasks = granularity if i < times else res
+                payload_edited = job_payload.copy()
 
-        job_res['metadata']['name'] = activation_id
-        job_res['metadata']['namespace'] = self.namespace
+                start_index = i * granularity
+                end_index = start_index + num_tasks 
 
-        job_res['spec']['activeDeadlineSeconds'] = k8s_config.RUNTIME_TIMEOUT
-        job_res['spec']['parallelism'] = total_workers
+                payload_edited['call_ids']  = payload_edited['call_ids'][start_index:end_index]
+                payload_edited['data_byte_ranges'] = payload_edited['data_byte_ranges'][start_index:end_index]
+                payload_edited['total_calls'] = num_tasks
 
-        container = job_res['spec']['template']['spec']['containers'][0]
-        container['image'] = docker_image_name
+                self.channel.basic_publish(
+                    exchange='',
+                    routing_key='task_queue',
+                    body=json.dumps(payload_edited),
+                    properties=pika.BasicProperties(
+                        delivery_mode=pika.spec.PERSISTENT_DELIVERY_MODE
+                    ))
 
-        container['env'][0]['value'] = 'run'
-        container['env'][1]['value'] = dict_to_b64str(job_payload)
-        container['env'][2]['value'] = idgiver_ip
+            activation_id = f'lithops-{job_key.lower()}'
+        else:
+            master_ip = self._start_master(docker_image_name)
 
-        container['resources']['requests']['memory'] = '{}Mi'.format(job_payload['runtime_memory'])
-        container['resources']['requests']['cpu'] = str(self.k8s_config['runtime_cpu'])
-        container['resources']['limits']['memory'] = '{}Mi'.format(job_payload['runtime_memory'])
-        container['resources']['limits']['cpu'] = str(self.k8s_config['runtime_cpu'])
+            max_workers = job_payload['max_workers']
+            executor_id = job_payload['executor_id']
+            job_id = job_payload['job_id']
 
-        logger.debug('ExecutorID {} | JobID {} - Going '
-                     'to run {} activations in {} workers'
-                     .format(executor_id, job_id, total_calls, total_workers))
+            job_key = job_payload['job_key']
+            self.jobs.append(job_key)
 
-        try:
-            self.batch_api.create_namespaced_job(namespace=self.namespace,
-                                                 body=job_res)
-        except Exception as e:
-            raise e
+            total_calls = job_payload['total_calls']
+            chunksize = job_payload['chunksize']
+            total_workers = min(max_workers, total_calls // chunksize + (total_calls % chunksize > 0))
+
+            activation_id = f'lithops-{job_key.lower()}'
+
+            job_res = yaml.safe_load(config.JOB_DEFAULT)
+            job_res['metadata']['name'] = activation_id
+            job_res['metadata']['namespace'] = self.namespace
+            job_res['metadata']['labels']['version'] = 'lithops_v' + __version__
+            job_res['metadata']['labels']['user'] = self.user
+
+            job_res['spec']['activeDeadlineSeconds'] = self.k8s_config['runtime_timeout']
+            job_res['spec']['parallelism'] = total_workers
+
+            container = job_res['spec']['template']['spec']['containers'][0]
+            container['image'] = docker_image_name
+            if not docker_image_name.endswith(':latest'):
+                container['imagePullPolicy'] = 'IfNotPresent'
+
+            container['env'][0]['value'] = 'run_job'
+            container['env'][1]['value'] = utils.dict_to_b64str(job_payload)
+            container['env'][2]['value'] = master_ip
+
+            container['resources']['requests']['memory'] = f'{runtime_memory}Mi'
+            container['resources']['requests']['cpu'] = str(self.k8s_config['runtime_cpu'])
+            container['resources']['limits']['memory'] = f'{runtime_memory}Mi'
+            container['resources']['limits']['cpu'] = str(self.k8s_config['runtime_cpu'])
+
+            logger.debug(f'ExecutorID {executor_id} | JobID {job_id} - Going '
+                        f'to run {total_calls} activations in {total_workers} workers')
+
+            if not all(key in self.k8s_config for key in ["docker_user", "docker_password"]):
+                del job_res['spec']['template']['spec']['imagePullSecrets']
+
+            try:
+                self.batch_api.create_namespaced_job(
+                    namespace=self.namespace,
+                    body=job_res
+                )
+            except ApiException as e:
+                raise e
 
         return activation_id
 
-    def _generate_runtime_meta(self, docker_image_name, memory):
-        runtime_name = self._format_job_name(docker_image_name, 256)
-        modules_job_name = '{}-modules'.format(runtime_name)
+    def _generate_runtime_meta(self, docker_image_name):
+        runtime_name = self._format_job_name(docker_image_name, 128)
+        meta_job_name = f'{runtime_name}-meta'
 
-        logger.info("Extracting Python modules from: {}".format(docker_image_name))
+        logger.info(f"Extracting metadata from: {docker_image_name}")
 
-        payload = copy.deepcopy(self.internal_storage.storage.storage_config)
+        payload = copy.deepcopy(self.internal_storage.storage.config)
         payload['runtime_name'] = runtime_name
         payload['log_level'] = logger.getEffectiveLevel()
 
-        job_res = yaml.safe_load(k8s_config.JOB_DEFAULT)
-        job_res['metadata']['name'] = modules_job_name
+        job_res = yaml.safe_load(config.JOB_DEFAULT)
+        job_res['metadata']['name'] = meta_job_name
         job_res['metadata']['namespace'] = self.namespace
+        job_res['metadata']['labels']['version'] = 'lithops_v' + __version__
+        job_res['metadata']['labels']['user'] = self.user
 
         container = job_res['spec']['template']['spec']['containers'][0]
         container['image'] = docker_image_name
-        container['env'][0]['value'] = 'preinstalls'
-        container['env'][1]['value'] = dict_to_b64str(payload)
+        container['imagePullPolicy'] = 'Always'
+        container['env'][0]['value'] = 'get_metadata'
+        container['env'][1]['value'] = utils.dict_to_b64str(payload)
+
+        if not all(key in self.k8s_config for key in ["docker_user", "docker_password"]):
+            del job_res['spec']['template']['spec']['imagePullSecrets']
 
         try:
-            self.batch_api.delete_namespaced_job(namespace=self.namespace,
-                                                 name=modules_job_name,
-                                                 propagation_policy='Background')
-        except Exception as e:
+            self.batch_api.delete_namespaced_job(
+                namespace=self.namespace,
+                name=meta_job_name,
+                propagation_policy='Background'
+            )
+        except ApiException as e:
             pass
 
         try:
-            self.batch_api.create_namespaced_job(namespace=self.namespace,
-                                                 body=job_res)
-        except Exception as e:
+            self.batch_api.create_namespaced_job(
+                namespace=self.namespace,
+                body=job_res
+            )
+        except ApiException as e:
             raise e
-            pass
 
-        # we need to read runtime metadata from COS in retry
-        status_key = '/'.join([JOBS_PREFIX, runtime_name+'.meta'])
+        logger.debug("Waiting for runtime metadata")
 
-        retry = 1
-        found = False
-        while retry < 20 and not found:
+        done = failed = False
+        w = watch.Watch()
+        while not (done or failed):
             try:
-                logger.debug("Retry attempt {} to read {}".format(retry, status_key))
-                json_str = self.internal_storage.get_data(key=status_key)
-                logger.debug("Found in attempt {} to read {}".format(retry, status_key))
-                runtime_meta = json.loads(json_str.decode("ascii"))
-                found = True
-            except StorageNoSuchKeyError:
-                logger.debug("{} not found in attempt {}. Sleep before retry".format(status_key, retry))
-                retry += 1
-                time.sleep(5)
+                for event in w.stream(self.batch_api.list_namespaced_job,
+                                      namespace=self.namespace,
+                                      field_selector=f"metadata.name={meta_job_name}",
+                                      timeout_seconds=10):
+                    failed = event['object'].status.failed
+                    done = event['object'].status.succeeded
+                    logger.debug('...')
+            except Exception as e:
+                pass
+        w.stop()
 
-        if not found:
-            raise Exception("Unable to extract Python preinstalled modules from the runtime")
+        if done:
+            logger.debug("Runtime metadata generated successfully")
 
         try:
-            self.batch_api.delete_namespaced_job(namespace=self.namespace,
-                                                 name=modules_job_name,
-                                                 propagation_policy='Background')
-        except Exception as e:
+            self.batch_api.delete_namespaced_job(
+                namespace=self.namespace,
+                name=meta_job_name,
+                propagation_policy='Background'
+            )
+        except ApiException as e:
             pass
+
+        if failed:
+            raise Exception("Unable to extract metadata from the runtime")
+
+        data_key = '/'.join([JOBS_PREFIX, runtime_name + '.meta'])
+        json_str = self.internal_storage.get_data(key=data_key)
+        runtime_meta = json.loads(json_str.decode("ascii"))
+        self.internal_storage.del_data(key=data_key)
+
+        if not runtime_meta or 'preinstalls' not in runtime_meta:
+            raise Exception(f'Failed getting runtime metadata: {runtime_meta}')
 
         return runtime_meta
 
-    def get_runtime_key(self, docker_image_name, runtime_memory):
+    def get_runtime_key(self, docker_image_name, runtime_memory, version=__version__):
         """
         Method that creates and returns the runtime key.
         Runtime keys are used to uniquely identify runtimes within the storage,
         in order to know which runtimes are installed and which not.
         """
-        jobdef_name = self._format_job_name(docker_image_name, 256)
-        runtime_key = os.path.join(self.name, self.namespace, jobdef_name)
+        jobdef_name = self._format_job_name(docker_image_name, 256, version)
+        user_data = os.path.join(self.cluster, self.namespace, self.user)
+        runtime_key = os.path.join(self.name, version, user_data, jobdef_name)
 
         return runtime_key
+
+    def get_runtime_info(self):
+        """
+        Method that returns all the relevant information about the runtime set
+        in config
+        """
+        if 'runtime' not in self.k8s_config or self.k8s_config['runtime'] == 'default':
+            self.k8s_config['runtime'] = self._get_default_runtime_image_name()
+
+        runtime_info = {
+            'runtime_name': self.k8s_config['runtime'],
+            'runtime_cpu': self.k8s_config['runtime_cpu'],
+            'runtime_memory': self.k8s_config['runtime_memory'],
+            'runtime_timeout': self.k8s_config['runtime_timeout'],
+            'max_workers': self.k8s_config['max_workers'],
+        }
+
+        return runtime_info

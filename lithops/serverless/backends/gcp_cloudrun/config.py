@@ -14,28 +14,31 @@
 # limitations under the License.
 #
 
+import copy
 import os
 import logging
-import sys
-from os.path import exists, isfile
-
-from ....utils import version_str
-
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_RUNTIME_NAME = 'python' + version_str(sys.version_info)
+CLOUDRUN_API_VERSION = 'v1'
+SCOPES = ('https://www.googleapis.com/auth/cloud-platform',)
 
-RUNTIME_TIMEOUT_DEFAULT = 300  # 5 minutes
-RUNTIME_MEMORY_DEFAULT = 256  # 256Mi
-RUNTIME_CPU_DEFAULT = 1  # 1 vCPU
-RUNTIME_CONTAINER_CONCURRENCY_DEFAULT = 1  # 1 request per container
+DEFAULT_CONFIG_KEYS = {
+    'runtime_timeout': 300,  # Default: 300 seconds => 5 minutes
+    'runtime_memory': 256,  # Default memory: 256 MB
+    'runtime_cpu': 0.25,  # 0.25 vCPU
+    'max_workers': 1000,
+    'min_workers': 0,
+    'worker_processes': 1,
+    'invoke_pool_threads': 100,
+    'trigger': 'https',
+    'docker_server': 'gcr.io'
+}
 
-MAX_CONCURRENT_WORKERS = 1000
-MAX_RUNTIME_MEMORY = 8192  # 8 GiB
+MAX_RUNTIME_MEMORY = 32768  # 32 GiB
 MAX_RUNTIME_TIMEOUT = 3600  # 1 hour
 
-AVAILABLE_RUNTIME_CPUS = {1, 2, 4}
+AVAILABLE_RUNTIME_CPUS = [x / 100.0 for x in range(8, 100)] + [1, 2, 4, 6, 8]
 
 FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_cloudrun.zip')
 
@@ -44,14 +47,13 @@ RUN apt-get update && apt-get install -y \
         zip \
         && rm -rf /var/lib/apt/lists/*
 
-RUN pip install --upgrade setuptools six pip \
-    && pip install --no-cache-dir \
+RUN pip install --upgrade --ignore-installed setuptools six pip \
+    && pip install --upgrade --no-cache-dir --ignore-installed \
         wheel \
         gunicorn \
         pika \
         flask \
         gevent \
-        glob2 \
         redis \
         requests \
         PyYAML \
@@ -64,81 +66,111 @@ RUN pip install --upgrade setuptools six pip \
         cryptography \
         httplib2 \
         google-cloud-storage \
+        google-cloud-pubsub \
         google-api-python-client \
         gcsfs \
         google-auth
 
+
 ENV PORT 8080
 ENV PYTHONUNBUFFERED TRUE
+
+ENV CONCURRENCY 1
+ENV TIMEOUT 600
 
 # Copy Lithops proxy and lib to the container image.
 ENV APP_HOME /lithops
 WORKDIR $APP_HOME
 
-COPY lithops_knative.zip .
-RUN unzip lithops_knative.zip && rm lithops_knative.zip
+COPY lithops_cloudrun.zip .
+RUN unzip lithops_cloudrun.zip && rm lithops_cloudrun.zip
 
-CMD exec gunicorn --bind :$PORT lithopsproxy:proxy
+CMD exec gunicorn --bind :$PORT --workers $CONCURRENCY --timeout $TIMEOUT lithopsproxy:proxy
+"""
+
+service_res = """
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: lithops-runtime-name
+  namespace: default
+  annotations:
+    run.googleapis.com/launch-stage: BETA
+spec:
+  template:
+    metadata:
+      labels:
+        type: lithops-runtime
+        lithops-version: x-y-z
+      annotations:
+        autoscaling.knative.dev/target: "1"
+        autoscaling.knative.dev/minScale: "0"
+        autoscaling.knative.dev/maxScale: "0"
+        autoscaling.knative.dev/scaleDownDelay: "5m"
+    spec:
+      containerConcurrency: 1
+      timeoutSeconds: 300
+      serviceAccountName: ""
+      containers:
+        - image: IMAGE
+          env:
+            - name: CONCURRENCY
+              value: "1"
+            - name: TIMEOUT
+              value: "300"
+          resources:
+            limits:
+              memory: "256Mi"
+              cpu: "0.25"
+            requests:
+              memory: "256Mi"
+              cpu: "0.25"
 """
 
 
 def load_config(config_data):
-    if config_data is None:
-        config_data = {}
-
-    if 'runtime_memory' not in config_data['serverless']:
-        config_data['serverless']['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
-    if 'runtime_timeout' not in config_data['serverless']:
-        config_data['serverless']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
-    if 'runtime' not in config_data['serverless']:
-        config_data['serverless']['runtime'] = DEFAULT_RUNTIME_NAME
-
-    if 'workers' not in config_data['lithops']:
-        config_data['lithops']['workers'] = MAX_CONCURRENT_WORKERS
-
-    if config_data['serverless']['runtime_memory'] > MAX_RUNTIME_MEMORY:
-        logger.warning('Runtime memory {} exceeds maximum - '
-                       'Runtime memory set to {}'.format(config_data['serverless']['runtime_memory'],
-                                                         MAX_RUNTIME_MEMORY))
-        config_data['serverless']['runtime_memory'] = MAX_RUNTIME_MEMORY
-    if config_data['serverless']['runtime_timeout'] > MAX_RUNTIME_TIMEOUT:
-        logger.warning('Runtime timeout {} exceeds maximum - '
-                       'Runtime timeout set to {}'.format(config_data['serverless']['runtime_memory'],
-                                                          MAX_RUNTIME_TIMEOUT))
-        config_data['serverless']['runtime_timeout'] = MAX_RUNTIME_TIMEOUT
-
     if 'gcp' not in config_data:
         raise Exception("'gcp' section is mandatory in the configuration")
 
-    required_parameters = {'project_name', 'service_account', 'credentials_path', 'region'}
-    if not required_parameters.issubset(set(config_data['gcp'])):
-        raise Exception("'project_name', 'service_account', 'credentials_path' and 'region' "
-                        "are mandatory under 'gcp' section")
+    if 'credentials_path' not in config_data['gcp']:
+        if 'GOOGLE_APPLICATION_CREDENTIALS' in os.environ:
+            config_data['gcp']['credentials_path'] = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
 
-    if not exists(config_data['gcp']['credentials_path']) or not isfile(config_data['gcp']['credentials_path']):
-        raise Exception("Path {} must be service account "
-                        "credential JSON file.".format(config_data['gcp']['credentials_path']))
+    if 'credentials_path' in config_data['gcp']:
+        config_data['gcp']['credentials_path'] = os.path.expanduser(config_data['gcp']['credentials_path'])
 
-    if 'gcp_cloudrun' not in config_data:
-        config_data['gcp_cloudrun'] = {
-            'runtime_cpus': RUNTIME_CPU_DEFAULT,
-            'container_concurrency': RUNTIME_CONTAINER_CONCURRENCY_DEFAULT
-        }
-
-    if 'runtime_cpus' in config_data['gcp_cloudrun']:
-        if config_data['gcp_cloudrun']['runtime_cpus'] not in AVAILABLE_RUNTIME_CPUS:
-            raise Exception('{} vCPUs is not available - '
-                            'choose one from {} vCPUs'.format(config_data['gcp_cloudrun']['runtime_cpus'],
-                                                              AVAILABLE_RUNTIME_CPUS))
-        if config_data['gcp_cloudrun']['runtime_cpus'] == 4 and config_data['serverless']['runtime_memory'] < 4096:
-            raise Exception('For {} vCPUs, runtime memory '
-                            'must be at least 4096 MiB'.format(config_data['gcp_cloudrun']['runtime_cpus']))
-    else:
-        config_data['gcp_cloudrun']['runtime_cpus'] = RUNTIME_CPU_DEFAULT
-
-    if 'container_concurrency' not in config_data['gcp_cloudrun']:
-        config_data['gcp_cloudrun']['container_concurrency'] = RUNTIME_CONTAINER_CONCURRENCY_DEFAULT
-
-    config_data['gcp_cloudrun']['workers'] = config_data['lithops']['workers']
-
+    temp = copy.deepcopy(config_data['gcp_cloudrun'])
     config_data['gcp_cloudrun'].update(config_data['gcp'])
+    config_data['gcp_cloudrun'].update(temp)
+
+    if 'region' not in config_data['gcp_cloudrun']:
+        raise Exception("'region' parameter is mandatory under 'gcp_cloudrun' or 'gcp' section of the configuration")
+
+    for key in DEFAULT_CONFIG_KEYS:
+        if key not in config_data['gcp_cloudrun']:
+            config_data['gcp_cloudrun'][key] = DEFAULT_CONFIG_KEYS[key]
+
+    config_data['gcp_cloudrun']['invoke_pool_threads'] = config_data['gcp_cloudrun']['max_workers']
+
+    if config_data['gcp_cloudrun']['runtime_memory'] > MAX_RUNTIME_MEMORY:
+        logger.warning('Runtime memory {} exceeds maximum - '
+                       'Runtime memory set to {}'.format(config_data['gcp_cloudrun']['runtime_memory'],
+                                                         MAX_RUNTIME_MEMORY))
+        config_data['gcp_cloudrun']['runtime_memory'] = MAX_RUNTIME_MEMORY
+
+    if config_data['gcp_cloudrun']['runtime_timeout'] > MAX_RUNTIME_TIMEOUT:
+        logger.warning('Runtime timeout {} exceeds maximum - '
+                       'Runtime timeout set to {}'.format(config_data['gcp_cloudrun']['runtime_memory'],
+                                                          MAX_RUNTIME_TIMEOUT))
+        config_data['gcp_cloudrun']['runtime_timeout'] = MAX_RUNTIME_TIMEOUT
+
+    if config_data['gcp_cloudrun']['runtime_cpu'] not in AVAILABLE_RUNTIME_CPUS:
+        raise Exception('{} vCPUs is not available - '
+                        'choose one from {} vCPUs'.format(config_data['gcp_cloudrun']['runtime_cpu'],
+                                                          AVAILABLE_RUNTIME_CPUS))
+    if config_data['gcp_cloudrun']['runtime_cpu'] == 4 and config_data['gcp_cloudrun']['runtime_memory'] < 4096:
+        raise Exception('For {} vCPUs, runtime memory must be at least 4096 MiB'
+                        .format(config_data['gcp_cloudrun']['runtime_cpu']))
+
+    if 'region' not in config_data['gcp']:
+        config_data['gcp']['region'] = config_data['gcp_cloudrun']['region']

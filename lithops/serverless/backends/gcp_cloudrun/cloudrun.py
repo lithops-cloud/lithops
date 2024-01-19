@@ -14,154 +14,166 @@
 # limitations under the License.
 #
 
+import os
+import time
+import json
+import urllib
+import yaml
+import hashlib
 import logging
 import httplib2
-import os
-import sys
-import time
-
+import google.auth
+import google.oauth2.id_token
+from threading import Lock
 from google.oauth2 import service_account
 from google_auth_httplib2 import AuthorizedHttp
-from google.auth.transport.requests import AuthorizedSession
 from googleapiclient.discovery import build
 
-from ..knative import config as kconfig
-from . import config as cr_config
-from ....utils import version_str, create_handler_zip
-from ....version import __version__
+from lithops import utils
+from lithops.constants import COMPUTE_CLI_MSG
+from lithops.version import __version__
+
+from . import config
+
+invoke_mutex = Lock()
 
 logger = logging.getLogger(__name__)
-
-CLOUDRUN_API_VERSION = 'v1'
-SCOPES = ('https://www.googleapis.com/auth/cloud-platform',)
 
 
 class GCPCloudRunBackend:
 
     def __init__(self, cloudrun_config, internal_storage):
-        self.name = 'cloudrun'
-        self.type = 'faas'
-        self.credentials_path = cloudrun_config['credentials_path']
-        self.service_account = cloudrun_config['service_account']
-        self.project_name = cloudrun_config['project_name']
+        self.name = 'gcp_cloudrun'
+        self.type = utils.BackendType.FAAS.value
+        self.cr_config = cloudrun_config
         self.region = cloudrun_config['region']
+        self.trigger = cloudrun_config['trigger']
+        self.credentials_path = cloudrun_config.get('credentials_path')
 
-        self.runtime_cpus = cloudrun_config['runtime_cpus']
-        self.container_runtime_concurrency = cloudrun_config['container_concurrency']
-        self.workers = cloudrun_config['workers']
+        self._build_api_resource()
 
-        self._invoker_sess = None
-        self._invoker_sess_route = '/'
         self._service_url = None
-        self._api_resource = None
+        self._id_token = None
 
-    @staticmethod
-    def _format_service_name(runtime_name, runtime_memory):
+        msg = COMPUTE_CLI_MSG.format('Google Cloud Run')
+        logger.info(f"{msg} - Region: {self.region} - Project: {self.project_name}")
+
+    def _format_service_name(self, runtime_name, runtime_memory, version=__version__):
         """
         Formats service name string from runtime name and memory
         """
-        return 'lithops--{}--{}--{}mb'.format(__version__.replace('.', '-'),
-                                              runtime_name.replace('.', ''),
-                                              runtime_memory)
+        name = f'{runtime_name}-{runtime_memory}-{version}-{self.trigger}-{self.region}'
+        name_hash = hashlib.sha1(name.encode("utf-8")).hexdigest()[:10]
 
-    @staticmethod
-    def _unformat_service_name(service_name):
-        """
-        Parse service string name into runtime name and memory
-        :return: Tuple of (runtime_name, runtime_memory)
-        """
-        split_service_name = service_name.split('--')
-        runtime_name = split_service_name[2]
-        memory = int(split_service_name[3].replace('mb', ''))
-        return runtime_name, memory
+        return f'lithops-worker-{version.replace(".", "")}-{name_hash}'
 
-    def _build_api_resource(self):
+    def _get_default_runtime_image_name(self):
         """
-        Instantiate and authorize admin discovery API session
+        Generates the default runtime image name
         """
-        if self._api_resource is None:
-            logger.debug('Building admin API session')
-            credentials = service_account.Credentials.from_service_account_file(self.credentials_path, scopes=SCOPES)
-            http = AuthorizedHttp(credentials, http=httplib2.Http())
-            self._api_resource = build('run', CLOUDRUN_API_VERSION,
-                                       http=http,
-                                       cache_discovery=False,
-                                       client_options={
-                                           'api_endpoint': 'https://{}-run.googleapis.com'.format(self.region)
-                                       })
-        return self._api_resource
-
-    def _build_invoker_sess(self, runtime_name, memory, route):
-        """
-        Instantiate and authorize invoker session for a specific service and route
-        """
-        if self._invoker_sess is None or route != self._invoker_sess_route:
-            logger.debug('Building invoker session')
-            target = self._get_service_endpoint(runtime_name, memory) + route
-            credentials = (service_account
-                           .IDTokenCredentials
-                           .from_service_account_file(self.credentials_path, target_audience=target))
-            self._invoker_sess = AuthorizedSession(credentials)
-            self._invoker_sess_route = route
-        return self._invoker_sess
-
-    def _get_service_endpoint(self, runtime_name, memory):
-        """
-        Gets service endpoint URL from runtime name and memory
-        """
-        if self._service_url is None:
-            logger.debug('Getting service endpoint')
-            res = self._build_api_resource().namespaces().services().get(
-                name='namespaces/{}/services/{}'.format(self.project_name,
-                                                        self._format_service_name(runtime_name, memory))
-            ).execute()
-            self._service_url = res['status']['url']
-        return self._service_url
+        return utils.get_default_container_name(
+            self.name, self.cr_config, 'lithops-cloudrun-default'
+        )
 
     def _format_image_name(self, runtime_name):
         """
         Formats GCR image name from runtime name
         """
-        runtime_name = runtime_name.replace('.', '').replace('_', '-')
-        revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
-        return 'gcr.io/{}/lithops-cloudrun-{}:{}'.format(self.project_name, runtime_name, revision)
+        if 'gcr.io' not in runtime_name:
+            country = self.region.split('-')[0]
+            return f'{country}.gcr.io/{self.project_name}/{runtime_name}'
+        else:
+            return runtime_name
 
-    def _build_default_runtime(self):
+    def _build_api_resource(self):
+        """
+        Instantiate and authorize admin discovery API session
+        """
+        if self.credentials_path and os.path.isfile(self.credentials_path):
+            logger.debug(f'Getting GCP credentials from {self.credentials_path}')
+            cred = service_account.Credentials.from_service_account_file(self.credentials_path, scopes=config.SCOPES)
+            self.project_name = cred.project_id
+            self.service_account = cred.service_account_email
+        else:
+            logger.debug('Getting GCP credentials from the environment')
+            cred, self.project_name = google.auth.default(scopes=config.SCOPES)
+            self.service_account = cred.service_account_email
+
+        http = AuthorizedHttp(cred, http=httplib2.Http())
+        self._api_resource = build(
+            'run', config.CLOUDRUN_API_VERSION,
+            http=http, cache_discovery=False,
+            client_options={
+                'api_endpoint': f'https://{self.region}-run.googleapis.com'
+            }
+        )
+
+        self.cr_config['project_name'] = self.project_name
+        self.cr_config['service_account'] = self.service_account
+
+    def _get_url_and_token(self, service_name):
+        """
+        Generates a connection token
+        """
+        invoke_mutex.acquire()
+        request_token = False
+
+        if not self._service_url or service_name not in self._service_url:
+            logger.debug('Getting service endpoint')
+            res = self._api_resource.namespaces().services().get(
+                name=f'namespaces/{self.project_name}/services/{service_name}'
+            ).execute()
+            self._service_url = res['status']['url']
+            request_token = True
+            logger.debug(f'Service endpoint url is {self._service_url}')
+
+        if not self._id_token or request_token:
+            logger.debug('Getting authentication token')
+            if self.credentials_path and os.path.isfile(self.credentials_path):
+                os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = self.credentials_path
+            auth_req = google.auth.transport.requests.Request()
+            self._id_token = google.oauth2.id_token.fetch_id_token(auth_req, self._service_url)
+        invoke_mutex.release()
+
+        return self._service_url, self._id_token
+
+    def _build_default_runtime(self, runtime_name):
         """
         Builds the default runtime
         """
-        logger.debug('Building default {} runtime'.format(cr_config.DEFAULT_RUNTIME_NAME))
-        if os.system('{} --version >{} 2>&1'.format(kconfig.DOCKER_PATH, os.devnull)) == 0:
-            # Build default runtime using local dokcer
-            python_version = version_str(sys.version_info)
-            dockerfile = "Dockefile.default-knative-runtime"
-            with open(dockerfile, 'w') as f:
-                f.write("FROM python:{}-slim-buster\n".format(python_version))
-                f.write(cr_config.DEFAULT_DOCKERFILE)
-            self.build_runtime(cr_config.DEFAULT_RUNTIME_NAME, dockerfile)
+        logger.debug(f'Building default {runtime_name} runtime')
+        # Build default runtime using local dokcer
+        dockerfile = "Dockefile.default-kn-runtime"
+        with open(dockerfile, 'w') as f:
+            f.write(f"FROM python:{utils.CURRENT_PY_VERSION}-slim-buster\n")
+            f.write(config.DEFAULT_DOCKERFILE)
+        try:
+            self.build_runtime(runtime_name, dockerfile)
+        finally:
             os.remove(dockerfile)
-        else:
-            raise Exception('Docker CLI not found')
 
-    def _generate_runtime_meta(self, runtime_name, memory):
+    def _generate_runtime_meta(self, runtime_name, runtime_memory):
         """
         Extract installed Python modules from docker image
         """
-        logger.info("Extracting Python modules from: {}".format(runtime_name))
+        logger.info(f"Extracting metadata from: {runtime_name}")
 
         try:
-            runtime_meta = self.invoke(runtime_name, memory,
-                                       {'service_route': '/preinstalls'}, return_result=True)
+            runtime_meta = self.invoke(
+                runtime_name, runtime_memory,
+                {'service_route': '/metadata'},
+                return_result=True
+            )
         except Exception as e:
-            raise Exception("Unable to extract the preinstalled modules from the runtime: {}".format(e))
+            raise Exception(f"Unable to extract metadata from the runtime: {e}")
 
         if not runtime_meta or 'preinstalls' not in runtime_meta:
-            raise Exception('Failed getting runtime metadata: {}'.format(runtime_meta))
+            raise Exception(f'Failed getting runtime metadata: {runtime_meta}')
 
-        logger.debug('Ok -- Extraced modules from {}'.format(runtime_name))
+        logger.debug(f'Ok -- Extraced modules from {runtime_name}')
         return runtime_meta
 
-    def invoke(self, runtime_name, memory, payload, return_result=False):
+    def invoke(self, runtime_name, runtime_memory, payload, return_result=False):
         """
         Invoke a function as a POST request to the service
         """
@@ -170,185 +182,228 @@ class GCPCloudRunBackend:
         job_id = payload.get('job_id')
         route = payload.get("service_route", '/')
 
-        sess = self._build_invoker_sess(runtime_name, memory, route)
+        img_name = self._format_image_name(runtime_name)
+        service_name = self._format_service_name(img_name, runtime_memory)
+        service_url, id_token = self._get_url_and_token(service_name)
 
         if exec_id and job_id and call_id:
-            logger.debug('ExecutorID {} | JobID {} - Invoking function call {}'
-                         .format(exec_id, job_id, call_id))
+            logger.debug(f'ExecutorID {exec_id} | JobID {job_id} - Invoking function call {call_id}')
         elif exec_id and job_id:
-            logger.debug('ExecutorID {} | JobID {} - Invoking function'
-                         .format(exec_id, job_id))
+            logger.debug(f'ExecutorID {exec_id} | JobID {job_id} - Invoking function')
         else:
             logger.debug('Invoking function')
 
-        res = sess.post(url=self._get_service_endpoint(runtime_name, memory) + route, json=payload)
+        req = urllib.request.Request(service_url + route, data=json.dumps(payload, default=str).encode('utf-8'))
+        req.add_header("Authorization", f"Bearer {id_token}")
+        res = urllib.request.urlopen(req)
 
-        if res.status_code in (200, 202):
-            data = res.json()
+        if res.getcode() in (200, 202):
+            data = json.loads(res.read())
             if return_result:
                 return data
             return data["activationId"]
         else:
             raise Exception(res.text)
 
-    def build_runtime(self, runtime_name, dockerfile):
-        logger.debug('Building a new docker image from Dockerfile')
+    def build_runtime(self, runtime_name, dockerfile, extra_args=[]):
+        """
+        Builds a new runtime from a Docker file and pushes it to the registry
+        """
+        logger.info(f'Building runtime {runtime_name} from {dockerfile or "Dockerfile"}')
+
+        docker_path = utils.get_docker_path()
 
         image_name = self._format_image_name(runtime_name)
 
-        logger.debug('Docker image name: {}'.format(image_name))
-
-        entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
-        create_handler_zip(kconfig.FH_ZIP_LOCATION, entry_point, 'lithopsproxy.py')
-
         if dockerfile:
-            cmd = '{} build -t {} -f {} .'.format(kconfig.DOCKER_PATH,
-                                                  image_name,
-                                                  dockerfile)
+            assert os.path.isfile(dockerfile), f'Cannot locate "{dockerfile}"'
+            cmd = f'{docker_path} build -t {image_name} -f {dockerfile} . '
         else:
-            cmd = '{} build -t {} .'.format(kconfig.DOCKER_PATH, image_name)
+            cmd = f'{docker_path} build -t {image_name} . '
+        cmd = cmd + ' '.join(extra_args)
 
-        logger.info('Building Docker image')
+        try:
+            entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
+            utils.create_handler_zip(config.FH_ZIP_LOCATION, entry_point, 'lithopsproxy.py')
+            utils.run_command(cmd)
+        finally:
+            os.remove(config.FH_ZIP_LOCATION)
+
+        logger.debug('Authorizing Docker client with GCR permissions')
+        country = self.region.split('-')[0]
+        cmd = f'cat {self.credentials_path} | {docker_path} login {country}.gcr.io -u _json_key --password-stdin'
         if logger.getEffectiveLevel() != logging.DEBUG:
-            cmd = cmd + " >{} 2>&1".format(os.devnull)
-
-        res = os.system(cmd)
-        if res != 0:
-            raise Exception('There was an error building the runtime')
-
-        os.remove(kconfig.FH_ZIP_LOCATION)
-
-        logger.debug('Authorizing Docker client with GCR permissions'.format(image_name))
-        cmd = 'cat {} | docker login -u _json_key --password-stdin https://gcr.io'.format(self.credentials_path)
-        if logger.getEffectiveLevel() != logging.DEBUG:
-            cmd = cmd + " >{} 2>&1".format(os.devnull)
+            cmd = cmd + f" >{os.devnull} 2>&1"
         res = os.system(cmd)
         if res != 0:
             raise Exception('There was an error authorizing Docker for push to GCR')
 
-        logger.info('Pushing Docker image {} to GCP Container Registry'.format(image_name))
-        cmd = '{} push {}'.format(kconfig.DOCKER_PATH, image_name)
-        if logger.getEffectiveLevel() != logging.DEBUG:
-            cmd = cmd + " >{} 2>&1".format(os.devnull)
-        res = os.system(cmd)
-        if res != 0:
-            raise Exception('There was an error pushing the runtime to the container registry')
+        logger.debug(f'Pushing runtime {image_name} to GCP Container Registry')
+        if utils.is_podman(docker_path):
+            cmd = f'{docker_path} push {image_name} --format docker --remove-signatures'
+        else:
+            cmd = f'{docker_path} push {image_name}'
+        utils.run_command(cmd)
 
-    def create_runtime(self, runtime_name, memory, timeout):
-        if runtime_name == cr_config.DEFAULT_RUNTIME_NAME:
-            self._build_default_runtime()
+    def _create_service(self, runtime_name, runtime_memory, timeout):
+        """
+        Creates a service in knative based on the docker_image_name and the memory provided
+        """
+        logger.debug("Creating Lithops runtime service in Google Cloud Run")
 
         img_name = self._format_image_name(runtime_name)
-        service_name = self._format_service_name(runtime_name, memory)
+        service_name = self._format_service_name(img_name, runtime_memory)
 
-        body = {
-            "apiVersion": 'serving.knative.dev/v1',
-            "kind": 'Service',
-            "metadata": {
-                "name": service_name,
-                "namespace": self.project_name,
-            },
-            "spec": {
-                "template": {
-                    "metadata": {
-                        "name": '{}-rev'.format(service_name),
-                        "namespace": self.project_name,
-                        "annotations": {
-                            "autoscaling.knative.dev/minScale": "0",
-                            "autoscaling.knative.dev/maxScale": str(self.workers)
-                        }
-                    },
-                    "spec": {
-                        "containerConcurrency": self.container_runtime_concurrency,
-                        "timeoutSeconds": timeout,
-                        "serviceAccountName": self.service_account,
-                        "containers": [
-                            {
-                                "image": img_name,
-                                "resources": {
-                                    "limits": {
-                                        "memory": "{}Mi".format(memory),
-                                        "cpu": str(self.runtime_cpus)
-                                    },
-                                },
-                            }
-                        ],
-                    }
-                },
-                "traffic": [
-                    {
-                        "percent": 100,
-                        "latestRevision": True
-                    }
-                ]
-            }
-        }
+        svc_res = yaml.safe_load(config.service_res)
+        svc_res['metadata']['name'] = service_name
+        svc_res['metadata']['namespace'] = self.project_name
 
-        res = self._build_api_resource().namespaces().services().create(
-            parent='namespaces/{}'.format(self.project_name),
-            body=body
+        logger.debug(f"Service name: {service_name}")
+        logger.debug(f"Namespace: {self.project_name}")
+
+        svc_res['spec']['template']['spec']['timeoutSeconds'] = timeout
+        svc_res['spec']['template']['spec']['containerConcurrency'] = 1
+        svc_res['spec']['template']['spec']['serviceAccountName'] = self.service_account
+        svc_res['spec']['template']['metadata']['labels']['lithops-version'] = __version__.replace('.', '-')
+        svc_res['spec']['template']['metadata']['annotations']['autoscaling.knative.dev/minScale'] = str(self.cr_config['min_workers'])
+        svc_res['spec']['template']['metadata']['annotations']['autoscaling.knative.dev/maxScale'] = str(self.cr_config['max_workers'])
+
+        container = svc_res['spec']['template']['spec']['containers'][0]
+        container['image'] = img_name
+        container['env'][0] = {'name': 'CONCURRENCY', 'value': '1'}
+        container['env'][1] = {'name': 'TIMEOUT', 'value': str(timeout)}
+        container['resources']['limits']['memory'] = f'{runtime_memory}Mi'
+        container['resources']['limits']['cpu'] = str(self.cr_config['runtime_cpu'])
+        container['resources']['requests']['memory'] = f'{runtime_memory}Mi'
+        container['resources']['requests']['cpu'] = str(self.cr_config['runtime_cpu'])
+
+        logger.debug(f"Creating service: {service_name}")
+        res = self._api_resource.namespaces().services().create(
+            parent=f'namespaces/{self.project_name}', body=svc_res
         ).execute()
-
-        logger.info('Ok -- created service {}'.format(service_name))
+        logger.debug(f'Ok -- service created {service_name}')
 
         # Wait until service is up
         ready = False
         retry = 15
+        logger.debug(f'Waiting {service_name} service to become ready')
         while not ready:
-            res = self._build_api_resource().namespaces().services().get(
-                name='namespaces/{}/services/{}'.format(self.project_name,
-                                                        self._format_service_name(runtime_name, memory))
+            res = self._api_resource.namespaces().services().get(
+                name=f'namespaces/{self.project_name}/services/{service_name}'
             ).execute()
 
             ready = all(cond['status'] == 'True' for cond in res['status']['conditions'])
 
             if not ready:
-                logger.debug('Waiting until service is up...')
+                logger.debug('...')
                 time.sleep(10)
                 retry -= 1
                 if retry == 0:
-                    raise Exception('Maximum retries reached: {}'.format(res))
+                    raise Exception(f'Maximum retries reached: {res}')
             else:
                 self._service_url = res['status']['url']
 
-        logger.info('Ok -- service is up at {}'.format(self._service_url))
+        logger.debug(f'Ok -- service is up at {self._service_url}')
 
+    def deploy_runtime(self, runtime_name, memory, timeout):
+        if runtime_name == self._get_default_runtime_image_name():
+            self._build_default_runtime(runtime_name)
+
+        img_name = self._format_image_name(runtime_name)
+        logger.info(f"Deploying runtime: {img_name} - Memory: {memory} Timeout: {timeout}")
+        self._create_service(runtime_name, memory, timeout)
         runtime_meta = self._generate_runtime_meta(runtime_name, memory)
         return runtime_meta
 
-    def delete_runtime(self, runtime_name, memory):
-        service_name = self._format_service_name(runtime_name, memory)
+    def delete_runtime(self, runtime_name, runtime_memory, version=__version__):
+        img_name = self._format_image_name(runtime_name)
+        logger.info(f'Deleting runtime: {img_name} - {runtime_memory}MB')
+        service_name = self._format_service_name(img_name, runtime_memory, version)
+        self._delete_service(service_name)
 
-        logger.debug('Deleting runtime {}'.format(runtime_name))
-        res = self._build_api_resource().namespaces().services().delete(
-            name='namespaces/{}/services/{}'.format(self.project_name, service_name)
+    def _delete_service(self, service_name):
+        logger.debug(f'Deleting service {service_name}')
+        try:
+            self._api_resource.namespaces().services().delete(
+                name=f'namespaces/{self.project_name}/services/{service_name}'
+            ).execute()
+            # Wait until the service is completely deleted
+            while True:
+                try:
+                    self._api_resource.namespaces().services().get(
+                        name=f'namespaces/{self.project_name}/services/{service_name}'
+                    ).execute()
+                    time.sleep(1)
+                except Exception:
+                    break
+            logger.debug(f'Ok -- service deleted {service_name}')
+        except Exception:
+            logger.debug(f'Error -- unable to delete service {service_name}')
+
+    def clean(self, **kwargs):
+        logger.debug('Going to delete all deployed runtimes')
+
+        res = self._api_resource.namespaces().services().list(
+            parent=f'namespaces/{self.project_name}',
         ).execute()
-        logger.debug('Ok -- deleted runtime {}'.format(runtime_name))
 
-    def clean(self):
-        logger.debug('Deleting all runtimes..')
+        if 'items' not in res:
+            return
 
-        runtimes = self.list_runtimes()
-        for runtime_name, memory in runtimes:
-            self.delete_runtime(runtime_name, memory)
+        for item in res['items']:
+            labels = item['spec']['template']['metadata']['labels']
+            if labels and 'type' in labels and labels['type'] == 'lithops-runtime':
+                container = item['spec']['template']['spec']['containers'][0]
+                memory = container['resources']['limits']['memory'].replace('Mi', '')
+                runtime_name = container['image']
+                logger.info(f'Deleting runtime: {runtime_name} - {memory}MB')
+                self._delete_service(item['metadata']['name'])
 
     def list_runtimes(self, runtime_name='all'):
-        logger.debug('Listing runtimes...')
+        logger.debug('Listing runtimes')
 
-        res = self._build_api_resource().namespaces().services().list(
-            parent='namespaces/{}'.format(self.project_name),
+        res = self._api_resource.namespaces().services().list(
+            parent=f'namespaces/{self.project_name}',
         ).execute()
 
         if 'items' not in res:
             return []
 
-        logger.debug('Ok -- {} runtimes listed'.format(len(res['items'])))
+        runtimes = []
+        for item in res['items']:
+            labels = item['spec']['template']['metadata']['labels']
+            wk_name = item['metadata']['name']
+            if labels and 'type' in labels and labels['type'] == 'lithops-runtime':
+                version = labels['lithops-version'].replace('-', '.')
+                container = item['spec']['template']['spec']['containers'][0]
+                memory = container['resources']['limits']['memory'].replace('Mi', '')
+                if runtime_name in container['image'] or runtime_name == 'all':
+                    runtimes.append((container['image'], memory, version, wk_name))
 
-        return [self._unformat_service_name(item['metadata']['name']) for item in res['items']]
+        return runtimes
 
-    def get_runtime_key(self, runtime_name, memory):
-        service_name = self._format_service_name(runtime_name, memory)
-        runtime_key = os.path.join(self.name, self.project_name, service_name)
-        logger.debug('Runtime key: {}'.format(runtime_key))
+    def get_runtime_key(self, runtime_name, memory, version=__version__):
+        img_name = self._format_image_name(runtime_name)
+        service_name = self._format_service_name(img_name, memory, version)
+        runtime_key = os.path.join(self.name, version, self.project_name, self.region, service_name)
+        logger.debug(f'Runtime key: {runtime_key}')
 
         return runtime_key
+
+    def get_runtime_info(self):
+        """
+        Method that returns all the relevant information about the runtime set
+        in config
+        """
+        if 'runtime' not in self.cr_config or self.cr_config['runtime'] == 'default':
+            self.cr_config['runtime'] = self._get_default_runtime_image_name()
+
+        runtime_info = {
+            'runtime_name': self.cr_config['runtime'],
+            'runtime_cpu': self.cr_config['runtime_cpu'],
+            'runtime_memory': self.cr_config['runtime_memory'],
+            'runtime_timeout': self.cr_config['runtime_timeout'],
+            'max_workers': self.cr_config['max_workers'],
+        }
+
+        return runtime_info

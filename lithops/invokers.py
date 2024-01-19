@@ -1,4 +1,3 @@
-#
 # (C) Copyright IBM Corp. 2020
 # (C) Copyright Cloudlab URV 2020
 #
@@ -20,16 +19,16 @@ import sys
 import time
 import random
 import queue
+import shutil
 import logging
 import threading
 from concurrent.futures import ThreadPoolExecutor
 
 from lithops.future import ResponseFuture
 from lithops.config import extract_storage_config
-from lithops.version import __version__ as lithops_version
-from lithops.utils import version_str, is_lithops_worker, iterchunks
-from lithops.constants import LOGGER_LEVEL, LITHOPS_TEMP_DIR, LOGS_DIR, SERVERLESS,\
-    STANDALONE, LOCALHOST
+from lithops.version import __version__
+from lithops.utils import verify_runtime_name, version_str, is_lithops_worker, iterchunks
+from lithops.constants import LOGGER_LEVEL, LOGS_DIR, SERVERLESS
 from lithops.util.metrics import PrometheusExporter
 
 logger = logging.getLogger(__name__)
@@ -41,15 +40,22 @@ def create_invoker(config, executor_id, internal_storage,
     Creates the appropriate invoker based on the backend type
     """
     if compute_handler.get_backend_type() == 'batch':
-        return BatchInvoker(config, executor_id, internal_storage,
-                            compute_handler, job_monitor)
-    else:
-        if config[SERVERLESS].get('customized_runtime'):
-            return CustomRuntimeFaaSInvoker(config, executor_id, internal_storage,
-                                            compute_handler, job_monitor)
-        else:
-            return FaaSInvoker(config, executor_id, internal_storage,
-                               compute_handler, job_monitor)
+        return BatchInvoker(
+            config,
+            executor_id,
+            internal_storage,
+            compute_handler,
+            job_monitor
+        )
+
+    elif compute_handler.get_backend_type() == 'faas':
+        return FaaSInvoker(
+            config,
+            executor_id,
+            internal_storage,
+            compute_handler,
+            job_monitor
+        )
 
 
 class Invoker:
@@ -70,48 +76,51 @@ class Invoker:
         self.is_lithops_worker = is_lithops_worker()
         self.job_monitor = job_monitor
 
-        self.workers = self.config['lithops'].get('workers')
-        if self.workers:
-            logger.debug('ExecutorID {} - Total workers: {}'
-                         .format(self.executor_id, self.workers))
-
         prom_enabled = self.config['lithops'].get('telemetry', False)
         prom_config = self.config.get('prometheus', {})
         self.prometheus = PrometheusExporter(prom_enabled, prom_config)
 
         self.mode = self.config['lithops']['mode']
-        self.runtime_name = self.config[self.mode]['runtime']
+        self.backend = self.config['lithops']['backend']
+        self.customized_runtime = self.config['lithops'].get('customized_runtime', False)
+
+        self.runtime_info = self.compute_handler.get_runtime_info()
+        self.runtime_name = self.runtime_info['runtime_name']
+        self.max_workers = self.runtime_info['max_workers']
+
+        verify_runtime_name(self.runtime_name)
+
+        logger.debug(f'ExecutorID {self.executor_id} - Invoker initialized.'
+                     f' Max workers: {self.max_workers}')
 
     def select_runtime(self, job_id, runtime_memory):
         """
         Return the runtime metadata
         """
-        runtime_memory = runtime_memory or self.config[self.mode].get('runtime_memory')
-        runtime_timeout = self.config[self.mode].get('runtime_timeout')
-
-        if self.mode == STANDALONE or self.mode == LOCALHOST:
-            runtime_memory = None
+        runtime_memory = runtime_memory or self.runtime_info['runtime_memory'] \
+            if self.mode == SERVERLESS else self.runtime_info['runtime_memory']
+        runtime_timeout = self.runtime_info['runtime_timeout']
 
         msg = ('ExecutorID {} | JobID {} - Selected Runtime: {} '
                .format(self.executor_id, job_id, self.runtime_name))
-        msg = msg+'- {}MB'.format(runtime_memory) if runtime_memory else msg
+        msg = msg + f'- {runtime_memory}MB' if runtime_memory else msg
         logger.info(msg)
 
-        runtime_key = self.compute_handler.get_runtime_key(self.runtime_name, runtime_memory)
+        runtime_key = self.compute_handler.get_runtime_key(self.runtime_name, runtime_memory, __version__)
         runtime_meta = self.internal_storage.get_runtime_meta(runtime_key)
 
         if not runtime_meta:
-            msg = 'Runtime {}'.format(self.runtime_name)
-            msg = msg+' with {}MB'.format(runtime_memory) if runtime_memory else msg
-            logger.info(msg+' is not yet installed')
-            runtime_meta = self.compute_handler.create_runtime(self.runtime_name, runtime_memory, runtime_timeout)
+            msg = f'Runtime {self.runtime_name}'
+            msg = msg + f' with {runtime_memory}MB' if runtime_memory else msg
+            logger.info(msg + ' is not yet deployed')
+            runtime_meta = self.compute_handler.deploy_runtime(self.runtime_name, runtime_memory, runtime_timeout)
             runtime_meta['runtime_timeout'] = runtime_timeout
             self.internal_storage.put_runtime_meta(runtime_key, runtime_meta)
 
         # Verify python version and lithops version
-        if lithops_version != runtime_meta['lithops_version']:
+        if __version__ != runtime_meta['lithops_version']:
             raise Exception("Lithops version mismatch. Host version: {} - Runtime version: {}"
-                            .format(lithops_version, runtime_meta['lithops_version']))
+                            .format(__version__, runtime_meta['lithops_version']))
 
         py_local_version = version_str(sys.version_info)
         py_remote_version = runtime_meta['python_version']
@@ -129,6 +138,7 @@ class Invoker:
         payload = {'config': self.config,
                    'chunksize': job.chunksize,
                    'log_level': self.log_level,
+                   'func_name': job.function_name,
                    'func_key': job.func_key,
                    'data_key': job.data_key,
                    'extra_env': job.extra_env,
@@ -138,9 +148,10 @@ class Invoker:
                    'executor_id': job.executor_id,
                    'job_id': job.job_id,
                    'job_key': job.job_key,
+                   'max_workers': self.max_workers,
                    'call_ids': None,
                    'host_submit_tstamp': time.time(),
-                   'lithops_version': lithops_version,
+                   'lithops_version': __version__,
                    'runtime_name': job.runtime_name,
                    'runtime_memory': job.runtime_memory,
                    'worker_processes': job.worker_processes}
@@ -151,22 +162,40 @@ class Invoker:
         """
         Run a job
         """
+        if self.customized_runtime:
+            logger.debug('ExecutorID {} | JobID {} - Customized runtime activated'
+                         .format(job.executor_id, job.job_id))
+            job.runtime_name = self.runtime_name
+            extend_runtime(job, self.compute_handler, self.internal_storage)
+            self.runtime_name = job.runtime_name
+
         logger.info('ExecutorID {} | JobID {} - Starting function '
                     'invocation: {}() - Total: {} activations'
                     .format(job.executor_id, job.job_id,
                             job.function_name, job.total_calls))
 
-        logger.debug('ExecutorID {} | JobID {} - Chunksize:'
-                     ' {} - Worker processes: {}'
-                     .format(job.executor_id, job.job_id,
-                             job.chunksize, job.worker_processes))
+        logger.debug('ExecutorID {} | JobID {} - Worker processes: {} - Chunksize: {}'
+                     .format(job.executor_id, job.job_id, job.worker_processes, job.chunksize or "AUTO"))
 
-        self.prometheus.send_metric(name='job_total_calls',
-                                    value=job.total_calls,
-                                    labels=(
-                                        ('job_id', '-'.join([job.executor_id, job.job_id])),
-                                        ('function_name', job.function_name)
-                                    ))
+        self.prometheus.send_metric(
+            name='job_total_calls',
+            value=job.total_calls,
+            type='counter',
+            labels=(
+                ('job_id', job.job_key),
+                ('function_name', job.function_name)
+            )
+        )
+
+        self.prometheus.send_metric(
+            name='job_runtime_memory',
+            value=job.runtime_memory or 0,
+            type='counter',
+            labels=(
+                ('job_id', job.job_key),
+                ('function_name', job.function_name)
+            )
+        )
 
         try:
             job.runtime_name = self.runtime_name
@@ -175,7 +204,7 @@ class Invoker:
             self.stop()
             raise e
 
-        log_file = os.path.join(LOGS_DIR, job.job_key+'.log')
+        log_file = os.path.join(LOGS_DIR, job.job_key + '.log')
         logger.info("ExecutorID {} | JobID {} - View execution logs at {}"
                     .format(job.executor_id, job.job_id, log_file))
 
@@ -202,7 +231,7 @@ class Invoker:
 
 class BatchInvoker(Invoker):
     """
-    Module responsible to perform the invocations against the Standalone backend
+    Module responsible to perform the invocations against a batch backend
     """
 
     def __init__(self, config, executor_id, internal_storage, compute_handler, job_monitor):
@@ -217,7 +246,7 @@ class BatchInvoker(Invoker):
         payload['call_ids'] = ["{:05d}".format(i) for i in range(job.total_calls)]
 
         start = time.time()
-        activation_id = self.compute_handler.invoke(payload, self.workers)
+        activation_id = self.compute_handler.invoke(payload)
         roundtrip = time.time() - start
         resp_time = format(round(roundtrip, 3), '.3f')
 
@@ -228,23 +257,22 @@ class BatchInvoker(Invoker):
         """
         Run a job
         """
-        job_monitor = self.job_monitor.create(job, self.internal_storage)
         futures = self._run_job(job)
-        job_monitor.start()
+        self.job_monitor.start(futures)
 
         return futures
 
 
 class FaaSInvoker(Invoker):
     """
-    Module responsible to perform the invocations against the FaaS backends
+    Module responsible to perform the invocations against a FaaS backend
     """
     ASYNC_INVOKERS = 2
 
     def __init__(self, config, executor_id, internal_storage, compute_handler, job_monitor):
         super().__init__(config, executor_id, internal_storage, compute_handler, job_monitor)
 
-        remote_invoker = self.config['serverless'].get('remote_invoker', False)
+        remote_invoker = self.config[self.backend].get('remote_invoker', False)
         self.remote_invoker = remote_invoker if not is_lithops_worker() else False
 
         self.invokers = []
@@ -252,6 +280,9 @@ class FaaSInvoker(Invoker):
         self.pending_calls_q = queue.Queue()
         self.should_run = False
         self.sync = is_lithops_worker()
+
+        invoke_pool_threads = self.config[self.backend]['invoke_pool_threads']
+        self.executor = ThreadPoolExecutor(invoke_pool_threads)
 
         logger.debug('ExecutorID {} - Serverless invoker created'.format(self.executor_id))
 
@@ -312,11 +343,17 @@ class FaaSInvoker(Invoker):
         compute backend.
         """
         # prepare payload
-        call_ids = ["{:05d}".format(i) for i in call_ids_range]
-        data_byte_ranges = [job.data_byte_ranges[int(call_id)] for call_id in call_ids]
         payload = self._create_payload(job)
+
+        call_ids = ["{:05d}".format(i) for i in call_ids_range]
         payload['call_ids'] = call_ids
-        payload['data_byte_ranges'] = data_byte_ranges
+
+        if job.data_key:
+            data_byte_ranges = [job.data_byte_ranges[int(call_id)] for call_id in call_ids]
+            payload['data_byte_ranges'] = data_byte_ranges
+        else:
+            del payload['data_byte_ranges']
+            payload['data_byte_strs'] = [job.data_byte_strs[int(call_id)] for call_id in call_ids]
 
         # do the invocation
         start = time.time()
@@ -363,6 +400,8 @@ class FaaSInvoker(Invoker):
         Normal Invocation
         Use local threads to perform all the function invocations
         """
+        self.compute_handler.pre_invoke(job)
+
         if self.remote_invoker:
             return self._invoke_job_remote(job)
 
@@ -371,8 +410,8 @@ class FaaSInvoker(Invoker):
             self.should_run = True
             self._start_async_invokers()
 
-        if self.running_workers < self.workers:
-            free_workers = self.workers - self.running_workers
+        if self.running_workers < self.max_workers:
+            free_workers = self.max_workers - self.running_workers
             total_direct = free_workers * job.chunksize
             callids = range(job.total_calls)
             callids_to_invoke_direct = callids[:total_direct]
@@ -392,9 +431,8 @@ class FaaSInvoker(Invoker):
                 future.result()
 
             invoke_futures = []
-            executor = ThreadPoolExecutor(job.invoke_pool_threads)
             for call_ids_range in iterchunks(callids_to_invoke_direct, job.chunksize):
-                future = executor.submit(self._invoke_task, job, call_ids_range)
+                future = self.executor.submit(self._invoke_task, job, call_ids_range)
                 future.add_done_callback(_callback)
                 invoke_futures.append(future)
 
@@ -410,99 +448,76 @@ class FaaSInvoker(Invoker):
                 for call_ids_range in iterchunks(callids_to_invoke_nondirect, job.chunksize):
                     self.pending_calls_q.put((job, call_ids_range))
         else:
-            logger.debug('ExecutorID {} | JobID {} - Reached maximun {} '
+            logger.debug('ExecutorID {} | JobID {} - Reached maximum {} '
                          'workers, queuing {} function activations'
                          .format(job.executor_id, job.job_id,
-                                 self.workers, job.total_calls))
-            for call_ids_range in iterchunks(job.total_calls, job.chunksize):
+                                 self.max_workers, job.total_calls))
+            for call_ids_range in iterchunks(range(job.total_calls), job.chunksize):
                 self.pending_calls_q.put((job, call_ids_range))
 
     def run_job(self, job):
         """
         Run a job
         """
-        job_monitor = self.job_monitor.create(job, self.internal_storage, generate_tokens=True)
         futures = self._run_job(job)
-        job_monitor.start()
+        self.job_monitor.start(
+            fs=futures,
+            job_id=job.job_id,
+            chunksize=job.chunksize,
+            generate_tokens=True
+        )
 
         return futures
 
 
-class CustomRuntimeFaaSInvoker(FaaSInvoker):
+def extend_runtime(job, compute_handler, internal_storage):
     """
-    Module responsible to perform the invocations against the serverless
-    backend in realtime environments.
-
-    currently differs from ServerlessInvoker only by having one method that
-    provides extension of specified environment with map function and modules
-    to optimize performance in real time use cases by avoiding repeated data
-    transfers from storage to  action containers on each execution
+    This method is used when customized_runtime is active
     """
 
-    def run_job(self, job):
-        """
-        Extend runtime and run a job described in job_description
-        """
-        logger.warning("Warning, you are using customized runtime feature. "
-                       "Please, notice that the map function code and dependencies "
-                       "are stored and uploaded to docker registry. "
-                       "To protect your privacy, use a private docker registry "
-                       "instead of public docker hub.")
-        self._extend_runtime(job)
-        return FaaSInvoker.run_job(self, job)
+    base_docker_image = job.runtime_name
+    uuid = job.ext_runtime_uuid
+    ext_runtime_name = "{}:{}".format(base_docker_image.split(":")[0], uuid)
 
-    # If runtime not exists yet, build unique docker image and register runtime
-    def _extend_runtime(self, job):
-        runtime_memory = self.config['serverless']['runtime_memory']
+    # update job with new extended runtime name
+    job.runtime_name = ext_runtime_name
 
-        base_docker_image = self.runtime_name
-        uuid = job.ext_runtime_uuid
-        ext_runtime_name = "{}:{}".format(base_docker_image.split(":")[0], uuid)
+    runtime_key = compute_handler.get_runtime_key(job.runtime_name, job.runtime_memory, __version__)
+    runtime_meta = internal_storage.get_runtime_meta(runtime_key)
 
-        # update job with new extended runtime name
-        self.runtime_name = ext_runtime_name
+    if not runtime_meta:
+        logger.info('Creating runtime: {}, memory: {}MB'.format(ext_runtime_name, job.runtime_memory))
 
-        runtime_key = self.compute_handler.get_runtime_key(self.runtime_name, runtime_memory)
-        runtime_meta = self.internal_storage.get_runtime_meta(runtime_key)
+        ext_docker_file = '/'.join([job.local_tmp_dir, "Dockerfile"])
 
-        if not runtime_meta:
-            runtime_timeout = self.config['serverless']['runtime_timeout']
-            logger.debug('Creating runtime: {}, memory: {}MB'.format(ext_runtime_name, runtime_memory))
+        # Generate Dockerfile extended with function dependencies and function
+        with open(ext_docker_file, 'w') as df:
+            df.write('\n'.join([
+                'FROM {}'.format(base_docker_image),
+                'ENV PYTHONPATH=/tmp/lithops/modules:$PYTHONPATH',
+                # set python path to point to dependencies folder
+                'COPY . /tmp/lithops'
+            ]))
 
-            runtime_temorary_directory = '/'.join([LITHOPS_TEMP_DIR, os.path.dirname(job.func_key)])
-            modules_path = '/'.join([runtime_temorary_directory, 'modules'])
+        # Build new extended runtime tagged by function hash
+        cwd = os.getcwd()
+        os.chdir(job.local_tmp_dir)
+        compute_handler.build_runtime(ext_runtime_name, ext_docker_file)
+        os.chdir(cwd)
+        shutil.rmtree(job.local_tmp_dir, ignore_errors=True)
 
-            ext_docker_file = '/'.join([runtime_temorary_directory, "Dockerfile"])
+        runtime_meta = compute_handler.deploy_runtime(ext_runtime_name, job.runtime_memory, job.runtime_timeout)
+        runtime_meta['runtime_timeout'] = job.runtime_timeout
+        internal_storage.put_runtime_meta(runtime_key, runtime_meta)
 
-            # Generate Dockerfile extended with function dependencies and function
-            with open(ext_docker_file, 'w') as df:
-                df.write('\n'.join([
-                    'FROM {}'.format(base_docker_image),
-                    'ENV PYTHONPATH={}:${}'.format(modules_path, 'PYTHONPATH'),
-                    # set python path to point to dependencies folder
-                    'COPY . {}'.format(runtime_temorary_directory)
-                ]))
+    # Verify python version and lithops version
+    if __version__ != runtime_meta['lithops_version']:
+        raise Exception("Lithops version mismatch. Host version: {} - Runtime version: {}"
+                        .format(__version__, runtime_meta['lithops_version']))
 
-            # Build new extended runtime tagged by function hash
-            cwd = os.getcwd()
-            os.chdir(runtime_temorary_directory)
-            self.compute_handler.build_runtime(ext_runtime_name, ext_docker_file)
-            os.chdir(cwd)
-
-            runtime_meta = self.compute_handler.create_runtime(ext_runtime_name, runtime_memory, runtime_timeout)
-            runtime_meta['runtime_timeout'] = runtime_timeout
-            self.internal_storage.put_runtime_meta(runtime_key, runtime_meta)
-
-        if lithops_version != runtime_meta['lithops_version']:
-            raise Exception("Lithops version mismatch. Host version: {} - Runtime version: {}"
-                            .format(lithops_version, runtime_meta['lithops_version']))
-
-        py_local_version = version_str(sys.version_info)
-        py_remote_version = runtime_meta['python_ver']
-
-        if py_local_version != py_remote_version:
-            raise Exception(("The indicated runtime '{}' is running Python {} and it "
-                             "is not compatible with the local Python version {}")
-                            .format(self.runtime_name, py_remote_version, py_local_version))
-
-        return runtime_meta
+    py_local_version = version_str(sys.version_info)
+    py_remote_version = runtime_meta['python_version']
+    if py_local_version != py_remote_version:
+        raise Exception(("The indicated runtime '{}' is running Python {} and it "
+                         "is not compatible with the local Python version {}")
+                        .format(job.runtime_name, py_remote_version, py_local_version))

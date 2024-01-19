@@ -15,37 +15,30 @@
 #
 
 import os
-import shutil
 import logging
 import boto3
+import hashlib
 import time
 import json
 import zipfile
-import sys
 import subprocess
-import lithops
 import botocore.exceptions
 import base64
 
-from lithops.constants import TEMP as TEMP_PATH
+from botocore.httpsession import URLLib3Session
+from botocore.awsrequest import AWSRequest
+from botocore.auth import SigV4Auth
+
+from lithops import utils
+from lithops.version import __version__
 from lithops.constants import COMPUTE_CLI_MSG
-from . import config as lambda_config
+
+from . import config
 
 logger = logging.getLogger(__name__)
 
-LAYER_DIR_PATH = os.path.join(TEMP_PATH, 'modules', 'python')
-LAYER_ZIP_PATH = os.path.join(TEMP_PATH, 'lithops_layer.zip')
-FUNCTION_ZIP = 'lithops_lambda.zip'
-
-
-# Auxiliary function to recursively add a directory to a zip archive
-def add_directory_to_zip(zip_file, full_dir_path, sub_dir=''):
-    for file in os.listdir(full_dir_path):
-        full_path = os.path.join(full_dir_path, file)
-        if os.path.isfile(full_path):
-            zip_file.write(full_path, os.path.join(sub_dir, file), zipfile.ZIP_DEFLATED)
-        elif os.path.isdir(full_path) and '__pycache__' not in full_path:
-            add_directory_to_zip(zip_file, full_path, os.path.join(sub_dir, file))
+LITHOPS_FUNCTION_ZIP = 'lithops_lambda.zip'
+BUILD_LAYER_FUNCTION_ZIP = 'build_layer.zip'
 
 
 class AWSLambdaBackend:
@@ -53,76 +46,132 @@ class AWSLambdaBackend:
     A wrap-up around AWS Boto3 API
     """
 
-    def __init__(self, aws_lambda_config, internal_storage):
+    def __init__(self, lambda_config, internal_storage):
         """
         Initialize AWS Lambda Backend
         """
         logger.debug('Creating AWS Lambda client')
 
         self.name = 'aws_lambda'
-        self.type = 'faas'
-        self.aws_lambda_config = aws_lambda_config
-
-        self.user_key = aws_lambda_config['access_key_id'][-4:]
-        self.package = 'lithops_v{}_{}'.format(lithops.__version__, self.user_key)
-        self.region_name = aws_lambda_config['region_name']
-        self.role_arn = aws_lambda_config['execution_role']
+        self.type = utils.BackendType.FAAS.value
+        self.lambda_config = lambda_config
+        self.internal_storage = internal_storage
+        self.user_agent = lambda_config['user_agent']
+        self.region_name = lambda_config['region']
+        self.role_arn = lambda_config['execution_role']
+        self.namespace = lambda_config.get('namespace')
 
         logger.debug('Creating Boto3 AWS Session and Lambda Client')
-        self.aws_session = boto3.Session(aws_access_key_id=aws_lambda_config['access_key_id'],
-                                         aws_secret_access_key=aws_lambda_config['secret_access_key'],
-                                         region_name=self.region_name)
-        self.lambda_client = self.aws_session.client('lambda', region_name=self.region_name)
 
-        self.internal_storage = internal_storage
+        self.aws_session = boto3.Session(
+            aws_access_key_id=lambda_config['access_key_id'],
+            aws_secret_access_key=lambda_config['secret_access_key'],
+            aws_session_token=lambda_config.get('session_token'),
+            region_name=self.region_name
+        )
+
+        self.lambda_client = self.aws_session.client(
+            'lambda', region_name=self.region_name,
+            config=botocore.client.Config(
+                user_agent_extra=self.user_agent
+            )
+        )
+
+        self.credentials = self.aws_session.get_credentials()
+        self.session = URLLib3Session()
+        self.host = f'lambda.{self.region_name}.amazonaws.com'
+
+        if 'account_id' in self.lambda_config:
+            self.account_id = self.lambda_config['account_id']
+        else:
+            sts_client = self.aws_session.client('sts', region_name=self.region_name)
+            self.account_id = sts_client.get_caller_identity()["Account"]
 
         sts_client = self.aws_session.client('sts', region_name=self.region_name)
-        self.account_id = sts_client.get_caller_identity()["Account"]
+        caller_id = sts_client.get_caller_identity()
+
+        if ":" in caller_id["UserId"]:  # SSO user
+            self.user_key = caller_id["UserId"].split(":")[1]
+        else:  # IAM user
+            self.user_key = caller_id["UserId"][-4:].lower()
 
         self.ecr_client = self.aws_session.client('ecr', region_name=self.region_name)
+        package = f'lithops_v{__version__.replace(".", "")}_{self.user_key}'
+        self.package = f"{package}_{self.namespace}" if self.namespace else package
 
         msg = COMPUTE_CLI_MSG.format('AWS Lambda')
-        logger.info("{} - Region: {}".format(msg, self.region_name))
+        if self.namespace:
+            logger.info(f"{msg} - Region: {self.region_name} - Namespace: {self.namespace}")
+        else:
+            logger.info(f"{msg} - Region: {self.region_name}")
 
-    def _format_function_name(self, runtime_name, runtime_memory):
-        if '/' in runtime_name:
-            runtime_name = runtime_name.rsplit('/')[-1]
-        runtime_name = self.package.replace('.', '-') + '_' + runtime_name.replace(':', '--')
-        return '{}_{}MB'.format(runtime_name, runtime_memory)
+    def _format_function_name(self, runtime_name, runtime_memory, version=__version__):
+        name = f'{runtime_name}-{runtime_memory}-{version}'
+        name_hash = hashlib.sha1(name.encode("utf-8")).hexdigest()[:10]
+        fn_name = f'lithops-worker-{self.user_key}-{version.replace(".", "")}-{name_hash}'
+        return f'{self.namespace}-{fn_name}' if self.namespace else fn_name
 
-    def _unformat_function_name(self, action_name):
-        splits = action_name.split('_')
-        runtime_name = '_'.join(splits[3:-1]).replace('--', ':')
-        runtime_memory = int(splits[-1].replace('MB', ''))
-        return runtime_name, runtime_memory
+    def _format_layer_name(self, runtime_name, version=__version__):
+        package = self.package.replace(__version__.replace(".", ""), version.replace(".", ""))
+        return '_'.join([package, runtime_name, 'layer'])
 
-    def _format_layer_name(self, runtime_name):
-        return '_'.join([self.package, runtime_name, 'layer']).replace('.', '-')
+    def _get_default_runtime_name(self):
+        py_version = utils.CURRENT_PY_VERSION.replace('.', '')
+        return f'default-runtime-v{py_version}'
 
-    def _create_handler_bin(self, remove=True):
+    def _is_container_runtime(self, runtime_name):
+        name = runtime_name.split('/', 1)[-1]
+        return 'default-runtime-v' not in name
+
+    def _format_repo_name(self, runtime_name):
+        if ':' in runtime_name:
+            base_image = runtime_name.split(':')[0]
+        else:
+            base_image = runtime_name
+        return '/'.join([self.package, base_image]).lower()
+
+    @staticmethod
+    def _create_handler_bin(remove=True):
         """
         Create and return Lithops handler function as zip bytes
         @param remove: True to delete the zip archive after building
         @return: Lithops handler function as zip bytes
         """
-        logger.debug('Creating function handler zip in {}'.format(FUNCTION_ZIP))
+        current_location = os.path.dirname(os.path.abspath(__file__))
+        main_file = os.path.join(current_location, 'entry_point.py')
+        utils.create_handler_zip(LITHOPS_FUNCTION_ZIP, main_file, 'entry_point.py')
 
-        with zipfile.ZipFile(FUNCTION_ZIP, 'w') as lithops_zip:
-            current_location = os.path.dirname(os.path.abspath(__file__))
-            module_location = os.path.dirname(os.path.abspath(lithops.__file__))
-            main_file = os.path.join(current_location, 'entry_point.py')
-            lithops_zip.write(main_file,
-                              '__main__.py',
-                              zipfile.ZIP_DEFLATED)
-            add_directory_to_zip(lithops_zip, module_location, sub_dir='lithops')
-
-        with open(FUNCTION_ZIP, 'rb') as action_zip:
+        with open(LITHOPS_FUNCTION_ZIP, 'rb') as action_zip:
             action_bin = action_zip.read()
 
         if remove:
-            os.remove(FUNCTION_ZIP)
+            os.remove(LITHOPS_FUNCTION_ZIP)
 
         return action_bin
+
+    def _wait_for_function_deployed(self, func_name):
+        """
+        Helper function which waits for the lambda to be deployed (state is 'Active').
+        Raises exception if waiting times out or if state is 'Failed' or 'Inactive'
+        """
+        retries, sleep_seconds = (15, 25) if 'vpc' in self.lambda_config else (30, 5)
+
+        while retries > 0:
+            res = self.lambda_client.get_function(FunctionName=func_name)
+            state = res['Configuration']['State']
+            if state == 'Pending':
+                time.sleep(sleep_seconds)
+                logger.debug('"{}" function is being deployed... '
+                             '(status: {})'.format(func_name, res['Configuration']['State']))
+                retries -= 1
+                if retries == 0:
+                    raise Exception('"{}" function not deployed (timed out): {}'.format(func_name, res))
+            elif state == 'Failed' or state == 'Inactive':
+                raise Exception('"{}" function not deployed (state is "{}"): {}'.format(func_name, state, res))
+            elif state == 'Active':
+                break
+
+        logger.debug('Ok --> function "{}" is active'.format(func_name))
 
     def _get_layer(self, runtime_name):
         """
@@ -144,78 +193,94 @@ class AWSLambdaBackend:
         @param runtime_name: runtime name from which to create the layer
         @return: ARN of the created layer
         """
-        logger.debug('Creating lambda layer for runtime {}'.format(runtime_name))
+        logger.info(f'Creating lambda layer for runtime {runtime_name}')
 
-        if self.internal_storage.backend != "aws_s3":
-            raise Exception('"aws_s3" is required as storage backend for publising the lambda layer. '
-                            'You can use "aws_s3" to create the runtime and then change the storage backend afterwards.')
+        with zipfile.ZipFile(BUILD_LAYER_FUNCTION_ZIP, 'w') as build_layer_zip:
+            current_location = os.path.dirname(os.path.abspath(__file__))
+            build_layer_file = os.path.join(current_location, 'build_layer.py')
+            build_layer_zip.write(build_layer_file, 'build_layer.py', zipfile.ZIP_DEFLATED)
 
-        # Get list of modules that will compose the layer
-        modules = lambda_config.DEFAULT_REQUIREMENTS
-        if runtime_name not in lambda_config.DEFAULT_RUNTIMES:
-            user_runtimes = self.internal_storage.storage.list_keys(self.internal_storage.bucket,
-                                                                    prefix=lambda_config.USER_RUNTIME_PREFIX)
-            user_runtimes_keys = {runtime.split('/', 1)[1]: runtime for runtime in user_runtimes}
-            if runtime_name in user_runtimes_keys:
-                reqs = self.internal_storage.get_data(key=user_runtimes_keys[runtime_name]).decode('utf-8')
-                modules.extend(reqs.splitlines())
+        func_name = '_'.join([self.package, 'layer_builder_512MB'])
+
+        with open(BUILD_LAYER_FUNCTION_ZIP, 'rb') as build_layer_zip:
+            build_layer_zip_bin = build_layer_zip.read()
+
+        logger.debug('Creating "layer builder" function')
+
+        try:
+            resp = self.lambda_client.create_function(
+                FunctionName=func_name,
+                Runtime=config.AVAILABLE_PY_RUNTIMES[utils.CURRENT_PY_VERSION],
+                Role=self.role_arn,
+                Handler='build_layer.lambda_handler',
+                Code={
+                    'ZipFile': build_layer_zip_bin
+                },
+                Timeout=120,
+                MemorySize=512
+            )
+
+            # wait until the function is created
+            if resp['ResponseMetadata']['HTTPStatusCode'] not in (200, 201):
+                msg = f'An error occurred creating/updating action {runtime_name}: {resp}'
+                raise Exception(msg)
+
+            self._wait_for_function_deployed(func_name)
+            logger.debug(f'OK --> Created "layer builder" function {runtime_name}'.format())
+
+            dependencies = [dependency.strip().replace(' ', '') for dependency in config.DEFAULT_REQUIREMENTS]
+            layer_name = self._format_layer_name(runtime_name)
+            payload = {
+                'dependencies': dependencies,
+                'bucket': self.internal_storage.bucket,
+                'key': layer_name
+            }
+
+            logger.debug('Invoking "layer builder" function')
+            response = self.lambda_client.invoke(FunctionName=func_name, Payload=json.dumps(payload))
+            if response['ResponseMetadata']['HTTPStatusCode'] == 200:
+                logger.debug(f'OK --> Layer {layer_name} built')
             else:
-                raise Exception('Runtime {} does not exist. Available runtimes: {}'.format(
-                    runtime_name, lambda_config.DEFAULT_RUNTIMES + list(user_runtimes_keys.values())))
-
-        # Delete download and build target directory if it exists
-        if os.path.exists(LAYER_DIR_PATH):
-            if os.path.isdir(LAYER_DIR_PATH):
-                shutil.rmtree(LAYER_DIR_PATH)
-            elif os.path.isfile(LAYER_DIR_PATH):
-                os.remove(LAYER_DIR_PATH)
-
-        # Create target directory
-        os.makedirs(LAYER_DIR_PATH)
-
-        # Install and build modules to target directory
-        logger.info('Going to download and build {} modules to {}...'.format(len(modules), LAYER_DIR_PATH))
-        dependencies = [dependency.strip().replace(' ', '') for dependency in modules]
-        command = [sys.executable, '-m', 'pip', 'install', '-t', LAYER_DIR_PATH]
-        command.extend(dependencies)
-        subprocess.check_call(command)
-
-        # Compress modules
-        with zipfile.ZipFile(LAYER_ZIP_PATH, 'w') as layer_zip:
-            add_directory_to_zip(layer_zip, os.path.join(TEMP_PATH, 'modules'))
-
-        # Read zip as bytes
-        with open(LAYER_ZIP_PATH, 'rb') as layer_zip:
-            layer_bytes = layer_zip.read()
+                msg = f'An error occurred creating layer {layer_name}: {response}'
+                raise Exception(msg)
+        finally:
+            os.remove(BUILD_LAYER_FUNCTION_ZIP)
+            logger.debug('Trying to delete "layer builder" function')
+            try:
+                self.lambda_client.delete_function(FunctionName=func_name)
+            except botocore.exceptions.ClientError as err:
+                if err.response['Error']['Code'] != 'ResourceNotFoundException':
+                    raise
 
         # Publish layer from S3
-        layer_name = self._format_layer_name(runtime_name)
-        logger.debug('Creating layer {} ...'.format(layer_name))
-        self.internal_storage.put_data(layer_name, layer_bytes)
+        logger.debug(f'Creating layer {layer_name} ...')
         response = self.lambda_client.publish_layer_version(
             LayerName=layer_name,
-            Description=self.package,
+            Description=f'Lithops layer for v{__version__} and Python v{utils.CURRENT_PY_VERSION}',
             Content={
                 'S3Bucket': self.internal_storage.bucket,
                 'S3Key': layer_name
             },
-            CompatibleRuntimes=[lambda_config.LAMBDA_PYTHON_VER_KEY]
+            CompatibleRuntimes=[config.AVAILABLE_PY_RUNTIMES[utils.CURRENT_PY_VERSION]]
         )
-        self.internal_storage.storage.delete_object(self.internal_storage.bucket, layer_name)
+
+        try:
+            self.internal_storage.storage.delete_object(self.internal_storage.bucket, layer_name)
+        except Exception as e:
+            logger.warning(e)
 
         if response['ResponseMetadata']['HTTPStatusCode'] == 201:
             logger.debug('OK --> Layer {} created'.format(layer_name))
             return response['LayerVersionArn']
         else:
-            msg = 'An error occurred creating layer {}: {}'.format(layer_name, response)
-            raise Exception(msg)
+            raise Exception(f'An error occurred creating layer {layer_name}: {response}')
 
     def _delete_layer(self, layer_name):
         """
         Delete a layer
         @param layer_name: Formatted layer name
         """
-        logger.debug('Deleting lambda layer: {}'.format(layer_name))
+        logger.debug(f'Deleting lambda layer: {layer_name}')
 
         versions = []
         response = self.lambda_client.list_layer_versions(LayerName=layer_name)
@@ -231,7 +296,7 @@ class AWSLambdaBackend:
                 VersionNumber=version
             )
             if response['ResponseMetadata']['HTTPStatusCode'] == 204:
-                logger.debug('OK --> Layer {} version {} deleted'.format(layer_name, version))
+                logger.debug(f'OK --> Layer {layer_name} version {version} deleted')
 
     def _list_layers(self):
         """
@@ -249,102 +314,172 @@ class AWSLambdaBackend:
                 lithops_layers.append((layer['LayerName'], layer['LatestMatchingVersion']['LayerVersionArn']))
         return lithops_layers
 
-    def build_runtime(self, runtime_name, runtime_file):
+    def _delete_function(self, function_name):
         """
-        Build Lithops runtime for AWS lambda
-        @param runtime_name: name of the runtime to be built
-        @param runtime_file: path of a requirements.txt file for a layer runtime or Dockerfile for a container runtime
+        Deletes a function by its formatted name
+        @param function_name: function name to delete
         """
-        if runtime_file is None:
-            raise Exception('Please provide a `requirements.txt` or Dockerfile')
-        if lambda_config.LAMBDA_PYTHON_VER_KEY.replace('.', '') not in lambda_config.DEFAULT_RUNTIMES:
-            raise Exception('Python version "{}" is not available for AWS Lambda, '
-                            'please use one of {}'.format(lambda_config.LAMBDA_PYTHON_VER_KEY,
-                                                          lambda_config.DEFAULT_RUNTIMES))
+        logger.info(f'Deleting function: {function_name}')
+        try:
+            response = self.lambda_client.delete_function(
+                FunctionName=function_name
+            )
+        except botocore.exceptions.ClientError as err:
+            raise err
 
-        logger.info('Going to create runtime {} ({}) for AWS Lambda...'.format(runtime_name, runtime_file))
-
-        if '/' in runtime_name:
-            # Container runtime
-            _, image_name = runtime_name.split('/')
-
-            self._create_handler_bin(remove=False)
-            if runtime_file:
-                cmd = '{} build -t {} -f {} .'.format(lambda_config.DOCKER_PATH,
-                                                      image_name,
-                                                      runtime_file)
-            else:
-                cmd = '{} build -t {} .'.format(lambda_config.DOCKER_PATH, image_name)
-
-            subprocess.check_call(cmd.split())
-            os.remove(FUNCTION_ZIP)
-
-            ecr_repo = '{}.dkr.ecr.{}.amazonaws.com'.format(self.account_id, self.region_name)
-
-            res = self.ecr_client.get_authorization_token()
-            if res['ResponseMetadata']['HTTPStatusCode'] != 200:
-                raise Exception('Could not get ECR auth token: {}'.format(res))
-
-            auth_data = res['authorizationData'].pop()
-            ecr_token = base64.b64decode(auth_data['authorizationToken']).split(b':')[1]
-
-            cmd = '{} login --username AWS --password-stdin {}'.format(lambda_config.DOCKER_PATH, ecr_repo)
-            subprocess.check_output(cmd.split(), input=ecr_token)
-
-            if ':' in image_name:
-                image_repo, tag = image_name.split(':')
-            else:
-                image_repo = image_name
-
-            try:
-                self.ecr_client.create_repository(repositoryName=image_repo)
-            except self.ecr_client.exceptions.RepositoryAlreadyExistsException as e:
-                logger.info('Repository {} already exists'.format(image_repo))
-
-            cmd = '{} tag {} {}/{}'.format(lambda_config.DOCKER_PATH, image_name, ecr_repo, image_name)
-            subprocess.check_call(cmd.split())
-
-            cmd = '{} push {}/{}'.format(lambda_config.DOCKER_PATH, ecr_repo, image_name)
-            subprocess.check_call(cmd.split())
+        if response['ResponseMetadata']['HTTPStatusCode'] == 204:
+            logger.debug('OK --> Deleted function {}'.format(function_name))
+        elif response['ResponseMetadata']['HTTPStatusCode'] == 404:
+            logger.debug('OK --> Function {} does not exist'.format(function_name))
         else:
-            # requirements.txt runtime
-            with open(runtime_file, 'r') as req_file:
-                requirements = req_file.read()
-            self.internal_storage.put_data('/'.join([lambda_config.USER_RUNTIME_PREFIX, runtime_name]), requirements)
+            msg = 'An error occurred creating/updating action {}: {}'.format(function_name, response)
+            raise Exception(msg)
 
-        logger.info('Ok - Created runtime {}'.format(runtime_name))
+    def build_runtime(self, runtime_name, runtime_file, extra_args=[]):
+        """
+        Build Lithops container runtime for AWS lambda
+        @param runtime_name: name of the runtime to be built
+        @param runtime_file: path of a Dockerfile for a container runtime
+        """
+        logger.info(f'Building runtime {runtime_name} from {runtime_file}')
 
-    def create_runtime(self, runtime_name, memory=3008, timeout=900):
+        docker_path = utils.get_docker_path()
+        if runtime_file:
+            assert os.path.isfile(runtime_file), f'Cannot locate "{runtime_file}"'
+            cmd = f'{docker_path} build -t {runtime_name} -f {runtime_file} . '
+        else:
+            cmd = f'{docker_path} build -t {runtime_name} . '
+        cmd = cmd + ' '.join(extra_args)
+
+        try:
+            self._create_handler_bin(remove=False)
+            utils.run_command(cmd)
+        finally:
+            os.remove(LITHOPS_FUNCTION_ZIP)
+
+        registry = f'{self.account_id}.dkr.ecr.{self.region_name}.amazonaws.com'
+
+        res = self.ecr_client.get_authorization_token()
+        if res['ResponseMetadata']['HTTPStatusCode'] != 200:
+            raise Exception(f'Could not get ECR auth token: {res}')
+
+        auth_data = res['authorizationData'].pop()
+        ecr_token = base64.b64decode(auth_data['authorizationToken']).split(b':')[1]
+
+        cmd = f'{docker_path} login --username AWS --password-stdin {registry}'
+        subprocess.check_output(cmd.split(), input=ecr_token)
+
+        repo_name = self._format_repo_name(runtime_name)
+
+        tag = 'latest' if ':' not in runtime_name else runtime_name.split(':')[1]
+
+        try:
+            self.ecr_client.create_repository(repositoryName=repo_name)
+        except self.ecr_client.exceptions.RepositoryAlreadyExistsException:
+            logger.debug(f'Repository {repo_name} already exists')
+
+        image_name = f'{registry}/{repo_name}:{tag}'
+        logger.debug(f'Pushing runtime {image_name} to AWS container registry')
+        cmd = f'{docker_path} tag {runtime_name} {image_name}'
+        utils.run_command(cmd)
+        if utils.is_podman(docker_path):
+            cmd = f'{docker_path} push {image_name} --format docker --remove-signatures'
+        else:
+            cmd = f'{docker_path} push {image_name}'
+        utils.run_command(cmd)
+
+        logger.debug('Building done!')
+
+    def _deploy_default_runtime(self, runtime_name, memory, timeout):
         """
-        Create a Lambda function with Lithops handler
-        @param runtime_name: name of the runtime
-        @param memory: runtime memory in MB
-        @param timeout: runtime timeout in seconds
-        @return: runtime metadata
+        Deploy the default runtime based on layers
         """
+        logger.info(f"Deploying runtime: {runtime_name} - Memory: {memory} - Timeout: {timeout}")
         function_name = self._format_function_name(runtime_name, memory)
-        logger.debug('Creating new Lithops lambda function: {}'.format(function_name))
 
-        if '/' in runtime_name:
-            # Container image runtime
-            image_name = runtime_name.split('/')[1]
+        layer_arn = self._get_layer(runtime_name)
+        if not layer_arn:
+            layer_arn = self._create_layer(runtime_name)
 
-            if ':' in image_name:
-                image_repo, tag = image_name.split(':')
+        code = self._create_handler_bin()
+        env_vars = {t['name']: t['value'] for t in self.lambda_config['env_vars']}
+
+        try:
+            response = self.lambda_client.create_function(
+                FunctionName=function_name,
+                Runtime=config.AVAILABLE_PY_RUNTIMES[utils.CURRENT_PY_VERSION],
+                Role=self.role_arn,
+                Handler='entry_point.lambda_handler',
+                Code={
+                    'ZipFile': code
+                },
+                Description=f'Lithops worker for v{__version__} and Python v{utils.CURRENT_PY_VERSION}',
+                Timeout=timeout,
+                MemorySize=memory,
+                Layers=[layer_arn],
+                VpcConfig={
+                    'SubnetIds': self.lambda_config['vpc']['subnets'],
+                    'SecurityGroupIds': self.lambda_config['vpc']['security_groups']
+                },
+                FileSystemConfigs=[
+                    {'Arn': efs_conf['access_point'],
+                        'LocalMountPath': efs_conf['mount_path']}
+                    for efs_conf in self.lambda_config['efs']
+                ],
+                Tags={
+                    'runtime_name': runtime_name,
+                    'lithops_version': __version__
+                },
+                EphemeralStorage={
+                    'Size': self.lambda_config['ephemeral_storage']
+                },
+                Environment={
+                    'Variables': env_vars
+                }
+            )
+
+            if response['ResponseMetadata']['HTTPStatusCode'] not in (200, 201):
+                raise Exception(f'An error occurred creating/updating action {runtime_name}: {response}')
+
+        except Exception as e:
+            if 'ResourceConflictException' in str(e):
+                pass
             else:
-                image_repo, tag = image_name, 'latest'
+                raise e
 
-            try:
-                response = self.ecr_client.describe_images(repositoryName=image_repo)
-                images = response['imageDetails']
-                image = list(filter(lambda image: tag in image['imageTags'], images)).pop()
-                image_digest = image['imageDigest']
-            except botocore.exceptions.ClientError:
-                raise Exception('Runtime {} is not deployed to ECR')
+        self._wait_for_function_deployed(function_name)
+        logger.debug('OK --> Created lambda function {}'.format(function_name))
 
-            image_uri = '{}.dkr.ecr.{}.amazonaws.com/{}@{}'.format(self.account_id, self.region_name,
-                                                                   image_repo, image_digest)
+    def _deploy_container_runtime(self, runtime_name, memory, timeout):
+        """
+        Deploy a runtime based on a container
+        """
+        logger.info(f"Deploying runtime: {runtime_name} - Memory: {memory} Timeout: {timeout}")
+        function_name = self._format_function_name(runtime_name, memory)
 
+        if ':' in runtime_name:
+            image, tag = runtime_name.split(':')
+        else:
+            image, tag = runtime_name, 'latest'
+
+        try:
+            repo_name = self._format_repo_name(image)
+            response = self.ecr_client.describe_images(repositoryName=repo_name)
+            images = response['imageDetails']
+            if not images:
+                raise Exception(f'Runtime {runtime_name} is not present in ECR.'
+                                'Consider running "lithops runtime build -b aws_lambda ..."')
+            image = list(filter(lambda image: 'imageTags' in image and tag in image['imageTags'], images)).pop()
+            image_digest = image['imageDigest']
+        except botocore.exceptions.ClientError:
+            raise Exception(f'Runtime "{runtime_name}" is not deployed to ECR')
+
+        registry = f'{self.account_id}.dkr.ecr.{self.region_name}.amazonaws.com'
+        image_uri = f'{registry}/{repo_name}@{image_digest}'
+
+        env_vars = {t['name']: t['value'] for t in self.lambda_config['env_vars']}
+
+        try:
             response = self.lambda_client.create_function(
                 FunctionName=function_name,
                 Role=self.role_arn,
@@ -352,152 +487,134 @@ class AWSLambdaBackend:
                     'ImageUri': image_uri
                 },
                 PackageType='Image',
-                Description=self.package,
+                Description=f'Lithops worker for v{__version__} and Python v{utils.CURRENT_PY_VERSION}',
                 Timeout=timeout,
                 MemorySize=memory,
                 VpcConfig={
-                    'SubnetIds': self.aws_lambda_config['vpc']['subnets'],
-                    'SecurityGroupIds': self.aws_lambda_config['vpc']['security_groups']
+                    'SubnetIds': self.lambda_config['vpc']['subnets'],
+                    'SecurityGroupIds': self.lambda_config['vpc']['security_groups']
                 },
                 FileSystemConfigs=[
                     {'Arn': efs_conf['access_point'],
-                     'LocalMountPath': efs_conf['mount_path']}
-                    for efs_conf in self.aws_lambda_config['efs']
-                ]
-            )
-        else:
-            layer_arn = self._get_layer(runtime_name)
-            if not layer_arn:
-                layer_arn = self._create_layer(runtime_name)
-
-            code = self._create_handler_bin()
-            response = self.lambda_client.create_function(
-                FunctionName=function_name,
-                Runtime=lambda_config.LAMBDA_PYTHON_VER_KEY,
-                Role=self.role_arn,
-                Handler='__main__.lambda_handler',
-                Code={
-                    'ZipFile': code
+                        'LocalMountPath': efs_conf['mount_path']}
+                    for efs_conf in self.lambda_config['efs']
+                ],
+                Tags={
+                    'runtime_name': runtime_name,
+                    'lithops_version': __version__
                 },
-                Description=self.package,
-                Timeout=timeout,
-                MemorySize=memory,
-                Layers=[layer_arn],
-                VpcConfig={
-                    'SubnetIds': self.aws_lambda_config['vpc']['subnets'],
-                    'SecurityGroupIds': self.aws_lambda_config['vpc']['security_groups']
+                Architectures=[self.lambda_config['architecture']],
+                EphemeralStorage={
+                    'Size': self.lambda_config['ephemeral_storage']
                 },
-                FileSystemConfigs=[
-                    {'Arn': efs_conf['access_point'],
-                     'LocalMountPath': efs_conf['mount_path']}
-                    for efs_conf in self.aws_lambda_config['efs']
-                ]
+                Environment={
+                    'Variables': env_vars
+                }
             )
 
-        if response['ResponseMetadata']['HTTPStatusCode'] in [200, 201]:
-            logger.debug('OK --> Created lambda function {}'.format(runtime_name))
+            if response['ResponseMetadata']['HTTPStatusCode'] not in (200, 201):
+                raise Exception(f'An error occurred creating/updating action {runtime_name}: {response}')
 
-            retries, sleep_seconds = (15, 25) if 'vpc' in self.aws_lambda_config else (30, 5)
-            while retries > 0:
-                response = self.lambda_client.get_function(
-                    FunctionName=function_name
-                )
-                state = response['Configuration']['State']
-                if state == 'Pending':
-                    time.sleep(sleep_seconds)
-                    logger.info('Function is being deployed... '
-                                 '(status: {})'.format(response['Configuration']['State']))
-                    retries -= 1
-                    if retries == 0:
-                        raise Exception('Function not deployed: {}'.format(response))
-                elif state == 'Active':
-                    break
+        except Exception as e:
+            if 'ResourceConflictException' in str(e):
+                pass
+            else:
+                raise e
 
-            logger.debug('Ok --> Function active')
+        self._wait_for_function_deployed(function_name)
+        logger.debug(f'OK --> Created lambda function {function_name}')
+
+    def deploy_runtime(self, runtime_name, memory, timeout):
+        """
+        Deploys a Lambda function with the Lithops handler
+        @param runtime_name: name of the runtime
+        @param memory: runtime memory in MB
+        @param timeout: runtime timeout in seconds
+        @return: runtime metadata
+        """
+        if runtime_name == self._get_default_runtime_name():
+            self._deploy_default_runtime(runtime_name, memory, timeout)
         else:
-            msg = 'An error occurred creating/updating action {}: {}'.format(runtime_name, response)
-            raise Exception(msg)
+            self._deploy_container_runtime(runtime_name, memory, timeout)
 
         runtime_meta = self._generate_runtime_meta(runtime_name, memory)
 
         return runtime_meta
 
-    def delete_runtime(self, runtime_name, runtime_memory):
+    def delete_runtime(self, runtime_name, runtime_memory, version=__version__):
         """
         Delete a Lithops lambda runtime
         @param runtime_name: name of the runtime to be deleted
         @param runtime_memory: memory of the runtime to be deleted in MB
         """
-        logger.debug('Deleting lambda runtime: {}'.format(runtime_name))
+        logger.info(f'Deleting lambda runtime: {runtime_name} - {runtime_memory}MB')
+        func_name = self._format_function_name(runtime_name, runtime_memory, version)
 
-        try:
-            response = self.lambda_client.delete_function(
-                FunctionName=runtime_name
-            )
-        except botocore.exceptions.ClientError as err:
-            raise err
+        self._delete_function(func_name)
 
-        if response['ResponseMetadata']['HTTPStatusCode'] == 204:
-            logger.debug('OK --> Deleted function {}'.format(runtime_name))
-        elif response['ResponseMetadata']['HTTPStatusCode'] == 404:
-            logger.debug('OK --> Function {} does not exist'.format(runtime_name))
-        else:
-            msg = 'An error occurred creating/updating action {}: {}'.format(runtime_name, response)
-            raise Exception(msg)
+        if not self._is_container_runtime(runtime_name):
+            layer = self._format_layer_name(runtime_name, version)
+            self._delete_layer(layer)
 
-        if runtime_name not in lambda_config.DEFAULT_RUNTIMES:
-            build_name, _ = self._unformat_function_name(runtime_name)
-            self.internal_storage.storage.delete_object(self.internal_storage.bucket,
-                                                        '/'.join([lambda_config.USER_RUNTIME_PREFIX, build_name]))
-
-    def clean(self):
+    def clean(self, **kwargs):
         """
         Deletes all Lithops lambda runtimes for this user
         """
         logger.debug('Deleting all runtimes')
 
-        runtimes = self.list_runtimes()
+        prefix = f'{self.namespace}-lithops-worker-{self.user_key}' \
+            if self.namespace else f'lithops-worker-{self.user_key}'
 
-        for runtime in runtimes:
-            runtime_name, runtime_memory = runtime
-            self.delete_runtime(runtime_name, runtime_memory)
+        def delete_runtimes(response):
+            for function in response['Functions']:
+                if function['FunctionName'].startswith(prefix):
+                    self._delete_function(function['FunctionName'])
+
+        response = self.lambda_client.list_functions(FunctionVersion='ALL')
+        delete_runtimes(response)
+        while 'NextMarker' in response:
+            response = self.lambda_client.list_functions(Marker=response['NextMarker'])
+            delete_runtimes(response)
 
         layers = self._list_layers()
         for layer_name, _ in layers:
             self._delete_layer(layer_name)
 
-        custom_layer_runtime_keys = self.internal_storage.storage.list_keys(bucket=self.internal_storage.bucket,
-                                                                            prefix=lambda_config.USER_RUNTIME_PREFIX)
-        self.internal_storage.storage.delete_objects(bucket=self.internal_storage.bucket,
-                                                     key_list=custom_layer_runtime_keys)
-
-    def list_runtimes(self, runtime_name='all', unformat_name=False):
+    def list_runtimes(self, runtime_name='all'):
         """
         List all the Lithops lambda runtimes deployed for this user
         @param runtime_name: name of the runtime to list, 'all' to list all runtimes
-        @param unformat_name: True to unformat the name
         @return: list of tuples (runtime name, memory)
         """
-        logger.debug('Listing all functions deployed...')
+        runtimes = []
 
-        functions = []
+        prefix = f'{self.namespace}-lithops-worker-{self.user_key}' \
+            if self.namespace else f'lithops-worker-{self.user_key}'
+
+        def get_runtimes(response):
+            for function in response['Functions']:
+                if not function['FunctionName'].startswith(prefix):
+                    continue
+                fn_name = function['FunctionName']
+                rt_memory = function['MemorySize']
+                function_arn = function['FunctionArn'].replace(':$LATEST', '')
+                tags_response = self.lambda_client.list_tags(Resource=function_arn)['Tags']
+                rt_name = tags_response['runtime_name']
+                version = tags_response['lithops_version']
+                runtimes.append((rt_name, rt_memory, version, fn_name))
+
         response = self.lambda_client.list_functions(FunctionVersion='ALL')
-        for function in response['Functions']:
-            if 'lithops' in function['FunctionName'] and self.user_key in function['FunctionName']:
-                functions.append((function['FunctionName'], function['MemorySize']))
-
+        get_runtimes(response)
         while 'NextMarker' in response:
             response = self.lambda_client.list_functions(Marker=response['NextMarker'])
-            for function in response['Functions']:
-                if 'lithops' in function['FunctionName']:
-                    functions.append((function['FunctionName'], function['MemorySize']))
+            get_runtimes(response)
 
-        logger.debug('Listed {} functions'.format(len(functions)))
+        if runtime_name != 'all':
+            if self._is_container_runtime(runtime_name) and ':' not in runtime_name:
+                runtime_name = runtime_name + ':latest'
+            runtimes = [tup for tup in runtimes if runtime_name in tup[0]]
 
-        if unformat_name:
-            functions = [(self._unformat_function_name(func_name)[0], mem) for (func_name, mem) in functions]
-
-        return functions
+        return runtimes
 
     def invoke(self, runtime_name, runtime_memory, payload):
         """
@@ -507,52 +624,102 @@ class AWSLambdaBackend:
         @param payload: invoke dict payload
         @return: invocation ID
         """
+
         function_name = self._format_function_name(runtime_name, runtime_memory)
 
-        response = self.lambda_client.invoke(
-            FunctionName=function_name,
-            InvocationType='Event',
-            Payload=json.dumps(payload)
-        )
+        headers = {'Host': self.host, 'X-Amz-Invocation-Type': 'Event', 'User-Agent': self.user_agent}
+        url = f'https://{self.host}/2015-03-31/functions/{function_name}/invocations'
+        request = AWSRequest(method="POST", url=url, data=json.dumps(payload, default=str), headers=headers)
+        SigV4Auth(self.credentials, "lambda", self.region_name).add_auth(request)
 
-        if response['ResponseMetadata']['HTTPStatusCode'] == 202:
-            return response['ResponseMetadata']['RequestId']
+        invoked = False
+        while not invoked:
+            try:
+                r = self.session.send(request.prepare())
+                invoked = True
+            except Exception:
+                pass
+
+        if r.status_code == 202:
+            return r.headers['x-amzn-RequestId']
+        elif r.status_code == 401:
+            logger.debug(r.text)
+            raise Exception('Unauthorized - Invalid API Key')
+        elif r.status_code == 404:
+            logger.debug(r.text)
+            raise Exception(f'Lithops Runtime: {runtime_name} not deployed')
         else:
-            logger.debug(response)
-            if response['ResponseMetadata']['HTTPStatusCode'] == 401:
-                raise Exception('Unauthorized - Invalid API Key')
-            elif response['ResponseMetadata']['HTTPStatusCode'] == 404:
-                raise Exception('Lithops Runtime: {} not deployed'.format(runtime_name))
-            else:
-                raise Exception(response)
+            logger.debug(r.text)
+            raise Exception(f'Error {r.status_code}: {r.text}')
 
-    def get_runtime_key(self, runtime_name, runtime_memory):
+        # response = self.lambda_client.invoke(
+        #    FunctionName=function_name,
+        #     InvocationType='Event',
+        #     Payload=json.dumps(payload, default=str)
+        #  )
+
+        # if response['ResponseMetadata']['HTTPStatusCode'] == 202:
+        #     return response['ResponseMetadata']['RequestId']
+        # else:
+        #     logger.debug(response)
+        #     if response['ResponseMetadata']['HTTPStatusCode'] == 401:
+        #         raise Exception('Unauthorized - Invalid API Key')
+        #     elif response['ResponseMetadata']['HTTPStatusCode'] == 404:
+        #         raise Exception('Lithops Runtime: {} not deployed'.format(runtime_name))
+        #     else:
+        #         raise Exception(response)
+
+    def get_runtime_key(self, runtime_name, runtime_memory, version=__version__):
         """
         Method that creates and returns the runtime key.
         Runtime keys are used to uniquely identify runtimes within the storage,
         in order to know which runtimes are installed and which not.
         """
-        action_name = self._format_function_name(runtime_name, runtime_memory)
-        runtime_key = '/'.join([self.name, self.region_name, action_name])
+        action_name = self._format_function_name(runtime_name, runtime_memory, version)
+        runtime_key = os.path.join(self.name, version, self.region_name, action_name)
 
         return runtime_key
+
+    def get_runtime_info(self):
+        """
+        Method that returns all the relevant information about the runtime set
+        in config
+        """
+        if 'runtime' not in self.lambda_config or self.lambda_config['runtime'] == 'default':
+            if utils.CURRENT_PY_VERSION not in config.AVAILABLE_PY_RUNTIMES:
+                raise Exception(
+                    f'Python {utils.CURRENT_PY_VERSION} is not available '
+                    f'for AWS Lambda, please use one of {list(config.AVAILABLE_PY_RUNTIMES.keys())},'
+                    ' or use a container runtime.'
+                )
+            self.lambda_config['runtime'] = self._get_default_runtime_name()
+
+        runtime_info = {
+            'runtime_name': self.lambda_config['runtime'],
+            'runtime_memory': self.lambda_config['runtime_memory'],
+            'runtime_timeout': self.lambda_config['runtime_timeout'],
+            'max_workers': self.lambda_config['max_workers'],
+        }
+
+        return runtime_info
 
     def _generate_runtime_meta(self, runtime_name, runtime_memory):
         """
         Extract preinstalled Python modules from lambda function execution environment
         return : runtime meta dictionary
         """
-        logger.debug('Extracting Python modules list from: {}'.format(runtime_name))
+        logger.debug(f'Extracting runtime metadata from: {runtime_name}')
 
         function_name = self._format_function_name(runtime_name, runtime_memory)
 
         response = self.lambda_client.invoke(
             FunctionName=function_name,
-            Payload=json.dumps({'get_preinstalls': {}})
+            Payload=json.dumps({'get_metadata': {}})
         )
 
         result = json.loads(response['Payload'].read())
+
         if 'lithops_version' in result:
             return result
         else:
-            raise Exception(result)
+            raise Exception(f'An error occurred: {result}')

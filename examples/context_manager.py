@@ -9,7 +9,7 @@ import lithops
 
 
 def my_map_function(id, x):
-    print("I'm activation number {}".format(id))
+    print(f"I'm activation number {id}")
     return x + 7
 
 

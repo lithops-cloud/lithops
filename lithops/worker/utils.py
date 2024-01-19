@@ -19,6 +19,7 @@ import sys
 import pkgutil
 import logging
 import pickle
+import platform
 import subprocess
 from contextlib import contextmanager
 
@@ -30,29 +31,29 @@ logger = logging.getLogger(__name__)
 
 
 if is_unix_system():
+    from resource import RUSAGE_SELF, getrusage
     # Windows hosts can't use ps_mem module
     import ps_mem
 
 
 def get_function_and_modules(job, internal_storage):
     """
-    Gets the function and the modules from storage
+    Gets the function and modules from storage
     """
     logger.debug("Getting function and modules")
 
-    mode = job.config['lithops']['mode']
-    customized_runtime = job.config[mode].get('customized_runtime', False)
-
-    func_obj = None
-    if customized_runtime:
+    if job.config['lithops'].get('customized_runtime'):
+        logger.debug("Customized runtime feature activated. Loading "
+                     "function and modules from local runtime")
         func_path = '/'.join([LITHOPS_TEMP_DIR, job.func_key])
         with open(func_path, "rb") as f:
             func_obj = f.read()
     else:
         func_obj = internal_storage.get_func(job.func_key)
+
     loaded_func_all = pickle.loads(func_obj)
 
-    if loaded_func_all['module_data']:
+    if loaded_func_all.get('module_data'):
         module_path = os.path.join(MODULES_DIR, job.job_key)
         logger.debug("Writing function dependencies to {}".format(module_path))
         os.makedirs(module_path, exist_ok=True)
@@ -86,24 +87,27 @@ def get_function_data(job, internal_storage):
     """
     logger.debug("Getting function data")
 
-    extra_get_args = {}
-    if job.data_byte_ranges is not None:
-        init_byte = job.data_byte_ranges[0][0]
-        last_byte = job.data_byte_ranges[-1][1]
-        range_str = 'bytes={}-{}'.format(init_byte, last_byte)
-        extra_get_args['Range'] = range_str
+    if job.data_key:
+        extra_get_args = {}
+        if job.data_byte_ranges is not None:
+            init_byte = job.data_byte_ranges[0][0]
+            last_byte = job.data_byte_ranges[-1][1]
+            range_str = 'bytes={}-{}'.format(init_byte, last_byte)
+            extra_get_args['Range'] = range_str
 
-    data_obj = internal_storage.get_data(job.data_key, extra_get_args=extra_get_args)
+        data_obj = internal_storage.get_data(job.data_key, extra_get_args=extra_get_args)
 
-    loaded_data = []
-    offset = 0
-    if job.data_byte_ranges is not None:
-        for dbr in job.data_byte_ranges:
-            length = dbr[1] - dbr[0] + 1
-            loaded_data.append(data_obj[offset:offset+length])
-            offset += length
+        loaded_data = []
+        offset = 0
+        if job.data_byte_ranges is not None:
+            for dbr in job.data_byte_ranges:
+                length = dbr[1] - dbr[0] + 1
+                loaded_data.append(data_obj[offset:offset + length])
+                offset += length
+        else:
+            loaded_data.append(data_obj)
     else:
-        loaded_data.append(data_obj)
+        loaded_data = [eval(byte_str) for byte_str in job.data_byte_strs]
 
     return loaded_data
 
@@ -130,6 +134,16 @@ def get_memory_usage(formatted=True):
         return sizeof_fmt(int(ps_mem.human(total, units=1)))
     else:
         return int(ps_mem.human(total, units=1))
+
+
+def peak_memory():
+    """Return the peak memory usage in bytes."""
+    if not is_unix_system():
+        return None
+    ru_maxrss = getrusage(RUSAGE_SELF).ru_maxrss
+    # note that on Linux ru_maxrss is in KiB, while on Mac it is in bytes
+    # see https://pythonspeed.com/articles/estimating-memory-usage/#measuring-peak-memory-usage
+    return ru_maxrss * 1024 if platform.system() == "Linux" else ru_maxrss
 
 
 def free_disk_space(dirname):
@@ -172,7 +186,7 @@ def get_server_info():
     return server_info
 
 
-def get_runtime_preinstalls():
+def get_runtime_metadata():
     """
     Generates the runtime metadata needed for lithops
     """
@@ -180,7 +194,7 @@ def get_runtime_preinstalls():
     mods = list(pkgutil.iter_modules())
     runtime_meta["preinstalls"] = [entry for entry in sorted([[mod, is_pkg] for _, mod, is_pkg in mods])]
     python_version = sys.version_info
-    runtime_meta["python_version"] = str(python_version[0])+"."+str(python_version[1])
+    runtime_meta["python_version"] = str(python_version[0]) + "." + str(python_version[1])
     runtime_meta["lithops_version"] = lithops_ver
 
     return runtime_meta
@@ -195,7 +209,7 @@ def memory_monitor_worker(mm_conn, delay=0.01):
     logger.debug("Starting memory monitor")
 
     def make_measurement(peak):
-        mem = get_memory_usage(formatted=False) + 5*1024**2
+        mem = get_memory_usage(formatted=False) + 5 * 1024**2
         if mem > peak:
             peak = mem
         return peak
@@ -243,6 +257,7 @@ class LogStream:
     def flush(self):
         try:
             self._stream.flush()
+            self._stdout.flush()
         except ValueError:
             pass
 

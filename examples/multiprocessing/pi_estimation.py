@@ -15,7 +15,7 @@ def is_inside(n):
 
 
 if __name__ == '__main__':
-    np, n = 96, 15000000000
+    np, n = 96, 150000000
     part_count = [int(n / np)] * np
     pool = Pool(processes=np)
     count = pool.map(is_inside, part_count)

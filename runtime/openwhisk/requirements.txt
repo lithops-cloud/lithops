@@ -1,0 +1,49 @@
+# Requirements.txt contains a list of dependencies for the Python Application #
+
+# Setup modules
+gevent
+flask
+
+# Lithops
+cloudpickle
+ps-mem
+tblib
+
+# default available packages for python3
+beautifulsoup4
+httplib2
+#kafka_python
+lxml
+python-dateutil
+requests
+scrapy
+simplejson
+#virtualenv
+Twisted
+PyJWT
+
+# packages for numerics
+numpy
+scikit-learn
+scipy
+pandas
+
+# packages for image processing
+Pillow
+
+# IBM specific python modules
+#ibm_db
+#cloudant
+#watson-developer-cloud
+ibm-cos-sdk
+ibm-cloud-sdk-core
+#ibmcloudsql
+ibm-vpc
+
+# Compose Libs
+psycopg2-binary
+#pymongo
+redis
+pika
+#elasticsearch
+etcd3

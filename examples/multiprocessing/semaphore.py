@@ -2,23 +2,21 @@ from lithops.multiprocessing import Pool, Semaphore, SimpleQueue, current_proces
 import time
 
 
-def f(sem, q):
+def f(sem):
     with sem:
         pid = current_process().pid
-        ts = time.time()
-        msg = 'process: {} - timestamp: {}'.format(pid, ts)
-        q.put(msg)
-        time.sleep(3)
+        time.sleep(3)  # Working...
+        msg = 'process: {} - timestamp: {}'.format(pid, time.time())
+        return msg
 
 
 if __name__ == "__main__":
-    # inital value to 3
-    sem = Semaphore(value=3)
-    q = SimpleQueue()
+    # inital value to 2
+    sem = Semaphore(value=2)
 
-    n = 6
+    n = 4
     with Pool() as p:
-        p.map_async(f, [[sem, q]] * n)
+        res = p.map(f, [sem] * n)
 
-        for _ in range(n):
-            print(q.get())
+    for msg in res:
+        print(msg)

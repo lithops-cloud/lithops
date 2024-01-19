@@ -1,5 +1,5 @@
 # Python 3.6
-FROM python:3.6-slim-buster
+#FROM python:3.6-slim-buster
 
 # Python 3.7
 #FROM python:3.7-slim-buster
@@ -9,6 +9,9 @@ FROM python:3.6-slim-buster
 
 # Python 3.9
 #FROM python:3.9-slim-buster
+
+# Python 3.10
+FROM python:3.10-slim-buster
 
 RUN apt-get update && apt-get install -y \
         zip \
@@ -20,7 +23,6 @@ RUN pip install --upgrade setuptools six pip \
         pika \
         flask \
         gevent \
-        glob2 \
         ibm-cos-sdk \
         google-cloud-storage \
         google-cloud-pubsub \

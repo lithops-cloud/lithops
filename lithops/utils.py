@@ -16,12 +16,12 @@
 # limitations under the License.
 #
 
-
-import io
 import re
 import os
+import sys
 import uuid
 import json
+import socket
 import shutil
 import base64
 import inspect
@@ -31,8 +31,12 @@ import zipfile
 import platform
 import logging.config
 import subprocess as sp
+from enum import Enum
+from contextlib import closing
 
-from lithops.constants import LOGGER_FORMAT, LOGGER_LEVEL, LOGGER_STREAM
+from lithops import constants
+from lithops.version import __version__
+
 
 logger = logging.getLogger(__name__)
 
@@ -79,20 +83,105 @@ def agg_data(data_strs):
     pos = 0
     for datum in data_strs:
         datum_len = len(datum)
-        ranges.append((pos, pos+datum_len-1))
+        ranges.append((pos, pos + datum_len - 1))
         pos += datum_len
     return b"".join(data_strs), ranges
 
 
-def setup_lithops_logger(log_level=LOGGER_LEVEL,
-                         log_format=LOGGER_FORMAT,
+def create_futures_list(futures, executor):
+    """creates a new FuturesList an initiates its attrs"""
+    fl = FuturesList(futures)
+    fl.config = executor.config
+    fl.executor = executor
+
+    return fl
+
+
+class FuturesList(list):
+
+    def _create_executor(self):
+        if not self.executor:
+            from lithops import FunctionExecutor
+            self.executor = FunctionExecutor(config=self.config)
+
+    def _extend_futures(self, fs):
+        for fut in self:
+            fut._produce_output = False
+        if not hasattr(self, 'alt_list'):
+            self.alt_list = []
+            self.alt_list.extend(self)
+        self.alt_list.extend(fs)
+        self.clear()
+        self.extend(fs)
+
+    def map(self, map_function, sync=False, **kwargs):
+        self._create_executor()
+        if sync:
+            self.executor.wait(self)
+        fs = self.executor.map(map_function, self, **kwargs)
+        self._extend_futures(fs)
+        return self
+
+    def map_reduce(self, map_function, reduce_function, sync=False, **kwargs):
+        self._create_executor()
+        if sync:
+            self.executor.wait(self)
+        fs = self.executor.map_reduce(map_function, self, reduce_function, **kwargs)
+        self._extend_futures(fs)
+        return self
+
+    def wait(self, **kwargs):
+        self._create_executor()
+        fs_tt = self.alt_list if hasattr(self, 'alt_list') else self
+        return self.executor.wait(fs_tt, **kwargs)
+
+    def get_result(self, **kwargs):
+        self._create_executor()
+        fs_tt = self.alt_list if hasattr(self, 'alt_list') else self
+        return self.executor.get_result(fs_tt, **kwargs)
+
+    def __reduce__(self):
+        self.executor = None
+        return super().__reduce__()
+
+
+def get_default_backend(mode):
+    """ Return lithops execution backend """
+
+    if mode == constants.LOCALHOST:
+        return constants.LOCALHOST
+    elif mode == constants.SERVERLESS:
+        return constants.SERVERLESS_BACKEND_DEFAULT
+    elif mode == constants.STANDALONE:
+        return constants.STANDALONE_BACKEND_DEFAULT
+    elif mode:
+        raise Exception("Unknown exeution mode: {}".format(mode))
+
+
+def get_mode(backend):
+    """ Return lithops execution mode """
+
+    if backend is None:
+        return constants.MODE_DEFAULT
+    elif backend == constants.LOCALHOST:
+        return constants.LOCALHOST
+    elif backend in constants.SERVERLESS_BACKENDS:
+        return constants.SERVERLESS
+    elif backend in constants.STANDALONE_BACKENDS:
+        return constants.STANDALONE
+    elif backend:
+        raise Exception("Unknown compute backend: {}".format(backend))
+
+
+def setup_lithops_logger(log_level=constants.LOGGER_LEVEL,
+                         log_format=constants.LOGGER_FORMAT,
                          stream=None, filename=None):
     """Setup logging for lithops."""
     if log_level is None or str(log_level).lower() == 'none':
         return
 
     if stream is None:
-        stream = LOGGER_STREAM
+        stream = constants.LOGGER_STREAM
 
     if filename is None:
         filename = os.devnull
@@ -138,7 +227,7 @@ def setup_lithops_logger(log_level=LOGGER_LEVEL,
     logging.config.dictConfig(config_dict)
 
 
-def create_handler_zip(dst_zip_location, entry_point_file, entry_point_name=None):
+def create_handler_zip(dst_zip_location, entry_point_files, entry_point_name=None):
     """Create the zip package that is uploaded as a function"""
 
     logger.debug("Creating function handler zip in {}".format(dst_zip_location))
@@ -152,20 +241,22 @@ def create_handler_zip(dst_zip_location, entry_point_file, entry_point_name=None
                 add_folder_to_zip(zip_file, full_path, os.path.join(sub_dir, file))
 
     try:
+        ep_files = entry_point_files if isinstance(entry_point_files, list) else [entry_point_files]
         with zipfile.ZipFile(dst_zip_location, 'w', zipfile.ZIP_DEFLATED) as lithops_zip:
             module_location = os.path.dirname(os.path.abspath(lithops.__file__))
-            entry_point_name = entry_point_name or os.path.basename(entry_point_file)
-            lithops_zip.write(entry_point_file, entry_point_name)
+            for ep_file in ep_files:
+                ep_name = entry_point_name or os.path.basename(ep_file)
+                lithops_zip.write(ep_file, ep_name)
             add_folder_to_zip(lithops_zip, module_location)
 
-    except Exception:
-        raise Exception('Unable to create the {} package: {}'.format(dst_zip_location))
+    except Exception as e:
+        raise Exception(f'Unable to create the {dst_zip_location} package: {e}')
 
 
 def verify_runtime_name(runtime_name):
     """Check if the runtime name has a correct formating"""
-    assert re.match("^[A-Za-z0-9_/.:-]*$", runtime_name),\
-        'Runtime name "{}" not valid'.format(runtime_name)
+    assert re.match("^[A-Za-z0-9_/.:-]*$", runtime_name), \
+        f'Runtime name "{runtime_name}" not valid'
 
 
 def timeout_handler(error_msg, signum, frame):
@@ -181,6 +272,15 @@ def is_unix_system():
     """Check if the current OS is UNIX"""
     curret_system = platform.system()
     return curret_system != 'Windows'
+
+
+def is_linux_system():
+    """Check if the current OS is LINUX"""
+    curret_system = platform.system().lower()
+    if curret_system == "linux":
+        return True
+    else:
+        return False
 
 
 def is_lithops_worker():
@@ -219,7 +319,7 @@ def convert_bools_to_string(extra_env):
     Converts all booleans of a dictionary to a string
     """
     for key in extra_env:
-        if type(extra_env[key]) == bool:
+        if type(extra_env[key]) is bool:
             extra_env[key] = str(extra_env[key])
 
     return extra_env
@@ -240,12 +340,12 @@ def sdb_to_dict(item):
 
 def dict_to_b64str(the_dict):
     bytes_dict = json.dumps(the_dict, default=str).encode()
-    b64_dict = base64.urlsafe_b64encode(bytes_dict)
+    b64_dict = base64.b64encode(bytes_dict)
     return b64_dict.decode()
 
 
 def b64str_to_dict(str_data):
-    b64_dict = base64.urlsafe_b64decode(str_data.encode())
+    b64_dict = base64.b64decode(str_data.encode())
     bytes_dict = json.loads(b64_dict)
 
     return bytes_dict
@@ -263,27 +363,88 @@ def b64str_to_bytes(str_data):
     return byte_data
 
 
+def get_docker_path():
+    docker_path = shutil.which('docker')
+    podman_path = shutil.which('podman')
+    if not docker_path and not podman_path:
+        raise Exception('docker/podman command not found. Install docker'
+                        '/podman or use an already built runtime')
+    return docker_path or podman_path
+
+
+def get_default_container_name(backend, backend_config, runtime_name):
+    """
+    Generates the default runtime image name
+    Used in serverless/kubernetes-based backends
+    """
+    python_version = CURRENT_PY_VERSION.replace('.', '')
+    img = f'{runtime_name}-v{python_version}:{__version__}'
+
+    docker_server = backend_config['docker_server']
+
+    if 'docker.io' in docker_server:
+        # Docker hub container registry
+        try:
+            docker_user = backend_config['docker_user']
+        except Exception:
+            raise Exception('You must provide "docker_user" param '
+                            f'in config under "{backend}" section')
+        return f'docker.io/{docker_user}/{img}'
+
+    elif 'icr.io' in docker_server:
+        # IBM container registry
+        try:
+            docker_namespace = backend_config['docker_namespace']
+        except Exception:
+            raise Exception('You must provide "docker_namespace" param'
+                            f'in config under "{backend}" section')
+        return f'{docker_server}/{docker_namespace}/{img}'
+
+    elif 'gcr.io' in docker_server:
+        # Google container registry
+        try:
+            country = backend_config['region'].split('-')[0]
+            project_name = backend_config['project_name']
+        except Exception:
+            raise Exception('You must provide "region" and "project_name" params'
+                            'in config under "gcp" section')
+        return f'{country}.gcr.io/{project_name}/{img}'
+
+    else:
+        return f'{docker_server}/{img}'
+
+
 def get_docker_username():
     user = None
-    cmd = "{} info".format(shutil.which('docker'))
-    docker_user_info = sp.check_output(cmd, shell=True,
-                                       encoding='UTF-8',
-                                       stderr=sp.STDOUT)
+    docker_path = get_docker_path()
+
+    docker_user_info = sp.check_output(
+        f"{docker_path} info", shell=True,
+        encoding='UTF-8', stderr=sp.STDOUT
+    )
     for line in docker_user_info.splitlines():
         if 'Username' in line:
             _, useranme = line.strip().split(':')
             user = useranme.strip()
 
     if user is None:
-        cmd = ("docker-credential-desktop list | jq -r 'to_entries[].key' | while "
-               "read; do docker-credential-desktop get <<<$REPLY; break; done")
-        docker_user_info = sp.check_output(cmd, shell=True,
-                                           encoding='UTF-8',
-                                           stderr=sp.STDOUT)
-        docker_data = json.loads(docker_user_info)
-        user = docker_data['Username']
+        try:
+            cmd = ("docker-credential-desktop list | jq -r 'to_entries[].key' | while "
+                   "read; do docker-credential-desktop get <<<$REPLY; break; done")
+            docker_user_info = sp.check_output(cmd, shell=True, encoding='UTF-8', stderr=sp.STDOUT)
+            docker_data = json.loads(docker_user_info)
+            user = docker_data['Username']
+        except Exception:
+            raise Exception('Unable to get the Docker registry user')
 
     return user
+
+
+def find_free_port():
+    with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
+        s.bind(('', 0))
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        return s.getsockname()[1]
 
 
 def split_object_url(obj_url):
@@ -331,7 +492,7 @@ def format_data(iterdata, extra_args):
     # Format iterdata in a proper way
     if type(iterdata) in [range, set]:
         data = list(iterdata)
-    elif type(iterdata) != list:
+    elif type(iterdata) is not list and type(iterdata) is not FuturesList:
         data = [iterdata]
     else:
         data = iterdata
@@ -361,6 +522,10 @@ def format_data(iterdata, extra_args):
 
 def verify_args(func, iterdata, extra_args):
 
+    if isinstance(iterdata, FuturesList):
+        # this is required for function chaining
+        return [{'future': f} for f in iterdata]
+
     data = format_data(iterdata, extra_args)
 
     # Verify parameters
@@ -376,7 +541,7 @@ def verify_args(func, iterdata, extra_args):
 
     new_data = list()
     for elem in data:
-        if type(elem) == dict:
+        if isinstance(elem, dict):
             if set(list(new_func_sig.parameters.keys())) <= set(elem):
                 new_data.append(elem)
             else:
@@ -385,7 +550,7 @@ def verify_args(func, iterdata, extra_args):
                                  "the args must be: {}"
                                  .format(list(elem.keys()),
                                          list(new_func_sig.parameters.keys())))
-        elif type(elem) == tuple:
+        elif isinstance(elem, tuple):
             new_elem = dict(new_func_sig.bind(*list(elem)).arguments)
             new_data.append(new_elem)
         else:
@@ -398,11 +563,9 @@ def verify_args(func, iterdata, extra_args):
 
 class WrappedStreamingBody:
     """
-    Wrap boto3's StreamingBody object to provide enough Python fileobj functionality,
-    and to discard data added by partitioner and cut lines.
+    Wrap boto3's StreamingBody object to provide enough Python fileobj functionality.
 
     from https://gist.github.com/debedb/2e5cbeb54e43f031eaf0
-
     """
     def __init__(self, sb, size):
         # The StreamingBody we're wrapping
@@ -413,7 +576,6 @@ class WrappedStreamingBody:
         self.size = size
 
     def tell(self):
-        # print("In tell()")
         return self.pos
 
     def read(self, n=None):
@@ -432,20 +594,18 @@ class WrappedStreamingBody:
         return retval
 
     def seek(self, offset, whence=0):
-        # print("Calling seek()")
         retval = self.pos
         if whence == 2:
             if offset == 0:
                 retval = self.size
             else:
                 raise Exception("Unsupported")
-        else:
-            if whence == 1:
-                offset = self.pos + offset
-                if offset > self.size:
-                    retval = self.size
-                else:
-                    retval = offset
+        elif whence == 1:
+            offset = self.pos + offset
+            if offset > self.size:
+                retval = self.size
+            else:
+                retval = offset
         # print("In seek(%s, %s): %s, size is %s" % (offset, whence, retval, self.size))
 
         self.pos = retval
@@ -454,9 +614,13 @@ class WrappedStreamingBody:
     def __str__(self):
         return "WrappedBody"
 
-    def __getattr__(self, attr):
-        # print("Calling %s"  % attr)
+    def __iter__(self):
+        return self
 
+    def __next__(self):
+        return self.read(64 * 1024)
+
+    def __getattr__(self, attr):
         if attr == 'tell':
             return self.tell
         elif attr == 'seek':
@@ -467,18 +631,25 @@ class WrappedStreamingBody:
             return self.readline
         elif attr == '__str__':
             return self.__str__
+        elif attr == '__iter__':
+            return self.__iter__
+        elif attr == '__next__':
+            return self.__next__
         else:
             return getattr(self.sb, attr)
 
 
 class WrappedStreamingBodyPartition(WrappedStreamingBody):
-
-    def __init__(self, sb, size, byterange):
+    """
+    Wrap boto3's StreamingBody object to provide line integrity of the partitions
+    based on the newline character.
+    """
+    def __init__(self, sb, size, byterange, newline='\n'):
         super().__init__(sb, size)
-        # Chunk size
-        self.chunk_size = size
         # Range of the chunk
         self.range = byterange
+        # New line character
+        self.newline_char = newline.encode()
         # The first chunk does not contain plusbyte
         self._plusbytes = 0 if not self.range or self.range[0] == 0 else 1
         # To store the first byte of this chunk, which actually is the last byte of previous chunk
@@ -497,23 +668,23 @@ class WrappedStreamingBodyPartition(WrappedStreamingBody):
             self._first_byte = self.sb.read(self._plusbytes)
 
         retval = self.sb.read(n)
-
-        self.pos += len(retval)
+        last_row_end_pos = len(retval)
+        self.pos += last_row_end_pos
         first_row_start_pos = 0
 
-        if self._first_read and self._first_byte != b'\n' and self._plusbytes == 1:
+        if self._first_read and self._first_byte and \
+           self._first_byte != self.newline_char:
             logger.debug('Discarding first partial row')
-            # Previous byte is not \n
+            # Previous byte is not self.newline_char
             # This means that we have to discard first row because it is cut
-            first_row_start_pos = retval.find(b'\n')+1
+            first_row_start_pos = retval.find(self.newline_char) + 1
             self._first_read = False
 
-        last_row_end_pos = self.pos
         # Find end of the line in threshold
-        if self.pos > self.chunk_size:
-            buf = io.BytesIO(retval[self.chunk_size-self._plusbytes:])
-            buf.readline()
-            last_row_end_pos = self.chunk_size-self._plusbytes+buf.tell()
+        if self.pos >= self.size:
+            current_end_pos = last_row_end_pos - (self.pos - self.size)
+            last_byte_pos = retval[current_end_pos - 1:].find(self.newline_char)
+            last_row_end_pos = current_end_pos + last_byte_pos
             self._eof = True
 
         return retval[first_row_start_pos:last_row_end_pos]
@@ -524,7 +695,7 @@ class WrappedStreamingBodyPartition(WrappedStreamingBody):
 
         if not self._first_byte and self._plusbytes == 1:
             self._first_byte = self.sb.read(self._plusbytes)
-            if self._first_byte != b'\n':
+            if self._first_byte != self.newline_char:
                 logger.debug('Discarding first partial row')
                 self.sb._raw_stream.readline()
         try:
@@ -533,7 +704,42 @@ class WrappedStreamingBodyPartition(WrappedStreamingBody):
             raise EOFError()
         self.pos += len(retval)
 
-        if self.pos >= self.chunk_size:
+        if self.pos >= self.size:
             self._eof = True
 
         return retval
+
+
+def run_command(cmd, return_result=False, input=None):
+    kwargs = {}
+
+    if logger.getEffectiveLevel() != logging.DEBUG:
+        kwargs['stderr'] = sp.DEVNULL
+
+    if input:
+        return sp.check_output(cmd.split(), input=bytes(input, 'utf-8'), **kwargs)
+
+    if return_result:
+        result = sp.check_output(cmd.split(), encoding='UTF-8', **kwargs)
+        return result.strip().replace('"', '')
+    else:
+        if logger.getEffectiveLevel() != logging.DEBUG:
+            kwargs['stdout'] = sp.DEVNULL
+        sp.check_call(cmd.split(), **kwargs)
+
+
+def is_podman(docker_path):
+    try:
+        cmd = f'{docker_path} info | grep podman'
+        sp.check_output(cmd, shell=True, stderr=sp.STDOUT)
+        return True
+    except Exception:
+        return False
+
+
+class BackendType(Enum):
+    BATCH = 'batch'
+    FAAS = 'faas'
+
+
+CURRENT_PY_VERSION = version_str(sys.version_info)

@@ -5,21 +5,23 @@ from itertools import chain
 
 install_requires = [
     'Click',
+    'tabulate',
     'pandas',
     'PyYAML',
     'python-dateutil',
-    'pika==0.13.1',
-    'glob2',
+    'pika',
     'tqdm',
     'lxml',
     'tblib',
     'docker',
+    'boto3',
     'requests',
     'seaborn',
     'paramiko',
     'matplotlib',
     'kubernetes',
     'ibm-cos-sdk',
+    'ibm-code-engine-sdk',
     'redis',
     'ibm-vpc',
     'cloudpickle',
@@ -29,11 +31,7 @@ install_requires = [
 
 
 extras_require = {
-    'aws': [
-        'boto3'
-    ],
     'gcp': [
-        'gcsfs',
         'httplib2',
         'google-cloud-storage',
         'google-cloud-pubsub',
@@ -45,6 +43,10 @@ extras_require = {
         'oss2'
     ],
     'azure': [
+        'azure-mgmt-resource',
+        'azure-mgmt-compute',
+        'azure-mgmt-network',
+        'azure-identity',
         'azure-storage-blob',
         'azure-storage-queue'
     ],
@@ -55,6 +57,9 @@ extras_require = {
         'joblib',
         'diskcache',
         'numpy'
+    ],
+    'oracle': [
+        'oci',
     ]
 }
 
@@ -69,7 +74,7 @@ setup(
     url='https://github.com/lithops-cloud/lithops',
     author='Gil Vernik, Josep Sampe',
     description='Lithops lets you transparently run your Python applications in the Cloud',
-    author_email='gilv@il.ibm.com, josep.sampe@urv.cat',
+    author_email='gilv@ibm.com, josep.sampe@gmail.com',
     packages=find_packages(),
     install_requires=install_requires,
     extras_require=extras_require,
@@ -89,9 +94,11 @@ setup(
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',
+        'Programming Language :: Python :: 3.10',
+        'Programming Language :: Python :: 3.11',
         'Topic :: Software Development :: Libraries :: Python Modules',
         'Topic :: Scientific/Engineering',
         'Topic :: System :: Distributed Computing',
     ],
-    python_requires='>=3.5',
+    python_requires='>=3.6',
 )

@@ -14,9 +14,11 @@
 # limitations under the License.
 #
 
-
+import os
 import io
+import copy
 import redis
+import shutil
 import logging
 from lithops.storage.utils import StorageNoSuchKeyError
 from lithops.constants import STORAGE_CLI_MSG
@@ -28,13 +30,17 @@ logger = logging.getLogger(__name__)
 class RedisBackend:
     def __init__(self, config):
         logger.debug("Creating Redis storage client")
-        config.pop('user_agent', None)
         self.config = config
+        self.user_agent = self.config['user_agent']
         self.host = self.config['host']
-        self._client = redis.StrictRedis(**config)
+
+        redis_config = copy.deepcopy(config)
+        redis_config.pop('storage_bucket')
+        redis_config.pop('user_agent')
+        self._client = redis.Redis(**redis_config)
 
         msg = STORAGE_CLI_MSG.format('Redis')
-        logger.info("{} - Host: {}".format(msg, self.host))
+        logger.info(f"{msg} - Host: {self.host}")
 
     def get_client(self):
         return self._client
@@ -61,12 +67,12 @@ class RedisBackend:
 
         # create parent dirs
         for i in range(1, len(components) - 1):
-            dir = '/'.join(components[:i]) + '/'
-            pipeline.sadd(dir, components[i] + '/')
+            loc = '/'.join(components[:i]) + '/'
+            pipeline.sadd(loc, components[i] + '/')
 
         # add file to lowest dir
-        dir = '/'.join(components[:-1]) + '/'
-        pipeline.sadd(dir, components[-1])
+        loc = '/'.join(components[:-1]) + '/'
+        pipeline.sadd(loc, components[-1])
 
         # set actual key
         pipeline.set(redis_key, data)
@@ -102,9 +108,55 @@ class RedisBackend:
         else:
             return data
 
+    def upload_file(self, file_name, bucket, key=None, extra_args={}, config=None):
+        """Upload a file
+
+        :param file_name: File to upload
+        :param bucket: Bucket to upload to
+        :param key: S3 object name. If not specified then file_name is used
+        :return: True if file was uploaded, else False
+        """
+        # If S3 key was not specified, use file_name
+        if key is None:
+            key = os.path.basename(file_name)
+
+        # Upload the file
+        try:
+            with open(file_name, 'rb') as in_file:
+                self.put_object(bucket, key, in_file)
+        except Exception as e:
+            logging.error(e)
+            return False
+        return True
+
+    def download_file(self, bucket, key, file_name=None, extra_args={}, config=None):
+        """Download a file
+
+        :param bucket: Bucket to download from
+        :param key: S3 object name. If not specified then file_name is used
+        :param file_name: File to upload
+        :return: True if file was downloaded, else False
+        """
+        # If file_name was not specified, use S3 key
+        if file_name is None:
+            file_name = key
+
+        # Download the file
+        try:
+            dirname = os.path.dirname(file_name)
+            if dirname and not os.path.exists(dirname):
+                os.makedirs(dirname)
+            with open(file_name, 'wb') as out:
+                data_stream = self.get_object(bucket, key, stream=True)
+                shutil.copyfileobj(data_stream, out)
+        except Exception as e:
+            logging.error(e)
+            return False
+        return True
+
     def head_object(self, bucket_name, key):
         """
-        Head object from Redis with a key. 
+        Head object from Redis with a key.
         Throws StorageNoSuchKeyError if the given key does not exist.
         :param bucket_name: bucket name
         :param key: key of the object
@@ -156,7 +208,7 @@ class RedisBackend:
         """
         return bool(self._client.exists(self._format_key(bucket_name, '')))
 
-    def list_objects(self, bucket_name, prefix=None):
+    def list_objects(self, bucket_name, prefix=None, match_pattern = None):
         """
         Return a list of objects for the given bucket and prefix.
         :param bucket_name: name of the bucket.

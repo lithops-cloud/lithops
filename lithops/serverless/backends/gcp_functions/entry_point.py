@@ -1,5 +1,6 @@
 #
-# Copyright Cloudlab URV 2020
+# (C) Copyright Cloudlab URV 2020
+# (C) Copyright IBM Corp. 2023
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,35 +24,44 @@ from lithops.version import __version__
 from lithops.utils import setup_lithops_logger
 from lithops.worker import function_handler
 from lithops.worker import function_invoker
-from lithops.worker.utils import get_runtime_preinstalls
+from lithops.worker.utils import get_runtime_metadata
 from lithops.storage.storage import InternalStorage
 from lithops.constants import JOBS_PREFIX
 
 logger = logging.getLogger('lithops.worker')
 
 
-def main(event, context):
-    # pub/sub event data is b64 encoded
-    args = json.loads(base64.b64decode(event['data']).decode('utf-8'))
+def main(data, context=None):
+
+    try:
+        # pub/sub event data is a b64 encoded event
+        args = json.loads(base64.b64decode(data['data']).decode('utf-8'))
+    except Exception:
+        # http request data is a flask.wrappers.Request class
+        args = data.get_json(force=True, silent=True)
 
     setup_lithops_logger(args.get('log_level', 'INFO'))
 
-    os.environ['__LITHOPS_ACTIVATION_ID'] = uuid.uuid4().hex
+    activation_id = uuid.uuid4().hex
+    os.environ['__LITHOPS_ACTIVATION_ID'] = activation_id
     os.environ['__LITHOPS_BACKEND'] = 'Google Cloud Functions'
 
-    if 'get_preinstalls' in args:
-        logger.info("Lithops v{} - Generating metadata".format(__version__))
-        internal_storage = InternalStorage(args['get_preinstalls']['storage_config'])
-        object_key = '/'.join([JOBS_PREFIX, args['get_preinstalls']['runtime_name'] + '.meta'])
-        logger.info("Runtime metadata key {}".format(object_key))
-        runtime_meta = get_runtime_preinstalls()
-        runtime_meta_json = json.dumps(runtime_meta)
-        internal_storage.put_data(object_key, runtime_meta_json)
+    if 'get_metadata' in args:
+        runtime_meta = get_runtime_metadata()
+        if args['trigger'] == 'pub/sub':
+            logger.info(f"Lithops v{__version__} - Generating metadata")
+            internal_storage = InternalStorage(args['get_metadata']['storage_config'])
+            object_key = '/'.join([JOBS_PREFIX, args['get_metadata']['runtime_name'] + '.meta'])
+            logger.info(f"Runtime metadata key {object_key}")
+            runtime_meta_json = json.dumps(runtime_meta)
+            internal_storage.put_data(object_key, runtime_meta_json)
+        else:
+            return runtime_meta
     elif 'remote_invoker' in args:
-        logger.info("Lithops v{} - Starting Google Cloud Functions invoker".format(__version__))
+        logger.info(f"Lithops v{__version__} - Starting Google Cloud Functions invoker")
         function_invoker(args)
     else:
-        logger.info("Lithops v{} - Starting Google Cloud Functions execution".format(__version__))
+        logger.info(f"Lithops v{__version__} - Starting Google Cloud Functions execution")
         function_handler(args)
 
-    return {"Execution": "Finished"}
+    return {"activationId": activation_id}

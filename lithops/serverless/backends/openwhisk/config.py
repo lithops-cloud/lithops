@@ -15,49 +15,46 @@
 #
 
 import os
-import sys
-from lithops.utils import version_str
 
-RUNTIME_DEFAULT = {'3.5': 'lithopscloud/ibmcf-python-v35',
-                   '3.6': 'lithopscloud/ibmcf-python-v36',
-                   '3.7': 'lithopscloud/ibmcf-python-v37',
-                   '3.8': 'lithopscloud/ibmcf-python-v38',
-                   '3.9': 'lithopscloud/ibmcf-python-v39'}
+AVAILABLE_PY_RUNTIMES = {
+    '3.6': 'docker.io/lithopscloud/ibmcf-python-v36',
+    '3.7': 'docker.io/lithopscloud/ibmcf-python-v37',
+    '3.8': 'docker.io/lithopscloud/ibmcf-python-v38',
+    '3.9': 'docker.io/lithopscloud/ibmcf-python-v39',
+    '3.10': 'docker.io/lithopscloud/ibmcf-python-v310',
+    '3.11': 'docker.io/lithopscloud/ibmcf-python-v311'
+}
 
-RUNTIME_TIMEOUT_DEFAULT = 300  # Default: 300 seconds => 5 minutes
-RUNTIME_MEMORY_DEFAULT = 256  # Default memory: 256 MB
-CONCURRENT_WORKERS_DEFAULT = 100
-INVOKE_POOL_THREADS_DEFAULT = 500
+DEFAULT_CONFIG_KEYS = {
+    'runtime_timeout': 300,  # Default: 300 seconds => 5 minutes
+    'runtime_memory': 256,  # Default memory: 256 MB
+    'max_workers': 100,
+    'worker_processes': 1,
+    'invoke_pool_threads': 500,
+    'docker_server': 'docker.io'
+}
 
 FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_openwhisk.zip')
 
+REQ_PARAMS = ('endpoint', 'namespace', 'api_key')
+
 
 def load_config(config_data):
-    if 'openwhisk' not in config_data:
-        raise Exception("openwhisk section is mandatory in configuration")
 
-    required_keys = ('endpoint', 'namespace', 'api_key')
-    if not set(required_keys) <= set(config_data['openwhisk']):
-        raise Exception('You must provide {} to access to openwhisk'.format(required_keys))
+    if not config_data['openwhisk']:
+        raise Exception("'openwhisk' section is mandatory in the configuration")
 
-    if 'runtime_memory' not in config_data['serverless']:
-        config_data['serverless']['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
-    if 'runtime_timeout' not in config_data['serverless']:
-        config_data['serverless']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
+    for param in REQ_PARAMS:
+        if param not in config_data['openwhisk']:
+            msg = f"{param} is mandatory under 'openwhisk' section of the configuration"
+            raise Exception(msg)
+
+    for key in DEFAULT_CONFIG_KEYS:
+        if key not in config_data['openwhisk']:
+            config_data['openwhisk'][key] = DEFAULT_CONFIG_KEYS[key]
 
     if 'runtime' in config_data['openwhisk']:
-        config_data['serverless']['runtime'] = config_data['openwhisk']['runtime']
-
-    if 'runtime' not in config_data['serverless']:
-        python_version = version_str(sys.version_info)
-        try:
-            config_data['serverless']['runtime'] = RUNTIME_DEFAULT[python_version]
-        except KeyError:
-            raise Exception('Unsupported Python version: {}'.format(python_version))
-
-    if 'workers' not in config_data['lithops']:
-        config_data['lithops']['workers'] = CONCURRENT_WORKERS_DEFAULT
-
-    if 'invoke_pool_threads' not in config_data['openwhisk']:
-        config_data['openwhisk']['invoke_pool_threads'] = INVOKE_POOL_THREADS_DEFAULT
-    config_data['serverless']['invoke_pool_threads'] = config_data['openwhisk']['invoke_pool_threads']
+        runtime = config_data['openwhisk']['runtime']
+        registry = config_data['openwhisk']['docker_server']
+        if runtime.count('/') == 1 and registry not in runtime:
+            config_data['openwhisk']['runtime'] = f'{registry}/{runtime}'

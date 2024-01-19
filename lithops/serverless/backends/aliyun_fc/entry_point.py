@@ -1,5 +1,5 @@
 #
-# Copyright Cloudlab URV 2020
+# Copyright Cloudlab URV 2021
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ from lithops.version import __version__
 from lithops.utils import setup_lithops_logger
 from lithops.worker import function_handler
 from lithops.worker import function_invoker
-from lithops.worker.utils import get_runtime_preinstalls
+from lithops.worker.utils import get_runtime_metadata
 
 logger = logging.getLogger('lithops.worker')
 
@@ -29,32 +29,18 @@ logger = logging.getLogger('lithops.worker')
 def main(event, context):
     args = json.loads(event)
     os.environ['__LITHOPS_ACTIVATION_ID'] = context.request_id
-    os.environ['__LITHOPS_BACKEND'] = 'Alibaba Function Compute'
+    os.environ['__LITHOPS_BACKEND'] = 'Aliyun Function Compute'
 
-    setup_lithops_logger(args['log_level'])
+    setup_lithops_logger(args.get('log_level', logging.INFO))
 
-    if 'get_preinstalls' in event:
-        logger.info("Lithops v{} - Generating metadata".format(__version__))
-        return get_runtime_preinstalls()
+    if 'get_metadata' in args:
+        logger.info(f"Lithops v{__version__} - Generating metadata")
+        return get_runtime_metadata()
     elif 'remote_invoker' in args:
-        logger.info("Lithops v{} - Starting Alibaba Function Compute invoker".format(__version__))
+        logger.info(f"Lithops v{__version__} - Starting Aliyun Function Compute invoker")
         function_invoker(args)
     else:
-        logger.info("Lithops v{} - Starting Alibaba Function Compute execution".format(__version__))
+        logger.info(f"Lithops v{__version__} - Starting Aliyun Function Compute execution")
         function_handler(args)
 
     return {"Execution": "Finished"}
-
-
-def extract_preinstalls(event, context):
-    import sys
-    import pkgutil
-
-    print("Extracting preinstalled Python modules...")
-    runtime_meta = dict()
-    mods = list(pkgutil.iter_modules())
-    runtime_meta["preinstalls"] = [entry for entry in sorted([[mod, is_pkg] for _, mod, is_pkg in mods])]
-    python_version = sys.version_info
-    runtime_meta["python_ver"] = str(python_version[0]) + "." + str(python_version[1])
-    print("Done!")
-    return runtime_meta

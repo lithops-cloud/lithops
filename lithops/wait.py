@@ -16,18 +16,24 @@
 
 import signal
 import logging
+import math
 import time
 import concurrent.futures as cf
 from functools import partial
-from lithops.utils import is_unix_system, timeout_handler, is_notebook, is_lithops_worker
-from lithops.storage import InternalStorage
-from lithops.monitor import JobMonitor
 from types import SimpleNamespace
 from itertools import chain
+from typing import Optional, List, Union, Tuple, Any
 
-ALL_COMPLETED = 1
-ANY_COMPLETED = 2
-ALWAYS = 3
+from lithops.utils import is_unix_system, timeout_handler, \
+    is_notebook, is_lithops_worker, FuturesList
+from lithops.storage import InternalStorage
+from lithops.future import ResponseFuture
+from lithops.monitor import JobMonitor
+
+
+ALWAYS = 0
+ANY_COMPLETED = -1
+ALL_COMPLETED = 100
 
 THREADPOOL_SIZE = 64
 WAIT_DUR_SEC = 1
@@ -35,9 +41,16 @@ WAIT_DUR_SEC = 1
 logger = logging.getLogger(__name__)
 
 
-def wait(fs, internal_storage=None, throw_except=True, timeout=None,
-         return_when=ALL_COMPLETED, download_results=False, job_monitor=None,
-         threadpool_size=THREADPOOL_SIZE, wait_dur_sec=WAIT_DUR_SEC):
+def wait(fs: Union[ResponseFuture, FuturesList, List[ResponseFuture]],
+         internal_storage: Optional[InternalStorage] = None,
+         job_monitor: Optional[JobMonitor] = None,
+         throw_except: Optional[bool] = True,
+         return_when: Optional[Any] = ALL_COMPLETED,
+         download_results: Optional[bool] = False,
+         timeout: Optional[int] = None,
+         threadpool_size: Optional[int] = THREADPOOL_SIZE,
+         wait_dur_sec: Optional[int] = WAIT_DUR_SEC,
+         show_progressbar: Optional[bool] = True) -> Tuple[FuturesList, FuturesList]:
     """
     Wait for the Future instances (possibly created by different Executor instances)
     given by fs to complete. Returns a named 2-tuple of sets. The first set, named done,
@@ -47,12 +60,15 @@ def wait(fs, internal_storage=None, throw_except=True, timeout=None,
     seconds to wait before returning.
 
     :param fs: Futures list. Default None
+    :param internal_storage: InternalStorage instance. Default None.
+    :param job_monitor: JobMonitor instance. Default None.
     :param throw_except: Re-raise exception if call raised. Default True.
-    :param return_when: One of `ALL_COMPLETED`, `ANY_COMPLETED`, `ALWAYS`
+    :param return_when: Percentage of done futures
     :param download_results: Download results. Default false (Only get statuses)
     :param timeout: Timeout of waiting for results.
-    :param threadpool_zise: Number of threads to use. Default 64
+    :param threadpool_size: Number of threads to use. Default 64
     :param wait_dur_sec: Time interval between each check.
+    :param show_progressbar: whether or not to show the progress bar.
 
     :return: `(fs_done, fs_notdone)`
         where `fs_done` is a list of futures that have completed
@@ -62,16 +78,20 @@ def wait(fs, internal_storage=None, throw_except=True, timeout=None,
     if not fs:
         return
 
-    if type(fs) != list:
+    if type(fs) != list and type(fs) != FuturesList:
         fs = [fs]
 
     if download_results:
-        msg = 'ExecutorID {} - Getting results from functions'.format(fs[0].executor_id)
+        fs_to_wait = len(fs)
+        msg = (f'ExecutorID {fs[0].executor_id} - Getting results from {len(fs)} function activations')
         fs_done = [f for f in fs if f.done]
         fs_not_done = [f for f in fs if not f.done]
 
     else:
-        msg = 'ExecutorID {} - Waiting for functions to complete'.format(fs[0].executor_id)
+        fs_to_wait = math.ceil(return_when * len(fs) / 100)
+        msg_text = 'any' if return_when == ANY_COMPLETED else f'{return_when}%'
+        msg = (f'ExecutorID {fs[0].executor_id} - Waiting for {msg_text} of '
+               f'{len(fs)} function activations to complete')
         fs_done = [f for f in fs if f.success or f.done]
         fs_not_done = [f for f in fs if not (f.success or f.done)]
 
@@ -81,56 +101,48 @@ def wait(fs, internal_storage=None, throw_except=True, timeout=None,
         return fs_done, fs_not_done
 
     if is_unix_system() and timeout is not None:
-        logger.debug('Setting waiting timeout to {} seconds'.format(timeout))
-        error_msg = 'Timeout of {} seconds exceeded waiting for function activations to finish'.format(timeout)
+        logger.debug(f'Setting waiting timeout to {timeout} seconds')
+        error_msg = 'Timeout of {timeout} seconds exceeded waiting for function activations to finish'
         signal.signal(signal.SIGALRM, partial(timeout_handler, error_msg))
         signal.alarm(timeout)
 
     # Setup progress bar
     pbar = None
-    if not is_lithops_worker() and logger.getEffectiveLevel() == logging.INFO:
+    if not is_lithops_worker() and logger.getEffectiveLevel() == logging.INFO \
+       and show_progressbar:
         from tqdm.auto import tqdm
         if not is_notebook():
             print()
         pbar = tqdm(bar_format='  {l_bar}{bar}| {n_fmt}/{total_fmt}  ',
-                    total=len(fs), disable=None)
-        pbar.update(len(fs_done))
+                    total=fs_to_wait, disable=None)
+        pbar.update(min(len(fs_done), fs_to_wait))
 
     try:
-        jobs = _create_jobs_from_futures(fs, internal_storage)
+        executors_data = _create_executors_data_from_futures(fs, internal_storage)
+
         if not job_monitor:
-            job_monitor = JobMonitor(backend='storage')
-            [job_monitor.create(**job_data).start() for job_data in jobs]
+            for executor_data in executors_data:
+                job_monitor = JobMonitor(
+                    executor_id=executor_data.executor_id,
+                    internal_storage=executor_data.internal_storage)
+                job_monitor.start(fs=executor_data.futures)
 
         sleep_sec = wait_dur_sec if job_monitor.backend == 'storage' else 0.3
 
-        if return_when == ALL_COMPLETED:
-            while not _all_done(fs, download_results):
-                for job_data in jobs:
-                    new_data = _get_job_data(fs, job_data, pbar=pbar,
-                                             throw_except=throw_except,
-                                             download_results=download_results,
-                                             threadpool_size=threadpool_size,
-                                             job_monitor=job_monitor)
+        if return_when == ALWAYS:
+            for executor_data in executors_data:
+                _get_executor_data(fs, executor_data, pbar=pbar,
+                                   throw_except=throw_except,
+                                   download_results=download_results,
+                                   threadpool_size=threadpool_size)
+        else:
+            while not _check_done(fs, return_when, download_results):
+                for executor_data in executors_data:
+                    new_data = _get_executor_data(fs, executor_data, pbar=pbar,
+                                                  throw_except=throw_except,
+                                                  download_results=download_results,
+                                                  threadpool_size=threadpool_size)
                 time.sleep(0 if new_data else sleep_sec)
-
-        elif return_when == ANY_COMPLETED:
-            while not _any_done(fs, download_results):
-                for job_data in jobs:
-                    new_data = _get_job_data(fs, job_data, pbar=pbar,
-                                             throw_except=throw_except,
-                                             download_results=download_results,
-                                             threadpool_size=threadpool_size,
-                                             job_monitor=job_monitor)
-                time.sleep(0 if new_data else sleep_sec)
-
-        elif return_when == ALWAYS:
-            for job_data in jobs:
-                _get_job_data(fs, job_data, pbar=pbar,
-                              throw_except=throw_except,
-                              download_results=download_results,
-                              threadpool_size=threadpool_size,
-                              job_monitor=job_monitor)
 
     except KeyboardInterrupt as e:
         if download_results:
@@ -165,29 +177,35 @@ def wait(fs, internal_storage=None, throw_except=True, timeout=None,
     return fs_done, fs_notdone
 
 
-def get_result(fs, throw_except=True, timeout=None,
-               threadpool_zise=THREADPOOL_SIZE,
-               wait_dur_sec=WAIT_DUR_SEC,
-               internal_storage=None):
+def get_result(fs: Optional[Union[ResponseFuture, FuturesList, List[ResponseFuture]]] = None,
+               internal_storage: Optional[InternalStorage] = None,
+               throw_except: Optional[bool] = True,
+               timeout: Optional[int] = None,
+               threadpool_size: Optional[int] = THREADPOOL_SIZE,
+               wait_dur_sec: Optional[int] = WAIT_DUR_SEC,
+               show_progressbar: Optional[bool] = True):
     """
     For getting the results from all function activations
 
     :param fs: Futures list. Default None
+    :param internal_storage: InternalStorage instance. Default None.
     :param throw_except: Reraise exception if call raised. Default True.
-    :param verbose: Shows some information prints. Default False
     :param timeout: Timeout for waiting for results.
-    :param THREADPOOL_SIZE: Number of threads to use. Default 128
-    :param WAIT_DUR_SEC: Time interval between each check.
+    :param threadpool_size: Number of threads to use. Default 128
+    :param wait_dur_sec: Time interval between each check.
+    :param show_progressbar: whether or not to show the progress bar.
+
     :return: The result of the future/s
     """
-    if type(fs) != list:
+    if type(fs) != list and type(fs) != FuturesList:
         fs = [fs]
 
     fs_done, _ = wait(fs=fs, throw_except=throw_except,
                       timeout=timeout, download_results=True,
                       internal_storage=internal_storage,
-                      threadpool_zise=threadpool_zise,
-                      wait_dur_sec=wait_dur_sec)
+                      threadpool_size=threadpool_size,
+                      wait_dur_sec=wait_dur_sec,
+                      show_progressbar=show_progressbar)
     result = []
     fs_done = [f for f in fs_done if not f.futures and f._produce_output]
     for f in fs_done:
@@ -198,81 +216,69 @@ def get_result(fs, throw_except=True, timeout=None,
     return result
 
 
-def _create_jobs_from_futures(fs, internal_storage):
+def _create_executors_data_from_futures(fs, internal_storage):
     """
     Creates a dummy job necessary for the job monitor
     """
-    jobs = []
-    present_jobs = {f.job_key for f in fs}
+    executor_jobs = []
+    present_executors = {f.executor_id for f in fs}
 
-    for job_key in present_jobs:
-        job_data = {}
-        job = SimpleNamespace()
-        job.futures = [f for f in fs if f.job_key == job_key]
-        job.total_calls = len(job.futures)
-        f = job.futures[0]
-        job.executor_id = f.executor_id
-        job.job_id = f.job_id
-        job.job_key = f.job_key
-        job_data['job'] = job
-
+    for executor_id in present_executors:
+        executor_data = SimpleNamespace()
+        executor_data.executor_id = executor_id
+        executor_data.futures = [f for f in fs if f.executor_id == executor_id]
+        f = executor_data.futures[0]
         if internal_storage and internal_storage.backend == f._storage_config['backend']:
-            job_data['internal_storage'] = internal_storage
+            executor_data.internal_storage = internal_storage
         else:
-            job_data['internal_storage'] = InternalStorage(f._storage_config)
+            executor_data.internal_storage = InternalStorage(f._storage_config)
 
-        jobs.append(job_data)
+        executor_jobs.append(executor_data)
 
-    return jobs
+    return executor_jobs
 
 
-def _all_done(fs, download_results):
+def _check_done(fs, return_when, download_results):
     """
-    Checks if all futures are ready or done
-    """
-    if download_results:
-        return all([f.done for f in fs])
-    else:
-        return all([f.success or f.done for f in fs])
-
-
-def _any_done(fs, download_results):
-    """
-    Checks if any futures irs ready or done
+    Checks if return_when% of futures are ready or done
     """
     if download_results:
-        return any([f.done for f in fs])
+        total_done = [f.done for f in fs].count(True)
     else:
-        return any([f.success or f.done for f in fs])
+        total_done = [f.success or f.done for f in fs].count(True)
+
+    if return_when == ANY_COMPLETED:
+        return total_done >= 1
+    else:
+        done_percentage = int(total_done * 100 / len(fs))
+        return done_percentage >= return_when
 
 
-def _get_job_data(fs, job_data, download_results, throw_except, threadpool_size, pbar, job_monitor):
+def _get_executor_data(fs, exec_data, download_results, throw_except, threadpool_size, pbar):
     """
     Downloads all status/results from ready futures
     """
-    job = job_data['job']
-    internal_storage = job_data['internal_storage']
 
     if download_results:
-        callids_done = [(f.executor_id, f.job_id, f.call_id) for f in job.futures if (f.ready or f.success)]
-        not_done_futures = [f for f in job.futures if not f.done]
+        callids_done = [(f.executor_id, f.job_id, f.call_id) for f in exec_data.futures if (f.ready or f.success)]
+        not_done_futures = [f for f in exec_data.futures if not f.done]
     else:
-        callids_done = [(f.executor_id, f.job_id, f.call_id) for f in job.futures if f.ready]
-        not_done_futures = [f for f in job.futures if not (f.success or f.done)]
+        callids_done = [(f.executor_id, f.job_id, f.call_id) for f in exec_data.futures if f.ready]
+        not_done_futures = [f for f in exec_data.futures if not (f.success or f.done)]
 
     not_done_call_ids = set([(f.executor_id, f.job_id, f.call_id) for f in not_done_futures])
     new_callids_done = not_done_call_ids.intersection(callids_done)
 
     fs_to_wait_on = []
-    for f in job.futures:
+    for f in exec_data.futures:
         if (f.executor_id, f.job_id, f.call_id) in new_callids_done:
             fs_to_wait_on.append(f)
 
     def get_result(f):
-        f.result(throw_except=throw_except, internal_storage=internal_storage)
+        f.result(throw_except=throw_except, internal_storage=exec_data.internal_storage)
 
     def get_status(f):
-        f.status(throw_except=throw_except, internal_storage=internal_storage)
+        f.status(throw_except=throw_except, internal_storage=exec_data.internal_storage)
 
     pool = cf.ThreadPoolExecutor(max_workers=threadpool_size)
     if download_results:
@@ -285,14 +291,15 @@ def _get_job_data(fs, job_data, download_results, throw_except, threadpool_size,
         for f in fs_to_wait_on:
             if (download_results and f.done) or \
                (not download_results and (f.success or f.done)):
-                pbar.update(1)
+                if pbar.n < pbar.total:
+                    pbar.update(1)
         pbar.refresh()
 
     # Check for new futures
     new_futures = list(chain(*[f._new_futures for f in fs_to_wait_on if f._new_futures]))
     if new_futures:
         fs.extend(new_futures)
-        job.futures.extend(new_futures)
+        exec_data.futures.extend(new_futures)
         if pbar:
             pbar.total = pbar.total + len(new_futures)
             pbar.refresh()

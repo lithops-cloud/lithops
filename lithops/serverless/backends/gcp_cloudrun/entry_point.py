@@ -24,7 +24,7 @@ from lithops.version import __version__
 from lithops.utils import setup_lithops_logger
 from lithops.worker import function_handler
 from lithops.worker import function_invoker
-from lithops.worker.utils import get_runtime_preinstalls
+from lithops.worker.utils import get_runtime_metadata
 
 logger = logging.getLogger('lithops.worker')
 
@@ -45,15 +45,15 @@ def run():
 
     setup_lithops_logger(message['log_level'])
 
-    act_id = str(uuid.uuid4()).replace('-', '')[:12]
+    act_id = uuid.uuid4().hex
     os.environ['__LITHOPS_ACTIVATION_ID'] = act_id
     os.environ['__LITHOPS_BACKEND'] = 'Google Cloud Run'
 
     if 'remote_invoker' in message:
-        logger.info("Lithops v{} - Starting GCP Cloud Run invoker".format(__version__))
+        logger.info(f"Lithops v{__version__} - Starting GCP Cloud Run invoker")
         function_invoker(message)
     else:
-        logger.info("Lithops v{} - Starting GCP Cloud Run execution".format(__version__))
+        logger.info(f"Lithops v{__version__} - Starting GCP Cloud Run execution")
         function_handler(message)
 
     response = flask.jsonify({"activationId": act_id})
@@ -62,11 +62,11 @@ def run():
     return complete(response)
 
 
-@proxy.route('/preinstalls', methods=['GET', 'POST'])
+@proxy.route('/metadata', methods=['GET', 'POST'])
 def preinstalls_task():
     setup_lithops_logger(logging.INFO)
-    logger.info("Lithops v{} - Generating metadata".format(__version__))
-    runtime_meta = get_runtime_preinstalls()
+    logger.info(f"Lithops v{__version__} - Generating metadata")
+    runtime_meta = get_runtime_metadata()
     response = flask.jsonify(runtime_meta)
     response.status_code = 200
     logger.info("Done!")

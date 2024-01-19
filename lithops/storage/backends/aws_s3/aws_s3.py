@@ -14,34 +14,58 @@
 # limitations under the License.
 #
 
+import os
 import logging
 import boto3
+from botocore import UNSIGNED
+from botocore.config import Config
 import botocore
+
 from lithops.storage.utils import StorageNoSuchKeyError
+from lithops.utils import sizeof_fmt
 from lithops.constants import STORAGE_CLI_MSG
+from lithops.libs.globber import match
 
 logger = logging.getLogger(__name__)
+
+OBJ_REQ_RETRIES = 5
+CONN_READ_TIMEOUT = 10
 
 
 class S3Backend:
     def __init__(self, s3_config):
         logger.debug("Creating S3 client")
-        service_endpoint = s3_config.get('endpoint').replace('http:', 'https:')
+        self.config = s3_config
+        self.user_agent = s3_config['user_agent']
+        self.region_name = s3_config.get('region')
+        self.access_key_id = s3_config.get('access_key_id')
+        self.secret_access_key = s3_config.get('secret_access_key')
+        self.session_token = s3_config.get('session_token')
 
-        logger.debug('AWS S3 using access_key_id and secret_access_key')
-
-        client_config = botocore.client.Config(max_pool_connections=128,
-                                               user_agent_extra='cloudbutton',
-                                               connect_timeout=1)
-
-        self.s3_client = boto3.client('s3',
-                                      aws_access_key_id=s3_config['access_key_id'],
-                                      aws_secret_access_key=s3_config['secret_access_key'],
-                                      config=client_config,
-                                      endpoint_url=service_endpoint)
+        if self.access_key_id and self.secret_access_key:
+            client_config = Config(
+                max_pool_connections=128,
+                user_agent_extra=self.user_agent,
+                connect_timeout=CONN_READ_TIMEOUT,
+                read_timeout=CONN_READ_TIMEOUT,
+                retries={'max_attempts': OBJ_REQ_RETRIES}
+            )
+            self.s3_client = boto3.client(
+                's3', aws_access_key_id=self.access_key_id,
+                aws_secret_access_key=self.secret_access_key,
+                aws_session_token=self.session_token,
+                config=client_config,
+                region_name=self.region_name
+            )
+        else:
+            client_config = Config(
+                signature_version=UNSIGNED,
+                user_agent_extra=self.user_agent
+            )
+            self.s3_client = boto3.client('s3', config=client_config)
 
         msg = STORAGE_CLI_MSG.format('S3')
-        logger.info("{} - Endpoint: {}".format(msg, service_endpoint))
+        logger.info(f"{msg} - Region: {self.region_name}")
 
     def get_client(self):
         '''
@@ -49,6 +73,21 @@ class S3Backend:
         :return: boto3 client
         '''
         return self.s3_client
+
+    def create_bucket(self, bucket_name):
+        """
+        Create a bucket if it doesn't exist
+        """
+        try:
+            self.s3_client.head_bucket(Bucket=bucket_name)
+        except botocore.exceptions.ClientError as e:
+            if e.response['ResponseMetadata']['HTTPStatusCode'] == 404:
+                logger.debug(f"Could not find the bucket {bucket_name} in the AWS S3 storage backend")
+                logger.debug(f"Creating new bucket {bucket_name} in the AWS S3 storage backend")
+                bucket_config = {'LocationConstraint': self.region_name}
+                self.s3_client.create_bucket(Bucket=bucket_name, CreateBucketConfiguration=bucket_config)
+            else:
+                raise e
 
     def put_object(self, bucket_name, key, data):
         '''
@@ -62,7 +101,7 @@ class S3Backend:
             res = self.s3_client.put_object(Bucket=bucket_name, Key=key, Body=data)
             status = 'OK' if res['ResponseMetadata']['HTTPStatusCode'] == 200 else 'Error'
             try:
-                logger.debug('PUT Object {} - Size: {} - {}'.format(key, len(data), status))
+                logger.debug('PUT Object {} - Size: {} - {}'.format(key, sizeof_fmt(len(data)), status))
             except Exception:
                 logger.debug('PUT Object {} {}'.format(key, status))
         except botocore.exceptions.ClientError as e:
@@ -90,6 +129,48 @@ class S3Backend:
                 raise StorageNoSuchKeyError(bucket_name, key)
             else:
                 raise e
+
+    def upload_file(self, file_name, bucket, key=None, extra_args={}, config=None):
+        """Upload a file to an S3 bucket
+
+        :param file_name: File to upload
+        :param bucket: Bucket to upload to
+        :param key: S3 object name. If not specified then file_name is used
+        :return: True if file was uploaded, else False
+        """
+        # If S3 key was not specified, use file_name
+        if key is None:
+            key = os.path.basename(file_name)
+
+        kwargs = {'ExtraArgs': extra_args} if extra_args else {}
+        kwargs.update({'Config': config} if config else {})
+        try:
+            self.s3_client.upload_file(Filename=file_name, Bucket=bucket, Key=key, **kwargs)
+        except botocore.exceptions.ClientError as e:
+            logging.error(e)
+            return False
+        return True
+
+    def download_file(self, bucket, key, file_name=None, extra_args={}, config=None):
+        """Download a file from an S3 bucket
+
+        :param bucket: Bucket to download from
+        :param key: S3 object name. If not specified then file_name is used
+        :param file_name: File to upload
+        :return: True if file was downloaded, else False
+        """
+        # If file_name was not specified, use S3 key
+        if file_name is None:
+            file_name = key
+
+        kwargs = {'ExtraArgs': extra_args} if extra_args else {}
+        kwargs.update({'Config': config} if config else {})
+        try:
+            self.s3_client.download_file(Bucket=bucket, Key=key, Filename=file_name, **kwargs)
+        except botocore.exceptions.ClientError as e:
+            logging.error(e)
+            return False
+        return True
 
     def head_object(self, bucket_name, key):
         '''
@@ -125,7 +206,7 @@ class S3Backend:
         max_keys_num = 1000
         for i in range(0, len(key_list), max_keys_num):
             delete_keys = {'Objects': []}
-            delete_keys['Objects'] = [{'Key': k} for k in key_list[i:i+max_keys_num]]
+            delete_keys['Objects'] = [{'Key': k} for k in key_list[i:i + max_keys_num]]
             result.append(self.s3_client.delete_objects(Bucket=bucket_name, Delete=delete_keys))
         return result
 
@@ -144,7 +225,7 @@ class S3Backend:
             else:
                 raise e
 
-    def list_objects(self, bucket_name, prefix=None):
+    def list_objects(self, bucket_name, prefix=None, match_pattern=None):
         '''
         Return a list of objects for the given bucket and prefix.
         :param bucket_name: Name of the bucket.
@@ -161,7 +242,8 @@ class S3Backend:
             for page in page_iterator:
                 if 'Contents' in page:
                     for item in page['Contents']:
-                        object_list.append(item)
+                        if match_pattern is None or (match_pattern is not None and match(match_pattern, item['Key'])):
+                            object_list.append(item)
             return object_list
         except botocore.exceptions.ClientError as e:
             if e.response['Error']['Code'] == '404':

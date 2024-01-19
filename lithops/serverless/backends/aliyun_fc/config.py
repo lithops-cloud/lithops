@@ -14,86 +14,74 @@
 # limitations under the License.
 #
 
-import sys
+import copy
 import os
-from lithops.utils import version_str
+from lithops.constants import TEMP_DIR
 
 
-RUNTIME_DEFAULT = {'3.6': 'python3',
-                   '3.7': 'python3',
-                   '3': 'python3'}
+DEFAULT_CONFIG_KEYS = {
+    'runtime_timeout': 300,  # Default: 5 minutes
+    'runtime_memory': 256,  # Default memory: 256 MB
+    'max_workers': 300,
+    'worker_processes': 1,
+    'invoke_pool_threads': 64,
+}
 
-RUNTIME_TIMEOUT_DEFAULT = 600    # Default: 600 s => 10 minutes
-RUNTIME_TIMEOUT_MAX = 600        # Platform maximum
-RUNTIME_MEMORY_DEFAULT = 256
-RUNTIME_MEMORY_MAX = 3072
-MAX_CONCURRENT_WORKERS = 300
-INVOKE_POOL_THREADS_DEFAULT = 500
+CONNECTION_POOL_SIZE = 300
 
-CONNECTION_POOL_SIZE = 30
+SERVICE_NAME = 'lithops'
+BUILD_DIR = os.path.join(TEMP_DIR, 'AliyunRuntimeBuild')
 
-SERVICE_NAME = 'lithops-runtime'
-HANDLER_FOLDER_LOCATION = os.path.join(os.getcwd(), 'lithops_handler_aliyun')
-FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_aliyunfc.zip')
+AVAILABLE_PY_RUNTIMES = {
+    '3.6': 'python3',
+    '3.9': 'python3.9',
+    '3.10': 'python3.10'
+}
 
 REQUIREMENTS_FILE = """
-aliyun-fc2
-oss2
 pika
-flask
-gevent
-glob2
-redis
-requests
-PyYAML
-kubernetes
-numpy
+tblib
 cloudpickle
 ps-mem
-tblib
 """
+
+REQ_PARAMS_1 = ('account_id', 'access_key_id', 'access_key_secret')
+REQ_PARAMS_2 = ('role_arn', )
+
+ENDPOINT = "{0}.{1}.fc.aliyuncs.com"
 
 
 def load_config(config_data=None):
 
-    if 'aliyun_fc' not in config_data:
-        raise Exception("aliyun_fc section is mandatory in the configuration")
+    if 'aliyun' not in config_data:
+        raise Exception("'aliyun' section is mandatory in the configuration")
 
-    required_parameters = ('public_endpoint', 'access_key_id', 'access_key_secret')
+    if not config_data['aliyun_fc']:
+        raise Exception("'aliyun_fc' section is mandatory in the configuration")
 
-    if set(required_parameters) > set(config_data['aliyun_fc']):
-        raise Exception('You must provide {} to access to Aliyun Function Compute '
-                        .format(required_parameters))
+    for param in REQ_PARAMS_1:
+        if param not in config_data['aliyun']:
+            msg = f'"{param}" is mandatory in the "aliyun" section of the configuration'
+            raise Exception(msg)
 
-    this_version_str = version_str(sys.version_info)
-    if this_version_str != '3.6':
-        raise Exception('The functions backend Aliyun Function Compute currently'
-                        ' only supports Python version 3.6.X and the local Python'
-                        'version is {}'.format(this_version_str))
+    for param in REQ_PARAMS_2:
+        if param not in config_data['aliyun_fc']:
+            msg = f'"{param}" is mandatory in the "aliyun_fc" section of the configuration'
+            raise Exception(msg)
 
-    if 'runtime' in config_data['aliyun_fc']:
-        config_data['serverless']['runtime'] = config_data['aliyun_fc']['runtime']
-    if 'runtime' not in config_data['serverless']:
-        config_data['serverless']['runtime'] = 'default'
+    temp = copy.deepcopy(config_data['aliyun_fc'])
+    config_data['aliyun_fc'].update(config_data['aliyun'])
+    config_data['aliyun_fc'].update(temp)
 
-    if 'runtime_memory' in config_data['serverless']:
-        if config_data['serverless']['runtime_memory'] > RUNTIME_MEMORY_MAX:
-            config_data['serverless']['runtime_memory'] = RUNTIME_MEMORY_MAX
-    else:
-        config_data['serverless']['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
+    for key in DEFAULT_CONFIG_KEYS:
+        if key not in config_data['aliyun_fc']:
+            config_data['aliyun_fc'][key] = DEFAULT_CONFIG_KEYS[key]
 
-    if 'runtime_timeout' in config_data['serverless']:
-        if config_data['serverless']['runtime_timeout'] > RUNTIME_TIMEOUT_MAX:
-            config_data['serverless']['runtime_timeout'] = RUNTIME_TIMEOUT_MAX
-    else:
-        config_data['serverless']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
+    if 'region' not in config_data['aliyun_fc']:
+        raise Exception('"region" is mandatory under the "aliyun_fc" or "aliyun" section of the configuration')
+    elif 'region' not in config_data['aliyun']:
+        config_data['aliyun']['region'] = config_data['aliyun_fc']['region']
 
-    if 'workers' in config_data['lithops']:
-        if config_data['lithops']['workers'] > MAX_CONCURRENT_WORKERS:
-            config_data['lithops']['workers'] = MAX_CONCURRENT_WORKERS
-    else:
-        config_data['lithops']['workers'] = MAX_CONCURRENT_WORKERS
-
-    if 'invoke_pool_threads' not in config_data['aliyun_fc']:
-        config_data['aliyun_fc']['invoke_pool_threads'] = INVOKE_POOL_THREADS_DEFAULT
-    config_data['serverless']['invoke_pool_threads'] = config_data['aliyun_fc']['invoke_pool_threads']
+    account_id = config_data['aliyun_fc']['account_id']
+    region = config_data['aliyun_fc']['region']
+    config_data['aliyun_fc']['public_endpoint'] = ENDPOINT.format(account_id, region)

@@ -14,36 +14,39 @@
 # limitations under the License.
 #
 
+import os
 import oss2
+import shutil
 import logging
 
-from lithops.serverless.backends.aliyun_fc.config import CONNECTION_POOL_SIZE
 from lithops.storage.utils import StorageNoSuchKeyError
 from lithops.utils import is_lithops_worker
 from lithops.constants import STORAGE_CLI_MSG
 
+from . import config
 
 logger = logging.getLogger(__name__)
 
 
 class AliyunObjectStorageServiceBackend:
 
-    def __init__(self, config):
-        logger.debug("Creating Alibaba Object Storage client")
-        self.config = config
+    def __init__(self, oss_config):
+        logger.debug("Creating Aliyun Object Storage Service client")
+        self.config = oss_config
         self.auth = oss2.Auth(self.config['access_key_id'], self.config['access_key_secret'])
-
 
         if is_lithops_worker():
             self.endpoint = self.config['internal_endpoint']
         else:
             self.endpoint = self.config['public_endpoint']
 
-        # Connection pool size in aliyun_oss must be updated to avoid "connection pool is full" type errors.
-        oss2.defaults.connection_pool_size = CONNECTION_POOL_SIZE
+        self.region = self.config['region']
 
-        msg = STORAGE_CLI_MSG.format('Alibaba Object Storage')
-        logger.info("{} - Endpoint: {}".format(msg, self.endpoint))
+        # Connection pool size in aliyun_oss must be updated to avoid "connection pool is full" type errors.
+        oss2.defaults.connection_pool_size = config.CONNECTION_POOL_SIZE
+
+        msg = STORAGE_CLI_MSG.format('Aliyun Object Storage Service')
+        logger.info(f"{msg} - Region: {self.region}")
 
     def _connect_bucket(self, bucket_name):
         if hasattr(self, 'bucket') and self.bucket.bucket_name == bucket_name:
@@ -55,6 +58,13 @@ class AliyunObjectStorageServiceBackend:
 
     def get_client(self):
         return self
+
+    def create_bucket(self, bucket_name):
+        """
+        Create a bucket if it doesn't exist
+        """
+        bucket = self._connect_bucket(bucket_name)
+        bucket.create_bucket()
 
     def put_object(self, bucket_name, key, data):
         """
@@ -100,7 +110,6 @@ class AliyunObjectStorageServiceBackend:
 
                 extra_get_args['byte_range'] = (int(bytes_range[0]), int(bytes_range[1]))
 
-
             data = bucket.get_object(key=key, **extra_get_args)
             if stream:
                 return data
@@ -109,6 +118,52 @@ class AliyunObjectStorageServiceBackend:
 
         except (oss2.exceptions.NoSuchKey, oss2.exceptions.NoSuchBucket):
             raise StorageNoSuchKeyError(bucket_name, key)
+
+    def upload_file(self, file_name, bucket, key=None, extra_args={}, config=None):
+        """Upload a file
+
+        :param file_name: File to upload
+        :param bucket: Bucket to upload to
+        :param key: object name. If not specified then file_name is used
+        :return: True if file was uploaded, else False
+        """
+        # If S3 key was not specified, use file_name
+        if key is None:
+            key = os.path.basename(file_name)
+
+        # Upload the file
+        try:
+            with open(file_name, 'rb') as in_file:
+                self.put_object(bucket, key, in_file)
+        except Exception as e:
+            logging.error(e)
+            return False
+        return True
+
+    def download_file(self, bucket, key, file_name=None, extra_args={}, config=None):
+        """Download a file
+
+        :param bucket: Bucket to download from
+        :param key: object name. If not specified then file_name is used
+        :param file_name: File to upload
+        :return: True if file was downloaded, else False
+        """
+        # If file_name was not specified, use S3 key
+        if file_name is None:
+            file_name = key
+
+        # Download the file
+        try:
+            dirname = os.path.dirname(file_name)
+            if dirname and not os.path.exists(dirname):
+                os.makedirs(dirname)
+            with open(file_name, 'wb') as out:
+                data_stream = self.get_object(bucket, key, stream=True)
+                shutil.copyfileobj(data_stream, out)
+        except Exception as e:
+            logging.error(e)
+            return False
+        return True
 
     def head_object(self, bucket_name, key):
         """
@@ -161,7 +216,7 @@ class AliyunObjectStorageServiceBackend:
         except oss2.exceptions.NoSuchBucket:
             raise StorageNoSuchKeyError(bucket_name, '')
 
-    def list_objects(self, bucket_name, prefix=None):
+    def list_objects(self, bucket_name, prefix=None, match_pattern=None):
         """
         Return a list of objects for the given bucket and prefix.
         :param bucket_name: name of the bucket.
@@ -174,7 +229,7 @@ class AliyunObjectStorageServiceBackend:
         # adapted to match ibm_cos method
         prefix = '' if prefix is None else prefix
         try:
-            res = bucket.list_objects(prefix=prefix)
+            res = bucket.list_objects(prefix=prefix, max_keys=1000)
             obj_list = [{'Key': obj.key, 'Size': obj.size} for obj in res.object_list]
             return obj_list
 
@@ -194,7 +249,7 @@ class AliyunObjectStorageServiceBackend:
         # adapted to match ibm_cos method
         prefix = '' if prefix is None else prefix
         try:
-            res = bucket.list_objects(prefix=prefix)
+            res = bucket.list_objects(prefix=prefix, max_keys=1000)
             keys = [obj.key for obj in res.object_list]
             return [] if keys is None else keys
 

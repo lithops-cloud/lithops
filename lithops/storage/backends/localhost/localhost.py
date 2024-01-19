@@ -36,8 +36,7 @@ class LocalhostStorageBackend:
         logger.debug("Creating Localhost storage client")
         self.localhost_config = localhost_config
 
-        msg = STORAGE_CLI_MSG.format('Localhost')
-        logger.info("{}".format(msg))
+        logger.info(STORAGE_CLI_MSG.format('Localhost storage'))
 
     def get_client(self):
         # Simulate boto3 client
@@ -78,7 +77,7 @@ class LocalhostStorageBackend:
                 f.write(data)
         elif hasattr(data, 'read'):
             with open(file_path, "wb") as f:
-                shutil.copyfileobj(data, f, 1024*1024)
+                shutil.copyfileobj(data, f, 1024 * 1024)
         else:
             with open(file_path, "w") as f:
                 f.write(data)
@@ -99,7 +98,7 @@ class LocalhostStorageBackend:
                     byte_range = extra_get_args['Range'].replace('bytes=', '')
                     first_byte, last_byte = map(int, byte_range.split('-'))
                     f.seek(first_byte)
-                    buffer = io.BytesIO(f.read(last_byte-first_byte+1))
+                    buffer = io.BytesIO(f.read(last_byte - first_byte + 1))
                 else:
                     buffer = io.BytesIO(f.read())
             if stream:
@@ -108,6 +107,52 @@ class LocalhostStorageBackend:
                 return buffer.read()
         except Exception:
             raise StorageNoSuchKeyError(os.path.join(LITHOPS_TEMP_DIR, bucket_name), key)
+
+    def upload_file(self, file_name, bucket, key=None, extra_args={}, config=None):
+        """Upload a file
+
+        :param file_name: File to upload
+        :param bucket: Bucket to upload to
+        :param key: S3 object name. If not specified then file_name is used
+        :return: True if file was uploaded, else False
+        """
+        # If S3 key was not specified, use file_name
+        if key is None:
+            key = os.path.basename(file_name)
+
+        # Upload the file
+        try:
+            with open(file_name, 'rb') as in_file:
+                self.put_object(bucket, key, in_file)
+        except Exception as e:
+            logging.error(e)
+            return False
+        return True
+
+    def download_file(self, bucket, key, file_name=None, extra_args={}, config=None):
+        """Download a file
+
+        :param bucket: Bucket to download from
+        :param key: S3 object name. If not specified then file_name is used
+        :param file_name: File to upload
+        :return: True if file was downloaded, else False
+        """
+        # If file_name was not specified, use S3 key
+        if file_name is None:
+            file_name = key
+
+        # Download the file
+        try:
+            dirname = os.path.dirname(file_name)
+            if dirname and not os.path.exists(dirname):
+                os.makedirs(dirname)
+            with open(file_name, 'wb') as out:
+                data_stream = self.get_object(bucket, key, stream=True)
+                shutil.copyfileobj(data_stream, out)
+        except Exception as e:
+            logging.error(e)
+            return False
+        return True
 
     def head_object(self, bucket_name, key):
         """
@@ -161,9 +206,6 @@ class LocalhostStorageBackend:
             # dirs.add("/".join(file_dir.split("/", 2)[:2]))
             self.delete_object(bucket_name, key)
 
-        for file_dir in dirs:
-            shutil.rmtree(os.path.join(LITHOPS_TEMP_DIR, file_dir), ignore_errors=True)
-
     def head_bucket(self, bucket_name):
         """
         Head localhost dir with a name.
@@ -171,11 +213,11 @@ class LocalhostStorageBackend:
         :param bucket_name: name of the bucket
         """
         if os.path.isdir(os.path.join(LITHOPS_TEMP_DIR, bucket_name)):
-            return {}
+            return {'ResponseMetadata': {'HTTPStatusCode': 200}}
         else:
             raise StorageNoSuchKeyError(os.path.join(LITHOPS_TEMP_DIR, bucket_name), '')
 
-    def list_objects(self, bucket_name, prefix=None):
+    def list_objects(self, bucket_name, prefix=None, match_pattern=None):
         """
         Return a list of objects for the prefix.
         :param bucket_name: Name of the bucket.
@@ -209,8 +251,8 @@ class LocalhostStorageBackend:
                 roots = [os.path.join(base_dir, prefix, '**')]
             else:
                 roots = [
-                    os.path.join(base_dir, prefix+'*'),
-                    os.path.join(base_dir, prefix+'*', '**'),
+                    os.path.join(base_dir, prefix + '*'),
+                    os.path.join(base_dir, prefix + '*', '**'),
                 ]
         else:
             roots = [os.path.join(base_dir, '**')]

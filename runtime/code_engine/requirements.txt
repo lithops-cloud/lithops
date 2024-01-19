@@ -9,6 +9,8 @@ flask
 cloudpickle
 ps-mem
 tblib
+PyYAML
+kubernetes
 
 # default available packages for python3
 beautifulsoup4
@@ -37,6 +39,8 @@ Pillow
 #cloudant
 #watson-developer-cloud
 ibm-cos-sdk
+ibm-vpc
+ibm-code-engine-sdk
 #ibmcloudsql
 
 # Compose Libs

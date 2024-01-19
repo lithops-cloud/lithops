@@ -16,6 +16,7 @@ import logging
 import sys
 import threading
 import io
+import copy
 import os
 import json
 import socket
@@ -25,6 +26,8 @@ from . import config as mp_config
 
 logger = logging.getLogger(__name__)
 
+LITHOPS_CONFIG = None
+REDIS_CLIENT = None
 
 #
 # Picklable redis client
@@ -44,13 +47,27 @@ class PicklableRedis(redis.StrictRedis):
         self.__init__(*state[0], **state[1])
 
 
-def get_redis_client(**overwrites):
-    try:
-        conn_params = load_config()['redis']
-    except KeyError:
-        raise Exception('Redis section not found in you config')
+def get_redis_client(persist=True, **overwrites):
+    global LITHOPS_CONFIG
+    global REDIS_CLIENT
+
+    if REDIS_CLIENT:
+        return REDIS_CLIENT
+
+    if not LITHOPS_CONFIG:
+        LITHOPS_CONFIG = load_config()
+
+    if 'redis' not in LITHOPS_CONFIG or not LITHOPS_CONFIG['redis']:
+        raise Exception('Redis section not found in your lithops config')
+
+    redis_conf = LITHOPS_CONFIG['redis']
+    conn_params = copy.deepcopy(redis_conf)
     conn_params.update(overwrites)
-    return PicklableRedis(**conn_params)
+
+    redis_client = PicklableRedis(**conn_params)
+    REDIS_CLIENT = redis_client if persist else None
+
+    return redis_client
 
 
 #
@@ -181,13 +198,23 @@ class RemoteReference:
 # Remote logging
 #
 
+def setup_log_streaming(executor):
+    if mp_config.get_parameter(mp_config.STREAM_STDOUT):
+        stream = executor.executor_id
+        logger.debug('Log streaming enabled, stream name: {}'.format(stream))
+        remote_logger = RemoteLoggingFeed(stream)
+        remote_logger.start()
+        return remote_logger, stream
+    else:
+        return None, None
+
+
 class RemoteLogIOBuffer:
     def __init__(self, stream):
         self._feeder_thread = threading
         self._buff = io.StringIO()
         self._redis = get_redis_client()
         self._stream = stream
-        self._offset = 0
 
     def write(self, log):
         self._buff.write(log)
@@ -195,14 +222,9 @@ class RemoteLogIOBuffer:
         self._old_stdout.write(log)
 
     def flush(self):
-        self._buff.seek(self._offset)
-        log = self._buff.read()
-        logger.debug('Flush remote logging stream (len %i)', len(log))
+        log = self._buff.getvalue()
         self._redis.publish(self._stream, log)
-        self._offset = self._buff.tell()
-        # self._buff = io.StringIO()
-        # FIXME flush() does not empty the buffer?
-        self._buff.flush()
+        self._buff = io.StringIO()
 
     def start(self):
         import sys

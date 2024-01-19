@@ -5,10 +5,13 @@
 #FROM python:3.7-slim-buster
 
 # Python 3.8
-FROM python:3.8-slim-buster
+#FROM python:3.8-slim-buster
 
 # Python 3.9
 #FROM python:3.9-slim-buster
+
+# Python 3.10
+FROM python:3.10-slim-buster
 
 RUN apt-get update \
     # add some packages required for the pip install
@@ -28,7 +31,7 @@ COPY requirements.txt requirements.txt
 RUN pip install --upgrade pip setuptools six gevent && pip install --no-cache-dir -r requirements.txt
 
 ENV PORT 8080
-ENV CONCURRENCY 4
+ENV CONCURRENCY 1
 ENV TIMEOUT 600
 ENV PYTHONUNBUFFERED TRUE
 

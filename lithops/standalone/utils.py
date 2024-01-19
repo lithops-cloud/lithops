@@ -1,124 +1,249 @@
 import json
-from lithops.constants import STANDALONE_INSTALL_DIR, STANDALONE_LOG_FILE,\
-    STANDALONE_CONFIG_FILE
+from enum import Enum
+
+from lithops.constants import (
+    SA_INSTALL_DIR,
+    SA_LOG_FILE,
+    SA_CONFIG_FILE,
+    SA_DATA_FILE,
+    SA_TMP_DIR
+)
+
+
+class StandaloneMode(Enum):
+    CONSUME = "consume"
+    CREATE = "create"
+    REUSE = "reuse"
+
+
+class WorkerStatus(Enum):
+    STARTING = "starting"
+    STARTED = "started"
+    ERROR = "error"
+    INSTALLING = "installing"
+    BUSSY = "active/bussy"
+    IDLE = "active/idle"
+    STOPPED = "stopped"
+
+
+class JobStatus(Enum):
+    RECEIVED = "received"
+    RUNNING = "running"
+    DONE = 'done'
+
+
+class LithopsValidationError(Exception):
+    pass
+
 
 MASTER_SERVICE_NAME = 'lithops-master.service'
-MASTER_SERVICE_FILE = """
+MASTER_SERVICE_FILE = f"""
 [Unit]
 Description=Lithops Master Service
 After=network.target
 
 [Service]
-ExecStart=/usr/bin/python3 {}/master.py
+ExecStart=/usr/bin/python3 {SA_INSTALL_DIR}/master.py
 Restart=always
 
 [Install]
 WantedBy=multi-user.target
-""".format(STANDALONE_INSTALL_DIR)
+"""
 
 WORKER_SERVICE_NAME = 'lithops-worker.service'
-WORKER_SERVICE_FILE = """
+WORKER_SERVICE_FILE = f"""
 [Unit]
 Description=Lithops Worker Service
 After=network.target
 
 [Service]
-ExecStart=/usr/bin/python3 {}/worker.py
+ExecStart=/usr/bin/python3 {SA_INSTALL_DIR}/worker.py
 Restart=always
 
 [Install]
 WantedBy=multi-user.target
-""".format(STANDALONE_INSTALL_DIR)
+"""
+
+CLOUD_CONFIG_WORKER_PK = """
+#cloud-config
+users:
+    - name: {0}
+      ssh_authorized_keys:
+        - {1}
+      sudo: ALL=(ALL) NOPASSWD:ALL
+      groups: sudo
+      shell: /bin/bash
+"""
+
+CLOUD_CONFIG_WORKER = """
+#cloud-config
+bootcmd:
+    - echo '{0}:{1}' | chpasswd
+    - sed -i '/PasswordAuthentication no/c\PasswordAuthentication yes' /etc/ssh/sshd_config
+    - echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config
+runcmd:
+    - echo '{0}:{1}' | chpasswd
+    - sed -i '/PasswordAuthentication no/c\PasswordAuthentication yes' /etc/ssh/sshd_config
+    - echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config
+    - systemctl restart sshd
+"""
 
 
-def get_host_setup_script():
+def get_host_setup_script(docker=True):
     """
-    Returs the script necessary for installing a lithops VM host
+    Returns the script necessary for installing a lithops VM host
     """
-    return """
+    script = f"""#!/bin/bash
+    mkdir -p {SA_TMP_DIR};
+
+    wait_internet_connection(){{
+    echo "--> Checking internet connection"
+    while ! (ping -c 1 -W 1 8.8.8.8| grep -q 'statistics'); do
+    echo "Waiting for 8.8.8.8 - network interface might be down..."
+    sleep 1
+    done;
+    }}
+
     install_packages(){{
+    export DOCKER_REQUIRED={str(docker).lower()};
+    command -v docker >/dev/null 2>&1 || {{ export INSTALL_DOCKER=true; export INSTALL_LITHOPS_DEPS=true;}};
     command -v unzip >/dev/null 2>&1 || {{ export INSTALL_LITHOPS_DEPS=true; }};
     command -v pip3 >/dev/null 2>&1 || {{ export INSTALL_LITHOPS_DEPS=true; }};
-    command -v docker >/dev/null 2>&1 || {{ export INSTALL_LITHOPS_DEPS=true; }};
-    if [ "$INSTALL_LITHOPS_DEPS" = true ] ; then
-    rm /var/lib/apt/lists/* -vfR;
-    apt-get clean;
+
+    if [ "$INSTALL_DOCKER" = true ] && [ "$DOCKER_REQUIRED" = true ]; then
+    wait_internet_connection;
+    echo "--> Installing Docker"
     apt-get update;
     apt-get install apt-transport-https ca-certificates curl software-properties-common gnupg-agent -y;
     curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -;
     add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable";
+    fi;
+
+    if [ "$INSTALL_LITHOPS_DEPS" = true ]; then
+    wait_internet_connection;
+    echo "--> Installing Lithops system dependencies"
     apt-get update;
-    apt-get install unzip python3-pip docker-ce docker-ce-cli containerd.io -y;
-    pip3 install -U flask gevent lithops;
+
+    if [ "$INSTALL_DOCKER" = true ] && [ "$DOCKER_REQUIRED" = true ]; then
+    apt-get install unzip redis-server python3-pip docker-ce docker-ce-cli containerd.io -y --fix-missing;
+    else
+    apt-get install unzip redis-server python3-pip -y --fix-missing;
+    fi;
+    sudo systemctl enable redis-server.service;
+    sed -i 's/^bind 127.0.0.1 ::1/bind 0.0.0.0/' /etc/redis/redis.conf;
+
+    fi;
+
+    if [[ ! $(pip3 list|grep "lithops") ]]; then
+    wait_internet_connection;
+    echo "--> Installing Lithops python dependencies"
+    pip3 install -U pip flask gevent lithops[all];
     fi;
     }}
-    install_packages >> {1} 2>&1
+    install_packages >> {SA_LOG_FILE} 2>&1
 
-    unzip -o /tmp/lithops_standalone.zip -d {0} > /dev/null 2>&1;
+    unzip -o /tmp/lithops_standalone.zip -d {SA_INSTALL_DIR} > /dev/null 2>&1;
     rm /tmp/lithops_standalone.zip
-    """.format(STANDALONE_INSTALL_DIR, STANDALONE_LOG_FILE)
+    """
+
+    return script
+
+
+def docker_login(config):
+    backend = config['backend']
+    if all(k in config[backend] for k in ("docker_server", "docker_user", "docker_password")):
+        user = config[backend]['docker_user']
+        passwd = config[backend]['docker_password']
+        server = config[backend]['docker_server']
+        return f"""docker login -u {user} -p {passwd} {server} >> /tmp/kuku 2>&1
+    """
+    return ""
 
 
 def get_master_setup_script(config, vm_data):
     """
     Returns master VM installation script
     """
-    script = """
-    mkdir -p /tmp/lithops;
-    setup_host(){{
-    mv {0}/access.data .;
-    rm -R {0};
-    mkdir -p {0};
-    cp /tmp/lithops_standalone.zip {0};
-    mv access.data {0}/access.data;
-    test -f {0}/access.data || echo '{1}' > {0}/access.data;
-    test -f {0}/config || echo '{2}' > {0}/config;
-    mv /tmp/*.py '{0}';
-    }}
-    setup_host >> {3} 2>&1;
-    """.format(STANDALONE_INSTALL_DIR, json.dumps(vm_data),
-               json.dumps(config), STANDALONE_LOG_FILE)
+    script = f"""#!/bin/bash
+    rm -R {SA_INSTALL_DIR};
+    mkdir -p {SA_INSTALL_DIR};
+    mkdir -p {SA_TMP_DIR};
 
-    script += get_host_setup_script()
-    script += """
-    setup_service(){{
-    echo '{0}' > /etc/systemd/system/{1};
-    chmod 644 /etc/systemd/system/{1};
-    systemctl daemon-reload;
-    systemctl stop {1};
-    systemctl enable {1};
-    systemctl start {1};
+    setup_host(){{
+    cp /tmp/lithops_standalone.zip {SA_INSTALL_DIR};
+    echo '{json.dumps(vm_data)}' > {SA_DATA_FILE};
+    echo '{json.dumps(config)}' > {SA_CONFIG_FILE};
     }}
-    setup_service >> {2} 2>&1
-    """.format(MASTER_SERVICE_FILE,
-               MASTER_SERVICE_NAME,
-               STANDALONE_LOG_FILE)
+    setup_host >> {SA_LOG_FILE} 2>&1;
+    """
+    script += get_host_setup_script()
+
+    script += docker_login(config)
+    script += f"""
+    setup_service(){{
+    echo '{MASTER_SERVICE_FILE}' > /etc/systemd/system/{MASTER_SERVICE_NAME};
+    chmod 644 /etc/systemd/system/{MASTER_SERVICE_NAME};
+    systemctl daemon-reload;
+    systemctl stop {MASTER_SERVICE_NAME};
+    systemctl enable {MASTER_SERVICE_NAME};
+    systemctl start {MASTER_SERVICE_NAME};
+    }}
+    setup_service >> {SA_LOG_FILE} 2>&1;
+
+    USER_HOME=$(eval echo ~${{SUDO_USER}});
+
+    generate_ssh_key(){{
+    echo '    StrictHostKeyChecking no
+    UserKnownHostsFile=/dev/null' >> /etc/ssh/ssh_config;
+    ssh-keygen -f $USER_HOME/.ssh/lithops_id_rsa -t rsa -N '';
+    chown ${{SUDO_USER}}:${{SUDO_USER}} $USER_HOME/.ssh/lithops_id_rsa*;
+    cp $USER_HOME/.ssh/lithops_id_rsa $USER_HOME/.ssh/id_rsa
+    cp $USER_HOME/.ssh/lithops_id_rsa.pub $USER_HOME/.ssh/id_rsa.pub
+    cp $USER_HOME/.ssh/* /root/.ssh;
+    echo '127.0.0.1 lithops-master' >> /etc/hosts;
+    }}
+    test -f $USER_HOME/.ssh/lithops_id_rsa || generate_ssh_key >> {SA_LOG_FILE} 2>&1;
+    """
+
     return script
 
 
 def get_worker_setup_script(config, vm_data):
     """
     Returns worker VM installation script
+    this script is expected to be executed only from Master VM
     """
-    script = """
-    rm -R {0}; mkdir -p {0}; mkdir -p /tmp/lithops;
-    """.format(STANDALONE_INSTALL_DIR)
+    ssh_user = vm_data['ssh_credentials']['username']
+    home_dir = '/root' if ssh_user == 'root' else f'/home/{ssh_user}'
+    try:
+        master_pub_key = open(f'{home_dir}/.ssh/lithops_id_rsa.pub', 'r').read()
+    except Exception:
+        master_pub_key = ''
+
+    script = f"""#!/bin/bash
+    rm -R {SA_INSTALL_DIR};
+    mkdir -p {SA_INSTALL_DIR};
+    """
     script += get_host_setup_script()
-    script += """
-    echo '{1}' > {2};
-    echo '{6}' > {0}/access.data;
+
+    script += docker_login(config)
+    script += f"""
+    echo '{json.dumps(config)}' > {SA_CONFIG_FILE};
+    echo '{json.dumps(vm_data)}' > {SA_DATA_FILE};
 
     setup_service(){{
-    echo '{4}' > /etc/systemd/system/{5};
-    chmod 644 /etc/systemd/system/{5};
+    systemctl stop {MASTER_SERVICE_NAME};
+    echo '{WORKER_SERVICE_FILE}' > /etc/systemd/system/{WORKER_SERVICE_NAME};
+    chmod 644 /etc/systemd/system/{WORKER_SERVICE_NAME};
     systemctl daemon-reload;
-    systemctl stop {5};
-    systemctl enable {5};
-    systemctl start {5};
+    systemctl stop {WORKER_SERVICE_NAME};
+    systemctl enable {WORKER_SERVICE_NAME};
+    systemctl start {WORKER_SERVICE_NAME};
     }}
-    setup_service >> {3} 2>&1
-    """.format(STANDALONE_INSTALL_DIR, json.dumps(config),
-               STANDALONE_CONFIG_FILE, STANDALONE_LOG_FILE,
-               WORKER_SERVICE_FILE, WORKER_SERVICE_NAME,
-               json.dumps(vm_data))
+    setup_service >> {SA_LOG_FILE} 2>&1
+    USER_HOME=$(eval echo ~${{SUDO_USER}});
+    echo '{master_pub_key}' >> $USER_HOME/.ssh/authorized_keys;
+    echo '{vm_data['master_ip']} lithops-master' >> /etc/hosts
+    """
+
     return script

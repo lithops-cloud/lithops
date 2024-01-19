@@ -10,7 +10,6 @@ RUN pip install --upgrade setuptools six pip \
         pika==0.13.1 \
         flask \
         gevent \
-        glob2 \
         ibm-cos-sdk \
         redis \
         requests \

@@ -31,9 +31,9 @@ iterdata = ['cos://lithops-sample-data/obj1.txt',
 
 
 def my_map_function(obj):
-    print('Bucket: {}'.format(obj.bucket))
-    print('Key: {}'.format(obj.key))
-    print('Partition num: {}'.format(obj.part))
+    print(f'Bucket: {obj.bucket}')
+    print(f'Key: {obj.key}')
+    print(f'Partition num: {obj.part}')
     counter = {}
     data = obj.data_stream.read()
 
@@ -73,5 +73,5 @@ if __name__ == "__main__":
     print('Testing one reducer per object:')
     fexec = lithops.FunctionExecutor()
     fexec.map_reduce(my_map_function, iterdata, my_reduce_function, obj_chunk_size=chunk_size,
-                     reducer_one_per_object=True)
+                     obj_reduce_by_key=True)
     print(fexec.get_result())

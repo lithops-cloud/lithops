@@ -15,8 +15,10 @@
 # limitations under the License.
 #
 
+import os
 import time
 import logging
+from lithops.constants import JOBS_PREFIX
 
 
 logger = logging.getLogger(__name__)
@@ -32,14 +34,13 @@ init_key_suffix = ".init"
 
 class StorageNoSuchKeyError(Exception):
     def __init__(self, bucket, key):
-        msg = "No such key /{}/{} found in storage.".format(bucket, key)
+        msg = f"No such key /{bucket}/{key} found in storage."
         super(StorageNoSuchKeyError, self).__init__(msg)
 
 
 class StorageConfigMismatchError(Exception):
     def __init__(self, current_path, prev_path):
-        msg = "The data is stored at {}, but current storage is configured at {}.".format(
-            prev_path, current_path)
+        msg = f"The data is stored at {prev_path}, but current storage is configured at {current_path}"
         super(StorageConfigMismatchError, self).__init__(msg)
 
 
@@ -50,8 +51,8 @@ class CloudObject:
         self.key = key
 
     def __str__(self):
-        path = '{}://{}/{}'.format(self.backend, self.bucket, self.key)
-        return '<CloudObject at {}>'.format(path)
+        path = f'{self.backend}://{self.bucket}/{self.key}'
+        return f'<CloudObject at {path}>'
 
 
 class CloudObjectUrl:
@@ -59,15 +60,17 @@ class CloudObjectUrl:
         self.url = url
 
     def __str__(self):
-        return '<CloudObject at {}>'.format(self.url)
+        return f'<CloudObject at {self.url}>'
 
 
 class CloudObjectLocal:
     def __init__(self, path):
         self.path = path
+        self.bucket = os.path.dirname(path)
+        self.key = os.path.basename(path)
 
     def __str__(self):
-        return '<CloudObject at {}>'.format(self.path)
+        return f'<CloudObject at {self.path}>'
 
 
 def clean_bucket(storage, bucket, prefix, sleep=5):
@@ -75,8 +78,8 @@ def clean_bucket(storage, bucket, prefix, sleep=5):
     Deletes all the files from COS. These files include the function,
     the data serialization and the function invocation results.
     """
-    msg = "Going to delete all objects from bucket '{}'".format(bucket)
-    msg = msg + " and prefix '{}'".format(prefix) if prefix else msg
+    msg = f"Deleting objects from bucket '{bucket}'"
+    msg = msg + f" and prefix '{prefix}'" if prefix else msg
     logger.info(msg)
     total_objects = 0
     objects_to_delete = storage.list_keys(bucket, prefix)
@@ -87,7 +90,7 @@ def clean_bucket(storage, bucket, prefix, sleep=5):
         time.sleep(sleep)
         objects_to_delete = storage.list_keys(bucket, prefix)
 
-    logger.info('Finished deleting objects, total found: {}'.format(total_objects))
+    logger.info(f'Finished deleting objects, total found: {total_objects}')
 
 
 def create_job_key(executor_id, job_id):
@@ -100,18 +103,17 @@ def create_job_key(executor_id, job_id):
     return '-'.join([executor_id, job_id])
 
 
-def create_func_key(prefix, executor_id, job_id):
+def create_func_key(executor_id, function_hash):
     """
     Create function key
     :param prefix: prefix
     :param executor_id: callset's ID
     :return: function key
     """
-    job_key = create_job_key(executor_id, job_id)
-    return '/'.join([prefix, job_key, func_key_suffix])
+    return '/'.join([JOBS_PREFIX, executor_id, f'{function_hash}.{func_key_suffix}'])
 
 
-def create_agg_data_key(prefix, executor_id, job_id):
+def create_data_key(executor_id, job_id):
     """
     Create aggregate data key
     :param prefix: prefix
@@ -120,23 +122,10 @@ def create_agg_data_key(prefix, executor_id, job_id):
     :return: a key for aggregate data
     """
     job_key = create_job_key(executor_id, job_id)
-    return '/'.join([prefix, job_key, agg_data_key_suffix])
+    return '/'.join([JOBS_PREFIX, job_key, agg_data_key_suffix])
 
 
-def create_data_key(prefix, executor_id, job_id, call_id):
-    """
-    Create data key
-    :param prefix: prefix
-    :param executor_id: Executor's ID
-    :param job_id: Job's ID
-    :param call_id: call's ID
-    :return: data key
-    """
-    call_key = create_job_key(executor_id, job_id, call_id)
-    return '/'.join([prefix, call_key, data_key_suffix])
-
-
-def create_output_key(prefix, executor_id, job_id, call_id):
+def create_output_key(executor_id, job_id, call_id):
     """
     Create output key
     :param prefix: prefix
@@ -146,10 +135,10 @@ def create_output_key(prefix, executor_id, job_id, call_id):
     :return: output key
     """
     job_key = create_job_key(executor_id, job_id)
-    return '/'.join([prefix, job_key, call_id, output_key_suffix])
+    return '/'.join([JOBS_PREFIX, job_key, call_id, output_key_suffix])
 
 
-def create_status_key(prefix, executor_id, job_id, call_id):
+def create_status_key(executor_id, job_id, call_id):
     """
     Create status key
     :param prefix: prefix
@@ -159,10 +148,10 @@ def create_status_key(prefix, executor_id, job_id, call_id):
     :return: status key
     """
     job_key = create_job_key(executor_id, job_id)
-    return '/'.join([prefix, job_key, call_id, status_key_suffix])
+    return '/'.join([JOBS_PREFIX, job_key, call_id, status_key_suffix])
 
 
-def create_init_key(prefix, executor_id, job_id, call_id, act_id):
+def create_init_key(executor_id, job_id, call_id, act_id):
     """
     Create init key
     :param prefix: prefix
@@ -172,8 +161,7 @@ def create_init_key(prefix, executor_id, job_id, call_id, act_id):
     :return: output key
     """
     job_key = create_job_key(executor_id, job_id)
-    return '/'.join([prefix, job_key, call_id,
-                     '{}{}'.format(act_id, init_key_suffix)])
+    return '/'.join([JOBS_PREFIX, job_key, call_id, f'{act_id}{init_key_suffix}'])
 
 
 def get_storage_path(storage_config):
