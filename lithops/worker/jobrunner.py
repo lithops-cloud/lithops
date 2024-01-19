@@ -31,7 +31,7 @@ from pydoc import locate
 from distutils.util import strtobool
 
 from lithops.worker.utils import peak_memory
-
+from lithops.monitor import CPUMonitor
 try:
     import numpy as np
 except ModuleNotFoundError:
@@ -51,69 +51,6 @@ logger = logging.getLogger(__name__)
 import threading
 import time
 import psutil
-
-class CPUMonitor(threading.Thread):
-    def __init__(self, interval=1):
-        super(CPUMonitor, self).__init__()
-        self.interval = interval
-        self.cpu_usage = []
-        self.cpu_times = []  # Stores CPU times (system and user) for each core
-        self.running = True
-
-    def run(self):
-        while self.running:
-            # Get CPU times (system and user) for each core
-            cpu_times = psutil.cpu_times(percpu=True)
-            cpu_percentages = psutil.cpu_percent(interval=None, percpu=True)
-            self.cpu_usage.append(cpu_percentages)
-            self.cpu_times.append(cpu_times)
-            time.sleep(self.interval)
-
-    def stop(self):
-        self.running = False
-
-    def get_average_cpu_usage(self):
-        if not self.cpu_usage:
-            return []
-
-        # Calculate average CPU usage for all cores
-        num_cores = len(self.cpu_usage[0])
-        avg_usage = [0] * num_cores
-
-        for usage_data in self.cpu_usage:
-            for core_id, usage in enumerate(usage_data):
-                avg_usage[core_id] += usage
-
-        avg_usage = [usage / len(self.cpu_usage) for usage in avg_usage]
-
-        return avg_usage
-    
-    def get_average_user_time(self):
-        # Calculate average user time for all cores
-        if not self.cpu_times:
-            return 0
-
-        total_user_time = 0
-        total_samples = len(self.cpu_times)
-
-        for cpu in self.cpu_times:
-            total_user_time += sum(time.user for time in cpu) / len(cpu)
-
-        return total_user_time / total_samples
-
-    def get_average_system_time(self):
-        # Calculate average system time for all cores
-        if not self.cpu_times:
-            return 0
-
-        total_system_time = 0
-        total_samples = len(self.cpu_times)
-
-        for cpu in self.cpu_times:
-            total_system_time += sum(time.system for time in cpu) / len(cpu)
-
-        return total_system_time / total_samples
-
     
 class JobStats:
 
