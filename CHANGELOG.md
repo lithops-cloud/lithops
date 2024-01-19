@@ -5,6 +5,7 @@
 ### Added
 - [k8s] Added a new way of invoking functions using a RabbitMQ work queue
 - [IBM VPC] Added "zone" config parameter
+- [IBM Code Engine] Get and print error message in case of container execution failure 
 
 ### Changed
 - [Openwhisk] Updated default runtimes
