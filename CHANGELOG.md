@@ -7,7 +7,7 @@
 - [IBM VPC] Added "zone" config parameter
 
 ### Changed
-- 
+- [Openwhisk] Updated default runtimes
 
 ### Fixed
 - [Standalone] Fixed issue with a wrong value of "chunksize"
