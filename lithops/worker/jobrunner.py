@@ -31,7 +31,7 @@ from pydoc import locate
 from distutils.util import strtobool
 
 from lithops.worker.utils import peak_memory
-from lithops.monitor import CPUMonitor
+from lithops.worker.utils import CPUMonitor
 try:
     import numpy as np
 except ModuleNotFoundError:
