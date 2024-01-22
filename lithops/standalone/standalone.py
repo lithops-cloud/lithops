@@ -16,6 +16,7 @@
 #
 
 import os
+import uuid
 import json
 import time
 import logging
@@ -202,6 +203,10 @@ class StandaloneHandler:
             max_workers = job_payload['max_workers']
             required_workers = min(max_workers, total_calls // chunksize + (total_calls % chunksize > 0))
 
+            logger.debug('ExecutorID {} | JobID {} - Worker processes: {} - Chunksize: {} - Required Workers: {}'
+                         .format(executor_id, job_id, job_payload['worker_processes'],
+                                 job_payload['chunksize'], required_workers))
+
         def create_workers(workers_to_create):
             current_workers_old = set(self.backend.workers)
             futures = []
@@ -371,7 +376,7 @@ class StandaloneHandler:
 
         ssh_client = self.backend.master.get_ssh_client()
 
-        handler_zip = os.path.join(TEMP_DIR, 'lithops_standalone.zip')
+        handler_zip = os.path.join(TEMP_DIR, f'lithops_standalone_{str(uuid.uuid4())[-6:]}.zip')
         worker_path = os.path.join(os.path.dirname(__file__), 'worker.py')
         master_path = os.path.join(os.path.dirname(__file__), 'master.py')
         create_handler_zip(handler_zip, [master_path, worker_path])
