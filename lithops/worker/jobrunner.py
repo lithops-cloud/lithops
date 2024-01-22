@@ -47,10 +47,6 @@ from lithops.util.metrics import PrometheusExporter
 from lithops.storage.utils import create_output_key
 
 logger = logging.getLogger(__name__)
-
-import threading
-import time
-import psutil
     
 class JobStats:
 
