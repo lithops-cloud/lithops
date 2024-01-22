@@ -37,7 +37,7 @@ def create_timeline(fs, dst):
     stats_df = pd.DataFrame(stats)
     total_calls = len(stats_df)
 
-    palette = sns.color_palette("deep", 6)
+    palette = sns.color_palette("deep", 10)
 
     fig = pylab.figure(figsize=(10, 6))
     ax = fig.add_subplot(1, 1, 1)
@@ -46,8 +46,10 @@ def create_timeline(fs, dst):
     point_size = 10
 
     fields = [('host submit', stats_df.host_submit_tstamp - host_job_create_tstamp),
-              ('call start', stats_df.worker_start_tstamp - host_job_create_tstamp),
-              ('call done', stats_df.worker_end_tstamp - host_job_create_tstamp),
+              ('worker start', stats_df.worker_start_tstamp - host_job_create_tstamp),
+              ('function start', stats_df.worker_func_start_tstamp - host_job_create_tstamp),
+              ('function done', stats_df.worker_func_end_tstamp - host_job_create_tstamp),
+              ('worker done', stats_df.worker_end_tstamp - host_job_create_tstamp),
               ('status fetched', stats_df.host_status_done_tstamp - host_job_create_tstamp)]
 
     if 'host_result_done_tstamp' in stats_df:
