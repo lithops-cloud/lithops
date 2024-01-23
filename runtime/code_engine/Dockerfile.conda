@@ -46,14 +46,21 @@ RUN apt-get --allow-releaseinfo-change update \
         && rm -rf /var/lib/apt/lists/* \
         && apt-cache search linux-headers-generic
 
-# Add your Conda required packages here. Ensure "conda clean --all" at 
-# the end to remove temporary data. One "RUN" line is better than multiple
-# ones in terms of image size. For example:
-#RUN conda update -n base conda && conda install -c conda-forge opencv && conda install sortedcontainers gevent-websocket && conda clean --all
+# Add your Conda required packages here. One "RUN" line is better 
+# than multiple ones in terms of image size. Install the libmamba 
+# solver for faster package resolution. Make sure to put "conda clean --all"
+# at the end to remove temporary data. for example:
+RUN conda update -n base -y conda \
+    && conda install -n base -y conda-libmamba-solver \
+    && conda config --set solver libmamba \
+    && conda install -c conda-forge -c anaconda -c defaults -y opencv \
+    && conda clean --all
 
 # install additional python modules
 COPY requirements.txt requirements.txt
-RUN pip install --upgrade pip setuptools six gevent && pip install --no-cache-dir -r requirements.txt
+
+RUN pip install --upgrade pip setuptools six gevent \
+    && pip install --no-cache-dir -r requirements.txt
 
 ENV PORT 8080
 ENV CONCURRENCY 1
