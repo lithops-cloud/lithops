@@ -96,7 +96,7 @@ def extract_runtime_metadata(payload):
     runtime_meta = get_runtime_metadata()
 
     internal_storage = InternalStorage(payload)
-    status_key = '/'.join([JOBS_PREFIX, payload['runtime_name']+'.meta'])
+    status_key = '/'.join([JOBS_PREFIX, payload['runtime_name'] + '.meta'])
     logger.info(f"Runtime metadata key {status_key}")
     dmpd_response_status = json.dumps(runtime_meta)
     internal_storage.put_data(status_key, dmpd_response_status)

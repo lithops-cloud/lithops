@@ -283,7 +283,7 @@ class ResponseFuture:
 
         if 'new_futures' in self._call_status and not self._new_futures:
             new_futures = pickle.loads(eval(self._call_status['new_futures']))
-            self._new_futures = [new_futures] if type(new_futures) == ResponseFuture else new_futures
+            self._new_futures = [new_futures] if type(new_futures) is ResponseFuture else new_futures
             self._set_state(ResponseFuture.State.Futures)
 
         if 'result' in self._call_status:

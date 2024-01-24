@@ -113,7 +113,8 @@ spec:
       imagePullSecrets:
         - name: lithops-regcred
 """
-POD="""
+
+POD = """
 apiVersion: v1
 kind: Pod
 metadata:
@@ -133,6 +134,7 @@ spec:
           memory: '512Mi'
 """
 
+
 def load_config(config_data):
     for key in DEFAULT_CONFIG_KEYS:
         if key not in config_data['k8s']:
@@ -145,4 +147,4 @@ def load_config(config_data):
             config_data['k8s']['runtime'] = f'{registry}/{runtime}'
 
     if config_data['k8s'].get('rabbitmq_executor', False):
-      config_data['k8s']['amqp_url'] = config_data['rabbitmq']['amqp_url']
+        config_data['k8s']['amqp_url'] = config_data['rabbitmq']['amqp_url']

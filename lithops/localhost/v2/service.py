@@ -23,7 +23,6 @@ import platform
 import threading
 import multiprocessing as mp
 from enum import Enum
-from pathlib import Path
 from queue import Empty
 from multiprocessing.managers import SyncManager
 from xmlrpc.server import SimpleXMLRPCServer
@@ -197,7 +196,7 @@ def python_queue_consumer(
 
 
 if __name__ == "__main__":
-    logger.info('*'*60)
+    logger.info('*' * 60)
 
     worker_processes = int(sys.argv[1]) if len(sys.argv) > 1 else CPU_COUNT
     service_port = int(sys.argv[2]) if len(sys.argv) > 2 else utils.find_free_port()

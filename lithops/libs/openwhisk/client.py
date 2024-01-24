@@ -99,7 +99,7 @@ class OpenWhiskClient:
         res = self.session.delete(f'{self.url}/{namespace}')
 
         if res.status_code == 200:
-            logger.debug(f"OK --> Namespace deleted")
+            logger.debug("OK --> Namespace deleted")
         elif res.status_code == 404:
             pass
         else:

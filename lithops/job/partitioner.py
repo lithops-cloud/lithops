@@ -302,7 +302,7 @@ def _split_objects_from_object_storage(
 
     # check that only one schemma provided. Throw exception if more than one provided
     for elem in map_func_args_list:
-        if type(elem['obj']) == CloudObject:
+        if type(elem['obj']) is CloudObject:
             elem['obj'] = f"{elem['obj'].backend}://{elem['obj'].bucket}/{elem['obj'].key}"
         sb, bucket, prefix, obj_name = utils.split_object_url(elem['obj'])
         if sb is None:

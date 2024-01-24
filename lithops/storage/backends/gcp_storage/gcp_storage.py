@@ -23,13 +23,13 @@ from requests.exceptions import SSLError as TooManyConnectionsError
 from io import BytesIO
 from google.api_core import exceptions as google_exceptions
 from google.cloud import storage
-from google.cloud.exceptions import NotFound
 from lithops.constants import STORAGE_CLI_MSG
 from lithops.storage.utils import StorageNoSuchKeyError
 
 logger = logging.getLogger(__name__)
 
 TIMEOUT = 5
+
 
 class GCPStorageBackend:
 

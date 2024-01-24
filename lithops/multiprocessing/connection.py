@@ -355,15 +355,15 @@ class _RedisConnection(_ConnectionBase):
         raise NotImplementedError('Connection._recv() on Redis')
 
     def _send_bytes(self, buf):
-        t0 = time.time()
+        # t0 = time.time()
         self._write(self._subhandle, buf)
-        t1 = time.time()
+        # t1 = time.time()
         # logger.debug('Redis Pipe send - {} - {} - {} - {}'.format(t0, t1, t1 - t0, len(buf)))
 
     def _recv_bytes(self, maxsize=None):
-        t0 = time.time()
+        # t0 = time.time()
         msg = self._read(self._handle)
-        t1 = time.time()
+        # t1 = time.time()
         # logger.debug('Redis Pipe recv - {} - {} - {} - {}'.format(t0, t1, t1 - t0, len(msg)))
         return msg
 
@@ -474,7 +474,8 @@ class _NanomsgConnection(_ConnectionBase):
             self._req.dial(self._subhandle_addr)
         # logger.debug('Send %i B to %s', len(buf), self._subhandle_addr)
         self._req.send(buf)
-        res = self._req.recv()
+        self._req.recv()
+        # res = self._req.recv()
         # logger.debug(res)
 
     def _recv_bytes(self, maxsize=None):

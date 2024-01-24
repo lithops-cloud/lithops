@@ -32,7 +32,8 @@ PREFIX = '__lithops.test'  # prefix of the files uploaded to storage
 DATASET_PREFIX = PREFIX + '/dataset'  # prefix of the dataset files uploaded to storage
 
 
-class TestFeatureName(unittest.TestCase):  # Mandatory,unittest test classes are in camel format and inherit as demonstrated.
+class TestFeatureName(unittest.TestCase):
+    # Mandatory,unittest test classes are in camel format and inherit as demonstrated.
     words_in_cos_files = None  # an example of a class variable
 
     # method called once, before the tests are run.
@@ -74,7 +75,8 @@ class TestFeatureName(unittest.TestCase):  # Mandatory,unittest test classes are
         from lithops.tests.util_func import map_util
         logger.info('Testing test_tester_name()')
 
-        fexec = lithops.FunctionExecutor(config=CONFIG)  # Passing the config parameter to allow your test function to work on users that provided a path to the config file via a flag
+        # Passing the config parameter to allow your test function to work on users that provided a path to the config file via a flag
+        fexec = lithops.FunctionExecutor(config=CONFIG)
         fexec.map(map_util.simple_map_function, [(1, 1), (2, 2), (3, 3), (4, 4)])
         result = fexec.get_result()
         self.assertEqual(result, [2, 4, 6, 8])

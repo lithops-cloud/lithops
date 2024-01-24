@@ -78,7 +78,7 @@ def wait(fs: Union[ResponseFuture, FuturesList, List[ResponseFuture]],
     if not fs:
         return
 
-    if type(fs) != list and type(fs) != FuturesList:
+    if type(fs) is not list and type(fs) is not FuturesList:
         fs = [fs]
 
     if download_results:
@@ -197,7 +197,7 @@ def get_result(fs: Optional[Union[ResponseFuture, FuturesList, List[ResponseFutu
 
     :return: The result of the future/s
     """
-    if type(fs) != list and type(fs) != FuturesList:
+    if type(fs) is not list and type(fs) is not FuturesList:
         fs = [fs]
 
     fs_done, _ = wait(fs=fs, throw_except=throw_except,

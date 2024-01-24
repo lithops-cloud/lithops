@@ -29,7 +29,7 @@ from joblib.pool import PicklingPool
 from joblib.parallel import register_parallel_backend
 
 from lithops.multiprocessing import Pool, cpu_count
-from lithops.constants import LITHOPS_TEMP_DIR, TEMP_PREFIX
+from lithops.constants import LITHOPS_TEMP_DIR
 from lithops.storage import Storage
 
 logger = logging.getLogger(__name__)

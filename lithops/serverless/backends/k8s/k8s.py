@@ -94,7 +94,6 @@ class KubernetesBackend:
         self.core_api = client.CoreV1Api()
 
         if self.rabbitmq_executor:
-            # Get the amqp url from k8s config
             self.amqp_url = self.k8s_config['amqp_url']
 
             # Init rabbitmq
@@ -217,7 +216,7 @@ class KubernetesBackend:
 
         try:
             self.core_api.delete_namespaced_secret("lithops-regcred", self.namespace)
-        except ApiException as e:
+        except ApiException:
             pass
 
         try:
@@ -324,15 +323,15 @@ class KubernetesBackend:
 
         pod["spec"]["containers"][0]["args"][1] = "start_rabbitmq"
         pod["spec"]["containers"][0]["args"][2] = utils.dict_to_b64str(payload)
-        
+
         self.core_api.create_namespaced_pod(body=pod, namespace=self.namespace)
 
-    def _get_nodes(self) :
+    def _get_nodes(self):
         self.nodes = []
         list_all_nodes = self.core_api.list_node()
         for node in list_all_nodes.items:
             # If the node is tainted, skip it
-            if node.spec.taints :
+            if node.spec.taints:
                 continue
 
             # Check if the CPU is in millicores
@@ -341,7 +340,7 @@ class KubernetesBackend:
                 number_match = re.search(r'\d+', node.status.allocatable['cpu'])
                 if number_match:
                     number = int(number_match.group())
-                    
+
                     # Round to the nearest whole number of CPUs - 1
                     cpu_info = round(number / 1000) - 1
 
@@ -355,11 +354,11 @@ class KubernetesBackend:
                 cpu_info = node.status.allocatable['cpu']
 
             self.nodes.append({
-                            "name":node.metadata.name,  
-                            "cpu":cpu_info,
-                            "memory":node.status.allocatable['memory']
-                        })
-    
+                "name": node.metadata.name,
+                "cpu": cpu_info,
+                "memory": node.status.allocatable['memory']
+            })
+
     def _create_workers(self, runtime_memory):
         default_pod_config = yaml.load(config.POD, Loader=yaml.loader.SafeLoader)
         granularity = self.k8s_config['worker_processes']
@@ -375,7 +374,7 @@ class KubernetesBackend:
 
             if granularity:
                 times, res = divmod(cpus_node, granularity)
-                
+
                 for i in range(times):
                     cluster_info_cpu[f"{node['name']}-{i}"] = granularity
                     cluster_info_mem[f"{node['name']}-{i}"] = runtime_memory
@@ -403,7 +402,7 @@ class KubernetesBackend:
         for pod_name in cluster_info_cpu.keys():
             self._create_pod(default_pod_config, pod_name, cluster_info_cpu[pod_name], cluster_info_mem[pod_name])
 
-        logger.info(f"Total cpus of the cluster: {num_cpus_cluster}")        
+        logger.info(f"Total cpus of the cluster: {num_cpus_cluster}")
 
     def _delete_workers(self):
         list_pods = self.core_api.list_namespaced_pod(self.namespace, label_selector="app=lithops-pod")
@@ -437,7 +436,7 @@ class KubernetesBackend:
                 propagation_policy='Background'
             )
             time.sleep(2)
-        except ApiException as e:
+        except ApiException:
             pass
 
         master_res = yaml.safe_load(config.JOB_DEFAULT)
@@ -501,7 +500,7 @@ class KubernetesBackend:
             node_mem_num, node_mem_uni = re.match(r'(\d+)(\D*)', node_info["memory"]).groups()
             pod_mem_num, pod_mem_uni = re.match(r'(\d+)(\D*)', pod_resource_memory).groups()
 
-            pod_mem_num = int(pod_mem_num) 
+            pod_mem_num = int(pod_mem_num)
             node_mem_num = int(float(node_mem_num) * 0.8)
 
             # There are pods with cpu granularity
@@ -509,10 +508,10 @@ class KubernetesBackend:
                 # Is lithops pod with granularity and the user doesn't want it
                 if not config_granularity:
                     return True
-                # There is granularity but the pod doesn't have the default memory
+                # There is granularity but the pod doesn't have the default memory
                 if not config_memory and pod_mem_num != runtime_mem:
                     return True
-                # There is granularity but the pod doesn't have the desired memory
+                # There is granularity but the pod doesn't have the desired memory
                 if config_memory and pod_mem_num != config_memory:
                     return True
             else:
@@ -525,12 +524,12 @@ class KubernetesBackend:
                     if pod_mem_num != node_mem_num and pod_mem_num != runtime_mem:
                         return True
 
-            # The cpu granularity changed
+            # The cpu granularity changed
             if config_granularity:
                 node_granularity_cpu = node_cpu % config_granularity
                 if pod_resource_cpu != config_granularity and pod_resource_cpu != node_granularity_cpu:
                     return True
-                
+
         # The runtime image changed
         if self.current_runtime and self.current_runtime != self.image:
             return True
@@ -547,7 +546,7 @@ class KubernetesBackend:
             config_changed = self._has_config_changed(runtime_memory)
 
             if config_changed:
-                logger.info(f"Waiting for kubernetes to change the configuration")
+                logger.debug("Waiting for kubernetes to change the configuration")
                 self._delete_workers()
                 self._create_workers(runtime_memory)
 
@@ -559,7 +558,8 @@ class KubernetesBackend:
             self.jobs.append(job_key)
 
             # Send packages of tasks to the queue
-            granularity = job_payload['total_calls'] // len(self.nodes) if self.k8s_config['worker_processes'] <= 1 else self.k8s_config['worker_processes']
+            granularity = job_payload['total_calls'] // len(self.nodes) \
+                if self.k8s_config['worker_processes'] <= 1 else self.k8s_config['worker_processes']
             times, res = divmod(job_payload['total_calls'], granularity)
 
             for i in range(times + (1 if res != 0 else 0)):
@@ -567,9 +567,9 @@ class KubernetesBackend:
                 payload_edited = job_payload.copy()
 
                 start_index = i * granularity
-                end_index = start_index + num_tasks 
+                end_index = start_index + num_tasks
 
-                payload_edited['call_ids']  = payload_edited['call_ids'][start_index:end_index]
+                payload_edited['call_ids'] = payload_edited['call_ids'][start_index:end_index]
                 payload_edited['data_byte_ranges'] = payload_edited['data_byte_ranges'][start_index:end_index]
                 payload_edited['total_calls'] = num_tasks
 
@@ -622,7 +622,7 @@ class KubernetesBackend:
             container['resources']['limits']['cpu'] = str(self.k8s_config['runtime_cpu'])
 
             logger.debug(f'ExecutorID {executor_id} | JobID {job_id} - Going '
-                        f'to run {total_calls} activations in {total_workers} workers')
+                         f'to run {total_calls} activations in {total_workers} workers')
 
             if not all(key in self.k8s_config for key in ["docker_user", "docker_password"]):
                 del job_res['spec']['template']['spec']['imagePullSecrets']
@@ -668,7 +668,7 @@ class KubernetesBackend:
                 name=meta_job_name,
                 propagation_policy='Background'
             )
-        except ApiException as e:
+        except ApiException:
             pass
 
         try:
@@ -692,7 +692,7 @@ class KubernetesBackend:
                     failed = event['object'].status.failed
                     done = event['object'].status.succeeded
                     logger.debug('...')
-            except Exception as e:
+            except Exception:
                 pass
         w.stop()
 
@@ -705,7 +705,7 @@ class KubernetesBackend:
                 name=meta_job_name,
                 propagation_policy='Background'
             )
-        except ApiException as e:
+        except ApiException:
             pass
 
         if failed:

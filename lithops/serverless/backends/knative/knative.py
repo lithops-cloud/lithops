@@ -92,7 +92,7 @@ class KnativeServingBackend:
                 ip = None
                 ingress = self.core_api.read_namespaced_service(service, namespace)
                 http_port = list(filter(lambda port: port.port == 80, ingress.spec.ports))[0].node_port
-                https_port = list(filter(lambda port: port.port == 443, ingress.spec.ports))[0].node_port
+                # https_port = list(filter(lambda port: port.port == 443, ingress.spec.ports))[0].node_port
                 if ingress.status.load_balancer.ingress is not None:
                     # get loadbalancer ip
                     ip = ingress.status.load_balancer.ingress[0].ip
@@ -113,7 +113,7 @@ class KnativeServingBackend:
                     self.ingress_endpoint = f'http://{ip}:{http_port}'
                     self.kn_config['ingress_endpoint'] = self.ingress_endpoint
                     logger.debug(f"Ingress endpoint set to {self.ingress_endpoint}")
-            except Exception as e:
+            except Exception:
                 pass
 
         if 'service_host_suffix' not in self.kn_config:
@@ -420,7 +420,7 @@ class KnativeServingBackend:
 
         try:
             self.core_api.delete_namespaced_secret("lithops-regcred", self.namespace)
-        except ApiException as e:
+        except ApiException:
             pass
 
         try:

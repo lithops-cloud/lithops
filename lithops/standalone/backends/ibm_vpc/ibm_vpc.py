@@ -533,7 +533,7 @@ class IBMVPCBackend:
         self.config['floating_ip'] = fip
         self.config['floating_ip_id'] = fip_id
 
-        build_vm = IBMVPCInstance('building-image-'+image_name, self.config, self.vpc_cli, public=True)
+        build_vm = IBMVPCInstance('building-image-' + image_name, self.config, self.vpc_cli, public=True)
         build_vm.public_ip = self.config['floating_ip']
         build_vm.instance_type = self.config['master_profile_name']
         build_vm.delete_on_dismantle = False

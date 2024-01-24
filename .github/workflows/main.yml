@@ -14,7 +14,7 @@ env:
 
 jobs:
 
-  determine_runnable_jobs:
+  determine_runnable_test_jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
 
@@ -34,8 +34,8 @@ jobs:
 
   localhost_tests:
     runs-on: ubuntu-latest
-    needs: determine_runnable_jobs
-    if: needs.determine_runnable_jobs.outputs.localhost == 'true'
+    needs: determine_runnable_test_jobs
+    if: needs.determine_runnable_test_jobs.outputs.localhost == 'true'
 
     steps:
       - name: Clone Lithops repository
@@ -57,8 +57,8 @@ jobs:
 
   ibm_ce_cos_tests:
     runs-on: ubuntu-latest
-    needs: determine_runnable_jobs
-    if: needs.determine_runnable_jobs.outputs.code_engine == 'true'
+    needs: determine_runnable_test_jobs
+    if: needs.determine_runnable_test_jobs.outputs.code_engine == 'true'
 
     steps:
       - name: Clone Lithops repository
@@ -95,10 +95,8 @@ jobs:
           lithops runtime delete ${{ secrets.DOCKER_USER }}/lithops-ce-gihub-ci:${{ github.run_id }} -b code_engine -s ibm_cos
 
 
-  ibm_cf_cos_tests:
+  python_linting:
     runs-on: ubuntu-latest
-    needs: determine_runnable_jobs
-    if: needs.determine_runnable_jobs.outputs.ibm_cf == 'true'
 
     steps:
       - name: Clone Lithops repository
@@ -109,26 +107,15 @@ jobs:
         with:
           python-version: '3.10'
 
+      - name: Install dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          pip3 install -U flake8
+
       - name: Install Lithops
         run: |
           pip3 install -U .
-
-      - name: Install Lithops config
-        id: config
+      
+      - name: Lint with flake8
         run: |
-          echo -n -e "${{ secrets.LITHOPS_CONFIG }}" > $LITHOPS_CONFIG_FILE
-
-      - name: Build new runtime
-        run: |
-          docker login -u ${{ secrets.DOCKER_USER }} -p ${{ secrets.DOCKER_TOKEN }}
-          cd runtime/ibm_cf
-          lithops runtime build -f Dockerfile.githubci ${{ secrets.DOCKER_USER }}/lithops-cf-gihub-ci:${{ github.run_id }} -b ibm_cf
-          sed -i '/runtime: lithops-cf/c\    runtime: '${{ secrets.DOCKER_USER }}'/lithops-cf-gihub-ci:'${{ github.run_id }} $LITHOPS_CONFIG_FILE
-
-      - name: Run Lithops tests
-        run: |
-          lithops test -b ibm_cf -s ibm_cos -k
-
-      - name: Delete Lithops CF runtime
-        run: |
-          lithops runtime delete ${{ secrets.DOCKER_USER }}/lithops-cf-gihub-ci:${{ github.run_id }} -b ibm_cf -s ibm_cos
+          flake8 lithops --count --max-line-length=180 --statistics --ignore W605

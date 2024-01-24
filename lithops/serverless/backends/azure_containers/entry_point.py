@@ -31,6 +31,7 @@ connection_string = os.environ['QueueConnectionString']
 queue_name = os.environ['QueueName']
 queue = QueueClient.from_connection_string(conn_str=connection_string, queue_name=queue_name)
 
+
 def get_message():
     message = None
     while not message:
@@ -46,7 +47,7 @@ def get_message():
 def extract_runtime_metadata(payload):
     runtime_meta = get_runtime_metadata()
     internal_storage = InternalStorage(payload['storage_config'])
-    status_key = payload['containerapp_name']+'.meta'
+    status_key = payload['containerapp_name'] + '.meta'
     logger.info(f"Runtime metadata key {status_key}")
     dmpd_response_status = json.dumps(runtime_meta)
     internal_storage.put_data(status_key, dmpd_response_status)

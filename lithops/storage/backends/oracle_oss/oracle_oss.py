@@ -28,6 +28,7 @@ from lithops.utils import sizeof_fmt
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
+
 class OCIObjectStorageBackend:
 
     def __init__(self, oci_config):
