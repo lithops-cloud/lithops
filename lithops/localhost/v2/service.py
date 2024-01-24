@@ -23,7 +23,6 @@ import platform
 import threading
 import multiprocessing as mp
 from enum import Enum
-from pathlib import Path
 from queue import Empty
 from multiprocessing.managers import SyncManager
 from xmlrpc.server import SimpleXMLRPCServer

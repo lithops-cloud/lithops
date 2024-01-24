@@ -200,7 +200,7 @@ class StorageBackend:
                 raise StorageNoSuchKeyError(container_name, key)
             else:
                 raise Exception('{} - {}'.format(res.status_code, key))
-        except Exception as e:
+        except Exception:
             raise StorageNoSuchKeyError(container_name, key)
 
     def delete_object(self, container_name, key):

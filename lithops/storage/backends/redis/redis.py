@@ -208,7 +208,7 @@ class RedisBackend:
         """
         return bool(self._client.exists(self._format_key(bucket_name, '')))
 
-    def list_objects(self, bucket_name, prefix=None, match_pattern = None):
+    def list_objects(self, bucket_name, prefix=None, match_pattern=None):
         """
         Return a list of objects for the given bucket and prefix.
         :param bucket_name: name of the bucket.

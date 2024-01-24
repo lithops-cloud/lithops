@@ -64,5 +64,3 @@ class TestAsync(unittest.TestCase):
         fexec.call_async(simple_map_function, {'x': 2, 'y': 8})
         result = fexec.get_result()
         self.assertEqual(result, 10)
-
-

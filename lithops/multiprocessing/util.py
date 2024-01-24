@@ -33,6 +33,7 @@ REDIS_CLIENT = None
 # Picklable redis client
 #
 
+
 class PicklableRedis(redis.StrictRedis):
     def __init__(self, *args, **kwargs):
         self._args = args

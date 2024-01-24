@@ -1,1 +1,3 @@
-from lithops.storage.backends.infinispan.infinispan import InfinispanBackend as StorageBackend
+from .infinispan import InfinispanBackend as StorageBackend
+
+__all__ = ['StorageBackend']

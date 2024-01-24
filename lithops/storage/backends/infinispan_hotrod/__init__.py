@@ -1,1 +1,3 @@
-from lithops.storage.backends.infinispan_hotrod.infinispan_hotrod import InfinispanHotrodBackend as StorageBackend
+from .infinispan_hotrod import InfinispanHotrodBackend as StorageBackend
+
+__all__ = ['StorageBackend']

@@ -31,6 +31,7 @@ connection_string = os.environ['QueueConnectionString']
 queue_name = os.environ['QueueName']
 queue = QueueClient.from_connection_string(conn_str=connection_string, queue_name=queue_name)
 
+
 def get_message():
     message = None
     while not message:

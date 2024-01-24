@@ -325,7 +325,7 @@ class AWSBatchBackend:
         payload['log_level'] = logger.getEffectiveLevel()
 
         logger.debug(f'Submitting get-metadata job for runtime {runtime_name}')
-        res = self.batch_client.submit_job(
+        self.batch_client.submit_job(
             jobName=job_name,
             jobQueue=self._queue_name,
             jobDefinition=self._format_jobdef_name(runtime_name, runtime_memory),
@@ -398,7 +398,7 @@ class AWSBatchBackend:
         try:
             self.ecr_client.create_repository(repositoryName=repo_name,
                                               imageTagMutability='MUTABLE')
-        except self.ecr_client.exceptions.RepositoryAlreadyExistsException as e:
+        except self.ecr_client.exceptions.RepositoryAlreadyExistsException:
             logger.info('Repository {} already exists'.format(repo_name))
 
         logger.debug(f'Pushing runtime {full_image_name} to AWS container registry')
@@ -535,7 +535,7 @@ class AWSBatchBackend:
         job_name = '{}_{}'.format(self._format_jobdef_name(runtime_name, runtime_memory), payload['job_key'])
 
         if total_workers > 1:
-            res = self.batch_client.submit_job(
+            self.batch_client.submit_job(
                 jobName=job_name,
                 jobQueue=self._queue_name,
                 jobDefinition=self._format_jobdef_name(runtime_name, runtime_memory),
@@ -556,7 +556,7 @@ class AWSBatchBackend:
                 }
             )
         else:
-            res = self.batch_client.submit_job(
+            self.batch_client.submit_job(
                 jobName=job_name,
                 jobQueue=self._queue_name,
                 jobDefinition=self._format_jobdef_name(runtime_name, runtime_memory),

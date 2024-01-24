@@ -462,7 +462,7 @@ def runtime(ctx):
 @click.pass_context
 def build(ctx, name, file, config, backend, debug):
     """ build a serverless runtime. """
-    log_level = logging.INFO if not debug else logging.DEBUG
+    # log_level = logging.INFO if not debug else logging.DEBUG
     setup_lithops_logger(logging.DEBUG)
 
     verify_runtime_name(name)

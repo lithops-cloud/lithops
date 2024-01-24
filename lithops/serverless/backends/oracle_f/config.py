@@ -15,7 +15,6 @@
 
 import os
 import copy
-from lithops.constants import TEMP_DIR
 
 
 DEFAULT_CONFIG_KEYS = {
@@ -79,8 +78,8 @@ ENTRYPOINT ["/usr/local/bin/fdk", "handler/entry_point.py", "handler"]
 AVAILABLE_PY_RUNTIMES = ['3.6', '3.7', '3.8', '3.9']
 
 REQ_PARAMS_1 = ('compartment_id', 'user', 'key_file', 'region', 'tenancy', 'fingerprint')
-
 REQ_PARAMS_2 = ('subnet_id', )
+
 
 def load_config(config_data=None):
     if 'oracle' not in config_data:

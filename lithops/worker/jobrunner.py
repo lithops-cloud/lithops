@@ -32,6 +32,7 @@ from lithops.worker.utils import peak_memory
 
 try:
     import numpy as np
+    np.__version__
 except ModuleNotFoundError:
     pass
 

@@ -56,6 +56,7 @@ def get_range(jobkey, total_calls, chunksize):
 
     return range
 
+
 def run_master_server():
     # Start Redis Server in the background
     # logger.info("Starting redis server in Master Pod")
@@ -64,6 +65,7 @@ def run_master_server():
 
     proxy.logger.setLevel(logging.DEBUG)
     proxy.run(debug=True, host='0.0.0.0', port=config.MASTER_PORT, use_reloader=False)
+
 
 def extract_runtime_meta(payload):
     logger.info(f"Lithops v{__version__} - Generating metadata")
@@ -75,6 +77,7 @@ def extract_runtime_meta(payload):
     logger.info(f"Runtime metadata key {status_key}")
     dmpd_response_status = json.dumps(runtime_meta)
     internal_storage.put_data(status_key, dmpd_response_status)
+
 
 def run_job_k8s(payload):
     logger.info(f"Lithops v{__version__} - Starting kubernetes execution")
@@ -117,6 +120,7 @@ def run_job_k8s(payload):
 
     logger.info("Finishing kubernetes execution")
 
+
 def run_job_k8s_rabbitmq(payload, running_jobs):
     logger.info(f"Lithops v{__version__} - Starting kubernetes execution")
 
@@ -129,26 +133,27 @@ def run_job_k8s_rabbitmq(payload, running_jobs):
 
     logger.info("Finishing kubernetes execution")
 
-# Callback to receive the payload and run the jobs
+
 def callback_work_queue(ch, method, properties, body):
+    """Callback to receive the payload and run the jobs"""
     global cpus_pod
 
-    logger.info(f"Call from lithops received.")
+    logger.info("Call from lithops received.")
 
     message = json.loads(body)
     tasks = message['total_calls']
 
     running_jobs = Value('i', cpus_pod)  # Shared variable to track completed jobs
 
-    # If there are more tasks than cpus in the pod, we need to send a new message
+    # If there are more tasks than cpus in the pod, we need to send a new message
     if tasks <= running_jobs.value:
         processes_to_start = tasks
     else:
         processes_to_start = running_jobs.value
 
         message_to_send = message.copy()
-        message_to_send['total_calls'] = tasks - running_jobs.value 
-        message_to_send['call_ids']  = message_to_send['call_ids'][running_jobs.value:]
+        message_to_send['total_calls'] = tasks - running_jobs.value
+        message_to_send['call_ids'] = message_to_send['call_ids'][running_jobs.value:]
         message_to_send['data_byte_ranges'] = message_to_send['data_byte_ranges'][running_jobs.value:]
 
         message['total_calls'] = running_jobs.value
@@ -169,13 +174,14 @@ def callback_work_queue(ch, method, properties, body):
     running_jobs.value -= processes_to_start
     run_job_k8s_rabbitmq(message, running_jobs)
 
-    logger.info(f"All processes completed")
+    logger.info("All processes completed")
     ch.basic_ack(delivery_tag=method.delivery_tag)
+
 
 def start_rabbitmq_listening(payload):
     global cpus_pod
 
-    # Connect to rabbitmq
+    # Connect to rabbitmq
     params = pika.URLParameters(payload['amqp_url'])
     connection = pika.BlockingConnection(params)
     channel = connection.channel()
@@ -184,12 +190,13 @@ def start_rabbitmq_listening(payload):
 
     # Get the number of cpus of the pod
     cpus_pod = payload['cpus_pod']
-    
+
     # Start listening to the new job
     channel.basic_consume(queue='task_queue', on_message_callback=callback_work_queue)
 
-    logger.info(f"Listening to rabbitmq...")
+    logger.info("Listening to rabbitmq...")
     channel.start_consuming()
+
 
 if __name__ == '__main__':
     action = sys.argv[1]
