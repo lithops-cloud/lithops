@@ -354,10 +354,10 @@ class KubernetesBackend:
                 cpu_info = node.status.allocatable['cpu']
 
             self.nodes.append({
-                            "name": node.metadata.name,
-                            "cpu": cpu_info,
-                            "memory": node.status.allocatable['memory']
-                        })
+                "name": node.metadata.name,
+                "cpu": cpu_info,
+                "memory": node.status.allocatable['memory']
+            })
 
     def _create_workers(self, runtime_memory):
         default_pod_config = yaml.load(config.POD, Loader=yaml.loader.SafeLoader)

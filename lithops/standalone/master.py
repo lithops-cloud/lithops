@@ -348,13 +348,14 @@ def get_workers(worker_instance_type, runtime_name):
 
     def check_worker(worker):
         if is_worker_free(worker):
-            free_workers.append((
-                worker.name,
-                worker.private_ip,
-                worker.instance_id,
-                worker.ssh_credentials,
-                worker.instance_type,
-                runtime_name
+            free_workers.append(
+                (
+                    worker.name,
+                    worker.private_ip,
+                    worker.instance_id,
+                    worker.ssh_credentials,
+                    worker.instance_type,
+                    runtime_name
                 )
             )
 

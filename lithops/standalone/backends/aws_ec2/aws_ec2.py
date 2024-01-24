@@ -612,7 +612,7 @@ class AWSEC2Backend:
         initial_vpc_data = self._load_ec2_data()
         self.init()
 
-        build_vm = EC2Instance('building-image-'+image_name, self.config, self.ec2_client, public=True)
+        build_vm = EC2Instance('building-image-' + image_name, self.config, self.ec2_client, public=True)
         build_vm.delete_on_dismantle = False
         build_vm.create()
         build_vm.wait_ready()

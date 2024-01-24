@@ -140,7 +140,7 @@ class TestMapReduce(unittest.TestCase):
         result = fexec.get_result(futures)
         self.assertEqual(result, self.__class__.words_in_cos_files)
 
-        self.assertEqual(len(futures), len(TEST_FILES_URLS)*OBJ_CHUNK_NUMBER + 1)
+        self.assertEqual(len(futures), len(TEST_FILES_URLS) * OBJ_CHUNK_NUMBER + 1)
 
     def test_chunks_bucket_one_reducer_per_object(self):
         """tests the ability to create a separate function invocation based on the following parameters, as well as
