@@ -32,8 +32,10 @@ from multiprocessing import Process, Pipe
 from tblib import pickling_support
 from types import SimpleNamespace
 from multiprocessing.managers import SyncManager
+from jobrunner import JobStats
 
 from lithops.version import __version__
+from lithops.worker.utils import CPUMonitor
 from lithops.config import extract_storage_config
 from lithops.storage import InternalStorage
 from lithops.worker.jobrunner import JobRunner
@@ -204,9 +206,31 @@ def run_task(task):
         jobrunner = JobRunner(task, jobrunner_conn, internal_storage)
         logger.debug('Starting JobRunner process')
         jrp = Process(target=jobrunner.run) if is_unix_system() else Thread(target=jobrunner.run)
-        jrp.start()
+        
+        # Start CPU monitoring if log level is set to DEBUG
+        if task.log_level == logging.DEBUG:
+            cpu_monitor = CPUMonitor()
+            cpu_monitor.start()
+
+        jrp.start() # Start the JobRunner process
+
+        # Stop CPU monitoring if log level is set to DEBUG
+        if task.log_level == logging.DEBUG:
+                cpu_monitor.stop()
+
         jrp.join(task.execution_timeout)
         logger.debug('JobRunner process finished')
+
+        # Get and log CPU statistics if log level is DEBUG
+        if task.log_level == logging.DEBUG:
+            avg_cpu_usage = cpu_monitor.get_average_cpu_usage()
+            avg_cpu_system_time = cpu_monitor.get_average_system_time()
+            avg_cpu_user_time = cpu_monitor.get_average_user_time()
+
+            jobrunner.stats.write('worker_func_cpu_usage', avg_cpu_usage)
+            jobrunner.stats.write('worker_func_cpu_system_time', round(avg_cpu_system_time, 8))
+            jobrunner.stats.write('worker_func_cpu_user_time', round(avg_cpu_user_time, 8))
+            jobrunner.stats.write('worker_func_cpu_total_time', round(avg_cpu_system_time + avg_cpu_user_time, 8))
 
         if jrp.is_alive():
             # If process is still alive after jr.join(job_max_runtime), kill it

@@ -31,7 +31,6 @@ from pydoc import locate
 from distutils.util import strtobool
 
 from lithops.worker.utils import peak_memory
-from lithops.worker.utils import CPUMonitor
 try:
     import numpy as np
 except ModuleNotFoundError:
@@ -233,28 +232,12 @@ class JobRunner:
 
             logger.info(f"Going to execute '{str(fn_name)}()'")
             print('---------------------- FUNCTION LOG ----------------------')
-            if self.job.log_level == logging.DEBUG:
-                cpu_monitor = CPUMonitor()
-                cpu_monitor.start()
-
             function_start_tstamp = time.time()
             result = func(**data)
             function_end_tstamp = time.time()
-
-            if self.job.log_level == logging.DEBUG:
-                cpu_monitor.stop()
             print('----------------------------------------------------------')
             logger.info("Success function execution")
-            if self.job.log_level == logging.DEBUG:
-                avg_cpu_usage = cpu_monitor.get_average_cpu_usage()
-                avg_cpu_system_time = cpu_monitor.get_average_system_time()
-                avg_cpu_user_time = cpu_monitor.get_average_user_time()
-
-                self.stats.write('worker_func_cpu_usage', avg_cpu_usage)
-                self.stats.write('worker_func_cpu_system_time', round(avg_cpu_system_time, 8))
-                self.stats.write('worker_func_cpu_user_time', round(avg_cpu_user_time, 8))
-                self.stats.write('worker_func_cpu_total_time', round(avg_cpu_system_time + avg_cpu_user_time, 8))
-
+            
             self.stats.write('worker_func_start_tstamp', function_start_tstamp)
             self.stats.write('worker_func_end_tstamp', function_end_tstamp)
             self.stats.write('worker_func_exec_time', round(function_end_tstamp - function_start_tstamp, 8))
