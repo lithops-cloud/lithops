@@ -267,6 +267,7 @@ class LogStream:
     def fileno(self):
         return self._stdout.fileno()
 
+
 class CPUMonitor(threading.Thread):
     def __init__(self, interval=1):
         super(CPUMonitor, self).__init__()

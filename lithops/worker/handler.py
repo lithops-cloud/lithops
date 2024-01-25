@@ -212,10 +212,10 @@ def run_task(task):
             cpu_monitor.start()
 
         jrp.start()
+        jrp.join(task.execution_timeout)
 
         if task.log_level == logging.DEBUG:
-            cpu_monitor.stop()  
-        jrp.join(task.execution_timeout)
+            cpu_monitor.stop()
         logger.debug('JobRunner process finished')
 
         # Get and log CPU statistics if log level is DEBUG
