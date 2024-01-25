@@ -33,7 +33,8 @@ RUN pip install --upgrade setuptools six pip \
         numpy \
         cloudpickle \
         ps-mem \
-        tblib
+        tblib \
+        psutil
 
 ENV PYTHONUNBUFFERED TRUE
 

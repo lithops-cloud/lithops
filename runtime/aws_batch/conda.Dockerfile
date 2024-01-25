@@ -52,7 +52,8 @@ RUN pip install --upgrade --no-cache-dir --ignore-installed \
         kafka-python \
         cloudpickle \
         ps-mem \
-        tblib
+        tblib \
+        psutil
         # Put here your pip dependencies...
 
 ENV APP_HOME /lithops

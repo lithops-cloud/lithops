@@ -37,7 +37,8 @@ RUN pip install --upgrade setuptools six pip \
         google-cloud-storage \
         google-api-python-client \
         gcsfs \
-        google-auth
+        google-auth \
+        psutil
 
 # Copy Lithops proxy and lib to the container image.
 ENV APP_HOME /lithops

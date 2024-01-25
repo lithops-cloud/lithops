@@ -11,3 +11,4 @@ numpy
 cloudpickle
 ps-mem
 tblib
+psutil

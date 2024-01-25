@@ -30,7 +30,8 @@ RUN /opt/conda-env/bin/pip install --upgrade --no-cache-dir --ignore-installed \
         kafka-python \
         cloudpickle \
         ps-mem \
-        tblib
+        tblib \
+        psutil
 
 # Put here your PIP dependencies...
 # RUN /opt/conda-env/bin/pip install --upgrade --no-cache-dir --ignore-installed

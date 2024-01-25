@@ -30,7 +30,8 @@ RUN pip install --upgrade --ignore-installed setuptools six pip \
         cloudpickle \
         ps-mem \
         tblib \
-        matplotlib
+        matplotlib \
+        psutil
 
 # Copy Lithops proxy and lib to the container image.
 ENV APP_HOME /lithops

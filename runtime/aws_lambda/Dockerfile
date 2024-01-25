@@ -44,7 +44,8 @@ RUN pip install --upgrade --ignore-installed pip wheel six setuptools \
         kafka-python \
         cloudpickle \
         ps-mem \
-        tblib
+        tblib \
+        psutil
 
 # Set working directory to function root directory
 WORKDIR ${FUNCTION_DIR}
