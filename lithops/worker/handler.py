@@ -227,10 +227,10 @@ def run_task(task):
             avg_cpu_system_time = cpu_monitor.get_average_system_time()
             avg_cpu_user_time = cpu_monitor.get_average_user_time()
 
-            jobrunner.stats.write('worker_func_cpu_usage', avg_cpu_usage)
-            jobrunner.stats.write('worker_func_cpu_system_time', round(avg_cpu_system_time, 8))
-            jobrunner.stats.write('worker_func_cpu_user_time', round(avg_cpu_user_time, 8))
-            jobrunner.stats.write('worker_func_cpu_total_time', round(avg_cpu_system_time + avg_cpu_user_time, 8))
+            call_status.add('worker_func_cpu_usage', avg_cpu_usage)
+            call_status.add('worker_func_cpu_system_time', round(avg_cpu_system_time, 8))
+            call_status.add('worker_func_cpu_user_time', round(avg_cpu_user_time, 8))
+            call_status.add('worker_func_cpu_total_time', round(avg_cpu_system_time + avg_cpu_user_time, 8))
 
         if jrp.is_alive():
             # If process is still alive after jr.join(job_max_runtime), kill it
