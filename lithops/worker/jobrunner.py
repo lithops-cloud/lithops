@@ -20,12 +20,10 @@ import io
 import sys
 import pika
 import time
-import psutil
 import pickle
 import logging
 import inspect
 import requests
-import threading
 import traceback
 from pydoc import locate
 from distutils.util import strtobool

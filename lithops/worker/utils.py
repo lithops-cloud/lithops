@@ -31,6 +31,7 @@ from lithops.utils import sizeof_fmt, is_unix_system, b64str_to_bytes
 from lithops.constants import LITHOPS_TEMP_DIR, MODULES_DIR
 
 logger = logging.getLogger(__name__)
+
 if is_unix_system():
     from resource import RUSAGE_SELF, getrusage
     # Windows hosts can't use ps_mem module
@@ -322,3 +323,4 @@ class CPUMonitor(threading.Thread):
         for cpu in self.cpu_times:
             total_system_time += sum(time.system for time in cpu) / len(cpu)
         return total_system_time / total_samples
+    

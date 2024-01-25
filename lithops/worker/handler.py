@@ -32,12 +32,11 @@ from multiprocessing import Process, Pipe
 from tblib import pickling_support
 from types import SimpleNamespace
 from multiprocessing.managers import SyncManager
-from jobrunner import JobStats
 
 from lithops.version import __version__
-from lithops.worker.utils import CPUMonitor
 from lithops.config import extract_storage_config
 from lithops.storage import InternalStorage
+from lithops.worker.utils import CPUMonitor
 from lithops.worker.jobrunner import JobRunner
 from lithops.worker.utils import LogStream, custom_redirection, \
     get_function_and_modules, get_function_data
