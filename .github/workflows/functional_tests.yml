@@ -1,4 +1,4 @@
-name: "on-pull-request"
+name: "functional_tests"
 
 on:  
   workflow_dispatch: 
