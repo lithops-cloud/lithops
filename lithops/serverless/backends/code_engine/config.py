@@ -62,7 +62,8 @@ RUN pip install --upgrade --ignore-installed setuptools six pip \
         numpy \
         cloudpickle \
         ps-mem \
-        tblib
+        tblib \
+        psutil
 
 ENV PORT 8080
 ENV CONCURRENCY 1

@@ -69,7 +69,8 @@ RUN pip install --upgrade --ignore-installed setuptools six pip \
         google-cloud-pubsub \
         google-api-python-client \
         gcsfs \
-        google-auth
+        google-auth \
+        psutil
 
 
 ENV PORT 8080

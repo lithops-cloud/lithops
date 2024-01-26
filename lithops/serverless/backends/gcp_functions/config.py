@@ -79,6 +79,7 @@ PyYAML
 cloudpickle
 ps-mem
 tblib
+psutil
 """
 
 
