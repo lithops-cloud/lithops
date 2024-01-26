@@ -1,4 +1,4 @@
-name: "functional_tests"
+name: "functional-tests"
 
 on:  
   workflow_dispatch: 
