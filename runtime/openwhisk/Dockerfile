@@ -10,13 +10,8 @@ ENV FLASK_PROXY_PORT 8080
 RUN apt-get update \
     # add some packages required for the pip install
     && apt-get install -y \
-        gcc \
-        zlib1g-dev \
-        libxslt-dev \
-        libxml2-dev \
         zip \
         unzip \
-        make \
     # cleanup package lists, they are not used anymore in this image
     && rm -rf /var/lib/apt/lists/* \
     && apt-cache search linux-headers-generic
