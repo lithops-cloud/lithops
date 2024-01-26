@@ -43,6 +43,7 @@ pika
 tblib
 cloudpickle
 ps-mem
+psutil
 """
 
 REQ_PARAMS_1 = ('account_id', 'access_key_id', 'access_key_secret')

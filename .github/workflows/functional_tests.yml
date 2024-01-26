@@ -86,6 +86,6 @@ jobs:
           lithops test -b code_engine -s ibm_cos -k
 
       - name: Delete Lithops CE runtime
-        if: needs.determine_runnable_jobs.outputs.code_engine == 'true'
+        if: needs.determine_runnable_test_jobs.outputs.code_engine == 'true'
         run: |
           lithops runtime delete ${{ secrets.DOCKER_USER }}/lithops-ce-gihub-ci:${{ github.run_id }} -b code_engine -s ibm_cos

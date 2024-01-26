@@ -138,6 +138,7 @@ kubernetes
 cloudpickle
 ps-mem
 tblib
+psutil
 """
 
 
