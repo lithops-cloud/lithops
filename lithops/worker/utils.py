@@ -268,13 +268,17 @@ class LogStream:
         return self._stdout.fileno()
 
 
-class CPUMonitor(threading.Thread):
+class SystemMonitor(threading.Thread):
     def __init__(self, interval=1):
-        super(CPUMonitor, self).__init__()
+        super(SystemMonitor, self).__init__()
         self.interval = interval
         self.cpu_usage = []
         self.cpu_times = []  # Stores CPU times (system and user) for each core
+        self.net_io = []     # Network IO statistics
         self.running = True
+
+        # Clear the cache for net_io_counters
+        psutil.net_io_counters.cache_clear()
 
     def run(self):
         while self.running:
@@ -283,6 +287,11 @@ class CPUMonitor(threading.Thread):
             cpu_percentages = psutil.cpu_percent(interval=None, percpu=True)
             self.cpu_usage.append(cpu_percentages)
             self.cpu_times.append(cpu_times)
+
+            # Network IO metrics
+            net_io = psutil.net_io_counters(pernic=False)
+            self.net_io.append((net_io.bytes_sent, net_io.bytes_recv))
+
             time.sleep(self.interval)
 
     def stop(self):
@@ -325,3 +334,11 @@ class CPUMonitor(threading.Thread):
         for cpu in self.cpu_times:
             total_system_time += sum(time.system for time in cpu) / len(cpu)
         return total_system_time / total_samples
+
+    def get_total_network_usage(self):
+        if not self.net_io:
+            return (0, 0)
+
+        total_sent = sum(sent for sent, _ in self.net_io)
+        total_recv = sum(recv for _, recv in self.net_io)
+        return (total_sent, total_recv)
