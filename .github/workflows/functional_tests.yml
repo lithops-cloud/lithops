@@ -1,10 +1,6 @@
-name: "on-pull-request"
+name: "functional-tests"
 
-on:
-  pull_request:
-    branches:
-      - master
-  
+on:  
   workflow_dispatch: 
   # this allows to run the workflow manually through the github dashboard
 
@@ -93,29 +89,3 @@ jobs:
         if: needs.determine_runnable_jobs.outputs.code_engine == 'true'
         run: |
           lithops runtime delete ${{ secrets.DOCKER_USER }}/lithops-ce-gihub-ci:${{ github.run_id }} -b code_engine -s ibm_cos
-
-
-  python_linting:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Clone Lithops repository
-        uses: actions/checkout@v3
-
-      - name: Install Python 3.10
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-
-      - name: Install dependencies
-        run: |
-          python3 -m pip install --upgrade pip
-          pip3 install -U flake8
-
-      - name: Install Lithops
-        run: |
-          pip3 install -U .
-      
-      - name: Lint with flake8
-        run: |
-          flake8 lithops --count --max-line-length=180 --statistics --ignore W605
