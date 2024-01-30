@@ -16,13 +16,11 @@
 
 import os
 import sys
-import time
 import psutil
 import pkgutil
 import logging
 import pickle
 import platform
-import threading
 import subprocess
 from contextlib import contextmanager
 
@@ -268,77 +266,58 @@ class LogStream:
         return self._stdout.fileno()
 
 
-class SystemMonitor(threading.Thread):
-    def __init__(self, interval=1):
-        super(SystemMonitor, self).__init__()
-        self.interval = interval
-        self.cpu_usage = []
-        self.cpu_times = []  # Stores CPU times (system and user) for each core
-        self.net_io = []     # Network IO statistics
-        self.running = True
+class SystemMonitor:
+    def __init__(self):
+        """
+        Initialize the SystemMonitor.
+        """
+        self.cpu_usage = None
+        self.reset_network_io()
 
-        # Clear the cache for net_io_counters
+    def reset_network_io(self):
+        """
+        Reset the network IO counters cache and baseline.
+        """
         psutil.net_io_counters.cache_clear()
+        self.net_io_start = psutil.net_io_counters()
 
-    def run(self):
-        while self.running:
-            # Get CPU times (system and user) for each core
-            cpu_times = psutil.cpu_times(percpu=True)
-            cpu_percentages = psutil.cpu_percent(interval=None, percpu=True)
-            self.cpu_usage.append(cpu_percentages)
-            self.cpu_times.append(cpu_times)
-
-            # Network IO metrics
-            net_io = psutil.net_io_counters(pernic=False)
-            self.net_io.append((net_io.bytes_sent, net_io.bytes_recv))
-
-            time.sleep(self.interval)
+    def start(self):
+        """
+        Start monitoring and record the initial CPU usage (to be ignored).
+        """
+        psutil.cpu_percent(interval=None, percpu=True)
 
     def stop(self):
-        self.running = False
+        """
+        Stop monitoring and record the CPU usage since the last call (start).
+        """
+        self.cpu_usage = psutil.cpu_percent(interval=None, percpu=True)
 
-    def get_average_cpu_usage(self):
-        if not self.cpu_usage:
+    def get_cpu_usage(self):
+        """
+        Get the CPU usage for each CPU core at the end.
+        """
+        if self.cpu_usage is None:
             return []
 
-        # Calculate average CPU usage for all cores
-        num_cores = len(self.cpu_usage[0])
-        avg_usage = [0] * num_cores
+        return self.cpu_usage
 
-        for usage_data in self.cpu_usage:
-            for core_id, usage in enumerate(usage_data):
-                avg_usage[core_id] += usage
+    def calculate_cpus_values(self):
+        """
+        Calculate average CPU usage, average system time, and average user time for each CPU core.
+        """
+        cpu_time = psutil.cpu_times()
+        cpu_usage = self.get_cpu_usage()
+        avg_cpu_system_time = cpu_time.system
+        avg_cpu_user_time = cpu_time.user
 
-        avg_usage = [usage / len(self.cpu_usage) for usage in avg_usage]
-        return avg_usage
+        return cpu_usage, avg_cpu_system_time, avg_cpu_user_time
 
-    def get_average_user_time(self):
-        # Calculate average user time for all cores
-        if not self.cpu_times:
-            return 0
-
-        total_user_time = 0
-        total_samples = len(self.cpu_times)
-
-        for cpu in self.cpu_times:
-            total_user_time += sum(time.user for time in cpu) / len(cpu)
-        return total_user_time / total_samples
-
-    def get_average_system_time(self):
-        # Calculate average system time for all cores
-        if not self.cpu_times:
-            return 0
-
-        total_system_time = 0
-        total_samples = len(self.cpu_times)
-        for cpu in self.cpu_times:
-            total_system_time += sum(time.system for time in cpu) / len(cpu)
-        return total_system_time / total_samples
-
-    def get_total_network_usage(self):
-        if not self.net_io:
-            return (0, 0)
-
-        total_sent = sum(sent for sent, _ in self.net_io)
-        total_recv = sum(recv for _, recv in self.net_io)
-        return (total_sent, total_recv)
+    def get_network_io(self):
+        """
+        Calculate network IO (bytes sent and received) since the last reset.
+        """
+        current_net_io = psutil.net_io_counters()
+        bytes_sent = current_net_io.bytes_sent - self.net_io_start.bytes_sent
+        bytes_recv = current_net_io.bytes_recv - self.net_io_start.bytes_recv
+        return bytes_sent, bytes_recv

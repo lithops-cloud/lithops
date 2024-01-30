@@ -220,17 +220,16 @@ def run_task(task):
 
         # Get and log System statistics if log level is DEBUG
         if task.log_level == logging.DEBUG:
-            avg_cpu_usage = sys_monitor.get_average_cpu_usage()
-            avg_cpu_system_time = sys_monitor.get_average_system_time()
-            avg_cpu_user_time = sys_monitor.get_average_user_time()
-            total_net_io = sys_monitor.get_total_network_usage()
+            cpu_usage, cpu_system_time, cpu_user_time = sys_monitor.calculate_cpus_values()
 
-            call_status.add('worker_func_cpu_usage', avg_cpu_usage)
-            call_status.add('worker_func_cpu_system_time', round(avg_cpu_system_time, 8))
-            call_status.add('worker_func_cpu_user_time', round(avg_cpu_user_time, 8))
-            call_status.add('worker_func_cpu_total_time', round(avg_cpu_system_time + avg_cpu_user_time, 8))
-            call_status.add('worker_func_sent_net_io', total_net_io[0])
-            call_status.add('worker_func_recv_net_io', total_net_io[1])
+            call_status.add('worker_func_cpu_usage', cpu_usage)
+            call_status.add('worker_func_cpu_system_time', round(cpu_system_time, 8))
+            call_status.add('worker_func_cpu_user_time', round(cpu_user_time, 8))
+            call_status.add('worker_func_cpu_total_time', round(cpu_system_time + cpu_user_time, 8))
+
+            net_io = sys_monitor.get_network_io()
+            call_status.add('worker_func_sent_net_io', net_io[0])
+            call_status.add('worker_func_recv_net_io', net_io[1])
 
         if jrp.is_alive():
             # If process is still alive after jr.join(job_max_runtime), kill it
