@@ -85,8 +85,29 @@ The user can obtain these statistics through the future object:
      'worker_cold_start': True,
      'worker_end_tstamp': 1647526902.397567,
      'worker_exec_time': 0.23604679,
+     'worker_func_cpu_system_time': 16418.34375,
+     'worker_func_cpu_total_time': 86985.125,
+     'worker_func_cpu_usage': [0.0,
+                                0.0,
+                                0.0,
+                                0.0,
+                                0.0,
+                                0.0,
+                                0.0,
+                                0.0,
+                                0.0,
+                                0.0,
+                                0.0,
+                                0.0,
+                                0.0,
+                                0.0,
+                                0.0,
+                                0.0],
+     'worker_func_cpu_user_time': 70566.78125,
      'worker_func_end_tstamp': 1647526902.2985177,
      'worker_func_exec_time': 1.91e-06,
+     'worker_func_recv_net_io': 0,
+     'worker_func_sent_net_io': 0,
      'worker_func_start_tstamp': 1647526902.2985158,
      'worker_result_upload_time': 0.07001352,
      'worker_start_tstamp': 1647526902.1615202,
@@ -132,10 +153,22 @@ The user can obtain these statistics through the future object:
      - Timestamp in which the worker function had finished its execution.
    * - :code:`worker_exec_time`
      - Total execution time of the worker function (lithops wrapper + user defined funtion execution time).
+   * - :code:`worker_func_cpu_system_time`
+     - CPU system time during the execution of the user-defined function.
+   * - :code:`worker_func_cpu_total_time`
+     - Total CPU time during the execution of the user-defined function (system time + user time).
+   * - :code:`worker_func_cpu_usage`
+     - CPU usage percentage during the execution of the user-defined function.
+   * - :code:`worker_func_cpu_user_time`
+     - CPU user time during the execution of the user-defined function.
    * - :code:`worker_func_end_tstamp`
      - Timestamp of the end of execution of the user-defined function.
    * - :code:`worker_func_exec_time`
      - Total execution time of the user-defined function.
+   * - :code:`worker_func_recv_net_io`
+     - Network I/O bytes received during the execution of the user-defined function.
+   * - :code:`worker_func_sent_net_io`
+     - Network I/O bytes sent during the execution of the user-defined function.
    * - :code:`worker_func_start_tstamp`
      - Timestamp of the start of execution of the user-defined function.
    * - :code:`worker_result_upload_time`
