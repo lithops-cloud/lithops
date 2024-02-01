@@ -1,0 +1,18 @@
+name: lithops-conda
+channels:
+  - conda-forge
+  - anaconda
+  - defaults
+dependencies:
+  - python=3.11
+  - pip
+  # Put here your conda dependencies...
+  - intake-xarray
+  - fastparquet
+  - gdal
+  - zarr
+  - s3fs
+  - adios-db
+  - cartopy
+  - pip:
+    - git+https://github.com/OpenDrift/opendrift@master
