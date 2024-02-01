@@ -173,13 +173,6 @@ class AWSEC2Backend:
             if len(sg_info) > 0:
                 self.config['public_subnet_id'] = self.ec2_data['public_subnet_id']
 
-        # if 'private_subnet_id' in self.ec2_data:
-        #     sg_info = self.ec2_client.describe_subnets(
-        #         SubnetIds=[self.ec2_data['private_subnet_id']]
-        #     )
-        #     if len(sg_info) > 0:
-        #         self.config['private_subnet_id'] = self.ec2_data['private_subnet_id']
-
         if 'public_subnet_id' not in self.config:
             logger.debug(f'Creating new public subnet in VPC {self.vpc_name}')
             response = self.ec2_client.create_subnet(
@@ -188,6 +181,13 @@ class AWSEC2Backend:
             public_subnet_id = response['Subnet']['SubnetId']
             self.config['public_subnet_id'] = public_subnet_id
 
+        # if 'private_subnet_id' in self.ec2_data:
+        #     sg_info = self.ec2_client.describe_subnets(
+        #         SubnetIds=[self.ec2_data['private_subnet_id']]
+        #     )
+        #     if len(sg_info) > 0:
+        #         self.config['private_subnet_id'] = self.ec2_data['private_subnet_id']
+        #
         # if 'private_subnet_id' not in self.config:
         #     logger.debug(f'Creating new private subnet in VPC {self.vpc_name}')
         #     response = self.ec2_client.create_subnet(
@@ -281,13 +281,6 @@ class AWSEC2Backend:
             if len(sg_info) > 0:
                 self.config['public_rtb_id'] = self.ec2_data['public_rtb_id']
 
-        # if 'private_rtb_id' in self.ec2_data:
-        #     sg_info = self.ec2_client.describe_route_tables(
-        #         RouteTableIds=[self.ec2_data['private_rtb_id']]
-        #     )
-        #     if len(sg_info) > 0:
-        #         self.config['private_rtb_id'] = self.ec2_data['private_rtb_id']
-
         if 'public_rtb_id' not in self.config:
             logger.debug(f'Creating public routing table in VPC {self.vpc_name}')
             # The default RT is the public RT
@@ -310,6 +303,13 @@ class AWSEC2Backend:
             )
             self.config['public_rtb_id'] = publ_route_table_id
 
+        # if 'private_rtb_id' in self.ec2_data:
+        #     sg_info = self.ec2_client.describe_route_tables(
+        #         RouteTableIds=[self.ec2_data['private_rtb_id']]
+        #     )
+        #     if len(sg_info) > 0:
+        #         self.config['private_rtb_id'] = self.ec2_data['private_rtb_id']
+        #
         # if 'private_rtb_id' not in self.config:
         #     logger.debug(f'Creating private routing table in VPC {self.vpc_name}')
         #     # Create private RT
@@ -1215,10 +1215,10 @@ class EC2Instance:
 
             resp = self.ec2_client.run_instances(**LaunchSpecification)
 
-            self.instance_data = resp['Instances'][0]
-            self.instance_id = self.instance_data['InstanceId']
-
         logger.debug(f"VM instance {self.name} created successfully ")
+
+        self.instance_data = resp['Instances'][0]
+        self.instance_id = self.instance_data['InstanceId']
 
         return self.instance_data
 

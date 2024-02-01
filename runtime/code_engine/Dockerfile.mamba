@@ -1,0 +1,81 @@
+# Python 3.6
+#FROM python:3.6-slim-buster
+
+# Python 3.7
+#FROM python:3.7-slim-buster
+
+# Python 3.8
+#FROM python:3.8-slim-buster
+
+# Python 3.9
+#FROM python:3.9-slim-buster
+
+# Python 3.10
+FROM python:3.10-slim-buster
+
+# Python 3.11
+# FROM python:3.11-slim-buster
+
+RUN apt-get update \
+    # add the required packages
+    && apt-get install -y wget unzip git \
+    # cleanup package lists, they are not used anymore in this image
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-cache search linux-headers-generic
+
+# Install conda
+RUN wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -o miniconda.sh && \
+    sh Miniconda3-latest-Linux-x86_64.sh -b -p /opt/miniconda && \
+    rm miniconda.sh Miniconda3-latest-Linux-x86_64.sh
+
+COPY lithops-env-py311.yml /tmp/lithops-conda.yml
+
+# Install mamba and create the new environment
+RUN /opt/miniconda/bin/conda install -c conda-forge -y mamba && \
+    /opt/miniconda/bin/conda install -c anaconda -y git && \
+    /opt/miniconda/bin/conda update -n base -c defaults -y conda && \
+    /opt/miniconda/bin/conda clean --all && \
+    /opt/miniconda/bin/mamba env create --file /tmp/lithops-conda.yml --prefix /opt/conda-env && \
+    /opt/miniconda/bin/mamba clean --all
+
+# Install Lithops dependencies
+RUN /opt/conda-env/bin/pip install --upgrade --no-cache-dir --ignore-installed \
+    gunicorn \
+    flask \
+    pika \
+    boto3 \
+    ibm-cloud-sdk-core \
+    ibm-cos-sdk \
+    ibm-code-engine-sdk \
+    scikit-learn \
+    diskcache \
+    redis \
+    gevent \
+    requests \
+    PyYAML \
+    numpy \
+    cloudpickle \
+    ps-mem \
+    tblib \
+    psutil \
+    kubernetes
+
+# Replace python intepreter with conda's
+RUN ln -sf /opt/conda-env/bin/python /usr/local/bin/python
+
+ENV PATH="/opt/conda-env/bin/:${PATH}"
+
+ENV PORT 8080
+ENV CONCURRENCY 1
+ENV TIMEOUT 600
+ENV PYTHONUNBUFFERED TRUE
+
+# Copy Lithops proxy and lib to the container image.
+ENV APP_HOME /lithops
+WORKDIR $APP_HOME
+
+COPY lithops_codeengine.zip .
+RUN unzip lithops_codeengine.zip && rm lithops_codeengine.zip
+
+CMD exec gunicorn --bind :$PORT --workers $CONCURRENCY --timeout $TIMEOUT lithopsentry:proxy
+ 

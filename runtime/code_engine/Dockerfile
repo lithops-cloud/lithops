@@ -13,16 +13,12 @@
 # Python 3.10
 FROM python:3.10-slim-buster
 
+# Python 3.11
+# FROM python:3.11-slim-buster
+
 RUN apt-get update \
-    # add some packages required for the pip install
-    && apt-get install -y \
-        gcc \
-        zlib1g-dev \
-        libxslt-dev \
-        libxml2-dev \
-        zip \
-        unzip \
-        make \
+    # add the required packages
+    && apt-get install -y unzip \
     # cleanup package lists, they are not used anymore in this image
     && rm -rf /var/lib/apt/lists/* \
     && apt-cache search linux-headers-generic
