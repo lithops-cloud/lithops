@@ -217,12 +217,19 @@ class ResponseFuture:
             with open(FN_LOG_FILE, 'a') as lf:
                 lf.write(header + '    ' + output + tail)
 
+        for key in self._call_status:
+            if any(key.startswith(ss) for ss in ['func', 'host', 'worker']):
+                self.stats[key] = self._call_status[key]
+
+        self.stats['worker_exec_time'] = round(self.stats['worker_end_tstamp'] - self.stats['worker_start_tstamp'], 8)
+        total_time = format(round(self.stats['worker_exec_time'], 2), '.2f')
+
+        logger.debug(f'ExecutorID {self.executor_id} | JobID {self.job_id} - Got status from call {self.call_id} '
+                     f'- Activation ID: {self.activation_id} - Time: {str(total_time)} seconds')
+
         if self._call_status['exception']:
             self._set_state(ResponseFuture.State.Error)
             self._exception = pickle.loads(eval(self._call_status['exc_info']))
-
-            msg1 = ('ExecutorID {} | JobID {} - There was an exception - Activation '
-                    'ID: {}'.format(self.executor_id, self.job_id, self.activation_id))
 
             if not self._call_status.get('exc_pickle_fail', False):
                 fn_exctype = self._exception[0]
@@ -240,9 +247,15 @@ class ResponseFuture:
                 self._exception = (fn_exctype, fn_exc,
                                    self._exception['exc_traceback'])
 
+            msg1 = (
+                'ExecutorID {} | JobID {} - There was an exception - Activation ID: {} - {}'
+                .format(self.executor_id, self.job_id, self.activation_id, fn_exctype.__name__)
+            )
+
+            logger.warning(msg1)
+
             def exception_hook(exctype, exc, trcbck):
                 if exctype == fn_exctype and str(exc) == str(fn_exc):
-                    logger.warning(msg1)
                     if self._handler_exception:
                         msg2 = 'Exception: {} - {}'.format(fn_exctype.__name__,
                                                            fn_exc)
@@ -257,21 +270,10 @@ class ResponseFuture:
                 sys.excepthook = exception_hook
                 reraise(*self._exception)
             else:
-                logger.warning(msg1)
                 msg2 = 'Exception: {} - {}'.format(self._exception[0].__name__,
                                                    self._exception[1])
                 logger.warning(msg2)
                 return None
-
-        for key in self._call_status:
-            if any(key.startswith(ss) for ss in ['func', 'host', 'worker']):
-                self.stats[key] = self._call_status[key]
-
-        self.stats['worker_exec_time'] = round(self.stats['worker_end_tstamp'] - self.stats['worker_start_tstamp'], 8)
-        total_time = format(round(self.stats['worker_exec_time'], 2), '.2f')
-
-        logger.debug(f'ExecutorID {self.executor_id} | JobID {self.job_id} - Got status from call {self.call_id} '
-                     f'- Activation ID: {self.activation_id} - Time: {str(total_time)} seconds')
 
         self._set_state(ResponseFuture.State.Success)
 

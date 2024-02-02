@@ -447,7 +447,7 @@ class FunctionExecutor:
         except (KeyboardInterrupt, Exception) as e:
             self.invoker.stop()
             self.job_monitor.stop()
-            if not fs and is_notebook():
+            if not fs:
                 del self.futures[len(self.futures) - len(futures):]
             if self.data_cleaner:
                 present_jobs = {f.job_key for f in futures}
