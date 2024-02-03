@@ -42,15 +42,17 @@ class Monitor(threading.Thread):
     def __init__(self, executor_id,
                  internal_storage,
                  token_bucket_q,
+                 job_chunksize,
                  generate_tokens,
                  config):
 
         super().__init__()
         self.executor_id = executor_id
-        self.futures = []
+        self.futures = set()
         self.internal_storage = internal_storage
         self.should_run = True
         self.token_bucket_q = token_bucket_q
+        self.job_chunksize = job_chunksize
         self.generate_tokens = generate_tokens
         self.config = config
         self.daemon = True
@@ -59,22 +61,30 @@ class Monitor(threading.Thread):
         self.workers = {}
         self.workers_done = []
         self.callids_done_worker = {}
-        self.job_chunksize = {}
         self.present_jobs = set()
 
-    def add_futures(self, fs, job_id=None, chunksize=None):
+    def add_futures(self, fs):
         """
         Extends the current thread list of futures to track
         """
-        self.futures.extend(fs)
+        self.futures.update(set(fs))
 
-        # this is required for FaaS backends and _generate_tokens
-        if job_id:
-            self.job_chunksize[job_id] = chunksize
-
-        present_jobs = {f.job_id for f in fs}
+        present_jobs = {future.job_id for future in fs}
         for job_id in present_jobs:
             self.present_jobs.add(job_id)
+
+    def remove_futures(self, fs):
+        """
+        Remove from the current thread a list of futures
+        """
+        self._print_status_log()
+
+        for future in fs:
+            self.futures.remove(future)
+
+        present_jobs = {future.job_id for future in fs}
+        for job_id in present_jobs:
+            self.present_jobs.remove(job_id)
 
     def _all_ready(self):
         """
@@ -88,7 +98,7 @@ class Monitor(threading.Thread):
             return False
 
         f._set_futures(call_status)
-        self.futures.extend(f._new_futures)
+        self.futures.add(f._new_futures)
         logger.debug(f'ExecutorID {self.executor_id} - Got {len(f._new_futures)} new futures to track')
 
         return True
@@ -120,6 +130,8 @@ class Monitor(threading.Thread):
 
     def _print_status_log(self, previous_log=None, log_time=None):
         """prints a debug log showing the status of the job"""
+        if not self.futures:
+            return previous_log, log_time
         callids_pending = len([f for f in self.futures if f.invoked])
         callids_running = len([f for f in self.futures if f.running])
         callids_done = len([f for f in self.futures if f.ready or f.success or f.done])
@@ -132,8 +144,8 @@ class Monitor(threading.Thread):
 
 class RabbitmqMonitor(Monitor):
 
-    def __init__(self, executor_id, internal_storage, token_bucket_q, generate_tokens, config):
-        super().__init__(executor_id, internal_storage, token_bucket_q, generate_tokens, config)
+    def __init__(self, executor_id, internal_storage, token_bucket_q, job_chunksize, generate_tokens, config):
+        super().__init__(executor_id, internal_storage, token_bucket_q, job_chunksize, generate_tokens, config)
 
         self.rabbit_amqp_url = config.get('amqp_url')
         self.queue = f'lithops-{self.executor_id}'
@@ -235,7 +247,7 @@ class RabbitmqMonitor(Monitor):
         channel.basic_consume(self.queue, callback, auto_ack=True)
         threading.Thread(target=channel.start_consuming, daemon=True).start()
 
-        while not self._all_ready() or not self.futures:
+        while not self._all_ready():
             # Format call_ids running, pending and done
             prevoius_log, log_time = self._print_status_log(previous_log=prevoius_log, log_time=log_time)
             self._future_timeout_checker(self.futures)
@@ -249,8 +261,8 @@ class RabbitmqMonitor(Monitor):
 class StorageMonitor(Monitor):
     THREADPOOL_SIZE = 64
 
-    def __init__(self, executor_id, internal_storage, token_bucket_q, generate_tokens, config):
-        super().__init__(executor_id, internal_storage, token_bucket_q, generate_tokens, config)
+    def __init__(self, executor_id, internal_storage, token_bucket_q, job_chunksize, generate_tokens, config):
+        super().__init__(executor_id, internal_storage, token_bucket_q, job_chunksize, generate_tokens, config)
 
         self.monitoring_interval = config['monitoring_interval']
 
@@ -384,7 +396,7 @@ class StorageMonitor(Monitor):
         prevoius_log = None
         log_time = 0
 
-        while not self._all_ready() or not self.futures:
+        while not self._all_ready():
             time.sleep(WAIT_DUR_SEC)
             WAIT_DUR_SEC = self.monitoring_interval
             log_time += WAIT_DUR_SEC
@@ -418,6 +430,7 @@ class JobMonitor:
         self.backend = self.config['lithops']['monitoring'].lower() if config else 'storage'
         self.token_bucket_q = queue.Queue()
         self.monitor = None
+        self.job_chunksize = {}
 
         self.MonitorClass = getattr(
             lithops.monitor,
@@ -432,16 +445,27 @@ class JobMonitor:
         else:
             bk_config = self.config.get(self.backend)
 
+        if job_id:
+            self.job_chunksize[job_id] = chunksize
+
         if not self.monitor or not self.monitor.is_alive():
             self.monitor = self.MonitorClass(
                 executor_id=self.executor_id,
                 internal_storage=self.internal_storage,
                 token_bucket_q=self.token_bucket_q,
+                job_chunksize=self.job_chunksize,
                 generate_tokens=generate_tokens,
                 config=bk_config
             )
+
+        self.monitor.add_futures(fs)
+
+        if not self.monitor.is_alive():
             self.monitor.start()
-        self.monitor.add_futures(fs, job_id, chunksize)
+
+    def remove(self, fs):
+        if self.monitor and self.monitor.is_alive():
+            self.monitor.remove_futures(fs)
 
     def stop(self):
         if self.monitor and self.monitor.is_alive():

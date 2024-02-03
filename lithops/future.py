@@ -70,7 +70,6 @@ class ResponseFuture:
 
         self._storage_config = storage_config
         self._produce_output = True
-        self._read = False
         self._state = ResponseFuture.State.New
         self._exception = Exception()
         self._handler_exception = False
@@ -149,6 +148,10 @@ class ResponseFuture:
         self._call_status = call_status
         self.activation_id = self._call_status['activation_id']
         self._state = ResponseFuture.State.Running
+
+    def _set_error(self,):
+        """ Set the future as error"""
+        self._state = ResponseFuture.State.Error
 
     def _set_ready(self, call_status):
         """ Set the future as running"""
@@ -280,9 +283,6 @@ class ResponseFuture:
         if self._call_status['func_result_size'] == 0:
             self._produce_output = False
 
-        if not self._produce_output:
-            self._set_state(ResponseFuture.State.Done)
-
         if 'new_futures' in self._call_status and not self._new_futures:
             new_futures = pickle.loads(eval(self._call_status['new_futures']))
             self._new_futures = [new_futures] if type(new_futures) is ResponseFuture else new_futures
@@ -292,9 +292,6 @@ class ResponseFuture:
             self._call_output = pickle.loads(eval(self._call_status['result']))
             self.stats['host_result_done_tstamp'] = time.time()
             self.stats['host_result_query_count'] = 0
-            logger.debug(f'ExecutorID {self.executor_id} | JobID {self.job_id} - Got output '
-                         f'from call {self.call_id} - Activation ID: {self.activation_id}')
-            self._set_state(ResponseFuture.State.Done)
 
         return self._call_status
 
@@ -313,23 +310,27 @@ class ResponseFuture:
         if self._state == ResponseFuture.State.New:
             raise ValueError("Task not yet invoked")
 
-        if not self._produce_output:
-            self.status(throw_except=throw_except, internal_storage=internal_storage)
-            self._set_state(ResponseFuture.State.Done)
-
-        if self.done:
-            return self._call_output
-
-        if self._state == ResponseFuture.State.Futures:
-            return self._new_futures
-
         if internal_storage is None:
             internal_storage = InternalStorage(storage_config=self._storage_config)
 
         self.status(throw_except=throw_except, internal_storage=internal_storage)
 
+        if not self._produce_output:
+            self._set_state(ResponseFuture.State.Done)
+
         if self.done:
             return self._call_output
+
+        if self._call_output is not None:
+            logger.debug(
+                f'ExecutorID {self.executor_id} | JobID {self.job_id} - Got output '
+                f'from call {self.call_id} - Activation ID: {self.activation_id}'
+            )
+            self._set_state(ResponseFuture.State.Done)
+            return self._call_output
+
+        if self._state == ResponseFuture.State.Futures:
+            return self._new_futures
 
         if self._call_output is None:
             call_output = internal_storage.get_call_output(self.executor_id, self.job_id, self.call_id)

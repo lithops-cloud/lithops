@@ -37,7 +37,7 @@ from lithops.config import default_config, \
     extract_serverless_config, get_log_info, extract_storage_config
 from lithops.constants import LOCALHOST, CLEANER_DIR, \
     SERVERLESS, STANDALONE
-from lithops.utils import is_notebook, setup_lithops_logger, \
+from lithops.utils import setup_lithops_logger, \
     is_lithops_worker, create_executor_id, create_futures_list
 from lithops.localhost import LocalhostHandler, LocalhostHandlerV2
 from lithops.standalone import StandaloneHandler
@@ -422,7 +422,11 @@ class FunctionExecutor:
 
         :return: `(fs_done, fs_notdone)` where `fs_done` is a list of futures that have completed and `fs_notdone` is a list of futures that have not completed.
         """
-        futures = fs or self.futures
+        if download_results:
+            futures = fs or [f for f in self.futures if not f.done]
+        else:
+            futures = fs or [f for f in self.futures if not (f.success or f.done)]
+
         if type(futures) not in [list, FuturesList]:
             futures = [futures]
 
@@ -446,14 +450,14 @@ class FunctionExecutor:
 
         except (KeyboardInterrupt, Exception) as e:
             self.invoker.stop()
-            self.job_monitor.stop()
-            if not fs:
-                del self.futures[len(self.futures) - len(futures):]
+            [f._set_error() for f in futures if not (f.success or f.done)]
             if self.data_cleaner:
                 present_jobs = {f.job_key for f in futures}
                 self.compute_handler.clear(present_jobs, exception=e)
                 self.clean(clean_cloudobjects=False, force=True)
             raise e
+        finally:
+            self.job_monitor.remove(futures)
 
         if download_results:
             fs_done = [f for f in futures if f.done]
@@ -498,15 +502,8 @@ class FunctionExecutor:
         result = []
         fs_done = [f for f in fs_done if not f.futures and f._produce_output]
         for f in fs_done:
-            if fs:
-                # Process futures provided by the user
-                result.append(f.result(throw_except=throw_except,
-                                       internal_storage=self.internal_storage))
-            elif not fs and not f._read:
-                # Process internally stored futures
-                result.append(f.result(throw_except=throw_except,
-                                       internal_storage=self.internal_storage))
-                f._read = True
+            res = f.result(throw_except=throw_except, internal_storage=self.internal_storage)
+            result.append(res)
 
         logger.debug(f'ExecutorID {self.executor_id} - Finished getting results')
 
