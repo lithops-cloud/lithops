@@ -112,13 +112,16 @@ class TestMap(unittest.TestCase):
 
         fexec = lithops.FunctionExecutor(config=CONFIG)
         fexec.call_async(lithops_return_futures_map_function1, 3)
-        fexec.get_result()
+        result = fexec.get_result()
+        self.assertEqual(result, [1, 2, 3])
 
         fexec = lithops.FunctionExecutor(config=CONFIG)
         fexec.call_async(lithops_return_futures_map_function2, 3)
-        fexec.get_result()
+        result = fexec.get_result()
+        self.assertEqual(result, 9)
 
         fexec = lithops.FunctionExecutor(config=CONFIG)
         fexec.call_async(lithops_return_futures_map_function3, 3)
         fexec.wait()
-        fexec.get_result()
+        result = fexec.get_result()
+        self.assertEqual(result, [1, 2, 3, 1, 2, 3])

@@ -48,7 +48,6 @@ class ResponseFuture:
         Running = "Running"
         Ready = "Ready"
         Success = "Success"
-        Futures = "Futures"
         Error = "Error"
         Done = "Done"
 
@@ -110,20 +109,11 @@ class ResponseFuture:
 
     @property
     def ready(self):
-        return self._state in [ResponseFuture.State.Ready,
-                               ResponseFuture.State.Futures]
+        return self._state == ResponseFuture.State.Ready
 
     @property
     def error(self):
         return self._state == ResponseFuture.State.Error
-
-    @property
-    def futures(self):
-        """
-        The response of a call was a FutureResponse instance.
-        It has to wait to the new invocation output.
-        """
-        return self._state == ResponseFuture.State.Futures
 
     @property
     def success(self):
@@ -154,7 +144,7 @@ class ResponseFuture:
         self._state = ResponseFuture.State.Error
 
     def _set_ready(self, call_status):
-        """ Set the future as running"""
+        """ Set the future as ready"""
         self._call_status = call_status
         self._host_status_done_tstamp = time.time()
         self._state = ResponseFuture.State.Ready
@@ -182,10 +172,6 @@ class ResponseFuture:
             raise ValueError("task not yet invoked")
 
         if self.success or self.done:
-            return self._call_status
-
-        if self.ready and self._new_futures:
-            self._set_state(ResponseFuture.State.Done)
             return self._call_status
 
         if self._call_status is None or self._call_status['type'] == '__init__':
@@ -278,20 +264,20 @@ class ResponseFuture:
                 logger.warning(msg2)
                 return None
 
-        self._set_state(ResponseFuture.State.Success)
-
         if self._call_status['func_result_size'] == 0:
             self._produce_output = False
 
         if 'new_futures' in self._call_status and not self._new_futures:
             new_futures = pickle.loads(eval(self._call_status['new_futures']))
             self._new_futures = [new_futures] if type(new_futures) is ResponseFuture else new_futures
-            self._set_state(ResponseFuture.State.Futures)
+            self._produce_output = False
 
         if 'result' in self._call_status:
             self._call_output = pickle.loads(eval(self._call_status['result']))
             self.stats['host_result_done_tstamp'] = time.time()
             self.stats['host_result_query_count'] = 0
+
+        self._set_state(ResponseFuture.State.Success)
 
         return self._call_status
 
@@ -315,11 +301,9 @@ class ResponseFuture:
 
         self.status(throw_except=throw_except, internal_storage=internal_storage)
 
-        if self._state == ResponseFuture.State.Futures:
-            return self._new_futures
-
         if not self._produce_output:
             self._set_state(ResponseFuture.State.Done)
+            return None
 
         if self.done:
             return self._call_output

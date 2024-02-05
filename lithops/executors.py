@@ -499,7 +499,7 @@ class FunctionExecutor:
         )
 
         result = []
-        fs_done = [f for f in fs_done if not f.futures and f._produce_output]
+        fs_done = [f for f in fs_done if f._produce_output]
         for f in fs_done:
             res = f.result(throw_except=throw_except, internal_storage=self.internal_storage)
             result.append(res)
