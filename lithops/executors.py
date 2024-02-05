@@ -450,14 +450,13 @@ class FunctionExecutor:
 
         except (KeyboardInterrupt, Exception) as e:
             self.invoker.stop()
+            self.job_monitor.remove(futures)
             [f._set_error() for f in futures if not (f.success or f.done)]
             if self.data_cleaner:
                 present_jobs = {f.job_key for f in futures}
                 self.compute_handler.clear(present_jobs, exception=e)
                 self.clean(clean_cloudobjects=False, force=True)
             raise e
-        finally:
-            self.job_monitor.remove(futures)
 
         if download_results:
             fs_done = [f for f in futures if f.done]

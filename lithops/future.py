@@ -315,6 +315,9 @@ class ResponseFuture:
 
         self.status(throw_except=throw_except, internal_storage=internal_storage)
 
+        if self._state == ResponseFuture.State.Futures:
+            return self._new_futures
+
         if not self._produce_output:
             self._set_state(ResponseFuture.State.Done)
 
@@ -328,9 +331,6 @@ class ResponseFuture:
             )
             self._set_state(ResponseFuture.State.Done)
             return self._call_output
-
-        if self._state == ResponseFuture.State.Futures:
-            return self._new_futures
 
         if self._call_output is None:
             call_output = internal_storage.get_call_output(self.executor_id, self.job_id, self.call_id)

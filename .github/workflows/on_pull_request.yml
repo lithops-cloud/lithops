@@ -30,7 +30,7 @@ jobs:
 
       - name: Run Lithops tests
         run: |
-          lithops test -b localhost -s localhost
+          lithops test -b localhost -s localhost -d
 
   python_linting:
     runs-on: ubuntu-latest

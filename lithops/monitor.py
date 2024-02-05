@@ -98,7 +98,7 @@ class Monitor(threading.Thread):
             return False
 
         f._set_futures(call_status)
-        self.futures.add(f._new_futures)
+        self.futures.update(f._new_futures)
         logger.debug(f'ExecutorID {self.executor_id} - Got {len(f._new_futures)} new futures to track')
 
         return True
