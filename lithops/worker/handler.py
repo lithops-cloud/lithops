@@ -204,7 +204,7 @@ def run_task(task):
         handler_conn, jobrunner_conn = Pipe()
         jobrunner = JobRunner(task, jobrunner_conn, internal_storage)
         logger.debug('Starting JobRunner process')
-        jrp = Process(target=jobrunner.run) if is_unix_system() else Thread(target=jobrunner.run)        
+        jrp = Process(target=jobrunner.run) if is_unix_system() else Thread(target=jobrunner.run)
 
         # Start System monitoring if log level is set to DEBUG
         if task.log_level == logging.DEBUG:
