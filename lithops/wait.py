@@ -127,8 +127,6 @@ def wait(fs: Union[ResponseFuture, FuturesList, List[ResponseFuture]],
                     executor_id=executor_data.executor_id,
                     internal_storage=executor_data.internal_storage)
                 job_monitor.start(fs=executor_data.futures)
-        else:
-            job_monitor.start(fs=fs)
 
         sleep_sec = wait_dur_sec if job_monitor.backend == 'storage' else 0.3
 
