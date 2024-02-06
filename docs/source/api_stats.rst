@@ -107,12 +107,15 @@ The user can obtain these statistics through the future object:
      'worker_func_end_tstamp': 1647526902.2985177,
      'worker_func_exec_time': 1.91e-06,
      'worker_func_recv_net_io': 0,
+     'worker_func_rss': 60678144,
      'worker_func_sent_net_io': 0,
      'worker_func_start_tstamp': 1647526902.2985158,
-     'worker_result_upload_time': 0.07001352,
-     'worker_start_tstamp': 1647526902.1615202,
+     'worker_func_uss': 44838912,
+     'worker_func_vms': 552267776,
+     'worker_peak_memory_end': 126469504,
      'worker_peak_memory_start': 88469504,
-     'worker_peak_memory_end': 126469504}
+     'worker_result_upload_time': 0.07001352,
+     'worker_start_tstamp': 1647526902.1615202}
 
 
 .. list-table::
@@ -167,10 +170,16 @@ The user can obtain these statistics through the future object:
      - Total execution time of the user-defined function.
    * - :code:`worker_func_recv_net_io`
      - Network I/O bytes received during the execution of the user-defined function.
+   * - :code:`worker_func_rss`
+     - Resident Set Size (RSS) in bytes, indicating the amount of physical memory occupied by the user-defined function during its execution.
    * - :code:`worker_func_sent_net_io`
      - Network I/O bytes sent during the execution of the user-defined function.
    * - :code:`worker_func_start_tstamp`
      - Timestamp of the start of execution of the user-defined function.
+   * - :code:`worker_func_uss`
+     - Unique Set Size (USS) in bytes, representing the memory exclusively used by the function that is not shared with other processes.
+   * - :code:`worker_func_vms`
+     - Virtual Memory Size (VMS) in bytes used by the user-defined function. This metric quantifies the total virtual memory allocated.
    * - :code:`worker_result_upload_time`
      - Total time taken for the function to upload the result to cloud object storage.
    * - :code:`worker_start_tstamp`

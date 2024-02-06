@@ -267,11 +267,13 @@ class LogStream:
 
 
 class SystemMonitor:
-    def __init__(self):
+    def __init__(self, process_id=None):
         """
         Initialize the SystemMonitor.
+        If process_id is None, monitor the current process.
         """
         self.cpu_usage = None
+        self.process = psutil.Process(process_id)
         self.reset_network_io()
 
     def reset_network_io(self):
@@ -321,3 +323,14 @@ class SystemMonitor:
         bytes_sent = current_net_io.bytes_sent - self.net_io_start.bytes_sent
         bytes_recv = current_net_io.bytes_recv - self.net_io_start.bytes_recv
         return bytes_sent, bytes_recv
+
+    def get_memory_info(self):
+        """
+        Get memory usage information of the monitored process.
+        """
+        mem_info = self.process.memory_full_info()  # Using memory_full_info for detailed metrics
+        return {
+            "rss": mem_info.rss,
+            "vms": mem_info.vms,
+            "uss": mem_info.uss
+        }

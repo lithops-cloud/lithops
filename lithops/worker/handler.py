@@ -204,11 +204,12 @@ def run_task(task):
         handler_conn, jobrunner_conn = Pipe()
         jobrunner = JobRunner(task, jobrunner_conn, internal_storage)
         logger.debug('Starting JobRunner process')
-        jrp = Process(target=jobrunner.run) if is_unix_system() else Thread(target=jobrunner.run)
+        jrp = Process(target=jobrunner.run) if is_unix_system() else Thread(target=jobrunner.run)        
 
         # Start System monitoring if log level is set to DEBUG
         if task.log_level == logging.DEBUG:
-            sys_monitor = SystemMonitor()
+            process_id = os.getpid() if is_unix_system() else mp.current_process().pid
+            sys_monitor = SystemMonitor(process_id)
             sys_monitor.start()
 
         jrp.start()
@@ -230,6 +231,11 @@ def run_task(task):
             net_io = sys_monitor.get_network_io()
             call_status.add('worker_func_sent_net_io', net_io[0])
             call_status.add('worker_func_recv_net_io', net_io[1])
+
+            mem_info = sys_monitor.get_memory_info()
+            call_status.add('worker_func_rss', mem_info['rss'])
+            call_status.add('worker_func_vms', mem_info['vms'])
+            call_status.add('worker_func_uss', mem_info['uss'])
 
         if jrp.is_alive():
             # If process is still alive after jr.join(job_max_runtime), kill it
