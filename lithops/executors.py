@@ -387,8 +387,7 @@ class FunctionExecutor:
         reduce_futures = self.invoker.run_job(reduce_job)
         self.futures.extend(reduce_futures)
 
-        for f in map_futures:
-            f._produce_output = False
+        [f._set_mapreduce() for f in map_futures]
 
         return create_futures_list(map_futures + reduce_futures, self)
 
@@ -509,7 +508,7 @@ class FunctionExecutor:
 
         result = []
 
-        for f in [f for f in pre_fs_done + fs_done if f._produce_output]:
+        for f in [f for f in pre_fs_done + fs_done if not f.futures and f._produce_output]:
             res = f.result(throw_except=throw_except, internal_storage=self.internal_storage)
             if fs:  # Process futures provided by the user
                 result.append(res)

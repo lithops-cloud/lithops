@@ -69,9 +69,9 @@ class ResponseFuture:
 
         self._storage_config = storage_config
         self._produce_output = True
+        self._read = False
         self._state = ResponseFuture.State.New
         self._exception = Exception()
-        self._read = False
         self._handler_exception = False
         self._new_futures = None
         self._traceback = None
@@ -118,17 +118,17 @@ class ResponseFuture:
 
     @property
     def success(self):
-        if self._state in [ResponseFuture.State.Success,
-                           ResponseFuture.State.Error]:
-            return True
-        return False
+        return self._state in [ResponseFuture.State.Success,
+                               ResponseFuture.State.Error]
 
     @property
     def done(self):
-        if self._state in [ResponseFuture.State.Done,
-                           ResponseFuture.State.Error]:
-            return True
-        return False
+        return self._state in [ResponseFuture.State.Done,
+                               ResponseFuture.State.Error]
+
+    @property
+    def futures(self):
+        return self._new_futures is not None
 
     def _set_invoked(self):
         """ Set the future as invoked"""
@@ -140,7 +140,7 @@ class ResponseFuture:
         self.activation_id = self._call_status['activation_id']
         self._state = ResponseFuture.State.Running
 
-    def _set_exception(self,):
+    def _set_exception(self):
         """ Set the future as error"""
         self._read = True
         self._produce_output = False
@@ -153,10 +153,17 @@ class ResponseFuture:
         self._state = ResponseFuture.State.Ready
 
     def _set_futures(self, call_status):
-        """ Set the future as running"""
+        """ Set the future as futures"""
         self._call_status = call_status
         self._host_status_done_tstamp = time.time()
         self.status(throw_except=False)
+
+    def _set_mapreduce(self):
+        """ Set the future as mapreduce map"""
+        self._read = True
+        self._produce_output = False
+        if self.success:
+            self._state = ResponseFuture.State.Done
 
     def status(self, throw_except=True, internal_storage=None, check_only=False):
         """
@@ -174,7 +181,7 @@ class ResponseFuture:
         if self._state == ResponseFuture.State.New:
             raise ValueError("task not yet invoked")
 
-        if self.success or self.done:
+        if self.success or self.done or self.futures:
             return self._call_status
 
         if self._call_status is None or self._call_status['type'] == '__init__':
@@ -261,15 +268,14 @@ class ResponseFuture:
                 logger.warning(f'Exception: {self._exception[0].__name__} - {self._exception[1]}')
                 return None
 
-        if self._call_status['func_result_size'] == 0:
-            self._produce_output = False
+        self._set_state(ResponseFuture.State.Success)
 
         if 'new_futures' in self._call_status and not self._new_futures:
             new_futures = pickle.loads(eval(self._call_status['new_futures']))
             self._new_futures = [new_futures] if type(new_futures) is ResponseFuture else new_futures
-            self._produce_output = False
 
-        self._set_state(ResponseFuture.State.Success)
+        elif self._call_status['func_result_size'] == 0:
+            self._produce_output = False
 
         if 'result' in self._call_status:
             self._call_output = pickle.loads(eval(self._call_status['result']))
@@ -279,6 +285,8 @@ class ResponseFuture:
                 f'ExecutorID {self.executor_id} | JobID {self.job_id} - Got output '
                 f'from call {self.call_id} - Activation ID: {self.activation_id}'
             )
+
+        if self._call_output or not self._produce_output:
             self._set_state(ResponseFuture.State.Done)
 
         return self._call_status
@@ -303,9 +311,9 @@ class ResponseFuture:
 
         self.status(throw_except=throw_except, internal_storage=internal_storage)
 
-        if not self._produce_output:
+        if self.futures:
+            self._call_output = self._new_futures
             self._set_state(ResponseFuture.State.Done)
-            return None
 
         if self.done:
             return self._call_output

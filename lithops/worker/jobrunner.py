@@ -120,7 +120,7 @@ class JobRunner:
         logger.info('Reduce function: waiting for map results')
         fut_list = list(data.values())[0]
         wait(fut_list, self.internal_storage, download_results=True)
-        results = [f.result() for f in fut_list if f.done and f._produce_output]
+        results = [f.result() for f in fut_list if f.done and not f.futures]
         fut_list.clear()
         data[next(iter(data))] = results
 
