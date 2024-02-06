@@ -451,7 +451,7 @@ class FunctionExecutor:
         except (KeyboardInterrupt, Exception) as e:
             self.invoker.stop()
             self.job_monitor.remove(futures)
-            [f._set_error() for f in futures if not (f.success or f.done)]
+            [f._set_exception() for f in futures]
             if self.data_cleaner:
                 present_jobs = {f.job_key for f in futures}
                 self.compute_handler.clear(present_jobs, exception=e)
@@ -488,6 +488,15 @@ class FunctionExecutor:
 
         :return: The result of the future/s
         """
+        futures = fs or self.futures
+
+        not_read = len(fs) if fs else len([f for f in self.futures if not f._read])
+        logger.info(
+            (f'ExecutorID {self.executor_id} - Getting results from {not_read} function activations')
+        )
+
+        pre_fs_done = [] if fs else [f for f in futures if f.done and not f._read]
+
         fs_done, _ = self.wait(
             fs=fs,
             throw_except=throw_except,
@@ -499,10 +508,14 @@ class FunctionExecutor:
         )
 
         result = []
-        fs_done = [f for f in fs_done if f._produce_output]
-        for f in fs_done:
+
+        for f in [f for f in pre_fs_done + fs_done if f._produce_output]:
             res = f.result(throw_except=throw_except, internal_storage=self.internal_storage)
-            result.append(res)
+            if fs:  # Process futures provided by the user
+                result.append(res)
+            elif not fs and not f._read:  # Process internally stored futures
+                result.append(res)
+                f._read = True
 
         logger.debug(f'ExecutorID {self.executor_id} - Finished getting results')
 

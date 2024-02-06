@@ -81,21 +81,22 @@ def wait(fs: Union[ResponseFuture, FuturesList, List[ResponseFuture]],
     if type(fs) is not list and type(fs) is not FuturesList:
         fs = [fs]
 
+    if return_when == ALL_COMPLETED:
+        logger.info(f'ExecutorID {fs[0].executor_id} - Waiting for '
+                    f'{len(fs)} function activations to complete')
+    else:
+        txt = 'any' if return_when == ANY_COMPLETED else f'{return_when}%'
+        logger.info(f'ExecutorID {fs[0].executor_id} - Waiting for {txt} of '
+                    f'{len(fs)} function activations to complete')
+
+    fs_to_wait = math.ceil(return_when * len(fs) / 100)
+
     if download_results:
-        fs_to_wait = len(fs)
-        msg = (f'ExecutorID {fs[0].executor_id} - Getting results from {len(fs)} function activations')
         fs_done = [f for f in fs if f.done]
         fs_not_done = [f for f in fs if not f.done]
-
     else:
-        fs_to_wait = math.ceil(return_when * len(fs) / 100)
-        msg_text = 'any' if return_when == ANY_COMPLETED else f'{return_when}%'
-        msg = (f'ExecutorID {fs[0].executor_id} - Waiting for {msg_text} of '
-               f'{len(fs)} function activations to complete')
         fs_done = [f for f in fs if f.success or f.done]
         fs_not_done = [f for f in fs if not (f.success or f.done)]
-
-    logger.info(msg)
 
     if not fs_not_done:
         return fs_done, fs_not_done
@@ -151,7 +152,7 @@ def wait(fs: Union[ResponseFuture, FuturesList, List[ResponseFuture]],
             not_dones_call_ids = [(f.job_id, f.call_id) for f in fs if not f.done]
         else:
             not_dones_call_ids = [(f.job_id, f.call_id) for f in fs if not f.success and not f.done]
-        msg = ('Cancelled - Total Activations not done: {}'.format(len(not_dones_call_ids)))
+        msg = (f'Cancelled - Total Activations not done: {len(not_dones_call_ids)}')
         if pbar:
             pbar.close()
             print()
@@ -202,6 +203,10 @@ def get_result(fs: Optional[Union[ResponseFuture, FuturesList, List[ResponseFutu
     if type(fs) is not list and type(fs) is not FuturesList:
         fs = [fs]
 
+    logger.info(
+        (f'ExecutorID {fs[0].executor_id} - Getting results from {len(fs)} function activations')
+    )
+
     fs_done, _ = wait(fs=fs, throw_except=throw_except,
                       timeout=timeout, download_results=True,
                       internal_storage=internal_storage,
@@ -209,11 +214,11 @@ def get_result(fs: Optional[Union[ResponseFuture, FuturesList, List[ResponseFutu
                       wait_dur_sec=wait_dur_sec,
                       show_progressbar=show_progressbar)
     result = []
-    fs_done = [f for f in fs_done if not f.futures and f._produce_output]
+    fs_done = [f for f in fs_done if f._produce_output]
     for f in fs_done:
         result.append(f.result(throw_except=throw_except))
 
-    logger.debug("ExecutorID {} - Finished getting results".format(fs[0].executor_id))
+    logger.debug(f"ExecutorID {fs[0].executor_id} - Finished getting results")
 
     return result
 

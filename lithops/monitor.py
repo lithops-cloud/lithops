@@ -99,7 +99,10 @@ class Monitor(threading.Thread):
 
         f._set_futures(call_status)
         self.futures.update(f._new_futures)
-        logger.debug(f'ExecutorID {self.executor_id} - Got {len(f._new_futures)} new futures to track')
+        logger.debug(
+            f'ExecutorID {self.executor_id} - Received {len(f._new_futures)} '
+            'new function Futures to track'
+        )
 
         return True
 

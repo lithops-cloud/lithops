@@ -71,6 +71,7 @@ class ResponseFuture:
         self._produce_output = True
         self._state = ResponseFuture.State.New
         self._exception = Exception()
+        self._read = False
         self._handler_exception = False
         self._new_futures = None
         self._traceback = None
@@ -139,8 +140,10 @@ class ResponseFuture:
         self.activation_id = self._call_status['activation_id']
         self._state = ResponseFuture.State.Running
 
-    def _set_error(self,):
+    def _set_exception(self,):
         """ Set the future as error"""
+        self._read = True
+        self._produce_output = False
         self._state = ResponseFuture.State.Error
 
     def _set_ready(self, call_status):
@@ -236,19 +239,15 @@ class ResponseFuture:
                 self._exception = (fn_exctype, fn_exc,
                                    self._exception['exc_traceback'])
 
-            msg1 = (
+            logger.warning(
                 'ExecutorID {} | JobID {} - There was an exception - Activation ID: {} - {}'
                 .format(self.executor_id, self.job_id, self.activation_id, fn_exctype.__name__)
             )
 
-            logger.warning(msg1)
-
             def exception_hook(exctype, exc, trcbck):
                 if exctype == fn_exctype and str(exc) == str(fn_exc):
                     if self._handler_exception:
-                        msg2 = 'Exception: {} - {}'.format(fn_exctype.__name__,
-                                                           fn_exc)
-                        logger.warning(msg2)
+                        logger.warning(f'Exception: {fn_exctype.__name__} - {fn_exc}')
                     else:
                         traceback.print_exception(*self._exception)
                 else:
@@ -259,9 +258,7 @@ class ResponseFuture:
                 sys.excepthook = exception_hook
                 reraise(*self._exception)
             else:
-                msg2 = 'Exception: {} - {}'.format(self._exception[0].__name__,
-                                                   self._exception[1])
-                logger.warning(msg2)
+                logger.warning(f'Exception: {self._exception[0].__name__} - {self._exception[1]}')
                 return None
 
         if self._call_status['func_result_size'] == 0:
@@ -272,12 +269,17 @@ class ResponseFuture:
             self._new_futures = [new_futures] if type(new_futures) is ResponseFuture else new_futures
             self._produce_output = False
 
+        self._set_state(ResponseFuture.State.Success)
+
         if 'result' in self._call_status:
             self._call_output = pickle.loads(eval(self._call_status['result']))
             self.stats['host_result_done_tstamp'] = time.time()
             self.stats['host_result_query_count'] = 0
-
-        self._set_state(ResponseFuture.State.Success)
+            logger.debug(
+                f'ExecutorID {self.executor_id} | JobID {self.job_id} - Got output '
+                f'from call {self.call_id} - Activation ID: {self.activation_id}'
+            )
+            self._set_state(ResponseFuture.State.Done)
 
         return self._call_status
 
@@ -306,14 +308,6 @@ class ResponseFuture:
             return None
 
         if self.done:
-            return self._call_output
-
-        if self._call_output is not None:
-            logger.debug(
-                f'ExecutorID {self.executor_id} | JobID {self.job_id} - Got output '
-                f'from call {self.call_id} - Activation ID: {self.activation_id}'
-            )
-            self._set_state(ResponseFuture.State.Done)
             return self._call_output
 
         if self._call_output is None:
