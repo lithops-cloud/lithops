@@ -48,9 +48,9 @@ class ResponseFuture:
         Running = "Running"
         Ready = "Ready"
         Success = "Success"
-        Futures = "Futures"
         Error = "Error"
         Done = "Done"
+        Unknown = "Unknown"
 
     GET_RESULT_SLEEP_SECS = 1
     GET_RESULT_MAX_RETRIES = 10
@@ -111,34 +111,26 @@ class ResponseFuture:
 
     @property
     def ready(self):
-        return self._state in [ResponseFuture.State.Ready,
-                               ResponseFuture.State.Futures]
+        return self._state == ResponseFuture.State.Ready
 
     @property
     def error(self):
         return self._state == ResponseFuture.State.Error
 
     @property
-    def futures(self):
-        """
-        The response of a call was a FutureResponse instance.
-        It has to wait to the new invocation output.
-        """
-        return self._state == ResponseFuture.State.Futures
-
-    @property
     def success(self):
-        if self._state in [ResponseFuture.State.Success,
-                           ResponseFuture.State.Error]:
-            return True
-        return False
+        return self._state in [ResponseFuture.State.Success,
+                               ResponseFuture.State.Error]
 
     @property
     def done(self):
-        if self._state in [ResponseFuture.State.Done,
-                           ResponseFuture.State.Error]:
-            return True
-        return False
+        return self._state in [ResponseFuture.State.Done,
+                               ResponseFuture.State.Error,
+                               ResponseFuture.State.Unknown]
+
+    @property
+    def futures(self):
+        return self._new_futures is not None
 
     def _set_invoked(self):
         """ Set the future as invoked"""
@@ -150,17 +142,32 @@ class ResponseFuture:
         self.activation_id = self._call_status['activation_id']
         self._state = ResponseFuture.State.Running
 
+    def _set_exception(self):
+        """ Set the future as error"""
+        self._read = True
+        self._host_status_done_tstamp = time.time()
+        if not self.done:
+            self._state = ResponseFuture.State.Unknown
+
     def _set_ready(self, call_status):
-        """ Set the future as running"""
+        """ Set the future as ready"""
         self._call_status = call_status
         self._host_status_done_tstamp = time.time()
         self._state = ResponseFuture.State.Ready
 
     def _set_futures(self, call_status):
-        """ Set the future as running"""
+        """ Set the future as futures"""
         self._call_status = call_status
         self._host_status_done_tstamp = time.time()
         self.status(throw_except=False)
+        self._state = ResponseFuture.State.Ready
+
+    def _set_mapreduce(self):
+        """ Set the future as mapreduce map"""
+        self._read = True
+        self._produce_output = False
+        if self.success:
+            self._state = ResponseFuture.State.Done
 
     def status(self, throw_except=True, internal_storage=None, check_only=False):
         """
@@ -179,10 +186,6 @@ class ResponseFuture:
             raise ValueError("task not yet invoked")
 
         if self.success or self.done:
-            return self._call_status
-
-        if self.ready and self._new_futures:
-            self._set_state(ResponseFuture.State.Done)
             return self._call_status
 
         if self._call_status is None or self._call_status['type'] == '__init__':
@@ -217,12 +220,19 @@ class ResponseFuture:
             with open(FN_LOG_FILE, 'a') as lf:
                 lf.write(header + '    ' + output + tail)
 
+        for key in self._call_status:
+            if any(key.startswith(ss) for ss in ['func', 'host', 'worker']):
+                self.stats[key] = self._call_status[key]
+
+        self.stats['worker_exec_time'] = round(self.stats['worker_end_tstamp'] - self.stats['worker_start_tstamp'], 8)
+        total_time = format(round(self.stats['worker_exec_time'], 2), '.2f')
+
+        logger.debug(f'ExecutorID {self.executor_id} | JobID {self.job_id} - Got status from call {self.call_id} '
+                     f'- Activation ID: {self.activation_id} - Time: {str(total_time)} seconds')
+
         if self._call_status['exception']:
             self._set_state(ResponseFuture.State.Error)
             self._exception = pickle.loads(eval(self._call_status['exc_info']))
-
-            msg1 = ('ExecutorID {} | JobID {} - There was an exception - Activation '
-                    'ID: {}'.format(self.executor_id, self.job_id, self.activation_id))
 
             if not self._call_status.get('exc_pickle_fail', False):
                 fn_exctype = self._exception[0]
@@ -240,13 +250,15 @@ class ResponseFuture:
                 self._exception = (fn_exctype, fn_exc,
                                    self._exception['exc_traceback'])
 
+            logger.warning(
+                'ExecutorID {} | JobID {} - There was an exception - Activation ID: {} - {}'
+                .format(self.executor_id, self.job_id, self.activation_id, fn_exctype.__name__)
+            )
+
             def exception_hook(exctype, exc, trcbck):
                 if exctype == fn_exctype and str(exc) == str(fn_exc):
-                    logger.warning(msg1)
                     if self._handler_exception:
-                        msg2 = 'Exception: {} - {}'.format(fn_exctype.__name__,
-                                                           fn_exc)
-                        logger.warning(msg2)
+                        logger.warning(f'Exception: {fn_exctype.__name__} - {fn_exc}')
                     else:
                         traceback.print_exception(*self._exception)
                 else:
@@ -257,42 +269,29 @@ class ResponseFuture:
                 sys.excepthook = exception_hook
                 reraise(*self._exception)
             else:
-                logger.warning(msg1)
-                msg2 = 'Exception: {} - {}'.format(self._exception[0].__name__,
-                                                   self._exception[1])
-                logger.warning(msg2)
+                logger.warning(f'Exception: {self._exception[0].__name__} - {self._exception[1]}')
                 return None
-
-        for key in self._call_status:
-            if any(key.startswith(ss) for ss in ['func', 'host', 'worker']):
-                self.stats[key] = self._call_status[key]
-
-        self.stats['worker_exec_time'] = round(self.stats['worker_end_tstamp'] - self.stats['worker_start_tstamp'], 8)
-        total_time = format(round(self.stats['worker_exec_time'], 2), '.2f')
-
-        logger.debug(f'ExecutorID {self.executor_id} | JobID {self.job_id} - Got status from call {self.call_id} '
-                     f'- Activation ID: {self.activation_id} - Time: {str(total_time)} seconds')
-
-        self._set_state(ResponseFuture.State.Success)
-
-        if self._call_status['func_result_size'] == 0:
-            self._produce_output = False
-
-        if not self._produce_output:
-            self._set_state(ResponseFuture.State.Done)
 
         if 'new_futures' in self._call_status and not self._new_futures:
             new_futures = pickle.loads(eval(self._call_status['new_futures']))
             self._new_futures = [new_futures] if type(new_futures) is ResponseFuture else new_futures
-            self._set_state(ResponseFuture.State.Futures)
+
+        elif self._call_status['func_result_size'] == 0:
+            self._produce_output = False
 
         if 'result' in self._call_status:
             self._call_output = pickle.loads(eval(self._call_status['result']))
             self.stats['host_result_done_tstamp'] = time.time()
             self.stats['host_result_query_count'] = 0
-            logger.debug(f'ExecutorID {self.executor_id} | JobID {self.job_id} - Got output '
-                         f'from call {self.call_id} - Activation ID: {self.activation_id}')
+            logger.debug(
+                f'ExecutorID {self.executor_id} | JobID {self.job_id} - Got output '
+                f'from call {self.call_id} - Activation ID: {self.activation_id}'
+            )
+
+        if self._call_output or not self._produce_output:
             self._set_state(ResponseFuture.State.Done)
+        else:
+            self._set_state(ResponseFuture.State.Success)
 
         return self._call_status
 
@@ -311,20 +310,14 @@ class ResponseFuture:
         if self._state == ResponseFuture.State.New:
             raise ValueError("Task not yet invoked")
 
-        if not self._produce_output:
-            self.status(throw_except=throw_except, internal_storage=internal_storage)
-            self._set_state(ResponseFuture.State.Done)
-
-        if self.done:
-            return self._call_output
-
-        if self._state == ResponseFuture.State.Futures:
-            return self._new_futures
-
-        if internal_storage is None:
+        if not self.done and internal_storage is None:
             internal_storage = InternalStorage(storage_config=self._storage_config)
 
         self.status(throw_except=throw_except, internal_storage=internal_storage)
+
+        if self.futures:
+            self._call_output = self._new_futures
+            self._set_state(ResponseFuture.State.Done)
 
         if self.done:
             return self._call_output

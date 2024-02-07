@@ -37,7 +37,7 @@ from lithops.config import default_config, \
     extract_serverless_config, get_log_info, extract_storage_config
 from lithops.constants import LOCALHOST, CLEANER_DIR, \
     SERVERLESS, STANDALONE
-from lithops.utils import is_notebook, setup_lithops_logger, \
+from lithops.utils import setup_lithops_logger, \
     is_lithops_worker, create_executor_id, create_futures_list
 from lithops.localhost import LocalhostHandler, LocalhostHandlerV2
 from lithops.standalone import StandaloneHandler
@@ -387,8 +387,7 @@ class FunctionExecutor:
         reduce_futures = self.invoker.run_job(reduce_job)
         self.futures.extend(reduce_futures)
 
-        for f in map_futures:
-            f._produce_output = False
+        [f._set_mapreduce() for f in map_futures]
 
         return create_futures_list(map_futures + reduce_futures, self)
 
@@ -420,13 +419,14 @@ class FunctionExecutor:
         :param wait_dur_sec: Time interval between each check
         :param show_progressbar: whether or not to show the progress bar.
 
-        :return: `(fs_done, fs_notdone)` where `fs_done` is a list of futures that have completed and `fs_notdone` is a list of futures that have not completed.
+        :return: `(fs_done, fs_notdone)` where `fs_done` is a list of futures that have
+            completed and `fs_notdone` is a list of futures that have not completed.
         """
         futures = fs or self.futures
+
         if type(futures) not in [list, FuturesList]:
             futures = [futures]
 
-        # Start waiting for results
         try:
             wait(fs=futures,
                  internal_storage=self.internal_storage,
@@ -437,7 +437,8 @@ class FunctionExecutor:
                  timeout=timeout,
                  threadpool_size=threadpool_size,
                  wait_dur_sec=wait_dur_sec,
-                 show_progressbar=show_progressbar)
+                 show_progressbar=show_progressbar,
+                 futures_from_executor_wait=False if fs else True)
 
             if self.data_cleaner and return_when == ALL_COMPLETED:
                 present_jobs = {f.job_key for f in futures}
@@ -446,9 +447,8 @@ class FunctionExecutor:
 
         except (KeyboardInterrupt, Exception) as e:
             self.invoker.stop()
-            self.job_monitor.stop()
-            if not fs and is_notebook():
-                del self.futures[len(self.futures) - len(futures):]
+            self.job_monitor.remove(futures)
+            [f._set_exception() for f in futures]
             if self.data_cleaner:
                 present_jobs = {f.job_key for f in futures}
                 self.compute_handler.clear(present_jobs, exception=e)
@@ -485,6 +485,14 @@ class FunctionExecutor:
 
         :return: The result of the future/s
         """
+        pending_to_read = len(fs) if fs else len(
+            [f for f in self.futures if not f._read and not f.futures])
+
+        logger.info(
+            (f'ExecutorID {self.executor_id} - Getting results from '
+             f'{pending_to_read} function activations')
+        )
+
         fs_done, _ = self.wait(
             fs=fs,
             throw_except=throw_except,
@@ -496,14 +504,11 @@ class FunctionExecutor:
         )
 
         result = []
-        fs_done = [f for f in fs_done if not f.futures and f._produce_output]
-        for f in fs_done:
-            if fs:
-                # Process futures provided by the user
+        for f in [f for f in fs_done if not f.futures and f._produce_output]:
+            if fs:  # Process futures provided by the user
                 result.append(f.result(throw_except=throw_except,
                                        internal_storage=self.internal_storage))
-            elif not fs and not f._read:
-                # Process internally stored futures
+            elif not fs and not f._read:  # Process internally stored futures
                 result.append(f.result(throw_except=throw_except,
                                        internal_storage=self.internal_storage))
                 f._read = True
