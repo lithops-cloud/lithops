@@ -5,7 +5,7 @@
 ### Added
 - [k8s] Added a new way of invoking functions using a RabbitMQ work queue
 - [IBM VPC] Added "zone" config parameter
-- [IBM Code Engine] Get and print error message in case of container execution failure 
+- [IBM Code Engine] Get and print an error message in case of container execution failure 
 
 ### Changed
 - [Openwhisk] Updated default runtimes
@@ -13,6 +13,8 @@
 ### Fixed
 - [Standalone] Fixed issue with a wrong value of "chunksize"
 - [IBM Code Engine] Fixed missing parameter on clean
+- [Executor] Fixed potential deadlock in wait() and get_result() when an exception is produced in a function activation
+
 
 ## [v3.1.0]
 

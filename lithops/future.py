@@ -50,6 +50,7 @@ class ResponseFuture:
         Success = "Success"
         Error = "Error"
         Done = "Done"
+        Unknown = "Unknown"
 
     GET_RESULT_SLEEP_SECS = 1
     GET_RESULT_MAX_RETRIES = 10
@@ -124,7 +125,8 @@ class ResponseFuture:
     @property
     def done(self):
         return self._state in [ResponseFuture.State.Done,
-                               ResponseFuture.State.Error]
+                               ResponseFuture.State.Error,
+                               ResponseFuture.State.Unknown]
 
     @property
     def futures(self):
@@ -143,8 +145,9 @@ class ResponseFuture:
     def _set_exception(self):
         """ Set the future as error"""
         self._read = True
-        self._produce_output = False
-        self._state = ResponseFuture.State.Error
+        self._host_status_done_tstamp = time.time()
+        if not self.done:
+            self._state = ResponseFuture.State.Unknown
 
     def _set_ready(self, call_status):
         """ Set the future as ready"""
@@ -157,6 +160,7 @@ class ResponseFuture:
         self._call_status = call_status
         self._host_status_done_tstamp = time.time()
         self.status(throw_except=False)
+        self._state = ResponseFuture.State.Ready
 
     def _set_mapreduce(self):
         """ Set the future as mapreduce map"""
@@ -181,7 +185,7 @@ class ResponseFuture:
         if self._state == ResponseFuture.State.New:
             raise ValueError("task not yet invoked")
 
-        if self.success or self.done or self.futures:
+        if self.success or self.done:
             return self._call_status
 
         if self._call_status is None or self._call_status['type'] == '__init__':
@@ -268,8 +272,6 @@ class ResponseFuture:
                 logger.warning(f'Exception: {self._exception[0].__name__} - {self._exception[1]}')
                 return None
 
-        self._set_state(ResponseFuture.State.Success)
-
         if 'new_futures' in self._call_status and not self._new_futures:
             new_futures = pickle.loads(eval(self._call_status['new_futures']))
             self._new_futures = [new_futures] if type(new_futures) is ResponseFuture else new_futures
@@ -288,6 +290,8 @@ class ResponseFuture:
 
         if self._call_output or not self._produce_output:
             self._set_state(ResponseFuture.State.Done)
+        else:
+            self._set_state(ResponseFuture.State.Success)
 
         return self._call_status
 
@@ -306,7 +310,7 @@ class ResponseFuture:
         if self._state == ResponseFuture.State.New:
             raise ValueError("Task not yet invoked")
 
-        if internal_storage is None:
+        if not self.done and internal_storage is None:
             internal_storage = InternalStorage(storage_config=self._storage_config)
 
         self.status(throw_except=throw_except, internal_storage=internal_storage)

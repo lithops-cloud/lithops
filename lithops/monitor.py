@@ -147,8 +147,23 @@ class Monitor(threading.Thread):
 
 class RabbitmqMonitor(Monitor):
 
-    def __init__(self, executor_id, internal_storage, token_bucket_q, job_chunksize, generate_tokens, config):
-        super().__init__(executor_id, internal_storage, token_bucket_q, job_chunksize, generate_tokens, config)
+    def __init__(
+            self,
+            executor_id,
+            internal_storage,
+            token_bucket_q,
+            job_chunksize,
+            generate_tokens,
+            config
+    ):
+        super().__init__(
+            executor_id,
+            internal_storage,
+            token_bucket_q,
+            job_chunksize,
+            generate_tokens,
+            config
+        )
 
         self.rabbit_amqp_url = config.get('amqp_url')
         self.queue = f'lithops-{self.executor_id}'
@@ -262,10 +277,26 @@ class RabbitmqMonitor(Monitor):
 
 
 class StorageMonitor(Monitor):
+
     THREADPOOL_SIZE = 64
 
-    def __init__(self, executor_id, internal_storage, token_bucket_q, job_chunksize, generate_tokens, config):
-        super().__init__(executor_id, internal_storage, token_bucket_q, job_chunksize, generate_tokens, config)
+    def __init__(
+            self,
+            executor_id,
+            internal_storage,
+            token_bucket_q,
+            job_chunksize,
+            generate_tokens,
+            config
+    ):
+        super().__init__(
+            executor_id,
+            internal_storage,
+            token_bucket_q,
+            job_chunksize,
+            generate_tokens,
+            config
+        )
 
         self.monitoring_interval = config['monitoring_interval']
 

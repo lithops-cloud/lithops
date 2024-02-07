@@ -419,17 +419,14 @@ class FunctionExecutor:
         :param wait_dur_sec: Time interval between each check
         :param show_progressbar: whether or not to show the progress bar.
 
-        :return: `(fs_done, fs_notdone)` where `fs_done` is a list of futures that have completed and `fs_notdone` is a list of futures that have not completed.
+        :return: `(fs_done, fs_notdone)` where `fs_done` is a list of futures that have
+            completed and `fs_notdone` is a list of futures that have not completed.
         """
-        if download_results:
-            futures = fs or [f for f in self.futures if not f.done]
-        else:
-            futures = fs or [f for f in self.futures if not (f.success or f.done)]
+        futures = fs or self.futures
 
         if type(futures) not in [list, FuturesList]:
             futures = [futures]
 
-        # Start waiting for results
         try:
             wait(fs=futures,
                  internal_storage=self.internal_storage,
@@ -440,7 +437,8 @@ class FunctionExecutor:
                  timeout=timeout,
                  threadpool_size=threadpool_size,
                  wait_dur_sec=wait_dur_sec,
-                 show_progressbar=show_progressbar)
+                 show_progressbar=show_progressbar,
+                 futures_from_executor_wait=False if fs else True)
 
             if self.data_cleaner and return_when == ALL_COMPLETED:
                 present_jobs = {f.job_key for f in futures}
@@ -487,14 +485,13 @@ class FunctionExecutor:
 
         :return: The result of the future/s
         """
-        futures = fs or self.futures
+        pending_to_read = len(fs) if fs else len(
+            [f for f in self.futures if not f._read and not f.futures])
 
-        not_read = len(fs) if fs else len([f for f in self.futures if not f._read])
         logger.info(
-            (f'ExecutorID {self.executor_id} - Getting results from {not_read} function activations')
+            (f'ExecutorID {self.executor_id} - Getting results from '
+             f'{pending_to_read} function activations')
         )
-
-        pre_fs_done = [] if fs else [f for f in futures if f.done and not f._read]
 
         fs_done, _ = self.wait(
             fs=fs,
@@ -507,13 +504,13 @@ class FunctionExecutor:
         )
 
         result = []
-
-        for f in [f for f in pre_fs_done + fs_done if not f.futures and f._produce_output]:
-            res = f.result(throw_except=throw_except, internal_storage=self.internal_storage)
+        for f in [f for f in fs_done if not f.futures and f._produce_output]:
             if fs:  # Process futures provided by the user
-                result.append(res)
+                result.append(f.result(throw_except=throw_except,
+                                       internal_storage=self.internal_storage))
             elif not fs and not f._read:  # Process internally stored futures
-                result.append(res)
+                result.append(f.result(throw_except=throw_except,
+                                       internal_storage=self.internal_storage))
                 f._read = True
 
         logger.debug(f'ExecutorID {self.executor_id} - Finished getting results')
