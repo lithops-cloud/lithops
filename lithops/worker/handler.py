@@ -206,36 +206,31 @@ def run_task(task):
         logger.debug('Starting JobRunner process')
         jrp = Process(target=jobrunner.run) if is_unix_system() else Thread(target=jobrunner.run)
 
-        # Start System monitoring if log level is set to DEBUG
-        if task.log_level == logging.DEBUG:
-            process_id = os.getpid() if is_unix_system() else mp.current_process().pid
-            sys_monitor = SystemMonitor(process_id)
-            sys_monitor.start()
+        process_id = os.getpid() if is_unix_system() else mp.current_process().pid
+        sys_monitor = SystemMonitor(process_id)
+        sys_monitor.start()
 
         jrp.start()
         jrp.join(task.execution_timeout)
 
-        if task.log_level == logging.DEBUG:
-            sys_monitor.stop()
+        sys_monitor.stop()
         logger.debug('JobRunner process finished')
 
-        # Get and log System statistics if log level is DEBUG
-        if task.log_level == logging.DEBUG:
-            cpu_usage, cpu_system_time, cpu_user_time = sys_monitor.calculate_cpus_values()
+        cpu_usage, cpu_system_time, cpu_user_time = sys_monitor.calculate_cpus_values()
 
-            call_status.add('worker_func_cpu_usage', cpu_usage)
-            call_status.add('worker_func_cpu_system_time', round(cpu_system_time, 8))
-            call_status.add('worker_func_cpu_user_time', round(cpu_user_time, 8))
-            call_status.add('worker_func_cpu_total_time', round(cpu_system_time + cpu_user_time, 8))
+        call_status.add('worker_func_cpu_usage', cpu_usage)
+        call_status.add('worker_func_cpu_system_time', round(cpu_system_time, 8))
+        call_status.add('worker_func_cpu_user_time', round(cpu_user_time, 8))
+        call_status.add('worker_func_cpu_total_time', round(cpu_system_time + cpu_user_time, 8))
 
-            net_io = sys_monitor.get_network_io()
-            call_status.add('worker_func_sent_net_io', net_io[0])
-            call_status.add('worker_func_recv_net_io', net_io[1])
+        net_io = sys_monitor.get_network_io()
+        call_status.add('worker_func_sent_net_io', net_io[0])
+        call_status.add('worker_func_recv_net_io', net_io[1])
 
-            mem_info = sys_monitor.get_memory_info()
-            call_status.add('worker_func_rss', mem_info['rss'])
-            call_status.add('worker_func_vms', mem_info['vms'])
-            call_status.add('worker_func_uss', mem_info['uss'])
+        mem_info = sys_monitor.get_memory_info()
+        call_status.add('worker_func_rss', mem_info['rss'])
+        call_status.add('worker_func_vms', mem_info['vms'])
+        call_status.add('worker_func_uss', mem_info['uss'])
 
         if jrp.is_alive():
             # If process is still alive after jr.join(job_max_runtime), kill it
