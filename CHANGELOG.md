@@ -1,6 +1,17 @@
 # Changelog
 
-## [v3.1.1.dev0]
+## [v3.1.2.dev0]
+
+### Added
+-
+
+### Changed
+-
+
+### Fixed
+-
+
+## [v3.1.1]
 
 ### Added
 - [k8s] Added a new way of invoking functions using a RabbitMQ work queue
