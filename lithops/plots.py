@@ -30,7 +30,7 @@ pylab.switch_backend("Agg")
 logger = logging.getLogger(__name__)
 
 
-def create_timeline(fs, dst):
+def create_timeline(fs, dst, figsize=(10, 6)):
     stats = [f.stats for f in fs]
     host_job_create_tstamp = min([cm['host_job_create_tstamp'] for cm in stats])
 
@@ -39,7 +39,7 @@ def create_timeline(fs, dst):
 
     palette = sns.color_palette("deep", 10)
 
-    fig = pylab.figure(figsize=(10, 6))
+    fig = pylab.figure(figsize=figsize)
     ax = fig.add_subplot(1, 1, 1)
 
     y = np.arange(total_calls)
@@ -100,7 +100,7 @@ def create_timeline(fs, dst):
     fig.savefig(dst)
 
 
-def create_histogram(fs, dst):
+def create_histogram(fs, dst, figsize=(10, 6)):
     stats = [f.stats for f in fs]
     host_job_create_tstamp = min([cm['host_job_create_tstamp'] for cm in stats])
 
@@ -130,7 +130,7 @@ def create_histogram(fs, dst):
                 'end_tstamp': end_time,
                 'runtime_calls_hist': runtime_calls_hist}
 
-    fig = pylab.figure(figsize=(10, 6))
+    fig = pylab.figure(figsize=figsize)
     ax = fig.add_subplot(1, 1, 1)
 
     time_rates = [(cs['worker_start_tstamp'], cs['worker_end_tstamp']) for cs in stats]

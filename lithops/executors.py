@@ -523,7 +523,8 @@ class FunctionExecutor:
     def plot(
         self,
         fs: Optional[Union[ResponseFuture, List[ResponseFuture], FuturesList]] = None,
-        dst: Optional[str] = None
+        dst: Optional[str] = None,
+        figsize: Optional[tuple] = (10, 6)
     ):
         """
         Creates timeline and histogram of the current execution in dst_dir.
@@ -547,8 +548,8 @@ class FunctionExecutor:
 
         logger.info(f'ExecutorID {self.executor_id} - Creating execution plots')
 
-        create_timeline(ftrs_to_plot, dst)
-        create_histogram(ftrs_to_plot, dst)
+        create_timeline(ftrs_to_plot, dst, figsize)
+        create_histogram(ftrs_to_plot, dst, figsize)
 
     def clean(
         self,
