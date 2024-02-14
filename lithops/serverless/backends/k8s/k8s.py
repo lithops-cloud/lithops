@@ -309,7 +309,8 @@ class KubernetesBackend:
 
     def _create_pod(self, pod, pod_name, cpu, memory):
         pod["metadata"]["name"] = f"lithops-pod-{pod_name}"
-        pod["spec"]["nodeName"] = pod_name.split("-")[0]
+        node_name = re.sub(r'-\d+$', '', pod_name)
+        pod["spec"]["nodeName"] = node_name
         pod["spec"]["containers"][0]["image"] = self.image
         pod["spec"]["containers"][0]["resources"]["requests"]["cpu"] = str(cpu)
         pod["spec"]["containers"][0]["resources"]["requests"]["memory"] = memory
