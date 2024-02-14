@@ -3,7 +3,7 @@
 ## [v3.1.2.dev0]
 
 ### Added
--
+- [Plots] Allow to set the figure size of the plots
 
 ### Changed
 -
