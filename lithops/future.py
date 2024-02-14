@@ -227,8 +227,10 @@ class ResponseFuture:
         self.stats['worker_exec_time'] = round(self.stats['worker_end_tstamp'] - self.stats['worker_start_tstamp'], 8)
         total_time = format(round(self.stats['worker_exec_time'], 2), '.2f')
 
-        logger.debug(f'ExecutorID {self.executor_id} | JobID {self.job_id} - Got status from call {self.call_id} '
-                     f'- Activation ID: {self.activation_id} - Time: {str(total_time)} seconds')
+        logger.debug(
+            f'ExecutorID {self.executor_id} | JobID {self.job_id} - Got status from call {self.call_id} '
+            f'- Activation ID: {self.activation_id} - Time: {str(total_time)} seconds'
+        )
 
         if self._call_status['exception']:
             self._set_state(ResponseFuture.State.Error)
@@ -251,8 +253,8 @@ class ResponseFuture:
                                    self._exception['exc_traceback'])
 
             logger.warning(
-                'ExecutorID {} | JobID {} - There was an exception - Activation ID: {} - {}'
-                .format(self.executor_id, self.job_id, self.activation_id, fn_exctype.__name__)
+                'ExecutorID {} | JobID {} - CallID: {} - There was an exception - Activation ID: {} - {}'
+                .format(self.executor_id, self.job_id, self.call_id, self.activation_id, fn_exctype.__name__)
             )
 
             def exception_hook(exctype, exc, trcbck):
@@ -269,7 +271,6 @@ class ResponseFuture:
                 sys.excepthook = exception_hook
                 reraise(*self._exception)
             else:
-                logger.warning(f'Exception: {self._exception[0].__name__} - {self._exception[1]}')
                 return None
 
         if 'new_futures' in self._call_status and not self._new_futures:
