@@ -1252,9 +1252,9 @@ class IBMVPCInstance:
         """
         if self.config.get('singlesocket'):
             cmd = "lscpu -p=socket|grep -v '#'"
-            res = self.get_ssh_client().run_remote_command(cmd)
+            out, err = self.get_ssh_client().run_remote_command(cmd)
             sockets = set()
-            for char in res:
+            for char in out:
                 if char != '\n':
                     sockets.add(char)
             if len(sockets) != 1:

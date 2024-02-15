@@ -9,7 +9,8 @@
 -
 
 ### Fixed
--
+- [Standalone] Fixed issue that appears when the invocation payload is too big
+
 
 ## [v3.1.1]
 
