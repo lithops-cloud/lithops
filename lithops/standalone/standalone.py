@@ -105,9 +105,18 @@ class StandaloneHandler:
             url = f'http://127.0.0.1:{SA_SERVICE_PORT}/{endpoint}'
             cmd = f'curl -X {method} {url} -H \'Content-Type: application/json\''
             if data is not None:
-                data_str = shlex.quote(json.dumps(data))
-                cmd = f'{cmd} -d {data_str}'
-            out = self.backend.master.get_ssh_client().run_remote_command(cmd)
+                json_data = json.dumps(data)
+                data_size = len(json_data)
+                if data_size < 130000:
+                    data_str = shlex.quote(json_data)
+                    cmd = f'{cmd} -d {data_str}'
+                else:
+                    data_file_name = f'/tmp/lithops_data_{str(uuid.uuid4())[-6:]}.json'
+                    self.backend.master.get_ssh_client().upload_data_to_file(json_data, data_file_name)
+                    cmd = f'{cmd} -d @{data_file_name}; rm {data_file_name}'
+            out, err = self.backend.master.get_ssh_client().run_remote_command(cmd)
+            if not out:
+                raise ValueError(err)
             return json.loads(out)
 
     def _is_master_service_ready(self):
@@ -133,14 +142,14 @@ class StandaloneHandler:
         """
         logger.debug(f'Validating lithops master service is installed on {self.backend.master}')
         ssh_client = self.backend.master.get_ssh_client()
-        res = ssh_client.run_remote_command(f'cat {SA_INSTALL_DIR}/access.data')
-        if not res:
+        out, err = ssh_client.run_remote_command(f'cat {SA_INSTALL_DIR}/access.data')
+        if not out:
             self._setup_master_service()
             return
 
         logger.debug(f"Validating lithops master service is running on {self.backend.master}")
-        res = ssh_client.run_remote_command("service lithops-master status")
-        if not res or 'Active: active (running)' not in res:
+        out, err = ssh_client.run_remote_command("service lithops-master status")
+        if not out or 'Active: active (running)' not in out:
             self.dismantle()
             raise LithopsValidationError(
                 f"Lithops master service not active on {self.backend.master}, "

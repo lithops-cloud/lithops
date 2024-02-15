@@ -77,9 +77,9 @@ class SSHClient():
         out = None
         if not run_async:
             out = stdout.read().decode().strip()
-            # error = stderr.read().decode().strip()
+            err = stderr.read().decode().strip()
 
-        return out
+        return out, err
 
     def download_remote_file(self, remote_src, local_dst):
         """
