@@ -1298,7 +1298,7 @@ def decorate_instance(instance, decorator):
 
 def vpc_retry_on_except(func):
 
-    RETRIES = 3
+    RETRIES = 5
     SLEEP_FACTOR = 1.5
     MAX_SLEEP = 30
 
@@ -1321,7 +1321,8 @@ def vpc_retry_on_except(func):
                 return func(*args, **kwargs)
             except ApiException as err:
                 if func.__name__ in IGNORED_404_METHODS and err.code == 404:
-                    logger.debug((f'Got exception {err} when trying to invoke {func.__name__}, ignoring'))
+                    # logger.debug((f'Got exception {err} when trying to invoke {func.__name__}, ignoring'))
+                    pass
                 else:
                     sleep_time = _sleep_or_raise(sleep_time, err)
             except Exception as err:
