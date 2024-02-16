@@ -42,10 +42,10 @@ def get_function_and_modules(job, internal_storage):
     Gets the function and modules from storage
     """
     logger.debug("Getting function and modules")
-
-    if job.config['lithops'].get('customized_runtime'):
-        logger.debug("Customized runtime feature activated. Loading "
-                     "function and modules from local runtime")
+    backend = job.config['lithops']['backend']
+    if job.config[backend].get('runtime_include_function'):
+        logger.debug("Runtime include function feature activated. Loading "
+                     "function from local runtime")
         func_path = '/'.join([LITHOPS_TEMP_DIR, job.func_key])
         with open(func_path, "rb") as f:
             func_obj = f.read()

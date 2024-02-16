@@ -4,9 +4,10 @@
 
 ### Added
 - [Plots] Allow to set the figure size of the plots
+- [Stats] Added new CPU, Meemory and Network statistics in the function results
 
 ### Changed
--
+- [Config] Renamed 'customized_runtime' to 'runtime_include_function'
 
 ### Fixed
 - [Standalone] Fixed issue that appears when the invocation payload is too big

@@ -158,8 +158,7 @@ Papers
    :caption: Advanced Features
 
    source/monitoring.rst
-   Custom Runtime <https://github.com/lithops-cloud/lithops/tree/master/runtime>
-   source/customized_runtime.rst
+   Custom Runtimes <https://github.com/lithops-cloud/lithops/tree/master/runtime>
 
 
 .. toctree::

@@ -36,6 +36,5 @@
 1. [Lithops end-to-end Applications](https://github.com/lithops-cloud/applications)
 
 1. [Build and manage custom runtimes to run the functions](../runtime/)
-   - [Dynamic runtime customization](source/customized_runtime.rst)
 
 1. [Command Line Tool](source/cli.rst)
