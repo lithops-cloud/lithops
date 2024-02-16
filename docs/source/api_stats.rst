@@ -146,7 +146,7 @@ The user can obtain these statistics through the future object:
    * - :code:`worker_func_cpu_total_time`
      - Total CPU time during the execution of the user-defined function (system time + user time).
    * - :code:`worker_func_cpu_usage`
-     - CPU usage percentage during the execution of the user-defined function.
+     - Array of CPU usage percentages, with each element representing the average usage of each CPU core during user-defined function execution.
    * - :code:`worker_func_cpu_user_time`
      - CPU user time during the execution of the user-defined function.
    * - :code:`worker_func_end_tstamp`
