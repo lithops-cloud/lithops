@@ -82,7 +82,7 @@ class Invoker:
 
         self.mode = self.config['lithops']['mode']
         self.backend = self.config['lithops']['backend']
-        self.customized_runtime = self.config['lithops'].get('customized_runtime', False)
+        self.include_function = self.config[self.backend].get('runtime_include_function', False)
 
         self.runtime_info = self.compute_handler.get_runtime_info()
         self.runtime_name = self.runtime_info['runtime_name']
@@ -162,9 +162,9 @@ class Invoker:
         """
         Run a job
         """
-        if self.customized_runtime:
-            logger.debug('ExecutorID {} | JobID {} - Customized runtime activated'
-                         .format(job.executor_id, job.job_id))
+        if self.include_function:
+            logger.debug('ExecutorID {} | JobID {} - Runtime include function feature '
+                         ' is activated' .format(job.executor_id, job.job_id))
             job.runtime_name = self.runtime_name
             extend_runtime(job, self.compute_handler, self.internal_storage)
             self.runtime_name = job.runtime_name
@@ -472,7 +472,7 @@ class FaaSInvoker(Invoker):
 
 def extend_runtime(job, compute_handler, internal_storage):
     """
-    This method is used when customized_runtime is active
+    This method is used when runtime_include_function is active
     """
 
     base_docker_image = job.runtime_name

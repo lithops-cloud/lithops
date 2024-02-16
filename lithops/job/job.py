@@ -265,7 +265,7 @@ def _create_job(
         raise Exception(log_msg)
 
     # Upload function and data
-    upload_function = not config['lithops'].get('customized_runtime', False)
+    upload_function = not config[backend].get("runtime_include_function", False)
     upload_data = any([(len(data_str) * job.chunksize) > MAX_DATA_IN_PAYLOAD for data_str in data_strs])
 
     # Upload function and modules

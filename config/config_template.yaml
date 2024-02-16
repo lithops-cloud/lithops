@@ -12,12 +12,10 @@
     #log_format: "%(asctime)s [%(levelname)s] %(name)s -- %(message)s"
     #log_stream: ext://sys.stdout
     #log_filename <path_to_a_file>
-    #customized_runtime: <True/False>
 
 #localhost:
     #runtime: python3
     #worker_processes: CPU_COUNT
-
 
 #ibm:
     #iam_api_key: <IAM KEY>
@@ -36,6 +34,7 @@
     #remote_invoker: <True/False>
     #max_workers: <MAX_WORKERS> Default is 1200
     #worker_processes: <WORKER_GRANULARITY> Default is 1
+    #runtime_include_function: <True/False>
 
 #code_engine:
     #namespace: <namespace id>
@@ -51,6 +50,7 @@
     #max_workers: <MAX_WORKERS> Default is 1000
     #worker_processes: <WORKER_GRANULARITY> Default is 1
     #connection_retries: <RETRIES_NUMBER>
+    #runtime_include_function: <True/False>
 
 #ibm_vpc:
     #region : <REGION>
