@@ -22,7 +22,8 @@ RUN pip install --upgrade pip six && \
         kafka-python \
         cloudpickle \
         ps-mem \
-        tblib
+        tblib \
+        psutil
 
 # Define custom function directory
 ARG FUNCTION_DIR="/function"

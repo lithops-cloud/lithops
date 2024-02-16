@@ -30,7 +30,8 @@ RUN pip install --upgrade --ignore-installed setuptools six pip \
     cloudpickle \
     ps-mem \
     tblib \
-    oci
+    oci \
+    psutil
 
 ARG FUNCTION_DIR="/function"
 

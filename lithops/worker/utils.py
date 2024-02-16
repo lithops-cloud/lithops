@@ -16,6 +16,7 @@
 
 import os
 import sys
+import psutil
 import pkgutil
 import logging
 import pickle
@@ -263,3 +264,73 @@ class LogStream:
 
     def fileno(self):
         return self._stdout.fileno()
+
+
+class SystemMonitor:
+    def __init__(self, process_id=None):
+        """
+        Initialize the SystemMonitor.
+        If process_id is None, monitor the current process.
+        """
+        self.cpu_usage = None
+        self.process = psutil.Process(process_id)
+
+    def reset_network_io(self):
+        """
+        Reset the network IO counters cache and baseline.
+        """
+        psutil.net_io_counters.cache_clear()
+        self.net_io_start = psutil.net_io_counters()
+
+    def start(self):
+        """
+        Start monitoring and record the initial CPU usage (to be ignored).
+        """
+        psutil.cpu_percent(interval=None, percpu=True)
+        self.reset_network_io()
+
+    def stop(self):
+        """
+        Stop monitoring and record the CPU usage since the last call (start).
+        """
+        self.cpu_usage = psutil.cpu_percent(interval=None, percpu=True)
+
+    def get_cpu_usage(self):
+        """
+        Get the CPU usage for each CPU core at the end.
+        """
+        if self.cpu_usage is None:
+            return []
+
+        return self.cpu_usage
+
+    def calculate_cpus_values(self):
+        """
+        Calculate average CPU usage, average system time, and average user time for each CPU core.
+        """
+        cpu_time = psutil.cpu_times()
+        cpu_usage = self.get_cpu_usage()
+        avg_cpu_system_time = cpu_time.system
+        avg_cpu_user_time = cpu_time.user
+
+        return cpu_usage, avg_cpu_system_time, avg_cpu_user_time
+
+    def get_network_io(self):
+        """
+        Calculate network IO (bytes sent and received) since the last reset.
+        """
+        current_net_io = psutil.net_io_counters()
+        bytes_sent = current_net_io.bytes_sent - self.net_io_start.bytes_sent
+        bytes_recv = current_net_io.bytes_recv - self.net_io_start.bytes_recv
+        return bytes_sent, bytes_recv
+
+    def get_memory_info(self):
+        """
+        Get memory usage information of the monitored process.
+        """
+        mem_info = self.process.memory_full_info()  # Using memory_full_info for detailed metrics
+        return {
+            "rss": mem_info.rss,
+            "vms": mem_info.vms,
+            "uss": mem_info.uss
+        }

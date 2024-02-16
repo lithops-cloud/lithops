@@ -39,7 +39,8 @@ RUN pip install --upgrade setuptools six pip \
         numpy \
         cloudpickle \
         ps-mem \
-        tblib
+        tblib \
+        psutil
 
 # Add your Conda required packages here. Ensure "conda clean --all" at 
 # the end to remove temporary data. One "RUN" line is better than multiple
