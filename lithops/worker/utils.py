@@ -274,7 +274,6 @@ class SystemMonitor:
         """
         self.cpu_usage = None
         self.process = psutil.Process(process_id)
-        self.reset_network_io()
 
     def reset_network_io(self):
         """
@@ -288,6 +287,7 @@ class SystemMonitor:
         Start monitoring and record the initial CPU usage (to be ignored).
         """
         psutil.cpu_percent(interval=None, percpu=True)
+        self.reset_network_io()
 
     def stop(self):
         """
