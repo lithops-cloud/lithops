@@ -477,7 +477,7 @@ def extend_runtime(job, compute_handler, internal_storage):
 
     base_docker_image = job.runtime_name
     uuid = job.ext_runtime_uuid
-    ext_runtime_name = "{}:{}".format(base_docker_image.split(":")[0], uuid)
+    ext_runtime_name = f'{base_docker_image.split(":")[0]}:{uuid}'
 
     # update job with new extended runtime name
     job.runtime_name = ext_runtime_name
@@ -486,17 +486,16 @@ def extend_runtime(job, compute_handler, internal_storage):
     runtime_meta = internal_storage.get_runtime_meta(runtime_key)
 
     if not runtime_meta:
-        logger.info('Creating runtime: {}, memory: {}MB'.format(ext_runtime_name, job.runtime_memory))
+        logger.info(f'Creating runtime: {ext_runtime_name}, memory: {job.runtime_memory}MB')
 
         ext_docker_file = '/'.join([job.local_tmp_dir, "Dockerfile"])
 
         # Generate Dockerfile extended with function dependencies and function
         with open(ext_docker_file, 'w') as df:
             df.write('\n'.join([
-                'FROM {}'.format(base_docker_image),
-                'ENV PYTHONPATH=/tmp/lithops/modules:$PYTHONPATH',
-                # set python path to point to dependencies folder
-                'COPY . /tmp/lithops'
+                f'FROM {base_docker_image}',
+                'ENV PYTHONPATH=/tmp/lithops-root/modules:$PYTHONPATH',
+                'COPY . /tmp/lithops-root'
             ]))
 
         # Build new extended runtime tagged by function hash

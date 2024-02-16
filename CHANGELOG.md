@@ -10,6 +10,7 @@
 
 ### Fixed
 - [Standalone] Fixed issue that appears when the invocation payload is too big
+- [Invoker] Fix customized_runtime temp path
 
 
 ## [v3.1.1]
