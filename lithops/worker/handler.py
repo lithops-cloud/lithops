@@ -216,16 +216,14 @@ def run_task(task):
         sys_monitor.stop()
         logger.debug('JobRunner process finished')
 
-        cpu_usage, cpu_system_time, cpu_user_time = sys_monitor.calculate_cpus_values()
-
-        call_status.add('worker_func_cpu_usage', cpu_usage)
-        call_status.add('worker_func_cpu_system_time', round(cpu_system_time, 8))
-        call_status.add('worker_func_cpu_user_time', round(cpu_user_time, 8))
-        call_status.add('worker_func_cpu_total_time', round(cpu_system_time + cpu_user_time, 8))
+        cpu_info = sys_monitor.get_cpu_info()
+        call_status.add('worker_func_cpu_usage', cpu_info['usage'])
+        call_status.add('worker_func_cpu_system_time', round(cpu_info['system'], 8))
+        call_status.add('worker_func_cpu_user_time', round(cpu_info['user'], 8))
 
         net_io = sys_monitor.get_network_io()
-        call_status.add('worker_func_sent_net_io', net_io[0])
-        call_status.add('worker_func_recv_net_io', net_io[1])
+        call_status.add('worker_func_sent_net_io', net_io['sent'])
+        call_status.add('worker_func_recv_net_io', net_io['recv'])
 
         mem_info = sys_monitor.get_memory_info()
         call_status.add('worker_func_rss', mem_info['rss'])

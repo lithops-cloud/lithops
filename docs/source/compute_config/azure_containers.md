@@ -106,6 +106,8 @@ az containerapp env create --name lithops --resource-group LithopsResourceGroup 
 |azure_containers | runtime_timeout | 600 |no | Runtime timeout in seconds. Default 10 minutes |
 |azure_containers| trigger | pub/sub  | no | Currently it supports pub/sub invocation|
 |azure_containers | invoke_pool_threads | 32 |no | Number of concurrent threads used for invocation |
+|azure_containers | runtime_include_function | False | no | If set to true, Lithops will automatically build a new runtime, including the function's code, instead of transferring it through the storage backend at invocation time. This is useful when the function's code size is large (in the order of 10s of MB) and the code does not change frequently |
+
 
 
 ## Test Lithops

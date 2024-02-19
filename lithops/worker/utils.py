@@ -16,7 +16,6 @@
 
 import os
 import sys
-import psutil
 import pkgutil
 import logging
 import pickle
@@ -27,6 +26,13 @@ from contextlib import contextmanager
 from lithops.version import __version__ as lithops_ver
 from lithops.utils import sizeof_fmt, is_unix_system, b64str_to_bytes
 from lithops.constants import MODULES_DIR
+
+try:
+    import psutil
+    psutil_found = True
+except ModuleNotFoundError:
+    psutil_found = False
+
 
 logger = logging.getLogger(__name__)
 
@@ -267,70 +273,73 @@ class LogStream:
 
 
 class SystemMonitor:
+
     def __init__(self, process_id=None):
         """
         Initialize the SystemMonitor.
         If process_id is None, monitor the current process.
         """
-        self.cpu_usage = None
-        self.process = psutil.Process(process_id)
-
-    def reset_network_io(self):
-        """
-        Reset the network IO counters cache and baseline.
-        """
-        psutil.net_io_counters.cache_clear()
-        self.net_io_start = psutil.net_io_counters()
+        self.process_id = process_id
+        self.cpu_usage = []
+        self.process = None
+        self.cpu_times = None
+        self.current_net_io = None
+        self.mem_info = None
 
     def start(self):
         """
-        Start monitoring and record the initial CPU usage (to be ignored).
+        Start monitoring.
         """
+        if not psutil_found:
+            return
+
+        self.process = psutil.Process(self.process_id)
+
+        # record the initial CPU usage (to be ignored).
         psutil.cpu_percent(interval=None, percpu=True)
-        self.reset_network_io()
+
+        # Reset the network IO counters cache and baseline.
+        psutil.net_io_counters.cache_clear()
+        self.start_net_io = psutil.net_io_counters()
 
     def stop(self):
         """
-        Stop monitoring and record the CPU usage since the last call (start).
+        Stop monitoring.
         """
+        if not psutil_found:
+            return
+
+        # Record the CPU usage since the last call (start).
         self.cpu_usage = psutil.cpu_percent(interval=None, percpu=True)
+        self.cpu_times = psutil.cpu_times()
+        self.current_net_io = psutil.net_io_counters()
+        self.mem_info = self.process.memory_full_info()
 
-    def get_cpu_usage(self):
+    def get_cpu_info(self):
         """
-        Get the CPU usage for each CPU core at the end.
+        Return CPU usage, system time, and user time for each CPU core.
         """
-        if self.cpu_usage is None:
-            return []
+        if not psutil_found:
+            return {"usage": [], "system": 0, "user": 0}
 
-        return self.cpu_usage
-
-    def calculate_cpus_values(self):
-        """
-        Calculate average CPU usage, average system time, and average user time for each CPU core.
-        """
-        cpu_time = psutil.cpu_times()
-        cpu_usage = self.get_cpu_usage()
-        avg_cpu_system_time = cpu_time.system
-        avg_cpu_user_time = cpu_time.user
-
-        return cpu_usage, avg_cpu_system_time, avg_cpu_user_time
+        return {"usage": self.cpu_usage, "system": self.cpu_times.system, "user": self.cpu_times.user}
 
     def get_network_io(self):
         """
         Calculate network IO (bytes sent and received) since the last reset.
         """
-        current_net_io = psutil.net_io_counters()
-        bytes_sent = current_net_io.bytes_sent - self.net_io_start.bytes_sent
-        bytes_recv = current_net_io.bytes_recv - self.net_io_start.bytes_recv
-        return bytes_sent, bytes_recv
+        if not psutil_found:
+            return {"sent": 0, "recv": 0}
+
+        bytes_sent = self.current_net_io.bytes_sent - self.start_net_io.bytes_sent
+        bytes_recv = self.current_net_io.bytes_recv - self.start_net_io.bytes_recv
+        return {"sent": bytes_sent, "recv": bytes_recv}
 
     def get_memory_info(self):
         """
         Get memory usage information of the monitored process.
         """
-        mem_info = self.process.memory_full_info()  # Using memory_full_info for detailed metrics
-        return {
-            "rss": mem_info.rss,
-            "vms": mem_info.vms,
-            "uss": mem_info.uss
-        }
+        if not psutil_found:
+            return {"rss": 0, "vms": 0, "uss": 0}
+
+        return {"rss": self.mem_info.rss, "vms": self.mem_info.vms, "uss": self.mem_info.uss}
