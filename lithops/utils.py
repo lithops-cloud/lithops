@@ -372,6 +372,13 @@ def get_docker_path():
     return docker_path or podman_path
 
 
+def get_singularity_path():
+    singularity_path = shutil.which('singularity')
+    if not singularity_path:
+        raise Exception('singularity command not found. Install singularity')
+    return singularity_path
+
+
 def get_default_container_name(backend, backend_config, runtime_name):
     """
     Generates the default runtime image name
