@@ -298,7 +298,7 @@ class IBMVPCBackend:
             subnet_prototype['name'] = subnet_name
             subnet_prototype['resource_group'] = {'id': self.config['resource_group_id']}
             subnet_prototype['vpc'] = {'id': self.config['vpc_id']}
-            subnet_prototype['total_ipv4_address_count'] = 256
+            subnet_prototype['total_ipv4_address_count'] = 8192
             response = self.vpc_cli.create_subnet(subnet_prototype)
             subnet_data = response.result
 
