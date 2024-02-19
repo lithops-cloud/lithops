@@ -96,12 +96,15 @@ class SingularityBackend:
 
         singularity_path = utils.get_singularity_path()
 
-        #  build test.sif singularity.def
         if singularityfile:
             assert os.path.isfile(singularityfile), f'Cannot locate "{singularityfile}"'
-            cmd = f'{singularity_path} build {singularity_image_name} {singularityfile} '
+            cmd = f'{singularity_path} build  --fakeroot {singularity_image_name} {singularityfile} '
         else:
-            cmd = f'{singularity_path} build {singularity_image_name} {config.SINGULARITYFILE_DEFAULT} '
+            # Create a new file with the config.SINGULARITYFILE_DEFAULT content
+            with open(config.SINGULARITYFILE_DEFAULT_NAME, 'w') as f:
+                f.write(config.SINGULARITYFILE_DEFAULT)
+
+            cmd = f'{singularity_path} build --fakeroot {singularity_image_name} {config.SINGULARITYFILE_DEFAULT_NAME}'
         cmd = cmd + ' '.join(extra_args)
 
         try:
@@ -110,50 +113,14 @@ class SingularityBackend:
             utils.run_command(cmd)
         finally:
             os.remove(config.FH_ZIP_LOCATION)
+
+            if not singularityfile:
+                os.remove(config.SINGULARITYFILE_DEFAULT_NAME)
 
         logger.debug('Building done!')
 
 
-    """def build_runtime(self, docker_image_name, dockerfile, extra_args=[]):
-        
-        Builds a new runtime from a Docker file and pushes it to the registry
-        
-        logger.info(f'Building runtime {docker_image_name} from {dockerfile or "Dockerfile"}')
-
-        docker_path = utils.get_docker_path()
-
-        if dockerfile:
-            assert os.path.isfile(dockerfile), f'Cannot locate "{dockerfile}"'
-            cmd = f'{docker_path} build -t {docker_image_name} -f {dockerfile} . '
-        else:
-            cmd = f'{docker_path} build -t {docker_image_name} . '
-        cmd = cmd + ' '.join(extra_args)
-
-        try:
-            entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
-            utils.create_handler_zip(config.FH_ZIP_LOCATION, entry_point, 'lithopsentry.py')
-            utils.run_command(cmd)
-        finally:
-            os.remove(config.FH_ZIP_LOCATION)
-
-        docker_user = self.singularity_config.get("docker_user")
-        docker_password = self.singularity_config.get("docker_password")
-        docker_server = self.singularity_config.get("docker_server")
-
-        if docker_user and docker_password:
-            logger.debug('Container registry credentials found in config. Logging in into the registry')
-            cmd = f'{docker_path} login -u {docker_user} --password-stdin {docker_server}'
-            utils.run_command(cmd, input=docker_password)
-
-        logger.debug(f'Pushing runtime {docker_image_name} to container registry')
-        if utils.is_podman(docker_path):
-            cmd = f'{docker_path} push {docker_image_name} --format docker --remove-signatures'
-        else:
-            cmd = f'{docker_path} push {docker_image_name}'
-        utils.run_command(cmd)
-
-        logger.debug('Building done!')"""
-
+    # TODO
     def _build_default_runtime(self, docker_image_name):
         """
         Builds the default runtime
@@ -732,11 +699,7 @@ class SingularityBackend:
             self.singularity_config['runtime'] = self._get_default_runtime_image_name()
 
         runtime_info = {
-            'runtime_name': self.singularity_config['runtime'],
-            'runtime_cpu': self.singularity_config['runtime_cpu'],
-            'runtime_memory': self.singularity_config['runtime_memory'],
-            'runtime_timeout': self.singularity_config['runtime_timeout'],
-            'max_workers': self.singularity_config['max_workers'],
+            'runtime_name': self.singularity_config['runtime']
         }
 
         return runtime_info
