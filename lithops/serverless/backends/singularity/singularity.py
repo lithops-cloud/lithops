@@ -74,20 +74,22 @@ class SingularityBackend:
         msg = COMPUTE_CLI_MSG.format('Singularity')
         logger.info(f"{msg}")
 
+    # TODO
     def _format_job_name(self, runtime_name, runtime_memory, version=__version__):
-        name = f'{runtime_name}-{runtime_memory}-{version}-{self.user}'
+        name = f'{runtime_name}-{runtime_memory}-{version}'
         name_hash = hashlib.sha1(name.encode()).hexdigest()[:10]
 
         return f'lithops-worker-{version.replace(".", "")}-{name_hash}'
 
+    # DONE
     def _get_default_runtime_image_name(self):
         """
         Generates the default runtime image name
         """
-        return utils.get_default_container_name(
-            self.name, self.singularity_config, 'lithops-kubernetes-default'
-        )
+        py_version = utils.CURRENT_PY_VERSION.replace('.', '')
+        return f'singularity-runtime-v{py_version}'
 
+    # DONE
     def build_runtime(self, singularity_image_name, singularityfile, extra_args=[]):
         """
         Builds a new runtime from a Singularity file and pushes it to the registry
@@ -98,13 +100,10 @@ class SingularityBackend:
 
         if singularityfile:
             assert os.path.isfile(singularityfile), f'Cannot locate "{singularityfile}"'
-            cmd = f'{singularity_path} build  --fakeroot {singularity_image_name} {singularityfile} '
+            cmd = f'{singularity_path} build  --fakeroot --force /tmp/{singularity_image_name}.sif {singularityfile} '
         else:
-            # Create a new file with the config.SINGULARITYFILE_DEFAULT content
-            with open(config.SINGULARITYFILE_DEFAULT_NAME, 'w') as f:
-                f.write(config.SINGULARITYFILE_DEFAULT)
-
-            cmd = f'{singularity_path} build --fakeroot {singularity_image_name} {config.SINGULARITYFILE_DEFAULT_NAME}'
+            default_singularityfile = self._create_default_runtime()
+            cmd = f'{singularity_path} build --fakeroot --force /tmp/{singularity_image_name}.sif {default_singularityfile}'
         cmd = cmd + ' '.join(extra_args)
 
         try:
@@ -115,74 +114,27 @@ class SingularityBackend:
             os.remove(config.FH_ZIP_LOCATION)
 
             if not singularityfile:
-                os.remove(config.SINGULARITYFILE_DEFAULT_NAME)
+                os.remove(default_singularityfile)
 
         logger.debug('Building done!')
 
-
-    # TODO
-    def _build_default_runtime(self, docker_image_name):
+    # DONE
+    def _create_default_runtime(self):
         """
         Builds the default runtime
         """
         # Build default runtime using local dokcer
-        dockerfile = "Dockefile.default-k8s-runtime"
-        with open(dockerfile, 'w') as f:
-            f.write(f"FROM python:{utils.CURRENT_PY_VERSION}-slim-buster\n")
-            f.write(config.DOCKERFILE_DEFAULT)
-        try:
-            self.build_runtime(docker_image_name, dockerfile)
-        finally:
-            os.remove(dockerfile)
+        singularityfile = 'singularity_template'
 
-    def _create_container_registry_secret(self):
-        """
-        Create the container registry secret in the cluster
-        (only if credentials are present in config)
-        """
-        if not all(key in self.singularity_config for key in ["docker_user", "docker_password"]):
-            return
+        with open(singularityfile, 'w') as f:
+            f.write(f"Bootstrap: docker\n")
+            f.write(f"From: python:{utils.CURRENT_PY_VERSION}-slim-buster\n\n")
+            f.write(config.SINGULARITYFILE_DEFAULT)
 
-        logger.debug('Creating container registry secret')
-        docker_server = self.singularity_config['docker_server']
-        docker_user = self.singularity_config['docker_user']
-        docker_password = self.singularity_config['docker_password']
+        return singularityfile
 
-        cred_payload = {
-            "auths": {
-                docker_server: {
-                    "Username": docker_user,
-                    "Password": docker_password
-                }
-            }
-        }
-
-        data = {
-            ".dockerconfigjson": base64.b64encode(
-                json.dumps(cred_payload).encode()
-            ).decode()
-        }
-
-        secret = client.V1Secret(
-            api_version="v1",
-            data=data,
-            kind="Secret",
-            metadata=dict(name="lithops-regcred", namespace=self.namespace),
-            type="kubernetes.io/dockerconfigjson",
-        )
-
-        try:
-            self.core_api.delete_namespaced_secret("lithops-regcred", self.namespace)
-        except ApiException:
-            pass
-
-        try:
-            self.core_api.create_namespaced_secret(self.namespace, secret)
-        except ApiException as e:
-            if e.status != 409:
-                raise e
-
-    def deploy_runtime(self, docker_image_name, memory, timeout):
+    # TODO
+    def deploy_runtime(self, singularity_image_name):
         """
         Deploys a new runtime
         """
@@ -190,20 +142,22 @@ class SingularityBackend:
             default_image_name = self._get_default_runtime_image_name()
         except Exception:
             default_image_name = None
-        if docker_image_name == default_image_name:
-            self._build_default_runtime(docker_image_name)
+        
+        if singularity_image_name == default_image_name:
+            self.build_runtime(singularity_image_name, None)
 
-        logger.info(f"Deploying runtime: {docker_image_name} - Memory: {memory} Timeout: {timeout}")
-        self._create_container_registry_secret()
-        runtime_meta = self._generate_runtime_meta(docker_image_name)
+        logger.info(f"Deploying runtime: {singularity_image_name}")
+        runtime_meta = self._generate_runtime_meta(singularity_image_name)
 
         return runtime_meta
 
-    def delete_runtime(self, docker_image_name, memory, version=__version__):
+    # DONE
+    def delete_runtime(self, singularity_image_name, memory, version):
         """
         Deletes a runtime
         """
         pass
+
 
     def clean(self, all=False):
         """
@@ -255,7 +209,8 @@ class SingularityBackend:
             except ValueError:
                 pass
 
-    def list_runtimes(self, docker_image_name='all'):
+    # DONE
+    def list_runtimes(self, singularity_image_name='all'):
         """
         List all the runtimes
         return: list of tuples (docker_image_name, memory)
@@ -690,6 +645,7 @@ class SingularityBackend:
 
         return runtime_key
 
+    # TODO
     def get_runtime_info(self):
         """
         Method that returns all the relevant information about the runtime set

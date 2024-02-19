@@ -20,9 +20,6 @@ FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_k8s.zip')
 
 
 SINGULARITYFILE_DEFAULT = """
-Bootstrap: docker
-From: python:3.10-slim-buster
-
 %post
     apt-get update && apt-get install -y \
         zip redis-server curl \
