@@ -4,14 +4,17 @@
 
 ### Added
 - [Plots] Allow to set the figure size of the plots
-- [Stats] Added new CPU, Meemory and Network statistics in the function results
+- [Stats] Added new CPU, Memory and Network statistics in the function results
+- [IBM VPC] Added a new parameter to enable/disable resource existence check in the platform
+
 
 ### Changed
 - [Config] Renamed 'customized_runtime' to 'runtime_include_function'
+- [IBM VPC] Increase the total number of available IPs in the private network
 
 ### Fixed
 - [Standalone] Fixed issue that appears when the invocation payload is too big
-- [Invoker] Fix customized_runtime temp path
+- [Invoker] Fixed "runtime_include_function" function/modules path
 
 
 ## [v3.1.1]
