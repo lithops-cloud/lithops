@@ -67,7 +67,7 @@ class IBMVPCBackend:
         self.endpoint = self.config['endpoint']
         self.region = self.config['region']
         self.zone = self.config['zone']
-        self.custom_image = self.config.get('custom_lithops_image')
+        self.verify_resources = self.config['verify_resources']
 
         suffix = 'vm' if self.mode == StandaloneMode.CONSUME.value else 'vpc'
         self.cache_dir = os.path.join(CACHE_DIR, self.name)
@@ -136,7 +136,7 @@ class IBMVPCBackend:
         if 'vpc_id' in self.vpc_data:
             logger.debug(f'Using VPC {self.vpc_data["vpc_name"]}')
             try:
-                self.vpc_cli.get_vpc(self.vpc_data['vpc_id'])
+                self.vpc_cli.get_vpc(self.vpc_data['vpc_id']) if self.verify_resources else None
                 self.config['vpc_id'] = self.vpc_data['vpc_id']
                 self.config['security_group_id'] = self.vpc_data['security_group_id']
                 return
@@ -212,7 +212,7 @@ class IBMVPCBackend:
 
         if 'ssh_key_id' in self.vpc_data:
             try:
-                self.vpc_cli.get_key(self.vpc_data['ssh_key_id'])
+                self.vpc_cli.get_key(self.vpc_data['ssh_key_id']) if self.verify_resources else None
                 self.config['ssh_key_id'] = self.vpc_data['ssh_key_id']
                 self.config['ssh_key_filename'] = self.vpc_data['ssh_key_filename']
                 return
@@ -275,7 +275,7 @@ class IBMVPCBackend:
 
         if 'subnet_id' in self.vpc_data:
             try:
-                self.vpc_cli.get_subnet(self.vpc_data['subnet_id'])
+                self.vpc_cli.get_subnet(self.vpc_data['subnet_id']) if self.verify_resources else None
                 self.config['subnet_id'] = self.vpc_data['subnet_id']
                 self.config['zone_name'] = self.vpc_data['zone_name']
                 return
@@ -315,7 +315,7 @@ class IBMVPCBackend:
 
         if 'gateway_id' in self.vpc_data:
             try:
-                self.vpc_cli.get_public_gateway(self.vpc_data['gateway_id'])
+                self.vpc_cli.get_public_gateway(self.vpc_data['gateway_id']) if self.verify_resources else None
                 self.config['gateway_id'] = self.vpc_data['gateway_id']
                 return
             except ApiException:
@@ -380,7 +380,7 @@ class IBMVPCBackend:
 
         if 'floating_ip_id' in self.vpc_data:
             try:
-                self.vpc_cli.get_floating_ip(self.vpc_data['floating_ip_id'])
+                self.vpc_cli.get_floating_ip(self.vpc_data['floating_ip_id']) if self.verify_resources else None
                 self.config['floating_ip'] = self.vpc_data['floating_ip']
                 self.config['floating_ip_id'] = self.vpc_data['floating_ip_id']
                 return
@@ -397,6 +397,10 @@ class IBMVPCBackend:
         Requests the Ubuntu Image ID
         """
         if 'image_id' in self.config:
+            return
+
+        if 'image_id' in self.vpc_data and not self.verify_resources:
+            self.config['image_id'] = self.vpc_data['image_id']
             return
 
         images_def = self.vpc_cli.list_images().result['images']

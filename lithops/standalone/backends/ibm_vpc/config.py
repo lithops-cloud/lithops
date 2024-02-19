@@ -35,6 +35,7 @@ DEFAULT_CONFIG_KEYS = {
     'ssh_password': str(uuid.uuid4()),
     'ssh_key_filename': '~/.ssh/id_rsa',
     'delete_on_dismantle': True,
+    'verify_resources': True,
     'max_workers': 100,
     'boot_volume_capacity': 100
 }

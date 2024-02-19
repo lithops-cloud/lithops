@@ -90,6 +90,7 @@ ibm_vpc:
 |ibm_vpc | boot_volume_capacity | 100 | no | Virtual machine boot volume capacity in GB. Set it to 10 if using a custom image. |
 |ibm_vpc | worker_profile_name | cx2-2x4 | no | Profile name for the worker VMs |
 |ibm_vpc | master_profile_name | cx2-2x4 | no | Profile name for the master VM |
+|ibm_vpc | verify_resources | True | no | Verify the resources that are stored in the local cache and expected to be already created (VPC, subnet, floating IP, etc.) exist every time a `FunctionExecutor()` is created |
 |ibm_vpc | delete_on_dismantle | True | no | Delete the worekr VMs when they are stopped |
 |ibm_vpc | max_workers | 100 | no | Max number of workers per `FunctionExecutor()`|
 |ibm_vpc | worker_processes | AUTO | no | Number of Lithops processes within a given worker. This is used to parallelize function activations within a worker. By default it detects the amount of CPUs in the worker VM|
