@@ -26,7 +26,7 @@ from contextlib import contextmanager
 
 from lithops.version import __version__ as lithops_ver
 from lithops.utils import sizeof_fmt, is_unix_system, b64str_to_bytes
-from lithops.constants import LITHOPS_TEMP_DIR, MODULES_DIR
+from lithops.constants import MODULES_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +46,7 @@ def get_function_and_modules(job, internal_storage):
     if job.config[backend].get('runtime_include_function'):
         logger.debug("Runtime include function feature activated. Loading "
                      "function from local runtime")
-        func_path = '/'.join([LITHOPS_TEMP_DIR, job.func_key])
+        func_path = '/'.join(['/opt/lithops', job.func_key])
         with open(func_path, "rb") as f:
             func_obj = f.read()
     else:
@@ -56,7 +56,7 @@ def get_function_and_modules(job, internal_storage):
 
     if loaded_func_all.get('module_data'):
         module_path = os.path.join(MODULES_DIR, job.job_key)
-        logger.debug("Writing function dependencies to {}".format(module_path))
+        logger.debug(f"Writing function dependencies to {module_path}")
         os.makedirs(module_path, exist_ok=True)
         sys.path.append(module_path)
 
