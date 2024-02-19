@@ -53,6 +53,8 @@ Lithops with *IBM Cloud Functions* as compute backend.
 |ibm_cf | runtime_timeout | 600 |no | Runtime timeout in seconds. Default 600 seconds |
 |ibm_cf | invoke_pool_threads | 500 |no | Number of concurrent threads used for invocation |
 |ibm_cf | remote_invoker | False | no |  Activate the remote invoker feature that uses one cloud function to spawn all the actual `map()` activations |
+|ibm_cf | runtime_include_function | False | no | If set to true, Lithops will automatically build a new runtime, including the function's code, instead of transferring it through the storage backend at invocation time. This is useful when the function's code size is large (in the order of 10s of MB) and the code does not change frequently |
+
 
 ## Test Lithops
 
