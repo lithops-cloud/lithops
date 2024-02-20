@@ -18,6 +18,13 @@ import os
 
 FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_k8s.zip')
 
+DEFAULT_CONFIG_KEYS = {
+    'runtime_timeout': 600,  # Default: 10 minutes
+    'runtime_memory': 512,  # Default memory: 512 MB
+    'max_workers': 100,
+    'worker_processes': 1,
+}
+
 
 SINGULARITYFILE_DEFAULT = """
 %post
@@ -58,7 +65,9 @@ SINGULARITYFILE_DEFAULT = """
 """
 
 def load_config(config_data):
-    config_data['singularity']['worker_processes'] = 1
-
+    for key in DEFAULT_CONFIG_KEYS:
+        if key not in config_data['singularity']:
+            config_data['singularity'][key] = DEFAULT_CONFIG_KEYS[key]
+    
     if 'rabbitmq' in config_data:
       config_data['singularity']['amqp_url'] = config_data['rabbitmq'].get('amqp_url', False)

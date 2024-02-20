@@ -128,13 +128,13 @@ class SingularityBackend:
 
         with open(singularityfile, 'w') as f:
             f.write(f"Bootstrap: docker\n")
-            f.write(f"From: python:{utils.CURRENT_PY_VERSION}-slim-buster\n\n")
+            f.write(f"From: python:{utils.CURRENT_PY_VERSION}-slim-buster\n")
             f.write(config.SINGULARITYFILE_DEFAULT)
 
         return singularityfile
 
-    # TODO
-    def deploy_runtime(self, singularity_image_name):
+    # DONE
+    def deploy_runtime(self, singularity_image_name, memory, timeout):
         """
         Deploys a new runtime
         """
@@ -142,7 +142,7 @@ class SingularityBackend:
             default_image_name = self._get_default_runtime_image_name()
         except Exception:
             default_image_name = None
-        
+
         if singularity_image_name == default_image_name:
             self.build_runtime(singularity_image_name, None)
 
@@ -549,6 +549,7 @@ class SingularityBackend:
 
         return activation_id
 
+    # TODO
     def _generate_runtime_meta(self, docker_image_name):
         runtime_name = self._format_job_name(docker_image_name, 128)
         meta_job_name = f'{runtime_name}-meta'
@@ -633,6 +634,7 @@ class SingularityBackend:
 
         return runtime_meta
 
+    # DONE
     def get_runtime_key(self, docker_image_name, runtime_memory, version=__version__):
         """
         Method that creates and returns the runtime key.
@@ -640,12 +642,11 @@ class SingularityBackend:
         in order to know which runtimes are installed and which not.
         """
         jobdef_name = self._format_job_name(docker_image_name, 256, version)
-        user_data = os.path.join(self.cluster, self.namespace, self.user)
-        runtime_key = os.path.join(self.name, version, user_data, jobdef_name)
+        runtime_key = os.path.join(self.name, version, jobdef_name)
 
         return runtime_key
 
-    # TODO
+    # DONE
     def get_runtime_info(self):
         """
         Method that returns all the relevant information about the runtime set
@@ -655,7 +656,10 @@ class SingularityBackend:
             self.singularity_config['runtime'] = self._get_default_runtime_image_name()
 
         runtime_info = {
-            'runtime_name': self.singularity_config['runtime']
+            'runtime_name': self.singularity_config['runtime'],
+            'runtime_memory': self.singularity_config['runtime_memory'],
+            'runtime_timeout': self.singularity_config['runtime_timeout'],
+            'max_workers': self.singularity_config['max_workers'],
         }
 
         return runtime_info
