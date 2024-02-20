@@ -117,6 +117,7 @@ docker login <region>.ocir.io -u <tenancy-namespace>/<username> -p <authenticati
 |oracle_f | runtime |  |no | Runtime name you built and deployed using the lithops client|
 |oracle_f | runtime_memory | 256 |no | Memory limit in MB. Default 256MB |
 |oracle_f | runtime_timeout | 300 |no | Runtime timeout in seconds. Default 5 minutes |
+|oracle_f | runtime_include_function | False | no | If set to true, Lithops will automatically build a new runtime, including the function's code, instead of transferring it through the storage backend at invocation time. This is useful when the function's code size is large (in the order of 10s of MB) and the code does not change frequently |
 
 
 ## Test Lithops

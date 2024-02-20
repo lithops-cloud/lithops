@@ -97,7 +97,7 @@ code_engine:
 |code_engine | runtime_memory | 256 |no | Memory limit in MB. Default 256Mi. See [valid combinations](https://cloud.ibm.com/docs/codeengine?topic=codeengine-mem-cpu-combo) |
 |code_engine | runtime_timeout | 600 |no | Runtime timeout in seconds. Default 600 seconds |
 |code_engine | connection_retries | |no | If specified, number of job invoke retries in case of connection failure with error code 500 |
-
+|code_engine | runtime_include_function | False | no | If set to true, Lithops will automatically build a new runtime, including the function's code, instead of transferring it through the storage backend at invocation time. This is useful when the function's code size is large (in the order of 10s of MB) and the code does not change frequently |
 
 ## Lithops using Knative API of Code Engine
 
