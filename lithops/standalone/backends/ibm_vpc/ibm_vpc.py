@@ -811,8 +811,7 @@ class IBMVPCBackend:
                 ex.map(lambda worker: worker.stop(), self.workers)
             self.workers = []
 
-        if include_master or self.mode == StandaloneMode.CONSUME.value:
-            # in consume mode master VM is a worker
+        if include_master:
             self.master.stop()
 
     def get_instance(self, name, **kwargs):
