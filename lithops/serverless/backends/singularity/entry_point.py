@@ -46,13 +46,13 @@ def extract_runtime_meta(payload):
 
     runtime_meta = get_runtime_metadata()
 
-    print(runtime_meta)
-
-    internal_storage = InternalStorage(payload)
-    status_key = '/'.join([JOBS_PREFIX, payload['runtime_name'] + '.meta'])
-    logger.info(f"Runtime metadata key {status_key}")
-    dmpd_response_status = json.dumps(runtime_meta)
-    internal_storage.put_data(status_key, dmpd_response_status)
+    channel.basic_publish(
+        exchange='',
+        routing_key='status_queue',
+        body=json.dumps(runtime_meta),
+        properties=pika.BasicProperties(
+            delivery_mode=pika.spec.PERSISTENT_DELIVERY_MODE
+        ))
 
 def run_job_k8s_rabbitmq(payload, running_jobs):
     logger.info(f"Lithops v{__version__} - Starting kubernetes execution")

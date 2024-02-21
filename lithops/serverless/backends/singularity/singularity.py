@@ -548,7 +548,7 @@ class SingularityBackend:
 
         return activation_id
 
-    # TODO
+    # TODO only sleep
     def _generate_runtime_meta(self, singularity_image_name):
         # Send message to create container
         self.channel.basic_publish(
@@ -589,43 +589,28 @@ class SingularityBackend:
 
         logger.debug("Waiting for runtime metadata")
 
-        exit
+        # Declare queue
+        self.channel.queue_declare(queue='status_queue2', durable=True)
 
-        # TODO: Get response from RabbitMQ
-        done = failed = False
-        w = watch.Watch()
-        while not (done or failed):
-            try:
-                for event in w.stream(self.batch_api.list_namespaced_job,
-                                      namespace=self.namespace,
-                                      field_selector=f"metadata.name={meta_job_name}",
-                                      timeout_seconds=10):
-                    failed = event['object'].status.failed
-                    done = event['object'].status.succeeded
-                    logger.debug('...')
-            except Exception:
-                pass
-        w.stop()
+        # Check until a new message arrives to the status_queue queue
+        start_time = time.time()
+        runtime_meta = None
 
-        if done:
-            logger.debug("Runtime metadata generated successfully")
+        while True:
+            # Check if 10 minutes have passed
+            elapsed_time = time.time() - start_time
+            if elapsed_time > 6:  # 600 seconds = 10 minutes
+                raise Exception("Unable to extract metadata from the runtime")
 
-        try:
-            self.batch_api.delete_namespaced_job(
-                namespace=self.namespace,
-                name=meta_job_name,
-                propagation_policy='Background'
-            )
-        except ApiException:
-            pass
+            method_frame, properties, body = self.channel.basic_get('status_queue2')
 
-        if failed:
-            raise Exception("Unable to extract metadata from the runtime")
-
-        data_key = '/'.join([JOBS_PREFIX, runtime_name + '.meta'])
-        json_str = self.internal_storage.get_data(key=data_key)
-        runtime_meta = json.loads(json_str.decode("ascii"))
-        self.internal_storage.del_data(key=data_key)
+            if method_frame:
+                runtime_meta = json.loads(body)
+                break
+            else:
+                logger.debug('...')
+            
+            time.sleep(1)
 
         if not runtime_meta or 'preinstalls' not in runtime_meta:
             raise Exception(f'Failed getting runtime metadata: {runtime_meta}')
