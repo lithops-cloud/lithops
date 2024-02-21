@@ -158,7 +158,6 @@ class SingularityBackend:
         """
         pass
 
-
     def clean(self, all=False):
         """
         Deletes all jobs
@@ -550,50 +549,49 @@ class SingularityBackend:
         return activation_id
 
     # TODO
-    def _generate_runtime_meta(self, docker_image_name):
-        runtime_name = self._format_job_name(docker_image_name, 128)
-        meta_job_name = f'{runtime_name}-meta'
+    def _generate_runtime_meta(self, singularity_image_name):
+        # Send message to create container
+        self.channel.basic_publish(
+            exchange='',
+            routing_key='create_container',
+            body=json.dumps(singularity_image_name),
+            properties=pika.BasicProperties(
+            delivery_mode=pika.spec.PERSISTENT_DELIVERY_MODE
+        ))
 
-        logger.info(f"Extracting metadata from: {docker_image_name}")
+        # Sleep 15 seconds (TODO)
+        time.sleep(15)
+
+        # Send payload to RabbitMQ
+        runtime_name = self._format_job_name(singularity_image_name, 128)
+
+        logger.info(f"Extracting metadata from: {singularity_image_name}")
 
         payload = copy.deepcopy(self.internal_storage.storage.config)
         payload['runtime_name'] = runtime_name
         payload['log_level'] = logger.getEffectiveLevel()
 
-        job_res = yaml.safe_load(config.JOB_DEFAULT)
-        job_res['metadata']['name'] = meta_job_name
-        job_res['metadata']['namespace'] = self.namespace
-        job_res['metadata']['labels']['version'] = 'lithops_v' + __version__
-        job_res['metadata']['labels']['user'] = self.user
+        encoded_payload = utils.dict_to_b64str(payload)
 
-        container = job_res['spec']['template']['spec']['containers'][0]
-        container['image'] = docker_image_name
-        container['imagePullPolicy'] = 'Always'
-        container['env'][0]['value'] = 'get_metadata'
-        container['env'][1]['value'] = utils.dict_to_b64str(payload)
+        message = {
+            'action': 'get_metadata',
+            'payload': encoded_payload
+        }
 
-        if not all(key in self.singularity_config for key in ["docker_user", "docker_password"]):
-            del job_res['spec']['template']['spec']['imagePullSecrets']
-
-        try:
-            self.batch_api.delete_namespaced_job(
-                namespace=self.namespace,
-                name=meta_job_name,
-                propagation_policy='Background'
-            )
-        except ApiException:
-            pass
-
-        try:
-            self.batch_api.create_namespaced_job(
-                namespace=self.namespace,
-                body=job_res
-            )
-        except ApiException as e:
-            raise e
+        # Already created: send job to the container
+        self.channel.basic_publish(
+            exchange='',
+            routing_key='task_queue',
+            body=json.dumps(message),
+            properties=pika.BasicProperties(
+            delivery_mode=pika.spec.PERSISTENT_DELIVERY_MODE
+        ))
 
         logger.debug("Waiting for runtime metadata")
 
+        exit
+
+        # TODO: Get response from RabbitMQ
         done = failed = False
         w = watch.Watch()
         while not (done or failed):
@@ -635,13 +633,13 @@ class SingularityBackend:
         return runtime_meta
 
     # DONE
-    def get_runtime_key(self, docker_image_name, runtime_memory, version=__version__):
+    def get_runtime_key(self, singularity_image_name, runtime_memory, version=__version__):
         """
         Method that creates and returns the runtime key.
         Runtime keys are used to uniquely identify runtimes within the storage,
         in order to know which runtimes are installed and which not.
         """
-        jobdef_name = self._format_job_name(docker_image_name, 256, version)
+        jobdef_name = self._format_job_name(singularity_image_name, 256, version)
         runtime_key = os.path.join(self.name, version, jobdef_name)
 
         return runtime_key

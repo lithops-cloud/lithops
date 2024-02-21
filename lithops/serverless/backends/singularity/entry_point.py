@@ -46,6 +46,8 @@ def extract_runtime_meta(payload):
 
     runtime_meta = get_runtime_metadata()
 
+    print(runtime_meta)
+
     internal_storage = InternalStorage(payload)
     status_key = '/'.join([JOBS_PREFIX, payload['runtime_name'] + '.meta'])
     logger.info(f"Runtime metadata key {status_key}")
@@ -128,18 +130,41 @@ def start_rabbitmq_listening(payload):
     logger.info("Listening to rabbitmq...")
     channel.start_consuming()
 
+def actions_switcher(ch, method, properties, body):
+    logger.info("Action received from lithops.")
 
-if __name__ == '__main__':
-    action = sys.argv[1]
-    encoded_payload = sys.argv[2]
+    message = json.loads(body)
+    action = message['action']
+    encoded_payload = message['payload']
 
     payload = b64str_to_dict(encoded_payload)
     setup_lithops_logger(payload.get('log_level', 'INFO'))
 
-    switcher = {
-        'get_metadata': partial(extract_runtime_meta, payload),
-        'start_rabbitmq': partial(start_rabbitmq_listening, payload)
-    }
+    if action == 'get_metadata':
+        extract_runtime_meta(payload)
 
-    func = switcher.get(action, lambda: "Invalid command")
-    func()
+    """elif action == 'start_rabbitmq':
+        start_rabbitmq_listening(payload)"""
+    
+
+if __name__ == '__main__':
+    global cpus_pod
+
+    amqp_url = sys.argv[1]
+    cpus_pod = sys.argv[2]
+
+    # print("AMQP_URL: ", amqp_url)
+    # print("CPUS_POD: ", cpus_pod)
+
+    # Connect to rabbitmq
+    params = pika.URLParameters(amqp_url)
+    connection = pika.BlockingConnection(params)
+    channel = connection.channel()
+    channel.queue_declare(queue='task_queue', durable=True)
+    channel.basic_qos(prefetch_count=1)
+    
+    # Start listening to the new job
+    channel.basic_consume(queue='task_queue', on_message_callback=actions_switcher)
+
+    logger.info("Listening to rabbitmq...")
+    channel.start_consuming()

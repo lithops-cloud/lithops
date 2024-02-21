@@ -62,6 +62,12 @@ SINGULARITYFILE_DEFAULT = """
 %post
     cd /lithops
     unzip lithops_k8s.zip && rm lithops_k8s.zip
+
+%runscript
+    echo "CPUs: $(nproc)"
+    echo "Memory: $(awk '/MemTotal/ {print $2/1024}' /proc/meminfo)"
+    echo "AMQP_URL: $AMQP_URL"
+    python3 /lithops/lithopsentry.py $AMQP_URL $(nproc)
 """
 
 def load_config(config_data):
@@ -70,4 +76,4 @@ def load_config(config_data):
             config_data['singularity'][key] = DEFAULT_CONFIG_KEYS[key]
     
     if 'rabbitmq' in config_data:
-      config_data['singularity']['amqp_url'] = config_data['rabbitmq'].get('amqp_url', False)
+        config_data['singularity']['amqp_url'] = config_data['rabbitmq'].get('amqp_url', False)
