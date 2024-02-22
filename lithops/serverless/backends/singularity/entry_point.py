@@ -25,6 +25,7 @@ import time
 import requests
 from functools import partial
 from multiprocessing import Value
+import subprocess
 
 from lithops.version import __version__
 from lithops.utils import setup_lithops_logger, b64str_to_dict, dict_to_b64str
@@ -60,7 +61,6 @@ def extract_runtime_meta(payload):
 
     return runtime_meta
 
-# TO-TEST
 def run_job_k8s_rabbitmq(payload, running_jobs):
     logger.info(f"Lithops v{__version__} - Starting singularity execution")
 
@@ -136,16 +136,21 @@ def actions_switcher(ch, method, properties, body):
     print("Action: ", action)
     print("Payload: ", payload)
 
-    if action == 'get_metadata':
+    if action == 'stop_containers':
+        ch.stop_consuming()
+        ch.close()
+        connection.close()
+        logger.info("Stopped listening to rabbitmq")
+        
+        sys.exit(0)
+
+    elif action == 'get_metadata':
         extract_runtime_meta(payload)
         # TODO
         ch.basic_ack(delivery_tag=method.delivery_tag)
 
     elif action == 'send_task':
         manage_work_queue(ch, method, payload)
-    
-    """elif action == 'stop_container':
-        start_rabbitmq_listening(payload)"""
     
 
 if __name__ == '__main__':

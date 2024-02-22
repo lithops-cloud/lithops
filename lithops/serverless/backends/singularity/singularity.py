@@ -66,11 +66,6 @@ class SingularityBackend:
         self.connection = pika.BlockingConnection(params)
         self.channel = self.connection.channel()
 
-        # Define some needed variables
-        self.image = ""
-
-        self.jobs = []  # list to store executed jobs (job_keys)
-
         msg = COMPUTE_CLI_MSG.format('Singularity')
         logger.info(f"{msg}")
 
@@ -158,68 +153,45 @@ class SingularityBackend:
         """
         pass
 
+    # DONE
     def clean(self, all=False):
         """
         Deletes all jobs
         """
-        logger.debug('Cleaning lithops resources in kubernetes')
+        logger.debug('Cleaning lithops resources in singularity')
 
-        try:
-            self._delete_workers()
-            jobs = self.batch_api.list_namespaced_job(
-                namespace=self.namespace,
-                label_selector=f'user={self.user}'
-            )
-            for job in jobs.items:
-                if job.metadata.labels['type'] == 'lithops-worker'\
-                   and (job.status.completion_time is not None or all):
-                    job_name = job.metadata.name
-                    logger.debug(f'Deleting job {job_name}')
-                    try:
-                        self.batch_api.delete_namespaced_job(
-                            name=job_name,
-                            namespace=self.namespace,
-                            propagation_policy='Background'
-                        )
-                    except ApiException:
-                        pass
-        except ApiException:
-            pass
+        message = {
+            'action': 'stop_containers',
+            'payload': utils.dict_to_b64str({})
+        }
 
-    def clear(self, job_keys=None):
-        """
-        Delete only completed jobs
-        """
-        jobs_to_delete = job_keys or self.jobs
+        # Send 100 times
+        for _ in range(100):
+            self.channel.basic_publish(
+                exchange='',
+                routing_key='task_queue',
+                body=json.dumps(message),
+                properties=pika.BasicProperties(
+                delivery_mode=pika.spec.PERSISTENT_DELIVERY_MODE
+            ))
 
-        for job_key in jobs_to_delete:
-            job_name = f'lithops-{job_key.lower()}'
-            logger.debug(f'Deleting job {job_name}')
-            try:
-                self.batch_api.delete_namespaced_job(
-                    name=job_name,
-                    namespace=self.namespace,
-                    propagation_policy='Background'
-                )
-            except ApiException:
-                pass
-            try:
-                self.jobs.remove(job_key)
-            except ValueError:
-                pass
+        logger.debug('Cleaning RabbitMQ queues')
+        delete_queues = ['task_queue', 'status_queue', 'create_container']
+        for queue in delete_queues:
+            self.channel.queue_delete(queue=queue)
 
     # DONE
     def list_runtimes(self, singularity_image_name='all'):
         """
         List all the runtimes
-        return: list of tuples (docker_image_name, memory)
+        return: list of tuples (singularity_image_name, memory)
         """
         logger.debug('Listing runtimes')
         logger.debug('Note that this backend does not manage runtimes')
         return []
 
     # DONE
-    def invoke(self, docker_image_name, runtime_memory, job_payload):
+    def invoke(self, singularity_image_name, runtime_memory, job_payload):
         """
         Invoke -- return information about this invocation
         For array jobs only remote_invocator is allowed
@@ -227,7 +199,6 @@ class SingularityBackend:
         print("INVOKE")
 
         job_key = job_payload['job_key']
-        self.jobs.append(job_key)
 
         print("WORKER PROCESSES: ", self.singularity_config['worker_processes'])
         granularity = self.singularity_config['worker_processes']
