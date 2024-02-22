@@ -107,7 +107,7 @@ aws_ec2:
 |aws_ec2 | ssh_password |  |no | Password for accessing the worker VMs. If not provided, it is created randomly|
 |aws_ec2 | ssh_key_filename | ~/.ssh/id_rsa | no | Path to the ssh key file provided to access the VPC. It will use the default path if not provided |
 |aws_ec2 | request_spot_instances | True | no | Request spot instance for worker VMs|
-|aws_ec2 | target_ami | | no | Virtual machine image id. Default is Ubuntu Server 20.04 |
+|aws_ec2 | target_ami | | no | Virtual machine image id. Default is Ubuntu Server 22.04 |
 |aws_ec2 | master_instance_type | t2.micro | no | Profile name for the master VM |
 |aws_ec2 | worker_instance_type | t2.medium | no | Profile name for the worker VMs |
 |aws_ec2 | delete_on_dismantle | True | no | Delete the worker VMs when they are stopped. Master VM is never deleted when stopped |

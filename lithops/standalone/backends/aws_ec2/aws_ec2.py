@@ -918,8 +918,7 @@ class AWSEC2Backend:
                 ex.map(lambda worker: worker.stop(), self.workers)
             self.workers = []
 
-        if include_master or self.mode == StandaloneMode.CONSUME.value:
-            # in consume mode master VM is a worker
+        if include_master:
             self.master.stop()
 
     def get_instance(self, name, **kwargs):
@@ -1340,7 +1339,7 @@ class EC2Instance:
         self.instance_data = None
         self.instance_id = None
         self.private_ip = None
-        self.public_ip = None
+        self.public_ip = '0.0.0.0'
         self.del_ssh_client()
 
     def _stop_instance(self):
@@ -1349,6 +1348,11 @@ class EC2Instance:
         """
         logger.debug(f"Stopping VM instance {self.name} ({self.instance_id})")
         self.ec2_client.stop_instances(InstanceIds=[self.instance_id])
+
+        self.instance_data = None
+        self.private_ip = None
+        self.public_ip = '0.0.0.0'
+        self.del_ssh_client()
 
     def stop(self):
         """

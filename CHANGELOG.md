@@ -7,14 +7,15 @@
 - [Stats] Added new CPU, Memory and Network statistics in the function results
 - [IBM VPC] Added a new parameter to enable/disable resource existence check in the platform
 
-
 ### Changed
 - [Config] Renamed 'customized_runtime' to 'runtime_include_function'
-- [IBM VPC] Increase the total number of available IPs in the private network
+- [IBM VPC] Increased the total number of available IPs in the private network
+- [Standalone] Do not stop the VM immediately after a job in the Cosume mode
 
 ### Fixed
 - [Standalone] Fixed issue that appears when the invocation payload is too big
 - [Invoker] Fixed "runtime_include_function" function/modules path
+- [AWS EC2] Reset the public IP address of the master VM on stop
 
 
 ## [v3.1.1]
