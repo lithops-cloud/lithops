@@ -77,12 +77,17 @@ class SingularityBackend:
 
         singularity_path = utils.get_singularity_path()
 
+        sif_path = self.singularity_config.get('sif_path', '/tmp/')
+        # Check if sif_path ends with /, if not, put it
+        sif_path = sif_path if sif_path.endswith('/') else sif_path + '/'
+        singularity_image_path = f'{sif_path}{singularity_image_name}.sif'
+
         if singularityfile:
             assert os.path.isfile(singularityfile), f'Cannot locate "{singularityfile}"'
-            cmd = f'{singularity_path} build  --fakeroot --force /tmp/{singularity_image_name}.sif {singularityfile} '
+            cmd = f'{singularity_path} build  --fakeroot --force {singularity_image_path} {singularityfile} '
         else:
             default_singularityfile = self._create_default_runtime()
-            cmd = f'{singularity_path} build --fakeroot --force /tmp/{singularity_image_name}.sif {default_singularityfile}'
+            cmd = f'{singularity_path} build --fakeroot --force {singularity_image_path} {default_singularityfile}'
         cmd = cmd + ' '.join(extra_args)
 
         try:
