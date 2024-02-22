@@ -15,31 +15,21 @@
 #
 
 import os
-import re
 import pika
-import base64
 import hashlib
 import json
 import logging
 import copy
 import time
-import yaml
-import urllib3
-from kubernetes import client, watch
-from kubernetes.config import load_kube_config, \
-    load_incluster_config, list_kube_config_contexts, \
-    KUBE_CONFIG_DEFAULT_LOCATION
-from kubernetes.client.rest import ApiException
 
 from lithops import utils
 from lithops.version import __version__
-from lithops.constants import COMPUTE_CLI_MSG, JOBS_PREFIX
+from lithops.constants import COMPUTE_CLI_MSG
 
 from . import config
 
 
 logger = logging.getLogger(__name__)
-urllib3.disable_warnings()
 
 
 class SingularityBackend:
@@ -176,7 +166,7 @@ class SingularityBackend:
             ))
 
         logger.debug('Cleaning RabbitMQ queues')
-        delete_queues = ['task_queue', 'status_queue', 'create_container']
+        delete_queues = ['task_queue', 'status_queue']
         for queue in delete_queues:
             self.channel.queue_delete(queue=queue)
 
@@ -233,20 +223,8 @@ class SingularityBackend:
 
         return activation_id
 
-    # TODO only sleep
+    # DONE
     def _generate_runtime_meta(self, singularity_image_name):
-        # Send message to create container
-        self.channel.basic_publish(
-            exchange='',
-            routing_key='create_container',
-            body=json.dumps(singularity_image_name),
-            properties=pika.BasicProperties(
-            delivery_mode=pika.spec.PERSISTENT_DELIVERY_MODE
-        ))
-
-        # Sleep 15 seconds (TODO)
-        time.sleep(2)
-
         # Send payload to RabbitMQ
         runtime_name = self._format_job_name(singularity_image_name, 128)
 

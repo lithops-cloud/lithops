@@ -20,27 +20,14 @@ import sys
 import uuid
 import json
 import logging
-import flask
-import time
-import requests
-from functools import partial
 from multiprocessing import Value
-import subprocess
 
 from lithops.version import __version__
 from lithops.utils import setup_lithops_logger, b64str_to_dict, dict_to_b64str
 from lithops.worker import function_handler
 from lithops.worker.utils import get_runtime_metadata
-from lithops.constants import JOBS_PREFIX
-from lithops.storage.storage import InternalStorage
-
-from lithops.serverless.backends.k8s import config
 
 logger = logging.getLogger('lithops.worker')
-
-proxy = flask.Flask(__name__)
-
-JOB_INDEXES = {}
 
 # DONE
 def extract_runtime_meta(payload):
@@ -56,10 +43,7 @@ def extract_runtime_meta(payload):
             delivery_mode=pika.spec.PERSISTENT_DELIVERY_MODE
         ))
     
-    status_key = '/'.join([JOBS_PREFIX, payload['runtime_name'] + '.meta'])
-    logger.info(f"Runtime metadata key {status_key}")
-
-    return runtime_meta
+    logger.info(f"Runtime metadata generated")
 
 def run_job_k8s_rabbitmq(payload, running_jobs):
     logger.info(f"Lithops v{__version__} - Starting singularity execution")
@@ -146,7 +130,6 @@ def actions_switcher(ch, method, properties, body):
 
     elif action == 'get_metadata':
         extract_runtime_meta(payload)
-        # TODO
         ch.basic_ack(delivery_tag=method.delivery_tag)
 
     elif action == 'send_task':
@@ -158,9 +141,6 @@ if __name__ == '__main__':
 
     amqp_url = sys.argv[1]
     cpus_pod = int(sys.argv[2])
-
-    # print("AMQP_URL: ", amqp_url)
-    # print("CPUS_POD: ", cpus_pod)
 
     # Connect to rabbitmq
     params = pika.URLParameters(amqp_url)

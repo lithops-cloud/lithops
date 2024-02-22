@@ -16,7 +16,7 @@
 
 import os
 
-FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_k8s.zip')
+FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_singularity.zip')
 
 DEFAULT_CONFIG_KEYS = {
     'runtime_timeout': 600,  # Default: 10 minutes
@@ -29,22 +29,18 @@ DEFAULT_CONFIG_KEYS = {
 SINGULARITYFILE_DEFAULT = """
 %post
     apt-get update && apt-get install -y \
-        zip redis-server curl \
-        && apt-get clean \
+        zip \
         && rm -rf /var/lib/apt/lists/*
 
     pip install --upgrade setuptools six pip \
     && pip install --no-cache-dir \
-        flask \
         pika \
         boto3 \
         ibm-cloud-sdk-core \
         ibm-cos-sdk \
         redis \
         gevent \
-        requests \
         PyYAML \
-        kubernetes \
         numpy \
         cloudpickle \
         ps-mem \
@@ -57,11 +53,11 @@ SINGULARITYFILE_DEFAULT = """
     cd $APP_HOME
 
 %files
-    lithops_k8s.zip /lithops/lithops_k8s.zip
+    lithops_singularity.zip /lithops/lithops_singularity.zip
 
 %post
     cd /lithops
-    unzip lithops_k8s.zip && rm lithops_k8s.zip
+    unzip lithops_singularity.zip && rm lithops_singularity.zip
 
 %runscript
     echo "CPUs: $(nproc)"
