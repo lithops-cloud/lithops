@@ -29,8 +29,8 @@ from lithops.worker.utils import get_runtime_metadata
 
 logger = logging.getLogger('lithops.worker')
 
-# DONE
-def extract_runtime_meta(payload):
+
+def extract_runtime_meta():
     logger.info(f"Lithops v{__version__} - Generating metadata")
 
     runtime_meta = get_runtime_metadata()
@@ -45,6 +45,7 @@ def extract_runtime_meta(payload):
     
     logger.info(f"Runtime metadata generated")
 
+
 def run_job_k8s_rabbitmq(payload, running_jobs):
     logger.info(f"Lithops v{__version__} - Starting singularity execution")
 
@@ -55,7 +56,7 @@ def run_job_k8s_rabbitmq(payload, running_jobs):
     function_handler(payload)
     running_jobs.value += len(payload['call_ids'])
 
-    logger.info("Finishing kubernetes execution")
+    logger.info("Finishing singularity execution")
 
 
 def manage_work_queue(ch, method, payload):
@@ -105,35 +106,31 @@ def manage_work_queue(ch, method, payload):
     logger.info("All processes completed")
     ch.basic_ack(delivery_tag=method.delivery_tag)
 
-def actions_switcher(ch, method, properties, body):
-    print("Received message from rabbitmq.")
 
+def actions_switcher(ch, method, properties, body):
     message = json.loads(body)
-    print("Message: ", message)
     action = message['action']
     encoded_payload = message['payload']
 
     payload = b64str_to_dict(encoded_payload)
     setup_lithops_logger(payload.get('log_level', 'INFO'))
 
-    logger.info("Action received from lithops.")
-    print("Action: ", action)
-    print("Payload: ", payload)
+    logger.info(f"Action {action} received from lithops.")
 
-    if action == 'stop_containers':
+    if action == 'get_metadata':
+        extract_runtime_meta()
+        ch.basic_ack(delivery_tag=method.delivery_tag)
+
+    elif action == 'send_task':
+        manage_work_queue(ch, method, payload)
+
+    elif action == 'stop_containers':
         ch.stop_consuming()
         ch.close()
         connection.close()
         logger.info("Stopped listening to rabbitmq")
         
         sys.exit(0)
-
-    elif action == 'get_metadata':
-        extract_runtime_meta(payload)
-        ch.basic_ack(delivery_tag=method.delivery_tag)
-
-    elif action == 'send_task':
-        manage_work_queue(ch, method, payload)
     
 
 if __name__ == '__main__':

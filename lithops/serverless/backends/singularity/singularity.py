@@ -43,9 +43,6 @@ class SingularityBackend:
         self.type = utils.BackendType.BATCH.value
         self.singularity_config = singularity_config
         self.internal_storage = internal_storage
-
-        print("Singularity config: ", singularity_config)
-
         self.amqp_url = self.singularity_config.get('amqp_url', False)
 
         if not self.amqp_url:
@@ -59,14 +56,12 @@ class SingularityBackend:
         msg = COMPUTE_CLI_MSG.format('Singularity')
         logger.info(f"{msg}")
 
-    # TODO
     def _format_job_name(self, runtime_name, runtime_memory, version=__version__):
         name = f'{runtime_name}-{runtime_memory}-{version}'
         name_hash = hashlib.sha1(name.encode()).hexdigest()[:10]
 
         return f'lithops-worker-{version.replace(".", "")}-{name_hash}'
 
-    # DONE
     def _get_default_runtime_image_name(self):
         """
         Generates the default runtime image name
@@ -74,7 +69,6 @@ class SingularityBackend:
         py_version = utils.CURRENT_PY_VERSION.replace('.', '')
         return f'singularity-runtime-v{py_version}'
 
-    # DONE
     def build_runtime(self, singularity_image_name, singularityfile, extra_args=[]):
         """
         Builds a new runtime from a Singularity file and pushes it to the registry
@@ -103,7 +97,6 @@ class SingularityBackend:
 
         logger.debug('Building done!')
 
-    # DONE
     def _create_default_runtime(self):
         """
         Builds the default runtime
@@ -118,7 +111,6 @@ class SingularityBackend:
 
         return singularityfile
 
-    # DONE
     def deploy_runtime(self, singularity_image_name, memory, timeout):
         """
         Deploys a new runtime
@@ -136,14 +128,12 @@ class SingularityBackend:
 
         return runtime_meta
 
-    # DONE
     def delete_runtime(self, singularity_image_name, memory, version):
         """
         Deletes a runtime
         """
         pass
 
-    # DONE
     def clean(self, all=False):
         """
         Deletes all jobs
@@ -170,7 +160,6 @@ class SingularityBackend:
         for queue in delete_queues:
             self.channel.queue_delete(queue=queue)
 
-    # DONE
     def list_runtimes(self, singularity_image_name='all'):
         """
         List all the runtimes
@@ -180,17 +169,12 @@ class SingularityBackend:
         logger.debug('Note that this backend does not manage runtimes')
         return []
 
-    # DONE
     def invoke(self, singularity_image_name, runtime_memory, job_payload):
         """
         Invoke -- return information about this invocation
         For array jobs only remote_invocator is allowed
         """
-        print("INVOKE")
-
         job_key = job_payload['job_key']
-
-        print("WORKER PROCESSES: ", self.singularity_config['worker_processes'])
         granularity = self.singularity_config['worker_processes']
         times, res = divmod(job_payload['total_calls'], granularity)
 
@@ -209,7 +193,6 @@ class SingularityBackend:
                 'action': 'send_task',
                 'payload': utils.dict_to_b64str(payload_edited)
             }
-            print("MESSAGE: ", message)
 
             self.channel.basic_publish(
                 exchange='',
@@ -223,17 +206,12 @@ class SingularityBackend:
 
         return activation_id
 
-    # DONE
     def _generate_runtime_meta(self, singularity_image_name):
         # Send payload to RabbitMQ
-        runtime_name = self._format_job_name(singularity_image_name, 128)
-
         logger.info(f"Extracting metadata from: {singularity_image_name}")
 
         payload = copy.deepcopy(self.internal_storage.storage.config)
-        payload['runtime_name'] = runtime_name
         payload['log_level'] = logger.getEffectiveLevel()
-
         encoded_payload = utils.dict_to_b64str(payload)
 
         message = {
@@ -280,7 +258,6 @@ class SingularityBackend:
 
         return runtime_meta
 
-    # DONE
     def get_runtime_key(self, singularity_image_name, runtime_memory, version=__version__):
         """
         Method that creates and returns the runtime key.
@@ -292,7 +269,6 @@ class SingularityBackend:
 
         return runtime_key
 
-    # DONE
     def get_runtime_info(self):
         """
         Method that returns all the relevant information about the runtime set
