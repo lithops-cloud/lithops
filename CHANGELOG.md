@@ -1,6 +1,18 @@
 # Changelog
 
-## [v3.1.2.dev0]
+## [v3.1.3.dev0]
+
+### Added
+- 
+
+### Changed
+- 
+
+### Fixed
+- 
+
+
+## [v3.1.2]
 
 ### Added
 - [Plots] Allow to set the figure size of the plots
