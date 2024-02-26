@@ -20,7 +20,7 @@ import sys
 import uuid
 import json
 import logging
-from multiprocessing import Value
+import threading
 
 from lithops.version import __version__
 from lithops.utils import setup_lithops_logger, b64str_to_dict, dict_to_b64str
@@ -46,7 +46,8 @@ def extract_runtime_meta():
     logger.info(f"Runtime metadata generated")
 
 
-def run_job_k8s_rabbitmq(payload, running_jobs):
+def run_job_k8s_rabbitmq(payload):
+    semaphore.acquire()
     logger.info(f"Lithops v{__version__} - Starting singularity execution")
 
     act_id = str(uuid.uuid4()).replace('-', '')[:12]
@@ -54,55 +55,58 @@ def run_job_k8s_rabbitmq(payload, running_jobs):
     os.environ['__LITHOPS_BACKEND'] = 'singularity'
 
     function_handler(payload)
-    running_jobs.value += len(payload['call_ids'])
 
     logger.info("Finishing singularity execution")
+    semaphore.release()
 
 
 def manage_work_queue(ch, method, payload):
-    global cpus_pod
-
     logger.info("Call from lithops received.")
 
     message = payload
     tasks = message['total_calls']
 
-    running_jobs = Value('i', cpus_pod)  # Shared variable to track completed jobs
+    running_jobs = semaphore._value
 
-    # If there are more tasks than cpus in the pod, we need to send a new message
-    if tasks <= running_jobs.value:
-        processes_to_start = tasks
+    # If will not fill all the spaces, launch with threads to keep listening to the queue
+    if tasks < running_jobs:
+        logger.info(f"Starting {tasks} processes")
+
+        message['worker_processes'] = tasks
+        # Create a new thread for each message processing
+        threading.Thread(target=run_job_k8s_rabbitmq, args=([message])).start()
+
+    # If all free spaces will be used, start the processes and wait for them to finish
     else:
-        processes_to_start = running_jobs.value
+        # If there are more tasks than available cpus, send the first cpus to be executed and send the rest to the queue
+        if tasks > running_jobs:
+            message_to_send = message.copy()
+            message_to_send['total_calls'] = tasks - running_jobs
+            message_to_send['call_ids'] = message_to_send['call_ids'][running_jobs:]
+            message_to_send['data_byte_ranges'] = message_to_send['data_byte_ranges'][running_jobs:]
 
-        message_to_send = message.copy()
-        message_to_send['total_calls'] = tasks - running_jobs.value
-        message_to_send['call_ids'] = message_to_send['call_ids'][running_jobs.value:]
-        message_to_send['data_byte_ranges'] = message_to_send['data_byte_ranges'][running_jobs.value:]
+            message['total_calls'] = running_jobs
+            message['call_ids'] = message['call_ids'][:running_jobs]
+            message['data_byte_ranges'] = message['data_byte_ranges'][:running_jobs]
 
-        message['total_calls'] = running_jobs.value
-        message['call_ids'] = message['call_ids'][:running_jobs.value]
-        message['data_byte_ranges'] = message['data_byte_ranges'][:running_jobs.value]
+            message_to_send = {
+                'action': 'send_task',
+                'payload': dict_to_b64str(message_to_send)
+            }
 
-        message_to_send = {
-            'action': 'send_task',
-            'payload': dict_to_b64str(message_to_send)
-        }
+            ch.basic_publish(
+                exchange='',
+                routing_key='task_queue',
+                body=json.dumps(message_to_send),
+                properties=pika.BasicProperties(
+                    delivery_mode=pika.spec.PERSISTENT_DELIVERY_MODE
+                ))
+            
+        logger.info(f"Starting {running_jobs} processes")
 
-        ch.basic_publish(
-            exchange='',
-            routing_key='task_queue',
-            body=json.dumps(message_to_send),
-            properties=pika.BasicProperties(
-                delivery_mode=pika.spec.PERSISTENT_DELIVERY_MODE
-            ))
-
-    logger.info(f"Starting {processes_to_start} processes")
-
-    message['worker_processes'] = running_jobs.value
-    running_jobs.value -= processes_to_start
-    run_job_k8s_rabbitmq(message, running_jobs)
-
+        message['worker_processes'] = running_jobs
+        run_job_k8s_rabbitmq(message)
+    
     logger.info("All processes completed")
     ch.basic_ack(delivery_tag=method.delivery_tag)
 
@@ -134,10 +138,11 @@ def actions_switcher(ch, method, properties, body):
     
 
 if __name__ == '__main__':
-    global cpus_pod
-
     amqp_url = sys.argv[1]
     cpus_pod = int(sys.argv[2])
+
+    # Set up the semaphore NEW
+    semaphore = threading.Semaphore(cpus_pod)
 
     # Connect to rabbitmq
     params = pika.URLParameters(amqp_url)
