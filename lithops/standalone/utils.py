@@ -28,6 +28,7 @@ class WorkerStatus(Enum):
 
 class JobStatus(Enum):
     RECEIVED = "received"
+    PENDING = "pending"
     RUNNING = "running"
     DONE = 'done'
 

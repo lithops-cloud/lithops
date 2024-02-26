@@ -265,15 +265,12 @@ def run_job_worker(job_payload, work_queue):
         task_payload['data_byte_ranges'] = [dbr[int(call_id)] for call_id in call_ids_range]
         work_queue.put(task_payload)
 
-    jobs_list[job_key]['status'] = JobStatus.RUNNING.value
+    jobs_list[job_key]['status'] = JobStatus.PENDING.value
 
     while not work_queue.empty():
         time.sleep(1)
 
-    Path(os.path.join(JOBS_DIR, job_key + '.done')).touch()
-    jobs_list[job_key]['status'] = JobStatus.DONE.value
-
-    logger.debug(f'Job process {job_key} finished')
+    logger.debug(f'All tasks from Job {job_key} consumed by workers')
 
 
 def error(msg):
@@ -292,13 +289,19 @@ def stop_worker():
     return ('', 204)
 
 
-@app.route('/worker/status/idle', methods=['POST'])
-def idle_worker():
+@app.route('/worker/status/done/<job_key>/<chunksize>', methods=['POST'])
+def idle_worker(job_key, chunksize):
     """
     Returns the current workers list
     """
     worker_ip = flask.request.remote_addr
     workers[worker_ip].status = WorkerStatus.IDLE.value
+
+    jobs_list[job_key]['completed_tasks'] += int(chunksize)
+    if jobs_list[job_key]['completed_tasks'] == jobs_list[job_key]['total_tasks']:
+        Path(os.path.join(JOBS_DIR, job_key + '.done')).touch()
+        jobs_list[job_key]['status'] = JobStatus.DONE.value
+
     return ('', 204)
 
 
@@ -387,6 +390,7 @@ def get_task(work_queue_name):
         job_key = task_payload['job_key']
         calls = task_payload['call_ids']
         workers[worker_ip].status = WorkerStatus.BUSSY.value
+        jobs_list[job_key]['status'] = JobStatus.RUNNING.value
         logger.debug(f'Worker {worker_ip} retrieved Job {job_key} - Calls {calls}')
     except queue.Empty:
         response = ('', 204)
@@ -464,7 +468,7 @@ def list_jobs():
 
     budget_keeper.last_usage_time = time.time()
 
-    result = [['Job ID', 'Function Name', 'Submitted', 'Worker Type', 'Runtime', 'Total Tasks', 'Status']]
+    result = [['Job ID', 'Function Name', 'Submitted', 'Worker Type', 'Runtime', 'Tasks Done', 'Job Status']]
 
     for job_key in jobs_list:
         job_data = jobs_list[job_key]
@@ -476,7 +480,8 @@ def list_jobs():
         worker_type = job_data['worker_type'] if exec_mode != StandaloneMode.CONSUME.value else 'VM'
         submitted = datetime.utcfromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S UTC')
         total_tasks = str(job_data['total_tasks'])
-        result.append((job_key, func_name, submitted, worker_type, runtime, total_tasks, status))
+        completed_tasks = str(job_data['completed_tasks'])
+        result.append((job_key, func_name, submitted, worker_type, runtime, f'{completed_tasks}/{total_tasks}', status))
 
     logger.debug(f'Listing jobs: {result}')
     return flask.jsonify(result)
@@ -517,6 +522,7 @@ def run():
         'runtime_name': job_payload['runtime_name'],
         'exec_mode': exec_mode,
         'total_tasks': len(job_payload['call_ids']),
+        'completed_tasks': 0,
         'queue_name': None
     }
 

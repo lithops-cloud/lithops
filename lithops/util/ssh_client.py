@@ -75,6 +75,8 @@ class SSHClient():
             stdin, stdout, stderr = self.ssh_client.exec_command(cmd, timeout=timeout)
 
         out = None
+        err = None
+
         if not run_async:
             out = stdout.read().decode().strip()
             err = stderr.read().decode().strip()
