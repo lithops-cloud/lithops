@@ -71,9 +71,9 @@ def notify_stop(master_ip):
         logger.error(e)
 
 
-def notify_idle(master_ip):
+def notify_done(master_ip, job_key, chunksize):
     try:
-        url = f'http://{master_ip}:{SA_SERVICE_PORT}/worker/status/idle'
+        url = f'http://{master_ip}:{SA_SERVICE_PORT}/worker/status/done/{job_key}/{chunksize}'
         resp = requests.post(url)
         logger.debug("Free worker: " + str(resp.status_code))
     except Exception as e:
@@ -146,6 +146,7 @@ def run_worker(
             return
 
         running_job_key = job_payload['job_key']
+        chunksize = job_payload['chunksize']
 
         budget_keeper.add_job(running_job_key)
 
@@ -155,7 +156,7 @@ def run_worker(
             logger.error(e)
 
         wait_job_completed(running_job_key)
-        notify_idle(master_ip)
+        notify_done(master_ip, running_job_key, chunksize)
 
 
 def main():

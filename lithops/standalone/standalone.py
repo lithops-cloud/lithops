@@ -117,7 +117,10 @@ class StandaloneHandler:
             out, err = self.backend.master.get_ssh_client().run_remote_command(cmd)
             if not out:
                 raise ValueError(err)
-            return json.loads(out)
+            try:
+                return json.loads(out)
+            except Exception:
+                raise ValueError(out)
 
     def _is_master_service_ready(self):
         """
