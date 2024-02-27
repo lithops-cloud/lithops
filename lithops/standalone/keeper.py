@@ -15,12 +15,13 @@ class BudgetKeeper(threading.Thread):
     """
     BudgetKeeper class used to automatically stop the VM instance
     """
-    def __init__(self, config, stop_callback=None):
+    def __init__(self, config, stop_callback=None, delete_callback=None):
         threading.Thread.__init__(self)
         self.last_usage_time = time.time()
 
         self.standalone_config = config
         self.stop_callback = stop_callback
+        self.delete_callback = delete_callback
         self.auto_dismantle = config['auto_dismantle']
         self.soft_dismantle_timeout = config['soft_dismantle_timeout']
         self.hard_dismantle_timeout = config['hard_dismantle_timeout']
@@ -92,7 +93,10 @@ class BudgetKeeper(threading.Thread):
     def stop_instance(self):
         logger.debug("Dismantling setup")
 
-        self.stop_callback() if self.stop_callback is not None else None
+        if self.instance.delete_on_dismantle:
+            self.delete_callback() if self.delete_callback is not None else None
+        else:
+            self.stop_callback() if self.stop_callback is not None else None
 
         try:
             self.instance.stop()
