@@ -9,7 +9,8 @@
 - 
 
 ### Fixed
-- 
+- [SSH Cli] Fixed minor error with the "err" variable
+- [Cli] Fixed job status on "lithops job list" for standalone backends
 
 
 ## [v3.1.2]

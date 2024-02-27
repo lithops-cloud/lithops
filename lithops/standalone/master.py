@@ -289,6 +289,16 @@ def stop_worker():
     return ('', 204)
 
 
+@app.route('/worker/status/delete', methods=['POST'])
+def delete_worker():
+    """
+    Returns the current workers list
+    """
+    worker_ip = flask.request.remote_addr
+    del workers[worker_ip]
+    return ('', 204)
+
+
 @app.route('/worker/status/done/<job_key>/<chunksize>', methods=['POST'])
 def idle_worker(job_key, chunksize):
     """
@@ -297,8 +307,8 @@ def idle_worker(job_key, chunksize):
     worker_ip = flask.request.remote_addr
     workers[worker_ip].status = WorkerStatus.IDLE.value
 
-    jobs_list[job_key]['completed_tasks'] += int(chunksize)
-    if jobs_list[job_key]['completed_tasks'] == jobs_list[job_key]['total_tasks']:
+    jobs_list[job_key]['done_tasks'] += int(chunksize)
+    if jobs_list[job_key]['done_tasks'] == jobs_list[job_key]['total_tasks']:
         Path(os.path.join(JOBS_DIR, job_key + '.done')).touch()
         jobs_list[job_key]['status'] = JobStatus.DONE.value
 
@@ -480,8 +490,8 @@ def list_jobs():
         worker_type = job_data['worker_type'] if exec_mode != StandaloneMode.CONSUME.value else 'VM'
         submitted = datetime.utcfromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S UTC')
         total_tasks = str(job_data['total_tasks'])
-        completed_tasks = str(job_data['completed_tasks'])
-        result.append((job_key, func_name, submitted, worker_type, runtime, f'{completed_tasks}/{total_tasks}', status))
+        done_tasks = str(job_data['done_tasks'])
+        result.append((job_key, func_name, submitted, worker_type, runtime, f'{done_tasks}/{total_tasks}', status))
 
     logger.debug(f'Listing jobs: {result}')
     return flask.jsonify(result)
@@ -522,7 +532,7 @@ def run():
         'runtime_name': job_payload['runtime_name'],
         'exec_mode': exec_mode,
         'total_tasks': len(job_payload['call_ids']),
-        'completed_tasks': 0,
+        'done_tasks': 0,
         'queue_name': None
     }
 

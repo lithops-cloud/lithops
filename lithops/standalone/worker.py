@@ -71,9 +71,18 @@ def notify_stop(master_ip):
         logger.error(e)
 
 
-def notify_done(master_ip, job_key, chunksize):
+def notify_delete(master_ip):
     try:
-        url = f'http://{master_ip}:{SA_SERVICE_PORT}/worker/status/done/{job_key}/{chunksize}'
+        url = f'http://{master_ip}:{SA_SERVICE_PORT}/worker/status/delete'
+        resp = requests.post(url)
+        logger.debug("Stop worker: " + str(resp.status_code))
+    except Exception as e:
+        logger.error(e)
+
+
+def notify_done(master_ip, job_key, tasks):
+    try:
+        url = f'http://{master_ip}:{SA_SERVICE_PORT}/worker/status/done/{job_key}/{tasks}'
         resp = requests.post(url)
         logger.debug("Free worker: " + str(resp.status_code))
     except Exception as e:
@@ -122,7 +131,6 @@ def run_worker(
 
     while True:
         url = f'http://{master_ip}:{SA_SERVICE_PORT}/get-task/{work_queue_name}'
-        logger.debug(f'Getting task from {url}')
 
         try:
             resp = requests.get(url)
@@ -138,6 +146,8 @@ def run_worker(
                 logger.debug(f'All tasks completed from {url}')
                 return
 
+        logger.debug(f'Received task from {url}')
+
         job_payload = resp.json()
 
         try:
@@ -146,7 +156,7 @@ def run_worker(
             return
 
         running_job_key = job_payload['job_key']
-        chunksize = job_payload['chunksize']
+        total_tasks = len(job_payload['data_byte_ranges'])
 
         budget_keeper.add_job(running_job_key)
 
@@ -156,7 +166,7 @@ def run_worker(
             logger.error(e)
 
         wait_job_completed(running_job_key)
-        notify_done(master_ip, running_job_key, chunksize)
+        notify_done(master_ip, running_job_key, total_tasks)
 
 
 def main():
@@ -186,7 +196,10 @@ def main():
 
     # Start the budget keeper. It is responsible to automatically terminate the
     # worker after X seconds
-    budget_keeper = BudgetKeeper(standalone_config, partial(notify_stop, master_ip))
+
+    stop_callback = partial(notify_stop, master_ip)
+    delete_callback = partial(notify_delete, master_ip)
+    budget_keeper = BudgetKeeper(standalone_config, stop_callback, delete_callback)
     budget_keeper.start()
 
     # Start the http server. This will be used by the master VM to pìng this
