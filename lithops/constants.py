@@ -57,7 +57,8 @@ LOCALHOST_SERVICE_CHECK_INTERVAL = 2
 SA_INSTALL_DIR = '/opt/lithops'
 SA_TMP_DIR = '/tmp/lithops-root'
 SA_LOG_FILE = f'{SA_TMP_DIR}/service.log'
-SA_SERVICE_PORT = 8080
+SA_MASTER_SERVICE_PORT = 8080
+SA_WORKER_SERVICE_PORT = 8081
 SA_CONFIG_FILE = os.path.join(SA_INSTALL_DIR, 'config')
 SA_DATA_FILE = os.path.join(SA_INSTALL_DIR, 'access.data')
 

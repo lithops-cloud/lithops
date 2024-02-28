@@ -41,14 +41,14 @@ from lithops.constants import (
     LITHOPS_TEMP_DIR,
     SA_LOG_FILE,
     JOBS_DIR,
-    SA_SERVICE_PORT,
+    SA_MASTER_SERVICE_PORT,
+    SA_WORKER_SERVICE_PORT,
     SA_CONFIG_FILE,
     SA_DATA_FILE,
     CPU_COUNT
 )
 from lithops.utils import (
     verify_runtime_name,
-    iterchunks,
     setup_lithops_logger
 )
 from lithops.standalone.utils import (
@@ -86,11 +86,12 @@ def is_worker_free(worker):
     """
     Checks if the Lithops service is ready and free in the worker VM instance
     """
-    url = f"http://{worker.private_ip}:{SA_SERVICE_PORT}/ping"
+    url = f"http://{worker.private_ip}:{SA_WORKER_SERVICE_PORT}/ping"
     r = requests.get(url, timeout=0.5)
-    if r.status_code == 200:
-        if r.json()['status'] == 'free':
-            return True
+    response_data = r.json()
+    idle_count = response_data.get('free', 0)
+    if idle_count > 0:
+        return True
     return False
 
 
@@ -255,14 +256,12 @@ def run_job_worker(job_payload, work_queue):
     queue and wait until the job is completely finished.
     """
     job_key = job_payload['job_key']
-    call_ids = job_payload['call_ids']
-    chunksize = job_payload['chunksize']
 
-    for call_ids_range in iterchunks(call_ids, chunksize):
+    for call_id in job_payload['call_ids']:
         task_payload = copy.deepcopy(job_payload)
         dbr = task_payload['data_byte_ranges']
-        task_payload['call_ids'] = call_ids_range
-        task_payload['data_byte_ranges'] = [dbr[int(call_id)] for call_id in call_ids_range]
+        task_payload['call_ids'] = [call_id]
+        task_payload['data_byte_ranges'] = [dbr[int(call_id)]]
         work_queue.put(task_payload)
 
     jobs_list[job_key]['status'] = JobStatus.PENDING.value
@@ -299,15 +298,15 @@ def delete_worker():
     return ('', 204)
 
 
-@app.route('/worker/status/done/<job_key>/<chunksize>', methods=['POST'])
-def idle_worker(job_key, chunksize):
+@app.route('/worker/status/done/<job_key>/<call_id>', methods=['POST'])
+def idle_worker(job_key, call_id):
     """
     Returns the current workers list
     """
     worker_ip = flask.request.remote_addr
     workers[worker_ip].status = WorkerStatus.IDLE.value
 
-    jobs_list[job_key]['done_tasks'] += int(chunksize)
+    jobs_list[job_key]['done_tasks'] += 1
     if jobs_list[job_key]['done_tasks'] == jobs_list[job_key]['total_tasks']:
         Path(os.path.join(JOBS_DIR, job_key + '.done')).touch()
         jobs_list[job_key]['status'] = JobStatus.DONE.value
@@ -399,7 +398,7 @@ def get_task(work_queue_name):
         response.status_code = 200
         job_key = task_payload['job_key']
         calls = task_payload['call_ids']
-        workers[worker_ip].status = WorkerStatus.BUSSY.value
+        workers[worker_ip].status = WorkerStatus.BUSY.value
         jobs_list[job_key]['status'] = JobStatus.RUNNING.value
         logger.debug(f'Worker {worker_ip} retrieved Job {job_key} - Calls {calls}')
     except queue.Empty:
@@ -448,7 +447,7 @@ def stop_job_process(job_key_list):
                     pass
 
             def stop_task(worker):
-                url = f"http://{worker.private_ip}:{SA_SERVICE_PORT}/stop/{job_key}"
+                url = f"http://{worker.private_ip}:{SA_WORKER_SERVICE_PORT}/stop/{job_key}"
                 requests.post(url, timeout=0.5)
 
             # Send stop signal to all workers
@@ -525,7 +524,7 @@ def run():
     exec_mode = job_payload['config']['standalone']['exec_mode']
 
     jobs_list[job_key] = {
-        'status': JobStatus.RECEIVED.value,
+        'status': JobStatus.SUBMITTED.value,
         'submitted': job_payload['host_submit_tstamp'],
         'func_name': job_payload['func_name'],
         'worker_type': job_payload.get('worker_instance_type'),
@@ -611,7 +610,7 @@ def main():
     budget_keeper = BudgetKeeper(standalone_config)
     budget_keeper.start()
 
-    server = WSGIServer(('0.0.0.0', SA_SERVICE_PORT), app, log=app.logger)
+    server = WSGIServer(('0.0.0.0', SA_MASTER_SERVICE_PORT), app, log=app.logger)
     server.serve_forever()
 
 

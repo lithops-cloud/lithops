@@ -26,7 +26,7 @@ import shlex
 import concurrent.futures as cf
 
 from lithops.utils import BackendType, is_lithops_worker, create_handler_zip
-from lithops.constants import SA_SERVICE_PORT, SA_INSTALL_DIR, TEMP_DIR
+from lithops.constants import SA_MASTER_SERVICE_PORT, SA_INSTALL_DIR, TEMP_DIR
 from lithops.standalone.utils import StandaloneMode, LithopsValidationError, get_master_setup_script
 from lithops.version import __version__
 
@@ -93,7 +93,7 @@ class StandaloneHandler:
         Makes a requests to the master VM
         """
         if self.is_lithops_worker:
-            url = f"http://lithops-master:{SA_SERVICE_PORT}/{endpoint}"
+            url = f"http://lithops-master:{SA_MASTER_SERVICE_PORT}/{endpoint}"
             if method == 'GET':
                 resp = requests.get(url, timeout=1)
                 return resp.json()
@@ -102,7 +102,7 @@ class StandaloneHandler:
                 resp.raise_for_status()
                 return resp.json()
         else:
-            url = f'http://127.0.0.1:{SA_SERVICE_PORT}/{endpoint}'
+            url = f'http://127.0.0.1:{SA_MASTER_SERVICE_PORT}/{endpoint}'
             cmd = f'curl -X {method} {url} -H \'Content-Type: application/json\''
             if data is not None:
                 json_data = json.dumps(data)
@@ -131,8 +131,8 @@ class StandaloneHandler:
             if resp['response'] != __version__:
                 raise LithopsValidationError(
                     f"{self.backend.master} is running Lithops {resp['response']} and "
-                    f"it doesn't match local lithops version {__version__}, consider "
-                    "running 'lithops clean --all' to delete the master instance")
+                    f"it doesn't match local lithops version {__version__}, consider running "
+                    f"'lithops clean -b {self.backend_name} --all' to delete the master instance")
             return True
         except LithopsValidationError as e:
             raise e
@@ -391,7 +391,8 @@ class StandaloneHandler:
         handler_zip = os.path.join(TEMP_DIR, f'lithops_standalone_{str(uuid.uuid4())[-6:]}.zip')
         worker_path = os.path.join(os.path.dirname(__file__), 'worker.py')
         master_path = os.path.join(os.path.dirname(__file__), 'master.py')
-        create_handler_zip(handler_zip, [master_path, worker_path])
+        runner_path = os.path.join(os.path.dirname(__file__), 'runner.py')
+        create_handler_zip(handler_zip, [master_path, worker_path, runner_path])
 
         logger.debug(f'Uploading lithops files to {self.backend.master}')
         ssh_client.upload_local_file(handler_zip, '/tmp/lithops_standalone.zip')

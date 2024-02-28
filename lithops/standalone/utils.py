@@ -1,3 +1,4 @@
+import os
 import json
 from enum import Enum
 
@@ -21,13 +22,13 @@ class WorkerStatus(Enum):
     STARTED = "started"
     ERROR = "error"
     INSTALLING = "installing"
-    BUSSY = "active/bussy"
+    BUSY = "active/busy"
     IDLE = "active/idle"
     STOPPED = "stopped"
 
 
 class JobStatus(Enum):
-    RECEIVED = "received"
+    SUBMITTED = "submitted"
     PENDING = "pending"
     RUNNING = "running"
     DONE = 'done'
@@ -52,13 +53,13 @@ WantedBy=multi-user.target
 """
 
 WORKER_SERVICE_NAME = 'lithops-worker.service'
-WORKER_SERVICE_FILE = f"""
+WORKER_SERVICE_FILE = """
 [Unit]
 Description=Lithops Worker Service
 After=network.target
 
 [Service]
-ExecStart=/usr/bin/python3 {SA_INSTALL_DIR}/worker.py
+ExecStart={0}
 Restart=always
 
 [Install]
@@ -221,6 +222,16 @@ def get_worker_setup_script(config, vm_data):
     except Exception:
         master_pub_key = ''
 
+    if config['runtime'] == 'python3' or config['runtime'].startswith('/'):
+        service_cmd = f"/usr/bin/python3 {SA_INSTALL_DIR}/worker.py"
+    else:
+        service_cmd = 'docker run --rm '
+        service_cmd += '--gpus all ' if config["use_gpu"] else ''
+        service_cmd += f'--user {os.getuid()}:{os.getgid()} '
+        service_cmd += f'--env USER={os.getenv("USER", "root")} '
+        service_cmd += f'-v {SA_INSTALL_DIR}:{SA_INSTALL_DIR} -v /tmp:/tmp '
+        service_cmd += f'--entrypoint "python3" {config["runtime"]} {SA_INSTALL_DIR}/worker.py'
+
     script = f"""#!/bin/bash
     rm -R {SA_INSTALL_DIR};
     mkdir -p {SA_INSTALL_DIR};
@@ -234,7 +245,7 @@ def get_worker_setup_script(config, vm_data):
 
     setup_service(){{
     systemctl stop {MASTER_SERVICE_NAME};
-    echo '{WORKER_SERVICE_FILE}' > /etc/systemd/system/{WORKER_SERVICE_NAME};
+    echo '{WORKER_SERVICE_FILE.format(service_cmd)}' > /etc/systemd/system/{WORKER_SERVICE_NAME};
     chmod 644 /etc/systemd/system/{WORKER_SERVICE_NAME};
     systemctl daemon-reload;
     systemctl stop {WORKER_SERVICE_NAME};

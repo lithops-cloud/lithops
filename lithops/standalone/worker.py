@@ -1,5 +1,6 @@
 #
-# Copyright Cloudlab URV 2020
+# (C) Copyright Cloudlab URV 2020
+# (C) Copyright IBM Corp. 2024
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,22 +16,34 @@
 #
 
 import os
-import logging
 import time
 import json
 import flask
+import logging
+import signal
 import requests
+import subprocess as sp
 from pathlib import Path
 from threading import Thread
 from functools import partial
 from gevent.pywsgi import WSGIServer
+from concurrent.futures import ThreadPoolExecutor
 
-from lithops.constants import LITHOPS_TEMP_DIR, SA_LOG_FILE, JOBS_DIR, \
-    SA_SERVICE_PORT, SA_CONFIG_FILE, SA_DATA_FILE
-from lithops.localhost import LocalhostHandler
-from lithops.utils import verify_runtime_name, setup_lithops_logger
+from lithops.utils import setup_lithops_logger
 from lithops.standalone.keeper import BudgetKeeper
-from lithops.standalone.utils import StandaloneMode
+from lithops.standalone.utils import StandaloneMode, WorkerStatus
+from lithops.constants import (
+    LITHOPS_TEMP_DIR,
+    RN_LOG_FILE,
+    SA_INSTALL_DIR,
+    SA_LOG_FILE,
+    JOBS_DIR,
+    SA_MASTER_SERVICE_PORT,
+    SA_CONFIG_FILE,
+    SA_DATA_FILE,
+    JOBS_PREFIX,
+    SA_WORKER_SERVICE_PORT
+)
 
 log_format = "%(asctime)s\t[%(levelname)s] %(name)s:%(lineno)s -- %(message)s"
 setup_lithops_logger(logging.DEBUG, filename=SA_LOG_FILE, log_format=log_format)
@@ -39,24 +52,31 @@ logger = logging.getLogger('lithops.standalone.worker')
 app = flask.Flask(__name__)
 
 budget_keeper = None
-localhos_handler = None
-running_job_key = None
+job_processes = {}
+worker_threads = {}
 
 
 @app.route('/ping', methods=['GET'])
 def ping():
-    bussy = localhos_handler.job_manager if localhos_handler else False
-    response = flask.jsonify({'status': 'bussy' if bussy else 'free'})
+    idle_count = sum(1 for worker in worker_threads.values() if worker['status'] == WorkerStatus.IDLE.value)
+    busy_count = sum(1 for worker in worker_threads.values() if worker['status'] == WorkerStatus.BUSY.value)
+    response = flask.jsonify({'busy': busy_count, 'free': idle_count})
     response.status_code = 200
     return response
 
 
 @app.route('/stop/<job_key>', methods=['POST'])
 def stop(job_key):
-    if job_key == running_job_key:
-        logger.debug(f'Received SIGTERM: Stopping job process {job_key}')
-        localhos_handler.clear()
-        Path(os.path.join(JOBS_DIR, job_key + '.done')).touch()
+    logger.debug(f'Received SIGTERM: Stopping job process {job_key}')
+
+    for job_key_call_id in job_processes:
+        if job_key_call_id.startswith(job_key):
+            PID = job_processes[job_key_call_id].pid
+            PGID = os.getpgid(PID)
+            os.killpg(PGID, signal.SIGKILL)
+            Path(os.path.join(JOBS_DIR, job_key_call_id + '.done')).touch()
+            job_processes[job_key_call_id] = None
+
     response = flask.jsonify({'response': 'cancel'})
     response.status_code = 200
     return response
@@ -64,7 +84,7 @@ def stop(job_key):
 
 def notify_stop(master_ip):
     try:
-        url = f'http://{master_ip}:{SA_SERVICE_PORT}/worker/status/stop'
+        url = f'http://{master_ip}:{SA_MASTER_SERVICE_PORT}/worker/status/stop'
         resp = requests.post(url)
         logger.debug("Stop worker: " + str(resp.status_code))
     except Exception as e:
@@ -73,64 +93,30 @@ def notify_stop(master_ip):
 
 def notify_delete(master_ip):
     try:
-        url = f'http://{master_ip}:{SA_SERVICE_PORT}/worker/status/delete'
+        url = f'http://{master_ip}:{SA_MASTER_SERVICE_PORT}/worker/status/delete'
         resp = requests.post(url)
-        logger.debug("Stop worker: " + str(resp.status_code))
+        logger.debug("Delete worker: " + str(resp.status_code))
     except Exception as e:
         logger.error(e)
 
 
-def notify_done(master_ip, job_key, tasks):
+def notify_done(master_ip, job_key, call_id):
     try:
-        url = f'http://{master_ip}:{SA_SERVICE_PORT}/worker/status/done/{job_key}/{tasks}'
-        resp = requests.post(url)
-        logger.debug("Free worker: " + str(resp.status_code))
+        url = f'http://{master_ip}:{SA_MASTER_SERVICE_PORT}/worker/status/done/{job_key}/{call_id}'
+        requests.post(url)
     except Exception as e:
         logger.error(e)
 
 
-def wait_job_completed(job_key):
-    """
-    Waits until the current job is completed
-    """
-    global budget_keeper
+def redis_queue_consumer(pid, master_ip, work_queue_name, exec_mode, local_job_dir):
+    global worker_threads
 
-    done = os.path.join(JOBS_DIR, job_key + '.done')
-    while True:
-        if os.path.isfile(done):
-            os.remove(done)
-            budget_keeper.jobs[job_key] = 'done'
-            break
-        time.sleep(1)
+    worker_threads[pid]['status'] = WorkerStatus.IDLE.value
 
-
-def run_worker(
-        worker_name,
-        master_ip,
-        work_queue_name,
-        instance_type,
-        runtime_name,
-        worker_processes,
-        exec_mode,
-        pull_runtime,
-        use_gpu
-):
-    """
-    Run a job
-    """
-    global budget_keeper
-    global localhos_handler
-    global running_job_key
-
-    logger.info(f"Starting Worker - Instace type: {instance_type} - Runtime "
-                f"name: {runtime_name} - Worker processes: {worker_processes}")
-
-    config = {'runtime': runtime_name, 'pull_runtime': pull_runtime, 'use_gpu': use_gpu}
-    localhos_handler = LocalhostHandler(config)
-    localhos_handler.init()
+    logger.info(f"Redis consumer process {pid} started")
 
     while True:
-        url = f'http://{master_ip}:{SA_SERVICE_PORT}/get-task/{work_queue_name}'
+        url = f'http://{master_ip}:{SA_MASTER_SERVICE_PORT}/get-task/{work_queue_name}'
 
         try:
             resp = requests.get(url)
@@ -147,30 +133,43 @@ def run_worker(
                 return
 
         logger.debug(f'Received task from {url}')
+        worker_threads[pid]['status'] = WorkerStatus.BUSY.value
 
         job_payload = resp.json()
 
-        try:
-            verify_runtime_name(runtime_name)
-        except Exception:
-            return
-
-        running_job_key = job_payload['job_key']
-        total_tasks = len(job_payload['data_byte_ranges'])
-
-        budget_keeper.add_job(running_job_key)
+        executor_id = job_payload['executor_id']
+        job_id = job_payload['job_id']
+        job_key = job_payload['job_key']
+        call_id = job_payload['call_ids'][0]
+        job_key_call_id = f'{job_key}-{call_id}'
 
         try:
-            localhos_handler.invoke(job_payload)
+            logger.debug(f'ExecutorID {executor_id} | JobID {job_id} - Running '
+                         f'CallID {call_id} in the local worker')
+            budget_keeper.add_job(job_key_call_id)
+            job_file = f'{job_key_call_id}-job.json'
+            os.makedirs(local_job_dir, exist_ok=True)
+            job_filename = os.path.join(local_job_dir, job_file)
+
+            with open(job_filename, 'w') as jl:
+                json.dump(job_payload, jl, default=str)
+
+            cmd = ["python3", f"{SA_INSTALL_DIR}/runner.py", 'run_job', job_filename]
+            log = open(RN_LOG_FILE, 'a')
+            process = sp.Popen(cmd, stdout=log, stderr=log, start_new_session=True)
+            job_processes[job_key_call_id] = process
+            process.communicate()  # blocks until the process finishes
+            logger.debug(f'ExecutorID {executor_id} | JobID {job_id} - CallID {call_id} execution finished')
         except Exception as e:
             logger.error(e)
 
-        wait_job_completed(running_job_key)
-        notify_done(master_ip, running_job_key, total_tasks)
+        notify_done(master_ip, job_key, call_id)
+        worker_threads[pid]['status'] = WorkerStatus.IDLE.value
 
 
-def main():
+def run_worker():
     global budget_keeper
+    global worker_threads
 
     os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
 
@@ -178,40 +177,52 @@ def main():
     with open(SA_CONFIG_FILE, 'r') as cf:
         standalone_config = json.load(cf)
         backend = standalone_config['backend']
-        runtime_name = standalone_config['runtime']
-        exec_mode = standalone_config['exec_mode']
-        worker_processes = standalone_config[backend]['worker_processes']
-        pull_runtime = standalone_config['pull_runtime']
-        use_gpu = standalone_config['use_gpu']
 
     # Read the VM data file that contains the instance id, the master IP,
     # and the queue for getting tasks
     with open(SA_DATA_FILE, 'r') as ad:
         vm_data = json.load(ad)
-        worker_name = vm_data['name']
-        worker_ip = vm_data['private_ip']
-        master_ip = vm_data['master_ip']
-        work_queue_name = vm_data['work_queue_name']
-        instance_type = vm_data['instance_type']
 
     # Start the budget keeper. It is responsible to automatically terminate the
     # worker after X seconds
 
-    stop_callback = partial(notify_stop, master_ip)
-    delete_callback = partial(notify_delete, master_ip)
+    stop_callback = partial(notify_stop, vm_data['master_ip'])
+    delete_callback = partial(notify_delete, vm_data['master_ip'])
     budget_keeper = BudgetKeeper(standalone_config, stop_callback, delete_callback)
     budget_keeper.start()
 
     # Start the http server. This will be used by the master VM to pìng this
     # worker and for canceling tasks
     def run_wsgi():
-        server = WSGIServer((worker_ip, SA_SERVICE_PORT), app, log=app.logger)
+        server = WSGIServer((vm_data['private_ip'], SA_WORKER_SERVICE_PORT), app, log=app.logger)
         server.serve_forever()
     Thread(target=run_wsgi, daemon=True).start()
 
-    # Start the worker that will get tasks from the work queue
-    run_worker(worker_name, master_ip, work_queue_name, instance_type, runtime_name,
-               worker_processes, exec_mode, pull_runtime, use_gpu)
+    # Start the consumer threads
+    worker_processes = standalone_config[backend]['worker_processes']
+    logger.info(f"Starting Worker - Instace type: {vm_data['instance_type']} - Runtime "
+                f"name: {standalone_config['runtime']} - Worker processes: {worker_processes}")
+
+    local_job_dir = os.path.join(LITHOPS_TEMP_DIR, JOBS_PREFIX)
+    os.makedirs(local_job_dir, exist_ok=True)
+
+    # Create a ThreadPoolExecutor for cosnuming tasks
+    redis_queue_consumer_futures = []
+    with ThreadPoolExecutor(max_workers=worker_processes) as executor:
+        for i in range(worker_processes):
+            worker_threads[i] = {}
+            future = executor.submit(
+                redis_queue_consumer, i,
+                vm_data['master_ip'],
+                vm_data['work_queue_name'],
+                standalone_config['exec_mode'],
+                local_job_dir
+            )
+            redis_queue_consumer_futures.append(future)
+            worker_threads[i]['future'] = future
+
+        for future in redis_queue_consumer_futures:
+            future.result()
 
     # run_worker will run forever in reuse mode. In create mode it will
     # run until there are no more tasks in the queue.
@@ -226,4 +237,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    run_worker()
