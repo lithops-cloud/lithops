@@ -20,6 +20,7 @@ import copy
 import time
 import json
 import uuid
+import redis
 import flask
 import queue
 import logging
@@ -66,12 +67,12 @@ logger = logging.getLogger('lithops.standalone.master')
 app = flask.Flask(__name__)
 
 MAX_INSTANCE_CREATE_RETRIES = 2
-REUSE_WORK_QUEUE_NAME = 'all'
 
 workers = {}
 work_queues = {}
 jobs_list = {}
 
+redis_client = None
 budget_keeper = None
 master_ip = None
 exec_mode = None
@@ -250,10 +251,10 @@ def run_job_local(work_queue):
         logger.error(e)
 
 
-def run_job_worker(job_payload, work_queue):
+def run_job_worker(job_payload, queue_name):
     """
     Process responsible to put all the individual tasks in
-    queue and wait until the job is completely finished.
+    a queue and wait until the job is completely finished
     """
     job_key = job_payload['job_key']
 
@@ -262,12 +263,12 @@ def run_job_worker(job_payload, work_queue):
         dbr = task_payload['data_byte_ranges']
         task_payload['call_ids'] = [call_id]
         task_payload['data_byte_ranges'] = [dbr[int(call_id)]]
-        work_queue.put(task_payload)
+        redis_client.lpush(queue_name, json.dumps(task_payload))
 
     jobs_list[job_key]['status'] = JobStatus.PENDING.value
 
-    while not work_queue.empty():
-        time.sleep(1)
+    while not redis_client.llen(queue_name) == 0:
+        time.sleep(2)
 
     logger.debug(f'All tasks from Job {job_key} consumed by workers')
 
@@ -298,14 +299,21 @@ def delete_worker():
     return ('', 204)
 
 
-@app.route('/worker/status/done/<job_key>/<call_id>', methods=['POST'])
-def idle_worker(job_key, call_id):
+@app.route('/task/status/start/<job_key>/<call_id>', methods=['POST'])
+def task_start(job_key, call_id):
     """
-    Returns the current workers list
+    Sets the job as Running
     """
-    worker_ip = flask.request.remote_addr
-    workers[worker_ip].status = WorkerStatus.IDLE.value
+    jobs_list[job_key]['status'] = JobStatus.RUNNING.value
 
+    return ('', 204)
+
+
+@app.route('/task/status/done/<job_key>/<call_id>', methods=['POST'])
+def task_done(job_key, call_id):
+    """
+    Sets the job as Done
+    """
     jobs_list[job_key]['done_tasks'] += 1
     if jobs_list[job_key]['done_tasks'] == jobs_list[job_key]['total_tasks']:
         Path(os.path.join(JOBS_DIR, job_key + '.done')).touch()
@@ -379,30 +387,6 @@ def get_workers(worker_instance_type, runtime_name):
 
     response = flask.jsonify(free_workers)
     response.status_code = 200
-
-    return response
-
-
-@app.route('/get-task/<work_queue_name>', methods=['GET'])
-def get_task(work_queue_name):
-    """
-    Returns a task from the work queue
-    """
-    global work_queues
-
-    worker_ip = flask.request.remote_addr
-
-    try:
-        task_payload = work_queues.setdefault(work_queue_name, queue.Queue()).get(False)
-        response = flask.jsonify(task_payload)
-        response.status_code = 200
-        job_key = task_payload['job_key']
-        calls = task_payload['call_ids']
-        workers[worker_ip].status = WorkerStatus.BUSY.value
-        jobs_list[job_key]['status'] = JobStatus.RUNNING.value
-        logger.debug(f'Worker {worker_ip} retrieved Job {job_key} - Calls {calls}')
-    except queue.Empty:
-        response = ('', 204)
 
     return response
 
@@ -504,6 +488,7 @@ def run():
     global budget_keeper
     global work_queues
     global exec_mode
+    global redis_client
     global localhost_manager_process
 
     job_payload = flask.request.get_json(force=True, silent=True)
@@ -523,22 +508,10 @@ def run():
 
     exec_mode = job_payload['config']['standalone']['exec_mode']
 
-    jobs_list[job_key] = {
-        'status': JobStatus.SUBMITTED.value,
-        'submitted': job_payload['host_submit_tstamp'],
-        'func_name': job_payload['func_name'],
-        'worker_type': job_payload.get('worker_instance_type'),
-        'runtime_name': job_payload['runtime_name'],
-        'exec_mode': exec_mode,
-        'total_tasks': len(job_payload['call_ids']),
-        'done_tasks': 0,
-        'queue_name': None
-    }
-
     if exec_mode == StandaloneMode.CONSUME.value:
         # Consume mode runs jobs in this master VM
-        jobs_list[job_key]['queue_name'] = 'localhost'
-        work_queue = work_queues.setdefault('localhost', queue.Queue())
+        queue_name = 'localhost'
+        work_queue = work_queues.setdefault(queue_name, queue.Queue())
         if not localhost_manager_process:
             logger.debug('Starting manager process for localhost jobs')
             lmp = Thread(target=run_job_local, args=(work_queue, ), daemon=True)
@@ -551,11 +524,22 @@ def run():
         # Create and reuse mode runs jobs on woker VMs
         logger.debug(f'Starting process for job {job_key}')
         worker_it = job_payload['worker_instance_type']
-        queue_name = f'{worker_it}-{runtime_name.replace("/", "-")}' if exec_mode == StandaloneMode.REUSE.value else job_key
-        work_queue = work_queues.setdefault(queue_name, queue.Queue())
-        jobs_list[job_key]['queue_name'] = queue_name
+        queue_name = f'{worker_it}-{runtime_name.replace("/", "-")}' \
+            if exec_mode == StandaloneMode.REUSE.value else job_key
         Thread(target=start_workers, args=(job_payload, queue_name)).start()
-        Thread(target=run_job_worker, args=(job_payload, work_queue), daemon=True).start()
+        Thread(target=run_job_worker, args=(job_payload, queue_name), daemon=True).start()
+
+    jobs_list[job_key] = {
+        'status': JobStatus.SUBMITTED.value,
+        'submitted': job_payload['host_submit_tstamp'],
+        'func_name': job_payload['func_name'],
+        'worker_type': job_payload.get('worker_instance_type'),
+        'runtime_name': job_payload['runtime_name'],
+        'exec_mode': exec_mode,
+        'total_tasks': len(job_payload['call_ids']),
+        'done_tasks': 0,
+        'queue_name': queue_name
+    }
 
     act_id = str(uuid.uuid4()).replace('-', '')[:12]
     response = flask.jsonify({'activationId': act_id})
@@ -596,6 +580,7 @@ def get_metadata():
 
 
 def main():
+    global redis_client
     global budget_keeper
     global master_ip
 
@@ -609,6 +594,8 @@ def main():
 
     budget_keeper = BudgetKeeper(standalone_config)
     budget_keeper.start()
+
+    redis_client = redis.StrictRedis(decode_responses=True)
 
     server = WSGIServer(('0.0.0.0', SA_MASTER_SERVICE_PORT), app, log=app.logger)
     server.serve_forever()

@@ -16,8 +16,8 @@
 #
 
 import os
-import time
 import json
+import redis
 import flask
 import logging
 import signal
@@ -51,7 +51,9 @@ logger = logging.getLogger('lithops.standalone.worker')
 
 app = flask.Flask(__name__)
 
+redis_client = None
 budget_keeper = None
+backend = None
 job_processes = {}
 worker_threads = {}
 
@@ -82,7 +84,7 @@ def stop(job_key):
     return response
 
 
-def notify_stop(master_ip):
+def notify_worker_stop(master_ip):
     try:
         url = f'http://{master_ip}:{SA_MASTER_SERVICE_PORT}/worker/status/stop'
         resp = requests.post(url)
@@ -91,7 +93,7 @@ def notify_stop(master_ip):
         logger.error(e)
 
 
-def notify_delete(master_ip):
+def notify_worker_delete(master_ip):
     try:
         url = f'http://{master_ip}:{SA_MASTER_SERVICE_PORT}/worker/status/delete'
         resp = requests.post(url)
@@ -100,10 +102,20 @@ def notify_delete(master_ip):
         logger.error(e)
 
 
-def notify_done(master_ip, job_key, call_id):
+def notify_task_start(master_ip, job_key, call_id):
     try:
-        url = f'http://{master_ip}:{SA_MASTER_SERVICE_PORT}/worker/status/done/{job_key}/{call_id}'
+        url = f'http://{master_ip}:{SA_MASTER_SERVICE_PORT}/task/status/start/{job_key}/{call_id}'
         requests.post(url)
+        # redis_client.hset(f"job:{job_key}", 'status', JobStatus.Running.value)
+    except Exception as e:
+        logger.error(e)
+
+
+def notify_task_done(master_ip, job_key, call_id):
+    try:
+        url = f'http://{master_ip}:{SA_MASTER_SERVICE_PORT}/task/status/done/{job_key}/{call_id}'
+        requests.post(url)
+        # redis_client.rpush(f"tasksdone:{job_key}", call_id)
     except Exception as e:
         logger.error(e)
 
@@ -116,60 +128,56 @@ def redis_queue_consumer(pid, master_ip, work_queue_name, exec_mode, local_job_d
     logger.info(f"Redis consumer process {pid} started")
 
     while True:
-        url = f'http://{master_ip}:{SA_MASTER_SERVICE_PORT}/get-task/{work_queue_name}'
-
-        try:
-            resp = requests.get(url)
-        except Exception:
-            time.sleep(1)
-            continue
-
-        if resp.status_code != 200:
-            if exec_mode == StandaloneMode.REUSE.value:
-                time.sleep(1)
-                continue
-            else:
-                logger.debug(f'All tasks completed from {url}')
+        if exec_mode == StandaloneMode.REUSE.value:
+            key, task_payload_str = redis_client.brpop(work_queue_name)
+        else:
+            task_payload_str = redis_client.rpop(work_queue_name)
+            if task_payload_str is None:
                 return
 
-        logger.debug(f'Received task from {url}')
+        task_payload = json.loads(task_payload_str)
+
         worker_threads[pid]['status'] = WorkerStatus.BUSY.value
 
-        job_payload = resp.json()
-
-        executor_id = job_payload['executor_id']
-        job_id = job_payload['job_id']
-        job_key = job_payload['job_key']
-        call_id = job_payload['call_ids'][0]
+        executor_id = task_payload['executor_id']
+        job_id = task_payload['job_id']
+        job_key = task_payload['job_key']
+        call_id = task_payload['call_ids'][0]
         job_key_call_id = f'{job_key}-{call_id}'
 
         try:
             logger.debug(f'ExecutorID {executor_id} | JobID {job_id} - Running '
                          f'CallID {call_id} in the local worker')
+            notify_task_start(master_ip, job_key, call_id)
             budget_keeper.add_job(job_key_call_id)
-            job_file = f'{job_key_call_id}-job.json'
+
+            task_file = f'{job_key_call_id}-job.json'
             os.makedirs(local_job_dir, exist_ok=True)
-            job_filename = os.path.join(local_job_dir, job_file)
+            task_filename = os.path.join(local_job_dir, task_file)
 
-            with open(job_filename, 'w') as jl:
-                json.dump(job_payload, jl, default=str)
+            with open(task_filename, 'w') as jl:
+                json.dump(task_payload, jl, default=str)
 
-            cmd = ["python3", f"{SA_INSTALL_DIR}/runner.py", 'run_job', job_filename]
+            cmd = ["python3", f"{SA_INSTALL_DIR}/runner.py", backend, task_filename]
             log = open(RN_LOG_FILE, 'a')
             process = sp.Popen(cmd, stdout=log, stderr=log, start_new_session=True)
             job_processes[job_key_call_id] = process
             process.communicate()  # blocks until the process finishes
+
+            notify_task_done(master_ip, job_key, call_id)
             logger.debug(f'ExecutorID {executor_id} | JobID {job_id} - CallID {call_id} execution finished')
+
         except Exception as e:
             logger.error(e)
 
-        notify_done(master_ip, job_key, call_id)
         worker_threads[pid]['status'] = WorkerStatus.IDLE.value
 
 
 def run_worker():
+    global redis_client
     global budget_keeper
     global worker_threads
+    global backend
 
     os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
 
@@ -186,8 +194,8 @@ def run_worker():
     # Start the budget keeper. It is responsible to automatically terminate the
     # worker after X seconds
 
-    stop_callback = partial(notify_stop, vm_data['master_ip'])
-    delete_callback = partial(notify_delete, vm_data['master_ip'])
+    stop_callback = partial(notify_worker_stop, vm_data['master_ip'])
+    delete_callback = partial(notify_worker_delete, vm_data['master_ip'])
     budget_keeper = BudgetKeeper(standalone_config, stop_callback, delete_callback)
     budget_keeper.start()
 
@@ -206,8 +214,11 @@ def run_worker():
     local_job_dir = os.path.join(LITHOPS_TEMP_DIR, JOBS_PREFIX)
     os.makedirs(local_job_dir, exist_ok=True)
 
-    # Create a ThreadPoolExecutor for cosnuming tasks
+    # Start the redis client
     redis_queue_consumer_futures = []
+    redis_client = redis.StrictRedis(host=vm_data['master_ip'], decode_responses=True)
+
+    # Create a ThreadPoolExecutor for cosnuming tasks
     with ThreadPoolExecutor(max_workers=worker_processes) as executor:
         for i in range(worker_processes):
             worker_threads[i] = {}
