@@ -70,7 +70,6 @@ MAX_INSTANCE_CREATE_RETRIES = 2
 
 workers = {}
 work_queues = {}
-jobs_list = {}
 
 redis_client = None
 budget_keeper = None
@@ -239,12 +238,12 @@ def run_job_local(work_queue):
             localhos_handler = LocalhostHandler(job_payload['config']['standalone'])
             localhos_handler.init()
             running_job_key = job_payload['job_key']
-            jobs_list[running_job_key]['status'] = JobStatus.RUNNING.value
+            # jobs_list[running_job_key]['status'] = JobStatus.RUNNING.value
             wp = job_payload['worker_processes']
             job_payload['worker_processes'] = CPU_COUNT if wp == "AUTO" else wp
             localhos_handler.invoke(job_payload)
             wait_job_completed(running_job_key)
-            jobs_list[running_job_key]['status'] = JobStatus.DONE.value
+            # jobs_list[running_job_key]['status'] = JobStatus.DONE.value
             localhos_handler.clear()
 
     except Exception as e:
@@ -264,8 +263,6 @@ def run_job_worker(job_payload, queue_name):
         task_payload['call_ids'] = [call_id]
         task_payload['data_byte_ranges'] = [dbr[int(call_id)]]
         redis_client.lpush(queue_name, json.dumps(task_payload))
-
-    jobs_list[job_key]['status'] = JobStatus.PENDING.value
 
     while not redis_client.llen(queue_name) == 0:
         time.sleep(2)
@@ -296,29 +293,6 @@ def delete_worker():
     """
     worker_ip = flask.request.remote_addr
     del workers[worker_ip]
-    return ('', 204)
-
-
-@app.route('/task/status/start/<job_key>/<call_id>', methods=['POST'])
-def task_start(job_key, call_id):
-    """
-    Sets the job as Running
-    """
-    jobs_list[job_key]['status'] = JobStatus.RUNNING.value
-
-    return ('', 204)
-
-
-@app.route('/task/status/done/<job_key>/<call_id>', methods=['POST'])
-def task_done(job_key, call_id):
-    """
-    Sets the job as Done
-    """
-    jobs_list[job_key]['done_tasks'] += 1
-    if jobs_list[job_key]['done_tasks'] == jobs_list[job_key]['total_tasks']:
-        Path(os.path.join(JOBS_DIR, job_key + '.done')).touch()
-        jobs_list[job_key]['status'] = JobStatus.DONE.value
-
     return ('', 204)
 
 
@@ -401,7 +375,7 @@ def stop_job_process(job_key_list):
     for job_key in job_key_list:
         logger.debug(f'Received SIGTERM: Stopping job process {job_key}')
 
-        work_queue_name = jobs_list[job_key]['queue_name']
+        work_queue_name = redis_client.hget(job_key, 'queue_name')
 
         if work_queue_name == 'localhost':
             if job_key == running_job_key:
@@ -452,6 +426,17 @@ def stop():
     return ('', 204)
 
 
+@app.route('/clean', methods=['POST'])
+def clean():
+    """
+    Clean master VM
+    """
+    logger.debug("Cleaning all data from redis")
+    redis_client.flushall()
+
+    return ('', 204)
+
+
 @app.route('/job/list', methods=['GET'])
 def list_jobs():
     """
@@ -463,17 +448,18 @@ def list_jobs():
 
     result = [['Job ID', 'Function Name', 'Submitted', 'Worker Type', 'Runtime', 'Tasks Done', 'Job Status']]
 
-    for job_key in jobs_list:
-        job_data = jobs_list[job_key]
+    for job_job_key in redis_client.keys('job:*'):
+        job_data = redis_client.hgetall(job_job_key)
+        job_key = job_job_key.replace("job:", "")
         exec_mode = job_data['exec_mode']
         status = job_data['status']
         func_name = job_data['func_name'] + "()"
-        timestamp = job_data['submitted']
+        timestamp = float(job_data['submitted'])
         runtime = job_data['runtime_name']
         worker_type = job_data['worker_type'] if exec_mode != StandaloneMode.CONSUME.value else 'VM'
         submitted = datetime.utcfromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S UTC')
         total_tasks = str(job_data['total_tasks'])
-        done_tasks = str(job_data['done_tasks'])
+        done_tasks = str(redis_client.llen(f'tasksdone:{job_key}'))
         result.append((job_key, func_name, submitted, worker_type, runtime, f'{done_tasks}/{total_tasks}', status))
 
     logger.debug(f'Listing jobs: {result}')
@@ -529,7 +515,7 @@ def run():
         Thread(target=start_workers, args=(job_payload, queue_name)).start()
         Thread(target=run_job_worker, args=(job_payload, queue_name), daemon=True).start()
 
-    jobs_list[job_key] = {
+    redis_client.hmset(f"job:{job_key}", {
         'status': JobStatus.SUBMITTED.value,
         'submitted': job_payload['host_submit_tstamp'],
         'func_name': job_payload['func_name'],
@@ -537,9 +523,8 @@ def run():
         'runtime_name': job_payload['runtime_name'],
         'exec_mode': exec_mode,
         'total_tasks': len(job_payload['call_ids']),
-        'done_tasks': 0,
         'queue_name': queue_name
-    }
+    })
 
     act_id = str(uuid.uuid4()).replace('-', '')[:12]
     response = flask.jsonify({'activationId': act_id})
@@ -595,7 +580,7 @@ def main():
     budget_keeper = BudgetKeeper(standalone_config)
     budget_keeper.start()
 
-    redis_client = redis.StrictRedis(decode_responses=True)
+    redis_client = redis.Redis(decode_responses=True)
 
     server = WSGIServer(('0.0.0.0', SA_MASTER_SERVICE_PORT), app, log=app.logger)
     server.serve_forever()

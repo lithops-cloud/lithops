@@ -31,7 +31,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from lithops.utils import setup_lithops_logger
 from lithops.standalone.keeper import BudgetKeeper
-from lithops.standalone.utils import StandaloneMode, WorkerStatus
+from lithops.standalone.utils import JobStatus, StandaloneMode, WorkerStatus
 from lithops.constants import (
     LITHOPS_TEMP_DIR,
     RN_LOG_FILE,
@@ -102,25 +102,24 @@ def notify_worker_delete(master_ip):
         logger.error(e)
 
 
-def notify_task_start(master_ip, job_key, call_id):
+def notify_task_start(job_key, call_id):
     try:
-        url = f'http://{master_ip}:{SA_MASTER_SERVICE_PORT}/task/status/start/{job_key}/{call_id}'
-        requests.post(url)
-        # redis_client.hset(f"job:{job_key}", 'status', JobStatus.Running.value)
+        if redis_client.hget(job_key, 'status') == JobStatus.SUBMITTED.value:
+            redis_client.hset(f"job:{job_key}", 'status', JobStatus.RUNNING.value)
     except Exception as e:
         logger.error(e)
 
 
-def notify_task_done(master_ip, job_key, call_id):
+def notify_task_done(job_key, call_id):
     try:
-        url = f'http://{master_ip}:{SA_MASTER_SERVICE_PORT}/task/status/done/{job_key}/{call_id}'
-        requests.post(url)
-        # redis_client.rpush(f"tasksdone:{job_key}", call_id)
+        done_tasks = int(redis_client.rpush(f"tasksdone:{job_key}", call_id))
+        if int(redis_client.hget(f"job:{job_key}", 'total_tasks')) == done_tasks:
+            redis_client.hset(f"job:{job_key}", 'status', JobStatus.DONE.value)
     except Exception as e:
         logger.error(e)
 
 
-def redis_queue_consumer(pid, master_ip, work_queue_name, exec_mode, local_job_dir):
+def redis_queue_consumer(pid, work_queue_name, exec_mode, local_job_dir):
     global worker_threads
 
     worker_threads[pid]['status'] = WorkerStatus.IDLE.value
@@ -148,7 +147,7 @@ def redis_queue_consumer(pid, master_ip, work_queue_name, exec_mode, local_job_d
         try:
             logger.debug(f'ExecutorID {executor_id} | JobID {job_id} - Running '
                          f'CallID {call_id} in the local worker')
-            notify_task_start(master_ip, job_key, call_id)
+            notify_task_start(job_key, call_id)
             budget_keeper.add_job(job_key_call_id)
 
             task_file = f'{job_key_call_id}-job.json'
@@ -164,7 +163,7 @@ def redis_queue_consumer(pid, master_ip, work_queue_name, exec_mode, local_job_d
             job_processes[job_key_call_id] = process
             process.communicate()  # blocks until the process finishes
 
-            notify_task_done(master_ip, job_key, call_id)
+            notify_task_done(job_key, call_id)
             logger.debug(f'ExecutorID {executor_id} | JobID {job_id} - CallID {call_id} execution finished')
 
         except Exception as e:
@@ -216,7 +215,7 @@ def run_worker():
 
     # Start the redis client
     redis_queue_consumer_futures = []
-    redis_client = redis.StrictRedis(host=vm_data['master_ip'], decode_responses=True)
+    redis_client = redis.Redis(host=vm_data['master_ip'], decode_responses=True)
 
     # Create a ThreadPoolExecutor for cosnuming tasks
     with ThreadPoolExecutor(max_workers=worker_processes) as executor:
@@ -224,7 +223,6 @@ def run_worker():
             worker_threads[i] = {}
             future = executor.submit(
                 redis_queue_consumer, i,
-                vm_data['master_ip'],
                 vm_data['work_queue_name'],
                 standalone_config['exec_mode'],
                 local_job_dir

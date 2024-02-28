@@ -562,8 +562,6 @@ class AzureVMSBackend:
         """
         logger.info('Cleaning Azure Virtual Machines resources')
 
-        self._load_azure_vms_data()
-
         if not self.azure_data:
             return
 

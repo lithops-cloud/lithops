@@ -304,9 +304,8 @@ class StandaloneHandler:
             self.backend.master.create(check_if_exists=True)
             self.backend.master.wait_ready()
 
-        if not self._is_master_service_ready():
-            self._setup_master_service()
-            self._wait_master_service_ready()
+        self._setup_master_service()
+        self._wait_master_service_ready()
 
         logger.debug('Extracting runtime metadata information')
         payload = {'runtime': runtime_name, 'pull_runtime': True}
@@ -324,6 +323,13 @@ class StandaloneHandler:
         """
         Clan all the backend resources
         """
+        if self.is_initialized():
+            try:
+                self.init()
+                self._make_request('POST', 'clean')
+            except Exception:
+                pass
+
         self.backend.clean(**kwargs)
 
     def clear(self, job_keys=None, exception=None):

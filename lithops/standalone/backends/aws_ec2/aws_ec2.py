@@ -884,8 +884,6 @@ class AWSEC2Backend:
         """
         logger.info('Cleaning AWS EC2 resources')
 
-        self._load_ec2_data()
-
         if not self.ec2_data:
             return True
 

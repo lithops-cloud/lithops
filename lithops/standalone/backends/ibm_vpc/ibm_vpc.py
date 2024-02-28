@@ -782,8 +782,6 @@ class IBMVPCBackend:
         """
         logger.info('Cleaning IBM VPC resources')
 
-        self._load_vpc_data()
-
         if not self.vpc_data:
             return
 
