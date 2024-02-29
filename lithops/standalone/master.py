@@ -86,6 +86,7 @@ def is_worker_free(worker_private_ip):
     try:
         r = requests.get(url, timeout=0.5)
         resp = r.json()
+        logger.debug(f'Worker processes status from {worker_private_ip}: {resp}')
         return True if resp.get('free', 0) > 0 else False
     except Exception:
         return False
@@ -432,10 +433,6 @@ def run():
     """
     Run a job locally, in consume mode
     """
-    global budget_keeper
-    global redis_client
-    global localhost_manager_process
-
     job_payload = flask.request.get_json(force=True, silent=True)
     if job_payload and not isinstance(job_payload, dict):
         return error('The action did not receive a dictionary as an argument.')
@@ -474,24 +471,25 @@ def run():
 def job_monitor():
     logger.info("Starting job monitoring thread")
 
-    tasks_done = {}
+    jobs_data = {}
 
     while True:
         time.sleep(JOB_MONITOR_CHECK_INTERVAL)
         for job_job_key in redis_client.keys('job:*'):
             job_key = job_job_key.replace("job:", "")
-            if job_key not in tasks_done:
+            if job_key not in jobs_data:
+                budget_keeper.add_job(job_key)
                 job_data = redis_client.hgetall(job_job_key)
-                tasks_done[job_key] = {'total': int(job_data['total_tasks']), 'done': 0}
-            if tasks_done[job_key]['total'] == tasks_done[job_key]['done']:
+                jobs_data[job_key] = {'total': int(job_data['total_tasks']), 'done': 0}
+            if jobs_data[job_key]['total'] == jobs_data[job_key]['done']:
                 continue
             job_tasks_done = int(redis_client.llen(f"tasksdone:{job_key}"))
-            if tasks_done[job_key]['done'] != job_tasks_done:
-                job_tasks_total = tasks_done[job_key]['total']
-                tasks_done[job_key]['done'] = job_tasks_done
+            if jobs_data[job_key]['done'] != job_tasks_done:
+                job_tasks_total = jobs_data[job_key]['total']
+                jobs_data[job_key]['done'] = job_tasks_done
                 exec_id, job_id = job_key.rsplit('-', 1)
                 msg = f"ExecutorID: {exec_id} | JObID: {job_id} - Tasks done: {job_tasks_done}/{job_tasks_total}"
-                if tasks_done[job_key]['total'] == tasks_done[job_key]['done']:
+                if jobs_data[job_key]['total'] == jobs_data[job_key]['done']:
                     Path(os.path.join(JOBS_DIR, job_key + '.done')).touch()
                     msg += " - Completed!"
                 logger.debug(msg)
@@ -561,7 +559,7 @@ def main():
     with open(SA_DATA_FILE, 'r') as ad:
         master_ip = json.load(ad)['private_ip']
 
-    budget_keeper = BudgetKeeper(standalone_config)
+    budget_keeper = BudgetKeeper(standalone_config, stop_callback=clean)
     budget_keeper.start()
 
     redis_client = redis.Redis(decode_responses=True)
