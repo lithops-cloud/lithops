@@ -7,7 +7,8 @@ from lithops.constants import (
     SA_LOG_FILE,
     SA_CONFIG_FILE,
     SA_DATA_FILE,
-    SA_TMP_DIR
+    SA_TMP_DIR,
+    SA_WORKER_SERVICE_PORT
 )
 
 
@@ -229,7 +230,8 @@ def get_worker_setup_script(config, vm_data):
         service_cmd = 'docker run --rm '
         service_cmd += '--gpus all ' if config["use_gpu"] else ''
         service_cmd += f'--user {os.getuid()}:{os.getgid()} '
-        service_cmd += f'--env USER={os.getenv("USER", "root")} '
+        service_cmd += f'--env USER={os.getenv("USER", "root")} --env DOCKER=Lithops '
+        service_cmd += f'-p {SA_WORKER_SERVICE_PORT}:{SA_WORKER_SERVICE_PORT} '
         service_cmd += f'-v {SA_INSTALL_DIR}:{SA_INSTALL_DIR} -v /tmp:/tmp '
         service_cmd += f'--entrypoint "python3" {config["runtime"]} {SA_INSTALL_DIR}/worker.py'
 

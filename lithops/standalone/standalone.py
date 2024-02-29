@@ -182,8 +182,8 @@ class StandaloneHandler:
         """
         workers_on_master = []
         try:
-            endpoint = f'worker/{worker_instance_type}/{runtime_name}'
-            workers_on_master = self._make_request('GET', endpoint)
+            payload = {'worker_instance_type': worker_instance_type, 'runtime_name': runtime_name}
+            workers_on_master = self._make_request('GET', 'worker/get', payload)
         except Exception:
             pass
         return workers_on_master

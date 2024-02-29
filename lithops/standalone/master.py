@@ -128,16 +128,22 @@ def list_workers():
     return flask.jsonify(result)
 
 
-@app.route('/worker/<worker_instance_type>/<runtime_name>', methods=['GET'])
-def get_workers(worker_instance_type, runtime_name):
+@app.route('/worker/get', methods=['GET'])
+def get_workers():
     """
     Returns the number of free workers
     """
     budget_keeper.last_usage_time = time.time()
 
     workers = redis_client.keys('worker:*')
+    logger.debug(f'Getting workers - Total workers: {len(workers)}')
 
-    logger.debug(f'Getting workers -Total workers: {len(workers)}')
+    payload = flask.request.get_json(force=True, silent=True)
+    if payload and not isinstance(payload, dict):
+        return error('The action did not receive a dictionary as an argument.')
+
+    worker_instance_type = payload['worker_instance_type']
+    runtime_name = payload['runtime_name']
 
     active_workers = []
     for worker in workers:
@@ -499,7 +505,7 @@ def job_monitor():
 
 @app.route('/clean', methods=['POST'])
 def clean():
-    logger.debug("Cleaning all data from redis")
+    logger.debug("Clean command received. Cleaning all data from redis")
     redis_client.flushall()
 
     return ('', 204)
@@ -534,8 +540,8 @@ def get_metadata():
     runtime_meta = localhos_handler.deploy_runtime(payload['runtime'])
 
     if 'lithops_version' in runtime_meta:
-        logger.debug("Runtime metdata extracted correctly: Lithops "
-                     f"{runtime_meta['lithops_version']}")
+        logger.debug(f"Runtime metdata extracted correctly from {payload['runtime']}"
+                     f" - Lithops {runtime_meta['lithops_version']}")
     response = flask.jsonify(runtime_meta)
     response.status_code = 200
 

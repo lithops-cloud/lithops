@@ -207,7 +207,8 @@ def run_worker():
     # Start the http server. This will be used by the master VM to pìng this
     # worker and for canceling tasks
     def run_wsgi():
-        server = WSGIServer((vm_data['private_ip'], SA_WORKER_SERVICE_PORT), app, log=app.logger)
+        ip_address = "0.0.0.0" if os.getenv("DOCKER") == "Lithops" else vm_data['private_ip']
+        server = WSGIServer((ip_address, SA_WORKER_SERVICE_PORT), app, log=app.logger)
         server.serve_forever()
     Thread(target=run_wsgi, daemon=True).start()
 
