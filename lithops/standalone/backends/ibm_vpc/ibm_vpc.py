@@ -879,10 +879,6 @@ class IBMVPCInstance:
         """
         self.name = name.lower()
         self.config = ibm_vpc_config
-        self.metadata = {}
-
-        self.status = None
-        self.err = None
 
         self.delete_on_dismantle = self.config['delete_on_dismantle']
         self.instance_type = self.config['worker_profile_name']

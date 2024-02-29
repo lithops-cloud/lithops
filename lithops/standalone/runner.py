@@ -57,7 +57,7 @@ def run_job(backend, job_filename):
 
     act_id = str(uuid.uuid4()).replace('-', '')[:12]
     os.environ['__LITHOPS_ACTIVATION_ID'] = act_id
-    os.environ['__LITHOPS_BACKEND'] = backend
+    os.environ['__LITHOPS_BACKEND'] = backend.replace("_", " ").upper()
 
     function_handler(job_payload)
 

@@ -21,7 +21,6 @@ import redis
 import flask
 import logging
 import signal
-import requests
 import subprocess as sp
 from pathlib import Path
 from threading import Thread
@@ -38,7 +37,6 @@ from lithops.constants import (
     SA_INSTALL_DIR,
     SA_LOG_FILE,
     JOBS_DIR,
-    SA_MASTER_SERVICE_PORT,
     SA_CONFIG_FILE,
     SA_DATA_FILE,
     JOBS_PREFIX,
@@ -53,7 +51,7 @@ app = flask.Flask(__name__)
 
 redis_client = None
 budget_keeper = None
-backend = None
+
 job_processes = {}
 worker_threads = {}
 
@@ -75,6 +73,7 @@ def stop(job_key):
         if job_key_call_id.startswith(job_key):
             PID = job_processes[job_key_call_id].pid
             PGID = os.getpgid(PID)
+            logger.debug(f"Killing Job PID {PID}:{PGID}")
             os.killpg(PGID, signal.SIGKILL)
             Path(os.path.join(JOBS_DIR, job_key_call_id + '.done')).touch()
             job_processes[job_key_call_id] = None
@@ -84,27 +83,30 @@ def stop(job_key):
     return response
 
 
-def notify_worker_stop(master_ip):
+def notify_worker_active(worker_name):
     try:
-        url = f'http://{master_ip}:{SA_MASTER_SERVICE_PORT}/worker/status/stop'
-        resp = requests.post(url)
-        logger.debug("Stop worker: " + str(resp.status_code))
+        redis_client.hset(f"worker:{worker_name}", 'status', WorkerStatus.ACTIVE.value)
     except Exception as e:
         logger.error(e)
 
 
-def notify_worker_delete(master_ip):
+def notify_worker_stop(worker_name):
     try:
-        url = f'http://{master_ip}:{SA_MASTER_SERVICE_PORT}/worker/status/delete'
-        resp = requests.post(url)
-        logger.debug("Delete worker: " + str(resp.status_code))
+        redis_client.hset(f"worker:{worker_name}", 'status',  WorkerStatus.STOPPED.value)
+    except Exception as e:
+        logger.error(e)
+
+
+def notify_worker_delete(worker_name):
+    try:
+        redis_client.delete(f"worker:{worker_name}")
     except Exception as e:
         logger.error(e)
 
 
 def notify_task_start(job_key, call_id):
     try:
-        if redis_client.hget(job_key, 'status') == JobStatus.SUBMITTED.value:
+        if redis_client.hget(f"job:{job_key}", 'status') == JobStatus.SUBMITTED.value:
             redis_client.hset(f"job:{job_key}", 'status', JobStatus.RUNNING.value)
     except Exception as e:
         logger.error(e)
@@ -119,7 +121,7 @@ def notify_task_done(job_key, call_id):
         logger.error(e)
 
 
-def redis_queue_consumer(pid, work_queue_name, exec_mode, local_job_dir):
+def redis_queue_consumer(pid, work_queue_name, exec_mode, local_job_dir, backend):
     global worker_threads
 
     worker_threads[pid]['status'] = WorkerStatus.IDLE.value
@@ -165,6 +167,7 @@ def redis_queue_consumer(pid, work_queue_name, exec_mode, local_job_dir):
 
             notify_task_done(job_key, call_id)
             logger.debug(f'ExecutorID {executor_id} | JobID {job_id} - CallID {call_id} execution finished')
+            del job_processes[job_key_call_id]
 
         except Exception as e:
             logger.error(e)
@@ -176,25 +179,28 @@ def run_worker():
     global redis_client
     global budget_keeper
     global worker_threads
-    global backend
 
     os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
 
     # read the Lithops standaole configuration file
     with open(SA_CONFIG_FILE, 'r') as cf:
         standalone_config = json.load(cf)
-        backend = standalone_config['backend']
 
     # Read the VM data file that contains the instance id, the master IP,
     # and the queue for getting tasks
     with open(SA_DATA_FILE, 'r') as ad:
         vm_data = json.load(ad)
 
+    # Start the redis client
+    redis_client = redis.Redis(host=vm_data['master_ip'], decode_responses=True)
+
+    # Set the worker as Active
+    notify_worker_active(vm_data['name'])
+
     # Start the budget keeper. It is responsible to automatically terminate the
     # worker after X seconds
-
-    stop_callback = partial(notify_worker_stop, vm_data['master_ip'])
-    delete_callback = partial(notify_worker_delete, vm_data['master_ip'])
+    stop_callback = partial(notify_worker_stop, vm_data['name'])
+    delete_callback = partial(notify_worker_delete, vm_data['name'])
     budget_keeper = BudgetKeeper(standalone_config, stop_callback, delete_callback)
     budget_keeper.start()
 
@@ -206,18 +212,15 @@ def run_worker():
     Thread(target=run_wsgi, daemon=True).start()
 
     # Start the consumer threads
-    worker_processes = standalone_config[backend]['worker_processes']
+    worker_processes = standalone_config[standalone_config['backend']]['worker_processes']
     logger.info(f"Starting Worker - Instace type: {vm_data['instance_type']} - Runtime "
                 f"name: {standalone_config['runtime']} - Worker processes: {worker_processes}")
 
     local_job_dir = os.path.join(LITHOPS_TEMP_DIR, JOBS_PREFIX)
     os.makedirs(local_job_dir, exist_ok=True)
 
-    # Start the redis client
-    redis_queue_consumer_futures = []
-    redis_client = redis.Redis(host=vm_data['master_ip'], decode_responses=True)
-
     # Create a ThreadPoolExecutor for cosnuming tasks
+    redis_queue_consumer_futures = []
     with ThreadPoolExecutor(max_workers=worker_processes) as executor:
         for i in range(worker_processes):
             worker_threads[i] = {}
@@ -225,7 +228,8 @@ def run_worker():
                 redis_queue_consumer, i,
                 vm_data['work_queue_name'],
                 standalone_config['exec_mode'],
-                local_job_dir
+                local_job_dir,
+                standalone_config['backend']
             )
             redis_queue_consumer_futures.append(future)
             worker_threads[i]['future'] = future

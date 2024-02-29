@@ -22,8 +22,9 @@ class WorkerStatus(Enum):
     STARTED = "started"
     ERROR = "error"
     INSTALLING = "installing"
-    BUSY = "active/busy"
-    IDLE = "active/idle"
+    ACTIVE = "active"
+    IDLE = "idle"
+    BUSY = "busy"
     STOPPED = "stopped"
 
 

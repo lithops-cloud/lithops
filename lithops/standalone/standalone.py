@@ -339,7 +339,7 @@ class StandaloneHandler:
         when an exception is produced, or when a user press ctrl+c
         """
         try:
-            self._make_request('POST', 'stop', self.jobs)
+            self._make_request('POST', 'job/stop', self.jobs)
         except Exception:
             pass
 

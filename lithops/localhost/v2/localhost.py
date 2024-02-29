@@ -269,7 +269,7 @@ class DockerEnv(BaseEnv):
         logger.debug(f'Starting docker environment for {self.runtime_name}')
         self.container_id = str(uuid.uuid4()).replace('-', '')[:12]
         self.uid = os.getuid() if is_unix_system() else None
-        self.gid = os.getuid() if is_unix_system() else None
+        self.gid = os.getgid() if is_unix_system() else None
 
     def setup(self):
         logger.debug('Setting up Docker environment')
