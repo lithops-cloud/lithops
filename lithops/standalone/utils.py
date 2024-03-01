@@ -65,6 +65,7 @@ After=network.target
 
 [Service]
 ExecStart={0}
+ExecStop={1}
 Restart=always
 
 [Install]
@@ -210,15 +211,17 @@ def get_worker_setup_script(config, vm_data):
     this script is expected to be executed only from Master VM
     """
     if config['runtime'] == 'python3' or config['runtime'].startswith('/'):
-        service_cmd = f"/usr/bin/python3 {SA_INSTALL_DIR}/worker.py"
+        cmd_start = f"/usr/bin/python3 {SA_INSTALL_DIR}/worker.py"
+        cmd_stop = "id"
     else:
-        service_cmd = 'docker run --rm '
-        service_cmd += '--gpus all ' if config["use_gpu"] else ''
-        service_cmd += f'--user {os.getuid()}:{os.getgid()} '
-        service_cmd += f'--env USER={os.getenv("USER", "root")} --env DOCKER=Lithops '
-        service_cmd += f'-p {SA_WORKER_SERVICE_PORT}:{SA_WORKER_SERVICE_PORT} '
-        service_cmd += f'-v {SA_INSTALL_DIR}:{SA_INSTALL_DIR} -v /tmp:/tmp '
-        service_cmd += f'--entrypoint "python3" {config["runtime"]} {SA_INSTALL_DIR}/worker.py'
+        cmd_start = 'docker run --rm --name lithops_worker '
+        cmd_start += '--gpus all ' if config["use_gpu"] else ''
+        cmd_start += f'--user {os.getuid()}:{os.getgid()} '
+        cmd_start += f'--env USER={os.getenv("USER", "root")} --env DOCKER=Lithops '
+        cmd_start += f'-p {SA_WORKER_SERVICE_PORT}:{SA_WORKER_SERVICE_PORT} '
+        cmd_start += f'-v {SA_INSTALL_DIR}:{SA_INSTALL_DIR} -v /tmp:/tmp '
+        cmd_start += f'--entrypoint "python3" {config["runtime"]} {SA_INSTALL_DIR}/worker.py'
+        cmd_stop = "docker rm -f lithops_worker"
 
     script = docker_login(config)
     script += f"""
@@ -230,7 +233,7 @@ def get_worker_setup_script(config, vm_data):
     setup_host >> {SA_SETUP_LOG_FILE} 2>&1;
     USER_HOME=$(eval echo ~${{SUDO_USER}});
     setup_service(){{
-    echo '{WORKER_SERVICE_FILE.format(service_cmd)}' > /etc/systemd/system/{WORKER_SERVICE_NAME};
+    echo '{WORKER_SERVICE_FILE.format(cmd_start, cmd_stop)}' > /etc/systemd/system/{WORKER_SERVICE_NAME};
     chmod 644 /etc/systemd/system/{WORKER_SERVICE_NAME};
     systemctl daemon-reload;
     systemctl stop {WORKER_SERVICE_NAME};

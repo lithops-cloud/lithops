@@ -27,9 +27,7 @@ install_requires = [
     'cloudpickle',
     'tblib',
     'ps-mem',
-    'psutil',
-    'pytz'
-    'tzlocal'
+    'psutil'
 ]
 
 

@@ -93,6 +93,14 @@ def notify_worker_active(worker_name):
         logger.error(e)
 
 
+def notify_worker_idle(worker_name):
+    try:
+        data = {'status': WorkerStatus.IDLE.value, 'runtime': ''}
+        redis_client.hset(f"worker:{worker_name}", mapping=data)
+    except Exception as e:
+        logger.error(e)
+
+
 def notify_worker_stop(worker_name):
     try:
         redis_client.hset(f"worker:{worker_name}", 'status',  WorkerStatus.STOPPED.value)
@@ -132,7 +140,7 @@ def redis_queue_consumer(pid, work_queue_name, exec_mode, local_job_dir, backend
     logger.info(f"Redis consumer process {pid} started")
 
     while True:
-        if exec_mode in [StandaloneMode.CONSUME.value, StandaloneMode.REUSE.value]:
+        if exec_mode in StandaloneMode.REUSE.value:
             key, task_payload_str = redis_client.brpop(work_queue_name)
         else:
             task_payload_str = redis_client.rpop(work_queue_name)
@@ -248,6 +256,9 @@ def run_worker():
     # run_worker will run forever in reuse mode. In create mode it will
     # run until there are no more tasks in the queue.
     logger.debug('Finished')
+
+    # Set the worker as stop
+    notify_worker_idle(worker_data['name'])
 
     try:
         # Try to stop the current worker VM once no more pending tasks to run

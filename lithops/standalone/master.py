@@ -451,7 +451,7 @@ def run():
     exec_mode = StandaloneMode[exec_mode.upper()]
 
     if exec_mode == StandaloneMode.CONSUME:
-        queue_name = 'wq:localhost'
+        queue_name = f'wq:localhost:{runtime_name.replace("/", "-")}'
     elif exec_mode == StandaloneMode.CREATE:
         queue_name = f'wq:{job_key}'
     elif exec_mode == StandaloneMode.REUSE:
