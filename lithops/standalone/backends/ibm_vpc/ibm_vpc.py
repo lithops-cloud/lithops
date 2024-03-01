@@ -17,7 +17,6 @@
 
 import re
 import os
-import paramiko
 import time
 import logging
 import uuid

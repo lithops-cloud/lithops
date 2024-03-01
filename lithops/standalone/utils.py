@@ -10,7 +10,6 @@ from lithops.constants import (
     SA_MASTER_DATA_FILE,
     SA_WORKER_SERVICE_PORT,
     SA_WORKER_LOG_FILE,
-    SA_MASTER_LOG_FILE,
     SA_SETUP_DONE_FILE
 )
 

@@ -79,7 +79,7 @@ class LocalhostHandler:
         """
         Init tasks for localhost
         """
-        default_env = self.runtime_name == 'python3' or self.runtime_name.startswith('/')
+        default_env = self.runtime_name.startswith('python') or self.runtime_name.startswith('/')
         self.env = DefaultEnv(self.config) if default_env else DockerEnv(self.config)
         self.env.setup()
 

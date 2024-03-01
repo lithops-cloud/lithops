@@ -103,7 +103,7 @@ def notify_worker_idle(worker_name):
 
 def notify_worker_stop(worker_name):
     try:
-        redis_client.hset(f"worker:{worker_name}", 'status',  WorkerStatus.STOPPED.value)
+        redis_client.hset(f"worker:{worker_name}", 'status', WorkerStatus.STOPPED.value)
     except Exception as e:
         logger.error(e)
 
