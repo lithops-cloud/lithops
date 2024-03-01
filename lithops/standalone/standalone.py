@@ -25,9 +25,22 @@ import requests
 import shlex
 import concurrent.futures as cf
 
-from lithops.utils import BackendType, is_lithops_worker, create_handler_zip
-from lithops.constants import SA_MASTER_SERVICE_PORT, SA_INSTALL_DIR, TEMP_DIR
-from lithops.standalone.utils import StandaloneMode, LithopsValidationError, get_host_setup_script, get_master_setup_script, get_worker_setup_script
+from lithops.utils import (
+    BackendType,
+    is_lithops_worker,
+    create_handler_zip
+)
+from lithops.constants import (
+    TEMP_DIR,
+    SA_MASTER_SERVICE_PORT,
+    SA_MASTER_DATA_FILE,
+)
+from lithops.standalone.utils import (
+    StandaloneMode,
+    LithopsValidationError,
+    get_host_setup_script,
+    get_master_setup_script
+)
 from lithops.version import __version__
 
 logger = logging.getLogger(__name__)
@@ -44,6 +57,7 @@ class StandaloneHandler:
         self.backend_name = self.config['backend']
         self.start_timeout = self.config['start_timeout']
         self.exec_mode = StandaloneMode[self.config['exec_mode'].upper()]
+        self.use_master_as_worker = self.config.get('master_as_worker', False)
         self.is_lithops_worker = is_lithops_worker()
 
         module_location = f'lithops.standalone.backends.{self.backend_name}'
@@ -141,7 +155,7 @@ class StandaloneHandler:
         """
         logger.debug(f'Validating lithops master service is installed on {self.backend.master}')
         ssh_client = self.backend.master.get_ssh_client()
-        out, err = ssh_client.run_remote_command(f'cat {SA_INSTALL_DIR}/access.data')
+        out, err = ssh_client.run_remote_command(f'cat {SA_MASTER_DATA_FILE}')
         if not out:
             self._setup_master_service()
             return
@@ -239,6 +253,7 @@ class StandaloneHandler:
         new_workers = []
 
         if self.exec_mode == StandaloneMode.CONSUME:
+            new_workers.append(self.backend.master)
             total_workers = 1
 
         elif self.exec_mode == StandaloneMode.CREATE:
@@ -400,15 +415,10 @@ class StandaloneHandler:
         ssh_client.upload_local_file(handler_zip, '/tmp/lithops_standalone.zip')
         os.remove(handler_zip)
 
-        instance_type = 'VM' if self.exec_mode == StandaloneMode.CONSUME \
-            else self.backend.master.instance_type
-
-        vm_data = {
+        master_data = {
             'name': self.backend.master.name,
             'instance_id': self.backend.master.get_instance_id(),
             'private_ip': self.backend.master.get_private_ip(),
-            'master_ip': self.backend.master.get_private_ip(),
-            'instance_type': instance_type,
             'lithops_version': __version__
         }
 
@@ -417,8 +427,7 @@ class StandaloneHandler:
 
         remote_script = "/tmp/install_lithops.sh"
         script = get_host_setup_script()
-        script += get_master_setup_script(self.config, vm_data)
-        script += get_worker_setup_script(self.config)
+        script += get_master_setup_script(self.config, master_data)
 
         ssh_client.upload_data_to_file(script, remote_script)
         ssh_client.run_remote_command(f"chmod 777 {remote_script}; sudo {remote_script};")

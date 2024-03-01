@@ -54,25 +54,6 @@ LOCALHOST_RUNTIME_DEFAULT = os.path.basename(sys.executable)
 LOCALHOST_SERVICE_IDLE_TIMEOUT = 3
 LOCALHOST_SERVICE_CHECK_INTERVAL = 2
 
-SA_INSTALL_DIR = '/opt/lithops'
-SA_TMP_DIR = '/tmp/lithops-root'
-SA_LOG_FILE = f'{SA_TMP_DIR}/service.log'
-SA_MASTER_SERVICE_PORT = 8080
-SA_WORKER_SERVICE_PORT = 8081
-SA_CONFIG_FILE = os.path.join(SA_INSTALL_DIR, 'config')
-SA_DATA_FILE = os.path.join(SA_INSTALL_DIR, 'access.data')
-
-SA_DEFAULT_CONFIG_KEYS = {
-    'runtime': 'python3',
-    'exec_mode': 'reuse',
-    'use_gpu': False,
-    'start_timeout': 300,
-    'pull_runtime': False,
-    'auto_dismantle': True,
-    'soft_dismantle_timeout': 300,
-    'hard_dismantle_timeout': 3600
-}
-
 MAX_AGG_DATA_SIZE = 4  # 4MiB
 
 WORKER_PROCESSES_DEFAULT = 1
@@ -98,6 +79,28 @@ CONFIG_DIR = os.path.join(HOME_DIR, '.lithops')
 CACHE_DIR = os.path.join(CONFIG_DIR, 'cache')
 CONFIG_FILE = os.path.join(CONFIG_DIR, 'config')
 CONFIG_FILE_GLOBAL = os.path.join("/etc", "lithops", "config")
+
+SA_INSTALL_DIR = '/opt/lithops'
+SA_SETUP_LOG_FILE = f'{SA_INSTALL_DIR}/setup.log'
+SA_SETUP_DONE_FILE = f'{SA_INSTALL_DIR}/setup-done.flag'
+SA_MASTER_LOG_FILE = f'{LITHOPS_TEMP_DIR}/master-service.log'
+SA_WORKER_LOG_FILE = f'{LITHOPS_TEMP_DIR}/worker-service.log'
+SA_MASTER_SERVICE_PORT = 8080
+SA_WORKER_SERVICE_PORT = 8081
+SA_CONFIG_FILE = os.path.join(SA_INSTALL_DIR, 'config')
+SA_MASTER_DATA_FILE = os.path.join(SA_INSTALL_DIR, 'master.data')
+SA_WORKER_DATA_FILE = os.path.join(SA_INSTALL_DIR, 'worker.data')
+
+SA_DEFAULT_CONFIG_KEYS = {
+    'runtime': 'python3',
+    'exec_mode': 'reuse',
+    'use_gpu': False,
+    'start_timeout': 300,
+    'auto_dismantle': True,
+    'master_as_worker': False,
+    'soft_dismantle_timeout': 300,
+    'hard_dismantle_timeout': 3600
+}
 
 SERVERLESS_BACKENDS = [
     'ibm_cf',

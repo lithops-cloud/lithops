@@ -519,21 +519,21 @@ class AWSEC2Backend:
             if not self.ec2_data or ins_id != self.ec2_data.get('instance_id'):
                 instances = self.ec2_client.describe_instances(InstanceIds=[ins_id])
                 instance_data = instances['Reservations'][0]['Instances'][0]
-                self.config['master_name'] = 'lithops-consume'
+                master_name = 'lithops-consume'
                 for tag in instance_data['Tags']:
                     if tag['Key'] == 'Name':
-                        self.config['master_name'] = tag['Value']
+                        master_name = tag['Value']
+                self.ec2_data = {
+                    'mode': self.mode,
+                    'vpc_data_type': 'provided',
+                    'ssh_data_type': 'provided',
+                    'master_name': master_name,
+                    'master_id': self.config['instance_id']
+                }
 
             # Create the master VM instance
+            self.config['master_name'] = self.ec2_data['master_name']
             self._create_master_instance()
-
-            self.ec2_data = {
-                'mode': self.mode,
-                'vpc_data_type': 'provided',
-                'ssh_data_type': 'provided',
-                'master_name': self.master.name,
-                'master_id': self.master.instance_id
-            }
 
         elif self.mode in [StandaloneMode.CREATE.value, StandaloneMode.REUSE.value]:
 

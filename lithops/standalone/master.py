@@ -39,13 +39,14 @@ from lithops.config import extract_standalone_config
 from lithops.standalone.standalone import StandaloneHandler
 from lithops.version import __version__ as lithops_version
 from lithops.constants import (
+    CPU_COUNT,
     LITHOPS_TEMP_DIR,
-    SA_LOG_FILE,
+    SA_MASTER_LOG_FILE,
     JOBS_DIR,
     SA_MASTER_SERVICE_PORT,
     SA_WORKER_SERVICE_PORT,
     SA_CONFIG_FILE,
-    SA_DATA_FILE
+    SA_MASTER_DATA_FILE
 )
 from lithops.utils import (
     verify_runtime_name,
@@ -59,9 +60,10 @@ from lithops.standalone.utils import (
     get_worker_setup_script
 )
 
+os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
 
 log_format = "%(asctime)s\t[%(levelname)s] %(name)s:%(lineno)s -- %(message)s"
-setup_lithops_logger(logging.DEBUG, filename=SA_LOG_FILE, log_format=log_format)
+setup_lithops_logger(logging.DEBUG, filename=SA_MASTER_LOG_FILE, log_format=log_format)
 logger = logging.getLogger('lithops.standalone.master')
 
 app = flask.Flask(__name__)
@@ -176,17 +178,25 @@ def setup_worker(standalone_handler, worker_info, work_queue_name):
     """
     worker = standalone_handler.backend.get_instance(**worker_info, public=False)
 
+    if redis_client.hget(f"worker:{worker.name}", 'status') == WorkerStatus.ACTIVE.value:
+        return
+
     config = copy.deepcopy(standalone_handler.config)
     del config[config['backend']]
     config = {key: str(value) if isinstance(value, bool) else value for key, value in config.items()}
 
-    redis_client.hmset(f"worker:{worker.name}", {
+    worker_processes = CPU_COUNT if worker.config['worker_processes'] == 'AUTO' \
+        else worker.config['worker_processes']
+    instance_type = 'provided-vm' if config['exec_mode'] == StandaloneMode.CONSUME.value \
+        else worker.instance_type
+
+    redis_client.hset(f"worker:{worker.name}", mapping={
         'name': worker.name,
         'status': JobStatus.SUBMITTED.value,
         'private_ip': worker.private_ip or '',
         'instance_id': worker.instance_id,
-        'instance_type': worker.instance_type,
-        'worker_processes': worker.config['worker_processes'],
+        'instance_type': instance_type,
+        'worker_processes': worker_processes,
         'ssh_credentials': json.dumps(worker.ssh_credentials),
         'err': "", **config,
     })
@@ -281,6 +291,8 @@ def handle_workers(job_payload, work_queue_name):
 
     if not workers:
         return
+
+    logger.debug(f"Going to setup {len(workers)} workers")
 
     standalone_config = extract_standalone_config(job_payload['config'])
     standalone_handler = StandaloneHandler(standalone_config)
@@ -395,12 +407,12 @@ def handle_job(job_payload, queue_name):
     """
     job_key = job_payload['job_key']
 
-    redis_client.hmset(f"job:{job_key}", {
+    redis_client.hset(f"job:{job_key}", mapping={
         'job_key': job_key,
         'status': JobStatus.SUBMITTED.value,
         'submitted': job_payload['host_submit_tstamp'],
         'func_name': job_payload['func_name'],
-        'worker_type': job_payload.get('worker_instance_type'),
+        'worker_type': job_payload.get('worker_instance_type', 'VM'),
         'runtime_name': job_payload['runtime_name'],
         'exec_mode': job_payload['config']['standalone']['exec_mode'],
         'total_tasks': len(job_payload['call_ids']),
@@ -446,8 +458,8 @@ def run():
         worker_it = job_payload['worker_instance_type']
         queue_name = f'wq:{worker_it}-{runtime_name.replace("/", "-")}'
 
+    Thread(target=handle_job, args=(job_payload, queue_name)).start()
     Thread(target=handle_workers, args=(job_payload, queue_name)).start()
-    Thread(target=handle_job, args=(job_payload, queue_name), daemon=True).start()
 
     act_id = str(uuid.uuid4()).replace('-', '')[:12]
     response = flask.jsonify({'activationId': act_id})
@@ -471,12 +483,12 @@ def job_monitor():
                 jobs_data[job_key] = {'total': int(job_data['total_tasks']), 'done': 0}
             if jobs_data[job_key]['total'] == jobs_data[job_key]['done']:
                 continue
-            job_tasks_done = int(redis_client.llen(f"tasksdone:{job_key}"))
-            if jobs_data[job_key]['done'] != job_tasks_done:
-                job_tasks_total = jobs_data[job_key]['total']
-                jobs_data[job_key]['done'] = job_tasks_done
+            done_tasks = int(redis_client.llen(f"tasksdone:{job_key}"))
+            if jobs_data[job_key]['done'] != done_tasks:
+                total_tasks = jobs_data[job_key]['total']
+                jobs_data[job_key]['done'] = done_tasks
                 exec_id, job_id = job_key.rsplit('-', 1)
-                msg = f"ExecutorID: {exec_id} | JObID: {job_id} - Tasks done: {job_tasks_done}/{job_tasks_total}"
+                msg = f"ExecutorID: {exec_id} | JObID: {job_id} - Tasks done: {done_tasks}/{total_tasks}"
                 if jobs_data[job_key]['total'] == jobs_data[job_key]['done']:
                     Path(os.path.join(JOBS_DIR, job_key + '.done')).touch()
                     msg += " - Completed!"
@@ -542,10 +554,11 @@ def main():
     with open(SA_CONFIG_FILE, 'r') as cf:
         standalone_config = json.load(cf)
 
-    with open(SA_DATA_FILE, 'r') as ad:
-        master_ip = json.load(ad)['private_ip']
+    with open(SA_MASTER_DATA_FILE, 'r') as ad:
+        master_data = json.load(ad)
+        master_ip = master_data['private_ip']
 
-    budget_keeper = BudgetKeeper(standalone_config, stop_callback=clean)
+    budget_keeper = BudgetKeeper(standalone_config, master_data, stop_callback=clean)
     budget_keeper.start()
 
     redis_client = redis.Redis(decode_responses=True)

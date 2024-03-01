@@ -154,7 +154,6 @@ If you need to create new VM, then follow the steps to create and update Lithops
 |ibm_vpc | auto_dismantle | True |no | If False then the VM is not stopped automatically.|
 |ibm_vpc | soft_dismantle_timeout | 300 |no| Time in seconds to stop the VM instance after a job **completed** its execution |
 |ibm_vpc | hard_dismantle_timeout | 3600 | no | Time in seconds to stop the VM instance after a job **started** its execution |
-|ibm_vpc | pull_runtime | False | no | If set to True, Lithops will execute the command `docker pull <runtime_name>` in each VSI before executing the a job (in case of using a docker runtime)|
 
 
 ## Test Lithops

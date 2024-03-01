@@ -451,21 +451,20 @@ class IBMVPCBackend:
         if self.mode == StandaloneMode.CONSUME.value:
 
             ins_id = self.config['instance_id']
-            if not self.vpc_data or ins_id != self.vpc_data.get('instance_id'):
-                name = self.vpc_cli.get_instance(ins_id).get_result()['name']
-                self.config['master_name'] = name
+            if not self.vpc_data or ins_id != self.vpc_data.get('master_id'):
+                master_name = self.vpc_cli.get_instance(ins_id).get_result()['name']
+                self.vpc_data = {
+                    'mode': self.mode,
+                    'vpc_data_type': 'provided',
+                    'ssh_data_type': 'provided',
+                    'master_name': master_name,
+                    'master_id': self.config['instance_id'],
+                    'floating_ip': self.config['floating_ip']
+                }
 
             # Create the master VM instance
+            self.config['master_name'] = self.vpc_data['master_name']
             self._create_master_instance()
-
-            self.vpc_data = {
-                'mode': self.mode,
-                'vpc_data_type': 'provided',
-                'ssh_data_type': 'provided',
-                'master_name': self.master.name,
-                'master_id': self.master.instance_id,
-                'floating_ip': self.master.public_ip
-            }
 
         elif self.mode in [StandaloneMode.CREATE.value, StandaloneMode.REUSE.value]:
 
@@ -898,7 +897,6 @@ class IBMVPCInstance:
             'password': self.config['ssh_password'],
             'key_filename': self.config.get('ssh_key_filename', '~/.ssh/id_rsa')
         }
-        self.validated = False
 
     def __str__(self):
         ip = self.public_ip if self.public else self.private_ip
@@ -925,35 +923,11 @@ class IBMVPCInstance:
         """
         Creates an ssh client against the VM
         """
-
-        if not self.validated and self.public and self.instance_id:
-            # validate that private ssh key in ssh_credentials is a pair of public key on instance
-            key_filename = self.ssh_credentials['key_filename']
-            key_filename = os.path.abspath(os.path.expanduser(key_filename))
-
-            if not os.path.exists(key_filename):
-                raise LithopsValidationError(f"Private key file {key_filename} doesn't exist")
-
-            initialization_data = self.vpc_cli.get_instance_initialization(self.instance_id).get_result()
-
-            private_res = paramiko.RSAKey(filename=key_filename).get_base64()
-            names = []
-            for k in initialization_data['keys']:
-                public_res = self.vpc_cli.get_key(k['id']).get_result()['public_key'].split(' ')[1]
-                if public_res == private_res:
-                    self.validated = True
-                    break
-                else:
-                    names.append(k['name'])
-
-            if not self.validated:
-                raise LithopsValidationError(
-                    f"No public key from keys: {names} on master {self} not a pair for private ssh key {key_filename}")
-
-        if not self.ssh_client:
-            if self.public and self.public_ip:
+        if self.public:
+            if not self.ssh_client or self.ssh_client.ip_address != self.public_ip:
                 self.ssh_client = SSHClient(self.public_ip, self.ssh_credentials)
-            elif self.private_ip:
+        else:
+            if not self.ssh_client or self.ssh_client.ip_address != self.private_ip:
                 self.ssh_client = SSHClient(self.private_ip, self.ssh_credentials)
 
         return self.ssh_client

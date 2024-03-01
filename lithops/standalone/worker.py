@@ -36,16 +36,18 @@ from lithops.constants import (
     LITHOPS_TEMP_DIR,
     RN_LOG_FILE,
     SA_INSTALL_DIR,
-    SA_LOG_FILE,
+    SA_WORKER_LOG_FILE,
     JOBS_DIR,
     SA_CONFIG_FILE,
-    SA_DATA_FILE,
+    SA_WORKER_DATA_FILE,
     JOBS_PREFIX,
     SA_WORKER_SERVICE_PORT
 )
 
+os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
+
 log_format = "%(asctime)s\t[%(levelname)s] %(name)s:%(lineno)s -- %(message)s"
-setup_lithops_logger(logging.DEBUG, filename=SA_LOG_FILE, log_format=log_format)
+setup_lithops_logger(logging.DEBUG, filename=SA_WORKER_LOG_FILE, log_format=log_format)
 logger = logging.getLogger('lithops.standalone.worker')
 
 app = flask.Flask(__name__)
@@ -130,7 +132,7 @@ def redis_queue_consumer(pid, work_queue_name, exec_mode, local_job_dir, backend
     logger.info(f"Redis consumer process {pid} started")
 
     while True:
-        if exec_mode == StandaloneMode.REUSE.value:
+        if exec_mode in [StandaloneMode.CONSUME.value, StandaloneMode.REUSE.value]:
             key, task_payload_str = redis_client.brpop(work_queue_name)
         else:
             task_payload_str = redis_client.rpop(work_queue_name)
@@ -151,7 +153,9 @@ def redis_queue_consumer(pid, work_queue_name, exec_mode, local_job_dir, backend
             logger.debug(f'ExecutorID {executor_id} | JobID {job_id} - Running '
                          f'CallID {call_id} in the local worker')
             notify_task_start(job_key, call_id)
-            budget_keeper.add_job(job_key_call_id)
+
+            if budget_keeper:
+                budget_keeper.add_job(job_key_call_id)
 
             task_file = f'{job_key_call_id}-job.json'
             os.makedirs(local_job_dir, exist_ok=True)
@@ -189,27 +193,27 @@ def run_worker():
 
     # Read the VM data file that contains the instance id, the master IP,
     # and the queue for getting tasks
-    with open(SA_DATA_FILE, 'r') as ad:
-        vm_data = json.load(ad)
+    with open(SA_WORKER_DATA_FILE, 'r') as ad:
+        worker_data = json.load(ad)
 
     # Start the redis client
-    redis_client = redis.Redis(host=vm_data['master_ip'], decode_responses=True)
+    redis_client = redis.Redis(host=worker_data['master_ip'], decode_responses=True)
 
     # Set the worker as Active
-    notify_worker_active(vm_data['name'])
+    notify_worker_active(worker_data['name'])
 
     # Start the budget keeper. It is responsible to automatically terminate the
     # worker after X seconds
-    if vm_data['master_ip'] != vm_data['private_ip']:
-        stop_callback = partial(notify_worker_stop, vm_data['name'])
-        delete_callback = partial(notify_worker_delete, vm_data['name'])
-        budget_keeper = BudgetKeeper(standalone_config, stop_callback, delete_callback)
+    if worker_data['master_ip'] != worker_data['private_ip']:
+        stop_callback = partial(notify_worker_stop, worker_data['name'])
+        delete_callback = partial(notify_worker_delete, worker_data['name'])
+        budget_keeper = BudgetKeeper(standalone_config, worker_data, stop_callback, delete_callback)
         budget_keeper.start()
 
     # Start the http server. This will be used by the master VM to pìng this
     # worker and for canceling tasks
     def run_wsgi():
-        ip_address = "0.0.0.0" if os.getenv("DOCKER") == "Lithops" else vm_data['private_ip']
+        ip_address = "0.0.0.0" if os.getenv("DOCKER") == "Lithops" else worker_data['private_ip']
         server = WSGIServer((ip_address, SA_WORKER_SERVICE_PORT), app, log=app.logger)
         server.serve_forever()
     Thread(target=run_wsgi, daemon=True).start()
@@ -217,7 +221,7 @@ def run_worker():
     # Start the consumer threads
     worker_processes = standalone_config[standalone_config['backend']]['worker_processes']
     worker_processes = CPU_COUNT if worker_processes == 'AUTO' else worker_processes
-    logger.info(f"Starting Worker - Instace type: {vm_data['instance_type']} - Runtime "
+    logger.info(f"Starting Worker - Instace type: {worker_data['instance_type']} - Runtime "
                 f"name: {standalone_config['runtime']} - Worker processes: {worker_processes}")
 
     local_job_dir = os.path.join(LITHOPS_TEMP_DIR, JOBS_PREFIX)
@@ -230,7 +234,7 @@ def run_worker():
             worker_threads[i] = {}
             future = executor.submit(
                 redis_queue_consumer, i,
-                vm_data.get('work_queue_name', 'wq:localhost'),
+                worker_data['work_queue_name'],
                 standalone_config['exec_mode'],
                 local_job_dir,
                 standalone_config['backend']

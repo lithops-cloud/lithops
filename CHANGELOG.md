@@ -9,7 +9,7 @@
 - [Standalone] Use redis in the master VM to store all the relevant data about jobs and workers
 - [Standalone] Use redis to store the work queues for the workers
 - [Standalone] Improved resiliency
-- [Standalone] Imrpoved worker processes granularity when processing tasks from the work queue
+- [Standalone] Improved worker processes granularity when processing tasks from the work queue
 - [CLI] Show the timestamp in the local timezone format on "lithops job list"
 
 ### Fixed
