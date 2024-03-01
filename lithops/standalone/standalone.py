@@ -27,7 +27,7 @@ import concurrent.futures as cf
 
 from lithops.utils import BackendType, is_lithops_worker, create_handler_zip
 from lithops.constants import SA_MASTER_SERVICE_PORT, SA_INSTALL_DIR, TEMP_DIR
-from lithops.standalone.utils import StandaloneMode, LithopsValidationError, get_master_setup_script
+from lithops.standalone.utils import StandaloneMode, LithopsValidationError, get_host_setup_script, get_master_setup_script, get_worker_setup_script
 from lithops.version import __version__
 
 logger = logging.getLogger(__name__)
@@ -43,17 +43,13 @@ class StandaloneHandler:
         self.config = standalone_config
         self.backend_name = self.config['backend']
         self.start_timeout = self.config['start_timeout']
-        self.exec_mode = self.config['exec_mode']
+        self.exec_mode = StandaloneMode[self.config['exec_mode'].upper()]
         self.is_lithops_worker = is_lithops_worker()
-
-        exec_modes = [StandaloneMode.CONSUME.value, StandaloneMode.CREATE.value, StandaloneMode.REUSE.value]
-        if self.exec_mode not in exec_modes:
-            raise Exception(f"Invalid execution mode '{self.exec_mode}'. Use one of {exec_modes}")
 
         module_location = f'lithops.standalone.backends.{self.backend_name}'
         sb_module = importlib.import_module(module_location)
         StandaloneBackend = getattr(sb_module, 'StandaloneBackend')
-        self.backend = StandaloneBackend(self.config[self.backend_name], self.exec_mode)
+        self.backend = StandaloneBackend(self.config[self.backend_name], self.exec_mode.value)
 
         self.jobs = []  # list to store executed jobs (job_keys)
         logger.debug("Standalone handler created successfully")
@@ -196,7 +192,7 @@ class StandaloneHandler:
         job_id = job_payload['job_id']
         total_calls = job_payload['total_calls']
 
-        if self.exec_mode != StandaloneMode.CONSUME.value:
+        if self.exec_mode != StandaloneMode.CONSUME:
             worker_instance_type = self.backend.get_worker_instance_type()
             worker_processes = self.backend.get_worker_cpu_count()
 
@@ -242,14 +238,14 @@ class StandaloneHandler:
 
         new_workers = []
 
-        if self.exec_mode == StandaloneMode.CONSUME.value:
+        if self.exec_mode == StandaloneMode.CONSUME:
             total_workers = 1
 
-        elif self.exec_mode == StandaloneMode.CREATE.value:
+        elif self.exec_mode == StandaloneMode.CREATE:
             new_workers = create_workers(required_workers)
             total_workers = len(new_workers)
 
-        elif self.exec_mode == StandaloneMode.REUSE.value:
+        elif self.exec_mode == StandaloneMode.REUSE:
             workers = self._get_workers_on_master(
                 job_payload['worker_instance_type'],
                 job_payload['runtime_name']
@@ -343,7 +339,7 @@ class StandaloneHandler:
         except Exception:
             pass
 
-        if self.exec_mode != StandaloneMode.REUSE.value:
+        if self.exec_mode != StandaloneMode.REUSE:
             self.backend.clear(job_keys)
 
     def list_jobs(self):
@@ -404,17 +400,26 @@ class StandaloneHandler:
         ssh_client.upload_local_file(handler_zip, '/tmp/lithops_standalone.zip')
         os.remove(handler_zip)
 
-        vm_data = {'name': self.backend.master.name,
-                   'instance_id': self.backend.master.get_instance_id(),
-                   'private_ip': self.backend.master.get_private_ip(),
-                   'delete_on_dismantle': self.backend.master.delete_on_dismantle,
-                   'lithops_version': __version__}
+        instance_type = 'VM' if self.exec_mode == StandaloneMode.CONSUME \
+            else self.backend.master.instance_type
+
+        vm_data = {
+            'name': self.backend.master.name,
+            'instance_id': self.backend.master.get_instance_id(),
+            'private_ip': self.backend.master.get_private_ip(),
+            'master_ip': self.backend.master.get_private_ip(),
+            'instance_type': instance_type,
+            'lithops_version': __version__
+        }
 
         logger.debug(f'Executing lithops installation process on {self.backend.master}')
         logger.debug('Be patient, initial installation process may take up to 3 minutes')
 
         remote_script = "/tmp/install_lithops.sh"
-        script = get_master_setup_script(self.config, vm_data)
+        script = get_host_setup_script()
+        script += get_master_setup_script(self.config, vm_data)
+        script += get_worker_setup_script(self.config)
+
         ssh_client.upload_data_to_file(script, remote_script)
         ssh_client.run_remote_command(f"chmod 777 {remote_script}; sudo {remote_script};")
 

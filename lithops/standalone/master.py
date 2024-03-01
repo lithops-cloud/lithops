@@ -31,6 +31,7 @@ from gevent.pywsgi import WSGIServer
 from threading import Thread
 from concurrent.futures import ThreadPoolExecutor
 
+from lithops.version import __version__
 from lithops.localhost import LocalhostHandler
 from lithops.standalone import LithopsValidationError
 from lithops.standalone.keeper import BudgetKeeper
@@ -54,6 +55,7 @@ from lithops.standalone.utils import (
     JobStatus,
     StandaloneMode,
     WorkerStatus,
+    get_host_setup_script,
     get_worker_setup_script
 )
 
@@ -73,9 +75,7 @@ master_ip = None
 
 
 # /---------------------------------------------------------------------------/
-#
 # Workers
-#
 # /---------------------------------------------------------------------------/
 
 def is_worker_free(worker_private_ip):
@@ -88,18 +88,6 @@ def is_worker_free(worker_private_ip):
         resp = r.json()
         logger.debug(f'Worker processes status from {worker_private_ip}: {resp}')
         return True if resp.get('free', 0) > 0 else False
-    except Exception:
-        return False
-
-
-def is_worker_service_ready(worker_private_ip):
-    """
-    Checks if the worker VM instance is alive
-    """
-    url = f"http://{worker_private_ip}:{SA_WORKER_SERVICE_PORT}/ping"
-    try:
-        r = requests.get(url, timeout=0.5)
-        return True if r.status_code == 200 else False
     except Exception:
         return False
 
@@ -263,10 +251,12 @@ def setup_worker(standalone_handler, worker_info, work_queue_name):
             'ssh_credentials': worker.ssh_credentials,
             'instance_type': worker.instance_type,
             'master_ip': master_ip,
-            'work_queue_name': work_queue_name
+            'work_queue_name': work_queue_name,
+            'lithops_version': __version__
         }
         remote_script = "/tmp/install_lithops.sh"
-        script = get_worker_setup_script(standalone_handler.config, vm_data)
+        script = get_host_setup_script()
+        script += get_worker_setup_script(standalone_handler.config, vm_data)
 
         logger.debug(f'Submitting installation script to {worker}')
         worker.get_ssh_client().upload_data_to_file(script, remote_script)
@@ -322,11 +312,8 @@ def handle_workers(job_payload, work_queue_name):
 
 
 # /---------------------------------------------------------------------------/
-#
 # Jobs
-#
 # /---------------------------------------------------------------------------/
-
 
 def stop_job_process(job_key_list):
     """
@@ -449,12 +436,13 @@ def run():
     budget_keeper.add_job(job_key)
 
     exec_mode = job_payload['config']['standalone']['exec_mode']
+    exec_mode = StandaloneMode[exec_mode.upper()]
 
-    if exec_mode == StandaloneMode.CONSUME.value:
+    if exec_mode == StandaloneMode.CONSUME:
         queue_name = 'wq:localhost'
-    elif exec_mode == StandaloneMode.CREATE.value:
+    elif exec_mode == StandaloneMode.CREATE:
         queue_name = f'wq:{job_key}'
-    elif StandaloneMode.REUSE.value:
+    elif exec_mode == StandaloneMode.REUSE:
         worker_it = job_payload['worker_instance_type']
         queue_name = f'wq:{worker_it}-{runtime_name.replace("/", "-")}'
 
@@ -496,9 +484,7 @@ def job_monitor():
 
 
 # /---------------------------------------------------------------------------/
-#
 # Misc
-#
 # /---------------------------------------------------------------------------/
 
 @app.route('/clean', methods=['POST'])

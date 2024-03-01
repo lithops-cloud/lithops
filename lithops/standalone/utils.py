@@ -98,6 +98,8 @@ def get_host_setup_script(docker=True):
     Returns the script necessary for installing a lithops VM host
     """
     script = f"""#!/bin/bash
+    rm -R {SA_INSTALL_DIR};
+    mkdir -p {SA_INSTALL_DIR};
     mkdir -p {SA_TMP_DIR};
 
     wait_internet_connection(){{
@@ -147,9 +149,7 @@ def get_host_setup_script(docker=True):
     install_packages >> {SA_LOG_FILE} 2>&1
 
     unzip -o /tmp/lithops_standalone.zip -d {SA_INSTALL_DIR} > /dev/null 2>&1;
-    rm /tmp/lithops_standalone.zip
     """
-
     return script
 
 
@@ -168,22 +168,14 @@ def get_master_setup_script(config, vm_data):
     """
     Returns master VM installation script
     """
-    script = f"""#!/bin/bash
-    rm -R {SA_INSTALL_DIR};
-    mkdir -p {SA_INSTALL_DIR};
-    mkdir -p {SA_TMP_DIR};
-
+    script = docker_login(config)
+    script += f"""
     setup_host(){{
-    cp /tmp/lithops_standalone.zip {SA_INSTALL_DIR};
+    mv /tmp/lithops_standalone.zip {SA_INSTALL_DIR};
     echo '{json.dumps(vm_data)}' > {SA_DATA_FILE};
     echo '{json.dumps(config)}' > {SA_CONFIG_FILE};
     }}
     setup_host >> {SA_LOG_FILE} 2>&1;
-    """
-    script += get_host_setup_script()
-
-    script += docker_login(config)
-    script += f"""
     setup_service(){{
     echo '{MASTER_SERVICE_FILE}' > /etc/systemd/system/{MASTER_SERVICE_NAME};
     chmod 644 /etc/systemd/system/{MASTER_SERVICE_NAME};
@@ -193,9 +185,7 @@ def get_master_setup_script(config, vm_data):
     systemctl start {MASTER_SERVICE_NAME};
     }}
     setup_service >> {SA_LOG_FILE} 2>&1;
-
     USER_HOME=$(eval echo ~${{SUDO_USER}});
-
     generate_ssh_key(){{
     echo '    StrictHostKeyChecking no
     UserKnownHostsFile=/dev/null' >> /etc/ssh/ssh_config;
@@ -208,22 +198,14 @@ def get_master_setup_script(config, vm_data):
     }}
     test -f $USER_HOME/.ssh/lithops_id_rsa || generate_ssh_key >> {SA_LOG_FILE} 2>&1;
     """
-
     return script
 
 
-def get_worker_setup_script(config, vm_data):
+def get_worker_setup_script(config, vm_data=None):
     """
     Returns worker VM installation script
     this script is expected to be executed only from Master VM
     """
-    ssh_user = vm_data['ssh_credentials']['username']
-    home_dir = '/root' if ssh_user == 'root' else f'/home/{ssh_user}'
-    try:
-        master_pub_key = open(f'{home_dir}/.ssh/lithops_id_rsa.pub', 'r').read()
-    except Exception:
-        master_pub_key = ''
-
     if config['runtime'] == 'python3' or config['runtime'].startswith('/'):
         service_cmd = f"/usr/bin/python3 {SA_INSTALL_DIR}/worker.py"
     else:
@@ -235,19 +217,15 @@ def get_worker_setup_script(config, vm_data):
         service_cmd += f'-v {SA_INSTALL_DIR}:{SA_INSTALL_DIR} -v /tmp:/tmp '
         service_cmd += f'--entrypoint "python3" {config["runtime"]} {SA_INSTALL_DIR}/worker.py'
 
-    script = f"""#!/bin/bash
-    rm -R {SA_INSTALL_DIR};
-    mkdir -p {SA_INSTALL_DIR};
-    """
-    script += get_host_setup_script()
-
-    script += docker_login(config)
+    script = docker_login(config)
     script += f"""
     echo '{json.dumps(config)}' > {SA_CONFIG_FILE};
+    """ if config else ""
+    script += f"""
     echo '{json.dumps(vm_data)}' > {SA_DATA_FILE};
-
+    """ if vm_data else ""
+    script += f"""
     setup_service(){{
-    systemctl stop {MASTER_SERVICE_NAME};
     echo '{WORKER_SERVICE_FILE.format(service_cmd)}' > /etc/systemd/system/{WORKER_SERVICE_NAME};
     chmod 644 /etc/systemd/system/{WORKER_SERVICE_NAME};
     systemctl daemon-reload;
@@ -256,9 +234,17 @@ def get_worker_setup_script(config, vm_data):
     systemctl start {WORKER_SERVICE_NAME};
     }}
     setup_service >> {SA_LOG_FILE} 2>&1
-    USER_HOME=$(eval echo ~${{SUDO_USER}});
-    echo '{master_pub_key}' >> $USER_HOME/.ssh/authorized_keys;
-    echo '{vm_data['master_ip']} lithops-master' >> /etc/hosts
     """
-
+    if vm_data:
+        ssh_user = vm_data['ssh_credentials']['username']
+        home_dir = '/root' if ssh_user == 'root' else f'/home/{ssh_user}'
+        try:
+            master_pub_key = open(f'{home_dir}/.ssh/lithops_id_rsa.pub', 'r').read()
+        except Exception:
+            master_pub_key = ''
+        script += f"""
+        USER_HOME=$(eval echo ~${{SUDO_USER}});
+        echo '{master_pub_key}' >> $USER_HOME/.ssh/authorized_keys;
+        echo '{vm_data['master_ip']} lithops-master' >> /etc/hosts
+        """
     return script

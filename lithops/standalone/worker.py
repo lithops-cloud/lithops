@@ -32,6 +32,7 @@ from lithops.utils import setup_lithops_logger
 from lithops.standalone.keeper import BudgetKeeper
 from lithops.standalone.utils import JobStatus, StandaloneMode, WorkerStatus
 from lithops.constants import (
+    CPU_COUNT,
     LITHOPS_TEMP_DIR,
     RN_LOG_FILE,
     SA_INSTALL_DIR,
@@ -199,10 +200,11 @@ def run_worker():
 
     # Start the budget keeper. It is responsible to automatically terminate the
     # worker after X seconds
-    stop_callback = partial(notify_worker_stop, vm_data['name'])
-    delete_callback = partial(notify_worker_delete, vm_data['name'])
-    budget_keeper = BudgetKeeper(standalone_config, stop_callback, delete_callback)
-    budget_keeper.start()
+    if vm_data['master_ip'] != vm_data['private_ip']:
+        stop_callback = partial(notify_worker_stop, vm_data['name'])
+        delete_callback = partial(notify_worker_delete, vm_data['name'])
+        budget_keeper = BudgetKeeper(standalone_config, stop_callback, delete_callback)
+        budget_keeper.start()
 
     # Start the http server. This will be used by the master VM to pìng this
     # worker and for canceling tasks
@@ -214,6 +216,7 @@ def run_worker():
 
     # Start the consumer threads
     worker_processes = standalone_config[standalone_config['backend']]['worker_processes']
+    worker_processes = CPU_COUNT if worker_processes == 'AUTO' else worker_processes
     logger.info(f"Starting Worker - Instace type: {vm_data['instance_type']} - Runtime "
                 f"name: {standalone_config['runtime']} - Worker processes: {worker_processes}")
 
@@ -227,7 +230,7 @@ def run_worker():
             worker_threads[i] = {}
             future = executor.submit(
                 redis_queue_consumer, i,
-                vm_data['work_queue_name'],
+                vm_data.get('work_queue_name', 'wq:localhost'),
                 standalone_config['exec_mode'],
                 local_job_dir,
                 standalone_config['backend']
