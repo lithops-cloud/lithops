@@ -1,10 +1,26 @@
-import json
+#
+# (C) Copyright Cloudlab URV 2020
+# (C) Copyright IBM Corp. 2023
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
 import os
 import time
 import threading
 import logging
 from lithops.standalone import StandaloneHandler
-from lithops.constants import SA_DATA_FILE, JOBS_DIR
+from lithops.constants import JOBS_DIR
 from lithops.standalone.utils import JobStatus
 
 
@@ -15,7 +31,7 @@ class BudgetKeeper(threading.Thread):
     """
     BudgetKeeper class used to automatically stop the VM instance
     """
-    def __init__(self, config, stop_callback=None, delete_callback=None):
+    def __init__(self, config, instance_data, stop_callback=None, delete_callback=None):
         threading.Thread.__init__(self)
         self.last_usage_time = time.time()
 
@@ -29,9 +45,6 @@ class BudgetKeeper(threading.Thread):
 
         self.runing = False
         self.jobs = {}
-
-        with open(SA_DATA_FILE, 'r') as ad:
-            instance_data = json.load(ad)
 
         self.standalone_handler = StandaloneHandler(self.standalone_config)
         self.instance = self.standalone_handler.backend.get_instance(**instance_data)

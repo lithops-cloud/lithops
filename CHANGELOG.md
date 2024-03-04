@@ -6,12 +6,16 @@
 - 
 
 ### Changed
-- 
+- [Standalone] Use redis in the master VM to store all the relevant data about jobs and workers
+- [Standalone] Use redis to store the work queues for the workers
+- [Standalone] Improved resiliency
+- [Standalone] Improved worker processes granularity when processing tasks from the work queue
+- [CLI] Show the timestamp in the local timezone format on "lithops job list"
 
 ### Fixed
 - [SSH Cli] Fixed minor error with the "err" variable
 - [Cli] Fixed job status on "lithops job list" for standalone backends
-
+- [Standalone] Fixed issue in the "lithops image build" command that appears when the vpc is already created
 
 ## [v3.1.2]
 

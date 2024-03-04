@@ -519,21 +519,21 @@ class AWSEC2Backend:
             if not self.ec2_data or ins_id != self.ec2_data.get('instance_id'):
                 instances = self.ec2_client.describe_instances(InstanceIds=[ins_id])
                 instance_data = instances['Reservations'][0]['Instances'][0]
-                self.config['master_name'] = 'lithops-consume'
+                master_name = 'lithops-consume'
                 for tag in instance_data['Tags']:
                     if tag['Key'] == 'Name':
-                        self.config['master_name'] = tag['Value']
+                        master_name = tag['Value']
+                self.ec2_data = {
+                    'mode': self.mode,
+                    'vpc_data_type': 'provided',
+                    'ssh_data_type': 'provided',
+                    'master_name': master_name,
+                    'master_id': self.config['instance_id']
+                }
 
             # Create the master VM instance
+            self.config['master_name'] = self.ec2_data['master_name']
             self._create_master_instance()
-
-            self.ec2_data = {
-                'mode': self.mode,
-                'vpc_data_type': 'provided',
-                'ssh_data_type': 'provided',
-                'master_name': self.master.name,
-                'master_id': self.master.instance_id
-            }
 
         elif self.mode in [StandaloneMode.CREATE.value, StandaloneMode.REUSE.value]:
 
@@ -609,8 +609,19 @@ class AWSEC2Backend:
                 raise Exception(f"The image with name '{image_name}' already exists with ID: '{image_id}'."
                                 " Use '--overwrite' or '-o' if you want ot overwrite it")
 
-        initial_vpc_data = self._load_ec2_data()
+        is_initialized = self.is_initialized()
         self.init()
+
+        try:
+            del self.config['target_ami']
+        except Exception:
+            pass
+        try:
+            del self.ec2_data['target_ami']
+        except Exception:
+            pass
+
+        self._request_image_id()
 
         build_vm = EC2Instance('building-image-' + image_name, self.config, self.ec2_client, public=True)
         build_vm.delete_on_dismantle = False
@@ -656,7 +667,7 @@ class AWSEC2Backend:
                     break
             time.sleep(20)
 
-        if not initial_vpc_data:
+        if not is_initialized:
             while not self.clean(all=True):
                 time.sleep(5)
         else:
@@ -884,8 +895,6 @@ class AWSEC2Backend:
         """
         logger.info('Cleaning AWS EC2 resources')
 
-        self._load_ec2_data()
-
         if not self.ec2_data:
             return True
 
@@ -988,10 +997,6 @@ class EC2Instance:
         """
         self.name = name.lower()
         self.config = ec2_config
-        self.metadata = {}
-
-        self.status = None
-        self.err = None
 
         self.delete_on_dismantle = self.config['delete_on_dismantle']
         self.instance_type = self.config['worker_instance_type']

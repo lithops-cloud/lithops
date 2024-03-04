@@ -98,8 +98,6 @@ ibm_vpc:
 |ibm_vpc | soft_dismantle_timeout | 300 |no| Time in seconds to stop the VM instance after a job **completed** its execution |
 |ibm_vpc | hard_dismantle_timeout | 3600 | no | Time in seconds to stop the VM instance after a job **started** its execution |
 |ibm_vpc | exec_mode | reuse | no | One of: **consume**, **create** or **reuse**. If set to  **create**, Lithops will automatically create new VMs for each map() call based on the number of elements in iterdata. If set to **reuse** will try to reuse running workers if exist |
-|ibm_vpc | pull_runtime | False | no | If set to True, Lithops will execute the command `docker pull <runtime_name>` in each VSI before executing the a job (in case of using a docker runtime)|
-|ibm_vpc | workers_policy | permissive | no | One of: **permissive**, **strict**. If set to **strict** will force the creation of the required number of workers |
 |ibm_vpc | singlesocket | False | no | Try to allocate workers with single socket CPU. If eventually running on multiple socket, a warning message printed to user. Is **True** standalone **workers_policy** must be set to **strict** to trace workers states|
 |ibm_vpc | gpu | False | no | If True docker started with gpu support. Requires host to have neccessary hardware and software preconfigured and docker image runtime with gpu support specified |
 
@@ -156,7 +154,6 @@ If you need to create new VM, then follow the steps to create and update Lithops
 |ibm_vpc | auto_dismantle | True |no | If False then the VM is not stopped automatically.|
 |ibm_vpc | soft_dismantle_timeout | 300 |no| Time in seconds to stop the VM instance after a job **completed** its execution |
 |ibm_vpc | hard_dismantle_timeout | 3600 | no | Time in seconds to stop the VM instance after a job **started** its execution |
-|ibm_vpc | pull_runtime | False | no | If set to True, Lithops will execute the command `docker pull <runtime_name>` in each VSI before executing the a job (in case of using a docker runtime)|
 
 
 ## Test Lithops

@@ -79,7 +79,8 @@ class LocalhostHandler:
         """
         Init tasks for localhost
         """
-        self.env = DefaultEnv(self.config) if '/' not in self.runtime_name else DockerEnv(self.config)
+        default_env = self.runtime_name.startswith(('python', '/'))
+        self.env = DefaultEnv(self.config) if default_env else DockerEnv(self.config)
         self.env.setup()
 
     def start_manager(self):
@@ -300,7 +301,7 @@ class DockerEnv(BaseEnv):
         self.use_gpu = self.config.get('use_gpu', False)
         logger.debug(f'Starting docker environment for {self.runtime_name}')
         self.uid = os.getuid() if is_unix_system() else None
-        self.gid = os.getuid() if is_unix_system() else None
+        self.gid = os.getgid() if is_unix_system() else None
 
     def setup(self):
         logger.debug('Setting up Docker environment')

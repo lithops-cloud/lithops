@@ -20,8 +20,8 @@ import copy
 import time
 import json
 import uuid
+import redis
 import flask
-import queue
 import logging
 import requests
 import concurrent.futures as cf
@@ -31,6 +31,7 @@ from gevent.pywsgi import WSGIServer
 from threading import Thread
 from concurrent.futures import ThreadPoolExecutor
 
+from lithops.version import __version__
 from lithops.localhost import LocalhostHandler
 from lithops.standalone import LithopsValidationError
 from lithops.standalone.keeper import BudgetKeeper
@@ -38,90 +39,182 @@ from lithops.config import extract_standalone_config
 from lithops.standalone.standalone import StandaloneHandler
 from lithops.version import __version__ as lithops_version
 from lithops.constants import (
+    CPU_COUNT,
     LITHOPS_TEMP_DIR,
-    SA_LOG_FILE,
+    SA_MASTER_LOG_FILE,
     JOBS_DIR,
-    SA_SERVICE_PORT,
+    SA_MASTER_SERVICE_PORT,
+    SA_WORKER_SERVICE_PORT,
     SA_CONFIG_FILE,
-    SA_DATA_FILE,
-    CPU_COUNT
+    SA_MASTER_DATA_FILE
 )
 from lithops.utils import (
     verify_runtime_name,
-    iterchunks,
     setup_lithops_logger
 )
 from lithops.standalone.utils import (
     JobStatus,
     StandaloneMode,
     WorkerStatus,
+    get_host_setup_script,
     get_worker_setup_script
 )
 
+os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
 
 log_format = "%(asctime)s\t[%(levelname)s] %(name)s:%(lineno)s -- %(message)s"
-setup_lithops_logger(logging.DEBUG, filename=SA_LOG_FILE, log_format=log_format)
+setup_lithops_logger(logging.DEBUG, filename=SA_MASTER_LOG_FILE, log_format=log_format)
 logger = logging.getLogger('lithops.standalone.master')
 
 app = flask.Flask(__name__)
 
 MAX_INSTANCE_CREATE_RETRIES = 2
-REUSE_WORK_QUEUE_NAME = 'all'
+JOB_MONITOR_CHECK_INTERVAL = 1
 
-workers = {}
-work_queues = {}
-jobs_list = {}
-
+redis_client = None
 budget_keeper = None
 master_ip = None
-exec_mode = None
-
-# variables for consume mode
-localhost_manager_process = None
-localhos_handler = None
-running_job_key = None
 
 
-def is_worker_free(worker):
+# /---------------------------------------------------------------------------/
+# Workers
+# /---------------------------------------------------------------------------/
+
+def is_worker_free(worker_private_ip):
     """
     Checks if the Lithops service is ready and free in the worker VM instance
     """
-    url = f"http://{worker.private_ip}:{SA_SERVICE_PORT}/ping"
-    r = requests.get(url, timeout=0.5)
-    if r.status_code == 200:
-        if r.json()['status'] == 'free':
-            return True
-    return False
+    url = f"http://{worker_private_ip}:{SA_WORKER_SERVICE_PORT}/ping"
+    try:
+        r = requests.get(url, timeout=0.5)
+        resp = r.json()
+        logger.debug(f'Worker processes status from {worker_private_ip}: {resp}')
+        return True if resp.get('free', 0) > 0 else False
+    except Exception:
+        return False
+
+
+@app.route('/worker/list', methods=['GET'])
+def list_workers():
+    """
+    Returns the current workers list
+    """
+    logger.debug('Listing workers')
+
+    budget_keeper.last_usage_time = time.time()
+
+    result = [['Worker Name', 'Instance Type', 'Processes', 'Runtime', 'Execution Mode', 'Status']]
+
+    for worker in redis_client.keys('worker:*'):
+        worker_data = redis_client.hgetall(worker)
+        name = worker_data['name']
+        status = worker_data['status']
+        instance_type = worker_data['instance_type']
+        worker_processes = str(worker_data['worker_processes'])
+        exec_mode = worker_data['exec_mode']
+        runtime = worker_data['runtime']
+        result.append((name, instance_type, worker_processes, runtime, exec_mode, status))
+
+    logger.debug(f"workers: {result}")
+    return flask.jsonify(result)
+
+
+@app.route('/worker/get', methods=['GET'])
+def get_workers():
+    """
+    Returns the number of free workers
+    """
+    budget_keeper.last_usage_time = time.time()
+
+    workers = redis_client.keys('worker:*')
+    logger.debug(f'Getting workers - Total workers: {len(workers)}')
+
+    payload = flask.request.get_json(force=True, silent=True)
+    if payload and not isinstance(payload, dict):
+        return error('The action did not receive a dictionary as an argument.')
+
+    worker_instance_type = payload['worker_instance_type']
+    runtime_name = payload['runtime_name']
+
+    active_workers = []
+    for worker in workers:
+        worker_data = redis_client.hgetall(worker)
+        if worker_data['instance_type'] == worker_instance_type \
+           and worker_data['runtime'] == runtime_name:
+            active_workers.append(worker_data)
+    logger.debug(f'Workers for {worker_instance_type}-{runtime_name}: {len(active_workers)}')
+
+    free_workers = []
+
+    def check_worker(worker_data):
+        if is_worker_free(worker_data['private_ip']):
+            free_workers.append(
+                (
+                    worker_data['name'],
+                    worker_data['private_ip'],
+                    worker_data['instance_id'],
+                    worker_data['ssh_credentials'],
+                    worker_data['instance_type'],
+                    runtime_name
+                )
+            )
+
+    if active_workers:
+        with ThreadPoolExecutor(len(active_workers)) as ex:
+            ex.map(check_worker, active_workers)
+
+    logger.debug(f'Free workers for {worker_instance_type}-{runtime_name}: {len(free_workers)}')
+
+    response = flask.jsonify(free_workers)
+    response.status_code = 200
+
+    return response
 
 
 def setup_worker(standalone_handler, worker_info, work_queue_name):
     """
-    Run worker process
-    Install all the Lithops dependencies into the worker.
-    Runs the job
+    Run worker setup process and Installs all the Lithops
+    dependencies into the worker
     """
-    global workers
-
     worker = standalone_handler.backend.get_instance(**worker_info, public=False)
-    worker.metadata = standalone_handler.config
 
-    workers[worker.name] = worker
+    if redis_client.hget(f"worker:{worker.name}", 'status') == WorkerStatus.ACTIVE.value:
+        return
 
-    logger.debug(f'Starting setup for {worker}')
+    config = copy.deepcopy(standalone_handler.config)
+    del config[config['backend']]
+    config = {key: str(value) if isinstance(value, bool) else value for key, value in config.items()}
 
-    max_instance_create_retries = worker.metadata.get('worker_create_retries', MAX_INSTANCE_CREATE_RETRIES)
+    worker_processes = CPU_COUNT if worker.config['worker_processes'] == 'AUTO' \
+        else worker.config['worker_processes']
+    instance_type = 'provided-vm' if config['exec_mode'] == StandaloneMode.CONSUME.value \
+        else worker.instance_type
+
+    redis_client.hset(f"worker:{worker.name}", mapping={
+        'name': worker.name,
+        'status': JobStatus.SUBMITTED.value,
+        'private_ip': worker.private_ip or '',
+        'instance_id': worker.instance_id,
+        'instance_type': instance_type,
+        'worker_processes': worker_processes,
+        'ssh_credentials': json.dumps(worker.ssh_credentials),
+        'err': "", **config,
+    })
+
+    max_instance_create_retries = worker.config.get('worker_create_retries', MAX_INSTANCE_CREATE_RETRIES)
 
     def wait_worker_ready(worker):
         instance_ready_retries = 1
 
         while instance_ready_retries <= max_instance_create_retries:
             try:
-                worker.status = WorkerStatus.STARTING.value
+                redis_client.hset(f"worker:{worker.name}", 'status', WorkerStatus.STARTING.value)
                 worker.wait_ready()
                 break
             except TimeoutError as e:  # VM not started in time
-                worker.status = WorkerStatus.ERROR.value
-                worker.err = 'Timeout Error while waitting the VM to get ready'
+                redis_client.hset(f"worker:{worker.name}", 'status', WorkerStatus.ERROR.value)
+                err_msg = 'Timeout Error while waitting the VM to get ready'
+                redis_client.hset(f"worker:{worker.name}", 'err', err_msg)
                 if instance_ready_retries == max_instance_create_retries:
                     logger.debug(f'Readiness probe expired for {worker}')
                     raise e
@@ -139,8 +232,8 @@ def setup_worker(standalone_handler, worker_info, work_queue_name):
             worker.validate_capabilities()
             break
         except LithopsValidationError as e:
-            worker.status = WorkerStatus.ERROR.value
-            worker.err = f'Validation error: {e}'
+            redis_client.hset(f"worker:{worker.name}", 'status', WorkerStatus.ERROR.value)
+            redis_client.hset(f"worker:{worker.name}", 'err', f'Validation error: {e}')
             if instance_validate_retries == max_instance_create_retries:
                 logger.debug(f'Validation probe expired for {worker}')
                 raise e
@@ -150,9 +243,9 @@ def setup_worker(standalone_handler, worker_info, work_queue_name):
             instance_validate_retries += 1
             wait_worker_ready(worker)
 
-    workers[worker.private_ip] = workers.pop(worker.name)
-    worker.status = WorkerStatus.STARTED.value
-    worker.err = None
+    redis_client.hset(f"worker:{worker.name}", 'private_ip', worker.private_ip)
+    redis_client.hset(f"worker:{worker.name}", 'status', WorkerStatus.STARTED.value)
+    redis_client.hset(f"worker:{worker.name}", 'err', '')
 
     try:
         logger.debug(f'Uploading lithops files to {worker}')
@@ -168,10 +261,12 @@ def setup_worker(standalone_handler, worker_info, work_queue_name):
             'ssh_credentials': worker.ssh_credentials,
             'instance_type': worker.instance_type,
             'master_ip': master_ip,
-            'work_queue_name': work_queue_name
+            'work_queue_name': work_queue_name,
+            'lithops_version': __version__
         }
         remote_script = "/tmp/install_lithops.sh"
-        script = get_worker_setup_script(worker.metadata, vm_data)
+        script = get_host_setup_script()
+        script += get_worker_setup_script(standalone_handler.config, vm_data)
 
         logger.debug(f'Submitting installation script to {worker}')
         worker.get_ssh_client().upload_data_to_file(script, remote_script)
@@ -180,32 +275,40 @@ def setup_worker(standalone_handler, worker_info, work_queue_name):
         worker.del_ssh_client()
 
         logger.debug(f'Installation script submitted to {worker}')
-
-        worker.status = WorkerStatus.INSTALLING.value
+        redis_client.hset(f"worker:{worker.name}", 'status', WorkerStatus.INSTALLING.value)
 
     except Exception as e:
-        worker.status = WorkerStatus.ERROR.value
+        redis_client.hset(f"worker:{worker.name}", 'status', WorkerStatus.ERROR.value)
         worker.err = f'Unable to setup lithops in the VM: {str(e)}'
         raise e
 
 
-def start_workers(job_payload, work_queue_name):
+def handle_workers(job_payload, work_queue_name):
     """
     Creates the workers (if any)
     """
     workers = job_payload['worker_instances']
-    standalone_config = extract_standalone_config(job_payload['config'])
-    standalone_handler = StandaloneHandler(standalone_config)
 
     if not workers:
         return
+
+    logger.debug(f"Going to setup {len(workers)} workers")
+
+    standalone_config = extract_standalone_config(job_payload['config'])
+    standalone_handler = StandaloneHandler(standalone_config)
 
     futures = []
     total_correct = 0
 
     with ThreadPoolExecutor(len(workers)) as executor:
         for worker_info in workers:
-            futures.append(executor.submit(setup_worker, standalone_handler, worker_info, work_queue_name))
+            future = executor.submit(
+                setup_worker,
+                standalone_handler,
+                worker_info,
+                work_queue_name
+            )
+            futures.append(future)
 
     for future in cf.as_completed(futures):
         try:
@@ -214,249 +317,47 @@ def start_workers(job_payload, work_queue_name):
         except Exception as e:
             logger.error(e)
 
-    logger.debug(f'{total_correct} of {len(workers)} workers started for work queue {work_queue_name}')
+    logger.debug(
+        f'{total_correct} of {len(workers)} workers started '
+        f'for work queue: {work_queue_name}'
+    )
 
 
-def run_job_local(work_queue):
-    """
-    Localhost jobs manager process for consume mode
-    """
-    global localhos_handler
-    global running_job_key
-
-    def wait_job_completed(job_key):
-        done = os.path.join(JOBS_DIR, job_key + '.done')
-        while True:
-            if os.path.isfile(done):
-                break
-            time.sleep(1)
-
-    try:
-        while True:
-            job_payload = work_queue.get()
-            localhos_handler = LocalhostHandler(job_payload['config']['standalone'])
-            localhos_handler.init()
-            running_job_key = job_payload['job_key']
-            jobs_list[running_job_key]['status'] = JobStatus.RUNNING.value
-            wp = job_payload['worker_processes']
-            job_payload['worker_processes'] = CPU_COUNT if wp == "AUTO" else wp
-            localhos_handler.invoke(job_payload)
-            wait_job_completed(running_job_key)
-            jobs_list[running_job_key]['status'] = JobStatus.DONE.value
-            localhos_handler.clear()
-
-    except Exception as e:
-        logger.error(e)
-
-
-def run_job_worker(job_payload, work_queue):
-    """
-    Process responsible to put all the individual tasks in
-    queue and wait until the job is completely finished.
-    """
-    job_key = job_payload['job_key']
-    call_ids = job_payload['call_ids']
-    chunksize = job_payload['chunksize']
-
-    for call_ids_range in iterchunks(call_ids, chunksize):
-        task_payload = copy.deepcopy(job_payload)
-        dbr = task_payload['data_byte_ranges']
-        task_payload['call_ids'] = call_ids_range
-        task_payload['data_byte_ranges'] = [dbr[int(call_id)] for call_id in call_ids_range]
-        work_queue.put(task_payload)
-
-    jobs_list[job_key]['status'] = JobStatus.PENDING.value
-
-    while not work_queue.empty():
-        time.sleep(1)
-
-    logger.debug(f'All tasks from Job {job_key} consumed by workers')
-
-
-def error(msg):
-    response = flask.jsonify({'error': msg})
-    response.status_code = 404
-    return response
-
-
-@app.route('/worker/status/stop', methods=['POST'])
-def stop_worker():
-    """
-    Returns the current workers list
-    """
-    worker_ip = flask.request.remote_addr
-    workers[worker_ip].status = WorkerStatus.STOPPED.value
-    return ('', 204)
-
-
-@app.route('/worker/status/delete', methods=['POST'])
-def delete_worker():
-    """
-    Returns the current workers list
-    """
-    worker_ip = flask.request.remote_addr
-    del workers[worker_ip]
-    return ('', 204)
-
-
-@app.route('/worker/status/done/<job_key>/<chunksize>', methods=['POST'])
-def idle_worker(job_key, chunksize):
-    """
-    Returns the current workers list
-    """
-    worker_ip = flask.request.remote_addr
-    workers[worker_ip].status = WorkerStatus.IDLE.value
-
-    jobs_list[job_key]['done_tasks'] += int(chunksize)
-    if jobs_list[job_key]['done_tasks'] == jobs_list[job_key]['total_tasks']:
-        Path(os.path.join(JOBS_DIR, job_key + '.done')).touch()
-        jobs_list[job_key]['status'] = JobStatus.DONE.value
-
-    return ('', 204)
-
-
-@app.route('/worker/list', methods=['GET'])
-def list_workers():
-    """
-    Returns the current workers list
-    """
-    global budget_keeper
-
-    budget_keeper.last_usage_time = time.time()
-
-    result = [['Worker Name', 'Instance Type', 'Processes', 'Runtime', 'Execution Mode', 'Status']]
-
-    for worker_key in workers:
-        worker = workers[worker_key]
-        status = worker.status
-        instance_type = worker.instance_type
-        worker_processes = str(worker.config['worker_processes'])
-        exec_mode = worker.metadata['exec_mode']
-        runtime = worker.metadata['runtime']
-        result.append((worker.name, instance_type, worker_processes, runtime, exec_mode, status))
-
-    logger.debug(f'Listing workers: {result}')
-    return flask.jsonify(result)
-
-
-@app.route('/worker/<worker_instance_type>/<runtime_name>', methods=['GET'])
-def get_workers(worker_instance_type, runtime_name):
-    """
-    Returns the number of free workers
-    """
-    global budget_keeper
-
-    budget_keeper.last_usage_time = time.time()
-
-    logger.debug(f'Total workers: {len(workers)}')
-
-    active_workers = []
-    for worker in workers.values():
-        if worker.instance_type == worker_instance_type \
-           and worker.metadata['runtime'] == runtime_name:
-            active_workers.append(worker)
-    logger.debug(f'Workers for {worker_instance_type}-{runtime_name}: {len(active_workers)}')
-
-    free_workers = []
-
-    def check_worker(worker):
-        if is_worker_free(worker):
-            free_workers.append(
-                (
-                    worker.name,
-                    worker.private_ip,
-                    worker.instance_id,
-                    worker.ssh_credentials,
-                    worker.instance_type,
-                    runtime_name
-                )
-            )
-
-    if active_workers:
-        with ThreadPoolExecutor(len(active_workers)) as ex:
-            ex.map(check_worker, active_workers)
-
-    logger.debug(f'Free workers for {worker_instance_type}-{runtime_name}: {len(free_workers)}')
-
-    response = flask.jsonify(free_workers)
-    response.status_code = 200
-
-    return response
-
-
-@app.route('/get-task/<work_queue_name>', methods=['GET'])
-def get_task(work_queue_name):
-    """
-    Returns a task from the work queue
-    """
-    global work_queues
-
-    worker_ip = flask.request.remote_addr
-
-    try:
-        task_payload = work_queues.setdefault(work_queue_name, queue.Queue()).get(False)
-        response = flask.jsonify(task_payload)
-        response.status_code = 200
-        job_key = task_payload['job_key']
-        calls = task_payload['call_ids']
-        workers[worker_ip].status = WorkerStatus.BUSSY.value
-        jobs_list[job_key]['status'] = JobStatus.RUNNING.value
-        logger.debug(f'Worker {worker_ip} retrieved Job {job_key} - Calls {calls}')
-    except queue.Empty:
-        response = ('', 204)
-
-    return response
-
+# /---------------------------------------------------------------------------/
+# Jobs
+# /---------------------------------------------------------------------------/
 
 def stop_job_process(job_key_list):
     """
-    Stops a job process
+    Cleans the work queues and sends the SIGTERM to the workers
     """
-    global localhos_handler
-    global work_queues
-
     for job_key in job_key_list:
         logger.debug(f'Received SIGTERM: Stopping job process {job_key}')
 
-        work_queue_name = jobs_list[job_key]['queue_name']
+        queue_name = redis_client.hget(f'job:{job_key}', 'queue_name')
 
-        if work_queue_name == 'localhost':
-            if job_key == running_job_key:
-                # kill current running job process
-                localhos_handler.clear()
-                Path(os.path.join(JOBS_DIR, job_key + '.done')).touch()
-            else:
-                # Delete job_payload from pending queue
-                work_queue = work_queues.setdefault(work_queue_name, queue.Queue())
-                tmp_queue = []
-                while not work_queue.empty():
-                    try:
-                        job_payload = work_queue.get(False)
-                        if job_payload['job_key'] != job_key:
-                            tmp_queue.append(job_payload)
-                    except Exception:
-                        pass
-                for job_payload in tmp_queue:
-                    work_queue.put(job_payload)
+        tmp_queue = []
+        while redis_client.llen(queue_name) > 0:
+            task_payload_json = redis_client.rpop(queue_name)
+            task_payload = json.loads(task_payload_json)
+            if task_payload['job_key'] != job_key:
+                tmp_queue.append(task_payload_json)
 
-        else:
-            work_queue = work_queues.setdefault(work_queue_name, queue.Queue())
-            while not work_queue.empty():
-                try:
-                    work_queue.get(False)
-                except Exception:
-                    pass
+        for task_payload_json in tmp_queue:
+            redis_client.lpush(queue_name, task_payload_json)
 
-            def stop_task(worker):
-                url = f"http://{worker.private_ip}:{SA_SERVICE_PORT}/stop/{job_key}"
-                requests.post(url, timeout=0.5)
+        def stop_task(worker):
+            worker_data = redis_client.hgetall(worker)
+            url = f"http://{worker_data['private_ip']}:{SA_WORKER_SERVICE_PORT}/stop/{job_key}"
+            requests.post(url, timeout=0.5)
 
-            # Send stop signal to all workers
-            with ThreadPoolExecutor(len(workers)) as ex:
-                ex.map(stop_task, workers.values())
+        # Send stop signal to all workers
+        workers = redis_client.keys('worker:*')
+        with ThreadPoolExecutor(len(workers)) as ex:
+            ex.map(stop_task, workers)
 
 
-@app.route('/stop', methods=['POST'])
+@app.route('/job/stop', methods=['POST'])
 def stop():
     """
     Stops received job processes
@@ -474,27 +375,56 @@ def list_jobs():
     """
     Returns the current workers state
     """
-    global budget_keeper
+    logger.debug('Listing jobs')
 
     budget_keeper.last_usage_time = time.time()
 
     result = [['Job ID', 'Function Name', 'Submitted', 'Worker Type', 'Runtime', 'Tasks Done', 'Job Status']]
 
-    for job_key in jobs_list:
-        job_data = jobs_list[job_key]
+    for job_job_key in redis_client.keys('job:*'):
+        job_data = redis_client.hgetall(job_job_key)
+        job_key = job_data['job_key']
         exec_mode = job_data['exec_mode']
         status = job_data['status']
         func_name = job_data['func_name'] + "()"
-        timestamp = job_data['submitted']
+        timestamp = float(job_data['submitted'])
         runtime = job_data['runtime_name']
         worker_type = job_data['worker_type'] if exec_mode != StandaloneMode.CONSUME.value else 'VM'
         submitted = datetime.utcfromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S UTC')
         total_tasks = str(job_data['total_tasks'])
-        done_tasks = str(job_data['done_tasks'])
-        result.append((job_key, func_name, submitted, worker_type, runtime, f'{done_tasks}/{total_tasks}', status))
+        done_tasks = str(redis_client.llen(f'tasksdone:{job_key}'))
+        job = (job_key, func_name, submitted, worker_type, runtime, f'{done_tasks}/{total_tasks}', status)
+        result.append(job)
 
-    logger.debug(f'Listing jobs: {result}')
+    logger.debug(f'jobs: {result}')
     return flask.jsonify(result)
+
+
+def handle_job(job_payload, queue_name):
+    """
+    Process responsible to put all the individual tasks in
+    a queue and wait until the job is completely finished
+    """
+    job_key = job_payload['job_key']
+
+    redis_client.hset(f"job:{job_key}", mapping={
+        'job_key': job_key,
+        'status': JobStatus.SUBMITTED.value,
+        'submitted': job_payload['host_submit_tstamp'],
+        'func_name': job_payload['func_name'],
+        'worker_type': job_payload.get('worker_instance_type', 'VM'),
+        'runtime_name': job_payload['runtime_name'],
+        'exec_mode': job_payload['config']['standalone']['exec_mode'],
+        'total_tasks': len(job_payload['call_ids']),
+        'queue_name': queue_name
+    })
+
+    for call_id in job_payload['call_ids']:
+        task_payload = copy.deepcopy(job_payload)
+        dbr = task_payload['data_byte_ranges']
+        task_payload['call_ids'] = [call_id]
+        task_payload['data_byte_ranges'] = [dbr[int(call_id)]]
+        redis_client.lpush(queue_name, json.dumps(task_payload))
 
 
 @app.route('/job/run', methods=['POST'])
@@ -502,11 +432,6 @@ def run():
     """
     Run a job locally, in consume mode
     """
-    global budget_keeper
-    global work_queues
-    global exec_mode
-    global localhost_manager_process
-
     job_payload = flask.request.get_json(force=True, silent=True)
     if job_payload and not isinstance(job_payload, dict):
         return error('The action did not receive a dictionary as an argument.')
@@ -523,40 +448,18 @@ def run():
     budget_keeper.add_job(job_key)
 
     exec_mode = job_payload['config']['standalone']['exec_mode']
+    exec_mode = StandaloneMode[exec_mode.upper()]
 
-    jobs_list[job_key] = {
-        'status': JobStatus.RECEIVED.value,
-        'submitted': job_payload['host_submit_tstamp'],
-        'func_name': job_payload['func_name'],
-        'worker_type': job_payload.get('worker_instance_type'),
-        'runtime_name': job_payload['runtime_name'],
-        'exec_mode': exec_mode,
-        'total_tasks': len(job_payload['call_ids']),
-        'done_tasks': 0,
-        'queue_name': None
-    }
-
-    if exec_mode == StandaloneMode.CONSUME.value:
-        # Consume mode runs jobs in this master VM
-        jobs_list[job_key]['queue_name'] = 'localhost'
-        work_queue = work_queues.setdefault('localhost', queue.Queue())
-        if not localhost_manager_process:
-            logger.debug('Starting manager process for localhost jobs')
-            lmp = Thread(target=run_job_local, args=(work_queue, ), daemon=True)
-            lmp.start()
-            localhost_manager_process = lmp
-        logger.debug(f'Putting job {job_key} into master queue')
-        work_queue.put(job_payload)
-
-    elif exec_mode in [StandaloneMode.CREATE.value, StandaloneMode.REUSE.value]:
-        # Create and reuse mode runs jobs on woker VMs
-        logger.debug(f'Starting process for job {job_key}')
+    if exec_mode == StandaloneMode.CONSUME:
+        queue_name = f'wq:localhost:{runtime_name.replace("/", "-")}'
+    elif exec_mode == StandaloneMode.CREATE:
+        queue_name = f'wq:{job_key}'
+    elif exec_mode == StandaloneMode.REUSE:
         worker_it = job_payload['worker_instance_type']
-        queue_name = f'{worker_it}-{runtime_name.replace("/", "-")}' if exec_mode == StandaloneMode.REUSE.value else job_key
-        work_queue = work_queues.setdefault(queue_name, queue.Queue())
-        jobs_list[job_key]['queue_name'] = queue_name
-        Thread(target=start_workers, args=(job_payload, queue_name)).start()
-        Thread(target=run_job_worker, args=(job_payload, work_queue), daemon=True).start()
+        queue_name = f'wq:{worker_it}-{runtime_name.replace("/", "-")}'
+
+    Thread(target=handle_job, args=(job_payload, queue_name)).start()
+    Thread(target=handle_workers, args=(job_payload, queue_name)).start()
 
     act_id = str(uuid.uuid4()).replace('-', '')[:12]
     response = flask.jsonify({'activationId': act_id})
@@ -565,10 +468,55 @@ def run():
     return response
 
 
+def job_monitor():
+    logger.info("Starting job monitoring thread")
+
+    jobs_data = {}
+
+    while True:
+        time.sleep(JOB_MONITOR_CHECK_INTERVAL)
+        for job_job_key in redis_client.keys('job:*'):
+            job_key = job_job_key.replace("job:", "")
+            if job_key not in jobs_data:
+                budget_keeper.add_job(job_key)
+                job_data = redis_client.hgetall(job_job_key)
+                jobs_data[job_key] = {'total': int(job_data['total_tasks']), 'done': 0}
+            if jobs_data[job_key]['total'] == jobs_data[job_key]['done']:
+                continue
+            done_tasks = int(redis_client.llen(f"tasksdone:{job_key}"))
+            if jobs_data[job_key]['done'] != done_tasks:
+                total_tasks = jobs_data[job_key]['total']
+                jobs_data[job_key]['done'] = done_tasks
+                exec_id, job_id = job_key.rsplit('-', 1)
+                msg = f"ExecutorID: {exec_id} | JObID: {job_id} - Tasks done: {done_tasks}/{total_tasks}"
+                if jobs_data[job_key]['total'] == jobs_data[job_key]['done']:
+                    Path(os.path.join(JOBS_DIR, job_key + '.done')).touch()
+                    msg += " - Completed!"
+                logger.debug(msg)
+
+
+# /---------------------------------------------------------------------------/
+# Misc
+# /---------------------------------------------------------------------------/
+
+@app.route('/clean', methods=['POST'])
+def clean():
+    logger.debug("Clean command received. Cleaning all data from redis")
+    redis_client.flushall()
+
+    return ('', 204)
+
+
 @app.route('/ping', methods=['GET'])
 def ping():
     response = flask.jsonify({'response': lithops_version})
     response.status_code = 200
+    return response
+
+
+def error(msg):
+    response = flask.jsonify({'error': msg})
+    response.status_code = 404
     return response
 
 
@@ -588,8 +536,8 @@ def get_metadata():
     runtime_meta = localhos_handler.deploy_runtime(payload['runtime'])
 
     if 'lithops_version' in runtime_meta:
-        logger.debug("Runtime metdata extracted correctly: Lithops "
-                     f"{runtime_meta['lithops_version']}")
+        logger.debug(f"Runtime metdata extracted correctly from {payload['runtime']}"
+                     f" - Lithops {runtime_meta['lithops_version']}")
     response = flask.jsonify(runtime_meta)
     response.status_code = 200
 
@@ -597,6 +545,7 @@ def get_metadata():
 
 
 def main():
+    global redis_client
     global budget_keeper
     global master_ip
 
@@ -605,13 +554,18 @@ def main():
     with open(SA_CONFIG_FILE, 'r') as cf:
         standalone_config = json.load(cf)
 
-    with open(SA_DATA_FILE, 'r') as ad:
-        master_ip = json.load(ad)['private_ip']
+    with open(SA_MASTER_DATA_FILE, 'r') as ad:
+        master_data = json.load(ad)
+        master_ip = master_data['private_ip']
 
-    budget_keeper = BudgetKeeper(standalone_config)
+    budget_keeper = BudgetKeeper(standalone_config, master_data, stop_callback=clean)
     budget_keeper.start()
 
-    server = WSGIServer(('0.0.0.0', SA_SERVICE_PORT), app, log=app.logger)
+    redis_client = redis.Redis(decode_responses=True)
+
+    Thread(target=job_monitor, daemon=True).start()
+
+    server = WSGIServer(('0.0.0.0', SA_MASTER_SERVICE_PORT), app, log=app.logger)
     server.serve_forever()
 
 
