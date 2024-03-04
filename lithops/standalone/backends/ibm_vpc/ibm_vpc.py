@@ -527,9 +527,19 @@ class IBMVPCBackend:
                 raise Exception(f"The image with name '{image_name}' already exists with ID: '{image_id}'."
                                 " Use '--overwrite' or '-o' if you want ot overwrite it")
 
-        initial_vpc_data = self._load_vpc_data()
-
+        is_initialized = self.is_initialized()
         self.init()
+
+        try:
+            del self.config['image_id']
+        except Exception:
+            pass
+        try:
+            del self.vpc_data['image_id']
+        except Exception:
+            pass
+
+        self._request_image_id()
 
         fip, fip_id = self._get_or_create_floating_ip()
         self.config['floating_ip'] = fip
@@ -582,7 +592,7 @@ class IBMVPCBackend:
                     break
             time.sleep(30)
 
-        if not initial_vpc_data:
+        if not is_initialized:
             self.clean(all=True)
         else:
             build_vm.delete()

@@ -253,12 +253,13 @@ def run_worker():
         for future in redis_queue_consumer_futures:
             future.result()
 
+    # Set the worker as idle
+    if standalone_config['exec_mode'] == StandaloneMode.CONSUME.value:
+        notify_worker_idle(worker_data['name'])
+
     # run_worker will run forever in reuse mode. In create mode it will
     # run until there are no more tasks in the queue.
     logger.debug('Finished')
-
-    # Set the worker as stop
-    notify_worker_idle(worker_data['name'])
 
     try:
         # Try to stop the current worker VM once no more pending tasks to run

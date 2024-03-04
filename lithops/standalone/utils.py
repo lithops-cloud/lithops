@@ -209,7 +209,7 @@ def get_worker_setup_script(config, vm_data):
     Returns worker VM installation script
     this script is expected to be executed only from Master VM
     """
-    if config['runtime'] == 'python3' or config['runtime'].startswith('/'):
+    if config['runtime'].startswith(('python', '/')):
         cmd_start = f"/usr/bin/python3 {SA_INSTALL_DIR}/worker.py"
         cmd_stop = "id"
     else:

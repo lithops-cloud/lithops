@@ -609,8 +609,19 @@ class AWSEC2Backend:
                 raise Exception(f"The image with name '{image_name}' already exists with ID: '{image_id}'."
                                 " Use '--overwrite' or '-o' if you want ot overwrite it")
 
-        initial_vpc_data = self._load_ec2_data()
+        is_initialized = self.is_initialized()
         self.init()
+
+        try:
+            del self.config['target_ami']
+        except Exception:
+            pass
+        try:
+            del self.ec2_data['target_ami']
+        except Exception:
+            pass
+
+        self._request_image_id()
 
         build_vm = EC2Instance('building-image-' + image_name, self.config, self.ec2_client, public=True)
         build_vm.delete_on_dismantle = False
@@ -656,7 +667,7 @@ class AWSEC2Backend:
                     break
             time.sleep(20)
 
-        if not initial_vpc_data:
+        if not is_initialized:
             while not self.clean(all=True):
                 time.sleep(5)
         else:
