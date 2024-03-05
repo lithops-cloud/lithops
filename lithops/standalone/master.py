@@ -283,12 +283,10 @@ def setup_worker(standalone_handler, worker_info, work_queue_name):
         raise e
 
 
-def handle_workers(job_payload, work_queue_name):
+def handle_workers(job_payload, workers, work_queue_name):
     """
     Creates the workers (if any)
     """
-    workers = job_payload['worker_instances']
-
     if not workers:
         return
 
@@ -355,6 +353,8 @@ def stop_job_process(job_key_list):
         workers = redis_client.keys('worker:*')
         with ThreadPoolExecutor(len(workers)) as ex:
             ex.map(stop_task, workers)
+
+        Path(os.path.join(JOBS_DIR, job_key + '.done')).touch()
 
 
 @app.route('/job/stop', methods=['POST'])
@@ -458,8 +458,10 @@ def run():
         worker_it = job_payload['worker_instance_type']
         queue_name = f'wq:{worker_it}-{runtime_name.replace("/", "-")}'
 
+    workers = job_payload.pop('worker_instances')
+
     Thread(target=handle_job, args=(job_payload, queue_name)).start()
-    Thread(target=handle_workers, args=(job_payload, queue_name)).start()
+    Thread(target=handle_workers, args=(job_payload, workers, queue_name)).start()
 
     act_id = str(uuid.uuid4()).replace('-', '')[:12]
     response = flask.jsonify({'activationId': act_id})
@@ -490,7 +492,7 @@ def job_monitor():
                 exec_id, job_id = job_key.rsplit('-', 1)
                 msg = f"ExecutorID: {exec_id} | JObID: {job_id} - Tasks done: {done_tasks}/{total_tasks}"
                 if jobs_data[job_key]['total'] == jobs_data[job_key]['done']:
-                    Path(os.path.join(JOBS_DIR, job_key + '.done')).touch()
+                    Path(os.path.join(JOBS_DIR, f'{job_key}.done')).touch()
                     msg += " - Completed!"
                 logger.debug(msg)
 

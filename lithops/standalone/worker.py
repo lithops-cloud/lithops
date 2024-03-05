@@ -38,13 +38,15 @@ from lithops.constants import (
     SA_INSTALL_DIR,
     SA_WORKER_LOG_FILE,
     JOBS_DIR,
+    LOGS_DIR,
     SA_CONFIG_FILE,
     SA_WORKER_DATA_FILE,
-    JOBS_PREFIX,
     SA_WORKER_SERVICE_PORT
 )
 
 os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
+os.makedirs(JOBS_DIR, exist_ok=True)
+os.makedirs(LOGS_DIR, exist_ok=True)
 
 log_format = "%(asctime)s\t[%(levelname)s] %(name)s:%(lineno)s -- %(message)s"
 setup_lithops_logger(logging.DEBUG, filename=SA_WORKER_LOG_FILE, log_format=log_format)
@@ -76,7 +78,7 @@ def stop(job_key):
         if job_key_call_id.startswith(job_key):
             PID = job_processes[job_key_call_id].pid
             PGID = os.getpgid(PID)
-            logger.debug(f"Killing Job PID {PID}:{PGID}")
+            logger.debug(f"Killing Job {job_key} - PID {PID}")
             os.killpg(PGID, signal.SIGKILL)
             Path(os.path.join(JOBS_DIR, job_key_call_id + '.done')).touch()
             job_processes[job_key_call_id] = None
@@ -132,7 +134,7 @@ def notify_task_done(job_key, call_id):
         logger.error(e)
 
 
-def redis_queue_consumer(pid, work_queue_name, exec_mode, local_job_dir, backend):
+def redis_queue_consumer(pid, work_queue_name, exec_mode, backend):
     global worker_threads
 
     worker_threads[pid]['status'] = WorkerStatus.IDLE.value
@@ -165,9 +167,7 @@ def redis_queue_consumer(pid, work_queue_name, exec_mode, local_job_dir, backend
             if budget_keeper:
                 budget_keeper.add_job(job_key_call_id)
 
-            task_file = f'{job_key_call_id}-job.json'
-            os.makedirs(local_job_dir, exist_ok=True)
-            task_filename = os.path.join(local_job_dir, task_file)
+            task_filename = os.path.join(JOBS_DIR, f'{job_key_call_id}.task')
 
             with open(task_filename, 'w') as jl:
                 json.dump(task_payload, jl, default=str)
@@ -177,6 +177,11 @@ def redis_queue_consumer(pid, work_queue_name, exec_mode, local_job_dir, backend
             process = sp.Popen(cmd, stdout=log, stderr=log, start_new_session=True)
             job_processes[job_key_call_id] = process
             process.communicate()  # blocks until the process finishes
+
+            Path(os.path.join(JOBS_DIR, f'{job_key_call_id}.done')).touch()
+
+            if os.path.exists(task_filename):
+                os.remove(task_filename)
 
             notify_task_done(job_key, call_id)
             logger.debug(f'ExecutorID {executor_id} | JobID {job_id} - CallID {call_id} execution finished')
@@ -232,9 +237,6 @@ def run_worker():
     logger.info(f"Starting Worker - Instace type: {worker_data['instance_type']} - Runtime "
                 f"name: {standalone_config['runtime']} - Worker processes: {worker_processes}")
 
-    local_job_dir = os.path.join(LITHOPS_TEMP_DIR, JOBS_PREFIX)
-    os.makedirs(local_job_dir, exist_ok=True)
-
     # Create a ThreadPoolExecutor for cosnuming tasks
     redis_queue_consumer_futures = []
     with ThreadPoolExecutor(max_workers=worker_processes) as executor:
@@ -244,7 +246,6 @@ def run_worker():
                 redis_queue_consumer, i,
                 worker_data['work_queue_name'],
                 standalone_config['exec_mode'],
-                local_job_dir,
                 standalone_config['backend']
             )
             redis_queue_consumer_futures.append(future)

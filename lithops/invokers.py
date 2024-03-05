@@ -28,7 +28,7 @@ from lithops.future import ResponseFuture
 from lithops.config import extract_storage_config
 from lithops.version import __version__
 from lithops.utils import verify_runtime_name, version_str, is_lithops_worker, iterchunks
-from lithops.constants import LOGGER_LEVEL, LOGS_DIR, SERVERLESS
+from lithops.constants import LOGGER_LEVEL, LOGS_DIR, SERVERLESS, SA_INSTALL_DIR
 from lithops.util.metrics import PrometheusExporter
 
 logger = logging.getLogger(__name__)
@@ -135,26 +135,28 @@ class Invoker:
         """
         Creates the default pyload dictionary
         """
-        payload = {'config': self.config,
-                   'chunksize': job.chunksize,
-                   'log_level': self.log_level,
-                   'func_name': job.function_name,
-                   'func_key': job.func_key,
-                   'data_key': job.data_key,
-                   'extra_env': job.extra_env,
-                   'total_calls': job.total_calls,
-                   'execution_timeout': job.execution_timeout,
-                   'data_byte_ranges': job.data_byte_ranges,
-                   'executor_id': job.executor_id,
-                   'job_id': job.job_id,
-                   'job_key': job.job_key,
-                   'max_workers': self.max_workers,
-                   'call_ids': None,
-                   'host_submit_tstamp': time.time(),
-                   'lithops_version': __version__,
-                   'runtime_name': job.runtime_name,
-                   'runtime_memory': job.runtime_memory,
-                   'worker_processes': job.worker_processes}
+        payload = {
+            'config': self.config,
+            'chunksize': job.chunksize,
+            'log_level': self.log_level,
+            'func_name': job.function_name,
+            'func_key': job.func_key,
+            'data_key': job.data_key,
+            'extra_env': job.extra_env,
+            'total_calls': job.total_calls,
+            'execution_timeout': job.execution_timeout,
+            'data_byte_ranges': job.data_byte_ranges,
+            'executor_id': job.executor_id,
+            'job_id': job.job_id,
+            'job_key': job.job_key,
+            'max_workers': self.max_workers,
+            'call_ids': None,
+            'host_submit_tstamp': time.time(),
+            'lithops_version': __version__,
+            'runtime_name': job.runtime_name,
+            'runtime_memory': job.runtime_memory,
+            'worker_processes': job.worker_processes
+        }
 
         return payload
 
@@ -492,8 +494,8 @@ def extend_runtime(job, compute_handler, internal_storage):
         with open(ext_docker_file, 'w') as df:
             df.write('\n'.join([
                 f'FROM {base_docker_image}',
-                'ENV PYTHONPATH=/opt/lithops/modules:$PYTHONPATH',
-                'COPY . /opt/lithops'
+                f'ENV PYTHONPATH={SA_INSTALL_DIR}/modules:$PYTHONPATH',
+                f'COPY . {SA_INSTALL_DIR}'
             ]))
 
         # Build new extended runtime tagged by function hash

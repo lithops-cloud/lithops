@@ -19,39 +19,27 @@ import sys
 import json
 import logging
 import uuid
-from pathlib import Path
 
 from lithops.worker import function_handler
 from lithops.constants import (
-    LITHOPS_TEMP_DIR,
-    JOBS_DIR,
-    LOGS_DIR,
     RN_LOG_FILE,
     LOGGER_FORMAT
 )
 
 log_file_stream = open(RN_LOG_FILE, 'a')
-
-os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
-os.makedirs(JOBS_DIR, exist_ok=True)
-os.makedirs(LOGS_DIR, exist_ok=True)
-
 logging.basicConfig(stream=log_file_stream, level=logging.INFO, format=LOGGER_FORMAT)
 logger = logging.getLogger('lithops.standalone.runner')
 
 
-def run_job(backend, job_filename):
-    logger.info(f'Got {job_filename} job file')
+def run_job(backend, task_filename):
+    logger.info(f'Got {task_filename} job file')
 
-    with open(job_filename, 'rb') as jf:
-        job_payload = json.load(jf)
+    with open(task_filename, 'rb') as jf:
+        task_payload = json.load(jf)
 
-    executor_id = job_payload['executor_id']
-    job_id = job_payload['job_id']
-    job_key = job_payload['job_key']
-    call_id = job_payload['call_ids'][0]
-
-    job_payload['worker_processes'] = 1
+    executor_id = task_payload['executor_id']
+    job_id = task_payload['job_id']
+    call_id = task_payload['call_ids'][0]
 
     logger.info(f'ExecutorID {executor_id} | JobID {job_id} | CallID {call_id} - Starting execution')
 
@@ -59,13 +47,7 @@ def run_job(backend, job_filename):
     os.environ['__LITHOPS_ACTIVATION_ID'] = act_id
     os.environ['__LITHOPS_BACKEND'] = backend.replace("_", " ").upper()
 
-    function_handler(job_payload)
-
-    done = os.path.join(JOBS_DIR, f'{job_key}-{call_id}' + '.done')
-    Path(done).touch()
-
-    if os.path.exists(job_filename):
-        os.remove(job_filename)
+    function_handler(task_payload)
 
     logger.info(f'ExecutorID {executor_id} | JobID {job_id} | CallID {call_id} - Execution Finished')
 
@@ -75,6 +57,6 @@ if __name__ == "__main__":
     sys.stderr = log_file_stream
     logger.info('Starting Standalone job runner')
     backend = sys.argv[1]
-    job_filename = sys.argv[2]
-    run_job(backend, job_filename)
+    task_filename = sys.argv[2]
+    run_job(backend, task_filename)
     log_file_stream.close()

@@ -16,7 +16,7 @@ class SSHClient():
             fpath = os.path.expanduser(self.ssh_credentials['key_filename'])
             self.ssh_credentials['key_filename'] = fpath
             if not os.path.exists(fpath):
-                logger.debug(f"Private key file {fpath} doesn't exist. Trying with the default")
+                logger.debug(f"Private key file {fpath} doesn't exist. Trying with the default key")
                 self.ssh_credentials['key_filename'] = os.path.expanduser('~/.ssh/id_rsa')
 
     def close(self):
