@@ -226,6 +226,7 @@ def get_worker_setup_script(config, vm_data):
     script += f"""
     setup_host(){{
     unzip -o /tmp/lithops_standalone.zip -d {SA_INSTALL_DIR};
+    rm /tmp/lithops_standalone.zip;
     echo '{json.dumps(vm_data)}' > {SA_WORKER_DATA_FILE};
     echo '{json.dumps(config)}' > {SA_CONFIG_FILE};
     }}
