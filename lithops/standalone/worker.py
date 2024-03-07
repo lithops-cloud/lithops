@@ -70,6 +70,12 @@ def ping():
     return response
 
 
+@app.route('/ttd', methods=['GET'])
+def ttd():
+    ttd = budget_keeper.get_time_to_dismantle()
+    return str(ttd), 200
+
+
 @app.route('/stop/<job_key>', methods=['POST'])
 def stop(job_key):
     logger.debug(f'Received SIGTERM: Stopping job process {job_key}')

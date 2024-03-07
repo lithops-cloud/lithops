@@ -36,7 +36,7 @@ class JobStatus(Enum):
     PENDING = "pending"
     RUNNING = "running"
     DONE = 'done'
-    KILLED = 'killed'
+    CANCELED = 'canceled'
 
 
 class LithopsValidationError(Exception):
