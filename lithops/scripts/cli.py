@@ -698,6 +698,7 @@ def list_jobs(config, backend, region, debug):
     job_list = compute_handler.list_jobs()
 
     headers = job_list.pop(0)
+    key_index = headers.index("Submitted")
 
     try:
         import pytz
@@ -711,11 +712,11 @@ def list_jobs(config, backend, region, debug):
             return local_time.strftime('%Y-%m-%d %H:%M:%S %Z')
 
         for row in job_list:
-            row[2] = convert_utc_to_local(row[2])
+            row[key_index] = convert_utc_to_local(row[key_index])
     except ModuleNotFoundError:
         pass
 
-    sorted_data = sorted(job_list, key=lambda x: x[2])
+    sorted_data = sorted(job_list, key=lambda x: x[key_index])
 
     print()
     print(tabulate(sorted_data, headers=headers))
@@ -773,8 +774,28 @@ def list_workers(config, backend, region, debug):
     worker_list = compute_handler.list_workers()
 
     headers = worker_list.pop(0)
+    key_index = headers.index("Created")
+
+    try:
+        import pytz
+        from tzlocal import get_localzone
+        local_tz = get_localzone()
+
+        def convert_utc_to_local(utc_timestamp):
+            utc_time = datetime.strptime(utc_timestamp, '%Y-%m-%d %H:%M:%S %Z')
+            utc_time = utc_time.replace(tzinfo=pytz.utc)
+            local_time = utc_time.astimezone(local_tz)
+            return local_time.strftime('%Y-%m-%d %H:%M:%S %Z')
+
+        for row in worker_list:
+            row[key_index] = convert_utc_to_local(row[key_index])
+    except ModuleNotFoundError:
+        pass
+
+    sorted_data = sorted(worker_list, key=lambda x: x[key_index])
+
     print()
-    print(tabulate(worker_list, headers=headers))
+    print(tabulate(sorted_data, headers=headers))
     print(f'\nTotal workers: {len(worker_list)}')
 
 

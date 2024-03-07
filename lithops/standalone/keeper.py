@@ -45,6 +45,7 @@ class BudgetKeeper(threading.Thread):
 
         self.runing = False
         self.jobs = {}
+        self.time_to_dismantle = self.hard_dismantle_timeout
 
         self.standalone_handler = StandaloneHandler(self.standalone_config)
         self.instance = self.standalone_handler.backend.get_instance(**instance_data)
@@ -52,6 +53,9 @@ class BudgetKeeper(threading.Thread):
         logger.debug(f"Starting BudgetKeeper for {self.instance.name} ({self.instance.private_ip}), "
                      f"instance ID: {self.instance.instance_id}")
         logger.debug(f"Delete {self.instance.name} on dismantle: {self.instance.delete_on_dismantle}")
+
+    def get_time_to_dismantle(self):
+        return self.time_to_dismantle
 
     def add_job(self, job_key):
         self.last_usage_time = time.time()
@@ -91,14 +95,14 @@ class BudgetKeeper(threading.Thread):
 
                 time_since_last_usage = time.time() - self.last_usage_time
 
-                time_to_dismantle = int(self.soft_dismantle_timeout - time_since_last_usage)
+                self.time_to_dismantle = int(self.soft_dismantle_timeout - time_since_last_usage)
             else:
-                time_to_dismantle = int(self.hard_dismantle_timeout - time_since_last_usage)
+                self.time_to_dismantle = int(self.hard_dismantle_timeout - time_since_last_usage)
                 jobs_running = True
 
-            if time_to_dismantle > 0:
-                logger.debug(f"Time to dismantle: {time_to_dismantle} seconds")
-                check_interval = min(60, max(time_to_dismantle / 10, 1))
+            if self.time_to_dismantle > 0:
+                logger.debug(f"Time to dismantle: {self.time_to_dismantle} seconds")
+                check_interval = min(60, max(self.time_to_dismantle / 10, 1))
                 time.sleep(check_interval)
             else:
                 self.stop_instance()

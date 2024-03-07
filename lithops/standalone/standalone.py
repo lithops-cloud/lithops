@@ -19,6 +19,7 @@ import os
 import uuid
 import json
 import time
+import hashlib
 import logging
 import importlib
 import requests
@@ -234,8 +235,9 @@ class StandaloneHandler:
             futures = []
             with cf.ThreadPoolExecutor(min(workers_to_create, 48)) as ex:
                 for vm_n in range(workers_to_create):
-                    worker_id = "{:04d}".format(vm_n)
-                    name = f'lithops-worker-{executor_id}-{job_id}-{worker_id}'
+                    worker_id = f"{executor_id}-{job_id}-{vm_n}"
+                    worker_hash = hashlib.sha1(worker_id.encode("utf-8")).hexdigest()[:8]
+                    name = f'lithops-worker-{worker_hash}'
                     futures.append(ex.submit(self.backend.create_worker, name))
 
             for future in cf.as_completed(futures):

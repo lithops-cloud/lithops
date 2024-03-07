@@ -94,6 +94,19 @@ def is_worker_free(worker_private_ip):
         return False
 
 
+def get_worker_ttd(worker_private_ip):
+    """
+    Checks if the Lithops service is ready and free in the worker VM instance
+    """
+    url = f"http://{worker_private_ip}:{SA_WORKER_SERVICE_PORT}/ttd"
+    try:
+        r = requests.get(url, timeout=0.5)
+        logger.debug(f'Worker TTD from {worker_private_ip}: {r.text}')
+        return r.text
+    except Exception:
+        return "Unknown"
+
+
 @app.route('/worker/list', methods=['GET'])
 def list_workers():
     """
@@ -103,17 +116,25 @@ def list_workers():
 
     budget_keeper.last_usage_time = time.time()
 
-    result = [['Worker Name', 'Instance Type', 'Processes', 'Runtime', 'Execution Mode', 'Status']]
+    result = [['Worker Name', 'Created', 'Instance Type', 'Processes', 'Runtime', 'Execution Mode', 'Status', 'TTD']]
 
-    for worker in redis_client.keys('worker:*'):
+    def get_worker(worker):
         worker_data = redis_client.hgetall(worker)
         name = worker_data['name']
         status = worker_data['status']
+        private_ip = worker_data['private_ip']
+        ttd = get_worker_ttd(private_ip) + "s"
+        timestamp = float(worker_data['created'])
+        created = datetime.utcfromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S UTC')
         instance_type = worker_data['instance_type']
         worker_processes = str(worker_data['worker_processes'])
         exec_mode = worker_data['exec_mode']
         runtime = worker_data['runtime']
-        result.append((name, instance_type, worker_processes, runtime, exec_mode, status))
+        result.append((name, created, instance_type, worker_processes, runtime, exec_mode, status, ttd))
+
+    workers = redis_client.keys('worker:*')
+    with ThreadPoolExecutor(len(workers)) as ex:
+        ex.map(get_worker, workers)
 
     logger.debug(f"workers: {result}")
     return flask.jsonify(result)
@@ -197,6 +218,7 @@ def setup_worker(standalone_handler, worker_info, work_queue_name):
         'instance_id': worker.instance_id,
         'instance_type': instance_type,
         'worker_processes': worker_processes,
+        'created': str(time.time()),
         'ssh_credentials': json.dumps(worker.ssh_credentials),
         'err': "", **config,
     })
@@ -325,7 +347,7 @@ def handle_workers(job_payload, workers, work_queue_name):
 # Jobs
 # /---------------------------------------------------------------------------/
 
-def kill_job_process(job_key_list):
+def cancel_job_process(job_key_list):
     """
     Cleans the work queues and sends the SIGTERM to the workers
     """
@@ -355,7 +377,8 @@ def kill_job_process(job_key_list):
             ex.map(stop_task, workers)
 
         Path(os.path.join(JOBS_DIR, job_key + '.done')).touch()
-        redis_client.hset(f"job:{job_key}", 'status', JobStatus.KILLED.value)
+        if redis_client.hget(f"job:{job_key}", 'status') != JobStatus.DONE.value:
+            redis_client.hset(f"job:{job_key}", 'status', JobStatus.CANCELED.value)
 
 
 @app.route('/job/stop', methods=['POST'])
@@ -366,7 +389,7 @@ def stop():
     job_key_list = flask.request.get_json(force=True, silent=True)
     # Start a separate thread to do the task in background,
     # for not keeping the client waiting.
-    Thread(target=kill_job_process, args=(job_key_list, )).start()
+    Thread(target=cancel_job_process, args=(job_key_list, )).start()
 
     return ('', 204)
 
