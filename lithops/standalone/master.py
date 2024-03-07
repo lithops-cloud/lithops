@@ -325,7 +325,7 @@ def handle_workers(job_payload, workers, work_queue_name):
 # Jobs
 # /---------------------------------------------------------------------------/
 
-def stop_job_process(job_key_list):
+def kill_job_process(job_key_list):
     """
     Cleans the work queues and sends the SIGTERM to the workers
     """
@@ -355,6 +355,7 @@ def stop_job_process(job_key_list):
             ex.map(stop_task, workers)
 
         Path(os.path.join(JOBS_DIR, job_key + '.done')).touch()
+        redis_client.hset(f"job:{job_key}", 'status', JobStatus.KILLED.value)
 
 
 @app.route('/job/stop', methods=['POST'])
@@ -365,7 +366,7 @@ def stop():
     job_key_list = flask.request.get_json(force=True, silent=True)
     # Start a separate thread to do the task in background,
     # for not keeping the client waiting.
-    Thread(target=stop_job_process, args=(job_key_list, )).start()
+    Thread(target=kill_job_process, args=(job_key_list, )).start()
 
     return ('', 204)
 
@@ -402,8 +403,8 @@ def list_jobs():
 
 def handle_job(job_payload, queue_name):
     """
-    Process responsible to put all the individual tasks in
-    a queue and wait until the job is completely finished
+    Process responsible to put the job in redis and all the
+    individual tasks in a work queue
     """
     job_key = job_payload['job_key']
 
@@ -430,11 +431,11 @@ def handle_job(job_payload, queue_name):
 @app.route('/job/run', methods=['POST'])
 def run():
     """
-    Run a job locally, in consume mode
+    Entry point for running jobs
     """
     job_payload = flask.request.get_json(force=True, silent=True)
     if job_payload and not isinstance(job_payload, dict):
-        return error('The action did not receive a dictionary as an argument.')
+        return error('The action did not receive a dictionary as an argument')
 
     try:
         runtime_name = job_payload['runtime_name']
