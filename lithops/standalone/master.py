@@ -98,11 +98,15 @@ def get_worker_ttd(worker_private_ip):
     """
     Checks if the Lithops service is ready and free in the worker VM instance
     """
-    url = f"http://{worker_private_ip}:{SA_WORKER_SERVICE_PORT}/ttd"
     try:
-        r = requests.get(url, timeout=0.5)
+        if master_ip == worker_private_ip:
+            ttd = str(budget_keeper.get_time_to_dismantle())
+        else:
+            url = f"http://{worker_private_ip}:{SA_WORKER_SERVICE_PORT}/ttd"
+            r = requests.get(url, timeout=0.5)
+            ttd = r.text
         logger.debug(f'Worker TTD from {worker_private_ip}: {r.text}')
-        return r.text
+        return ttd
     except Exception:
         return "Unknown"
 
@@ -116,14 +120,15 @@ def list_workers():
 
     budget_keeper.last_usage_time = time.time()
 
-    result = [['Worker Name', 'Created', 'Instance Type', 'Processes', 'Runtime', 'Execution Mode', 'Status', 'TTD']]
+    result = [['Worker Name', 'Created', 'Instance Type', 'Processes', 'Runtime', 'Mode', 'Status', 'TTD']]
 
     def get_worker(worker):
         worker_data = redis_client.hgetall(worker)
         name = worker_data['name']
         status = worker_data['status']
         private_ip = worker_data['private_ip']
-        ttd = get_worker_ttd(private_ip) + "s"
+        ttd = get_worker_ttd(private_ip)
+        ttd = ttd if ttd in ["Unknown", "Disabled"] else ttd + "s"
         timestamp = float(worker_data['created'])
         created = datetime.utcfromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S UTC')
         instance_type = worker_data['instance_type']
@@ -133,8 +138,9 @@ def list_workers():
         result.append((name, created, instance_type, worker_processes, runtime, exec_mode, status, ttd))
 
     workers = redis_client.keys('worker:*')
-    with ThreadPoolExecutor(len(workers)) as ex:
-        ex.map(get_worker, workers)
+    if workers:
+        with ThreadPoolExecutor(len(workers)) as ex:
+            ex.map(get_worker, workers)
 
     logger.debug(f"workers: {result}")
     return flask.jsonify(result)
