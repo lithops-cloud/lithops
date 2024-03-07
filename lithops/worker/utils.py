@@ -25,7 +25,7 @@ from contextlib import contextmanager
 
 from lithops.version import __version__ as lithops_ver
 from lithops.utils import sizeof_fmt, is_unix_system, b64str_to_bytes
-from lithops.constants import MODULES_DIR, SA_INSTALL_DIR
+from lithops.constants import MODULES_DIR, SA_INSTALL_DIR, LITHOPS_TEMP_DIR
 
 try:
     import psutil
@@ -49,19 +49,20 @@ def get_function_and_modules(job, internal_storage):
     """
     logger.info("Getting function and modules")
     backend = job.config['lithops']['backend']
-    func_path = '/'.join([SA_INSTALL_DIR, job.func_key])
+    func_path = '/'.join([LITHOPS_TEMP_DIR, job.func_key])
 
     if job.config[backend].get('runtime_include_function'):
         logger.info("Runtime include function feature activated. Loading "
                     "function/mods from local runtime")
+        func_path = '/'.join([SA_INSTALL_DIR, job.func_key])
         with open(func_path, "rb") as f:
             func_obj = f.read()
     elif os.path.exists(func_path):
-        logger.info(f"Loading function/mods {func_path} from local cache")
+        logger.info(f"Loading {job.func_key} from local cache")
         with open(func_path, 'rb') as f:
             func_obj = f.read()
     else:
-        logger.info(f"Loading function/mods {func_path} from storage")
+        logger.info(f"Loading {job.func_key} from storage")
         func_obj = internal_storage.get_func(job.func_key)
         os.makedirs(os.path.dirname(func_path), exist_ok=True)
         with open(func_path, 'wb') as f:
