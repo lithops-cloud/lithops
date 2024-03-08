@@ -161,15 +161,21 @@ def get_workers():
         return error('The action did not receive a dictionary as an argument.')
 
     worker_instance_type = payload['worker_instance_type']
+    worker_processes = payload['worker_processes']
     runtime_name = payload['runtime_name']
 
     active_workers = []
+
     for worker in workers:
         worker_data = redis_client.hgetall(worker)
+        logger.debug(worker_data)
         if worker_data['instance_type'] == worker_instance_type \
-           and worker_data['runtime'] == runtime_name:
+           and worker_data['runtime'] == runtime_name \
+           and int(worker_data['worker_processes']) == int(worker_processes):
             active_workers.append(worker_data)
-    logger.debug(f'Workers for {worker_instance_type}-{runtime_name}: {len(active_workers)}')
+
+    worker_type = f'{worker_instance_type}-{worker_processes}-{runtime_name}'
+    logger.debug(f'Workers for {worker_type}: {len(active_workers)}')
 
     free_workers = []
 
@@ -190,7 +196,7 @@ def get_workers():
         with ThreadPoolExecutor(len(active_workers)) as ex:
             ex.map(check_worker, active_workers)
 
-    logger.debug(f'Free workers for {worker_instance_type}-{runtime_name}: {len(free_workers)}')
+    logger.debug(f'Free workers for {worker_type}: {len(free_workers)}')
 
     response = flask.jsonify(free_workers)
     response.status_code = 200
@@ -486,7 +492,8 @@ def run():
         queue_name = f'wq:{job_key}'
     elif exec_mode == StandaloneMode.REUSE:
         worker_it = job_payload['worker_instance_type']
-        queue_name = f'wq:{worker_it}-{runtime_name.replace("/", "-")}'
+        worker_wp = job_payload['worker_processes']
+        queue_name = f'wq:{worker_it}-{worker_wp}-{runtime_name.replace("/", "-")}'
 
     workers = job_payload.pop('worker_instances')
 
