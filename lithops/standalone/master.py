@@ -98,11 +98,15 @@ def get_worker_ttd(worker_private_ip):
     """
     Checks if the Lithops service is ready and free in the worker VM instance
     """
-    url = f"http://{worker_private_ip}:{SA_WORKER_SERVICE_PORT}/ttd"
     try:
-        r = requests.get(url, timeout=0.5)
+        if master_ip == worker_private_ip:
+            ttd = str(budget_keeper.get_time_to_dismantle())
+        else:
+            url = f"http://{worker_private_ip}:{SA_WORKER_SERVICE_PORT}/ttd"
+            r = requests.get(url, timeout=0.5)
+            ttd = r.text
         logger.debug(f'Worker TTD from {worker_private_ip}: {r.text}')
-        return r.text
+        return ttd
     except Exception:
         return "Unknown"
 
@@ -116,14 +120,15 @@ def list_workers():
 
     budget_keeper.last_usage_time = time.time()
 
-    result = [['Worker Name', 'Created', 'Instance Type', 'Processes', 'Runtime', 'Execution Mode', 'Status', 'TTD']]
+    result = [['Worker Name', 'Created', 'Instance Type', 'Processes', 'Runtime', 'Mode', 'Status', 'TTD']]
 
     def get_worker(worker):
         worker_data = redis_client.hgetall(worker)
         name = worker_data['name']
         status = worker_data['status']
         private_ip = worker_data['private_ip']
-        ttd = get_worker_ttd(private_ip) + "s"
+        ttd = get_worker_ttd(private_ip)
+        ttd = ttd if ttd in ["Unknown", "Disabled"] else ttd + "s"
         timestamp = float(worker_data['created'])
         created = datetime.utcfromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S UTC')
         instance_type = worker_data['instance_type']
@@ -133,8 +138,9 @@ def list_workers():
         result.append((name, created, instance_type, worker_processes, runtime, exec_mode, status, ttd))
 
     workers = redis_client.keys('worker:*')
-    with ThreadPoolExecutor(len(workers)) as ex:
-        ex.map(get_worker, workers)
+    if workers:
+        with ThreadPoolExecutor(len(workers)) as ex:
+            ex.map(get_worker, workers)
 
     logger.debug(f"workers: {result}")
     return flask.jsonify(result)
@@ -155,15 +161,21 @@ def get_workers():
         return error('The action did not receive a dictionary as an argument.')
 
     worker_instance_type = payload['worker_instance_type']
+    worker_processes = payload['worker_processes']
     runtime_name = payload['runtime_name']
 
     active_workers = []
+
     for worker in workers:
         worker_data = redis_client.hgetall(worker)
+        logger.debug(worker_data)
         if worker_data['instance_type'] == worker_instance_type \
-           and worker_data['runtime'] == runtime_name:
+           and worker_data['runtime'] == runtime_name \
+           and int(worker_data['worker_processes']) == int(worker_processes):
             active_workers.append(worker_data)
-    logger.debug(f'Workers for {worker_instance_type}-{runtime_name}: {len(active_workers)}')
+
+    worker_type = f'{worker_instance_type}-{worker_processes}-{runtime_name}'
+    logger.debug(f'Workers for {worker_type}: {len(active_workers)}')
 
     free_workers = []
 
@@ -184,7 +196,7 @@ def get_workers():
         with ThreadPoolExecutor(len(active_workers)) as ex:
             ex.map(check_worker, active_workers)
 
-    logger.debug(f'Free workers for {worker_instance_type}-{runtime_name}: {len(free_workers)}')
+    logger.debug(f'Free workers for {worker_type}: {len(free_workers)}')
 
     response = flask.jsonify(free_workers)
     response.status_code = 200
@@ -480,7 +492,8 @@ def run():
         queue_name = f'wq:{job_key}'
     elif exec_mode == StandaloneMode.REUSE:
         worker_it = job_payload['worker_instance_type']
-        queue_name = f'wq:{worker_it}-{runtime_name.replace("/", "-")}'
+        worker_wp = job_payload['worker_processes']
+        queue_name = f'wq:{worker_it}-{worker_wp}-{runtime_name.replace("/", "-")}'
 
     workers = job_payload.pop('worker_instances')
 

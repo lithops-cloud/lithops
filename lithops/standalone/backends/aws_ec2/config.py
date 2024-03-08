@@ -71,9 +71,6 @@ def load_config(config_data):
     if "worker_processes" not in config_data['aws_ec2']:
         config_data['aws_ec2']['worker_processes'] = "AUTO"
 
-    if "chunksize" not in config_data['lithops']:
-        config_data['lithops']['chunksize'] = 0
-
     for param in params_to_check:
         if param not in config_data['aws_ec2']:
             msg = f"'{param}' is mandatory in the 'aws_ec2' section of the configuration"

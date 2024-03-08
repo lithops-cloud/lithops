@@ -59,6 +59,7 @@ budget_keeper = None
 
 job_processes = {}
 worker_threads = {}
+canceled = []
 
 
 @app.route('/ping', methods=['GET'])
@@ -72,13 +73,17 @@ def ping():
 
 @app.route('/ttd', methods=['GET'])
 def ttd():
-    ttd = budget_keeper.get_time_to_dismantle()
+    if budget_keeper:
+        ttd = budget_keeper.get_time_to_dismantle()
+    else:
+        ttd = "Disabled"
     return str(ttd), 200
 
 
 @app.route('/stop/<job_key>', methods=['POST'])
 def stop(job_key):
     logger.debug(f'Received SIGTERM: Stopping job process {job_key}')
+    canceled.append(job_key)
 
     for job_key_call_id in job_processes:
         if job_key_call_id.startswith(job_key):
@@ -183,16 +188,20 @@ def redis_queue_consumer(pid, work_queue_name, exec_mode, backend):
             process = sp.Popen(cmd, stdout=log, stderr=log, start_new_session=True)
             job_processes[job_key_call_id] = process
             process.communicate()  # blocks until the process finishes
-
-            Path(os.path.join(JOBS_DIR, f'{job_key_call_id}.done')).touch()
+            del job_processes[job_key_call_id]
 
             if os.path.exists(task_filename):
                 os.remove(task_filename)
 
-            notify_task_done(job_key, call_id)
-            logger.debug(f'ExecutorID {executor_id} | JobID {job_id} - CallID {call_id} execution finished')
-            del job_processes[job_key_call_id]
+            Path(os.path.join(JOBS_DIR, f'{job_key_call_id}.done')).touch()
 
+            msg = f'ExecutorID {executor_id} | JobID {job_id} - '
+            if job_key in canceled:
+                msg += f'CallID {call_id} execution canceled'
+            else:
+                notify_task_done(job_key, call_id)
+                msg += f'CallID {call_id} execution finished'
+            logger.debug(msg)
         except Exception as e:
             logger.error(e)
 

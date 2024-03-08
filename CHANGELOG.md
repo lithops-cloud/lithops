@@ -1,6 +1,6 @@
 # Changelog
 
-## [v3.1.3.dev0]
+## [v3.1.3.dev1]
 
 ### Added
 - 
@@ -10,6 +10,7 @@
 - [Standalone] Use redis to store the work queues
 - [Standalone] Improved resiliency and worker granularity
 - [CLI] Show the timestamp in the local timezone format on "lithops job list"
+- [CLI] Show worker creation timestamp and time-to-dismantle on "lithops worker list"
 
 ### Fixed
 - [SSH Cli] Fixed minor error with the "err" variable

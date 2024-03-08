@@ -73,6 +73,3 @@ def load_config(config_data):
 
     if "worker_processes" not in config_data['azure_vms']:
         config_data['azure_vms']['worker_processes'] = "AUTO"
-
-    if "chunksize" not in config_data['lithops']:
-        config_data['lithops']['chunksize'] = 0

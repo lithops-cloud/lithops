@@ -29,7 +29,4 @@ def load_config(config_data):
     if "worker_processes" not in config_data['vm']:
         config_data['vm']['worker_processes'] = "AUTO"
 
-    if "chunksize" not in config_data['lithops']:
-        config_data['lithops']['chunksize'] = 0
-
     config_data['standalone']['auto_dismantle'] = False

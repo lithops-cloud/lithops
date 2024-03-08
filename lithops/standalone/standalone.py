@@ -187,13 +187,17 @@ class StandaloneHandler:
         self.dismantle()
         raise Exception(f'Lithops service readiness probe expired on {self.backend.master}')
 
-    def _get_workers_on_master(self, worker_instance_type, runtime_name):
+    def _get_workers_on_master(self, worker_instance_type, worker_processes, runtime_name):
         """
         gets the total available workers on the master VM
         """
         workers_on_master = []
         try:
-            payload = {'worker_instance_type': worker_instance_type, 'runtime_name': runtime_name}
+            payload = {
+                'worker_instance_type': worker_instance_type,
+                'worker_processes': worker_processes,
+                'runtime_name': runtime_name
+            }
             workers_on_master = self._make_request('GET', 'worker/get', payload)
         except Exception:
             pass
@@ -217,18 +221,12 @@ class StandaloneHandler:
                 job_payload['worker_processes'] = worker_processes
                 job_payload['config'][self.backend_name]['worker_processes'] = worker_processes
 
-            if job_payload['chunksize'] == 0:
-                job_payload['chunksize'] = job_payload['worker_processes']
-                job_payload['config']['lithops']['chunksize'] = job_payload['worker_processes']
-
-            # Make sure only max_workers are started
-            chunksize = job_payload['chunksize']
+            wp = job_payload['worker_processes']
             max_workers = job_payload['max_workers']
-            required_workers = min(max_workers, total_calls // chunksize + (total_calls % chunksize > 0))
+            required_workers = min(max_workers, total_calls // wp + (total_calls % wp > 0))
 
-            logger.debug('ExecutorID {} | JobID {} - Worker processes: {} - Chunksize: {} - Required Workers: {}'
-                         .format(executor_id, job_id, job_payload['worker_processes'],
-                                 job_payload['chunksize'], required_workers))
+            logger.debug('ExecutorID {} | JobID {} - Worker processes: {} - Required Workers: {}'
+                         .format(executor_id, job_id, job_payload['worker_processes'], required_workers))
 
         def create_workers(workers_to_create):
             current_workers_old = set(self.backend.workers)
@@ -265,7 +263,8 @@ class StandaloneHandler:
         elif self.exec_mode == StandaloneMode.REUSE:
             workers = self._get_workers_on_master(
                 job_payload['worker_instance_type'],
-                job_payload['runtime_name']
+                job_payload['worker_processes'],
+                job_payload['runtime_name'],
             )
             total_workers = len(workers)
             logger.debug(f"Found {total_workers} free workers connected to {self.backend.master}")

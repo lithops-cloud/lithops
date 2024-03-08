@@ -196,6 +196,7 @@ def default_config(config_file=None, config_data=None, config_overwrite={}, load
         logger.debug(f"Loading Standalone backend module: {backend}")
         sb_config = importlib.import_module(f'lithops.standalone.backends.{backend}.config')
         sb_config.load_config(config_data)
+        config_data['lithops']['chunksize'] = 0
 
     if 'monitoring' not in config_data['lithops']:
         config_data['lithops']['monitoring'] = c.MONITORING_DEFAULT
