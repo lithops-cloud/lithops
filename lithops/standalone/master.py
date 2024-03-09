@@ -168,7 +168,6 @@ def get_workers():
 
     for worker in workers:
         worker_data = redis_client.hgetall(worker)
-        logger.debug(worker_data)
         if worker_data['instance_type'] == worker_instance_type \
            and worker_data['runtime'] == runtime_name \
            and int(worker_data['worker_processes']) == int(worker_processes):

@@ -37,7 +37,8 @@ AVAILABLE_PY_RUNTIMES = {
     '3.8': 'python38',
     '3.9': 'python39',
     '3.10': 'python310',
-    '3.11': 'python311'
+    '3.11': 'python311',
+    '3.12': 'python312'
 }
 
 USER_RUNTIMES_PREFIX = 'lithops.user_runtimes'
