@@ -3,7 +3,7 @@
 ## [v3.1.3.dev1]
 
 ### Added
-- 
+- [Lithops] Addded support for Python 3.12
 
 ### Changed
 - [Standalone] Use redis in the master VM to store all the relevant data about jobs and workers
