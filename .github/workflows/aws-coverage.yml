@@ -1,0 +1,54 @@
+# This workflow will run an aws backend test.
+name: AWS coverage
+on:
+  push:
+    branches: [ "add-code-coverage" ]
+    paths:
+      - 'lithops/serverless/**'
+      #- '.github/workflows/aws-coverage.yml'
+  pull_request:
+    branches: [ "add-code-coverage" ]
+    paths:
+      - 'lithops/serverless/**'
+      #- '.github/workflows/aws-coverage.yml'
+jobs:
+  build_aws:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10"]
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v3
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install pytest
+        python -m pip install pytest-cov
+    - name: Install lithops
+      run: |
+        pip install .
+    - name: Test aws with pytest
+      run: |
+        echo "lithops:" > .lithops_config
+        echo "  backend: aws_lambda" >> .lithops_config
+        echo "  storage: aws_s3" >> .lithops_config
+        echo "aws:" >> .lithops_config
+        echo "  region: us-east-1" >> .lithops_config
+        echo "  access_key_id: ${{ secrets.AWS_KEY_ID }}" >> .lithops_config
+        echo "  secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> .lithops_config
+        echo "aws_lambda:" >> .lithops_config
+        echo "  execution_role: ${{ secrets.AWS_ROLE }}" >> .lithops_config
+        coverage run --omit=./lithops/standalone/*,./lithops/util/*,./lithops/libs/*,./lithops/localhost/*,./lithops/utils.py,./lithops/tests/util_func/*,./lithops/scripts/**,./lithops/tests/test_template.py,./lithops/tests/tests_main.py -m pytest ./lithops/tests/github_coverage.py -k aws
+        coverage xml
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4.0.1
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        verbose: true
+        slug: acanadil/lithops
+        flags: aws
