@@ -1,0 +1,14 @@
+coverage:
+  precision: 0
+  range: 50..75
+  round: up
+
+flags:
+  localhost:
+    carryforward: true
+  
+  aws:
+    carryforward: true
+
+  k8s:
+    carryforward: true
