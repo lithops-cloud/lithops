@@ -5,12 +5,12 @@ on:
     branches: [ "add-code-coverage" ]
     paths:
       - 'lithops/serverless/**'
-      #- '.github/workflows/aws-coverage.yml'
+      - '.github/workflows/aws-coverage.yml'
   pull_request:
     branches: [ "add-code-coverage" ]
     paths:
       - 'lithops/serverless/**'
-      #- '.github/workflows/aws-coverage.yml'
+      - '.github/workflows/aws-coverage.yml'
 jobs:
   build_aws:
     runs-on: ubuntu-latest

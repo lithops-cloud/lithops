@@ -5,12 +5,12 @@ on:
     branches: [ "add-code-coverage" ]
     paths:
       - 'lithops/serverless/**'
-      #- '.github/workflows/k8s-coverage.yml'
+      - '.github/workflows/k8s-coverage.yml'
   pull_request:
     branches: [ "add-code-coverage" ]
     paths:
       - 'lithops/serverless/**'
-      #- '.github/workflows/k8s-coverage.yml'
+      - '.github/workflows/k8s-coverage.yml'
 jobs:
   build_k8s:
     runs-on: ubuntu-latest
