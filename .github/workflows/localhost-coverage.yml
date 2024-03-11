@@ -3,8 +3,12 @@ name: Localhost Coverage
 on:
   push:
     branches: [ "add-code-coverage" ]
+    paths:
+      - 'lithops/**'
   pull_request:
     branches: [ "add-code-coverage" ]
+    paths:
+      - 'lithops/**'
 jobs:
   build:
     runs-on: ubuntu-latest
