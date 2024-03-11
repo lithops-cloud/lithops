@@ -66,7 +66,7 @@ jobs:
         status="in_progress"
         check="completed"
         while [ "$check" != "$status" ]; do
-          response=$(curl -H "Accept: application/vnd.github.v3+json" "https://api.github.com/repos/acanadil/lithops/actions/runs?&head_sha=$GITHUB_SHA")
+          response=$(curl -H "Accept: application/vnd.github.v3+json" "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/runs?&head_sha=$GITHUB_SHA")
           status=$(echo "$response" | jq -r '.workflow_runs[] | select(.path == ".github/workflows/aws-coverage.yml") | .status')
           if [ "$status" == "" ]; then
             status="completed"
