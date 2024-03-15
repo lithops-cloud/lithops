@@ -559,8 +559,8 @@ class KubernetesBackend:
             self.jobs.append(job_key)
 
             # Send packages of tasks to the queue
-            granularity = max(1, job_payload['total_calls'] // len(self.nodes) \
-                if self.k8s_config['worker_processes'] <= 1 else self.k8s_config['worker_processes'])
+            granularity = max(1, job_payload['total_calls'] // len(self.nodes)
+                            if self.k8s_config['worker_processes'] <= 1 else self.k8s_config['worker_processes'])
 
             times, res = divmod(job_payload['total_calls'], granularity)
 
