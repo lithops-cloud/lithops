@@ -454,12 +454,14 @@ def handle_job(job_payload, queue_name):
         'queue_name': queue_name
     })
 
+    dbr = job_payload['data_byte_ranges']
     for call_id in job_payload['call_ids']:
         task_payload = copy.deepcopy(job_payload)
-        dbr = task_payload['data_byte_ranges']
         task_payload['call_ids'] = [call_id]
         task_payload['data_byte_ranges'] = [dbr[int(call_id)]]
         redis_client.lpush(queue_name, json.dumps(task_payload))
+
+    logger.debug(f"Job {job_key} correctly submitted to work queue '{queue_name}'")
 
 
 @app.route('/job/run', methods=['POST'])

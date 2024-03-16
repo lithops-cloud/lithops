@@ -107,7 +107,7 @@ def get_function_data(job, internal_storage):
         if job.data_byte_ranges is not None:
             init_byte = job.data_byte_ranges[0][0]
             last_byte = job.data_byte_ranges[-1][1]
-            range_str = 'bytes={}-{}'.format(init_byte, last_byte)
+            range_str = f'bytes={init_byte}-{last_byte}'
             extra_get_args['Range'] = range_str
 
         logger.info("Loading function data parameters from storage")
