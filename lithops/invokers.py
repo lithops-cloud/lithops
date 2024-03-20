@@ -28,7 +28,7 @@ from lithops.future import ResponseFuture
 from lithops.config import extract_storage_config
 from lithops.version import __version__
 from lithops.utils import verify_runtime_name, version_str, is_lithops_worker, iterchunks
-from lithops.constants import LOGGER_LEVEL, LOGS_DIR, SERVERLESS, SA_INSTALL_DIR
+from lithops.constants import LOGGER_LEVEL, LOGS_DIR, SERVERLESS, SA_INSTALL_DIR, STANDALONE_BACKENDS
 from lithops.util.metrics import PrometheusExporter
 
 logger = logging.getLogger(__name__)
@@ -171,13 +171,10 @@ class Invoker:
             extend_runtime(job, self.compute_handler, self.internal_storage)
             self.runtime_name = job.runtime_name
 
-        logger.info('ExecutorID {} | JobID {} - Starting function '
-                    'invocation: {}() - Total: {} activations'
-                    .format(job.executor_id, job.job_id,
-                            job.function_name, job.total_calls))
-
-        logger.debug('ExecutorID {} | JobID {} - Worker processes: {} - Chunksize: {}'
-                     .format(job.executor_id, job.job_id, job.worker_processes, job.chunksize or "AUTO"))
+        logger.info(
+            f'ExecutorID {job.executor_id} | JobID {job.job_id} - Starting function '
+            f'invocation: {job.function_name}() - Total: {job.total_calls} activations'
+        )
 
         self.prometheus.send_metric(
             name='job_total_calls',
@@ -199,6 +196,12 @@ class Invoker:
             )
         )
 
+        if self.backend not in STANDALONE_BACKENDS:
+            logger.debug(
+                f'ExecutorID {job.executor_id} | JobID {job.job_id} - Worker processes: '
+                f'{job.worker_processes} - Chunksize: {job.chunksize}'
+            )
+
         try:
             job.runtime_name = self.runtime_name
             self._invoke_job(job)
@@ -207,8 +210,9 @@ class Invoker:
             raise e
 
         log_file = os.path.join(LOGS_DIR, job.job_key + '.log')
-        logger.info("ExecutorID {} | JobID {} - View execution logs at {}"
-                    .format(job.executor_id, job.job_id, log_file))
+        logger.info(
+            f'ExecutorID {job.executor_id} | JobID {job.job_id} - View execution logs at {log_file}'
+        )
 
         # Create all futures
         futures = []
@@ -252,8 +256,10 @@ class BatchInvoker(Invoker):
         roundtrip = time.time() - start
         resp_time = format(round(roundtrip, 3), '.3f')
 
-        logger.debug('ExecutorID {} | JobID {} - Job invoked ({}s) - Activation ID: {}'
-                     .format(job.executor_id, job.job_id, resp_time, activation_id or job.job_key))
+        logger.debug(
+            f'ExecutorID {job.executor_id} | JobID {job.job_id} - Job invoked '
+            f'({resp_time}s) - Activation ID: {activation_id or job.job_key}'
+        )
 
     def run_job(self, job):
         """
@@ -286,7 +292,7 @@ class FaaSInvoker(Invoker):
         invoke_pool_threads = self.config[self.backend]['invoke_pool_threads']
         self.executor = ThreadPoolExecutor(invoke_pool_threads)
 
-        logger.debug('ExecutorID {} - Serverless invoker created'.format(self.executor_id))
+        logger.debug(f'ExecutorID {self.executor_id} - Serverless invoker created')
 
     def _start_async_invokers(self):
         """Starts the invoker process responsible to spawn pending calls
@@ -295,8 +301,7 @@ class FaaSInvoker(Invoker):
 
         def invoker_process(inv_id):
             """Run process that implements token bucket scheduling approach"""
-            logger.debug('ExecutorID {} - Async invoker {} started'
-                         .format(self.executor_id, inv_id))
+            logger.debug(f'ExecutorID {self.executor_id} - Async invoker {inv_id} started')
 
             with ThreadPoolExecutor(max_workers=250) as executor:
                 while self.should_run:
@@ -310,8 +315,7 @@ class FaaSInvoker(Invoker):
                     else:
                         break
 
-            logger.debug('ExecutorID {} - Async invoker {} finished'
-                         .format(self.executor_id, inv_id))
+            logger.debug(f'ExecutorID {self.executor_id} - Async invoker {inv_id} finished')
 
         for inv_id in range(self.ASYNC_INVOKERS):
             p = threading.Thread(target=invoker_process, args=(inv_id,))
@@ -324,8 +328,7 @@ class FaaSInvoker(Invoker):
         Stop async invokers
         """
         if self.invokers:
-            logger.debug('ExecutorID {} - Stopping async invokers'
-                         .format(self.executor_id))
+            logger.debug(f'ExecutorID {self.executor_id} - Stopping async invokers')
             self.should_run = False
 
             while not self.pending_calls_q.empty():
@@ -370,9 +373,10 @@ class FaaSInvoker(Invoker):
             self.job_monitor.token_bucket_q.put('#')
             return
 
-        logger.debug('ExecutorID {} | JobID {} - Calls {} invoked ({}s) - Activation'
-                     ' ID: {}'.format(job.executor_id, job.job_id, ', '.join(call_ids),
-                                      resp_time, activation_id))
+        logger.debug(
+            f'ExecutorID {job.executor_id} | JobID {job.job_id} - Calls {", ".join(call_ids)} '
+            f'invoked ({resp_time}s) - Activation ID: {activation_id}'
+        )
 
     def _invoke_job_remote(self, job):
         """
@@ -392,8 +396,10 @@ class FaaSInvoker(Invoker):
         resp_time = format(round(roundtrip, 3), '.3f')
 
         if activation_id:
-            logger.debug('ExecutorID {} | JobID {} - Remote invoker call done ({}s) - Activation'
-                         ' ID: {}'.format(job.executor_id, job.job_id, resp_time, activation_id))
+            logger.debug(
+                f'ExecutorID {job.executor_id} | JobID {job.job_id} - Remote invoker '
+                f'call done ({resp_time}s) - Activation ID: {activation_id}'
+            )
         else:
             raise Exception('Unable to spawn remote invoker')
 
@@ -424,10 +430,11 @@ class FaaSInvoker(Invoker):
             consumed_workers = ci // cz + (ci % cz > 0)
             self.running_workers += consumed_workers
 
-            logger.debug('ExecutorID {} | JobID {} - Free workers:'
-                         ' {} - Going to run {} activations in {} workers'
-                         .format(job.executor_id, job.job_id, free_workers,
-                                 len(callids_to_invoke_direct), consumed_workers))
+            logger.debug(
+                f'ExecutorID {job.executor_id} | JobID {job.job_id} - Free workers: '
+                f'{free_workers} - Going to run {len(callids_to_invoke_direct)} activations '
+                f'in {consumed_workers} workers'
+            )
 
             def _callback(future):
                 future.result()
@@ -443,17 +450,17 @@ class FaaSInvoker(Invoker):
 
             # Put into the queue the rest of the callids to invoke within the process
             if callids_to_invoke_nondirect:
-                logger.debug('ExecutorID {} | JobID {} - Putting remaining '
-                             '{} function activations into pending queue'
-                             .format(job.executor_id, job.job_id,
-                                     len(callids_to_invoke_nondirect)))
+                logger.debug(
+                    f'ExecutorID {job.executor_id} | JobID {job.job_id} - Putting remaining '
+                    f'{len(callids_to_invoke_nondirect)} function activations into pending queue'
+                )
                 for call_ids_range in iterchunks(callids_to_invoke_nondirect, job.chunksize):
                     self.pending_calls_q.put((job, call_ids_range))
         else:
-            logger.debug('ExecutorID {} | JobID {} - Reached maximum {} '
-                         'workers, queuing {} function activations'
-                         .format(job.executor_id, job.job_id,
-                                 self.max_workers, job.total_calls))
+            logger.debug(
+                f'ExecutorID {job.executor_id} | JobID {job.job_id} - Reached maximum {self.max_workers} '
+                f'workers, queuing {job.total_calls} function activations'
+            )
             for call_ids_range in iterchunks(range(job.total_calls), job.chunksize):
                 self.pending_calls_q.put((job, call_ids_range))
 
@@ -511,12 +518,15 @@ def extend_runtime(job, compute_handler, internal_storage):
 
     # Verify python version and lithops version
     if __version__ != runtime_meta['lithops_version']:
-        raise Exception("Lithops version mismatch. Host version: {} - Runtime version: {}"
-                        .format(__version__, runtime_meta['lithops_version']))
+        raise Exception(
+            f"Lithops version mismatch. Host version: {__version__} - "
+            f"Runtime version: {runtime_meta['lithops_version']}"
+        )
 
     py_local_version = version_str(sys.version_info)
     py_remote_version = runtime_meta['python_version']
     if py_local_version != py_remote_version:
-        raise Exception(("The indicated runtime '{}' is running Python {} and it "
-                         "is not compatible with the local Python version {}")
-                        .format(job.runtime_name, py_remote_version, py_local_version))
+        raise Exception(
+            f"The runtime '{job.runtime_name}' uses Python {py_remote_version}, "
+            f"which is incompatible with local Python {py_local_version}"
+        )

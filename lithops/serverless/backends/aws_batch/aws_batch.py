@@ -521,6 +521,11 @@ class AWSBatchBackend:
         return runtimes
 
     def invoke(self, runtime_name, runtime_memory, payload):
+        """
+        Invoke a job -- return information about this invocation
+        """
+        executor_id = payload['executor_id']
+        job_id = payload['job_id']
         total_calls = payload['total_calls']
         max_workers = payload['max_workers']
         chunksize = payload['chunksize']
@@ -531,6 +536,10 @@ class AWSBatchBackend:
             chunksize = total_calls // max_workers + (total_calls % max_workers > 0)
             total_workers = total_calls // chunksize + (total_calls % chunksize > 0)
             payload['chunksize'] = chunksize
+
+        logger.debug(
+            f'ExecutorID {executor_id} | JobID {job_id} - Required Workers: {total_workers}'
+        )
 
         job_name = '{}_{}'.format(self._format_jobdef_name(runtime_name, runtime_memory), payload['job_key'])
 

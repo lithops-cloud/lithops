@@ -211,7 +211,12 @@ class StandaloneHandler:
         job_id = job_payload['job_id']
         total_calls = job_payload['total_calls']
 
-        if self.exec_mode != StandaloneMode.CONSUME:
+        if self.exec_mode == StandaloneMode.CONSUME:
+            logger.debug(
+                f'ExecutorID {executor_id} | JobID {job_id} - Worker processes: '
+                f'{job_payload["worker_processes"]}'
+            )
+        else:
             worker_instance_type = self.backend.get_worker_instance_type()
             worker_processes = self.backend.get_worker_cpu_count()
 
@@ -225,8 +230,10 @@ class StandaloneHandler:
             max_workers = job_payload['max_workers']
             required_workers = min(max_workers, total_calls // wp + (total_calls % wp > 0))
 
-            logger.debug('ExecutorID {} | JobID {} - Worker processes: {} - Required Workers: {}'
-                         .format(executor_id, job_id, job_payload['worker_processes'], required_workers))
+            logger.debug(
+                f'ExecutorID {executor_id} | JobID {job_id} - Instance Type: {worker_instance_type} - Worker '
+                f'processes: {job_payload["worker_processes"]} - Required Workers: {required_workers}'
+            )
 
         def create_workers(workers_to_create):
             current_workers_old = set(self.backend.workers)
