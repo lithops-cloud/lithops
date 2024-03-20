@@ -117,7 +117,7 @@ class Monitor(threading.Thread):
                 start_tstamp = fut._call_status['worker_start_tstamp']
                 fut_timeout = start_tstamp + fut.execution_timeout + 5
                 if current_time > fut_timeout:
-                    msg = 'The function did not run as expected.'
+                    msg = f"The function exceeded the execution timeout of {fut.execution_timeout} seconds."
                     raise TimeoutError('HANDLER', msg)
             except TimeoutError:
                 # generate fake TimeoutError call status
@@ -128,7 +128,9 @@ class Monitor(threading.Thread):
                                'executor_id': fut.executor_id,
                                'job_id': fut.job_id,
                                'call_id': fut.call_id,
-                               'activation_id': fut.activation_id}
+                               'activation_id': fut.activation_id,
+                               'worker_start_tstamp': start_tstamp,
+                               'worker_end_tstamp': time.time()}
                 fut._set_ready(call_status)
 
     def _print_status_log(self, previous_log=None, log_time=None):

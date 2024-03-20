@@ -598,6 +598,10 @@ class KubernetesBackend:
             chunksize = job_payload['chunksize']
             total_workers = min(max_workers, total_calls // chunksize + (total_calls % chunksize > 0))
 
+            logger.debug(
+                f'ExecutorID {executor_id} | JobID {job_id} - Required Workers: {total_workers}'
+            )
+
             activation_id = f'lithops-{job_key.lower()}'
 
             job_res = yaml.safe_load(config.JOB_DEFAULT)
