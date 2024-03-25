@@ -4,6 +4,7 @@
 
 ### Added
 - [Lithops] Addded support for Python 3.12
+- [CLI] Added "--include" parameter in "lithops image build" to allow users upload local files to the VM image
 
 ### Changed
 - [Standalone] Use redis in the master VM to store all the relevant data about jobs and workers
@@ -15,7 +16,7 @@
 ### Fixed
 - [SSH Cli] Fixed minor error with the "err" variable
 - [Cli] Fixed job status on "lithops job list" for standalone backends
-- [Standalone] Fixed issue in the "lithops image build" command that appears when the vpc is already created
+- [Standalone] Fixed issue in the "lithops image build" that appears when the vpc is already created
 
 ## [v3.1.2]
 

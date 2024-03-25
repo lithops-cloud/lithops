@@ -597,7 +597,7 @@ class AWSEC2Backend:
 
         self._dump_ec2_data()
 
-    def build_image(self, image_name, script_file, overwrite, extra_args=[]):
+    def build_image(self, image_name, script_file, overwrite, include, extra_args=[]):
         """
         Builds a new VM Image
         """
@@ -640,18 +640,24 @@ class AWSEC2Backend:
         remote_script = "/tmp/install_lithops.sh"
         script = get_host_setup_script()
         build_vm.get_ssh_client().upload_data_to_file(script, remote_script)
-        logger.debug("Executing installation script. Be patient, this process can take up to 3 minutes")
+        logger.debug("Executing Lithops installation script. Be patient, this process can take up to 3 minutes")
         build_vm.get_ssh_client().run_remote_command(f"chmod 777 {remote_script}; sudo {remote_script}; rm {remote_script};")
-        logger.debug("Installation script finsihed")
+        logger.debug("Lithops installation script finsihed")
+
+        for src_dst_file in include:
+            src_file, dst_file = src_dst_file.split(':')
+            if os.path.isfile(src_file):
+                logger.debug(f"Uploading local file '{src_file}' to VM image in '{dst_file}'")
+                build_vm.get_ssh_client().upload_local_file(src_file, dst_file)
 
         if script_file:
             script = os.path.expanduser(script_file)
-            logger.debug(f"Uploading user script {script_file} to {build_vm}")
+            logger.debug(f"Uploading user script '{script_file}' to {build_vm}")
             remote_script = "/tmp/install_user_lithops.sh"
             build_vm.get_ssh_client().upload_local_file(script, remote_script)
-            logger.debug("Executing user script. Be patient, this process can take long")
+            logger.debug(f"Executing user script '{script_file}'")
             build_vm.get_ssh_client().run_remote_command(f"chmod 777 {remote_script}; sudo {remote_script}; rm {remote_script};")
-            logger.debug("User script finsihed")
+            logger.debug(f"User script '{script_file}' finsihed")
 
         build_vm_id = build_vm.get_instance_id()
 

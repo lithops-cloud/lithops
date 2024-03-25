@@ -2,7 +2,7 @@
 
 In AWS EC2, you can run functions by using a Virtual machine (VM). In the VM, functions run using parallel processes. In this case, it is not needed to install anything in the remote VMs since Lithops does this process automatically the first time you use them. However, use a custom VM it is a preferable approach, since using a pre-built custom image will greatly improve the overall execution time. To benefit from this approach, follow the following steps:
 
-## Option 1 (beta):
+## Option 1:
 
 **Note**: This is a beta feature. Please open an issue if you encounter any errors using this way of creating VM images in AWS EC2.
 
@@ -13,7 +13,7 @@ lithops image build -b aws_ec2
 ```
 
 This command will create an image called "lithops-ubuntu-jammy-22.04-amd64-server" in the target region.
-If the image already exists, and you want to updete it, use the '--overwrite' or '-o' flag:
+If the image already exists, and you want to updete it, use the `--overwrite` or `-o` parameter:
 
 ```
 lithops image build -b aws_ec2 --overwrite
@@ -27,7 +27,13 @@ For creating a custom VM image, you can provide an `.sh` script with all the des
 lithops image build -b aws_ec2 -f myscript.sh custom-lithops-runtime
 ```
 
-In this case, if you use a custom name, you must provide the `target_ami`, printed at the end of the build command, in your lithops config:
+If you want to upload local files to the custom VM Image, you can include them using the `--include` or `-i` parameter (src:dst), for example:
+
+```
+lithops image build -b aws_ec2 -f myscript.sh -i /home/user/test.bin:/home/ubuntu/test.bin custom-lithops-runtime
+```
+
+In the case of using using a custom name, you must provide the `target_ami`, printed at the end of the build command, in your lithops config:
 
 ```yaml
 aws_ec2:

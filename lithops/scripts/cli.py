@@ -819,8 +819,9 @@ def image(ctx):
 @click.option('--region', '-r', default=None, help='compute backend region')
 @click.option('--debug', '-d', is_flag=True, help='debug mode')
 @click.option('--overwrite', '-o', is_flag=True, help='overwrite the image if it already exists')
+@click.option('--include', '-i', multiple=True, help='include source:destination paths', type=str)
 @click.pass_context
-def build_image(ctx, name, file, config, backend, region, debug, overwrite):
+def build_image(ctx, name, file, config, backend, region, debug, overwrite, include):
     """ build a VM image """
     setup_lithops_logger(logging.DEBUG)
 
@@ -835,9 +836,14 @@ def build_image(ctx, name, file, config, backend, region, debug, overwrite):
         raise Exception('"lithops image build" command is only available for standalone backends. '
                         f'Please use "lithops image build -b {set(STANDALONE_BACKENDS)}"')
 
+    for src_dst_file in include:
+        src_file, dst_file = src_dst_file.split(':')
+        if not os.path.isfile(src_file):
+            raise FileNotFoundError(f"The file '{src_file}' does not exist")
+
     compute_config = extract_standalone_config(config)
     compute_handler = StandaloneHandler(compute_config)
-    compute_handler.build_image(name, file, overwrite, ctx.args)
+    compute_handler.build_image(name, file, overwrite, include, ctx.args)
 
     logger.info('VM Image built')
 
