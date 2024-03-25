@@ -2,7 +2,7 @@
 
 In IBM VPC, you can run functions by using a Virtual machine (VM). In the VM, functions run using parallel processes. In this case, it is not needed to install anything in the remote VMs since Lithops does this process automatically the first time you use them. However, use a custom VM it is a preferable approach, since using a pre-built custom image will greatly improve the overall execution time. To benefit from this approach, follow the following steps:
 
-## Option 1 (beta):
+## Option 1:
 
 **Note**: This is a beta feature. Please open an issue if you encounter any error using this way of creating VM images in IBM VPC.
 
@@ -13,7 +13,7 @@ lithops image build -b ibm_vpc
 ```
 
 This command will create an image called "lithops-ubuntu-22-04-3-minimal-amd64-1" in the target region.
-If the image already exists, and you want to updete it, use the '--overwrite' or '-o' flag:
+If the image already exists, and you want to updete it, use the `--overwrite` or `-o` parameter:
 
 ```
 lithops image build -b ibm_vpc --overwrite
@@ -27,7 +27,13 @@ For creating a custom VM image, you can provide an `.sh` script with all the des
 lithops image build -b ibm_vpc -f myscript.sh custom-lithops-runtime
 ```
 
-In this case, if you use a custom name, you must provide the Image ID, printed at the end of the build command, in your lithops config.
+If you want to upload local files to the custom VM Image, you can include them using the `--include` or `-i` parameter (src:dst), for example:
+
+```
+lithops image build -b ibm_vpc -f myscript.sh -i /home/user/test.bin:/home/ubuntu/test.bin custom-lithops-runtime
+```
+
+In the case of using using a custom name, you must provide the Image ID, printed at the end of the build command, in your lithops config.
 
 ## Option 2:
 
