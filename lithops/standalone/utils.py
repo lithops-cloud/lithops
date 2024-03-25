@@ -62,11 +62,14 @@ WORKER_SERVICE_FILE = """
 [Unit]
 Description=Lithops Worker Service
 After=network.target
+RestartSec=2s
+StartLimitBurst=1
+StartLimitIntervalSec=5
 
 [Service]
 ExecStart={0}
 ExecStop={1}
-Restart=always
+Restart=on-failure
 
 [Install]
 WantedBy=multi-user.target

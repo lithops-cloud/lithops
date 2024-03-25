@@ -47,6 +47,7 @@ def run_job(backend, task_filename):
     os.environ['__LITHOPS_ACTIVATION_ID'] = act_id
     os.environ['__LITHOPS_BACKEND'] = backend.replace("_", " ").upper()
 
+    task_payload['worker_processes'] = 1
     function_handler(task_payload)
 
     logger.info(f'ExecutorID {executor_id} | JobID {job_id} | CallID {call_id} - Execution Finished')
@@ -55,7 +56,7 @@ def run_job(backend, task_filename):
 if __name__ == "__main__":
     sys.stdout = log_file_stream
     sys.stderr = log_file_stream
-    logger.info('Starting Standalone job runner')
+    logger.info('Starting Standalone task runner')
     backend = sys.argv[1]
     task_filename = sys.argv[2]
     run_job(backend, task_filename)
