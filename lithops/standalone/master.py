@@ -105,9 +105,10 @@ def get_worker_ttd(worker_private_ip):
             url = f"http://{worker_private_ip}:{SA_WORKER_SERVICE_PORT}/ttd"
             r = requests.get(url, timeout=0.5)
             ttd = r.text
-        logger.debug(f'Worker TTD from {worker_private_ip}: {r.text}')
+        logger.debug(f'Worker TTD from {worker_private_ip}: {ttd}')
         return ttd
-    except Exception:
+    except Exception as e:
+        logger.error(f"Unable to get TTD from {worker_private_ip}: {e}")
         return "Unknown"
 
 
@@ -219,7 +220,7 @@ def setup_worker(standalone_handler, worker_info, work_queue_name):
 
     worker_processes = CPU_COUNT if worker.config['worker_processes'] == 'AUTO' \
         else worker.config['worker_processes']
-    instance_type = 'provided-vm' if config['exec_mode'] == StandaloneMode.CONSUME.value \
+    instance_type = 'unknow' if config['exec_mode'] == StandaloneMode.CONSUME.value \
         else worker.instance_type
 
     redis_client.hset(f"worker:{worker.name}", mapping={
