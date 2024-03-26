@@ -139,7 +139,7 @@ def notify_task_start(job_key, call_id):
 
 def notify_task_done(job_key, call_id):
     try:
-        done_tasks = int(redis_client.rpush(f"job:{job_key}:td", call_id))
+        done_tasks = int(redis_client.rpush(f"tasksdone:{job_key}", call_id))
         if int(redis_client.hget(f"job:{job_key}", 'total_tasks')) == done_tasks:
             redis_client.hset(f"job:{job_key}", 'status', JobStatus.DONE.value)
     except Exception as e:

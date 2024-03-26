@@ -485,7 +485,7 @@ def list_jobs():
         worker_type = job_data['worker_type'] if exec_mode != StandaloneMode.CONSUME.value else 'VM'
         submitted = datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S UTC')
         total_tasks = str(job_data['total_tasks'])
-        done_tasks = str(redis_client.llen(f'job:{job_key}:td'))
+        done_tasks = str(redis_client.llen(f'tasksdone:{job_key}'))
         job = (job_key, func_name, submitted, worker_type, runtime, f'{done_tasks}/{total_tasks}', status)
         result.append(job)
 
@@ -580,7 +580,7 @@ def job_monitor():
                 jobs_data[job_key] = {'total': int(job_data['total_tasks']), 'done': 0}
             if jobs_data[job_key]['total'] == jobs_data[job_key]['done']:
                 continue
-            done_tasks = int(redis_client.llen(f"job:{job_key}:td"))
+            done_tasks = int(redis_client.llen(f"tasksdone:{job_key}"))
             if jobs_data[job_key]['done'] != done_tasks:
                 total_tasks = jobs_data[job_key]['total']
                 jobs_data[job_key]['done'] = done_tasks
