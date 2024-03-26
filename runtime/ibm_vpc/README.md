@@ -1,10 +1,8 @@
 # Lithops runtime for IBM VPC
 
-In IBM VPC, you can run functions by using a Virtual machine (VM). In the VM, functions run using parallel processes. In this case, it is not needed to install anything in the remote VMs since Lithops does this process automatically the first time you use them. However, use a custom VM it is a preferable approach, since using a pre-built custom image will greatly improve the overall execution time. To benefit from this approach, follow the following steps:
+In IBM VPC, you can execute functions using a Virtual Machine (VM). These functions operate through parallel processes within the VM. When utilizing Lithops for the first time, there's no need to manually install anything on the remote VMs, as Lithops handles this process automatically. However, employing a custom VM is recommended, as utilizing a pre-built custom image significantly enhances overall execution time. To implement this approach effectively, follow these steps:
 
 ## Option 1:
-
-**Note**: This is a beta feature. Please open an issue if you encounter any error using this way of creating VM images in IBM VPC.
 
 For building the default VM image that contains all dependencies required by Lithops, execute:
 

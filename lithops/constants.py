@@ -97,7 +97,6 @@ SA_DEFAULT_CONFIG_KEYS = {
     'use_gpu': False,
     'start_timeout': 300,
     'auto_dismantle': True,
-    'master_as_worker': False,
     'soft_dismantle_timeout': 300,
     'hard_dismantle_timeout': 3600
 }

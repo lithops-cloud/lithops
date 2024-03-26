@@ -1,28 +1,25 @@
-numpy
-scikit-learn
-scipy
-pandas
+# Requirements.txt contains a list of dependencies for the Python Application #
+
+# Mandatory Lithops packages
 google-cloud
 google-cloud-storage
 google-cloud-pubsub
-certifi
-chardet
-docutils
-httplib2
-idna
-jmespath
-kafka-python
-lxml
-pika
-python-dateutil
-redis
-requests
-simplejson
+google-auth
+google-api-python-client
+numpy
 six
-urllib3
-virtualenv
-PyYAML
+requests
+redis
+pika
+scikit-learn
+diskcache
 cloudpickle
 ps-mem
 tblib
+PyYAML
+urllib3
 psutil
+
+# Optional packages (Add your packages below)
+#pandas
+#matplotlib

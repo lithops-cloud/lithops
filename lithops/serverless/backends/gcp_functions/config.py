@@ -53,33 +53,23 @@ DEFAULT_CONFIG_KEYS = {
 }
 
 REQUIREMENTS_FILE = """
-numpy
-scipy
-scikit-learn
-pandas
 google-cloud
 google-cloud-storage
 google-cloud-pubsub
 google-auth
 google-api-python-client
-certifi
-chardet
-docutils
-httplib2
-idna
-jmespath
-kafka-python
-lxml
-pika
-redis
-requests
+numpy
 six
-urllib3
-virtualenv
-PyYAML
+requests
+redis
+pika
+scikit-learn
+diskcache
 cloudpickle
 ps-mem
 tblib
+PyYAML
+urllib3
 psutil
 """
 
