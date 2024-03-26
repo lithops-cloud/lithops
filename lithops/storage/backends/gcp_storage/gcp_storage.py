@@ -112,7 +112,7 @@ class GCPStorageBackend:
             stream.seek(0)  # Retrun to the initial buffer position
             return stream
         else:
-            return blob.download_as_string(start=start, end=end)
+            return blob.download_as_bytes(start=start, end=end)
 
     def upload_file(self, file_name, bucket, key=None, extra_args={}, config=None):
         """Upload a file
