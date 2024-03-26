@@ -1,10 +1,8 @@
 # Lithops runtime for AWS EC2
 
-In AWS EC2, you can run functions by using a Virtual machine (VM). In the VM, functions run using parallel processes. In this case, it is not needed to install anything in the remote VMs since Lithops does this process automatically the first time you use them. However, use a custom VM it is a preferable approach, since using a pre-built custom image will greatly improve the overall execution time. To benefit from this approach, follow the following steps:
+In AWS EC2, you can execute functions using a Virtual Machine (VM). These functions run as parallel processes within the VM. When using Lithops for the first time, there's no need to manually install anything on the remote VMs, as Lithops handles this process automatically. However, utilizing a custom VM is preferable, as employing a pre-built custom image significantly improves overall execution time. To benefit from this approach, follow these steps:
 
 ## Option 1:
-
-**Note**: This is a beta feature. Please open an issue if you encounter any errors using this way of creating VM images in AWS EC2.
 
 For building the default VM image that contains all dependencies required by Lithops, execute:
 

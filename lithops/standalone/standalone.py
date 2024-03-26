@@ -58,7 +58,6 @@ class StandaloneHandler:
         self.backend_name = self.config['backend']
         self.start_timeout = self.config['start_timeout']
         self.exec_mode = StandaloneMode[self.config['exec_mode'].upper()]
-        self.use_master_as_worker = self.config.get('master_as_worker', False)
         self.is_lithops_worker = is_lithops_worker()
 
         module_location = f'lithops.standalone.backends.{self.backend_name}'

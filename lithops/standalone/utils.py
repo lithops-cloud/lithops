@@ -67,8 +67,9 @@ StartLimitBurst=1
 StartLimitIntervalSec=5
 
 [Service]
-ExecStart={0}
-ExecStop={1}
+ExecStartPre={0}
+ExecStart={1}
+ExecStop={2}
 Restart=on-failure
 
 [Install]
@@ -214,9 +215,10 @@ def get_worker_setup_script(config, vm_data):
     this script is expected to be executed only from Master VM
     """
     if config['runtime'].startswith(('python', '/')):
+        cmd_pre = cmd_stop = "id"
         cmd_start = f"/usr/bin/python3 {SA_INSTALL_DIR}/worker.py"
-        cmd_stop = "id"
     else:
+        cmd_pre = '-docker rm -f lithops_worker'
         cmd_start = 'docker run --rm --name lithops_worker '
         cmd_start += '--gpus all ' if config["use_gpu"] else ''
         cmd_start += f'--user {os.getuid()}:{os.getgid()} '
@@ -224,7 +226,7 @@ def get_worker_setup_script(config, vm_data):
         cmd_start += f'-p {SA_WORKER_SERVICE_PORT}:{SA_WORKER_SERVICE_PORT} '
         cmd_start += f'-v {SA_INSTALL_DIR}:{SA_INSTALL_DIR} -v /tmp:/tmp '
         cmd_start += f'--entrypoint "python3" {config["runtime"]} {SA_INSTALL_DIR}/worker.py'
-        cmd_stop = "docker rm -f lithops_worker"
+        cmd_stop = '-docker rm -f lithops_worker'
 
     script = docker_login(config)
     script += f"""
@@ -237,7 +239,7 @@ def get_worker_setup_script(config, vm_data):
     setup_host >> {SA_SETUP_LOG_FILE} 2>&1;
     USER_HOME=$(eval echo ~${{SUDO_USER}});
     setup_service(){{
-    echo '{WORKER_SERVICE_FILE.format(cmd_start, cmd_stop)}' > /etc/systemd/system/{WORKER_SERVICE_NAME};
+    echo '{WORKER_SERVICE_FILE.format(cmd_pre, cmd_start, cmd_stop)}' > /etc/systemd/system/{WORKER_SERVICE_NAME};
     chmod 644 /etc/systemd/system/{WORKER_SERVICE_NAME};
     systemctl daemon-reload;
     systemctl stop {WORKER_SERVICE_NAME};

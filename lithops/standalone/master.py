@@ -131,7 +131,7 @@ def list_workers():
         ttd = get_worker_ttd(private_ip)
         ttd = ttd if ttd in ["Unknown", "Disabled"] else ttd + "s"
         timestamp = float(worker_data['created'])
-        created = datetime.utcfromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S UTC')
+        created = datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S UTC')
         instance_type = worker_data['instance_type']
         worker_processes = str(worker_data['worker_processes'])
         exec_mode = worker_data['exec_mode']
@@ -204,17 +204,11 @@ def get_workers():
     return response
 
 
-def setup_worker(standalone_handler, worker_info, work_queue_name):
+def save_worker(worker, standalone_config, work_queue_name):
     """
-    Run worker setup process and Installs all the Lithops
-    dependencies into the worker
+    Saves the worker instance with the provided data in redis
     """
-    worker = standalone_handler.backend.get_instance(**worker_info, public=False)
-
-    if redis_client.hget(f"worker:{worker.name}", 'status') == WorkerStatus.ACTIVE.value:
-        return
-
-    config = copy.deepcopy(standalone_handler.config)
+    config = copy.deepcopy(standalone_config)
     del config[config['backend']]
     config = {key: str(value) if isinstance(value, bool) else value for key, value in config.items()}
 
@@ -225,15 +219,28 @@ def setup_worker(standalone_handler, worker_info, work_queue_name):
 
     redis_client.hset(f"worker:{worker.name}", mapping={
         'name': worker.name,
-        'status': JobStatus.SUBMITTED.value,
+        'status': WorkerStatus.STARTING.value,
         'private_ip': worker.private_ip or '',
         'instance_id': worker.instance_id,
         'instance_type': instance_type,
         'worker_processes': worker_processes,
         'created': str(time.time()),
         'ssh_credentials': json.dumps(worker.ssh_credentials),
+        'queue_name': work_queue_name,
         'err': "", **config,
     })
+
+
+def setup_worker_create_reuse(standalone_handler, worker_info, work_queue_name):
+    """
+    Run the worker setup process and installs all the Lithops dependencies into it
+    """
+    worker = standalone_handler.backend.get_instance(**worker_info, public=False)
+
+    if redis_client.hget(f"worker:{worker.name}", 'status') == WorkerStatus.ACTIVE.value:
+        return
+
+    save_worker(worker, standalone_handler.config, work_queue_name)
 
     max_instance_create_retries = worker.config.get('worker_create_retries', MAX_INSTANCE_CREATE_RETRIES)
 
@@ -242,7 +249,6 @@ def setup_worker(standalone_handler, worker_info, work_queue_name):
 
         while instance_ready_retries <= max_instance_create_retries:
             try:
-                redis_client.hset(f"worker:{worker.name}", 'status', WorkerStatus.STARTING.value)
                 worker.wait_ready()
                 break
             except TimeoutError as e:  # VM not started in time
@@ -317,6 +323,46 @@ def setup_worker(standalone_handler, worker_info, work_queue_name):
         raise e
 
 
+def setup_worker_consume(standalone_handler, worker_info, work_queue_name):
+    """
+    Run the worker setup process in the case of Consume mode
+    """
+    instance = standalone_handler.backend.get_instance(**worker_info, public=False)
+    instance.private_ip = master_ip
+
+    if redis_client.hget(f"worker:{instance.name}", 'status') == WorkerStatus.ACTIVE.value:
+        return
+
+    save_worker(instance, standalone_handler.config, work_queue_name)
+
+    try:
+        logger.debug(f'Setting up the worker in the current {instance}')
+        vm_data = {
+            'name': instance.name,
+            'private_ip': instance.private_ip,
+            'instance_id': instance.instance_id,
+            'ssh_credentials': instance.ssh_credentials,
+            'instance_type': instance.instance_type,
+            'master_ip': master_ip,
+            'work_queue_name': work_queue_name,
+            'lithops_version': __version__
+        }
+        worker_setup_script = "/tmp/install_lithops.sh"
+        script = get_worker_setup_script(standalone_handler.config, vm_data)
+
+        with open(worker_setup_script, 'w') as wis:
+            wis.write(script)
+
+        redis_client.hset(f"worker:{instance.name}", 'status', WorkerStatus.INSTALLING.value)
+        os.chmod(worker_setup_script, 0o755)
+        os.system("sudo " + worker_setup_script)
+
+    except Exception as e:
+        redis_client.hset(f"worker:{instance.name}", 'status', WorkerStatus.ERROR.value)
+        instance.err = f'Unable to setup lithops in the VM: {str(e)}'
+        raise e
+
+
 def handle_workers(job_payload, workers, work_queue_name):
     """
     Creates the workers (if any)
@@ -332,22 +378,33 @@ def handle_workers(job_payload, workers, work_queue_name):
     futures = []
     total_correct = 0
 
-    with ThreadPoolExecutor(len(workers)) as executor:
-        for worker_info in workers:
-            future = executor.submit(
-                setup_worker,
+    if standalone_config['exec_mode'] == StandaloneMode.CONSUME.value:
+        try:
+            setup_worker_consume(
                 standalone_handler,
-                worker_info,
+                workers[0],
                 work_queue_name
             )
-            futures.append(future)
-
-    for future in cf.as_completed(futures):
-        try:
-            future.result()
             total_correct += 1
         except Exception as e:
             logger.error(e)
+    else:
+        with ThreadPoolExecutor(len(workers)) as executor:
+            for worker_info in workers:
+                future = executor.submit(
+                    setup_worker_create_reuse,
+                    standalone_handler,
+                    worker_info,
+                    work_queue_name
+                )
+                futures.append(future)
+
+        for future in cf.as_completed(futures):
+            try:
+                future.result()
+                total_correct += 1
+            except Exception as e:
+                logger.error(e)
 
     logger.debug(
         f'{total_correct} of {len(workers)} workers started '
@@ -426,7 +483,7 @@ def list_jobs():
         timestamp = float(job_data['submitted'])
         runtime = job_data['runtime_name']
         worker_type = job_data['worker_type'] if exec_mode != StandaloneMode.CONSUME.value else 'VM'
-        submitted = datetime.utcfromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S UTC')
+        submitted = datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S UTC')
         total_tasks = str(job_data['total_tasks'])
         done_tasks = str(redis_client.llen(f'tasksdone:{job_key}'))
         job = (job_key, func_name, submitted, worker_type, runtime, f'{done_tasks}/{total_tasks}', status)
@@ -487,6 +544,7 @@ def run():
 
     exec_mode = job_payload['config']['standalone']['exec_mode']
     exec_mode = StandaloneMode[exec_mode.upper()]
+    workers = job_payload.pop('worker_instances')
 
     if exec_mode == StandaloneMode.CONSUME:
         queue_name = f'wq:localhost:{runtime_name.replace("/", "-")}'
@@ -496,8 +554,6 @@ def run():
         worker_it = job_payload['worker_instance_type']
         worker_wp = job_payload['worker_processes']
         queue_name = f'wq:{worker_it}-{worker_wp}-{runtime_name.replace("/", "-")}'
-
-    workers = job_payload.pop('worker_instances')
 
     Thread(target=handle_job, args=(job_payload, queue_name)).start()
     Thread(target=handle_workers, args=(job_payload, workers, queue_name)).start()
