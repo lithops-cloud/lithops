@@ -485,7 +485,7 @@ def list_jobs():
         worker_type = job_data['worker_type'] if exec_mode != StandaloneMode.CONSUME.value else 'VM'
         submitted = datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S UTC')
         total_tasks = str(job_data['total_tasks'])
-        done_tasks = str(redis_client.llen(f'tasksdone:{job_key}'))
+        done_tasks = str(redis_client.llen(f'job:{job_key}:td'))
         job = (job_key, func_name, submitted, worker_type, runtime, f'{done_tasks}/{total_tasks}', status)
         result.append(job)
 
@@ -544,6 +544,7 @@ def run():
 
     exec_mode = job_payload['config']['standalone']['exec_mode']
     exec_mode = StandaloneMode[exec_mode.upper()]
+    workers = job_payload.pop('worker_instances')
 
     if exec_mode == StandaloneMode.CONSUME:
         queue_name = f'wq:localhost:{runtime_name.replace("/", "-")}'
@@ -553,8 +554,6 @@ def run():
         worker_it = job_payload['worker_instance_type']
         worker_wp = job_payload['worker_processes']
         queue_name = f'wq:{worker_it}-{worker_wp}-{runtime_name.replace("/", "-")}'
-
-    workers = job_payload.pop('worker_instances')
 
     Thread(target=handle_job, args=(job_payload, queue_name)).start()
     Thread(target=handle_workers, args=(job_payload, workers, queue_name)).start()
@@ -581,7 +580,7 @@ def job_monitor():
                 jobs_data[job_key] = {'total': int(job_data['total_tasks']), 'done': 0}
             if jobs_data[job_key]['total'] == jobs_data[job_key]['done']:
                 continue
-            done_tasks = int(redis_client.llen(f"tasksdone:{job_key}"))
+            done_tasks = int(redis_client.llen(f"job:{job_key}:td"))
             if jobs_data[job_key]['done'] != done_tasks:
                 total_tasks = jobs_data[job_key]['total']
                 jobs_data[job_key]['done'] = done_tasks

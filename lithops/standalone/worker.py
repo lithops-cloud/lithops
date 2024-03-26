@@ -16,6 +16,7 @@
 #
 
 import os
+import time
 import json
 import redis
 import flask
@@ -138,7 +139,7 @@ def notify_task_start(job_key, call_id):
 
 def notify_task_done(job_key, call_id):
     try:
-        done_tasks = int(redis_client.rpush(f"tasksdone:{job_key}", call_id))
+        done_tasks = int(redis_client.rpush(f"job:{job_key}:td", call_id))
         if int(redis_client.hget(f"job:{job_key}", 'total_tasks')) == done_tasks:
             redis_client.hset(f"job:{job_key}", 'status', JobStatus.DONE.value)
     except Exception as e:
@@ -153,16 +154,24 @@ def redis_queue_consumer(pid, work_queue_name, exec_mode, backend):
     logger.info(f"Redis consumer process {pid} started")
 
     while True:
-        if exec_mode in [StandaloneMode.REUSE.value, StandaloneMode.CONSUME.value]:
+        if exec_mode == StandaloneMode.CONSUME.value:
+            task_payload_str = redis_client.rpop(work_queue_name)
+            if not task_payload_str:
+                time.sleep(1)
+                if all(worker['status'] == WorkerStatus.IDLE.value
+                       for worker in worker_threads.values()):
+                    break
+                continue
+        elif exec_mode == StandaloneMode.REUSE.value:
             key, task_payload_str = redis_client.brpop(work_queue_name)
         else:
             task_payload_str = redis_client.rpop(work_queue_name)
             if task_payload_str is None:
-                return
-
-        task_payload = json.loads(task_payload_str)
+                break
 
         worker_threads[pid]['status'] = WorkerStatus.BUSY.value
+
+        task_payload = json.loads(task_payload_str)
 
         executor_id = task_payload['executor_id']
         job_id = task_payload['job_id']
@@ -172,7 +181,7 @@ def redis_queue_consumer(pid, work_queue_name, exec_mode, backend):
 
         try:
             logger.debug(f'ExecutorID {executor_id} | JobID {job_id} - Running '
-                         f'CallID {call_id} in the local worker')
+                         f'CallID {call_id} in the local worker (consumer {pid})')
             notify_task_start(job_key, call_id)
 
             if budget_keeper:
@@ -206,6 +215,8 @@ def redis_queue_consumer(pid, work_queue_name, exec_mode, backend):
             logger.error(e)
 
         worker_threads[pid]['status'] = WorkerStatus.IDLE.value
+
+    logger.info(f"Redis consumer process {pid} finished")
 
 
 def run_worker():
