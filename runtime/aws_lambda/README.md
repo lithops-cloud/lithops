@@ -71,14 +71,14 @@ lithops runtime build -f MyDockerfile -b aws_lambda my-container-runtime-name
 For example:
 
 ```
-lithops runtime build -f MyDockerfile -b aws_lambda lithops-ndvi-v310:01
+lithops runtime build -f MyDockerfile -b aws_lambda lithops-ndvi-v312:01
 ```
 
 Finally, we can specify this new runtime in the lithops config:
 
 ```yaml
 aws_lambda:
-    runtime: lithops-ndvi-v310:01
+    runtime: lithops-ndvi-v312:01
 ```
 
 or when creating a Lithops Function Executor:
@@ -89,7 +89,7 @@ import lithops
 def test():
     return 'hello'
 
-lith = lithops.FunctionExecutor(runtime='lithops-ndvi-v310:01')
+lith = lithops.FunctionExecutor(runtime='lithops-ndvi-v312:01')
 lith.call_async(test, data=())
 res = lith.get_result()
 print(res)  # Prints 'hello'

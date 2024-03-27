@@ -55,11 +55,11 @@ gcp_cloudrun:
     To build your own runtime, first install the Docker CE version in your client machine. You can find the instructions [here](https://docs.docker.com/get-docker/). If you already have Docker installed omit this step.
 
     Update the Dockerfile that better fits to your requirements with your required system packages and Python modules.
-    If you need another Python version, for example Python 3.8, you must change the initial line of the Dockefile.
+    If you need another Python version, for example Python 3.12, you must change the initial line of the Dockefile.
     
     For example, we will add `PyTorch` to our Lithops runtime. The Dockerfile would look like this:
     ```dockerfile
-    FROM python:3.8-slim-buster
+    FROM python:3.12-slim-bookworm
     
     RUN apt-get update && apt-get install -y \
             zip \
@@ -119,14 +119,14 @@ gcp_cloudrun:
    
     fexec = lithops.FunctionExecutor(runtime='pytorchruntime')
     fexec.call_async(my_function, 'hello')
-    print(fexec.get_result())  # Prints <module 'torch' from '/usr/local/lib/python3.8/site-packages/torch/__init__.py'>
+    print(fexec.get_result())  # Prints <module 'torch' from '/usr/local/lib/python3.12/site-packages/torch/__init__.py'>
     ```
 
 ## Runtime Management
 
 1. **Update an existing runtime**
 
-    If you are a developer, and modified the PyWeen source code, you need to deploy the changes before executing Lithops.
+    If you are a developer, and modified the Lithops source code, you need to deploy the changes before executing Lithops.
 
     You can update default runtime by:
 

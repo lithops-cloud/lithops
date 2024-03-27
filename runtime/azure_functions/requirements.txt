@@ -1,3 +1,6 @@
+# Requirements.txt contains a list of dependencies for the Python Application #
+
+# Mandatory Lithops packages
 azure-functions
 azure-storage-blob
 azure-storage-queue
@@ -13,3 +16,7 @@ cloudpickle
 ps-mem
 tblib
 psutil
+
+# Optional packages (Add your packages below)
+#pandas
+#matplotlib
