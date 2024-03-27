@@ -33,27 +33,27 @@ k8s:
         $ docker login
 
     Update the Dockerfile that better fits to your requirements with your required system packages and Python modules.
-    If you need another Python version, for example Python 3.9, you must change the initial line of the Dockefile:
+    If you need another Python version, for example Python 3.12, you must change the initial line of the Dockefile:
 
         $ lithops runtime build -b k8s docker_username/runtimename:tag
 
     Note that Docker hub image names look like *"docker_username/runtimename:tag"* and must be all lower case, for example:
 
-        $ lithops runtime build -b k8s myaccount/lithops-k8s-custom-v39:01
+        $ lithops runtime build -b k8s myaccount/lithops-k8s-custom-v312:01
 
     By default the Dockerfile should be located in the same folder from where you execute the **lithops runtime** command. If your Dockerfile is located in another folder, or the Dockerfile has another name, you can specify its location with the **-f** parameter, for example:
 
-        $ lithops runtime build -b k8s -f kubernetes/Dockerfile.conda myaccount/lithops-k8s-custom-v39:01
+        $ lithops runtime build -b k8s -f kubernetes/Dockerfile.conda myaccount/lithops-k8s-custom-v312:01
 
     Once you have built your runtime with all of your necessary packages, you can already use it with Lithops.
     To do so, you have to specify the full docker image name in the configuration or when you create the **FunctionExecutor** instance, or directly in the config file, for example:
 
     ```python
     import lithops
-    fexec = lithops.FunctionExecutor(runtime='myaccount/lithops-k8s-custom-v39:01')
+    fexec = lithops.FunctionExecutor(runtime='myaccount/lithops-k8s-custom-v312:01')
     ```
 
-    *NOTE: In this previous example shows how to build a Docker image based on Python 3.9, this means that now you also need Python 3.9 in the client machine.*
+    *NOTE: In this previous example shows how to build a Docker image based on Python 3.12, this means that now you also need Python 3.12 in the client machine.*
 
 2. **Use an already built runtime from a public repository**
 
@@ -62,7 +62,7 @@ k8s:
 
     ```python
     import lithops
-    fexec = lithops.FunctionExecutor(runtime='docker.io/lithopscloud/lithops-k8s-conda-v39:01')
+    fexec = lithops.FunctionExecutor(runtime='docker.io/lithopscloud/lithops-k8s-conda-v312:01')
     ```
 
     Alternatively, you can create a Lithops runtime based on already built Docker image by executing the following command, which will deploy all the necessary information to use the runtime with your Lithops.
@@ -71,15 +71,15 @@ k8s:
     $ lithops runtime deploy -b k8s docker_username/runtimename:tag
     ```
 
-    For example, you can use an already buit runtime based on Python 3.9 and with the *matplotlib* and *nltk* libraries by running:
+    For example, you can use an already buit runtime based on Python 3.12 and with the *matplotlib* and *nltk* libraries by running:
 
     ```
-    $ lithops runtime deploy -b k8s docker.io/lithopscloud/lithops-k8s-matplotlib-v39:01
+    $ lithops runtime deploy -b k8s docker.io/lithopscloud/lithops-k8s-matplotlib-v312:01
     ```
 
     ```python
     import lithops
-    fexec = lithops.FunctionExecutor(runtime='docker.io/lithopscloud/lithops-k8s-matplotlib:v39:01')
+    fexec = lithops.FunctionExecutor(runtime='docker.io/lithopscloud/lithops-k8s-matplotlib:v312:01')
     ```
 
 3. **Clean everything**

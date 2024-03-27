@@ -54,7 +54,6 @@ Storage Backends
 - [Aliyun Functions](../docs/source/compute_config/aliyun_functions.md)
 - [Oracle Cloud Functions](../docs/source/compute_config/oracle_functions.md)
 - [OpenWhisk](../docs/source/compute_config/openwhisk.md)
-- [IBM Cloud Functions](../docs/source/compute_config/ibm_cf.md)
 
 <b>Serverless (CaaS) Backends:</b>
 - [IBM Code Engine](../docs/source/compute_config/code_engine.md)
@@ -113,7 +112,7 @@ if __name__ == '__main__':
 ```
 
 ### Providing configuration in runtime
-Example of providing configuration keys for IBM Cloud Functions and IBM Cloud Object Storage
+Example of providing configuration keys for IBM Code Engine and IBM Cloud Object Storage
 
 ```python
 import lithops

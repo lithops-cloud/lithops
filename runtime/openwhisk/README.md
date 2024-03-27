@@ -46,28 +46,28 @@ fexec = lithops.FunctionExecutor(runtime_memory=512)
         $ docker login
 
     Navigate to [openwhisk/](openwhisk/) and update the Dockerfile that better fits to your requirements with your required system packages and Python modules.
-    If you need another Python version, for example Python 3.11, you must use the [Dockerfile.python38](openwhisk/Dockerfile.python38) that
-    points to a source image based on Python 3.11. Finally run the build script:
+    If you need another Python version, for example Python v3.12, you must use this [Dockerfile](openwhisk/Dockerfile) that
+    points to a source image based on Python 3.12. Finally run the build script:
 
         $ lithops runtime build -b openwhisk docker_username/runtimename:tag
 
     Note that Docker hub image names look like *"docker_username/runtimename:tag"* and must be all lower case, for example:
 
-        $ lithops runtime build -b openwhisk jsampe/lithops-custom-runtime-3.11:0.1
+        $ lithops runtime build -b openwhisk jsampe/lithops-custom-runtime-v312:0.1
 
     By default the Dockerfile should be located in the same folder from where you execute the **lithops runtime** command. If your Dockerfile is located in another folder, or the Dockerfile has another name, you can specify its location with the **-f** parameter, for example:
 
-        $ lithops runtime build -b openwhisk -f openwhisk/Dockerfile.conda username/lithops-conda-runtime-3.11:0.1
+        $ lithops runtime build -b openwhisk -f openwhisk/Dockerfile.conda username/lithops-conda-runtime-v312:0.1
 
     Once you have built your runtime with all of your necessary packages, you can already use it with Lithops.
     To do so, you have to specify the full docker image name in the configuration or when you create the **ibm_cf_executor** instance, for example:
 
     ```python
     import lithops
-    fexec = lithops.FunctionExecutor(runtime='jsampe/lithops-custom-runtime-3.11:0.1')
+    fexec = lithops.FunctionExecutor(runtime='jsampe/lithops-custom-runtime-v312:0.1')
     ```
 
-    *NOTE: In this previous example we built a Docker image based on Python 3.11, this means that now we also need Python 3.11 in the client machine.*
+    *NOTE: In this previous example we built a Docker image based on Python v312, this means that now we also need Python v312 in the client machine.*
 
 2. **Use an already built runtime from a public repository**
 
@@ -76,22 +76,22 @@ fexec = lithops.FunctionExecutor(runtime_memory=512)
 
     ```python
     import lithops
-    fexec = lithops.FunctionExecutor(runtime='jsampe/lithops-conda-3.11:0.1')
+    fexec = lithops.FunctionExecutor(runtime='jsampe/lithops-conda-v312:0.1')
     ```
 
     Alternatively, you can create a Lithops runtime based on already built Docker image by executing the following command, which will deploy all the necessary information to use the runtime with your Lithops.
 
         $ lithops runtime deploy docker_username/runtimename:tag -b openwhisk -s minio
 
-    For example, you can use an already built runtime based on Python 3.11 and with the *matplotlib* and *nltk* libraries by running:
+    For example, you can use an already built runtime based on Python v312 and with the *matplotlib* and *nltk* libraries by running:
 
-        $ lithops runtime deploy jsampe/lithops-matplotlib-3.11:0.1 -b openwhisk -s minio
+        $ lithops runtime deploy jsampe/lithops-matplotlib-v312:0.1 -b openwhisk -s minio
 
     Once finished, you can use the runtime in your Lithops code:
 
     ```python
     import lithops
-    fexec = lithops.FunctionExecutor(runtime='jsampe/lithops-matplotlib:3.11:0.1')
+    fexec = lithops.FunctionExecutor(runtime='jsampe/lithops-matplotlib:v312:0.1')
     ```
 
 ## Runtime Management
@@ -108,9 +108,9 @@ fexec = lithops.FunctionExecutor(runtime_memory=512)
 
         $ lithops runtime update docker_username/runtimename:tag -b openwhisk -s minio
 
-    For example, you can update an already created runtime based on the Docker image `jsampe/lithops-conda-3.11:0.1` by:
+    For example, you can update an already created runtime based on the Docker image `jsampe/lithops-conda-v312:0.1` by:
 
-        $ lithops runtime update jsampe/lithops-conda-3.11:0.1 -b openwhisk -s minio
+        $ lithops runtime update jsampe/lithops-conda-v312:0.1 -b openwhisk -s minio
 
     Alternatively, you can update all the deployed runtimes at a time by:
 
@@ -128,9 +128,9 @@ fexec = lithops.FunctionExecutor(runtime_memory=512)
 
         $ lithops runtime delete docker_username/runtimename:tag -b openwhisk -s minio
 
-    For example, you can delete runtime based on the Docker image `jsampe/lithops-conda-3.11:0.1` by:
+    For example, you can delete runtime based on the Docker image `jsampe/lithops-conda-v312:0.1` by:
 
-        $ lithops runtime delete jsampe/lithops-conda-3.11:0.1 -b openwhisk -s minio
+        $ lithops runtime delete jsampe/lithops-conda-v312:0.1 -b openwhisk -s minio
 
     You can delete all the runtimes at a time by:
 

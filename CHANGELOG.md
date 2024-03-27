@@ -1,6 +1,18 @@
 # Changelog
 
-## [v3.1.3.dev1]
+## [v3.2.1.dev0]
+
+### Added
+- 
+
+### Changed
+- 
+
+### Fixed
+-
+
+
+## [v3.2.0]
 
 ### Added
 - [Lithops] Addded support for Python 3.12
@@ -17,6 +29,7 @@
 - [SSH Cli] Fixed minor error with the "err" variable
 - [Cli] Fixed job status on "lithops job list" for standalone backends
 - [Standalone] Fixed issue in the "lithops image build" that appears when the vpc is already created
+- [Future] Fixed issue with missing 'worker_end_tstamp' variable
 
 ## [v3.1.2]
 
