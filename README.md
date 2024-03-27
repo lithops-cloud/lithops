@@ -16,6 +16,21 @@
   </a>
 </p>
 
+<p align="center">
+  <a href="https://codecov.io/gh/acanadil/lithops"> 
+    <img src="https://codecov.io/gh/acanadil/lithops/graph/badge.svg?token=S60HMH9YTH"/> 
+  </a>
+  <a aria-label="Localhost testing" href="https://github.com/acanadil/lithops/actions/workflows/localhost-coverage.yml"> 
+    <img src="https://github.com/acanadil/lithops/actions/workflows/localhost-coverage.yml/badge.svg"/> 
+  </a>
+  <a aria-label="AWS testing" href="https://github.com/acanadil/lithops/actions/workflows/aws-coverage.yml" > 
+    <img src="https://github.com/acanadil/lithops/actions/workflows/aws-coverage.yml/badge.svg"/> 
+  </a>
+  <a aria-label="K8s testing" href="https://github.com/acanadil/lithops/actions/workflows/k8s-coverage.yml"> 
+    <img src="https://github.com/acanadil/lithops/actions/workflows/k8s-coverage.yml/badge.svg"/> 
+  </a>
+</p>
+
 Lithops is a Python multi-cloud distributed computing framework. It allows you to run unmodified local python code at massive scale in the main
 serverless computing platforms. Lithops delivers the user’s code into the cloud without requiring knowledge of how it is deployed and run. Moreover, its multicloud-agnostic architecture ensures portability across cloud providers.
 
