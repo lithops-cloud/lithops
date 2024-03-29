@@ -9,7 +9,7 @@
 - 
 
 ### Fixed
--
+- [AWS Lambda] Fixed runtime deletion with "lithops runtime delete"
 
 
 ## [v3.2.0]
