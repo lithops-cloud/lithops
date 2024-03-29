@@ -42,27 +42,20 @@ class S3Backend:
         self.secret_access_key = s3_config.get('secret_access_key')
         self.session_token = s3_config.get('session_token')
 
-        if self.access_key_id and self.secret_access_key:
-            client_config = Config(
-                max_pool_connections=128,
-                user_agent_extra=self.user_agent,
-                connect_timeout=CONN_READ_TIMEOUT,
-                read_timeout=CONN_READ_TIMEOUT,
-                retries={'max_attempts': OBJ_REQ_RETRIES}
-            )
-            self.s3_client = boto3.client(
-                's3', aws_access_key_id=self.access_key_id,
-                aws_secret_access_key=self.secret_access_key,
-                aws_session_token=self.session_token,
-                config=client_config,
-                region_name=self.region_name
-            )
-        else:
-            client_config = Config(
-                signature_version=UNSIGNED,
-                user_agent_extra=self.user_agent
-            )
-            self.s3_client = boto3.client('s3', config=client_config)
+        client_config = Config(
+            max_pool_connections=128,
+            user_agent_extra=self.user_agent,
+            connect_timeout=CONN_READ_TIMEOUT,
+            read_timeout=CONN_READ_TIMEOUT,
+            retries={'max_attempts': OBJ_REQ_RETRIES}
+        )
+        self.s3_client = boto3.client(
+            's3', aws_access_key_id=self.access_key_id,
+            aws_secret_access_key=self.secret_access_key,
+            aws_session_token=self.session_token,
+            config=client_config,
+            region_name=self.region_name
+        )
 
         msg = STORAGE_CLI_MSG.format('S3')
         logger.info(f"{msg} - Region: {self.region_name}")
