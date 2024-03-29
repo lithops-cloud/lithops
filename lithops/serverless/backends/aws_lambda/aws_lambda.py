@@ -610,8 +610,6 @@ class AWSLambdaBackend:
             get_runtimes(response)
 
         if runtime_name != 'all':
-            if self._is_container_runtime(runtime_name) and ':' not in runtime_name:
-                runtime_name = runtime_name + ':latest'
             runtimes = [tup for tup in runtimes if runtime_name in tup[0]]
 
         return runtimes
