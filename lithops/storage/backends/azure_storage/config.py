@@ -14,8 +14,6 @@
 # limitations under the License.
 #
 
-import hashlib
-
 
 REQ_PARAMS = ('storage_account_name', 'storage_account_key')
 
@@ -29,9 +27,3 @@ def load_config(config_data=None):
         if param not in config_data['azure_storage']:
             msg = f"'{param}' is mandatory under 'azure_storage' section of the configuration"
             raise Exception(msg)
-
-    if 'storage_bucket' not in config_data['azure_storage']:
-        azsc = config_data['azure_storage']
-        key = azsc['storage_account_key']
-        account = hashlib.sha1(azsc['storage_account_name'].encode()).hexdigest()[:6]
-        config_data['azure_storage']['storage_bucket'] = f'lithops-{account}-{key[:6].lower()}'

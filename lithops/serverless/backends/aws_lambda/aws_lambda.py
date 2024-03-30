@@ -64,8 +64,8 @@ class AWSLambdaBackend:
         logger.debug('Creating Boto3 AWS Session and Lambda Client')
 
         self.aws_session = boto3.Session(
-            aws_access_key_id=lambda_config['access_key_id'],
-            aws_secret_access_key=lambda_config['secret_access_key'],
+            aws_access_key_id=lambda_config.get('access_key_id'),
+            aws_secret_access_key=lambda_config.get('secret_access_key'),
             aws_session_token=lambda_config.get('session_token'),
             region_name=self.region_name
         )

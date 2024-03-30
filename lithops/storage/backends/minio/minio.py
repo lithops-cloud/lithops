@@ -15,6 +15,7 @@
 #
 
 import os
+import hashlib
 import logging
 import boto3
 import botocore
@@ -37,9 +38,9 @@ class MinioStorageBackend:
         logger.debug("Creating MinIO client")
         self.config = minio_config
         user_agent = minio_config['user_agent']
-        service_endpoint = minio_config['endpoint']
+        self.service_endpoint = minio_config['endpoint']
 
-        logger.debug(f"Setting MinIO endpoint to {service_endpoint}")
+        logger.debug(f"Setting MinIO endpoint to {self.service_endpoint}")
 
         client_config = botocore.client.Config(
             max_pool_connections=128,
@@ -54,11 +55,11 @@ class MinioStorageBackend:
             aws_secret_access_key=minio_config['secret_access_key'],
             aws_session_token=minio_config.get('session_token'),
             config=client_config,
-            endpoint_url=service_endpoint
+            endpoint_url=self.service_endpoint
         )
 
         msg = STORAGE_CLI_MSG.format('MinIO')
-        logger.info(f"{msg} - Endpoint: {service_endpoint}")
+        logger.info(f"{msg} - Endpoint: {self.service_endpoint}")
 
     def get_client(self):
         """
@@ -66,6 +67,16 @@ class MinioStorageBackend:
         :return: ibm_boto3 client
         """
         return self.s3_client
+
+    def generate_bucket_name(self):
+        """
+        Generates a unique bucket name
+        """
+        key = self.config['access_key_id']
+        endpoint = hashlib.sha1(self.service_endpoint.encode()).hexdigest()[:6]
+        self.config['storage_bucket'] = f'lithops-{endpoint}-{key[:6].lower()}'
+
+        return self.config['storage_bucket']
 
     def create_bucket(self, bucket_name):
         """

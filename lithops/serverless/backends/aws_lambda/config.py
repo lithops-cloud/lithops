@@ -70,9 +70,6 @@ def load_config(config_data):
     if 'aws' not in config_data:
         raise Exception("'aws' section is mandatory in the configuration")
 
-    if not {'access_key_id', 'secret_access_key'}.issubset(set(config_data['aws'])):
-        raise Exception("'access_key_id' and 'secret_access_key' are mandatory under the 'aws' section of the configuration")
-
     if not config_data['aws_lambda']:
         raise Exception("'aws_lambda' section is mandatory in the configuration")
 

@@ -34,38 +34,33 @@ CONN_READ_TIMEOUT = 10
 
 class S3Backend:
     def __init__(self, s3_config):
-        logger.debug("Creating S3 client")
+        logger.debug("Creating Boto3 AWS Session and S3 Client")
         self.config = s3_config
         self.user_agent = s3_config['user_agent']
-        self.region_name = s3_config.get('region')
-        self.access_key_id = s3_config.get('access_key_id')
-        self.secret_access_key = s3_config.get('secret_access_key')
-        self.session_token = s3_config.get('session_token')
+        self.region = s3_config.get('region')
 
-        if self.access_key_id and self.secret_access_key:
-            client_config = Config(
-                max_pool_connections=128,
-                user_agent_extra=self.user_agent,
-                connect_timeout=CONN_READ_TIMEOUT,
-                read_timeout=CONN_READ_TIMEOUT,
-                retries={'max_attempts': OBJ_REQ_RETRIES}
-            )
-            self.s3_client = boto3.client(
-                's3', aws_access_key_id=self.access_key_id,
-                aws_secret_access_key=self.secret_access_key,
-                aws_session_token=self.session_token,
-                config=client_config,
-                region_name=self.region_name
-            )
-        else:
-            client_config = Config(
-                signature_version=UNSIGNED,
-                user_agent_extra=self.user_agent
-            )
-            self.s3_client = boto3.client('s3', config=client_config)
+        self.aws_session = boto3.Session(
+            aws_access_key_id=s3_config.get('access_key_id'),
+            aws_secret_access_key=s3_config.get('secret_access_key'),
+            aws_session_token=s3_config.get('session_token'),
+            region_name=self.region
+        )
+
+        s3_client_config = Config(
+            max_pool_connections=128,
+            user_agent_extra=self.user_agent,
+            connect_timeout=CONN_READ_TIMEOUT,
+            read_timeout=CONN_READ_TIMEOUT,
+            retries={'max_attempts': OBJ_REQ_RETRIES}
+        )
+
+        self.s3_client = self.aws_session.client(
+            's3', config=s3_client_config,
+            region_name=self.region
+        )
 
         msg = STORAGE_CLI_MSG.format('S3')
-        logger.info(f"{msg} - Region: {self.region_name}")
+        logger.info(f"{msg} - Region: {self.region}")
 
     def get_client(self):
         '''
@@ -73,6 +68,22 @@ class S3Backend:
         :return: boto3 client
         '''
         return self.s3_client
+
+    def generate_bucket_name(self):
+        """
+        Generates a unique bucket name
+        """
+        sts_client = self.aws_session.client('sts', region_name=self.region)
+        caller_id = sts_client.get_caller_identity()
+
+        if ":" in caller_id["UserId"]:  # SSO user
+            user_key = caller_id["UserId"].split(":")[1]
+        else:  # IAM user
+            user_key = caller_id["UserId"][-4:].lower()
+
+        self.config['storage_bucket'] = f'lithops-{self.region}-{user_key}'
+
+        return self.config['storage_bucket']
 
     def create_bucket(self, bucket_name):
         """
@@ -84,7 +95,7 @@ class S3Backend:
             if e.response['ResponseMetadata']['HTTPStatusCode'] == 404:
                 logger.debug(f"Could not find the bucket {bucket_name} in the AWS S3 storage backend")
                 logger.debug(f"Creating new bucket {bucket_name} in the AWS S3 storage backend")
-                bucket_config = {'LocationConstraint': self.region_name}
+                bucket_config = {'LocationConstraint': self.region}
                 self.s3_client.create_bucket(Bucket=bucket_name, CreateBucketConfiguration=bucket_config)
             else:
                 raise e

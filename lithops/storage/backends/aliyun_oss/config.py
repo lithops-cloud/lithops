@@ -15,7 +15,6 @@
 #
 
 import copy
-import hashlib
 
 
 CONNECTION_POOL_SIZE = 300
@@ -48,9 +47,3 @@ def load_config(config_data=None):
     region = config_data['aliyun_oss']['region']
     config_data['aliyun_oss']['public_endpoint'] = PUBLIC_ENDPOINT.format(region)
     config_data['aliyun_oss']['internal_endpoint'] = INTERNAL_ENDPOINT.format(region)
-
-    if 'storage_bucket' not in config_data['aliyun_oss']:
-        ossc = config_data['aliyun_oss']
-        key = ossc['access_key_id']
-        endpoint = hashlib.sha1(ossc['public_endpoint'].encode()).hexdigest()[:6]
-        config_data['aliyun_oss']['storage_bucket'] = f'lithops-{endpoint}-{key[:6].lower()}'

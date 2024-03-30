@@ -116,6 +116,19 @@ class IBMCloudObjectStorageBackend:
         """
         return self.cos_client
 
+    def generate_bucket_name(self):
+        """
+        Generates a unique bucket name
+        """
+        if not {'access_key_id', 'secret_access_key'}.issubset(self.config):
+            msg = "'storage_bucket' parameter not found in config. You must provide HMAC "
+            msg += "Credentials if you want the bucket to be automatically created"
+            raise Exception(msg)
+        key = self.config.get('access_key_id') or self.api_key or self.iam_api_key
+        self.config['storage_bucket'] = f"lithops-{self.region}-{key[:6].lower()}"
+
+        return self.config['storage_bucket']
+
     def create_bucket(self, bucket_name):
         """
         Create a bucket if it doesn't exist

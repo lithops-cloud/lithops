@@ -56,6 +56,15 @@ class OCIObjectStorageBackend:
     def get_client(self):
         return self
 
+    def generate_bucket_name(self):
+        """
+        Generates a unique bucket name
+        """
+        user = self.config['user']
+        self.config['storage_bucket'] = f'lithops-{self.region}-{user[-8:-1].lower()}'
+
+        return self.config['storage_bucket']
+
     def create_bucket(self, bucket_name):
         """
         Create a bucket if it doesn't exist

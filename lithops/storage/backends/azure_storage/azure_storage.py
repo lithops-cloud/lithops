@@ -15,6 +15,7 @@
 #
 
 import os
+import hashlib
 import shutil
 import logging
 from io import BytesIO
@@ -30,10 +31,14 @@ class AzureBlobStorageBackend:
 
     def __init__(self, azure_blob_config):
         logger.debug("Creating Azure Blob Storage client")
+        self.config = azure_blob_config
         self.storage_account_name = azure_blob_config['storage_account_name']
         self.blob_service_url = 'https://{}.blob.core.windows.net'.format(self.storage_account_name)
-        self.blob_client = BlobServiceClient(account_url=self.blob_service_url,
-                                             credential=azure_blob_config['storage_account_key'])
+
+        self.blob_client = BlobServiceClient(
+            account_url=self.blob_service_url,
+            credential=azure_blob_config['storage_account_key']
+        )
 
         msg = STORAGE_CLI_MSG.format('Azure Blob')
         logger.info("{}".format(msg))
@@ -45,6 +50,16 @@ class AzureBlobStorageBackend:
         :rtype: azure.storage.blob.BlobServiceClient
         """
         return self.blob_client
+
+    def generate_bucket_name(self):
+        """
+        Generates a unique bucket name
+        """
+        key = self.config['storage_account_key']
+        account = hashlib.sha1(self.config['storage_account_name'].encode()).hexdigest()[:6]
+        self.config['storage_bucket'] = f'lithops-{account}-{key[:6].lower()}'
+
+        return self.config['storage_bucket']
 
     def create_bucket(self, bucket_name):
         """

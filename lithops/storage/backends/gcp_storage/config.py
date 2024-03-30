@@ -15,7 +15,6 @@
 #
 
 import copy
-import hashlib
 import os
 
 
@@ -39,9 +38,3 @@ def load_config(config_data=None):
 
     if 'region' not in config_data['gcp_storage']:
         raise Exception("'region' parameter is mandatory under 'gcp_storage' or 'gcp' section of the configuration")
-
-    if 'storage_bucket' not in config_data['gcp_storage']:
-        gcps = config_data['gcp_storage']
-        region = gcps['region']
-        key = hashlib.sha1(gcps['credentials_path'].encode()).hexdigest()[:6]
-        config_data['gcp_storage']['storage_bucket'] = f'lithops-{region}-{key[:6].lower()}'
