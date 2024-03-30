@@ -46,6 +46,7 @@ class AWSBatchBackend:
         self.type = utils.BackendType.BATCH.value
         self.aws_batch_config = aws_batch_config
         self.region = aws_batch_config['region']
+        self.namespace = aws_batch_config.get('namespace')
 
         self._env_type = self.aws_batch_config['env_type']
         self._queue_name = f'{self.package}_{self._env_type.replace("_", "-")}_queue'
