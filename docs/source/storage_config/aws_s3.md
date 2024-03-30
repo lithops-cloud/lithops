@@ -37,8 +37,8 @@ Lithops with AWS S3 as storage backend.
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |aws | region | |yes | AWS Region. For example `us-east-1` |
-|aws | access_key_id | |yes | Account access key to AWS services. To find them, navigate to *My Security Credentials* and click *Create Access Key* if you don't already have one. |
-|aws | secret_access_key | |yes | Account secret access key to AWS services. To find them, navigate to *My Security Credentials* and click *Create Access Key* if you don't already have one. |
+|aws | access_key_id | |no | Account access key to AWS services. To find them, navigate to *My Security Credentials* and click *Create Access Key* if you don't already have one. |
+|aws | secret_access_key | |no | Account secret access key to AWS services. To find them, navigate to *My Security Credentials* and click *Create Access Key* if you don't already have one. |
 |aws | session_token | |no | Session token for temporary AWS credentials |
 
 ### Summary of configuration keys for AWS S3:

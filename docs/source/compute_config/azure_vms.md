@@ -1,4 +1,4 @@
-# Azure Virtual Machines (Beta)
+# Azure Virtual Machines
 
 The Azure Virtual Machines client of Lithops can provide a truely serverless user experience on top of Azure VMs where Lithops creates new Virtual Machines (VMs) dynamically in runtime and scale Lithops jobs against them. Alternatively Lithops can start and stop an existing VM instances.
 

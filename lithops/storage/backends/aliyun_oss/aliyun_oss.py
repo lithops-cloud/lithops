@@ -59,6 +59,15 @@ class AliyunObjectStorageServiceBackend:
     def get_client(self):
         return self
 
+    def generate_bucket_name(self):
+        """
+        Generates a unique bucket name
+        """
+        key = self.config['access_key_id']
+        self.config['storage_bucket'] = f'lithops-{self.region}-{key[:6].lower()}'
+
+        return self.config['storage_bucket']
+
     def create_bucket(self, bucket_name):
         """
         Create a bucket if it doesn't exist

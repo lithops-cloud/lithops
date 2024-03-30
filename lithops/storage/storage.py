@@ -58,7 +58,6 @@ class Storage:
             self.config = extract_storage_config(storage_config)
 
         self.backend = self.config['backend']
-        self.bucket = self.config['bucket']
 
         try:
             module_location = f'lithops.storage.backends.{self.backend}'
@@ -69,6 +68,8 @@ class Storage:
             logger.error("An exception was produced trying to create the "
                          f"'{self.backend}' storage backend")
             raise e
+
+        self.bucket = self.config['bucket'] or self.storage_handler.generate_bucket_name()
 
     def get_client(self) -> object:
         """

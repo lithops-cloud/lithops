@@ -37,8 +37,3 @@ def load_config(config_data=None):
     temp = copy.deepcopy(config_data['oracle_oss'])
     config_data['oracle_oss'].update(config_data['oracle'])
     config_data['oracle_oss'].update(temp)
-
-    if 'storage_bucket' not in config_data['oracle_oss']:
-        user = config_data['oracle_oss']['user']
-        region = config_data['oracle_oss']['region']
-        config_data['oracle_oss']['storage_bucket'] = f'lithops-{region}-{user[-8:-1].lower()}'

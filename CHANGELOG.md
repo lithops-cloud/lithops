@@ -6,7 +6,9 @@
 - 
 
 ### Changed
-- 
+- [AWS Lambda] Eliminate the need for access and secret keys in the configuration
+- [AWS Batch] Eliminate the need for access and secret keys in the configuration
+- [AWS S3] Eliminate the need for access and secret keys in the configuration
 
 ### Fixed
 - [AWS Lambda] Fixed runtime deletion with "lithops runtime delete"
