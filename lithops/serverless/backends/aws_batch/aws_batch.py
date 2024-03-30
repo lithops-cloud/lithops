@@ -45,34 +45,43 @@ class AWSBatchBackend:
         self.name = 'aws_batch'
         self.type = utils.BackendType.BATCH.value
         self.aws_batch_config = aws_batch_config
-
-        self.user_key = aws_batch_config['access_key_id'][-4:]
-        self.package = f'lithops_v{__version__.replace(".", "-")}_{self.user_key}'
-        self.region_name = aws_batch_config['region']
+        self.region = aws_batch_config['region']
 
         self._env_type = self.aws_batch_config['env_type']
         self._queue_name = f'{self.package}_{self._env_type.replace("_", "-")}_queue'
         self._compute_env_name = f'{self.package}_{self._env_type.replace("_", "-")}_env'
 
         logger.debug('Creating Boto3 AWS Session and Batch Client')
-        self.aws_session = boto3.Session(aws_access_key_id=aws_batch_config['access_key_id'],
-                                         aws_secret_access_key=aws_batch_config['secret_access_key'],
-                                         aws_session_token=aws_batch_config.get('session_token'),
-                                         region_name=self.region_name)
-        self.batch_client = self.aws_session.client('batch', region_name=self.region_name)
+        self.aws_session = boto3.Session(
+            aws_access_key_id=aws_batch_config.get('access_key_id'),
+            aws_secret_access_key=aws_batch_config.get('secret_access_key'),
+            aws_session_token=aws_batch_config.get('session_token'),
+            region_name=self.region
+        )
+        self.batch_client = self.aws_session.client('batch', region_name=self.region)
 
         self.internal_storage = internal_storage
 
         if 'account_id' in self.aws_batch_config:
             self.account_id = self.aws_batch_config['account_id']
         else:
-            sts_client = self.aws_session.client('sts', region_name=self.region_name)
+            sts_client = self.aws_session.client('sts', region_name=self.region)
             self.account_id = sts_client.get_caller_identity()["Account"]
 
-        self.ecr_client = self.aws_session.client('ecr', region_name=self.region_name)
+        sts_client = self.aws_session.client('sts', region_name=self.region)
+        caller_id = sts_client.get_caller_identity()
+
+        if ":" in caller_id["UserId"]:  # SSO user
+            self.user_key = caller_id["UserId"].split(":")[1]
+        else:  # IAM user
+            self.user_key = caller_id["UserId"][-4:].lower()
+
+        self.ecr_client = self.aws_session.client('ecr', region_name=self.region)
+        package = f'lithops_v{__version__.replace(".", "")}_{self.user_key}'
+        self.package = f"{package}_{self.namespace}" if self.namespace else package
 
         msg = COMPUTE_CLI_MSG.format('AWS Batch')
-        logger.info("{} - Region: {}".format(msg, self.region_name))
+        logger.info(f"{msg} - Region: {self.region}")
 
     def _get_default_runtime_image_name(self):
         python_version = utils.CURRENT_PY_VERSION.replace('.', '')
@@ -81,7 +90,7 @@ class AWSBatchBackend:
 
     def _get_full_image_name(self, runtime_name):
         full_image_name = runtime_name if ':' in runtime_name else f'{runtime_name}:latest'
-        registry = f'{self.account_id}.dkr.ecr.{self.region_name}.amazonaws.com'
+        registry = f'{self.account_id}.dkr.ecr.{self.region}.amazonaws.com'
         full_image_name = '/'.join([registry, self.package.replace('-', '.'), full_image_name]).lower()
         repo_name = full_image_name.split('/', 1)[1:].pop().split(':')[0]
         return full_image_name, registry, repo_name
@@ -585,7 +594,7 @@ class AWSBatchBackend:
 
     def get_runtime_key(self, runtime_name, runtime_memory, version=__version__):
         jobdef_name = self._format_jobdef_name(runtime_name, runtime_memory, version)
-        runtime_key = os.path.join(self.name, version, self.region_name, jobdef_name)
+        runtime_key = os.path.join(self.name, version, self.region, jobdef_name)
         return runtime_key
 
     def get_runtime_info(self):

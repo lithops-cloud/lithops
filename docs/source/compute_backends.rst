@@ -19,7 +19,6 @@ Compute Backends
    compute_config/oracle_functions.md
    compute_config/aliyun_functions.md
    compute_config/openwhisk.md
-   compute_config/ibm_cf.md
 
 **Serverless (CaaS) Backends:**
 

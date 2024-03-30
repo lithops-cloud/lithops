@@ -1,4 +1,4 @@
-# Oracle Functions (beta)
+# Oracle Functions
 
 Lithops with *Oracle Functions* as serverless compute backend.
 
