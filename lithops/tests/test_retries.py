@@ -32,11 +32,13 @@ class TestRetries(unittest.TestCase):
         fexec = LocalhostExecutor()
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp_path = Path(tmp_dir)
-            function = lambda x: deterministic_failure(tmp_path, timing_map, x)
+
+            def map_function(x):
+                return deterministic_failure(tmp_path, timing_map, x)
             input = range(n_tasks)
             with RetryingFunctionExecutor(fexec) as executor:
                 futures = executor.map(
-                    function,
+                    map_function,
                     input,
                     timeout=timeout,
                     retries=retries,

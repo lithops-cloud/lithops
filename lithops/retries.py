@@ -14,7 +14,7 @@ from six import reraise
 
 class RetryingFuture:
     """
-    A wrapper around Lithops `ResponseFuture` that takes care of retries.
+    A wrapper around `ResponseFuture` that takes care of retries.
     """
 
     def __init__(
@@ -92,7 +92,7 @@ class RetryingFuture:
 
 class RetryingFunctionExecutor:
     """
-    A wrapper around Lithops `FunctionExecutor` that supports retries.
+    A wrapper around `FunctionExecutor` that supports retries.
     """
 
     def __init__(self, executor: FunctionExecutor):
