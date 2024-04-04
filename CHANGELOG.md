@@ -3,12 +3,13 @@
 ## [v3.2.1.dev0]
 
 ### Added
-- 
+- [Core] Add a mechanism to automatically retry failed tasks
 
 ### Changed
-- [AWS Lambda] Eliminate the need for access and secret keys in the configuration
-- [AWS Batch] Eliminate the need for access and secret keys in the configuration
-- [AWS S3] Eliminate the need for access and secret keys in the configuration
+- [AWS Lambda] Eliminated the need for access and secret keys in the configuration
+- [AWS Batch] Eliminated the need for access and secret keys in the configuration
+- [AWS S3] Eliminated the need for access and secret keys in the configuration
+- [Tests] Moved tests from unittest to pytest
 
 ### Fixed
 - [AWS Lambda] Fixed runtime deletion with "lithops runtime delete"

@@ -107,7 +107,7 @@ class FunctionExecutor:
 
         self.data_cleaner = self.config['lithops'].get('data_cleaner', True)
         if self.data_cleaner and not self.is_lithops_worker:
-            atexit.register(self.clean, clean_cloudobjects=False, clean_fn=True)
+            atexit.register(self.clean, clean_cloudobjects=False, clean_fn=True, on_exit=True)
 
         storage_config = extract_storage_config(self.config)
         self.internal_storage = InternalStorage(storage_config)
@@ -162,7 +162,7 @@ class FunctionExecutor:
     def _create_job_id(self, call_type):
         job_id = str(self.total_jobs).zfill(3)
         self.total_jobs += 1
-        return '{}{}'.format(call_type, job_id)
+        return f'{call_type}{job_id}'
 
     def call_async(
         self,
@@ -557,7 +557,8 @@ class FunctionExecutor:
         cs: Optional[List[CloudObject]] = None,
         clean_cloudobjects: Optional[bool] = True,
         clean_fn: Optional[bool] = False,
-        force: Optional[bool] = False
+        force: Optional[bool] = False,
+        on_exit: Optional[bool] = False
     ):
         """
         Deletes all the temp files from storage. These files include the function,
@@ -569,6 +570,7 @@ class FunctionExecutor:
         :param clean_cloudobjects: Delete all cloudobjects created with this executor
         :param clean_fn: Delete cached functions in this executor
         :param force: Clean all future objects even if they have not benn completed
+        :parma on_exit: do not print logs on exit
         """
         global CLEANER_PROCESS
 
@@ -604,7 +606,8 @@ class FunctionExecutor:
         jobs_to_clean = present_jobs - self.cleaned_jobs
 
         if jobs_to_clean:
-            logger.info(f'ExecutorID {self.executor_id} - Cleaning temporary data')
+            if not on_exit:
+                logger.info(f'ExecutorID {self.executor_id} - Cleaning temporary data')
             data = {
                 'jobs_to_clean': jobs_to_clean,
                 'clean_cloudobjects': clean_cloudobjects,

@@ -31,11 +31,6 @@ from concurrent.futures import ThreadPoolExecutor
 import lithops
 from lithops import Storage
 from lithops.version import __version__
-from lithops.tests.tests_main import (
-    print_test_functions,
-    print_test_groups,
-    run_tests
-)
 from lithops.utils import (
     get_mode,
     setup_lithops_logger,
@@ -135,8 +130,8 @@ def clean(config, backend, storage, debug, region, all):
     storage = internal_storage.storage
     runtimes_path = RUNTIMES_PREFIX + '/' + backend
     jobs_path = JOBS_PREFIX
-    clean_bucket(storage, storage_config['bucket'], runtimes_path, sleep=1)
-    clean_bucket(storage, storage_config['bucket'], jobs_path, sleep=1)
+    clean_bucket(storage, storage.bucket, runtimes_path, sleep=1)
+    clean_bucket(storage, storage.bucket, jobs_path, sleep=1)
 
     # Clean localhost executor temp dirs
     shutil.rmtree(LITHOPS_TEMP_DIR, ignore_errors=True)
@@ -152,30 +147,39 @@ def clean(config, backend, storage, debug, region, all):
 @click.option('--storage', '-s', default=None, help='Storage backend')
 @click.option('--debug', '-d', is_flag=True, help='Debug mode')
 @click.option('--region', '-r', default=None, help='compute backend region')
-@click.option('--test', '-t', default='all', help='Run a specific tester. To avoid running similarly named tests '
-                                                  'you may prefix the tester with its test class, '
-                                                  'e.g. TestClass.test_name. '
-                                                  'Type "-t help" for the complete tests list')
-@click.option('--groups', '-g', default=None, help='Run all testers belonging to a specific group.'
-                                                   ' type "-g help" for groups list')
-@click.option('--fail_fast', '-f', is_flag=True, help='Stops test run upon first occurrence of a failed test')
-@click.option('--keep_datasets', '-k', is_flag=True, help='keeps datasets in storage after the test run. '
-                                                          'Meant to serve some use-cases in github workflow.')
-def test(test, config, backend, groups, storage, debug, region, fail_fast, keep_datasets):
-    config = load_yaml_config(config) if config else None
+@click.option('--test', '-t', default=None, help='Run a specific test. To avoid running similarly named tests '
+                                                 'you may prefix the tester with its test class, '
+                                                 'e.g. TestAsync::test_call_async'
+                                                 'Type "-t help" for the complete tests list')
+@click.option('--exitfirst', '-x', is_flag=True, help='Stops test run upon first occurrence of a failed test')
+def test(test, config, backend, storage, debug, region, exitfirst):
+    import pytest
 
-    log_level = logging.INFO if not debug else logging.DEBUG
-    setup_lithops_logger(log_level)
-
-    if groups and test == 'all':  # if user specified a group(s) avoid running all tests.
-        test = ''
+    dir_path = os.path.dirname(os.path.realpath(__file__))
+    tests_path = os.path.abspath(os.path.join(dir_path, '..', 'tests'))
 
     if test == 'help':
-        print_test_functions()
-    elif groups == 'help':
-        print_test_groups()
+        pytest.main([tests_path, "--collect-only"])
     else:
-        run_tests(test, config, groups, backend, storage, region, fail_fast, keep_datasets)
+        cmd_string = [tests_path, "-v"]
+        if exitfirst:
+            cmd_string.extend(["-x"])
+        if debug:
+            cmd_string.extend(["-o", "log_cli=true", "--log-cli-level=DEBUG"])
+        if config:
+            cmd_string.extend(["--config", config])
+        if backend:
+            cmd_string.extend(["--backend", backend])
+        if storage:
+            cmd_string.extend(["--storage", storage])
+        if region:
+            cmd_string.extend(["--region", region])
+        if test:
+            cmd_string.extend(["-k", test])
+
+        print("Executing lithops tests: pytest " + ' '.join(cmd_string[1:]))
+
+        pytest.main(cmd_string)
 
 
 @lithops_cli.command('hello')

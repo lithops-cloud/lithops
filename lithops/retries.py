@@ -2,6 +2,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from lithops import FunctionExecutor
 from lithops.future import ResponseFuture
+from lithops.storage.utils import CloudObject
 from lithops.wait import (
     ALL_COMPLETED,
     ALWAYS,
@@ -206,3 +207,13 @@ class RetryingFunctionExecutor:
                 break
 
         return retrying_done, retrying_pending
+
+    def clean(
+        self,
+        fs: Optional[Union[ResponseFuture, List[ResponseFuture]]] = None,
+        cs: Optional[List[CloudObject]] = None,
+        clean_cloudobjects: Optional[bool] = True,
+        clean_fn: Optional[bool] = False,
+        force: Optional[bool] = False
+    ):
+        self.executor.clean(fs, cs, clean_cloudobjects, clean_fn, force)

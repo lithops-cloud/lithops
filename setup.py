@@ -61,8 +61,12 @@ extras_require = {
     ],
     'oracle': [
         'oci',
+    ],
+    'tests': [
+        'pytest',
     ]
 }
+
 
 extras_require["all"] = list(set(chain.from_iterable(extras_require.values())))
 
