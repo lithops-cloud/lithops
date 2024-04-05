@@ -69,7 +69,8 @@ class Storage:
                          f"'{self.backend}' storage backend")
             raise e
 
-        self.bucket = self.config['bucket'] or self.storage_handler.generate_bucket_name()
+        bucket = self.config[self.backend].get('storage_bucket')
+        self.bucket = bucket or self.storage_handler.generate_bucket_name()
 
     def get_client(self) -> object:
         """

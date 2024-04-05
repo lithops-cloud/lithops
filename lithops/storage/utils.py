@@ -165,13 +165,13 @@ def create_init_key(executor_id, job_id, call_id, act_id):
 
 
 def get_storage_path(storage_config):
-    storage_bucket = storage_config['bucket']
-    storage_backend = storage_config['backend']
+    backend = storage_config['backend']
+    bucket = storage_config[backend]['storage_bucket']
 
-    return [storage_backend, storage_bucket]
+    return [backend, bucket]
 
 
-def check_storage_path(config, prev_path):
-    current_path = get_storage_path(config)
+def check_storage_path(storage_config, prev_path):
+    current_path = get_storage_path(storage_config)
     if current_path != prev_path:
         raise StorageConfigMismatchError(current_path, prev_path)
