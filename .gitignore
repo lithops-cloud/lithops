@@ -6,6 +6,9 @@ dist/
 plots/
 *.egg-info
 lithops_*.zip
+*.log
+*.txt
+*.csv
 
 # Virtual environments
 .env

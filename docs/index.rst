@@ -172,5 +172,4 @@ Papers
 
    Applications <https://github.com/lithops-cloud/applications>
    source/contributing.rst
-   source/testing.rst
    Changelog <https://github.com/lithops-cloud/lithops/blob/master/CHANGELOG.md>

@@ -26,11 +26,12 @@ jobs:
 
       - name: Install Lithops
         run: |
-          pip3 install -U .
+          pip3 install -U .[tests]
 
       - name: Run Lithops tests
         run: |
-          lithops test -b localhost -s localhost -d
+          cd lithops/tests
+          pytest -o log_cli=true --log-cli-level=DEBUG --backend localhost --storage localhost
 
   python_linting:
     runs-on: ubuntu-latest
