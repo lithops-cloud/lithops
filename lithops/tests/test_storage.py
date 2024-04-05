@@ -187,7 +187,7 @@ class TestStorage:
         for key in test_keys:
             self.storage.put_object(self.bucket, key, key.encode())
 
-        all_bucket_objects = self.storage.list_objects(self.bucket, prefix=PREFIX+'/list')
+        all_bucket_objects = self.storage.list_objects(self.bucket, prefix=PREFIX + '/list')
         isEqual = all(obj['Size'] == len(obj['Key'].encode()) for obj in all_bucket_objects)
         assert isEqual
 
