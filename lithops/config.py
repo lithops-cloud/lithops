@@ -245,8 +245,6 @@ def extract_storage_config(config):
     s_config[backend] = config[backend] if backend in config and config[backend] else {}
     s_config[backend]['user_agent'] = f'lithops/{__version__}'
 
-    s_config['bucket'] = s_config[backend].get('storage_bucket')
-
     return s_config
 
 
