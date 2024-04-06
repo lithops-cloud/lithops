@@ -17,7 +17,7 @@
 import pytest
 import lithops
 import logging
-from lithops.tests.functions import simple_map_function
+from lithops.tests.functions import simple_map_function, SideEffect, passthrough_function
 
 logger = logging.getLogger(__name__)
 
@@ -50,3 +50,11 @@ class TestAsync:
         fexec.call_async(simple_map_function, {'x': 2, 'y': 8})
         result = fexec.get_result()
         assert result == 10
+
+    def test_call_async_object_with_side_effects(self):
+        """Test that passing an object with properties that trigger side effects does not cause the side effects to be triggered."""
+            
+        se = SideEffect()
+        fexec = lithops.FunctionExecutor(config=pytest.lithops_config)
+        fexec.call_async(passthrough_function, se)
+        result = fexec.get_result()
