@@ -14,15 +14,19 @@ jobs:
 
   localhost_tests:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.6', '3.7', '3.8', '3.9', '3.10', '3.11', '3.12']
 
     steps:
       - name: Clone Lithops repository
         uses: actions/checkout@v3
 
-      - name: Install Python 3.10
+      - name: Install Python ${{ matrix.python-version }}
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: ${{ matrix.python-version }}
+          architecture: x64
 
       - name: Install Lithops
         run: |
