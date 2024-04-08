@@ -116,7 +116,8 @@ class ModuleDependencyAnalyzer:
         # logger.debug('Inspecting module %r', root_module_name)
         try:
             fp, pathname, description = imp.find_module(root_module_name)
-            logger.debug(f"Module '{root_module_name}' found in {pathname}")
+            if pathname:
+                logger.debug(f"Module '{root_module_name}' found in {pathname}")
         except ImportError:
             logger.debug('Could not find module %r, skipping', root_module_name)
             return
