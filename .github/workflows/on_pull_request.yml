@@ -56,4 +56,4 @@ jobs:
       
       - name: Lint with flake8
         run: |
-          flake8 lithops --count --max-line-length=180 --statistics --ignore W605
+          flake8 lithops --count --max-line-length=180 --statistics --ignore W605,W503

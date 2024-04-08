@@ -16,10 +16,11 @@
 
 import pytest
 import lithops
-import logging
-from lithops.tests.functions import simple_map_function
-
-logger = logging.getLogger(__name__)
+from lithops.tests.functions import (
+    SideEffect,
+    passthrough_function,
+    simple_map_function
+)
 
 
 class TestAsync:
@@ -50,3 +51,10 @@ class TestAsync:
         fexec.call_async(simple_map_function, {'x': 2, 'y': 8})
         result = fexec.get_result()
         assert result == 10
+
+    def test_call_async_object_with_side_effects(self):
+        se = SideEffect()
+        fexec = lithops.FunctionExecutor(config=pytest.lithops_config)
+        fexec.call_async(passthrough_function, se)
+        result = fexec.get_result()
+        assert result == 5
