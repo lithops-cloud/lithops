@@ -144,18 +144,3 @@ def my_map_function_storage(key_i, bucket_name, storage):
             else:
                 counter[word] += 1
     return counter
-
-
-class SideEffect:
-    def __init__(self):
-        pass
-
-    @property
-    def foo(self):
-        raise RuntimeError("Side effect triggered")
-
-    result = 5
-
-
-def passthrough_function(x):
-    return x.result
