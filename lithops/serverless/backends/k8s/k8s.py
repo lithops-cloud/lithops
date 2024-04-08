@@ -534,9 +534,6 @@ class KubernetesBackend:
             pod_mem_num, pod_mem_uni = self.convert_memory_units(pod_mem_num, pod_mem_uni)
             node_mem_num, node_mem_uni = self.convert_memory_units(node_mem_num, node_mem_uni)
 
-            print(config_mem_num, config_mem_uni)
-            print(pod_mem_num, pod_mem_uni)
-
             # There are pods with cpu granularity
             if multiples_pods_per_node:
                 # Is lithops pod with granularity and the user doesn't want it
