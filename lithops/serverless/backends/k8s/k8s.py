@@ -370,7 +370,7 @@ class KubernetesBackend:
         # If the unit is not specified, assume it is in MB
         try:
             mem_num, mem_uni = re.match(r'(\d+)(\D*)', runtime_memory).groups()
-        except:
+        except TypeError:
             mem_num = runtime_memory
             mem_uni = 'M'
 
@@ -527,13 +527,13 @@ class KubernetesBackend:
             try:
                 config_mem_num, config_mem_uni = re.match(r'(\d+)(\D*)', config_memory).groups()
                 config_mem_num, config_mem_uni = self.convert_memory_units(config_mem_num, config_mem_uni)
-            except:
+            except TypeError:
                 config_mem_num = config_memory
                 config_mem_uni = 'M'
-            
+
             pod_mem_num, pod_mem_uni = self.convert_memory_units(pod_mem_num, pod_mem_uni)
             node_mem_num, node_mem_uni = self.convert_memory_units(node_mem_num, node_mem_uni)
-            
+
             print(config_mem_num, config_mem_uni)
             print(pod_mem_num, pod_mem_uni)
 
