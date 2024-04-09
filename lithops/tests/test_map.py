@@ -15,7 +15,6 @@
 #
 
 import pytest
-import logging
 import lithops
 from lithops.tests.functions import (
     simple_map_function,
@@ -28,55 +27,51 @@ from lithops.tests.functions import (
 )
 
 
-logger = logging.getLogger(__name__)
-
-
 class TestMap:
 
-    def test_map(self):
+    def test_simple_map(self):
         iterdata = [(1, 1), (2, 2), (3, 3), (4, 4)]
         fexec = lithops.FunctionExecutor(config=pytest.lithops_config)
         fexec.map(simple_map_function, iterdata)
         result = fexec.get_result()
         assert result == [2, 4, 6, 8]
 
-    def test_map_max_workers(self):
+    def test_max_workers(self):
         iterdata = [(1, 1), (2, 2), (3, 3), (4, 4)]
         fexec = lithops.FunctionExecutor(config=pytest.lithops_config, max_workers=1)
         fexec.map(simple_map_function, iterdata)
         result = fexec.get_result()
         assert result == [2, 4, 6, 8]
 
-    def test_map_set_range_params(self):
-        fexec = lithops.FunctionExecutor(config=pytest.lithops_config)
-        set_iterdata = set(range(2))
-        fexec.map(hello_world, set_iterdata)
-        result = fexec.get_result()
-        assert result == ['Hello World!'] * 2
-
-    def test_map_range_params(self):
+    def test_range_iterdata(self):
         fexec = lithops.FunctionExecutor(config=pytest.lithops_config)
         generator_iterdata = range(2)
         fexec.map(hello_world, generator_iterdata)
         result = fexec.get_result()
         assert result == ['Hello World!'] * 2
 
-    def test_map_dict_params(self):
+    def test_dict_iterdata(self):
         fexec = lithops.FunctionExecutor(config=pytest.lithops_config)
         listDicts_iterdata = [{'x': 2, 'y': 8}, {'x': 2, 'y': 8}]
         fexec.map(simple_map_function, listDicts_iterdata)
         result = fexec.get_result()
         assert result == [10, 10]
 
-    def test_map_set_params(self):
+    def test_set_iterdata(self):
         fexec = lithops.FunctionExecutor(config=pytest.lithops_config)
         set_iterdata = [["a", "b"], ["c", "d"]]
         fexec.map(concat, set_iterdata)
         result = fexec.get_result()
         assert result == ["a b", "c d"]
 
+    def test_set_range_iterdata(self):
+        fexec = lithops.FunctionExecutor(config=pytest.lithops_config)
+        set_iterdata = set(range(2))
+        fexec.map(hello_world, set_iterdata)
+        result = fexec.get_result()
+        assert result == ['Hello World!'] * 2
+
     def test_multiple_executions(self):
-        logger.info('Testing multiple executions before requesting results')
         fexec = lithops.FunctionExecutor(config=pytest.lithops_config)
         iterdata = [(1, 1), (2, 2)]
         fexec.map(simple_map_function, iterdata)
