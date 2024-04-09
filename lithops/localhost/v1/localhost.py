@@ -95,7 +95,10 @@ class LocalhostHandler:
             while self.should_run:
                 job_payload, job_filename = self.job_queue.get()
                 if job_payload is None and job_filename is None:
-                    break
+                    if self.job_queue.empty():
+                        break
+                    else:
+                        continue
                 executor_id = job_payload['executor_id']
                 job_id = job_payload['job_id']
                 total_calls = len(job_payload['call_ids'])
