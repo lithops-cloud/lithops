@@ -116,7 +116,7 @@ class TestMapReduce:
         assert result == self.words_in_files
 
     def test_chunks_bucket(self):
-        """tests the ability to create a separate function invocation 
+        """tests the ability to create a separate function invocation
         based on the following parameters: chunk_size creates [file_size//chunk_size]
         invocations to process each chunk_size bytes, of a given object. chunk_number
         creates 'chunk_number' invocations that process [file_size//chunk_number] bytes each.
