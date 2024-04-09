@@ -1,12 +1,13 @@
 import time
 import pytest
 
-from lithops import LocalhostExecutor
+from lithops import FunctionExecutor
 from lithops import RetryingFunctionExecutor
 
 
 def run_test(function, input, retries, timeout=5):
-    with RetryingFunctionExecutor(LocalhostExecutor()) as executor:
+    fexec = FunctionExecutor(config=pytest.lithops_config)
+    with RetryingFunctionExecutor(fexec) as executor:
         futures = executor.map(
             function,
             input,
