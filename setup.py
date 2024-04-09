@@ -61,8 +61,12 @@ extras_require = {
     ],
     'oracle': [
         'oci',
+    ],
+    'tests': [
+        'pytest',
     ]
 }
+
 
 extras_require["all"] = list(set(chain.from_iterable(extras_require.values())))
 
@@ -97,6 +101,7 @@ setup(
         'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: 3.11',
+        'Programming Language :: Python :: 3.12',
         'Topic :: Software Development :: Libraries :: Python Modules',
         'Topic :: Scientific/Engineering',
         'Topic :: System :: Distributed Computing',

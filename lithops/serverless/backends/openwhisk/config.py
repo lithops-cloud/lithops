@@ -22,7 +22,8 @@ AVAILABLE_PY_RUNTIMES = {
     '3.8': 'docker.io/lithopscloud/openwhisk-python-v38',
     '3.9': 'docker.io/lithopscloud/openwhisk-python-v39',
     '3.10': 'docker.io/lithopscloud/openwhisk-python-v310',
-    '3.11': 'docker.io/lithopscloud/openwhisk-python-v311'
+    '3.11': 'docker.io/lithopscloud/openwhisk-python-v311',
+    '3.12': 'docker.io/lithopscloud/openwhisk-python-v312'
 }
 
 DEFAULT_CONFIG_KEYS = {

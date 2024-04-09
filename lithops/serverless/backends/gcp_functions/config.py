@@ -37,7 +37,8 @@ AVAILABLE_PY_RUNTIMES = {
     '3.8': 'python38',
     '3.9': 'python39',
     '3.10': 'python310',
-    '3.11': 'python311'
+    '3.11': 'python311',
+    '3.12': 'python312'
 }
 
 USER_RUNTIMES_PREFIX = 'lithops.user_runtimes'
@@ -52,33 +53,23 @@ DEFAULT_CONFIG_KEYS = {
 }
 
 REQUIREMENTS_FILE = """
-numpy
-scipy
-scikit-learn
-pandas
 google-cloud
 google-cloud-storage
 google-cloud-pubsub
 google-auth
 google-api-python-client
-certifi
-chardet
-docutils
-httplib2
-idna
-jmespath
-kafka-python
-lxml
-pika
-redis
-requests
+numpy
 six
-urllib3
-virtualenv
-PyYAML
+requests
+redis
+pika
+scikit-learn
+diskcache
 cloudpickle
 ps-mem
 tblib
+PyYAML
+urllib3
 psutil
 """
 

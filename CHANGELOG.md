@@ -1,6 +1,40 @@
 # Changelog
 
-## [v3.1.2.dev0]
+## [v3.2.1.dev0]
+
+### Added
+- [Core] Add a mechanism to automatically retry failed tasks
+
+### Changed
+- [AWS Lambda] Eliminated the need for access and secret keys in the configuration
+- [AWS Batch] Eliminated the need for access and secret keys in the configuration
+- [AWS S3] Eliminated the need for access and secret keys in the configuration
+- [Tests] Moved tests from unittest to pytest
+
+### Fixed
+- [AWS Lambda] Fixed runtime deletion with "lithops runtime delete"
+
+
+## [v3.2.0]
+
+### Added
+- [Lithops] Addded support for Python 3.12
+- [CLI] Added "--include" parameter in "lithops image build" to allow users upload local files to the VM image
+
+### Changed
+- [Standalone] Use redis in the master VM to store all the relevant data about jobs and workers
+- [Standalone] Use redis to store the work queues
+- [Standalone] Improved resiliency and worker granularity
+- [CLI] Show the timestamp in the local timezone format on "lithops job list"
+- [CLI] Show worker creation timestamp and time-to-dismantle on "lithops worker list"
+
+### Fixed
+- [SSH Cli] Fixed minor error with the "err" variable
+- [Cli] Fixed job status on "lithops job list" for standalone backends
+- [Standalone] Fixed issue in the "lithops image build" that appears when the vpc is already created
+- [Future] Fixed issue with missing 'worker_end_tstamp' variable
+
+## [v3.1.2]
 
 ### Added
 - [Plots] Allow to set the figure size of the plots

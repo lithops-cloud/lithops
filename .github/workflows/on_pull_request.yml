@@ -13,24 +13,29 @@ on:
 jobs:
 
   localhost_tests:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.7', '3.8', '3.9', '3.10', '3.11', '3.12']
 
     steps:
       - name: Clone Lithops repository
         uses: actions/checkout@v3
 
-      - name: Install Python 3.10
+      - name: Install Python ${{ matrix.python-version }}
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: ${{ matrix.python-version }}
 
       - name: Install Lithops
         run: |
-          pip3 install -U .
+          pip3 install -U .[tests]
 
       - name: Run Lithops tests
         run: |
-          lithops test -b localhost -s localhost -d
+          cd lithops/tests
+          pytest -o log_cli=true --log-cli-level=DEBUG --backend localhost --storage localhost
 
   python_linting:
     runs-on: ubuntu-latest
@@ -55,4 +60,4 @@ jobs:
       
       - name: Lint with flake8
         run: |
-          flake8 lithops --count --max-line-length=180 --statistics --ignore W605
+          flake8 lithops --count --max-line-length=180 --statistics --ignore W605,W503

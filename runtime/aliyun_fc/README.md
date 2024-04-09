@@ -1,27 +1,10 @@
 # Lithops runtime for Aliyun Functions Compute
 
-The runtime is the place where your functions are executed.
+The runtime is the place where your functions are executed. The default runtime is automatically created the first time you execute a function. Lithops automatically detects the Python version of your environment and deploys the default runtime based on it.
 
-The default runtime is created the first time you execute a function. Lithops automatically detects the Python version of your environment and deploys the default runtime based on it.
+Currently, Aliyun Functions Compute supports Python 3.6, 3.9 and 3.10. You can find the list of pre-installed modules [here](https://www.alibabacloud.com/help/en/function-compute/latest/python-event-functions). In addition, the Lithops default runtimes are built with the packages included in this [requirements.txt](requirements.txt) file:
 
-Currently, Aliyun Functions Compute supports Python 3.6, and 3.9, and it provides the following default runtimes with some packages already preinstalled:
-
-
-| Runtime name | Python version | Packages included |
-| ----| ----| ---- |
-| lithops-default-runtime-v36 | 3.6 | [list of packages](https://www.alibabacloud.com/help/en/function-compute/latest/python-event-functions) |
-| lithops-default-runtime-v38 | 3.9 | [list of packages](https://www.alibabacloud.com/help/en/function-compute/latest/python-event-functions) |
-
-Lithops default runtimes are also ship with the following packages:
-```
-pika
-tblib
-cloudpickle
-ps-mem
-```
-
-
-To run a function with the default runtime you don't need to specify anything in the code, since everything is managed internally by Lithops:
+To run a function with the default runtime you don't need to specify anything in the code, since everything is handled internally by Lithops:
 
 ```python
 import lithops
@@ -45,44 +28,14 @@ pw = lithops.FunctionExecutor(runtime_memory=512)
 
 **Build your own Lithops runtime for Aliyun Functions Compute**
 
-If you need some Python modules which are not included in the default runtime, it is possible to build your own Lithops runtime with all of them.
+If you require additional Python modules not included in the default runtime, you can create your own custom Lithops runtime incorporating them. To create a custom runtime, compile all the necessary modules into a `requirements.txt` file.
 
-To build your own runtime, you have to collect all necessary modules in a `requirements.txt` file.
+For instance, if you wish to integrate the `matplotlib` module into your runtime, which isn't part of the default setup, you need to append it to the existing [requirements.txt](requirements.txt) file. Note that this `requirements.txt` contains the mandatory pakcges required by lithops, so you don't have to remove any of them from the list, but just add your packages at the end.
 
-For example, we want to add module `matplotlib` to our runtime, since it is not provided in the default runtime.
+After updating the file accordingly, you can proceed to build the custom runtime by specifying the modified `requirements.txt` file along with a chosen runtime name:
 
-First, we need to extend the default `requirements.txt` file provided with Lithops with all the modules we need. For our example, the `requirements.txt` will contain the following modules:
 ```
-numpy
-scikit-learn
-scipy
-pandas
-google-cloud
-google-cloud-storage
-google-cloud-pubsub
-certifi
-chardet
-docutils
-httplib2
-idna
-jmespath
-kafka-python
-lxml
-pika==0.13.0
-python-dateutil
-redis
-requests
-simplejson
-six
-urllib3
-virtualenv
-PyYAML
-matplotlib
-```
-
-Then, we will build the runtime, specifying the modified `requirements.txt` file and a runtime name:
-```
-$ lithops runtime build -f requirements.txt my_matplotlib_runtime -b aliyun_fc
+$ lithops runtime build -b aliyun_fc -f requirements.txt my_matplotlib_runtime 
 ```
 
 This command will built and deploy a runtime called `my_matplotlib_runtime` to the available Aliyun FUnctions Compute runtimes.

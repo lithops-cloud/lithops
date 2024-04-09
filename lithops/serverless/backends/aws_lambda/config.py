@@ -37,7 +37,8 @@ AVAILABLE_PY_RUNTIMES = {
     '3.8': 'python3.8',
     '3.9': 'python3.9',
     '3.10': 'python3.10',
-    '3.11': 'python3.11'
+    '3.11': 'python3.11',
+    '3.12': 'python3.12'
 }
 
 USER_RUNTIME_PREFIX = 'lithops.user_runtimes'
@@ -68,9 +69,6 @@ RUNTIME_TMP_SZ_MAX = 10240
 def load_config(config_data):
     if 'aws' not in config_data:
         raise Exception("'aws' section is mandatory in the configuration")
-
-    if not {'access_key_id', 'secret_access_key'}.issubset(set(config_data['aws'])):
-        raise Exception("'access_key_id' and 'secret_access_key' are mandatory under the 'aws' section of the configuration")
 
     if not config_data['aws_lambda']:
         raise Exception("'aws_lambda' section is mandatory in the configuration")

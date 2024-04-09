@@ -28,7 +28,7 @@ from azure.core.exceptions import ResourceNotFoundError
 
 from lithops.version import __version__
 from lithops.util.ssh_client import SSHClient
-from lithops.constants import COMPUTE_CLI_MSG, CACHE_DIR, SA_DATA_FILE
+from lithops.constants import COMPUTE_CLI_MSG, CACHE_DIR, SA_CONFIG_FILE
 from lithops.config import load_yaml_config, dump_yaml_config
 from lithops.standalone.utils import StandaloneMode
 from lithops.standalone import LithopsValidationError
@@ -370,9 +370,6 @@ class AzureVMSBackend:
                 except ResourceNotFoundError:
                     raise Exception(f"VM Instance {instance_name} does not exists")
 
-            # Create the master VM instance
-            self._create_master_instance()
-
             # Make sure that the ssh key is provided
             self.config['ssh_key_filename'] = self.config.get('ssh_key_filename', '~/.ssh/id_rsa')
 
@@ -384,6 +381,9 @@ class AzureVMSBackend:
                 'master_id': self.config['instance_id'],
                 'ssh_key_filename': self.config['ssh_key_filename'],
             }
+
+            # Create the master VM instance
+            self._create_master_instance()
 
         elif self.mode in [StandaloneMode.CREATE.value, StandaloneMode.REUSE.value]:
 
@@ -427,7 +427,7 @@ class AzureVMSBackend:
 
         self._dump_azure_vms_data()
 
-    def build_image(self, image_name, script_file, overwrite, extra_args=[]):
+    def build_image(self, image_name, script_file, overwrite, include, extra_args=[]):
         """
         Builds a new VM Image
         """
@@ -562,8 +562,6 @@ class AzureVMSBackend:
         """
         logger.info('Cleaning Azure Virtual Machines resources')
 
-        self._load_azure_vms_data()
-
         if not self.azure_data:
             return
 
@@ -649,10 +647,6 @@ class VMInstance:
         """
         self.name = name.lower()
         self.config = config
-        self.metadata = {}
-
-        self.status = None
-        self.err = None
 
         self.delete_on_dismantle = self.config['delete_on_dismantle']
         self.instance_type = self.config['worker_instance_type']
@@ -1010,7 +1004,7 @@ class VMInstance:
                 self.config['resource_group'], self.name
             )
         except Exception:
-            if os.path.isfile(SA_DATA_FILE):
+            if os.path.isfile(SA_CONFIG_FILE):
                 os.system("shutdown -h now")
 
     def stop(self):

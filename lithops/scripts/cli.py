@@ -25,16 +25,12 @@ import shlex
 import subprocess as sp
 from itertools import cycle
 from tabulate import tabulate
+from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 
 import lithops
 from lithops import Storage
 from lithops.version import __version__
-from lithops.tests.tests_main import (
-    print_test_functions,
-    print_test_groups,
-    run_tests
-)
 from lithops.utils import (
     get_mode,
     setup_lithops_logger,
@@ -134,8 +130,8 @@ def clean(config, backend, storage, debug, region, all):
     storage = internal_storage.storage
     runtimes_path = RUNTIMES_PREFIX + '/' + backend
     jobs_path = JOBS_PREFIX
-    clean_bucket(storage, storage_config['bucket'], runtimes_path, sleep=1)
-    clean_bucket(storage, storage_config['bucket'], jobs_path, sleep=1)
+    clean_bucket(storage, storage.bucket, runtimes_path, sleep=1)
+    clean_bucket(storage, storage.bucket, jobs_path, sleep=1)
 
     # Clean localhost executor temp dirs
     shutil.rmtree(LITHOPS_TEMP_DIR, ignore_errors=True)
@@ -151,30 +147,39 @@ def clean(config, backend, storage, debug, region, all):
 @click.option('--storage', '-s', default=None, help='Storage backend')
 @click.option('--debug', '-d', is_flag=True, help='Debug mode')
 @click.option('--region', '-r', default=None, help='compute backend region')
-@click.option('--test', '-t', default='all', help='Run a specific tester. To avoid running similarly named tests '
-                                                  'you may prefix the tester with its test class, '
-                                                  'e.g. TestClass.test_name. '
-                                                  'Type "-t help" for the complete tests list')
-@click.option('--groups', '-g', default=None, help='Run all testers belonging to a specific group.'
-                                                   ' type "-g help" for groups list')
-@click.option('--fail_fast', '-f', is_flag=True, help='Stops test run upon first occurrence of a failed test')
-@click.option('--keep_datasets', '-k', is_flag=True, help='keeps datasets in storage after the test run. '
-                                                          'Meant to serve some use-cases in github workflow.')
-def test(test, config, backend, groups, storage, debug, region, fail_fast, keep_datasets):
-    config = load_yaml_config(config) if config else None
+@click.option('--test', '-t', default=None, help='Run a specific test. To avoid running similarly named tests '
+                                                 'you may prefix the tester with its test class, '
+                                                 'e.g. TestAsync::test_call_async'
+                                                 'Type "-t help" for the complete tests list')
+@click.option('--exitfirst', '-x', is_flag=True, help='Stops test run upon first occurrence of a failed test')
+def test(test, config, backend, storage, debug, region, exitfirst):
+    import pytest
 
-    log_level = logging.INFO if not debug else logging.DEBUG
-    setup_lithops_logger(log_level)
-
-    if groups and test == 'all':  # if user specified a group(s) avoid running all tests.
-        test = ''
+    dir_path = os.path.dirname(os.path.realpath(__file__))
+    tests_path = os.path.abspath(os.path.join(dir_path, '..', 'tests'))
 
     if test == 'help':
-        print_test_functions()
-    elif groups == 'help':
-        print_test_groups()
+        pytest.main([tests_path, "--collect-only"])
     else:
-        run_tests(test, config, groups, backend, storage, region, fail_fast, keep_datasets)
+        cmd_string = [tests_path, "-v"]
+        if exitfirst:
+            cmd_string.extend(["-x"])
+        if debug:
+            cmd_string.extend(["-o", "log_cli=true", "--log-cli-level=DEBUG"])
+        if config:
+            cmd_string.extend(["--config", config])
+        if backend:
+            cmd_string.extend(["--backend", backend])
+        if storage:
+            cmd_string.extend(["--storage", storage])
+        if region:
+            cmd_string.extend(["--region", region])
+        if test:
+            cmd_string.extend(["-k", test])
+
+        print("Executing lithops tests: pytest " + ' '.join(cmd_string[1:]))
+
+        pytest.main(cmd_string)
 
 
 @lithops_cli.command('hello')
@@ -697,8 +702,28 @@ def list_jobs(config, backend, region, debug):
     job_list = compute_handler.list_jobs()
 
     headers = job_list.pop(0)
+    key_index = headers.index("Submitted")
+
+    try:
+        import pytz
+        from tzlocal import get_localzone
+        local_tz = get_localzone()
+
+        def convert_utc_to_local(utc_timestamp):
+            utc_time = datetime.strptime(utc_timestamp, '%Y-%m-%d %H:%M:%S %Z')
+            utc_time = utc_time.replace(tzinfo=pytz.utc)
+            local_time = utc_time.astimezone(local_tz)
+            return local_time.strftime('%Y-%m-%d %H:%M:%S %Z')
+
+        for row in job_list:
+            row[key_index] = convert_utc_to_local(row[key_index])
+    except ModuleNotFoundError:
+        pass
+
+    sorted_data = sorted(job_list, key=lambda x: x[key_index])
+
     print()
-    print(tabulate(job_list, headers=headers))
+    print(tabulate(sorted_data, headers=headers))
     print(f'\nTotal jobs: {len(job_list)}')
 
 
@@ -753,8 +778,28 @@ def list_workers(config, backend, region, debug):
     worker_list = compute_handler.list_workers()
 
     headers = worker_list.pop(0)
+    key_index = headers.index("Created")
+
+    try:
+        import pytz
+        from tzlocal import get_localzone
+        local_tz = get_localzone()
+
+        def convert_utc_to_local(utc_timestamp):
+            utc_time = datetime.strptime(utc_timestamp, '%Y-%m-%d %H:%M:%S %Z')
+            utc_time = utc_time.replace(tzinfo=pytz.utc)
+            local_time = utc_time.astimezone(local_tz)
+            return local_time.strftime('%Y-%m-%d %H:%M:%S %Z')
+
+        for row in worker_list:
+            row[key_index] = convert_utc_to_local(row[key_index])
+    except ModuleNotFoundError:
+        pass
+
+    sorted_data = sorted(worker_list, key=lambda x: x[key_index])
+
     print()
-    print(tabulate(worker_list, headers=headers))
+    print(tabulate(sorted_data, headers=headers))
     print(f'\nTotal workers: {len(worker_list)}')
 
 
@@ -778,8 +823,9 @@ def image(ctx):
 @click.option('--region', '-r', default=None, help='compute backend region')
 @click.option('--debug', '-d', is_flag=True, help='debug mode')
 @click.option('--overwrite', '-o', is_flag=True, help='overwrite the image if it already exists')
+@click.option('--include', '-i', multiple=True, help='include source:destination paths', type=str)
 @click.pass_context
-def build_image(ctx, name, file, config, backend, region, debug, overwrite):
+def build_image(ctx, name, file, config, backend, region, debug, overwrite, include):
     """ build a VM image """
     setup_lithops_logger(logging.DEBUG)
 
@@ -794,9 +840,14 @@ def build_image(ctx, name, file, config, backend, region, debug, overwrite):
         raise Exception('"lithops image build" command is only available for standalone backends. '
                         f'Please use "lithops image build -b {set(STANDALONE_BACKENDS)}"')
 
+    for src_dst_file in include:
+        src_file, dst_file = src_dst_file.split(':')
+        if not os.path.isfile(src_file):
+            raise FileNotFoundError(f"The file '{src_file}' does not exist")
+
     compute_config = extract_standalone_config(config)
     compute_handler = StandaloneHandler(compute_config)
-    compute_handler.build_image(name, file, overwrite, ctx.args)
+    compute_handler.build_image(name, file, overwrite, include, ctx.args)
 
     logger.info('VM Image built')
 

@@ -74,7 +74,6 @@
     #runtime: <RUNTIME_NAME>
     #exec_mode: reuse
     #auto_dismantle: True
-    #pull_runtime: <false, true>
     #hard_dismantle_timeout: 3600
     #soft_dismantle_timeout: 300
     #workers_policy: <Workers create policy> # Optional, strict/permissive. Default is 'permissive'
@@ -102,7 +101,6 @@
     #runtime: <RUNTIME_NAME>
     #exec_mode: reuse
     #auto_dismantle: True
-    #pull_runtime: <false, true>
     #hard_dismantle_timeout: 3600
     #soft_dismantle_timeout: 300
     #workers_policy: <Workers create policy> # Optional, strict/permissive. Default is 'permissive'

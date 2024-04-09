@@ -59,8 +59,8 @@ aws_lambda:
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |aws | region | |yes | AWS Region. For example `us-east-1` |
-|aws | access_key_id | |yes | Account access key to AWS services. To find them, navigate to *My Security Credentials* and click *Create Access Key* if you don't already have one. |
-|aws | secret_access_key | |yes | Account secret access key to AWS services. To find them, navigate to *My Security Credentials* and click *Create Access Key* if you don't already have one. |
+|aws | access_key_id | |no | Account access key to AWS services. To find them, navigate to *My Security Credentials* and click *Create Access Key* if you don't already have one. |
+|aws | secret_access_key | |no | Account secret access key to AWS services. To find them, navigate to *My Security Credentials* and click *Create Access Key* if you don't already have one. |
 |aws | session_token | |no | Session token for temporary AWS credentials |
 |aws | account_id | |no | *This field will be used if present to retrieve the account ID instead of using AWS STS. The account ID is used to format full image names for container runtimes. |
 
@@ -80,7 +80,7 @@ aws_lambda:
 | aws_lambda | architecture | x86_64 | no | Runtime architecture. One of **x86_64** or **arm64** |
 | aws_lambda | ephemeral_storage | 512 | no | Ephemeral storage (`/tmp`) size in MB (must be between 512 MB and 10240 MB) |
 | aws_lambda | env_vars | {} | no | List of {name: ..., value: ...} pairs for Lambda instance environment variables |
-| aws_lambda | namespace |  | no | Virtual namesapce. This can be usefull to virtually group Lithops function workers. The functions deployed by lithops will be prefixed by this namespace. For example you can set it to differentiate between `prod`, `dev` and `stage` environments.  |
+| aws_lambda | namespace |  | no | Virtual namespace. This can be usefull to virtually group Lithops function workers. The functions deployed by lithops will be prefixed by this namespace. For example you can set it to differentiate between `prod`, `dev` and `stage` environments.  |
 | aws_lambda | runtime_include_function | False | no | If set to true, Lithops will automatically build a new runtime, including the function's code, instead of transferring it through the storage backend at invocation time. This is useful when the function's code size is large (in the order of 10s of MB) and the code does not change frequently |
 
 

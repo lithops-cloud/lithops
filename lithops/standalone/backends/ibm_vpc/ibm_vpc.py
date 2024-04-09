@@ -17,7 +17,6 @@
 
 import re
 import os
-import paramiko
 import time
 import logging
 import uuid
@@ -451,21 +450,20 @@ class IBMVPCBackend:
         if self.mode == StandaloneMode.CONSUME.value:
 
             ins_id = self.config['instance_id']
-            if not self.vpc_data or ins_id != self.vpc_data.get('instance_id'):
-                name = self.vpc_cli.get_instance(ins_id).get_result()['name']
-                self.config['master_name'] = name
+            if not self.vpc_data or ins_id != self.vpc_data.get('master_id'):
+                master_name = self.vpc_cli.get_instance(ins_id).get_result()['name']
+                self.vpc_data = {
+                    'mode': self.mode,
+                    'vpc_data_type': 'provided',
+                    'ssh_data_type': 'provided',
+                    'master_name': master_name,
+                    'master_id': self.config['instance_id'],
+                    'floating_ip': self.config['floating_ip']
+                }
 
             # Create the master VM instance
+            self.config['master_name'] = self.vpc_data['master_name']
             self._create_master_instance()
-
-            self.vpc_data = {
-                'mode': self.mode,
-                'vpc_data_type': 'provided',
-                'ssh_data_type': 'provided',
-                'master_name': self.master.name,
-                'master_id': self.master.instance_id,
-                'floating_ip': self.master.public_ip
-            }
 
         elif self.mode in [StandaloneMode.CREATE.value, StandaloneMode.REUSE.value]:
 
@@ -510,7 +508,7 @@ class IBMVPCBackend:
 
         self._dump_vpc_data()
 
-    def build_image(self, image_name, script_file, overwrite, extra_args=[]):
+    def build_image(self, image_name, script_file, overwrite, include, extra_args=[]):
         """
         Builds a new VM Image
         """
@@ -529,9 +527,19 @@ class IBMVPCBackend:
                 raise Exception(f"The image with name '{image_name}' already exists with ID: '{image_id}'."
                                 " Use '--overwrite' or '-o' if you want ot overwrite it")
 
-        initial_vpc_data = self._load_vpc_data()
-
+        is_initialized = self.is_initialized()
         self.init()
+
+        try:
+            del self.config['image_id']
+        except Exception:
+            pass
+        try:
+            del self.vpc_data['image_id']
+        except Exception:
+            pass
+
+        self._request_image_id()
 
         fip, fip_id = self._get_or_create_floating_ip()
         self.config['floating_ip'] = fip
@@ -548,18 +556,24 @@ class IBMVPCBackend:
         remote_script = "/tmp/install_lithops.sh"
         script = get_host_setup_script()
         build_vm.get_ssh_client().upload_data_to_file(script, remote_script)
-        logger.debug("Executing installation script. Be patient, this process can take up to 3 minutes")
+        logger.debug("Executing Lithops installation script. Be patient, this process can take up to 3 minutes")
         build_vm.get_ssh_client().run_remote_command(f"chmod 777 {remote_script}; sudo {remote_script}; rm {remote_script};")
-        logger.debug("Installation script finsihed")
+        logger.debug("Lithops installation script finsihed")
+
+        for src_dst_file in include:
+            src_file, dst_file = src_dst_file.split(':')
+            if os.path.isfile(src_file):
+                logger.debug(f"Uploading local file '{src_file}' to VM image in '{dst_file}'")
+                build_vm.get_ssh_client().upload_local_file(src_file, dst_file)
 
         if script_file:
             script = os.path.expanduser(script_file)
-            logger.debug(f"Uploading user script {script_file} to {build_vm}")
+            logger.debug(f"Uploading user script '{script_file}' to {build_vm}")
             remote_script = "/tmp/install_user_lithops.sh"
             build_vm.get_ssh_client().upload_local_file(script, remote_script)
-            logger.debug("Executing user script. Be patient, this process can take long")
+            logger.debug(f"Executing user script '{script_file}'")
             build_vm.get_ssh_client().run_remote_command(f"chmod 777 {remote_script}; sudo {remote_script}; rm {remote_script};")
-            logger.debug("User script finsihed")
+            logger.debug(f"User script '{script_file}' finsihed")
 
         build_vm.stop()
         build_vm.wait_stopped()
@@ -584,7 +598,7 @@ class IBMVPCBackend:
                     break
             time.sleep(30)
 
-        if not initial_vpc_data:
+        if not is_initialized:
             self.clean(all=True)
         else:
             build_vm.delete()
@@ -782,8 +796,6 @@ class IBMVPCBackend:
         """
         logger.info('Cleaning IBM VPC resources')
 
-        self._load_vpc_data()
-
         if not self.vpc_data:
             return
 
@@ -881,10 +893,6 @@ class IBMVPCInstance:
         """
         self.name = name.lower()
         self.config = ibm_vpc_config
-        self.metadata = {}
-
-        self.status = None
-        self.err = None
 
         self.delete_on_dismantle = self.config['delete_on_dismantle']
         self.instance_type = self.config['worker_profile_name']
@@ -904,7 +912,6 @@ class IBMVPCInstance:
             'password': self.config['ssh_password'],
             'key_filename': self.config.get('ssh_key_filename', '~/.ssh/id_rsa')
         }
-        self.validated = False
 
     def __str__(self):
         ip = self.public_ip if self.public else self.private_ip
@@ -931,35 +938,11 @@ class IBMVPCInstance:
         """
         Creates an ssh client against the VM
         """
-
-        if not self.validated and self.public and self.instance_id:
-            # validate that private ssh key in ssh_credentials is a pair of public key on instance
-            key_filename = self.ssh_credentials['key_filename']
-            key_filename = os.path.abspath(os.path.expanduser(key_filename))
-
-            if not os.path.exists(key_filename):
-                raise LithopsValidationError(f"Private key file {key_filename} doesn't exist")
-
-            initialization_data = self.vpc_cli.get_instance_initialization(self.instance_id).get_result()
-
-            private_res = paramiko.RSAKey(filename=key_filename).get_base64()
-            names = []
-            for k in initialization_data['keys']:
-                public_res = self.vpc_cli.get_key(k['id']).get_result()['public_key'].split(' ')[1]
-                if public_res == private_res:
-                    self.validated = True
-                    break
-                else:
-                    names.append(k['name'])
-
-            if not self.validated:
-                raise LithopsValidationError(
-                    f"No public key from keys: {names} on master {self} not a pair for private ssh key {key_filename}")
-
-        if not self.ssh_client:
-            if self.public and self.public_ip:
+        if self.public:
+            if not self.ssh_client or self.ssh_client.ip_address != self.public_ip:
                 self.ssh_client = SSHClient(self.public_ip, self.ssh_credentials)
-            elif self.private_ip:
+        else:
+            if not self.ssh_client or self.ssh_client.ip_address != self.private_ip:
                 self.ssh_client = SSHClient(self.private_ip, self.ssh_credentials)
 
         return self.ssh_client

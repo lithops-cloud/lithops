@@ -466,6 +466,10 @@ class CodeEngineBackend:
             total_workers = total_calls // chunksize + (total_calls % chunksize > 0)
             job_payload['chunksize'] = chunksize
 
+        logger.debug(
+            f'ExecutorID {executor_id} | JobID {job_id} - Required Workers: {total_workers}'
+        )
+
         jobdef_name = self._format_jobdef_name(docker_image_name, runtime_memory)
 
         if not self._job_def_exists(jobdef_name):

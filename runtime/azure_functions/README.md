@@ -1,37 +1,10 @@
 # Lithops runtime for Azure Functions
 
-The runtime is the place where your functions are executed.
+The runtime is the place where your functions are executed. The default runtime is automatically created the first time you execute a function. Lithops automatically detects the Python version of your environment and deploys the default runtime based on it.
 
-The default runtime is created the first time you execute a function. Lithops automatically detects the Python version of your environment and deploys the default runtime based on it.
+Currently, Azure Functions supports Python 3.6, 3.7, 3.8 and 3.9. You can find the list of pre-installed modules [here](https://github.com/Azure/azure-functions-python-worker/wiki/Preinstalled-Python-Libraries). In addition, the Lithops default runtimes are built with the packages included in this [requirements.txt](requirements.txt) file
 
-Currently, Azure Functions supports Python 3.6, 3.7, 3.8 and 3.9, and it provides the following default runtimes with some packages already preinstalled:
-
-| Runtime name | Python version | Packages included |
-| ----| ----| ---- |
-| lithops-runtime-v36 | 3.6 | [list of packages](https://github.com/Azure/azure-functions-python-worker/wiki/Preinstalled-Python-Libraries) |
-| lithops-runtime-v38 | 3.7 | [list of packages](https://github.com/Azure/azure-functions-python-worker/wiki/Preinstalled-Python-Libraries) |
-| lithops-runtime-v38 | 3.8 | [list of packages](https://github.com/Azure/azure-functions-python-worker/wiki/Preinstalled-Python-Libraries) |
-| lithops-runtime-v38 | 3.9 | [list of packages](https://github.com/Azure/azure-functions-python-worker/wiki/Preinstalled-Python-Libraries) |
-
-Lithops default runtimes are also ship with the following packages:
-```
-azure-functions
-azure-storage-blob
-azure-storage-queue
-pika
-flask
-gevent
-redis
-requests
-PyYAML
-kubernetes
-numpy
-cloudpickle
-ps-mem
-tblib
-```
-
-To run a function with the default runtime you don't need to specify anything in the code, since everything is managed internally by Lithops:
+To run a function with the default runtime you don't need to specify anything in the code, since everything is handled internally by Lithops:
 
 ```python
 import lithops
@@ -50,32 +23,13 @@ result = lithops.get_result()
 
 **Build your own Lithops runtime for Azure Functions**
 
-If you need some Python modules which are not included in the default runtime, it is possible to build your own Lithops runtime with all of them.
+If you require additional Python modules not included in the default runtime, you can create your own custom Lithops runtime incorporating them. To create a custom runtime, compile all the necessary modules into a `requirements.txt` file.
 
-To build your own runtime, you have to collect all necessary modules in a `requirements.txt` file. For example, if you want to add the modules `numpy` and `matplotlib` to our runtime, since they are not provided in the default runtime.
-
-First, we need to extend the `requirements.txt` file provided with Lithops with all the modules we need. For our example, the `requirements.txt` should contain the following modules (note that we added `numpy` and `matplotlib` at the end):
-```
-azure-functions
-azure-storage-blob
-azure-storage-queue
-pika
-flask
-gevent
-redis
-requests
-PyYAML
-kubernetes
-cloudpickle
-ps-mem
-tblib
-numpy
-matplotlib
-```
+For instance, if you wish to integrate the `matplotlib` module into your runtime, which isn't part of the default setup, you need to append it to the existing [requirements.txt](requirements.txt) file. Note that this `requirements.txt` contains the mandatory pakcges required by lithops, so you don't have to remove any of them from the list, but just add your packages at the end.
 
 **IMPORTANT**: Note that the runtime is built using your local machine, and some libraries, like Numpy, compile some *C* code based on the Operating System you are using. Azure functions run on a Linux machine, this mean that if you use **MacOS** or **Windows** for building the runtime, those libraries that compiled *C* code cannot be executed from within the function. In this case, you must use a Linux machine for building the runtime.
 
-Then, we will build the runtime, specifying the modified `requirements.txt` file and a runtime name:
+After updating the file accordingly, you can proceed to build the custom runtime by specifying the modified `requirements.txt` file along with a chosen runtime name:
 ```
 $ lithops runtime build -b azure_functions -f requirements.txt matplotlib-runtime 
 ```

@@ -78,18 +78,3 @@ def load_config(config_data):
     if 'region' not in config_data['ibm_cos']:
         endpoint = config_data['ibm_cos']['endpoint']
         config_data['ibm_cos']['region'] = endpoint.split('//')[1].split('.')[1]
-
-    if 'access_key' in config_data['ibm_cos']:
-        config_data['ibm_cos']['access_key_id'] = config_data['ibm_cos'].pop('access_key')
-    if 'secret_key' in config_data['ibm_cos']:
-        config_data['ibm_cos']['secret_access_key'] = config_data['ibm_cos'].pop('secret_key')
-
-    if 'storage_bucket' not in config_data['ibm_cos']:
-        if not {'access_key_id', 'secret_access_key'}.issubset(config_data['ibm_cos']):
-            msg = "'storage_bucket' parameter not found in config. "
-            msg += "You must provide HMAC Credentials if you want the bucket to be automatically created"
-            raise Exception(msg)
-        cosc = config_data['ibm_cos']
-        key = cosc.get('access_key_id') or cosc.get('api_key') or cosc.get('iam_api_key')
-        region = config_data['ibm_cos']['region']
-        config_data['ibm_cos']['storage_bucket'] = f'lithops-{region}-{key[:6].lower()}'

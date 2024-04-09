@@ -1,10 +1,26 @@
-import json
+#
+# (C) Copyright Cloudlab URV 2020
+# (C) Copyright IBM Corp. 2023
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
 import os
 import time
 import threading
 import logging
 from lithops.standalone import StandaloneHandler
-from lithops.constants import SA_DATA_FILE, JOBS_DIR
+from lithops.constants import JOBS_DIR
 from lithops.standalone.utils import JobStatus
 
 
@@ -15,12 +31,13 @@ class BudgetKeeper(threading.Thread):
     """
     BudgetKeeper class used to automatically stop the VM instance
     """
-    def __init__(self, config, stop_callback=None):
+    def __init__(self, config, instance_data, stop_callback=None, delete_callback=None):
         threading.Thread.__init__(self)
         self.last_usage_time = time.time()
 
         self.standalone_config = config
         self.stop_callback = stop_callback
+        self.delete_callback = delete_callback
         self.auto_dismantle = config['auto_dismantle']
         self.soft_dismantle_timeout = config['soft_dismantle_timeout']
         self.hard_dismantle_timeout = config['hard_dismantle_timeout']
@@ -28,9 +45,7 @@ class BudgetKeeper(threading.Thread):
 
         self.runing = False
         self.jobs = {}
-
-        with open(SA_DATA_FILE, 'r') as ad:
-            instance_data = json.load(ad)
+        self.time_to_dismantle = self.hard_dismantle_timeout
 
         self.standalone_handler = StandaloneHandler(self.standalone_config)
         self.instance = self.standalone_handler.backend.get_instance(**instance_data)
@@ -38,6 +53,9 @@ class BudgetKeeper(threading.Thread):
         logger.debug(f"Starting BudgetKeeper for {self.instance.name} ({self.instance.private_ip}), "
                      f"instance ID: {self.instance.instance_id}")
         logger.debug(f"Delete {self.instance.name} on dismantle: {self.instance.delete_on_dismantle}")
+
+    def get_time_to_dismantle(self):
+        return self.time_to_dismantle
 
     def add_job(self, job_key):
         self.last_usage_time = time.time()
@@ -77,14 +95,14 @@ class BudgetKeeper(threading.Thread):
 
                 time_since_last_usage = time.time() - self.last_usage_time
 
-                time_to_dismantle = int(self.soft_dismantle_timeout - time_since_last_usage)
+                self.time_to_dismantle = int(self.soft_dismantle_timeout - time_since_last_usage)
             else:
-                time_to_dismantle = int(self.hard_dismantle_timeout - time_since_last_usage)
+                self.time_to_dismantle = int(self.hard_dismantle_timeout - time_since_last_usage)
                 jobs_running = True
 
-            if time_to_dismantle > 0:
-                logger.debug(f"Time to dismantle: {time_to_dismantle} seconds")
-                check_interval = min(60, max(time_to_dismantle / 10, 1))
+            if self.time_to_dismantle > 0:
+                logger.debug(f"Time to dismantle: {self.time_to_dismantle} seconds")
+                check_interval = min(60, max(self.time_to_dismantle / 10, 1))
                 time.sleep(check_interval)
             else:
                 self.stop_instance()
@@ -92,7 +110,10 @@ class BudgetKeeper(threading.Thread):
     def stop_instance(self):
         logger.debug("Dismantling setup")
 
-        self.stop_callback() if self.stop_callback is not None else None
+        if self.instance.delete_on_dismantle:
+            self.delete_callback() if self.delete_callback is not None else None
+        else:
+            self.stop_callback() if self.stop_callback is not None else None
 
         try:
             self.instance.stop()

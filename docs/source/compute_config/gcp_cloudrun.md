@@ -29,6 +29,8 @@ python3 -m install lithops[gcp]
 
 9. Enable the **Cloud Run API** : Navigate to *APIs & services* tab on the menu. Click *ENABLE APIS AND SERVICES*. Look for "Cloud Run API" at the search bar. Click *Enable*.
 
+10. Enable the **Artifact Registry API**: Navigate to *APIs & services* tab on the menu. Click *ENABLE APIS AND SERVICES*. Look for "Artifact Registry API" at the search bar. Click *Enable*.
+
 ## Configuration
 
 1. Edit your lithops config and add the following keys:

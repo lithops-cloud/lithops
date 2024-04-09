@@ -1,12 +1,6 @@
 What is Lithops?
 ****************
 
-.. image:: source/images/lithops_logo_readme.png
-   :alt: Lithops
-   :align: center
-
-|
-
 **Lithops is a Python multi-cloud serverless computing framework. It allows to run unmodified local python code at massive scale in the main serverless computing platforms.**
 
 Lithops delivers the user’s code into the cloud without requiring knowledge of how it is deployed and run.
@@ -27,6 +21,18 @@ analytics, to name a few.
 
 Lithops abstracts away the underlying cloud-specific APIs for accessing storage and provides an intuitive and easy to use interface to process high volumes of data.
 
+
+Use any Cloud
+*************
+**Lithops provides an extensible backend architecture that is designed to work with different compute and storage services available on Cloud providers and on-premise backends.**
+
+In this sense, you can code your application in Python and run it unmodified wherever your data is located at: IBM Cloud, AWS, Azure, Google Cloud and Alibaba Aliyun...
+
+.. image:: source/images/multicloud.jpg
+   :alt: Available backends
+   :align: center
+
+|
 
 Quick Start
 ***********
@@ -50,17 +56,6 @@ You're ready to execute a simple example!
         fut = fexec.call_async(hello, 'World')
         print(fut.result())
 
-Use any Cloud
-*************
-**Lithops provides an extensible backend architecture that is designed to work with different compute and storage services available on Cloud providers and on-premise backends.**
-
-In this sense, you can code your application in Python and run it unmodified wherever your data is located at: IBM Cloud, AWS, Azure, Google Cloud and Alibaba Aliyun...
-
-.. image:: source/images/multicloud.jpg
-   :alt: Available backends
-   :align: center
-
-|
 
 Additional resources
 ********************
@@ -177,5 +172,4 @@ Papers
 
    Applications <https://github.com/lithops-cloud/applications>
    source/contributing.rst
-   source/testing.rst
    Changelog <https://github.com/lithops-cloud/lithops/blob/master/CHANGELOG.md>

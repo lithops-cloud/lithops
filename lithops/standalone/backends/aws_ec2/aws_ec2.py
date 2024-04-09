@@ -368,6 +368,14 @@ class AWSEC2Backend:
                         'ToPort': 8080,
                         'IpRanges': [{'CidrIp': '10.0.0.0/16'}]},
                     {'IpProtocol': 'tcp',
+                        'FromPort': 8081,
+                        'ToPort': 8081,
+                        'IpRanges': [{'CidrIp': '10.0.0.0/16'}]},
+                    {'IpProtocol': 'tcp',
+                        'FromPort': 6379,
+                        'ToPort': 6379,
+                        'IpRanges': [{'CidrIp': '10.0.0.0/16'}]},
+                    {'IpProtocol': 'tcp',
                         'FromPort': 22,
                         'ToPort': 22,
                         'IpRanges': [{'CidrIp': '0.0.0.0/0'}]}
@@ -519,21 +527,21 @@ class AWSEC2Backend:
             if not self.ec2_data or ins_id != self.ec2_data.get('instance_id'):
                 instances = self.ec2_client.describe_instances(InstanceIds=[ins_id])
                 instance_data = instances['Reservations'][0]['Instances'][0]
-                self.config['master_name'] = 'lithops-consume'
+                master_name = 'lithops-consume'
                 for tag in instance_data['Tags']:
                     if tag['Key'] == 'Name':
-                        self.config['master_name'] = tag['Value']
+                        master_name = tag['Value']
+                self.ec2_data = {
+                    'mode': self.mode,
+                    'vpc_data_type': 'provided',
+                    'ssh_data_type': 'provided',
+                    'master_name': master_name,
+                    'master_id': self.config['instance_id']
+                }
 
             # Create the master VM instance
+            self.config['master_name'] = self.ec2_data['master_name']
             self._create_master_instance()
-
-            self.ec2_data = {
-                'mode': self.mode,
-                'vpc_data_type': 'provided',
-                'ssh_data_type': 'provided',
-                'master_name': self.master.name,
-                'master_id': self.master.instance_id
-            }
 
         elif self.mode in [StandaloneMode.CREATE.value, StandaloneMode.REUSE.value]:
 
@@ -589,7 +597,7 @@ class AWSEC2Backend:
 
         self._dump_ec2_data()
 
-    def build_image(self, image_name, script_file, overwrite, extra_args=[]):
+    def build_image(self, image_name, script_file, overwrite, include, extra_args=[]):
         """
         Builds a new VM Image
         """
@@ -609,8 +617,19 @@ class AWSEC2Backend:
                 raise Exception(f"The image with name '{image_name}' already exists with ID: '{image_id}'."
                                 " Use '--overwrite' or '-o' if you want ot overwrite it")
 
-        initial_vpc_data = self._load_ec2_data()
+        is_initialized = self.is_initialized()
         self.init()
+
+        try:
+            del self.config['target_ami']
+        except Exception:
+            pass
+        try:
+            del self.ec2_data['target_ami']
+        except Exception:
+            pass
+
+        self._request_image_id()
 
         build_vm = EC2Instance('building-image-' + image_name, self.config, self.ec2_client, public=True)
         build_vm.delete_on_dismantle = False
@@ -621,18 +640,24 @@ class AWSEC2Backend:
         remote_script = "/tmp/install_lithops.sh"
         script = get_host_setup_script()
         build_vm.get_ssh_client().upload_data_to_file(script, remote_script)
-        logger.debug("Executing installation script. Be patient, this process can take up to 3 minutes")
+        logger.debug("Executing Lithops installation script. Be patient, this process can take up to 3 minutes")
         build_vm.get_ssh_client().run_remote_command(f"chmod 777 {remote_script}; sudo {remote_script}; rm {remote_script};")
-        logger.debug("Installation script finsihed")
+        logger.debug("Lithops installation script finsihed")
+
+        for src_dst_file in include:
+            src_file, dst_file = src_dst_file.split(':')
+            if os.path.isfile(src_file):
+                logger.debug(f"Uploading local file '{src_file}' to VM image in '{dst_file}'")
+                build_vm.get_ssh_client().upload_local_file(src_file, dst_file)
 
         if script_file:
             script = os.path.expanduser(script_file)
-            logger.debug(f"Uploading user script {script_file} to {build_vm}")
+            logger.debug(f"Uploading user script '{script_file}' to {build_vm}")
             remote_script = "/tmp/install_user_lithops.sh"
             build_vm.get_ssh_client().upload_local_file(script, remote_script)
-            logger.debug("Executing user script. Be patient, this process can take long")
+            logger.debug(f"Executing user script '{script_file}'")
             build_vm.get_ssh_client().run_remote_command(f"chmod 777 {remote_script}; sudo {remote_script}; rm {remote_script};")
-            logger.debug("User script finsihed")
+            logger.debug(f"User script '{script_file}' finsihed")
 
         build_vm_id = build_vm.get_instance_id()
 
@@ -656,7 +681,7 @@ class AWSEC2Backend:
                     break
             time.sleep(20)
 
-        if not initial_vpc_data:
+        if not is_initialized:
             while not self.clean(all=True):
                 time.sleep(5)
         else:
@@ -884,8 +909,6 @@ class AWSEC2Backend:
         """
         logger.info('Cleaning AWS EC2 resources')
 
-        self._load_ec2_data()
-
         if not self.ec2_data:
             return True
 
@@ -988,10 +1011,6 @@ class EC2Instance:
         """
         self.name = name.lower()
         self.config = ec2_config
-        self.metadata = {}
-
-        self.status = None
-        self.err = None
 
         self.delete_on_dismantle = self.config['delete_on_dismantle']
         self.instance_type = self.config['worker_instance_type']

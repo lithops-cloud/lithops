@@ -57,21 +57,21 @@ class AWSLambdaBackend:
         self.lambda_config = lambda_config
         self.internal_storage = internal_storage
         self.user_agent = lambda_config['user_agent']
-        self.region_name = lambda_config['region']
+        self.region = lambda_config['region']
         self.role_arn = lambda_config['execution_role']
         self.namespace = lambda_config.get('namespace')
 
         logger.debug('Creating Boto3 AWS Session and Lambda Client')
 
         self.aws_session = boto3.Session(
-            aws_access_key_id=lambda_config['access_key_id'],
-            aws_secret_access_key=lambda_config['secret_access_key'],
+            aws_access_key_id=lambda_config.get('access_key_id'),
+            aws_secret_access_key=lambda_config.get('secret_access_key'),
             aws_session_token=lambda_config.get('session_token'),
-            region_name=self.region_name
+            region_name=self.region
         )
 
         self.lambda_client = self.aws_session.client(
-            'lambda', region_name=self.region_name,
+            'lambda', region_name=self.region,
             config=botocore.client.Config(
                 user_agent_extra=self.user_agent
             )
@@ -79,31 +79,36 @@ class AWSLambdaBackend:
 
         self.credentials = self.aws_session.get_credentials()
         self.session = URLLib3Session()
-        self.host = f'lambda.{self.region_name}.amazonaws.com'
+        self.host = f'lambda.{self.region}.amazonaws.com'
+
+        if 'account_id' not in self.lambda_config or 'user_id' not in self.lambda_config:
+            sts_client = self.aws_session.client('sts', region_name=self.region)
+            caller_identity = sts_client.get_caller_identity()
 
         if 'account_id' in self.lambda_config:
             self.account_id = self.lambda_config['account_id']
         else:
-            sts_client = self.aws_session.client('sts', region_name=self.region_name)
-            self.account_id = sts_client.get_caller_identity()["Account"]
+            self.account_id = caller_identity["Account"]
 
-        sts_client = self.aws_session.client('sts', region_name=self.region_name)
-        caller_id = sts_client.get_caller_identity()
+        if 'user_id' in self.lambda_config:
+            self.user_id = self.lambda_config['user_id']
+        else:
+            self.user_id = caller_identity["UserId"]
 
-        if ":" in caller_id["UserId"]:  # SSO user
-            self.user_key = caller_id["UserId"].split(":")[1]
+        if ":" in self.user_id:  # SSO user
+            self.user_key = self.user_id.split(":")[1]
         else:  # IAM user
-            self.user_key = caller_id["UserId"][-4:].lower()
+            self.user_key = self.user_id[-4:].lower()
 
-        self.ecr_client = self.aws_session.client('ecr', region_name=self.region_name)
+        self.ecr_client = self.aws_session.client('ecr', region_name=self.region)
         package = f'lithops_v{__version__.replace(".", "")}_{self.user_key}'
         self.package = f"{package}_{self.namespace}" if self.namespace else package
 
         msg = COMPUTE_CLI_MSG.format('AWS Lambda')
         if self.namespace:
-            logger.info(f"{msg} - Region: {self.region_name} - Namespace: {self.namespace}")
+            logger.info(f"{msg} - Region: {self.region} - Namespace: {self.namespace}")
         else:
-            logger.info(f"{msg} - Region: {self.region_name}")
+            logger.info(f"{msg} - Region: {self.region}")
 
     def _format_function_name(self, runtime_name, runtime_memory, version=__version__):
         name = f'{runtime_name}-{runtime_memory}-{version}'
@@ -346,9 +351,9 @@ class AWSLambdaBackend:
         docker_path = utils.get_docker_path()
         if runtime_file:
             assert os.path.isfile(runtime_file), f'Cannot locate "{runtime_file}"'
-            cmd = f'{docker_path} build -t {runtime_name} -f {runtime_file} . '
+            cmd = f'{docker_path} build --platform=linux/amd64 -t {runtime_name} -f {runtime_file} . '
         else:
-            cmd = f'{docker_path} build -t {runtime_name} . '
+            cmd = f'{docker_path} build --platform=linux/amd64 -t {runtime_name} . '
         cmd = cmd + ' '.join(extra_args)
 
         try:
@@ -357,7 +362,7 @@ class AWSLambdaBackend:
         finally:
             os.remove(LITHOPS_FUNCTION_ZIP)
 
-        registry = f'{self.account_id}.dkr.ecr.{self.region_name}.amazonaws.com'
+        registry = f'{self.account_id}.dkr.ecr.{self.region}.amazonaws.com'
 
         res = self.ecr_client.get_authorization_token()
         if res['ResponseMetadata']['HTTPStatusCode'] != 200:
@@ -474,7 +479,7 @@ class AWSLambdaBackend:
         except botocore.exceptions.ClientError:
             raise Exception(f'Runtime "{runtime_name}" is not deployed to ECR')
 
-        registry = f'{self.account_id}.dkr.ecr.{self.region_name}.amazonaws.com'
+        registry = f'{self.account_id}.dkr.ecr.{self.region}.amazonaws.com'
         image_uri = f'{registry}/{repo_name}@{image_digest}'
 
         env_vars = {t['name']: t['value'] for t in self.lambda_config['env_vars']}
@@ -610,8 +615,6 @@ class AWSLambdaBackend:
             get_runtimes(response)
 
         if runtime_name != 'all':
-            if self._is_container_runtime(runtime_name) and ':' not in runtime_name:
-                runtime_name = runtime_name + ':latest'
             runtimes = [tup for tup in runtimes if runtime_name in tup[0]]
 
         return runtimes
@@ -630,7 +633,7 @@ class AWSLambdaBackend:
         headers = {'Host': self.host, 'X-Amz-Invocation-Type': 'Event', 'User-Agent': self.user_agent}
         url = f'https://{self.host}/2015-03-31/functions/{function_name}/invocations'
         request = AWSRequest(method="POST", url=url, data=json.dumps(payload, default=str), headers=headers)
-        SigV4Auth(self.credentials, "lambda", self.region_name).add_auth(request)
+        SigV4Auth(self.credentials, "lambda", self.region).add_auth(request)
 
         invoked = False
         while not invoked:
@@ -676,7 +679,7 @@ class AWSLambdaBackend:
         in order to know which runtimes are installed and which not.
         """
         action_name = self._format_function_name(runtime_name, runtime_memory, version)
-        runtime_key = os.path.join(self.name, version, self.region_name, action_name)
+        runtime_key = os.path.join(self.name, version, self.region, action_name)
 
         return runtime_key
 

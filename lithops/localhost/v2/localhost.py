@@ -86,7 +86,8 @@ class LocalhostHandlerV2:
         """
         Init tasks for localhost
         """
-        self.env = DefaultEnv(self.config) if '/' not in self.runtime_name else DockerEnv(self.config)
+        default_env = self.runtime_name.startswith(('python', '/'))
+        self.env = DefaultEnv(self.config) if default_env else DockerEnv(self.config)
         self.env.setup()
 
     def deploy_runtime(self, runtime_name, *args):
@@ -268,7 +269,7 @@ class DockerEnv(BaseEnv):
         logger.debug(f'Starting docker environment for {self.runtime_name}')
         self.container_id = str(uuid.uuid4()).replace('-', '')[:12]
         self.uid = os.getuid() if is_unix_system() else None
-        self.gid = os.getuid() if is_unix_system() else None
+        self.gid = os.getgid() if is_unix_system() else None
 
     def setup(self):
         logger.debug('Setting up Docker environment')

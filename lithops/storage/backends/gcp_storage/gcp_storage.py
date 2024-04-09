@@ -18,6 +18,7 @@ import re
 import os
 import shutil
 import time
+import hashlib
 import logging
 from requests.exceptions import SSLError as TooManyConnectionsError
 from io import BytesIO
@@ -35,6 +36,7 @@ class GCPStorageBackend:
 
     def __init__(self, gcp_storage_config):
         logger.debug("Creating GCP Storage client")
+        self.config = gcp_storage_config
         self.credentials_path = gcp_storage_config.get('credentials_path')
         self.region = gcp_storage_config['region']
 
@@ -50,6 +52,15 @@ class GCPStorageBackend:
 
     def get_client(self):
         return self.client
+
+    def generate_bucket_name(self):
+        """
+        Generates a unique bucket name
+        """
+        key = hashlib.sha1(self.credentials_path.encode()).hexdigest()[:6]
+        self.config['storage_bucket'] = f'lithops-{self.region}-{key[:6].lower()}'
+
+        return self.config['storage_bucket']
 
     def exists_bucket(self, bucket_name):
         try:
@@ -112,7 +123,7 @@ class GCPStorageBackend:
             stream.seek(0)  # Retrun to the initial buffer position
             return stream
         else:
-            return blob.download_as_string(start=start, end=end)
+            return blob.download_as_bytes(start=start, end=end)
 
     def upload_file(self, file_name, bucket, key=None, extra_args={}, config=None):
         """Upload a file

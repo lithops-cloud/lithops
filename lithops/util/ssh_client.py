@@ -1,7 +1,6 @@
 import paramiko
 import logging
 import os
-from lithops.standalone import LithopsValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -15,9 +14,10 @@ class SSHClient():
 
         if 'key_filename' in self.ssh_credentials:
             fpath = os.path.expanduser(self.ssh_credentials['key_filename'])
-            if not os.path.exists(fpath):
-                raise LithopsValidationError(f"Private key file {fpath} doesn't exist")
             self.ssh_credentials['key_filename'] = fpath
+            if not os.path.exists(fpath):
+                logger.debug(f"Private key file {fpath} doesn't exist. Trying with the default key")
+                self.ssh_credentials['key_filename'] = os.path.expanduser('~/.ssh/id_rsa')
 
     def close(self):
         """
@@ -75,6 +75,8 @@ class SSHClient():
             stdin, stdout, stderr = self.ssh_client.exec_command(cmd, timeout=timeout)
 
         out = None
+        err = None
+
         if not run_async:
             out = stdout.read().decode().strip()
             err = stderr.read().decode().strip()

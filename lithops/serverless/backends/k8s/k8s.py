@@ -367,6 +367,13 @@ class KubernetesBackend:
         cluster_info_mem = {}
         num_cpus_cluster = 0
 
+        # If the unit is not specified, assume it is in MB
+        try:
+            mem_num, mem_uni = re.match(r'(\d+)(\D*)', runtime_memory).groups()
+        except TypeError:
+            mem_num = runtime_memory
+            mem_uni = 'M'
+
         if granularity <= 1:
             granularity = False
 
@@ -378,11 +385,11 @@ class KubernetesBackend:
 
                 for i in range(times):
                     cluster_info_cpu[f"{node['name']}-{i}"] = granularity
-                    cluster_info_mem[f"{node['name']}-{i}"] = runtime_memory
+                    cluster_info_mem[f"{node['name']}-{i}"] = f"{mem_num}{mem_uni}"
                     num_cpus_cluster += granularity
                 if res != 0:
                     cluster_info_cpu[f"{node['name']}-{times}"] = res
-                    cluster_info_mem[f"{node['name']}-{times}"] = runtime_memory
+                    cluster_info_mem[f"{node['name']}-{times}"] = f"{mem_num}{mem_uni}"
                     num_cpus_cluster += res
             else:
                 cluster_info_cpu[node["name"] + "-0"] = cpus_node
@@ -394,7 +401,7 @@ class KubernetesBackend:
                     mem_num = int(float(mem_num) * 0.8)
                     cluster_info_mem[node["name"] + "-0"] = f"{mem_num}{mem_uni}"
                 else:
-                    cluster_info_mem[node["name"] + "-0"] = str(runtime_memory)
+                    cluster_info_mem[node["name"] + "-0"] = f"{mem_num}{mem_uni}"
 
         if num_cpus_cluster == 0:
             raise ValueError("Total CPUs of the cluster cannot be 0")
@@ -473,6 +480,19 @@ class KubernetesBackend:
                 w.stop()
                 return event['object'].status.pod_ip
 
+    def convert_memory_units(self, mem_num, mem_uni):
+        mem_num = int(mem_num)
+
+        if 'i' in mem_uni:
+            mem_num *= 1024
+            mem_uni = mem_uni[:-1]
+        if 'K' in mem_uni:
+            mem_num = mem_num / (1024 if 'i' in mem_uni else 1000)
+        elif 'G' in mem_uni:
+            mem_num = mem_num * (1024 if 'i' in mem_uni else 1000)
+
+        return mem_num, 'M'
+
     # Detect if granularity, memory or runtime image changed or not
     def _has_config_changed(self, runtime_mem):
         config_granularity = False if self.k8s_config['worker_processes'] <= 1 else self.k8s_config['worker_processes']
@@ -501,8 +521,18 @@ class KubernetesBackend:
             node_mem_num, node_mem_uni = re.match(r'(\d+)(\D*)', node_info["memory"]).groups()
             pod_mem_num, pod_mem_uni = re.match(r'(\d+)(\D*)', pod_resource_memory).groups()
 
-            pod_mem_num = int(pod_mem_num)
             node_mem_num = int(float(node_mem_num) * 0.8)
+
+            # Match the same unit of runtime memory and pod memory
+            try:
+                config_mem_num, config_mem_uni = re.match(r'(\d+)(\D*)', config_memory).groups()
+                config_mem_num, config_mem_uni = self.convert_memory_units(config_mem_num, config_mem_uni)
+            except TypeError:
+                config_mem_num = config_memory
+                config_mem_uni = 'M'
+
+            pod_mem_num, pod_mem_uni = self.convert_memory_units(pod_mem_num, pod_mem_uni)
+            node_mem_num, node_mem_uni = self.convert_memory_units(node_mem_num, node_mem_uni)
 
             # There are pods with cpu granularity
             if multiples_pods_per_node:
@@ -513,12 +543,12 @@ class KubernetesBackend:
                 if not config_memory and pod_mem_num != runtime_mem:
                     return True
                 # There is granularity but the pod doesn't have the desired memory
-                if config_memory and pod_mem_num != config_memory:
+                if config_memory and pod_mem_num != config_mem_num:
                     return True
             else:
                 # There is a custom memory but the pod doesn't have the desired memory
                 if config_memory:
-                    if pod_mem_num != config_memory:
+                    if pod_mem_num != config_mem_num:
                         return True
                 # The pod has custom_memory and the user doesn't want it
                 else:
@@ -559,8 +589,9 @@ class KubernetesBackend:
             self.jobs.append(job_key)
 
             # Send packages of tasks to the queue
-            granularity = job_payload['total_calls'] // len(self.nodes) \
-                if self.k8s_config['worker_processes'] <= 1 else self.k8s_config['worker_processes']
+            granularity = max(1, job_payload['total_calls'] // len(self.nodes)
+                              if self.k8s_config['worker_processes'] <= 1 else self.k8s_config['worker_processes'])
+
             times, res = divmod(job_payload['total_calls'], granularity)
 
             for i in range(times + (1 if res != 0 else 0)):
@@ -596,6 +627,10 @@ class KubernetesBackend:
             total_calls = job_payload['total_calls']
             chunksize = job_payload['chunksize']
             total_workers = min(max_workers, total_calls // chunksize + (total_calls % chunksize > 0))
+
+            logger.debug(
+                f'ExecutorID {executor_id} | JobID {job_id} - Required Workers: {total_workers}'
+            )
 
             activation_id = f'lithops-{job_key.lower()}'
 

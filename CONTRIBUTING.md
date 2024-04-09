@@ -19,30 +19,36 @@ To contribute a patch:
 3. Make sure that your code passes the functional tests. See the [Functional testing](#functional-testing) section below.
 4. Make sure that your code passes the linter. Install `flake8` with `pip3 install flake8` and run the next command until you don't see any linitng error:
    ```bash
-   $ flake8 lithops --count --max-line-length=180 --statistics --ignore W605
+   $ flake8 lithops --count --max-line-length=180 --statistics --ignore W605,W503
    ``` 
 6. Add new unit tests for your code.
 
 
-Functional testing
-------------------
+Testing
+-------
 
-To test that all is working as expected, run either:
-
+To test that all is working as expected, you must install `pytest`, navigate to the tests folder `lithops/tests/`, and execute:
 ```bash
-$ lithops test
+pytest -v
 ```
 
-or 
-
+If you made changes to a specific backend, please run tests on that backend.
+For example, if you made changes to the AWS Lambda backend, execute the tests with:
 ```bash
-$ python3 -m lithops.tests.tests_main
+pytest -v --backend aws_lambda --storage aws_s3
 ```
 
-If you made changes to a specific backend, please run tests on that backend. For example, if you made changes to the AWS Lambda backend, run the tests with:
-
+You can list all the available tests using:
 ```bash
-$ lithops test -b aws_lambda -s aws_s3
+pytest --collect-only
 ```
 
-Please follow the guidelines in [docs/testing.md](docs/source/testing.rst) for more details.
+To run a specific test or group of tests, use the `-k` parameter, for example:
+```bash
+pytest -v --backend localhost --storage localhost -k test_map
+```
+
+To view all the Lithops logs during the tests, and in DEBUG mode, execute:
+```bash
+pytest -o log_cli=true --log-cli-level=DEBUG --backend localhost --storage localhost
+```
