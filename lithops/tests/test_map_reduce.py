@@ -59,7 +59,6 @@ class TestMapReduce:
     @classmethod
     def teardown_class(cls):
         for key in cls.storage.list_keys(bucket=cls.bucket, prefix=DATASET_PREFIX):
-            logger.debug(key)
             cls.storage.delete_object(bucket=cls.bucket, key=key)
 
     def test_simple_map_reduce(self):
