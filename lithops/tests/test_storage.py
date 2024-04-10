@@ -46,7 +46,6 @@ class TestStorage:
     @classmethod
     def teardown_class(cls):
         for key in cls.storage.list_keys(bucket=cls.bucket, prefix=STORAGE_PREFIX):
-            logger.debug(key)
             cls.storage.delete_object(bucket=cls.bucket, key=key)
 
     def test_storage_handler(self):

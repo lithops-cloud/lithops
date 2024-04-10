@@ -29,6 +29,7 @@ from importlib import import_module
 from types import CodeType, FunctionType, ModuleType
 
 from lithops.libs import imp
+from lithops.libs import inspect as linspect
 from lithops.utils import bytes_to_b64str
 from lithops.libs.multyvac.module_dependency import ModuleDependencyAnalyzer
 
@@ -132,7 +133,7 @@ class SerializeIndependent:
             worklist.append(obj)
 
         elif type(obj).__name__ == 'cython_function_or_method':
-            for k, v in inspect.getmembers(obj):
+            for k, v in linspect.getmembers_static(obj):
                 if k == '__globals__':
                     mods.add(v['__file__'])
 
@@ -146,13 +147,13 @@ class SerializeIndependent:
                     worklist.append(param)
                 else:
                     # it is a user defined class
-                    for k, v in inspect.getmembers(param):
+                    for k, v in linspect.getmembers_static(param):
                         if inspect.isfunction(v) or (inspect.ismethod(v) and inspect.isfunction(v.__func__)):
                             worklist.append(v)
         else:
             # The obj is the user's function but in form of a class
             found_methods = []
-            for k, v in inspect.getmembers(obj):
+            for k, v in linspect.getmembers_static(obj):
                 if inspect.isfunction(v) or (inspect.ismethod(v) and inspect.isfunction(v.__func__)):
                     found_methods.append(k)
                     worklist.append(v)
