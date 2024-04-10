@@ -22,9 +22,9 @@ from lithops.tests.functions import simple_map_function
 logger = logging.getLogger(__name__)
 
 
-class TestAsync:
+class TestCallAsync:
 
-    def test_call_async(self):
+    def test_hello_world(self):
         def hello_world(param):
             return "Hello World!"
 
@@ -33,19 +33,19 @@ class TestAsync:
         result = fexec.get_result()
         assert result == "Hello World!"
 
-    def test_call_async_lambda_fn(self):
+    def test_lambda_fn(self):
         fexec = lithops.FunctionExecutor(config=pytest.lithops_config)
         fexec.call_async(lambda x: " ".join(x), ["a", "b"])
         result = fexec.get_result()
         assert result == "a b"
 
-    def test_call_async_set_params(self):
+    def test_set_iterdata(self):
         fexec = lithops.FunctionExecutor(config=pytest.lithops_config)
         fexec.call_async(simple_map_function, (4, 6))
         result = fexec.get_result()
         assert result == 10
 
-    def test_call_async_dict_params(self):
+    def test_dict_iterdata(self):
         fexec = lithops.FunctionExecutor(config=pytest.lithops_config)
         fexec.call_async(simple_map_function, {'x': 2, 'y': 8})
         result = fexec.get_result()
