@@ -3,17 +3,17 @@
 ## [v3.2.1.dev0]
 
 ### Added
-- [Core] Added a mechanism to automatically retry failed tasks by @tomwhite
+- [Core] Added a mechanism to automatically retry failed tasks
 
 ### Changed
-- [AWS Lambda] Eliminated the need for access and secret keys in the configuration
-- [AWS Batch] Eliminated the need for access and secret keys in the configuration
-- [AWS S3] Eliminated the need for access and secret keys in the configuration
+- [AWS] Eliminated the need for access and secret keys in the configuration
 - [Tests] Moved tests from unittest to pytest
 
 ### Fixed
 - [AWS Lambda] Fixed runtime deletion with "lithops runtime delete"
 - [Localhost] Fixed issue with the job manager
+- [Serilaizer] Fix serialization bug which triggers side effects on dynamic attributes
+- [Worker] Removed "distutils" lib imports as it is deprectaded in python 3.12
 
 ## [v3.2.0]
 

@@ -36,14 +36,11 @@ REQ_PARAMS_2 = ('iam_role',)
 
 def load_config(config_data):
 
-    if 'aws' not in config_data:
-        raise Exception("'aws' section is mandatory in the configuration")
-
-    if not {'access_key_id', 'secret_access_key'}.issubset(set(config_data['aws'])):
-        raise Exception("'access_key_id' and 'secret_access_key' are mandatory under the 'aws' section of the configuration")
-
     if not config_data['aws_ec2']:
         raise Exception("'aws_ec2' section is mandatory in the configuration")
+
+    if 'aws' not in config_data:
+        config_data['aws'] = {}
 
     temp = copy.deepcopy(config_data['aws_ec2'])
     config_data['aws_ec2'].update(config_data['aws'])
