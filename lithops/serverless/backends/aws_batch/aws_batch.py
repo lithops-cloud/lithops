@@ -63,19 +63,24 @@ class AWSBatchBackend:
 
         self.internal_storage = internal_storage
 
-        if 'account_id' in self.aws_batch_config:
-            self.account_id = self.aws_batch_config['account_id']
-        else:
+        if 'account_id' not in self.lambda_config or 'user_id' not in self.lambda_config:
             sts_client = self.aws_session.client('sts', region_name=self.region)
-            self.account_id = sts_client.get_caller_identity()["Account"]
+            caller_identity = sts_client.get_caller_identity()
 
-        sts_client = self.aws_session.client('sts', region_name=self.region)
-        caller_id = sts_client.get_caller_identity()
+        if 'account_id' in self.lambda_config:
+            self.account_id = self.lambda_config['account_id']
+        else:
+            self.account_id = caller_identity["Account"]
 
-        if ":" in caller_id["UserId"]:  # SSO user
-            self.user_key = caller_id["UserId"].split(":")[1]
+        if 'user_id' in self.lambda_config:
+            self.user_id = self.lambda_config['user_id']
+        else:
+            self.user_id = caller_identity["UserId"]
+
+        if ":" in self.user_id:  # SSO user
+            self.user_key = self.user_id.split(":")[1]
         else:  # IAM user
-            self.user_key = caller_id["UserId"][-4:].lower()
+            self.user_key = self.user_id[-4:].lower()
 
         self.ecr_client = self.aws_session.client('ecr', region_name=self.region)
         package = f'lithops_v{__version__.replace(".", "")}_{self.user_key}'
