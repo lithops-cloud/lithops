@@ -3,7 +3,7 @@
 ## [v3.2.1.dev0]
 
 ### Added
-- [Core] Added a mechanism to automatically retry failed tasks
+- [Core] Added a mechanism to automatically retry failed tasks, by @tomwhite
 
 ### Changed
 - [AWS] Eliminated the need for access and secret keys in the configuration
@@ -12,7 +12,7 @@
 ### Fixed
 - [AWS Lambda] Fixed runtime deletion with "lithops runtime delete"
 - [Localhost] Fixed issue with the job manager
-- [Serilaizer] Fix serialization bug which triggers side effects on dynamic attributes
+- [Serilaizer] Fix serialization bug which triggers side effects on dynamic attributes, by @rabernat
 - [Worker] Removed "distutils" lib imports as it is deprectaded in python 3.12
 
 ## [v3.2.0]
