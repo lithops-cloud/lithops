@@ -115,9 +115,9 @@ class AzureContainerAppBackend:
 
         if dockerfile:
             assert os.path.isfile(dockerfile), f'Cannot locate "{dockerfile}"'
-            cmd = f'{docker_path} build -t {runtime_name} -f {dockerfile} . '
+            cmd = f'{docker_path} build --platform=linux/amd64 -t {runtime_name} -f {dockerfile} . '
         else:
-            cmd = f'{docker_path} build -t {runtime_name} . '
+            cmd = f'{docker_path} build --platform=linux/amd64 -t {runtime_name} . '
         cmd = cmd + ' '.join(extra_args)
 
         try:

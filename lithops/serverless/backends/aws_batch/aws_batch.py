@@ -395,9 +395,9 @@ class AWSBatchBackend:
 
         if runtime_file:
             assert os.path.isfile(runtime_file), f'Cannot locate "{runtime_file}"'
-            cmd = f'{docker_path} build -t {full_image_name} -f {runtime_file} . '
+            cmd = f'{docker_path} build --platform=linux/amd64 -t {full_image_name} -f {runtime_file} . '
         else:
-            cmd = f'{docker_path} build -t {full_image_name} . '
+            cmd = f'{docker_path} build --platform=linux/amd64 -t {full_image_name} . '
         cmd = cmd + ' '.join(extra_args)
 
         try:
