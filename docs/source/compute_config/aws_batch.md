@@ -15,34 +15,55 @@ Lithops with *AWS Batch* as serverless batch compute backend.
 3. Navigate to **IAM > Roles** to create the ECS Instance Role. AWS provides a defualt role named `ecsInstanceRole`, which can be used instead. If you want to create another role or it is missing, create a new role attached to `EC2`, and add the following policy:
     - `AmazonEC2ContainerServiceforEC2Role`
 
-4. Edit your lithops config and add the following keys:
+## AWS Credential setup
 
-```yaml
-aws:
-    region: <REGION_NAME>
-    access_key_id: <AWS_ACCESS_KEY_ID>
-    secret_access_key: <AWS_SECRET_ACCESS_KEY>
+Lithops loads AWS credentials as specified in the [boto3 configuration guide](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/configuration.html).
 
-aws_batch:
-    runtime : <RUNTIME_NAME>
-    runtime_timeout: <RUNTIME_TIMEOUT>
-    runtime_memory: <RUNTIME_MEMORY>
-    worker_processes: <WORKER_PROCESSES>
-    container_vcpus: <CONTAINER_VCPUS>
-    execution_role: <EXECUTION_ROLE_ARN>
-    instance_role: <INSTANCE_ROLE_ARN>
-    env_type: <COMPUTE_ENVIRONMENT_TYPE>
-    env_max_cpus: <COMPUTE_ENVIRONMENT_MAX_CPUS>
-    assign_public_ip: <ASSING_PUBLIC_IP_TO_CONTAINERS>
-    subnets:
-        - <SUBNET_ID_1>
-        - <SUBNET_ID_2>
-        - ...
-    security_groups:
-        - <SECURITY_GROUP_1>
-        - <SECURITY_GROUP_2>
-        - ...
-```
+In summary, you can use one of the following settings:
+
+1. Provide the credentials via the `~/.aws/config` file, or set the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` environment variables.
+
+    You can run `aws configure` command if the AWS CLI is installed to setup the credentials. Then set in the Lithops config file:
+    ```yaml
+    lithops:
+        backend: aws_batch
+
+    aws_batch:
+        region : <REGION_NAME>
+        execution_role: <EXECUTION_ROLE_ARN>
+        instance_role: <INSTANCE_ROLE_ARN>
+        subnets:
+            - <SUBNET_ID_1>
+            - <SUBNET_ID_2>
+            - ...
+        security_groups:
+            - <SECURITY_GROUP_1>
+            - <SECURITY_GROUP_2>
+            - ...
+    ```
+
+2. Provide the credentials in the `aws` section of the Lithops config file:
+    ```yaml
+    lithops:
+        backend: aws_batch
+
+    aws:
+        access_key_id: <AWS_ACCESS_KEY_ID>
+        secret_access_key: <AWS_SECRET_ACCESS_KEY>
+        region: <REGION_NAME>
+
+    aws_batch:
+        execution_role: <EXECUTION_ROLE_ARN>
+        instance_role: <INSTANCE_ROLE_ARN>
+        subnets:
+            - <SUBNET_ID_1>
+            - <SUBNET_ID_2>
+            - ...
+        security_groups:
+            - <SECURITY_GROUP_1>
+            - <SECURITY_GROUP_2>
+            - ...
+    ```
 
 ## Summary of configuration keys for AWS
 
@@ -50,7 +71,7 @@ aws_batch:
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|aws | region | |no | AWS region name. For example `us-east-1` |
+|aws | region | |yes | AWS region name. For example `us-east-1` |
 |aws | access_key_id | |no | Account access key to AWS services. To find them, navigate to *My Security Credentials* and click *Create Access Key* if you don't already have one. |
 |aws | secret_access_key | |no | Account secret access key to AWS services. To find them, navigate to *My Security Credentials* and click *Create Access Key* if you don't already have one. |
 |aws | session_token | |no | Session token for temporary AWS credentials |
