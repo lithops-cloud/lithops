@@ -25,6 +25,7 @@ import time
 import requests
 from functools import partial
 from multiprocessing import Value
+from threading import Thread
 
 from lithops.version import __version__
 from lithops.utils import setup_lithops_logger, b64str_to_dict
@@ -121,7 +122,7 @@ def run_job_k8s(payload):
     logger.info("Finishing kubernetes execution")
 
 
-def run_job_k8s_rabbitmq(payload, running_jobs):
+def run_job_k8s_rabbitmq(payload):
     logger.info(f"Lithops v{__version__} - Starting kubernetes execution")
 
     act_id = str(uuid.uuid4()).replace('-', '')[:12]
@@ -129,26 +130,29 @@ def run_job_k8s_rabbitmq(payload, running_jobs):
     os.environ['__LITHOPS_BACKEND'] = 'k8s_rabbitmq'
 
     function_handler(payload)
-    running_jobs.value += len(payload['call_ids'])
+    with running_jobs.get_lock():
+        running_jobs.value += len(payload['call_ids'])
 
     logger.info("Finishing kubernetes execution")
 
 
 def callback_work_queue(ch, method, properties, body):
     """Callback to receive the payload and run the jobs"""
-    global cpus_pod
-
     logger.info("Call from lithops received.")
 
     message = json.loads(body)
     tasks = message['total_calls']
 
-    running_jobs = Value('i', cpus_pod)  # Shared variable to track completed jobs
-
     # If there are more tasks than cpus in the pod, we need to send a new message
     if tasks <= running_jobs.value:
         processes_to_start = tasks
     else:
+        if running_jobs.value == 0:
+            logger.info("All cpus are busy. Waiting for a cpu to be free")
+            ch.basic_nack(delivery_tag=method.delivery_tag)
+            time.sleep(0.5)
+            return
+
         processes_to_start = running_jobs.value
 
         message_to_send = message.copy()
@@ -171,15 +175,16 @@ def callback_work_queue(ch, method, properties, body):
     logger.info(f"Starting {processes_to_start} processes")
 
     message['worker_processes'] = running_jobs.value
-    running_jobs.value -= processes_to_start
-    run_job_k8s_rabbitmq(message, running_jobs)
+    with running_jobs.get_lock():
+        running_jobs.value -= processes_to_start
 
-    logger.info("All processes completed")
+    Thread(target=run_job_k8s_rabbitmq, args=([message])).start()
+
     ch.basic_ack(delivery_tag=method.delivery_tag)
 
 
 def start_rabbitmq_listening(payload):
-    global cpus_pod
+    global running_jobs
 
     # Connect to rabbitmq
     params = pika.URLParameters(payload['amqp_url'])
@@ -188,8 +193,8 @@ def start_rabbitmq_listening(payload):
     channel.queue_declare(queue='task_queue', durable=True)
     channel.basic_qos(prefetch_count=1)
 
-    # Get the number of cpus of the pod
-    cpus_pod = payload['cpus_pod']
+    # Shared variable to track completed jobs
+    running_jobs = Value('i', payload['cpus_pod'])
 
     # Start listening to the new job
     channel.basic_consume(queue='task_queue', on_message_callback=callback_work_queue)
