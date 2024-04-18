@@ -100,6 +100,11 @@ class AWSLambdaBackend:
         else:  # IAM user
             self.user_key = self.user_id[-4:].lower()
 
+        # AWS API regex disallows '@' in lambda function names
+        # SSO user is an email address so we take only the username
+        if "@" in self.user_key:
+            self.user_key = self.user_key.split("@")[0]
+
         self.ecr_client = self.aws_session.client('ecr', region_name=self.region)
         package = f'lithops_v{__version__.replace(".", "")}_{self.user_key}'
         self.package = f"{package}_{self.namespace}" if self.namespace else package
