@@ -102,7 +102,7 @@ class AWSLambdaBackend:
 
         # AWS API regex disallows '@' in lambda function names
         # SSO user is an email address so we take only the username
-        if "@" in self.user_key:  
+        if "@" in self.user_key:
             self.user_key = self.user_key.split("@")[0]
 
         self.ecr_client = self.aws_session.client('ecr', region_name=self.region)
