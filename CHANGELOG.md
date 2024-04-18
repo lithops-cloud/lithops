@@ -15,8 +15,10 @@
 - [Serilaizer] Fix serialization bug which triggers side effects on dynamic attributes, by @rabernat
 - [Worker] Removed "distutils" lib imports as it is deprectaded in python 3.12, by @JosepSampe
 - [Serverless] Allow to build container runtimes with the MacBook Mx chip, by @JosepSampe
-- [K8s] Fixed task granularity calculation (RabbitMQ version), by @macarronesc
-- [k8s] Fixed runtime memory units issue (RabbitMQ version), by @macarronesc
+- [K8s] Fixed task granularity calculation and memory units issue (RabbitMQ version), by @macarronesc
+- [AWS Lambda] Fixed AWS Lambda function Name for SSO users, by @linuxkd
+- [AWS] Fixed generated user key for SSO users, by @JosepSampe
+
 
 ## [v3.2.0]
 
@@ -36,6 +38,7 @@
 - [Cli] Fixed job status on "lithops job list" for standalone backends, by @JosepSampe
 - [Standalone] Fixed issue in the "lithops image build" that appears when the vpc is already created, by @JosepSampe
 - [Future] Fixed issue with missing 'worker_end_tstamp' variable, by @JosepSampe
+
 
 ## [v3.1.2]
 
@@ -104,9 +107,9 @@
 - [Standalone] Fixed multiple runtime usage at the same time in master VM, by @JosepSampe
 - [localhost] Get the correct docker/podman path for jobs that run in a container, by @JosepSampe
 - [k8s] Limit the size of the "user" label as the maximum allowed is 63 chars, by @JosepSampe
-- [Joblib] Fix shared objects utility when multiple maps run from the same executor, by @JosepSampe
-- [Azure VMs] Fix wrong exception when trying to connect to the master VM for the first time, by @JosepSampe
-- [Partitioner] Fix partitioner, by @JosepSampe
+- [Joblib] Fixed shared objects utility when multiple maps run from the same executor, by @JosepSampe
+- [Azure VMs] Fixed wrong exception when trying to connect to the master VM for the first time, by @JosepSampe
+- [Partitioner] Fixed partitioner, by @JosepSampe
 
 
 ## [v3.0.1]
