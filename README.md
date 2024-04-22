@@ -75,8 +75,8 @@ def hello(name):
     return f'Hello {name}!'
 
 with FunctionExecutor() as fexec:
-    fut = fexec.call_async(hello, 'World')
-    print(fut.result())
+    f = fexec.call_async(hello, 'World')
+    print(f.result())
 ```
 </td>
 <td>
@@ -120,14 +120,14 @@ if __name__ == "__main__":
                   key='test.txt',
                   body='Hello World')
 
-    print(st.get_object(bucket='mybucket',
+    print(st.get_object(bucket='lithops',
                         key='test.txt'))
 ```
 </td>
 <td>
 
 ```python
-from lithops.storage.cloud_proxy import os 
+from lithops.storage.cloud_proxy import os
 
 if __name__ == "__main__":
     filepath = 'bar/foo.txt'

@@ -15,6 +15,10 @@
 - [Serilaizer] Fix serialization bug which triggers side effects on dynamic attributes, by @rabernat
 - [Worker] Removed "distutils" lib imports as it is deprectaded in python 3.12
 - [Serverless] Allow to build container runtimes with the MacBook Mx chip
+- [K8s] Fixed task granularity calculation and memory units issue (RabbitMQ version)
+- [AWS Lambda] Fixed AWS Lambda function Name for SSO users
+- [AWS] Fixed generated user-key for SSO users
+
 
 ## [v3.2.0]
 

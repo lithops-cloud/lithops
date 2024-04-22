@@ -128,7 +128,7 @@ class IBMCloudFunctionsBackend:
         response = self.cf_client.list_namespaces(self.resource_group_id)
         if 'namespaces' in response:
             for namespace in response['namespaces']:
-                if namespace['name'] == self.namespace_name:
+                if 'name' in namespace and namespace['name'] == self.namespace_name:
                     logger.debug(f"Found Cloud Functions namespace: {self.namespace_name}")
                     self.namespace_id = namespace['id']
                     self.config['namespace_id'] = self.namespace_id

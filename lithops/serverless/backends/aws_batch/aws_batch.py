@@ -21,6 +21,7 @@ import re
 import logging
 import subprocess
 import sys
+import botocore
 import time
 import boto3
 
@@ -36,58 +37,56 @@ logger = logging.getLogger(__name__)
 
 class AWSBatchBackend:
 
-    def __init__(self, aws_batch_config, internal_storage):
+    def __init__(self, batch_config, internal_storage):
         """
         Initialize AWS Batch Backend
         """
-        logger.debug('Creating AWS Lambda client')
+        logger.debug('Creating AWS Batch client')
 
         self.name = 'aws_batch'
         self.type = utils.BackendType.BATCH.value
-        self.aws_batch_config = aws_batch_config
-        self.region = aws_batch_config['region']
-        self.namespace = aws_batch_config.get('namespace')
+        self.aws_batch_config = batch_config
+        self.user_agent = batch_config['user_agent']
+        self.region = batch_config['region']
+        self.namespace = batch_config.get('namespace')
 
         self._env_type = self.aws_batch_config['env_type']
         self._queue_name = f'{self.package}_{self._env_type.replace("_", "-")}_queue'
         self._compute_env_name = f'{self.package}_{self._env_type.replace("_", "-")}_env'
 
-        logger.debug('Creating Boto3 AWS Session and Batch Client')
         self.aws_session = boto3.Session(
-            aws_access_key_id=aws_batch_config.get('access_key_id'),
-            aws_secret_access_key=aws_batch_config.get('secret_access_key'),
-            aws_session_token=aws_batch_config.get('session_token'),
+            aws_access_key_id=batch_config.get('access_key_id'),
+            aws_secret_access_key=batch_config.get('secret_access_key'),
+            aws_session_token=batch_config.get('session_token'),
             region_name=self.region
         )
-        self.batch_client = self.aws_session.client('batch', region_name=self.region)
+        self.batch_client = self.aws_session.client('batch')
+
+        self.batch_client = self.aws_session.client(
+            'batch', config=botocore.client.Config(
+                user_agent_extra=self.user_agent
+            )
+        )
 
         self.internal_storage = internal_storage
 
-        if 'account_id' not in self.lambda_config or 'user_id' not in self.lambda_config:
-            sts_client = self.aws_session.client('sts', region_name=self.region)
-            caller_identity = sts_client.get_caller_identity()
+        if 'account_id' not in self.batch_config or 'user_id' not in self.batch_config:
+            sts_client = self.aws_session.client('sts')
+            identity = sts_client.get_caller_identity()
 
-        if 'account_id' in self.lambda_config:
-            self.account_id = self.lambda_config['account_id']
-        else:
-            self.account_id = caller_identity["Account"]
+        self.account_id = self.batch_config.get('account_id') or identity["Account"]
+        self.user_id = self.batch_config.get('user_id') or identity["UserId"]
+        self.user_key = self.user_id.split(":")[0][-4:].lower()
 
-        if 'user_id' in self.lambda_config:
-            self.user_id = self.lambda_config['user_id']
-        else:
-            self.user_id = caller_identity["UserId"]
-
-        if ":" in self.user_id:  # SSO user
-            self.user_key = self.user_id.split(":")[1]
-        else:  # IAM user
-            self.user_key = self.user_id[-4:].lower()
-
-        self.ecr_client = self.aws_session.client('ecr', region_name=self.region)
+        self.ecr_client = self.aws_session.client('ecr')
         package = f'lithops_v{__version__.replace(".", "")}_{self.user_key}'
         self.package = f"{package}_{self.namespace}" if self.namespace else package
 
         msg = COMPUTE_CLI_MSG.format('AWS Batch')
-        logger.info(f"{msg} - Region: {self.region}")
+        if self.namespace:
+            logger.info(f"{msg} - Region: {self.region} - Namespace: {self.namespace}")
+        else:
+            logger.info(f"{msg} - Region: {self.region}")
 
     def _get_default_runtime_image_name(self):
         python_version = utils.CURRENT_PY_VERSION.replace('.', '')
