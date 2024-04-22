@@ -6,178 +6,187 @@
 - [Core] Added a mechanism to automatically retry failed tasks, by @tomwhite
 
 ### Changed
-- [AWS] Eliminated the need for access and secret keys in the configuration, by @rabernat & @JosepSampe
-- [Tests] Moved tests from unittest to pytest, by @JosepSampe
+- [AWS] Eliminated the need for access and secret keys in the configuration
+- [Tests] Moved tests from unittest to pytest
 
 ### Fixed
-- [AWS Lambda] Fixed runtime deletion with "lithops runtime delete", by @JosepSampe
-- [Localhost] Fixed issue with the job manager, by @JosepSampe
+- [AWS Lambda] Fixed runtime deletion with "lithops runtime delete"
+- [Localhost] Fixed issue with the job manager
 - [Serilaizer] Fix serialization bug which triggers side effects on dynamic attributes, by @rabernat
-- [Worker] Removed "distutils" lib imports as it is deprectaded in python 3.12, by @JosepSampe
-- [Serverless] Allow to build container runtimes with the MacBook Mx chip, by @JosepSampe
-- [K8s] Fixed task granularity calculation and memory units issue (RabbitMQ version), by @macarronesc
-- [AWS Lambda] Fixed AWS Lambda function Name for SSO users, by @linuxkd
-- [AWS] Fixed generated user key for SSO users, by @JosepSampe
+- [Worker] Removed "distutils" lib imports as it is deprectaded in python 3.12
+- [Serverless] Allow to build container runtimes with the MacBook Mx chip
+- [K8s] Fixed task granularity calculation and memory units issue (RabbitMQ version)
+- [AWS Lambda] Fixed AWS Lambda function Name for SSO users
+- [AWS] Fixed generated user-key for SSO users
 
 
 ## [v3.2.0]
 
 ### Added
-- [Lithops] Addded support for Python 3.12, by @JosepSampe
-- [CLI] Added "--include" parameter in "lithops image build" to allow users upload local files to the VM image, by @JosepSampe
+- [Lithops] Addded support for Python 3.12
+- [CLI] Added "--include" parameter in "lithops image build" to allow users upload local files to the VM image
 
 ### Changed
-- [Standalone] Use redis in the master VM to store all the relevant data about jobs and workers, by @JosepSampe
-- [Standalone] Use redis to store the work queues, by @JosepSampe
-- [Standalone] Improved resiliency and worker granularity, by @JosepSampe
-- [CLI] Show the timestamp in the local timezone format on "lithops job list", by @JosepSampe
-- [CLI] Show worker creation timestamp and time-to-dismantle on "lithops worker list", by @JosepSampe
+- [Standalone] Use redis in the master VM to store all the relevant data about jobs and workers
+- [Standalone] Use redis to store the work queues
+- [Standalone] Improved resiliency and worker granularity
+- [CLI] Show the timestamp in the local timezone format on "lithops job list"
+- [CLI] Show worker creation timestamp and time-to-dismantle on "lithops worker list"
 
 ### Fixed
-- [SSH Cli] Fixed minor error with the "err" variable, by @JosepSampe
-- [Cli] Fixed job status on "lithops job list" for standalone backends, by @JosepSampe
-- [Standalone] Fixed issue in the "lithops image build" that appears when the vpc is already created, by @JosepSampe
-- [Future] Fixed issue with missing 'worker_end_tstamp' variable, by @JosepSampe
-
+- [SSH Cli] Fixed minor error with the "err" variable
+- [Cli] Fixed job status on "lithops job list" for standalone backends
+- [Standalone] Fixed issue in the "lithops image build" that appears when the vpc is already created
+- [Future] Fixed issue with missing 'worker_end_tstamp' variable
 
 ## [v3.1.2]
 
 ### Added
-- [Plots] Allow to set the figure size of the plots, by @JosepSampe
-- [Stats] Added new CPU, Memory and Network statistics in the function results, by @Usamasource
-- [IBM VPC] Added a new parameter to enable/disable resource existence check in the platform, by @JosepSampe
+- [Plots] Allow to set the figure size of the plots
+- [Stats] Added new CPU, Memory and Network statistics in the function results
+- [IBM VPC] Added a new parameter to enable/disable resource existence check in the platform
 
 ### Changed
-- [Config] Renamed 'customized_runtime' to 'runtime_include_function', by @JosepSampe
-- [IBM VPC] Increased the total number of available IPs in the private network, by @JosepSampe
-- [Standalone] Do not stop the VM immediately after a job in the Cosume mode, by @JosepSampe
+- [Config] Renamed 'customized_runtime' to 'runtime_include_function'
+- [IBM VPC] Increased the total number of available IPs in the private network
+- [Standalone] Do not stop the VM immediately after a job in the Cosume mode
 
 ### Fixed
-- [Standalone] Fixed issue that appears when the invocation payload is too big, by @JosepSampe
-- [Invoker] Fixed "runtime_include_function" function/modules path, by @JosepSampe
-- [AWS EC2] Reset the public IP address of the master VM on stop, by @JosepSampe
+- [Standalone] Fixed issue that appears when the invocation payload is too big
+- [Invoker] Fixed "runtime_include_function" function/modules path
+- [AWS EC2] Reset the public IP address of the master VM on stop
 
 
 ## [v3.1.1]
 
 ### Added
-- [k8s] Added a new way of invoking functions using a RabbitMQ work queue, by @macarronesc
-- [IBM VPC] Added "zone" config parameter, by @JosepSampe
-- [IBM Code Engine] Get and print an error message in case of container execution failure, by @JosepSampe
+- [k8s] Added a new way of invoking functions using a RabbitMQ work queue
+- [IBM VPC] Added "zone" config parameter
+- [IBM Code Engine] Get and print an error message in case of container execution failure 
 
 ### Changed
-- [Openwhisk] Updated default runtimes, by @JosepSampe
+- [Openwhisk] Updated default runtimes
 
 ### Fixed
-- [Standalone] Fixed issue with a wrong value of "chunksize", by @JosepSampe
-- [IBM Code Engine] Fixed missing parameter on clean, by @JosepSampe
-- [Executor] Fixed potential deadlock in wait() and get_result() when an exception is produced in a function activation, by @JosepSampe
+- [Standalone] Fixed issue with a wrong value of "chunksize"
+- [IBM Code Engine] Fixed missing parameter on clean
+- [Executor] Fixed potential deadlock in wait() and get_result() when an exception is produced in a function activation
 
 
 ## [v3.1.0]
 
 ### Added
-- [Cli] Added new 'lithops image delete' command for standalone backends, by @JosepSampe
-- [Cli] Added new 'lithops job list' command for standalone backends, by @JosepSampe
-- [Cli] Added new 'lithops worker list' command for standalone backends, by @JosepSampe
-- [AWS EC2] Added delete_image() method for deleting VM images through the cli, by @JosepSampe
-- [IBM VPC] Added delete_image() method for deleting VM images through the cli, by @JosepSampe
-- [localhost] New localhost backend v2 to maximize resource utilization when multiple maps are executed from the same FunctionExecutor, by @JosepSampe
-- [Standalone] Automatically retrieve the CPU_COUNT from the VM in case worker_processes is not set in config, by @JosepSampe
-- [Standalone] Keep track of the worker and job status, by @JosepSampe
-- [Storage] Include "Config" paramater to download_file() and upload_file() methods for boto3 related backends, by @JosepSampe
-- [Cli] Include 'worker name' in the 'lithops runtime list' cmd, by @JosepSampe
-- [AWS Lambda] Created 'namespace' config key to virtually separate worker deployments, by @JosepSampe
+- [Cli] Added new 'lithops image delete' command for standalone backends
+- [Cli] Added new 'lithops job list' command for standalone backends
+- [Cli] Added new 'lithops worker list' command for standalone backends
+- [AWS EC2] Added delete_image() method for deleting VM images through the cli
+- [IBM VPC] Added delete_image() method for deleting VM images through the cli
+- [localhost] New localhost backend v2 to maximize resource utilization when multiple maps are executed from the same FunctionExecutor
+- [Standalone] Automatically retrieve the CPU_COUNT from the VM in case worker_processes is not set in config
+- [Standalone] Keep track of the worker and job status
+- [Storage] Include "Config" paramater to download_file() and upload_file() methods for boto3 related backends
+- [Cli] Include 'worker name' in the 'lithops runtime list' cmd
+- [AWS Lambda] Created 'namespace' config key to virtually separate worker deployments
 
 ### Changed
-- [Standalone] Changed default mode of execution from 'consume' to 'reuse', by @JosepSampe
-- [Joblib] Updated the joblib backend to make it compatible with new versions of joblib, by @JosepSampe
-- [Joblib] Spawn only one function when 'prefer' is set to 'threads', by @JosepSampe
-- [AWS EC2] Changed default image name from "lithops-worker-default" to "lithops-ubuntu-jammy-22.04-amd64-server", by @JosepSampe
-- [IBM VPC] Changed default image name from "lithops-worker-default" to "lithops-ubuntu-22-04-3-minimal-amd64-1", by @JosepSampe
-- [Serializer] Improve serializer performance when include_modules is set in config, by @JosepSampe
-- [SSH Client] Do not raise LithopsValidationError on Authentication failed, by @JosepSampe
-- [AWS Lambda] Renamed function name to "lithops-worker-xxxx", by @JosepSampe
+- [Standalone] Changed default mode of execution from 'consume' to 'reuse'
+- [Joblib] Updated the joblib backend to make it compatible with new versions of joblib
+- [Joblib] Spawn only one function when 'prefer' is set to 'threads'
+- [AWS EC2] Changed default image name from "lithops-worker-default" to "lithops-ubuntu-jammy-22.04-amd64-server"
+- [IBM VPC] Changed default image name from "lithops-worker-default" to "lithops-ubuntu-22-04-3-minimal-amd64-1"
+- [Serializer] Improve serializer performance when include_modules is set in config
+- [SSH Client] Do not raise LithopsValidationError on Authentication failed
+- [AWS Lambda] Renamed function name to "lithops-worker-xxxx"
 
 ### Fixed
-- [Job] Fixed max data size in the invocation payload, by @JosepSampe
-- [Multiprocessing] Fixed cpu_count, by @JosepSampe
-- [Standalone] Start new workers when the VM instance type changes (in reuse mode), by @JosepSampe
-- [GCP Functions] Fixed issue with "function_url" variable, by @JosepSampe
-- [Standalone] Fixed multiple runtime usage at the same time in master VM, by @JosepSampe
-- [localhost] Get the correct docker/podman path for jobs that run in a container, by @JosepSampe
-- [k8s] Limit the size of the "user" label as the maximum allowed is 63 chars, by @JosepSampe
-- [Joblib] Fixed shared objects utility when multiple maps run from the same executor, by @JosepSampe
-- [Azure VMs] Fixed wrong exception when trying to connect to the master VM for the first time, by @JosepSampe
-- [Partitioner] Fixed partitioner, by @JosepSampe
+- [Job] Fixed max data size in the invocation payload
+- [Multiprocessing] Fixed cpu_count
+- [Standalone] Start new workers when the VM instance type changes (in reuse mode)
+- [GCP Functions] Fixed issue with "function_url" variable
+- [Standalone] Fixed multiple runtime usage at the same time in master VM
+- [localhost] Get the correct docker/podman path for jobs that run in a container
+- [k8s] Limit the size of the "user" label as the maximum allowed is 63 chars
+- [Joblib] Fix shared objects utility when multiple maps run from the same executor
+- [Azure VMs] Fix wrong exception when trying to connect to the master VM for the first time
+- [Partitioner] Fix partitioner
 
 
 ## [v3.0.1]
 
 ### New
-- [OCI Functions] Added new 'Oracle Cloud Functions' serverless backend, by @abourramouss
-- [OCI Object Storage] Added new 'Oracle Cloud Object storage' storage backend, by @abourramouss
+- [OCI Functions] Added new 'Oracle Cloud Functions' serverless backend
+- [OCI Object Storage] Added new 'Oracle Cloud Object storage' storage backend
 
 ### Added
-- [Kubernetes] Added Redis server in master pod for shared data between workers, by @JosepSampe
-- [Kubernetes] Allow to set "conntext" and "namespace" in lithops config, by @JosepSampe
+- [Kubernetes] Added Redis server in master pod for shared data between workers
+- [Kubernetes] Allow to set "conntext" and "namespace" in lithops config
 
 ### Changed
-- [CodeEngine] Create the CE project only when necessary instead of creating it always, by @JosepSampe
-- [IBM CF] Create the CF namespace only when necessary instead of creating it always, by @JosepSampe
+- [CodeEngine] Create the CE project only when necessary instead of creating it always
+- [IBM CF] Create the CF namespace only when necessary instead of creating it always
 
 ### Fixed
-- [Executor] Fixed kwargs mapping in ServerlessExecutor and StandaloneExecutor, by @JosepSampe
-- [Serializer] Fixed issue in serializer when "include_modules" config var is set, by @JosepSampe
-- [CodeEngine] Fixed exception handling, by @JosepSampe
+- [Executor] Fixed kwargs mapping in ServerlessExecutor and StandaloneExecutor
+- [Serializer] Fixed issue in serializer when "include_modules" config var is set
+- [CodeEngine] Fixed exception handling
 
 
 ## [v3.0.0]
 
 ### New
-- [Azure Virtual Machines] Added new 'Azure Virtual Machines' standalone backend, by @JosepSampe
+- [Azure Virtual Machines] Added new 'Azure Virtual Machines' standalone backend
 
 ### Added
-- [Serverless] Added support for python 3.10 and 3.11 runtimes, by @JosepSampe
-- [Executor] Allow to set all the compute backend params programatically in the FunctionExecutor(), by @JosepSampe
-- [AWS EC2] Allow to automatically create the VPC and all the necessary resources, by @JosepSampe
-- [IBM VPC & AWS EC2] General fixes and Improvements, by @JosepSampe
-- [Executor] Allow to pass the config file location in the FunctionExecutor(), by @JosepSampe
-- [Storage] Automatically create the storage bucket if not provided in the config, by @JosepSampe
-- [IBM] Allow to set "region" under "ibm" section, by @JosepSampe
-- [AWS] Allow to set "region" under "aws" section, by @JosepSampe
-- [Cli] Added new 'lithops image build' command for standalone backends, by @JosepSampe
-- [Cli] Added new 'lithops image list' command for standalone backends, by @JosepSampe
-- [Standalone] Added build_image() method for automatically building VM images, by @JosepSampe
-- [Standalone] Added list_image() method for listing the availabe VM images, by @JosepSampe
-- [IBM CF] Automatically create a CF namespace if not provided in config, by @JosepSampe
-- [IBM VPC] Added Madrid (Spain) region, by @JosepSampe
-- [Code Engine] Automatically create a new project if not provided in config, by @JosepSampe
+- [AWS Lambda] Added support for python 3.10 runtimes
+- [AWS Lambda] Added support for python 3.11 runtimes
+- [Azure Functions] Added support for python 3.10 runtimes
+- [Azure Functions] Added support for python 3.11 runtimes
+- [Google Cloud Functions] Added support for python 3.11 runtimes
+- [IBM CF] Added support for python 3.11 runtimes
+- [Openwhisk] Added support for python 3.11 runtimes
+- [Aliyun Functions] Added support for python 3.10 runtimes
+- [Executor] Allow to set all the compute backend params programatically in the FunctionExecutor()
+- [AWS EC2] Allow to automatically create the VPC and all the necessary resources
+- [IBM VPC & AWS EC2] General fixes and Improvements
+- [Executor] Allow to pass the config file location in the FunctionExecutor()
+- [Storage] Automatically create the storage bucket if not provided in the config
+- [IBM] Allow to set "region" under "ibm" section
+- [AWS] Allow to set "region" under "aws" section
+- [Cli] Added new 'lithops image build' command for standalone backends
+- [Cli] Added new 'lithops image list' command for standalone backends
+- [IBM VPC] Added build_image() method for automatically building VM images
+- [IBM VPC] Added list_image() method for listing the availabe VM images
+- [AWS EC2] Added build_image() method for automatically building VM images
+- [AWS EC2] Added list_image() method for listing the availabe VM images
+- [Azure VMS] Added list_image() method for listing the availabe VM images
+- [IBM CF] Automatically create a CF namespace if not provided in config
+- [IBM VPC] Added Madrid (Spain) region
+- [Code Engine] Automatically create a new project if not provided in config
 
 ### Changed
-- [Azure] Changed 'location' config parameter to 'region' for compatibility, by @JosepSampe
-- [Aliyun] Changed 'endpoint' config parameter to 'region' for compatibility, by @JosepSampe
-- [AWS EC2] Reduced number of mandatory parameters, by @JosepSampe
-- [AWS] Allow 'region' config parameter instead of 'region_name' for compatibility, by @JosepSampe
-- [IBM CF] Cloud-foundry namespaces have been deprecated in IBM Cloud. From now all the users must use an IAM-based namespace, by @JosepSampe
-- [IBM COS] Changed 'access_key' config parameter to 'access_key_id' for compatibility, by @JosepSampe
-- [IBM COS] Changed 'secret_key' config parameter to 'secret_access_key' for compatibility, by @JosepSampe
-- [IBM] Improved token manager, by @JosepSampe
-- [Core] Job creation now checks that each element in 'iterdata' is smaller than 8 KB, by @JosepSampe
-- [MapReduce] Make 'results' variable name not mandatory in the reduce function signature, by @JosepSampe
-- [CLI] Renamed 'lithops test' command to 'lithops hello', by @JosepSampe
-- [CLI] Renamed 'lithops verify' command to 'lithops test', by @JosepSampe
+- [Azure] Changed 'location' config parameter to 'region' for compatibility
+- [Aliyun] Changed 'endpoint' config parameter to 'region' for compatibility
+- [AWS EC2] Reduced number of mandatory parameters
+- [AWS] Allow 'region' config parameter instead of 'region_name' for compatibility
+- [IBM CF] Cloud-foundry namespaces have been deprecated in IBM Cloud. From now all the users must use an IAM-based namespace
+- [IBM COS] Changed 'access_key' config parameter to 'access_key_id' for compatibility
+- [IBM COS] Changed 'secret_key' config parameter to 'secret_access_key' for compatibility
+- [IBM] Improved token manager
+- [Core] Job creation now checks that each element in 'iterdata' is smaller than 8 KB
+- [MapReduce] Make 'results' variable name not mandatory in the reduce function signature
+- [CLI] Renamed 'lithops test' command to 'lithops hello'
+- [CLI] Renamed 'lithops verify' command to 'lithops test'
 
 ### Fixed
-- [IBM VPC & AWS EC2] Make sure only VMs from the given VPC are removed, by @JosepSampe
-- [IBM VPC] Reuse floating IPs for public gateways, by @JosepSampe
-- [Serializer] Prevent analyzing the same module multiple times, by @JosepSampe
-- [SSH Cli] Fix issue with RSA keys, by @JosepSampe
-- [Tests] Fix broken links of testing files, by @JosepSampe
-- [Azure Container APPs] Make sure the lithops worker app is deployed, by @JosepSampe
-- [AWS Lambda] Fixed error with urllib3. Pin urllib3 to <2 as for now botocore does not support urllib3 2.0, by @JosepSampe
-- [Multiprocessing] Check redis connection before starting to submit jobs, by @JosepSampe
-- [Redis] Fixed redis backend exception regarding storage_bucket, by @JosepSampe
+- [IBM VPC & AWS EC2] Make sure only VMs from the given VPC are removed
+- [IBM VPC] Reuse floating IPs for public gateways
+- [Serializer] Prevent analyzing the same module multiple times
+- [SSH Cli] Fix issue with RSA keys
+- [Tests] Fix broken links of testing files
+- [Azure Container APPs] Make sure the lithops worker app is deployed
+- [AWS Lambda] Fixed error with urllib3. Pin urllib3 to <2 as for now botocore does not support urllib3 2.0
+- [Multiprocessing] Check redis connection before starting to submit jobs
+- [Redis] Fixed redis backend exception regarding storage_bucket
 
 
 ## [v2.9.0]
