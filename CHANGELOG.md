@@ -18,7 +18,7 @@
 - [K8s] Fixed task granularity calculation and memory units issue (RabbitMQ version)
 - [AWS Lambda] Fixed AWS Lambda function Name for SSO users
 - [AWS] Fixed generated user-key for SSO users
-
+- [Azure VMs] Fixed worker creation and communication
 
 ## [v3.2.0]
 

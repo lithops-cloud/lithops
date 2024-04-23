@@ -27,6 +27,37 @@ IBM Code Engine exposes both Knative and Kubernetes Job Descriptor API. Lithops 
         resource_group_id: <RESOURCE_GROUP_ID>
     ```
 
+
+## Summary of configuration keys for IBM Cloud:
+
+### IBM IAM:
+
+|Group|Key|Default|Mandatory|Additional info|
+|---|---|---|---|---|
+|ibm | iam_api_key | |yes | IBM Cloud IAM API key to authenticate against IBM services. Obtain the key [here](https://cloud.ibm.com/iam/apikeys) |
+|ibm | region | |yes | IBM Region.  One of: `eu-gb`, `eu-de`, `us-south`, `us-east`, `br-sao`, `ca-tor`, `jp-tok`, `jp-osa`, `au-syd` |
+|ibm | resource_group_id | | yes | Resource group id from your IBM Cloud account. Get it from [here](https://cloud.ibm.com/account/resource-groups) |
+
+## Code Engine:
+
+|Group|Key|Default|Mandatory|Additional info|
+|---|---|---|---|---|
+|code_engine | project_name |  |no | Project name that already exists in Code Engine. If not provided lithops will automatically create a new project|
+|code_engine | namespace |  |no | Alternatively to `project_name`, you can provide `namespace`. Get it from you code engine k8s config file.|
+|code_engine | region |  | no | Cluster region. One of: `eu-gb`, `eu-de`, `us-south`, `us-east`, `br-sao`, `ca-tor`, `jp-tok`, `jp-osa`, `au-syd`. Lithops will use the `region` set under the `ibm` section if it is not set here |
+|code_engine | docker_server | docker.io |no | Container registry URL |
+|code_engine | docker_user | |no | Container registry user name |
+|code_engine | docker_password | |no | Container registry password/token. In case of Docker hub, login to your docker hub account and generate a new access token [here](https://hub.docker.com/settings/security)|
+|code_engine | max_workers | 1000 | no | Max number of workers per `FunctionExecutor()`|
+|code_engine | worker_processes | 1 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker. It is recommendable to set this value to the same number of CPUs of the container. |
+|code_engine | runtime |  |no | Docker image name.|
+|code_engine | runtime_cpu | 0.125 |no | CPU limit. Default 0.125vCPU. See [valid combinations](https://cloud.ibm.com/docs/codeengine?topic=codeengine-mem-cpu-combo) |
+|code_engine | runtime_memory | 256 |no | Memory limit in MB. Default 256Mi. See [valid combinations](https://cloud.ibm.com/docs/codeengine?topic=codeengine-mem-cpu-combo) |
+|code_engine | runtime_timeout | 600 |no | Runtime timeout in seconds. Default 600 seconds |
+|code_engine | connection_retries | |no | If specified, number of job invoke retries in case of connection failure with error code 500 |
+|code_engine | runtime_include_function | False | no | If set to true, Lithops will automatically build a new runtime, including the function's code, instead of transferring it through the storage backend at invocation time. This is useful when the function's code size is large (in the order of 10s of MB) and the code does not change frequently |
+
+
 ## Runtime
 
 ### Use your own runtime
@@ -70,40 +101,6 @@ code_engine:
 ```
 
 
-## Summary of configuration keys for IBM Cloud:
-
-### IBM IAM:
-
-|Group|Key|Default|Mandatory|Additional info|
-|---|---|---|---|---|
-|ibm | iam_api_key | |yes | IBM Cloud IAM API key to authenticate against IBM services. Obtain the key [here](https://cloud.ibm.com/iam/apikeys) |
-|ibm | region | |yes | IBM Region.  One of: `eu-gb`, `eu-de`, `us-south`, `us-east`, `br-sao`, `ca-tor`, `jp-tok`, `jp-osa`, `au-syd` |
-|ibm | resource_group_id | | yes | Resource group id from your IBM Cloud account. Get it from [here](https://cloud.ibm.com/account/resource-groups) |
-
-## Code Engine:
-
-|Group|Key|Default|Mandatory|Additional info|
-|---|---|---|---|---|
-|code_engine | project_name |  |no | Project name that already exists in Code Engine. If not provided lithops will automatically create a new project|
-|code_engine | namespace |  |no | Alternatively to `project_name`, you can provide `namespace`. Get it from you code engine k8s config file.|
-|code_engine | region |  | no | Cluster region. One of: `eu-gb`, `eu-de`, `us-south`, `us-east`, `br-sao`, `ca-tor`, `jp-tok`, `jp-osa`, `au-syd`. Lithops will use the `region` set under the `ibm` section if it is not set here |
-|code_engine | docker_server | docker.io |no | Container registry URL |
-|code_engine | docker_user | |no | Container registry user name |
-|code_engine | docker_password | |no | Container registry password/token. In case of Docker hub, login to your docker hub account and generate a new access token [here](https://hub.docker.com/settings/security)|
-|code_engine | max_workers | 1000 | no | Max number of workers per `FunctionExecutor()`|
-|code_engine | worker_processes | 1 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker. It is recommendable to set this value to the same number of CPUs of the container. |
-|code_engine | runtime |  |no | Docker image name.|
-|code_engine | runtime_cpu | 0.125 |no | CPU limit. Default 0.125vCPU. See [valid combinations](https://cloud.ibm.com/docs/codeengine?topic=codeengine-mem-cpu-combo) |
-|code_engine | runtime_memory | 256 |no | Memory limit in MB. Default 256Mi. See [valid combinations](https://cloud.ibm.com/docs/codeengine?topic=codeengine-mem-cpu-combo) |
-|code_engine | runtime_timeout | 600 |no | Runtime timeout in seconds. Default 600 seconds |
-|code_engine | connection_retries | |no | If specified, number of job invoke retries in case of connection failure with error code 500 |
-|code_engine | runtime_include_function | False | no | If set to true, Lithops will automatically build a new runtime, including the function's code, instead of transferring it through the storage backend at invocation time. This is useful when the function's code size is large (in the order of 10s of MB) and the code does not change frequently |
-
-## Lithops using Knative API of Code Engine
-
-The preferable way to run Lithops in Code Engine is by using the JOB API. However, Lithops can be also executed in Code Engine using the Knative API. To configure this mode of execution refer to the [Knative documentation](https://github.com/lithops-cloud/lithops/blob/master/config/compute/knative.md#configuration) and follow the steps to configure Knative.
-
-
 ## Test Lithops
 
 Once you have your compute and storage backends configured, you can run a hello world function with:
@@ -119,4 +116,3 @@ You can view the function executions logs in your local machine using the *litho
 ```bash
 lithops logs poll
 ```
-

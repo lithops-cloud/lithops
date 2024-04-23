@@ -48,11 +48,8 @@ class AWSBatchBackend:
         self.aws_batch_config = batch_config
         self.user_agent = batch_config['user_agent']
         self.region = batch_config['region']
+        self.env_type = batch_config['env_type']
         self.namespace = batch_config.get('namespace')
-
-        self._env_type = self.aws_batch_config['env_type']
-        self._queue_name = f'{self.package}_{self._env_type.replace("_", "-")}_queue'
-        self._compute_env_name = f'{self.package}_{self._env_type.replace("_", "-")}_env'
 
         self.aws_session = boto3.Session(
             aws_access_key_id=batch_config.get('access_key_id'),
@@ -70,23 +67,26 @@ class AWSBatchBackend:
 
         self.internal_storage = internal_storage
 
-        if 'account_id' not in self.batch_config or 'user_id' not in self.batch_config:
+        if 'account_id' not in batch_config or 'user_id' not in batch_config:
             sts_client = self.aws_session.client('sts')
             identity = sts_client.get_caller_identity()
 
-        self.account_id = self.batch_config.get('account_id') or identity["Account"]
-        self.user_id = self.batch_config.get('user_id') or identity["UserId"]
+        self.account_id = batch_config.get('account_id') or identity["Account"]
+        self.user_id = batch_config.get('user_id') or identity["UserId"]
         self.user_key = self.user_id.split(":")[0][-4:].lower()
 
         self.ecr_client = self.aws_session.client('ecr')
         package = f'lithops_v{__version__.replace(".", "")}_{self.user_key}'
         self.package = f"{package}_{self.namespace}" if self.namespace else package
 
+        self._queue_name = f'{self.package}_{self.env_type.replace("_", "-")}_queue'
+        self._compute_env_name = f'{self.package}_{self.env_type.replace("_", "-")}_env'
+
         msg = COMPUTE_CLI_MSG.format('AWS Batch')
         if self.namespace:
-            logger.info(f"{msg} - Region: {self.region} - Namespace: {self.namespace}")
+            logger.info(f"{msg} - Region: {self.region} - Namespace: {self.namespace} - Env: {self.env_type}")
         else:
-            logger.info(f"{msg} - Region: {self.region}")
+            logger.info(f"{msg} - Region: {self.region} - Env: {self.env_type}")
 
     def _get_default_runtime_image_name(self):
         python_version = utils.CURRENT_PY_VERSION.replace('.', '')
@@ -103,7 +103,7 @@ class AWSBatchBackend:
     def _format_jobdef_name(self, runtime_name, runtime_memory, version=__version__):
         fmt_runtime_name = runtime_name.replace('/', '--').replace(':', '--')
         package = self.package.replace(__version__.replace(".", "-"), version.replace(".", "-"))
-        return f'{package}--{self._env_type}--{fmt_runtime_name}--{runtime_memory}mb'
+        return f'{package}--{self.env_type}--{fmt_runtime_name}--{runtime_memory}mb'
 
     def _unformat_jobdef_name(self, jobdef_name):
         # Default jobdef name is "lithops_v2-7-2_WU5O--FARGATE_SPOT--batch-default-runtime-v39--latest--1024mb"
@@ -136,10 +136,10 @@ class AWSBatchBackend:
                 'securityGroupIds': self.aws_batch_config['security_groups']
             }
 
-            if self._env_type == 'SPOT':
+            if self.env_type == 'SPOT':
                 compute_resources_spec['allocationStrategy'] = 'SPOT_CAPACITY_OPTIMIZED'
 
-            if self._env_type in {'EC2', 'SPOT'}:
+            if self.env_type in {'EC2', 'SPOT'}:
                 compute_resources_spec['instanceRole'] = self.aws_batch_config['instance_role']
                 compute_resources_spec['minvCpus'] = 0
                 compute_resources_spec['instanceTypes'] = ['optimal']
@@ -262,12 +262,12 @@ class AWSBatchBackend:
         job_def_name = self._format_jobdef_name(runtime_name, runtime_memory)
         job_def = self._get_job_def(job_def_name)
 
-        if self._env_type in {'EC2', 'SPOT'}:
+        if self.env_type in {'EC2', 'SPOT'}:
             platform_capabilities = ['EC2']
-        elif self._env_type in {'FARGATE', 'FARGATE_SPOT'}:
+        elif self.env_type in {'FARGATE', 'FARGATE_SPOT'}:
             platform_capabilities = ['FARGATE']
         else:
-            raise Exception(f'Unknown env type {self._env_type}')
+            raise Exception(f'Unknown env type {self.env_type}')
 
         if job_def is None:
             logger.debug(f'Creating new Job Definition {job_def_name}')
@@ -288,7 +288,7 @@ class AWSBatchBackend:
                 ],
             }
 
-            if self._env_type in {'FARGATE', 'FARGATE_SPOT'}:
+            if self.env_type in {'FARGATE', 'FARGATE_SPOT'}:
                 container_properties['networkConfiguration'] = {
                     'assignPublicIp': 'ENABLED' if self.aws_batch_config['assign_public_ip'] else 'DISABLED'
                 }

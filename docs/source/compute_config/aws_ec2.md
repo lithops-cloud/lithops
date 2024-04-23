@@ -166,10 +166,40 @@ You can view the function executions logs in your local machine using the *litho
 lithops logs poll
 ```
 
-The master and worker VMs contain the Lithops service logs in `/tmp/lithops-root/service.log`
+## VM Management
+
+Lithops for AWS EC2 follows a Mater-Worker architecrue (1:N).
+
+All the VMs, including the master VM, are automatically stopped after a configurable timeout (see hard/soft dismantle timeouts).
 
 You can login to the master VM and get a live ssh connection with:
 
 ```bash
 lithops attach -b aws_ec2
+```
+
+The master and worker VMs contain the Lithops service logs in `/tmp/lithops-root/*-service.log`
+
+To list all the available workers in the current moment, use the next command:
+
+```bash
+lithops worker list -b aws_ec2
+```
+
+You can also list all the submitted jobs with:
+
+```bash
+lithops job list -b aws_ec2
+```
+
+You can delete all the workers with:
+
+```bash
+lithops clean -b aws_ec2 -s aws_s3 
+```
+
+You can delete all the workers including the Master VM with the `--all` flag:
+
+```bash
+lithops clean -b aws_ec2 -s aws_s3 --all
 ```
