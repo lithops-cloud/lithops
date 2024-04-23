@@ -37,7 +37,8 @@ DEFAULT_CONFIG_KEYS = {
     'delete_on_dismantle': True,
     'verify_resources': True,
     'max_workers': 100,
-    'boot_volume_capacity': 100
+    'boot_volume_capacity': 100,
+    'worker_processes': 'AUTO'
 }
 
 VPC_ENDPOINT = "https://{}.iaas.cloud.ibm.com"
@@ -70,9 +71,6 @@ def load_config(config_data):
         config_data['ibm_vpc']['max_workers'] = 1
     else:
         params_to_check = MANDATORY_PARAMETERS_2
-
-    if "worker_processes" not in config_data['ibm_vpc']:
-        config_data['ibm_vpc']['worker_processes'] = "AUTO"
 
     for param in params_to_check:
         if param not in config_data['ibm_vpc']:

@@ -221,7 +221,7 @@ def save_worker(worker, standalone_config, work_queue_name):
         'name': worker.name,
         'status': WorkerStatus.STARTING.value,
         'private_ip': worker.private_ip or '',
-        'instance_id': worker.instance_id,
+        'instance_id': worker.instance_id or '',
         'instance_type': instance_type,
         'worker_processes': worker_processes,
         'created': str(time.time()),
@@ -547,13 +547,13 @@ def run():
     workers = job_payload.pop('worker_instances')
 
     if exec_mode == StandaloneMode.CONSUME:
-        queue_name = f'wq:localhost:{runtime_name.replace("/", "-")}'
+        queue_name = f'wq:localhost:{runtime_name.replace("/", "-")}'.lower()
     elif exec_mode == StandaloneMode.CREATE:
-        queue_name = f'wq:{job_key}'
+        queue_name = f'wq:{job_key}'.lower()
     elif exec_mode == StandaloneMode.REUSE:
         worker_it = job_payload['worker_instance_type']
         worker_wp = job_payload['worker_processes']
-        queue_name = f'wq:{worker_it}-{worker_wp}-{runtime_name.replace("/", "-")}'
+        queue_name = f'wq:{worker_it}-{worker_wp}-{runtime_name.replace("/", "-")}'.lower()
 
     Thread(target=handle_job, args=(job_payload, queue_name)).start()
     Thread(target=handle_workers, args=(job_payload, workers, queue_name)).start()
