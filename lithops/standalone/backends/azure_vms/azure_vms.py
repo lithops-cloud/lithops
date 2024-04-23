@@ -1007,8 +1007,6 @@ class VMInstance:
 
         self.get_instance_data()
 
-        logger.debug(f"Going to delete VM instance {self.name}")
-
         poller = self.compute_client.virtual_machines.begin_delete(
             self.config['resource_group'], self.name, force_deletion=True
         )

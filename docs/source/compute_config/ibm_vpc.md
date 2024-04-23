@@ -172,10 +172,40 @@ You can view the function executions logs in your local machine using the *litho
 lithops logs poll
 ```
 
-The master and worker VMs contain the Lithops service logs in `/tmp/lithops-root/service.log`
+## VM Management
+
+Lithops for IBM VPC follows a Mater-Worker architecrue (1:N).
+
+All the VMs, including the master VM, are automatically stopped after a configurable timeout (see hard/soft dismantle timeouts).
 
 You can login to the master VM and get a live ssh connection with:
 
 ```bash
 lithops attach -b ibm_vpc
+```
+
+The master and worker VMs contain the Lithops service logs in `/tmp/lithops-root/*-service.log`
+
+To list all the available workers in the current moment, use the next command:
+
+```bash
+lithops worker list -b ibm_vpc
+```
+
+You can also list all the submitted jobs with:
+
+```bash
+lithops job list -b ibm_vpc
+```
+
+You can delete all the workers with:
+
+```bash
+lithops clean -b ibm_vpc -s ibm_cos
+```
+
+You can delete all the workers including the Master VM with the `--all` flag:
+
+```bash
+lithops clean -b ibm_vpc -s ibm_cos --all
 ```

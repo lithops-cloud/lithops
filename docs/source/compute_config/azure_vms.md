@@ -2,8 +2,48 @@
 
 The Azure Virtual Machines client of Lithops can provide a truely serverless user experience on top of Azure VMs where Lithops creates new Virtual Machines (VMs) dynamically in runtime and scale Lithops jobs against them. Alternatively Lithops can start and stop an existing VM instances.
 
+## Installation
 
-### Choose an operating system image for the VM
+1. Install Microsoft Azure backend dependencies:
+
+```
+python3 -m pip install lithops[azure]
+```
+
+2. Install [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli?view=azure-cli-latest)
+
+3. Sign in with the Azure CLI:
+
+```bash
+az login
+```
+
+4. Create a Resource Group and a Storage Account:
+
+   Option 1:
+
+     1. Access to the [Azure portal Resource Groups](https://portal.azure.com/#view/HubsExtension/BrowseResourceGroups) and create a new Resource group named **LithopsResourceGroup** (or similar) in your preferred region. If you already have a resource group, omit this step.
+     
+     2. Access to the [Azure portal Storage Accounts](https://portal.azure.com/#view/HubsExtension/BrowseResource/resourceType/Microsoft.Storage%2FStorageAccounts) and create a new Storage Account with a unique name, for example: **lithops0sa25s1**. If you already have a storage account, omit this step.
+
+   Option 2:
+
+    1. Create a Resource Group in a specific location. If you already have a resource group, omit this step.
+    
+    ```bash
+    az group create --name LithopsResourceGroup --location westeurope
+    ```
+    
+    2. Create a Storage Account with a unique name. If you already have a storage account, omit this step.
+    
+    ```bash
+    storage_account_name=lithops$(openssl rand -hex 3)
+    echo $storage_account_name
+    az storage account create --name $storage_account_name --location westeurope \
+         --resource-group LithopsResourceGroup --sku Standard_LRS
+    ```
+
+## Choose an operating system image for the VM
 - Option 1: By default, Lithops uses an Ubuntu 22.04 image. In this case, no further action is required and you can continue to the next step. Lithops will install all required dependencies in the VM by itself. Notice this can consume about 3 min to complete all installations.
 
 - Option 2: Alternatively, you can use a pre-built custom image that will greatly improve VM creation time for Lithops jobs. To benefit from this approach, navigate to [runtime/azure_vms](https://github.com/lithops-cloud/lithops/tree/master/runtime/azure_vms), and follow the instructions.
@@ -122,10 +162,40 @@ You can view the function executions logs in your local machine using the *litho
 lithops logs poll
 ```
 
-The master and worker VMs contain the Lithops service logs in `/tmp/lithops-root/service.log`
+## VM Management
+
+Lithops for Azure VMs follows a Mater-Worker architecrue (1:N).
+
+All the VMs, including the master VM, are automatically stopped after a configurable timeout (see hard/soft dismantle timeouts).
 
 You can login to the master VM and get a live ssh connection with:
 
 ```bash
 lithops attach -b azure_vms
+```
+
+The master and worker VMs contain the Lithops service logs in `/tmp/lithops-root/*-service.log`
+
+To list all the available workers in the current moment, use the next command:
+
+```bash
+lithops worker list -b azure_vms
+```
+
+You can also list all the submitted jobs with:
+
+```bash
+lithops job list -b azure_vms
+```
+
+You can delete all the workers with:
+
+```bash
+lithops clean -b azure_vms -s azure_storage
+```
+
+You can delete all the workers including the Master VM with the `--all` flag:
+
+```bash
+lithops clean -b azure_vms -s azure_storage --all
 ```
