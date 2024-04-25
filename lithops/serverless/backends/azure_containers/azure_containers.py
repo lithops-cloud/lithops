@@ -127,7 +127,17 @@ class AzureContainerAppBackend:
         finally:
             os.remove(config.FH_ZIP_LOCATION)
 
+        docker_user = self.ac_config.get("docker_user")
+        docker_password = self.ac_config.get("docker_password")
+        docker_server = self.ac_config.get("docker_server")
+
         logger.debug(f'Pushing runtime {runtime_name} to container registry')
+
+        if docker_user and docker_password:
+            logger.debug('Container registry credentials found in config. Logging in into the registry')
+            cmd = f'{docker_path} login -u {docker_user} --password-stdin {docker_server}'
+            utils.run_command(cmd, input=docker_password)
+
         if utils.is_podman(docker_path):
             cmd = f'{docker_path} push {runtime_name} --format docker --remove-signatures'
         else:
@@ -172,7 +182,7 @@ class AzureContainerAppBackend:
         ca_temaplate['properties']['template']['scale']['rules'][0]['azureQueue']['queueName'] = containerapp_name
         ca_temaplate['properties']['template']['scale']['maxReplicas'] = min(self.ac_config['max_workers'], 30)
 
-        cmd = f"az containerapp env show -g {self.resource_group} -n {self.environment} --query id"
+        cmd = f"az containerapp env show -g {self.resource_group} -n {self.environment} --query id --only-show-errors"
         envorinemnt_id = utils.run_command(cmd, return_result=True)
         ca_temaplate['properties']['managedEnvironmentId'] = envorinemnt_id
 
@@ -193,20 +203,20 @@ class AzureContainerAppBackend:
 
         cmd = (f'az containerapp create --name {containerapp_name} '
                f'--resource-group {self.resource_group} '
-               f'--yaml {config.CA_JSON_LOCATION}')
+               f'--yaml {config.CA_JSON_LOCATION} --only-show-errors')
 
         logger.debug('Deploying Azure Container App')
         deployed = False
         retries = 0
 
-        while retries < 15:
+        while retries < 10:
             try:
-                time.sleep(20)
                 utils.run_command(cmd)
                 os.remove(config.CA_JSON_LOCATION)
                 deployed = True
                 break
             except Exception:
+                time.sleep(10)
                 retries += 1
 
         if not deployed:
@@ -218,7 +228,7 @@ class AzureContainerAppBackend:
         """
         logger.info(f'Deleting runtime: {runtime_name} - {memory}MB')
         containerapp_name = self._format_containerapp_name(runtime_name, memory, version)
-        cmd = f'az containerapp delete --name {containerapp_name} --resource-group {self.resource_group} -y'
+        cmd = f'az containerapp delete --name {containerapp_name} --resource-group {self.resource_group} -y --only-show-errors'
         utils.run_command(cmd)
 
         try:
@@ -300,7 +310,7 @@ class AzureContainerAppBackend:
         logger.debug('Listing all deployed runtimes')
 
         runtimes = []
-        response = os.popen('az containerapp list --query "[].{Name:name, Tags:tags}\"').read()
+        response = os.popen('az containerapp list --query "[].{Name:name, Tags:tags}\" --only-show-errors').read()
         response = json.loads(response)
 
         for containerapp in response:
