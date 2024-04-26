@@ -1,6 +1,18 @@
 # Changelog
 
-## [v3.2.1.dev0]
+## [v3.3.1.dev0]
+
+### Added
+- 
+
+### Changed
+- 
+
+### Fixed
+- 
+
+
+## [v3.3.0]
 
 ### Added
 - [Core] Added a mechanism to automatically retry failed tasks
