@@ -54,6 +54,6 @@ In summary, you can use one of the following settings:
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|aws_s3 | region | |no | Region of your Bcuket. e.g `us-east-1`, `eu-west-1`, etc. Lithops will use the region set under the `aws` section if it is not set here |
+|aws_s3 | region | |no | Region of your Bucket. e.g `us-east-1`, `eu-west-1`, etc. Lithops will use the region set under the `aws` section if it is not set here |
 |aws_s3 | storage_bucket | | no | The name of a bucket that exists in you account. This will be used by Lithops for intermediate data. Lithops will automatically create a new one if it is not provided |
 
