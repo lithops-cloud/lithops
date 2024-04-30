@@ -13,7 +13,6 @@ install_requires = [
     'tqdm',
     'tblib',
     'docker',
-    'boto3',
     'requests',
     'seaborn',
     'paramiko',
@@ -41,6 +40,9 @@ extras_require = {
     'aliyun': [
         'aliyun-fc2',
         'oss2'
+    ],
+    'aws': [
+        'boto3'
     ],
     'azure': [
         'azure-mgmt-resource',
