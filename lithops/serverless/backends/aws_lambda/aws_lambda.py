@@ -601,7 +601,7 @@ class AWSLambdaBackend:
             get_runtimes(response)
 
         if runtime_name != 'all':
-            runtimes = [tup for tup in runtimes if runtime_name in tup[0]]
+            runtimes = [tup for tup in runtimes if runtime_name == tup[0]]
 
         return runtimes
 
