@@ -11,7 +11,6 @@ install_requires = [
     'python-dateutil',
     'pika',
     'tqdm',
-    'lxml',
     'tblib',
     'docker',
     'boto3',
