@@ -61,8 +61,6 @@ class AWSLambdaBackend:
         self.role_arn = lambda_config['execution_role']
         self.namespace = lambda_config.get('namespace')
 
-        logger.debug('Creating Boto3 AWS Session and Lambda Client')
-
         self.aws_session = boto3.Session(
             aws_access_key_id=lambda_config.get('access_key_id'),
             aws_secret_access_key=lambda_config.get('secret_access_key'),
@@ -71,8 +69,7 @@ class AWSLambdaBackend:
         )
 
         self.lambda_client = self.aws_session.client(
-            'lambda', region_name=self.region,
-            config=botocore.client.Config(
+            'lambda', config=botocore.client.Config(
                 user_agent_extra=self.user_agent
             )
         )
@@ -82,25 +79,14 @@ class AWSLambdaBackend:
         self.host = f'lambda.{self.region}.amazonaws.com'
 
         if 'account_id' not in self.lambda_config or 'user_id' not in self.lambda_config:
-            sts_client = self.aws_session.client('sts', region_name=self.region)
-            caller_identity = sts_client.get_caller_identity()
+            sts_client = self.aws_session.client('sts')
+            identity = sts_client.get_caller_identity()
 
-        if 'account_id' in self.lambda_config:
-            self.account_id = self.lambda_config['account_id']
-        else:
-            self.account_id = caller_identity["Account"]
+        self.account_id = self.lambda_config.get('account_id') or identity["Account"]
+        self.user_id = self.lambda_config.get('user_id') or identity["UserId"]
+        self.user_key = self.user_id.split(":")[0][-4:].lower()
 
-        if 'user_id' in self.lambda_config:
-            self.user_id = self.lambda_config['user_id']
-        else:
-            self.user_id = caller_identity["UserId"]
-
-        if ":" in self.user_id:  # SSO user
-            self.user_key = self.user_id.split(":")[1]
-        else:  # IAM user
-            self.user_key = self.user_id[-4:].lower()
-
-        self.ecr_client = self.aws_session.client('ecr', region_name=self.region)
+        self.ecr_client = self.aws_session.client('ecr')
         package = f'lithops_v{__version__.replace(".", "")}_{self.user_key}'
         self.package = f"{package}_{self.namespace}" if self.namespace else package
 

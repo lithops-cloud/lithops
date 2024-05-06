@@ -1,24 +1,43 @@
 # Changelog
 
-## [v3.2.1.dev0]
+## [v3.3.1.dev0]
 
 ### Added
-- [Core] Added a mechanism to automatically retry failed tasks by @tomwhite
+- 
 
 ### Changed
-- [AWS Lambda] Eliminated the need for access and secret keys in the configuration
-- [AWS Batch] Eliminated the need for access and secret keys in the configuration
-- [AWS S3] Eliminated the need for access and secret keys in the configuration
+- 
+
+### Fixed
+- 
+
+
+## [v3.3.0]
+
+### Added
+- [Core] Added a mechanism to automatically retry failed tasks
+- [Azure Containers] Automatically login to the container registry if the credentials are in the config
+
+### Changed
+- [AWS] Eliminated the need for access and secret keys in the configuration
 - [Tests] Moved tests from unittest to pytest
 
 ### Fixed
 - [AWS Lambda] Fixed runtime deletion with "lithops runtime delete"
 - [Localhost] Fixed issue with the job manager
+- [Serializer] Fix serialization bug which triggers side effects on dynamic attributes
+- [Worker] Removed "distutils" lib imports as it is deprecated in python 3.12
+- [Serverless] Allow to build container runtimes with the MacBook Mx chip
+- [K8s] Fixed task granularity calculation and memory units issue (RabbitMQ version)
+- [AWS Lambda] Fixed AWS Lambda function Name for SSO users
+- [AWS] Fixed generated user-key for SSO users
+- [Azure VMs] Fixed worker creation and communication
+
 
 ## [v3.2.0]
 
 ### Added
-- [Lithops] Addded support for Python 3.12
+- [Lithops] Added support for Python 3.12
 - [CLI] Added "--include" parameter in "lithops image build" to allow users upload local files to the VM image
 
 ### Changed
@@ -34,6 +53,7 @@
 - [Standalone] Fixed issue in the "lithops image build" that appears when the vpc is already created
 - [Future] Fixed issue with missing 'worker_end_tstamp' variable
 
+
 ## [v3.1.2]
 
 ### Added
@@ -44,7 +64,7 @@
 ### Changed
 - [Config] Renamed 'customized_runtime' to 'runtime_include_function'
 - [IBM VPC] Increased the total number of available IPs in the private network
-- [Standalone] Do not stop the VM immediately after a job in the Cosume mode
+- [Standalone] Do not stop the VM immediately after a job in the Consume mode
 
 ### Fixed
 - [Standalone] Fixed issue that appears when the invocation payload is too big
@@ -60,7 +80,7 @@
 - [IBM Code Engine] Get and print an error message in case of container execution failure 
 
 ### Changed
-- [Openwhisk] Updated default runtimes
+- [OpenWhisk] Updated default runtimes
 
 ### Fixed
 - [Standalone] Fixed issue with a wrong value of "chunksize"
@@ -79,7 +99,7 @@
 - [localhost] New localhost backend v2 to maximize resource utilization when multiple maps are executed from the same FunctionExecutor
 - [Standalone] Automatically retrieve the CPU_COUNT from the VM in case worker_processes is not set in config
 - [Standalone] Keep track of the worker and job status
-- [Storage] Include "Config" paramater to download_file() and upload_file() methods for boto3 related backends
+- [Storage] Include "Config" parameter to download_file() and upload_file() methods for boto3 related backends
 - [Cli] Include 'worker name' in the 'lithops runtime list' cmd
 - [AWS Lambda] Created 'namespace' config key to virtually separate worker deployments
 
@@ -114,7 +134,7 @@
 
 ### Added
 - [Kubernetes] Added Redis server in master pod for shared data between workers
-- [Kubernetes] Allow to set "conntext" and "namespace" in lithops config
+- [Kubernetes] Allow to set "context" and "namespace" in lithops config
 
 ### Changed
 - [CodeEngine] Create the CE project only when necessary instead of creating it always
@@ -132,15 +152,8 @@
 - [Azure Virtual Machines] Added new 'Azure Virtual Machines' standalone backend
 
 ### Added
-- [AWS Lambda] Added support for python 3.10 runtimes
-- [AWS Lambda] Added support for python 3.11 runtimes
-- [Azure Functions] Added support for python 3.10 runtimes
-- [Azure Functions] Added support for python 3.11 runtimes
-- [Google Cloud Functions] Added support for python 3.11 runtimes
-- [IBM CF] Added support for python 3.11 runtimes
-- [Openwhisk] Added support for python 3.11 runtimes
-- [Aliyun Functions] Added support for python 3.10 runtimes
-- [Executor] Allow to set all the compute backend params programatically in the FunctionExecutor()
+- [Serverless] Added support for python 3.10 and 3.11 runtimes
+- [Executor] Allow to set all the compute backend params programmatically in the FunctionExecutor()
 - [AWS EC2] Allow to automatically create the VPC and all the necessary resources
 - [IBM VPC & AWS EC2] General fixes and Improvements
 - [Executor] Allow to pass the config file location in the FunctionExecutor()
@@ -150,10 +163,10 @@
 - [Cli] Added new 'lithops image build' command for standalone backends
 - [Cli] Added new 'lithops image list' command for standalone backends
 - [IBM VPC] Added build_image() method for automatically building VM images
-- [IBM VPC] Added list_image() method for listing the availabe VM images
+- [IBM VPC] Added list_image() method for listing the available VM images
 - [AWS EC2] Added build_image() method for automatically building VM images
-- [AWS EC2] Added list_image() method for listing the availabe VM images
-- [Azure VMS] Added list_image() method for listing the availabe VM images
+- [AWS EC2] Added list_image() method for listing the available VM images
+- [Azure VMS] Added list_image() method for listing the available VM images
 - [IBM CF] Automatically create a CF namespace if not provided in config
 - [IBM VPC] Added Madrid (Spain) region
 - [Code Engine] Automatically create a new project if not provided in config
@@ -249,7 +262,7 @@
 - [Code Engine] Add CE conflict exception to retriables
 - [Core] Show logs from module_dependency.py
 - [GCP Functions] Fix runtime_build command
-- [Infinispan] Fix infinispan storage backend
+- [Infinispan] Fix Infinispan storage backend
 - [Core] Detect a Class if passed as a lithops input function
 
 
@@ -328,7 +341,7 @@
 - [Standalone] Fix cloudinit initialization script
 - [Future] Fix host_status_query_count stat
 - [Google Cloud Run] Fixed wrong variable name 'runtime_cpus'
-- [Google Cloud] Changed docs for Google cloud backend refering to id instead of name
+- [Google Cloud] Changed docs for Google cloud backend regarding to id instead of name
 
 ## [v2.5.8]
 
@@ -345,7 +358,7 @@
 ### Added
 - [AWS Batch] Added AWS Batch backend
 - [Standalone] Allow to start workers using a public key instead of using a password
-- [Standalone] Added diferent levels of worker verification
+- [Standalone] Added different levels of worker verification
 - [Infinispan] Added new Infinispan Hot Rod storage backend
 
 ### Fixed
@@ -363,7 +376,7 @@
 ### Added
 - [AWS_EC2] Added AWS EC2 Standalone backend
 - [AWS_EC2] Allow to start workers using Spot instances in AWS EC2 Standalone backend
-- [Standalone] Added the logic to create the missing deleta of workers in reuse mode
+- [Standalone] Added the logic to create the missing delta of workers in reuse mode
 - [Standalone] Cancel running job tasks on ctrl-c
 - [Standalone] New logic to verify that the master VM is correctly setup
 - [Standalone] Added new command "lithops attach" that allows to create live ssh connections to the master VM
@@ -376,7 +389,7 @@
 - [Standalone] Fixed VM initial installation script
 - [Standalone] Fixed get_workers method on master
 - [Standalone] Deleted unnecessary extra worker
-- [Standalone] Ensure all workers are proppery started on reuse mode
+- [Standalone] Ensure all workers are properly started on reuse mode
 - [Localhost] Fixed storage delete_objects method that was deleting the entire folder of a file
 - [IBM VPC] General fixes in IBM VPC backend
 
@@ -384,24 +397,24 @@
 ## [v2.5.5]
 
 ### Added
-- [CLI] Allow to pass all availbe 'docker' parameter to 'lithops runtime build' command
+- [CLI] Allow to pass all available 'docker' parameter to 'lithops runtime build' command
 - [Multiprocessing] Add example file with different argument passing examples for Pool and Process
 
 ### Fixed
-- [Localhost] Fixed minnor issue when deleting completed jobs
+- [Localhost] Fixed minor issue when deleting completed jobs
 - [Multiprocessing] Fixed args mismatch error when passing list of tuples to Pool.map
-- [Standalone] Fixed cloud-init script that ocasionaly fails to set ssh credentials
+- [Standalone] Fixed cloud-init script that occasionally fails to set ssh credentials
 
 
 ## [v2.5.4]
 
-### Fixes
+### Fixed
 - [Standalone] Avoid deleting the master VM on consume mode
 
 
 ## [v2.5.3]
 
-### Fixes
+### Fixed
 - [Core] Fixed lithops.map_reduce() jobs. Sometimes jobs where not finishing
 - [Core] Spawn lithops.cleaner only once in the same execution instance
 - [Tests] Fix when running 'lithops verify' command
@@ -416,12 +429,12 @@
 - [Core] Allow to spawn the reduce function in map_reduce() after a configurable percentage of completed map activations
 
 ### Changed
-- [Config] 'max_workers' and 'worker_processess' keys must be set at backend level in config
+- [Config] 'max_workers' and 'worker_processes' keys must be set at backend level in config
 - [Config] 'remote_invoker' key must be set at backend level in config
 - [Config] 'customized_runtime' key must be set at lithops level in config
 - [Config] 'serverless' section in config is no longer required
 
-### Fixes
+### Fixed
 - [CodeEngine] Fixed 'max_workers' parameter to limit the number of max workers per map invocation
 - [IBM CF] Create the runtime if not deployed when invoked
 - [Localhost] Fix localhost paths for windows hosts
@@ -436,7 +449,7 @@
 - [Localhost] Start container with user's uid:gid
 - [Localhost] Extended default execution timeout to 3600 seconds
 
-### Fixes
+### Fixed
 - [Standalone] Fixed standalone execution on consume mode
 - [Aliyun FC] Fixed Aliyun Function compute backend
 - [Core] Fixed 'lithops runtime build' command when the backend is not configured in config
@@ -447,7 +460,7 @@
 ### Added
 - [CLI] Add new command in cli to list deployed runtimes
 - [Standalone] Add reuse mode that allows to reuse the same VMs for all the maps
-- [Config] alow to configure worker_processes parameter in serverless and standalone sections
+- [Config] Allow to configure worker_processes parameter in serverless and standalone sections
 - [Localhost] Prevent multiple jobs in the same executor to run at the same time
 - [Standalone] Prevent multiple jobs submitted to the same master VM to run at the same time
 - [CE] Added COS Direct endpoints for free bandwidth from/to CodeEngine
@@ -461,7 +474,7 @@
 - [AWS Lambda] Add support for Python3.9
 - [Standalone] ssh VM password is now a 37 chars random and dynamic password (for create and resue modes)
 
-### Fixes
+### Fixed
 - [CE] Create a new token when it expires after 20 minutes when using the same FunctionExecutor
 - [CE] Prevent exception when detecting the docker username in k8s and CE backends
 - [Core] Fix minor issue in jobrunner
@@ -470,7 +483,7 @@
 
 ## [v2.4.1]
 
-### Fixes
+### Fixed
 - [IBM VPC] Fixed a data inconsistency on consume mode
 
 ## [v2.4.0]
@@ -487,8 +500,9 @@
 ### Changed
 - [Core] Improved performance and efficiency of the lithops cleaner background process
 - [AWS Lambda] Use layer from Klayers API for pre-compiled Amazon Linux numpy binaries
+- [Core] Moved invoke_pool_threads param from map and map_reduce calls. Now it must be set at backend level in config
 
-### Fixes
+### Fixed
 - [Localhost] Fixed error when processing localhost objects
 - [Localhost] Allow to create a localhost storage instance when a config file exists with a cloud configuration
 - [Core] Fixed an unusual inconsistency in configuration between 'backend' and 'mode' parameters
@@ -497,9 +511,6 @@
 - [Core] Fixed internal executions
 - [Core] Fixed 'lithops storage list' CLI when a bucket is empty
 - [Standalone] Fixed execution
-
-### Deleted
-- [Core] Deleted invoke_pool_threads param from map and map_reduce calls. Now it must be set at backend level in config
 
 
 ## [v2.3.5]
@@ -515,7 +526,7 @@
 - [Core] Add 'key' and 'bucket' attrs in localhost partitioner for compatibility with OS
 - [Serverless] runtime, runtime_memory and runtime_timeout can only be set at backend level
 
-### Fixes
+### Fixed
 - [Standalone] Fix execution
 - [Core] Avoid loading the config file twice
 
@@ -538,7 +549,7 @@
 - [multiprocessing] Improved nanomsg Pipe implementation
 - [joblib] Optimized joblib backend (concurrent args data upload/download)
 
-### Fixes
+### Fixed
 - [Core] Fixed module analyzer
 - [Core] Clear only present jobs instead of all after wait() or get_result()
 - [multiprocessing] Fix put/get slice to/from mp.Array or mp.RawArray
@@ -546,7 +557,7 @@
 
 ## [v2.3.3]
 
-### Fixes
+### Fixed
 - [Core] Allow to execute class methods as lithops function
 
 
@@ -560,7 +571,7 @@
 - [Core] New monitoring system
 - [Core] Deleted strong dependency to pika==0.13.1
 
-### Fixes
+### Fixed
 - [Partitioner] Fixed partitioner when obj url contains more than one subfolder
 - [Cli] Fixed serverless runtime lifecycle methods
 
@@ -591,7 +602,7 @@
 - [Core] Improved worker when chunksize is set to values > 1
 - [Core] Check lithops version mismatch in host instead of in worker
 
-### Fixes
+### Fixed
 - [Core] Overwrite the runtime set in config with the runtime set in the FunctionExecutor
 - [Cli] Fixed --config param in lithops cli
 - [Standalone] Fixed internal executions
@@ -628,10 +639,16 @@
 - [IBM VPC] Improved IBM VPC backend
 - [AWS Lambda] Lambda layer modules update
 
-### Fixes
+### Fixed
 - [Multiprocessing] Fix issues related to Pipes and Queues
 - [Multiprocessing] Fix multiprocessing.context methods
 - [CodeEngine/knative] Fix getting docker username in MAC OS hosts
+
+
+## [v2.2.16]
+
+### Fixed
+- [Code Engine] Fixing code engine docker image
 
 
 ## [v2.2.15]
@@ -737,7 +754,7 @@
 
 ### Added
 - [Core] Add joblib backend for scikit-learn
-- [Cli] Add more config paramters in lithops cli
+- [Cli] Add more config parameters in lithops cli
 - [IBM COS] Add 'region' config param
 - [Knative] Add 'min_instances', 'max_instances' and 'concurrency' config params
 
@@ -857,17 +874,23 @@
 - [Core] IBM VPC service client lib
 - [Docker] Docker backend compatible with IBM VPC VM 
 
-### Fixed
--  [Ceph] Fix in ceph endpoint
-
 ### Changed
 -  [Docker] Improved Docker executor
+
+### Fixed
+-  [Ceph] Fix in Ceph endpoint
+
 
 
 ## [v1.7.2]
 
 ### Added
 - [GCR] Added Google Cloud Run Backend
+
+
+### Changed
+- [Core] Improved Storage abstraction
+- [Core] InternalStorage uses storage abstraction
 
 ### Fixed
 - [Core] Fixed invoker token bucket when quota limit is reached
@@ -876,11 +899,6 @@
 - [Core] Fixed delete cloudobject
 - [Localhost] Fixed invocations ability to launch subprocesses
 - [Docker] Fixed docker running as user and not root
-
-### Changed
-- [Core] Improved Storage abstraction
-- [Core] InternalStorage uses storage abstraction
-
 
 ## [v1.7.0]
 
@@ -974,6 +992,7 @@
 - [Core] Fixed issue with get_result()
 - [Core] Fixed issue with windows hosts
 - [Core] Some other Internal fixes
+
 
 ## [v1.4.2]
 
@@ -1512,7 +1531,7 @@
 - Moved some info prints to debug
 - improved remote function invocation mechanism
 
-### Fixes
+### Fixed
 - Fixing flask security issues CVE-2018-1000656
 - Fixed minor issue when futures is not a list
 - Fixed default config exception. API KEY is not mandatory.

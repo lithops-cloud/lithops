@@ -31,9 +31,27 @@ If you want to upload local files to the custom VM Image, you can include them u
 lithops image build -b ibm_vpc -f myscript.sh -i /home/user/test.bin:/home/ubuntu/test.bin custom-lithops-runtime
 ```
 
-In the case of using using a custom name, you must provide the Image ID, printed at the end of the build command, in your lithops config.
+In the case of using using a custom name, you must provide the Image ID, printed at the end of the build command, in your lithops config, for eaxmple:
+
+```yaml
+ibm_vpc:
+    ...
+    image_id: <IMAGE_ID>
+    ...
+```
 
 ## Option 2:
+
+You can create a VM image manually. For example, you can create a VM in you AWS region, access the VM, install all the dependencies in the VM itself (apt-get, pip3 install, ...), stop the VM, create a VM Image, and then put the image_id in your lithops config, for example:
+
+```yaml
+ibm_vpc:
+    ...
+    image_id: <IMAGE_ID>
+    ...
+```
+
+## Option 3 (Discontinued):
 
 For building the VM image that contains all dependencies required by Lithops, execute the [build script](build_lithops_runtime.sh) located in this folder. The best is to use vanilla Ubuntu machine to run this script and this script will use a base image based on **ubuntu-20.04-server-cloudimg-amd64**. There is need to have sudo privileges to run this script.
 Once you accessed the machine, download the script
@@ -93,14 +111,3 @@ Once local image is ready you need to upload it to COS. The best would be to use
      ```
 
 3. [Navigate to IBM VPC dashboard, custom images](https://cloud.ibm.com/vpc-ext/compute/images) and follow instructions to create new custom image based on the `lithops-ubuntu-20.04.qcow2`
-
-4. **Clean everything**
-
-    You can clean everything related to Lithops, such as all deployed workers and cache information, and start from scratch by simply running the next command (Configuration is not deleted):
-    ```
-    $ lithops clean -b ibm_vpc
-    ```
-    In order to delete also master VM use `--all` flag
-    ```
-    $ lithops clean -b ibm_vpc --all
-    ```

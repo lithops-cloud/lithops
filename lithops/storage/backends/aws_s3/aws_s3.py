@@ -33,7 +33,7 @@ CONN_READ_TIMEOUT = 10
 
 class S3Backend:
     def __init__(self, s3_config):
-        logger.debug("Creating Boto3 AWS Session and S3 Client")
+        logger.debug("Creating AWS S3 Client")
         self.config = s3_config
         self.user_agent = s3_config['user_agent']
         self.region = s3_config.get('region')
@@ -53,10 +53,7 @@ class S3Backend:
             retries={'max_attempts': OBJ_REQ_RETRIES}
         )
 
-        self.s3_client = self.aws_session.client(
-            's3', config=s3_client_config,
-            region_name=self.region
-        )
+        self.s3_client = self.aws_session.client('s3', config=s3_client_config)
 
         msg = STORAGE_CLI_MSG.format('S3')
         logger.info(f"{msg} - Region: {self.region}")
@@ -72,14 +69,9 @@ class S3Backend:
         """
         Generates a unique bucket name
         """
-        sts_client = self.aws_session.client('sts', region_name=self.region)
+        sts_client = self.aws_session.client('sts')
         caller_id = sts_client.get_caller_identity()
-
-        if ":" in caller_id["UserId"]:  # SSO user
-            user_key = caller_id["UserId"].split(":")[1]
-        else:  # IAM user
-            user_key = caller_id["UserId"][-4:].lower()
-
+        user_key = caller_id["UserId"].split(":")[0][-4:].lower()
         self.config['storage_bucket'] = f'lithops-{self.region}-{user_key}'
 
         return self.config['storage_bucket']

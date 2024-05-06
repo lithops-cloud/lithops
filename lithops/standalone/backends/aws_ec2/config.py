@@ -27,7 +27,8 @@ DEFAULT_CONFIG_KEYS = {
     'ssh_key_filename': '~/.ssh/id_rsa',
     'request_spot_instances': True,
     'delete_on_dismantle': True,
-    'max_workers': 100
+    'max_workers': 100,
+    'worker_processes': 'AUTO'
 }
 
 REQ_PARAMS_1 = ('instance_id',)
@@ -36,14 +37,11 @@ REQ_PARAMS_2 = ('iam_role',)
 
 def load_config(config_data):
 
-    if 'aws' not in config_data:
-        raise Exception("'aws' section is mandatory in the configuration")
-
-    if not {'access_key_id', 'secret_access_key'}.issubset(set(config_data['aws'])):
-        raise Exception("'access_key_id' and 'secret_access_key' are mandatory under the 'aws' section of the configuration")
-
     if not config_data['aws_ec2']:
         raise Exception("'aws_ec2' section is mandatory in the configuration")
+
+    if 'aws' not in config_data:
+        config_data['aws'] = {}
 
     temp = copy.deepcopy(config_data['aws_ec2'])
     config_data['aws_ec2'].update(config_data['aws'])
@@ -67,9 +65,6 @@ def load_config(config_data):
         config_data['aws_ec2']['max_workers'] = 1
     else:
         params_to_check = REQ_PARAMS_2
-
-    if "worker_processes" not in config_data['aws_ec2']:
-        config_data['aws_ec2']['worker_processes'] = "AUTO"
 
     for param in params_to_check:
         if param not in config_data['aws_ec2']:

@@ -67,11 +67,12 @@ RUNTIME_TMP_SZ_MAX = 10240
 
 
 def load_config(config_data):
-    if 'aws' not in config_data:
-        raise Exception("'aws' section is mandatory in the configuration")
 
     if not config_data['aws_lambda']:
         raise Exception("'aws_lambda' section is mandatory in the configuration")
+
+    if 'aws' not in config_data:
+        config_data['aws'] = {}
 
     temp = copy.deepcopy(config_data['aws_lambda'])
     config_data['aws_lambda'].update(config_data['aws'])

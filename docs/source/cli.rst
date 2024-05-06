@@ -10,7 +10,7 @@ Lithops management
 ------------------
 
 ``lithops hello``
-~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~
 
 Runs a *hello-world* function.
 
@@ -31,7 +31,7 @@ Runs a *hello-world* function.
 -  **Usage example**: ``lithops hello -b ibm_cf -s ibm_cos``
 
 ``lithops test``
-~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~
 
 Runs the unit testing suite. For more instructions about testing `view
 this page <testing.md>`__.
@@ -109,7 +109,7 @@ Open an ssh connection to the master VM (Only available for standalone backends)
 -  **Usage example**: ``lithops attach -b ibm_vpc``
 
 ``lithops worker list``
-~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
 
 Lists the available workers in the master VM (Only available for standalone backends)
 
@@ -128,7 +128,7 @@ Lists the available workers in the master VM (Only available for standalone back
 -  **Usage example**: ``lithops worker list -b ibm_vpc``
 
 ``lithops job list``
-~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~
 
 Lists the jobs submitted to the master VM (Only available for standalone backends)
 
@@ -469,5 +469,3 @@ Deletes objects from a given bucket.
 
 -  To list all objects that start with given prefix
    :``lithops storage list -b ibm_cos cloudbucket -p test/``
-
-

@@ -226,22 +226,57 @@ class AzureVMSBackend:
             pass
 
         if 'security_group_id' not in self.config:
-            nsg_rule = {
-                "name": "allow-ssh",
-                "protocol": "Tcp",
-                "sourcePortRange": "*",
-                "destinationPortRange": "22",
-                "sourceAddressPrefix": "*",
-                "destinationAddressPrefix": "*",
-                "access": "Allow",
-                "direction": "Inbound",
-                "priority": 100
-            }
+            nsg_rules = [
+                {
+                    "name": "allow-ssh",
+                    "protocol": "Tcp",
+                    "sourcePortRange": "*",
+                    "destinationPortRange": "22",
+                    "sourceAddressPrefix": "*",
+                    "destinationAddressPrefix": "*",
+                    "access": "Allow",
+                    "direction": "Inbound",
+                    "priority": 100
+                },
+                {
+                    "name": "allow-master-port-8080",
+                    "protocol": "Tcp",
+                    "sourcePortRange": "*",
+                    "destinationPortRange": "8080",
+                    "sourceAddressPrefix": "10.0.0.0/24",
+                    "destinationAddressPrefix": "*",
+                    "access": "Allow",
+                    "direction": "Inbound",
+                    "priority": 101
+                },
+                {
+                    "name": "allow-worker-port-8081",
+                    "protocol": "Tcp",
+                    "sourcePortRange": "*",
+                    "destinationPortRange": "8081",
+                    "sourceAddressPrefix": "10.0.0.0/24",
+                    "destinationAddressPrefix": "*",
+                    "access": "Allow",
+                    "direction": "Inbound",
+                    "priority": 102
+                },
+                {
+                    "name": "allow-redis-port-6379",
+                    "protocol": "Tcp",
+                    "sourcePortRange": "*",
+                    "destinationPortRange": "6379",
+                    "sourceAddressPrefix": "10.0.0.0/24",
+                    "destinationAddressPrefix": "*",
+                    "access": "Allow",
+                    "direction": "Inbound",
+                    "priority": 103
+                }
+            ]
 
             # Define the network security group to contain the rule
             network_security_group = {
                 "location": self.location,
-                "securityRules": [nsg_rule]
+                "securityRules": nsg_rules
             }
 
             # Create or update the network security group
@@ -857,6 +892,9 @@ class VMInstance:
             vm_parameters
         )
 
+        self.instance_data = poller.result()
+        self.instance_id = self.instance_data.vm_id
+
         return self.instance_data
 
     def get_instance_data(self):
@@ -968,8 +1006,6 @@ class VMInstance:
         logger.debug(f"Deleting VM instance {self.name}")
 
         self.get_instance_data()
-
-        logger.debug(f"Going to delete VM instance {self.name}")
 
         poller = self.compute_client.virtual_machines.begin_delete(
             self.config['resource_group'], self.name, force_deletion=True
