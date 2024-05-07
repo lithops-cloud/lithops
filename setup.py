@@ -13,7 +13,6 @@ install_requires = [
     'tqdm',
     'tblib',
     'docker',
-    'boto3',
     'requests',
     'seaborn',
     'paramiko',
@@ -42,6 +41,9 @@ extras_require = {
         'aliyun-fc2',
         'oss2'
     ],
+    'aws': [
+        'boto3'
+    ],
     'azure': [
         'azure-mgmt-resource',
         'azure-mgmt-compute',
@@ -49,6 +51,12 @@ extras_require = {
         'azure-identity',
         'azure-storage-blob',
         'azure-storage-queue'
+    ],
+    'ceph': [
+        'boto3'
+    ],
+    'minio': [
+        'boto3'
     ],
     'multiprocessing': [
         'pynng'

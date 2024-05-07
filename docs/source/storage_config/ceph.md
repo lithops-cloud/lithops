@@ -5,11 +5,17 @@ Lithops with Ceph storage backend.
 
 ## Installation
 
-1. Install Ceph.
+1. Install Ceph backend dependencies:
 
-2. Create a new user.
+```bash
+python3 -m install lithops[ceph]
+```
 
-3. Create a new bucket (e.g. `lithops-data`). Remember to update the corresponding Lithops config field with this bucket name.
+2. Install Ceph.
+
+3. Create a new user.
+
+4. Create a new bucket (e.g. `lithops-data`). Remember to update the corresponding Lithops config field with this bucket name.
 
 ## Configuration
 

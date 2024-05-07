@@ -2,6 +2,14 @@
 
 Lithops with AWS S3 as storage backend.
 
+## Installation
+
+1. Install AWS backend dependencies:
+
+```bash
+python3 -m install lithops[aws]
+```
+
 ## Configuration
 
 Lithops automatically creates a bucket with a unique name for your user. If you want to use a different bucket, you can create it manually and provide the name in the lithops config file. For this:
