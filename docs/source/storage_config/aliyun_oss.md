@@ -7,8 +7,8 @@ Lithops with Aliyun Object Storage Service as storage backend.
 
 1. Install Alibaba Cloud backend dependencies:
 
-```
-$ python3 -m pip install lithops[aliyun]
+```bash
+python3 -m pip install lithops[aliyun]
 ```
 
 ## Configuration

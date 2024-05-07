@@ -8,7 +8,7 @@ Lithops with Ceph storage backend.
 1. Install Ceph backend dependencies:
 
 ```bash
-python3 -m install lithops[ceph]
+python3 -m pip install lithops[ceph]
 ```
 
 2. Install Ceph.

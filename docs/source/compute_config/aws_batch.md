@@ -7,7 +7,7 @@ Lithops with *AWS Batch* as serverless batch compute backend.
 1. Install AWS backend dependencies:
 
 ```bash
-python3 -m install lithops[aws]
+python3 -m pip install lithops[aws]
 ```
 
 ## Configuration

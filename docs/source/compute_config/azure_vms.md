@@ -6,7 +6,7 @@ The Azure Virtual Machines client of Lithops can provide a truely serverless use
 
 1. Install Microsoft Azure backend dependencies:
 
-```
+```bash
 python3 -m pip install lithops[azure]
 ```
 
