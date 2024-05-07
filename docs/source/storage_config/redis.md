@@ -8,7 +8,7 @@ Lithops with Redis as storage backend.
 1. Install Redis backend dependencies:
 
 ```bash
-python3 -m install lithops[redis]
+python3 -m pip install lithops[redis]
 ```
 
 2. Install Redis >= 5.

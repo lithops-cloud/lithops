@@ -8,7 +8,7 @@ Lithops with MinIO storage backend.
 1. Install MinIO backend dependencies:
 
 ```bash
-python3 -m install lithops[minio]
+python3 -m pip install lithops[minio]
 ```
 
 2. Install MinIO.

@@ -7,7 +7,8 @@ Lithops with *Oracle Functions* as serverless compute backend.
 ## Installation
 
 1. Install Oracle Cloud backend dependencies:
-```
+
+```bash
 python3 -m pip install lithops[oracle]
 ```
 

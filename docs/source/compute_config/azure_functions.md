@@ -6,7 +6,7 @@ Lithops with Azure Functions as serverless compute backend.
 
 1. Install Microsoft Azure backend dependencies:
 
-```
+```bash
 python3 -m pip install lithops[azure]
 ```
 

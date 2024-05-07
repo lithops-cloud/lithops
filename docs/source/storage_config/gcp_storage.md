@@ -6,8 +6,8 @@ Lithops with GCP Storage as storage backend.
 
 1. Install Google Cloud Platform backend dependencies:
 
-```
-$ python3 -m pip install lithops[gcp]
+```bash
+python3 -m pip install lithops[gcp]
 ```
 
  2. [Login](https://console.cloud.google.com) to Google Cloud Console (or signup if you don't have an account).

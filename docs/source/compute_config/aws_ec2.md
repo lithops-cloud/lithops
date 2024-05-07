@@ -17,7 +17,7 @@ Any Virtual Machine (VM) need to define the instance’s operating system and ve
 1. Install AWS backend dependencies:
 
 ```bash
-python3 -m install lithops[aws]
+python3 -m pip install lithops[aws]
 ```
 
 ## Lithops Consume mode

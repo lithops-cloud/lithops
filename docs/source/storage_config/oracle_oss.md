@@ -1,4 +1,4 @@
-# Oracle Object Storage (beta)
+# Oracle Object Storage
 
 Lithops with Oracle Object Storage as storage backend.
 
@@ -7,6 +7,10 @@ Lithops with Oracle Object Storage as storage backend.
 ## Installation
 
 1. Install Oracle Cloud backend dependencies:
+
+```bash
+python3 -m pip install lithops[oracle]
+```
 
 ## Configuration
 
