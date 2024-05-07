@@ -5,14 +5,20 @@ Lithops with Redis as storage backend.
 
 ## Installation
 
-1. Install Redis >= 5.
+1. Install Redis backend dependencies:
 
-2. Secure your installation by setting a password in the redis configuration file.
+```bash
+python3 -m install lithops[redis]
+```
+
+2. Install Redis >= 5.
+
+3. Secure your installation by setting a password in the redis configuration file.
 
 
 ## Configuration
 
-3. Edit your lithops config file and add the following keys:
+1. Edit your lithops config file and add the following keys:
 
 ```yaml
     lithops:

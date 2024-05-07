@@ -3,6 +3,12 @@ Multiprocessing API
 
 Lithops implements Python's `multiprocessing API <https://docs.python.org/3/library/multiprocessing.html>`_ to transparently run local-parallel applications but using serverless functions for Processes and a Redis instance for shared state and Inter-Process Communication (IPC).
 
+Before utilizing this API, you will need to install its dependencies:
+
+```bash
+python3 -m install lithops[multiprocessing]
+```
+
 Process and Pool
 ----------------
 
