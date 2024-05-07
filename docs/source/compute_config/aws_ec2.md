@@ -12,6 +12,14 @@ Any Virtual Machine (VM) need to define the instance’s operating system and ve
 
 - Option 2: Alternatively, you can use a pre-built custom image that will greatly improve VM creation time for Lithops jobs. To benefit from this approach, navigate to [runtime/aws_ec2](https://github.com/lithops-cloud/lithops/tree/master/runtime/aws_ec2), and follow the instructions.
 
+## Installation
+
+1. Install AWS backend dependencies:
+
+```bash
+python3 -m install lithops[aws]
+```
+
 ## Lithops Consume mode
 
 In this mode, Lithops can start and stop an existing VM, and deploy an entire job to that VM. The partition logic in this scenario is different from the `create/reuse` modes, since the entire job is executed in the same VM.
