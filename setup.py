@@ -52,6 +52,9 @@ extras_require = {
         'azure-storage-blob',
         'azure-storage-queue'
     ],
+    'minio': [
+        'boto3'
+    ],
     'multiprocessing': [
         'pynng'
     ],
