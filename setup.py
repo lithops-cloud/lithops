@@ -52,6 +52,9 @@ extras_require = {
         'azure-storage-blob',
         'azure-storage-queue'
     ],
+    'ceph': [
+        'boto3'
+    ],
     'minio': [
         'boto3'
     ],
