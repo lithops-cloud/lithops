@@ -18,7 +18,6 @@ install_requires = [
     'kubernetes',
     'ibm-cos-sdk',
     'ibm-code-engine-sdk',
-    'redis',
     'ibm-vpc',
     'cloudpickle',
     'tblib',
@@ -56,7 +55,11 @@ extras_require = {
     'minio': [
         'boto3'
     ],
+    'redis': [
+        'redis'
+    ],
     'multiprocessing': [
+        'redis',
         'pynng'
     ],
     'joblib': [
