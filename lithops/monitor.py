@@ -84,7 +84,8 @@ class Monitor(threading.Thread):
 
         present_jobs = {future.job_id for future in fs}
         for job_id in present_jobs:
-            self.present_jobs.remove(job_id)
+            if job_id in self.present_jobs:
+                self.present_jobs.remove(job_id)
 
     def _all_ready(self):
         """
