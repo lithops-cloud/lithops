@@ -28,17 +28,17 @@ from lithops.constants import (
     LITHOPS_TEMP_DIR,
     JOBS_DIR,
     LOGS_DIR,
-    RN_LOG_FILE,
-    LOGGER_FORMAT
+    LOGGER_FORMAT,
+    RN_LOG_FILE
 )
 
-log_file_stream = open(RN_LOG_FILE, 'a')
 
 os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
 os.makedirs(JOBS_DIR, exist_ok=True)
 os.makedirs(LOGS_DIR, exist_ok=True)
 
-logging.basicConfig(stream=log_file_stream, level=logging.INFO, format=LOGGER_FORMAT)
+log_file_stream = open(RN_LOG_FILE, 'a')
+logging.basicConfig(stream=log_file_stream, level=logging.DEBUG, format=LOGGER_FORMAT)
 logger = logging.getLogger('lithops.localhost.runner')
 
 
