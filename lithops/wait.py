@@ -113,7 +113,7 @@ def wait(fs: Union[ResponseFuture, FuturesList, List[ResponseFuture]],
 
     # Setup progress bar
     pbar = None
-    if not is_lithops_worker() and show_progressbar:
+    if not is_lithops_worker() and show_progressbar and logger.getEffectiveLevel() != logging.DEBUG:
         from tqdm.auto import tqdm
         if not is_notebook():
             print()
