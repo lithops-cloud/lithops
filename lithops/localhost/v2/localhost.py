@@ -14,26 +14,27 @@
 # limitations under the License.
 #
 
+import copy
 import os
 import json
+import threading
 import uuid
 import shlex
-import time
 import signal
 import lithops
 import logging
 import shutil
+import queue
 import xmlrpc.client
 import subprocess as sp
-from enum import Enum
 from shutil import copyfile
 from pathlib import Path
 
 from lithops.version import __version__
 from lithops.constants import (
-    LOCALHOST_SERVICE_CHECK_INTERVAL,
-    LOCALHOST_SERVICE_IDLE_TIMEOUT,
+    JOBS_DIR,
     LOCALHOST_RUNTIME_DEFAULT,
+    RN_LOG_FILE,
     TEMP_DIR,
     USER_TEMP_DIR,
     LITHOPS_TEMP_DIR,
@@ -51,13 +52,8 @@ from lithops.utils import (
 
 logger = logging.getLogger(__name__)
 
-SERVICE_FILE = os.path.join(LITHOPS_TEMP_DIR, 'localhost-service.py')
+RUNNER_FILE = os.path.join(LITHOPS_TEMP_DIR, 'localhost-runner.py')
 LITHOPS_LOCATION = os.path.dirname(os.path.abspath(lithops.__file__))
-
-
-class LocalhostMode(Enum):
-    CREATE = 'create'
-    REUSE = 'reuse'
 
 
 class LocalhostHandlerV2:
@@ -87,7 +83,8 @@ class LocalhostHandlerV2:
         Init tasks for localhost
         """
         default_env = self.runtime_name.startswith(('python', '/'))
-        self.env = DefaultEnv(self.config) if default_env else DockerEnv(self.config)
+        self.env = DefaultEnvironment(self.config) if default_env \
+            else ContainerEnvironment(self.config)
         self.env.setup()
 
     def deploy_runtime(self, runtime_name, *args):
@@ -139,11 +136,10 @@ class LocalhostHandlerV2:
         """
         Kills the running service in case of exception
         """
-        if exception is not None:
-            self.env.stop(job_keys)
+        self.env.stop(job_keys)
 
 
-class BaseEnv:
+class BaseEnvironment:
     """
     Base environment class for shared methods
     """
@@ -152,72 +148,78 @@ class BaseEnv:
         self.config = config
         self.runtime_name = self.config['runtime']
         self.worker_processes = self.config.get('worker_processes', CPU_COUNT)
-        self.max_idle_timeout = self.config.get('max_idle_timeout', LOCALHOST_SERVICE_IDLE_TIMEOUT)
-        self.check_interval = self.config.get('check_interval', LOCALHOST_SERVICE_CHECK_INTERVAL)
+        self.work_queue = queue.Queue()
         self.job_keys = []
-        self.service_process = None
-        self.client = None
-        self.service_running = False
+        self.job_processes = {}
+        self.canceled = []
 
     def _copy_lithops_to_tmp(self):
-        if is_lithops_worker() and os.path.isfile(SERVICE_FILE):
+        if is_lithops_worker() and os.path.isfile(RUNNER_FILE):
             return
         os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
         shutil.rmtree(os.path.join(LITHOPS_TEMP_DIR, 'lithops'), ignore_errors=True)
         shutil.copytree(LITHOPS_LOCATION, os.path.join(LITHOPS_TEMP_DIR, 'lithops'))
-        src_handler = os.path.join(LITHOPS_LOCATION, 'localhost', 'v2', 'service.py')
-        copyfile(src_handler, SERVICE_FILE)
+        src_handler = os.path.join(LITHOPS_LOCATION, 'localhost', 'v2', 'runner.py')
+        copyfile(src_handler, RUNNER_FILE)
 
     def get_metadata(self):
-        self.start_service()
+        if not os.path.isfile(RUNNER_FILE):
+            self.setup()
+
         logger.debug(f"Extracting runtime metadata from: {self.runtime_name}")
-
-        while True:
-            try:
-                response = self.client.extract_runtime_meta()
-                break
-            except (ConnectionRefusedError, ConnectionResetError):
-                time.sleep(0.1)
-
-        if response:
-            return json.loads(response)
-        else:
-            raise Exception("An error ocurred trying to get the runtime metadata. "
-                            f"Check {SERVICE_FILE.replace('.py', '.log')}")
+        cmd = [self.runtime_name, RUNNER_FILE, 'get_metadata']
+        process = sp.run(
+            cmd, check=True,
+            stdout=sp.PIPE,
+            universal_newlines=True,
+            start_new_session=True
+        )
+        runtime_meta = json.loads(process.stdout.strip())
+        return runtime_meta
 
     def run(self, job_payload):
         """
         Adds a job to the localhost service
         """
-        self.start_service()
         self.job_keys.append(job_payload['job_key'])
-        invoked = False
-        while not invoked:
-            try:
-                invoked = self.client.add_job(json.dumps(job_payload))
-            except (ConnectionRefusedError, ConnectionResetError):
-                time.sleep(0.1)
+        dbr = job_payload['data_byte_ranges']
+        for call_id in job_payload['call_ids']:
+            task_payload = copy.deepcopy(job_payload)
+            task_payload['call_ids'] = [call_id]
+            task_payload['data_byte_ranges'] = [dbr[int(call_id)]]
+            self.work_queue.put(json.dumps(task_payload))
 
-    def stop(self, job_keys):
+    def stop(self, job_keys=None):
         """
-        Stops localhost executor service
+        Stops running processes
         """
-        job_keys = job_keys or list(self.jobs_keys)
-
-        if self.service_running:
-            self.service_running = False
-            if self.service_process and self.service_process.poll() is None:
-                PID = self.service_process.pid
-                logger.debug(f'Stopping localhost executor service with PID {PID}')
+        def kill_job(job_key):
+            if self.jobs[job_key].poll() is None:
+                logger.debug(f'Killing job {job_key} with PID {self.jobs[job_key].pid}')
+                PID = self.jobs[job_key].pid
                 if is_unix_system():
                     PGID = os.getpgid(PID)
                     os.killpg(PGID, signal.SIGKILL)
                 else:
                     os.kill(PID, signal.SIGTERM)
-            self.service_process = None
+            del self.jobs[job_key]
+
+        for _ in range(self.worker_processes):
+            self.work_queue.put(None)
+
+        for t in self.threads:
+            t.join()
+
+        to_delete = job_keys or list(self.jobs.keys())
+        for job_key in to_delete:
+            try:
+                if job_key in self.jobs:
+                    kill_job(job_key)
+            except Exception:
+                pass
 
 
-class DefaultEnv(BaseEnv):
+class DefaultEnvironment(BaseEnvironment):
     """
     Default environment uses current python3 installation
     """
@@ -230,60 +232,78 @@ class DefaultEnv(BaseEnv):
         logger.debug('Setting up python environment')
         self._copy_lithops_to_tmp()
 
-    def start_service(self):
-        if self.service_process and self.service_process.poll() is None:
-            return
+        def process_task(task_payload_str):
+            try:
+                task_payload = json.loads(task_payload_str)
+                job_key = task_payload['job_key']
+                call_id = task_payload['call_ids'][0]
+                job_key_call_id = f'{job_key}-{call_id}'
 
-        if not os.path.isfile(SERVICE_FILE):
-            self.setup()
+                task_filename = os.path.join(JOBS_DIR, f'{job_key_call_id}.task')
 
-        logger.debug('Starting localhost executor service - Python environment')
+                with open(task_filename, 'w') as jl:
+                    json.dump(task_payload, jl, default=str)
 
-        service_port = find_free_port()
+                cmd = [self.runtime_name, RUNNER_FILE, 'run_job', task_filename]
+                log = open(RN_LOG_FILE, 'a')
+                process = sp.Popen(cmd, stdout=log, stderr=log, start_new_session=True)
+                self.job_processes[job_key_call_id] = process
+                process.communicate()  # blocks until the process finishes
+                del self.job_processes[job_key_call_id]
 
-        cmd = [self.runtime_name, SERVICE_FILE, str(self.worker_processes),
-               str(service_port), str(self.max_idle_timeout), str(self.check_interval)]
-        log = open(SV_LOG_FILE, 'a')
-        process = sp.Popen(cmd, stdout=log, stderr=log, start_new_session=True)
-        self.service_process = process
+                if os.path.exists(task_filename):
+                    os.remove(task_filename)
 
-        self.client = xmlrpc.client.ServerProxy(f'http://localhost:{service_port}')
-        self.service_running = True
+            except Exception as e:
+                logger.error(e)
 
-    def join(self):
-        """
-        Waits until the underlying service finishes its execution
-        """
-        while self.service_process and self.service_process.poll() is None:
-            time.sleep(5)
+        def queue_consumer(work_queue):
+            while True:
+                task_payload_str = work_queue.get()
+                if task_payload_str is None:
+                    break
+                process_task(task_payload_str)
+
+        self.threads = []
+        for _ in range(self.worker_processes):
+            t = threading.Thread(
+                target=queue_consumer,
+                args=(self.work_queue,),
+                daemon=True)
+            t.start()
+            self.threads.append(t)
 
 
-class DockerEnv(BaseEnv):
+class ContainerEnvironment(BaseEnvironment):
     """
-    Docker environment uses a docker runtime image
+    Container environment uses a container runtime image
     """
 
     def __init__(self, config):
         super().__init__(config)
         self.use_gpu = self.config.get('use_gpu', False)
-        logger.debug(f'Starting docker environment for {self.runtime_name}')
+        logger.debug(f'Starting container environment for {self.runtime_name}')
         self.container_id = str(uuid.uuid4()).replace('-', '')[:12]
         self.uid = os.getuid() if is_unix_system() else None
         self.gid = os.getgid() if is_unix_system() else None
 
     def setup(self):
-        logger.debug('Setting up Docker environment')
+        logger.debug('Setting up container environment')
         self._copy_lithops_to_tmp()
+
         if self.config.get('pull_runtime', False):
-            logger.debug('Pulling Docker runtime {}'.format(self.runtime_name))
-            sp.run(shlex.split(f'docker pull {self.runtime_name}'), check=True,
-                   stdout=sp.PIPE, universal_newlines=True)
+            docker_path = get_docker_path()
+            logger.debug(f'Pulling runtime {self.runtime_name}')
+            sp.run(
+                shlex.split(f'{docker_path} pull {self.runtime_name}'),
+                check=True, stdout=sp.PIPE, universal_newlines=True
+            )
 
     def start_service(self):
         if self.service_process and self.service_process.poll() is None:
             return
 
-        if not os.path.isfile(SERVICE_FILE):
+        if not os.path.isfile(RUNNER_FILE):
             self.setup()
 
         logger.debug('Starting localhost executor service - Docker environemnt')
@@ -311,8 +331,10 @@ class DockerEnv(BaseEnv):
 
     def stop(self):
         """
-        Stops localhost service container containers
+        Stop localhost container
         """
-        sp.Popen(shlex.split(f'docker rm -f lithops_{self.container_id}'),
-                 stdout=sp.DEVNULL, stderr=sp.DEVNULL)
+        sp.Popen(
+            shlex.split(f'docker rm -f lithops_{self.container_id}'),
+            stdout=sp.DEVNULL, stderr=sp.DEVNULL
+        )
         super().stop()
