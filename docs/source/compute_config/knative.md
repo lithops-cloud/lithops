@@ -6,51 +6,57 @@ Lithops with *Knative* as serverless compute backend. Lithops also supports vani
 
 Note that Lithops automatically builds the default runtime the first time you run a script. For this task it uses the **docker** command installed locally in your machine.
 
-1. [Install the Docker CE version](https://docs.docker.com/get-docker/).
+1. Install Knative backend dependencies:
 
-2. Login to your docker account:
+```bash
+python3 -m pip install lithops[knative]
+```
+
+2. [Install the Docker CE version](https://docs.docker.com/get-docker/).
+
+3. Login to your docker account:
    ```bash
    docker login
    ```
 
-3. Choose one of these 3 installation options:
+4. Choose one of these 3 installation options:
 
 ### Option 1 - Minikube:
 
-4. Start minikube with the 'ingress' addon:
+5. Start minikube with the 'ingress' addon:
    ```bash
    minikube start --addons=ingress
    ```
 
-5. [Follow this instructions to install knative serving.](https://knative.dev/docs/install/yaml-install/serving/install-serving-with-yaml/)
+6. [Follow this instructions to install knative serving.](https://knative.dev/docs/install/yaml-install/serving/install-serving-with-yaml/)
 
-6. Install a networking layer. Currently Lithops supports **Kourier**. [Follow these instructions to install Kourier.](https://knative.dev/docs/install/yaml-install/serving/install-serving-with-yaml/#install-a-networking-layer)
+7. Install a networking layer. Currently Lithops supports **Kourier**. [Follow these instructions to install Kourier.](https://knative.dev/docs/install/yaml-install/serving/install-serving-with-yaml/#install-a-networking-layer)
 
-7. Edit your lithops config and add:
+8. Edit your lithops config and add:
     ```yaml
     knative:
         ingress_endpoint : http://127.0.0.1:80
     ```
 
-8. On a separate terminal, keep running:
+9. On a separate terminal, keep running:
    ```bash
    minikube tunnel
    ```
 
 ### Option 2 - IBM IKS:
 
-4. Access to the [IBM dashboard](https://cloud.ibm.com/kubernetes/landing) and create a new Kubernetes cluster.
+5. Access to the [IBM dashboard](https://cloud.ibm.com/kubernetes/landing) and create a new Kubernetes cluster.
 
-5. Once the cluster is running, follow the instructions of the "Actions"--> "Connect via CLI" option of the dashboard to configure the *kubectl* client in your local machine. 
+6. Once the cluster is running, follow the instructions of the "Actions"--> "Connect via CLI" option of the dashboard to configure the *kubectl* client in your local machine. 
 
-6. [Follow this instructions to install knative serving.](https://knative.dev/docs/install/yaml-install/serving/install-serving-with-yaml/)
+7. [Follow this instructions to install knative serving.](https://knative.dev/docs/install/yaml-install/serving/install-serving-with-yaml/)
 
-7. Install a networking layer. Currently Lithops supports **Kourier**. [Follow these instructions to install Kourier.](https://knative.dev/docs/install/yaml-install/serving/install-serving-with-yaml/#install-a-networking-layer)
+8. Install a networking layer. Currently Lithops supports **Kourier**. [Follow these instructions to install Kourier.](https://knative.dev/docs/install/yaml-install/serving/install-serving-with-yaml/#install-a-networking-layer)
 
 
 ### Option 3 - IBM IKS or any other Kubernetes Cluster:
 
-4. Install Kubernetes >= v1.16 and make sure the *kubectl* client is running.
+5. Install Kubernetes >= v1.16 and make sure the *kubectl* client is running.
 
 6. [Follow this instructions to install knative serving.](https://knative.dev/docs/install/yaml-install/serving/install-serving-with-yaml/)
 
