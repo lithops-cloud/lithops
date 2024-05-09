@@ -38,12 +38,14 @@ from lithops.constants import (
     LITHOPS_TEMP_DIR,
     COMPUTE_CLI_MSG,
     CPU_COUNT,
+    USER_TEMP_DIR,
 )
 from lithops.utils import (
     BackendType,
     CountDownLatch,
     get_docker_path,
     is_lithops_worker,
+    is_podman,
     is_unix_system
 )
 
@@ -95,7 +97,6 @@ class LocalhostHandlerV2:
             while True:
                 for job_key in list(self.env.jobs.keys()):
                     self.env.jobs[job_key].wait()
-
                 if all(job.done for job in self.env.jobs.values()):
                     break
 
@@ -103,9 +104,9 @@ class LocalhostHandlerV2:
             logger.debug("Localhost job manager finished")
 
         if not self.job_manager:
-            self.env.start()
             self.job_manager = threading.Thread(target=job_manager)
             self.job_manager.start()
+            self.env.start()
 
     def deploy_runtime(self, runtime_name, *args):
         """
@@ -172,7 +173,7 @@ class LocalhostHandlerV2:
                 self.env.jobs[job_key].unlock()
 
 
-class BaseEnvironment:
+class ExecutionEnvironment:
     """
     Base environment class for shared methods
     """
@@ -182,6 +183,7 @@ class BaseEnvironment:
         self.runtime_name = self.config['runtime']
         self.worker_processes = self.config.get('worker_processes', CPU_COUNT)
         self.work_queue = queue.Queue()
+        self.task_processes = {}
         self.consumer_threads = []
         self.jobs = {}
 
@@ -198,7 +200,9 @@ class BaseEnvironment:
         """
         Adds a job to the localhost work queue
         """
-        self.jobs[job_payload['job_key']] = CountDownLatch(len(job_payload['call_ids']))
+        job_key = job_payload['job_key']
+        os.makedirs(os.path.join(JOBS_DIR, job_key), exist_ok=True)
+        self.jobs[job_key] = CountDownLatch(len(job_payload['call_ids']))
         dbr = job_payload['data_byte_ranges']
         for call_id in job_payload['call_ids']:
             task_payload = copy.deepcopy(job_payload)
@@ -218,14 +222,12 @@ class BaseEnvironment:
             task_payload = json.loads(task_payload_str)
             job_key = task_payload['job_key']
             call_id = task_payload['call_ids'][0]
-            job_key_call_id = f'{job_key}-{call_id}'
 
-            task_filename = os.path.join(JOBS_DIR, f'{job_key_call_id}.task')
-
+            task_filename = os.path.join(JOBS_DIR, job_key, call_id + '.task')
             with open(task_filename, 'w') as jl:
                 json.dump(task_payload, jl, default=str)
 
-            self.run_task(job_key_call_id, task_filename)
+            self.run_task(job_key, call_id)
 
             if os.path.exists(task_filename):
                 os.remove(task_filename)
@@ -260,7 +262,7 @@ class BaseEnvironment:
         self.consumer_threads = []
 
 
-class DefaultEnvironment(BaseEnvironment):
+class DefaultEnvironment(ExecutionEnvironment):
     """
     Default environment uses current python3 installation
     """
@@ -268,7 +270,6 @@ class DefaultEnvironment(BaseEnvironment):
     def __init__(self, config):
         super().__init__(config)
         logger.debug(f'Starting python environment for {self.runtime_name}')
-        self.task_processes = {}
 
     def setup(self):
         logger.debug('Setting up python environment')
@@ -278,7 +279,7 @@ class DefaultEnvironment(BaseEnvironment):
         if not os.path.isfile(RUNNER_FILE):
             self.setup()
 
-        logger.debug(f"Extracting runtime metadata from: {self.runtime_name}")
+        logger.debug(f"Extracting metadata from: {self.runtime_name}")
         cmd = [self.runtime_name, RUNNER_FILE, 'get_metadata']
         process = sp.run(
             cmd, check=True,
@@ -289,10 +290,13 @@ class DefaultEnvironment(BaseEnvironment):
         runtime_meta = json.loads(process.stdout.strip())
         return runtime_meta
 
-    def run_task(self, job_key_call_id, task_filename):
+    def run_task(self, job_key, call_id):
         """
         Runs a task
         """
+        job_key_call_id = f'{job_key}-{call_id}'
+        task_filename = os.path.join(JOBS_DIR, job_key, call_id + '.task')
+
         cmd = [self.runtime_name, RUNNER_FILE, 'run_job', task_filename]
         log = open(RN_LOG_FILE, 'a')
         process = sp.Popen(cmd, stdout=log, stderr=log, start_new_session=True)
@@ -304,33 +308,37 @@ class DefaultEnvironment(BaseEnvironment):
         """
         Stops running processes
         """
+
+        def kill_process(process):
+            if process.poll() is None:
+                PID = process.pid
+                if is_unix_system():
+                    PGID = os.getpgid(PID)
+                    os.killpg(PGID, signal.SIGKILL)
+                else:
+                    os.kill(PID, signal.SIGTERM)
+
         job_keys_to_stop = job_keys or list(self.jobs.keys())
         for job_key in job_keys_to_stop:
             for job_key_call_id in list(self.task_processes.keys()):
                 if job_key_call_id.startswith(job_key):
                     process = self.task_processes[job_key_call_id]
-                    if process.poll() is None:
-                        PID = process.pid
-                        if is_unix_system():
-                            PGID = os.getpgid(PID)
-                            os.killpg(PGID, signal.SIGKILL)
-                        else:
-                            os.kill(PID, signal.SIGTERM)
-                        self.task_processes[job_key_call_id] = None
+                    kill_process(process)
+                    self.task_processes[job_key_call_id] = None
 
         super().stop(job_keys)
 
 
-class ContainerEnvironment(BaseEnvironment):
+class ContainerEnvironment(ExecutionEnvironment):
     """
     Container environment uses a container runtime image
     """
 
     def __init__(self, config):
         super().__init__(config)
-        self.use_gpu = self.config.get('use_gpu', False)
         logger.debug(f'Starting container environment for {self.runtime_name}')
-        self.container_id = str(uuid.uuid4()).replace('-', '')[:12]
+        self.docker_path = get_docker_path()
+        self.container_name = "lithops_" + str(uuid.uuid4()).replace('-', '')[:12]
         self.container_process = None
         self.uid = os.getuid() if is_unix_system() else None
         self.gid = os.getgid() if is_unix_system() else None
@@ -340,40 +348,83 @@ class ContainerEnvironment(BaseEnvironment):
         self._copy_lithops_to_tmp()
 
         if self.config.get('pull_runtime', False):
-            docker_path = get_docker_path()
             logger.debug(f'Pulling runtime {self.runtime_name}')
             sp.run(
-                shlex.split(f'{docker_path} pull {self.runtime_name}'),
+                shlex.split(f'{self.docker_path} pull {self.runtime_name}'),
                 check=True, stdout=sp.PIPE, universal_newlines=True
             )
+
+    def get_metadata(self):
+        if not os.path.isfile(RUNNER_FILE):
+            self.setup()
+
+        logger.debug(f"Extracting metadata from: {self.runtime_name}")
+
+        tmp_path = Path(TEMP_DIR).as_posix()
+        podman = is_podman(self.docker_path)
+
+        cmd = f'{self.docker_path} run --name lithops_metadata '
+        cmd += f'--user {self.uid}:{self.gid} ' if is_unix_system() and not podman else ''
+        cmd += f'--env USER={os.getenv("USER", "root")} '
+        cmd += f'--rm -v {tmp_path}:/tmp --entrypoint "python3" '
+        cmd += f'{self.runtime_name} /tmp/{USER_TEMP_DIR}/localhost-runner.py get_metadata'
+
+        process = sp.run(
+            shlex.split(cmd), check=True, stdout=sp.PIPE,
+            universal_newlines=True, start_new_session=True
+        )
+        runtime_meta = json.loads(process.stdout.strip())
+        return runtime_meta
 
     def start(self):
         if not os.path.isfile(RUNNER_FILE):
             self.setup()
 
         tmp_path = Path(TEMP_DIR).as_posix()
-        docker_path = get_docker_path()
+        podman = is_podman(self.docker_path)
 
-        cmd = f'{docker_path} run --name lithops_{self.container_id} '
-        cmd += '--gpus all ' if self.use_gpu else ''
-        cmd += f'--user {self.uid}:{self.gid} ' if is_unix_system() else ''
+        cmd = f'{self.docker_path} run --name {self.container_name} '
+        cmd += '--gpus all ' if self.config.get('use_gpu', False) else ''
+        cmd += f'--user {self.uid}:{self.gid} ' if is_unix_system() and not podman else ''
         cmd += f'--env USER={os.getenv("USER", "root")} '
-        cmd += f'--rm -v {tmp_path}:/tmp /bin/bash'
+        cmd += f'--rm -v {tmp_path}:/tmp -it --detach '
+        cmd += f'--entrypoint=/bin/bash {self.runtime_name}'
 
         log = open(RN_LOG_FILE, 'a')
         self.container_process = sp.Popen(
             shlex.split(cmd), stdout=log,
             stderr=log, start_new_session=True
         )
+        self.container_process.communicate()
 
         super().start()
+
+    def run_task(self, job_key, call_id):
+        """
+        Runs a task
+        """
+        docker_job_dir = f'/tmp/{USER_TEMP_DIR}/jobs/{job_key}'
+        docker_task_filename = f'{docker_job_dir}/{call_id}.task'
+
+        cmd = f'{self.docker_path} exec {self.container_name} /bin/bash -c '
+        cmd += f'"python3 /tmp/{USER_TEMP_DIR}/localhost-runner.py run_job {docker_task_filename}"'
+        log = open(RN_LOG_FILE, 'a')
+        process = sp.Popen(
+            shlex.split(cmd), stdout=log,
+            stderr=log, start_new_session=True
+        )
+
+        job_key_call_id = f'{job_key}-{call_id}'
+        self.task_processes[job_key_call_id] = process
+        process.communicate()  # blocks until the process finishes
+        del self.task_processes[job_key_call_id]
 
     def stop(self, job_keys=None):
         """
         Stop localhost container
         """
         sp.Popen(
-            shlex.split(f'docker rm -f lithops_{self.container_id}'),
+            shlex.split(f'{self.docker_path} rm -f {self.container_name}'),
             stdout=sp.DEVNULL, stderr=sp.DEVNULL
         )
         super().stop(job_keys)
