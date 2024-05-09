@@ -53,6 +53,7 @@ extras_require = {
         'ibm-cos-sdk',
         'ibm-code-engine-sdk',
         'ibm-vpc',
+        'kubernetes',
     ],
     'minio': [
         'boto3'
