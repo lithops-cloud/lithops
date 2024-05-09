@@ -429,14 +429,14 @@ class StorageMonitor(Monitor):
         """
         logger.debug(f'ExecutorID {self.executor_id} - Starting Storage job monitor')
 
-        WAIT_DUR_SEC = self.monitoring_interval
+        wait_dur_sec = self.monitoring_interval
         prevoius_log = None
         log_time = 0
 
         while not self._all_ready():
-            time.sleep(WAIT_DUR_SEC)
-            WAIT_DUR_SEC = self.monitoring_interval
-            log_time += WAIT_DUR_SEC
+            time.sleep(wait_dur_sec)
+            wait_dur_sec = self.monitoring_interval
+            log_time += wait_dur_sec
 
             if not self.should_run:
                 break
@@ -447,7 +447,7 @@ class StorageMonitor(Monitor):
             # verify if there are new callids_done and reduce the sleep
             new_callids_done = callids_done - self.callids_done_processed_status
             if len(new_callids_done) > 0:
-                WAIT_DUR_SEC = 0.5
+                wait_dur_sec = self.monitoring_interval / 5
 
             # generate tokens and mark futures as running/done
             self._generate_tokens(callids_running, callids_done)
