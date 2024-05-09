@@ -6,10 +6,15 @@
 - 
 
 ### Changed
-- 
+- [Setup] Removed unused 'lxml', 'docker' and 'python-dateutil' packages from the setup.py
+- [Core] Detached progress bar from INFO logs
+- [Localhost] Upgraded localhost backend v2
+- [Future] Expose 'wait_dur_sec' and 'retries' in future.wait() and future.get_result() methods
 
 ### Fixed
-- 
+- [AWS Lambda] Fixed wrong AWS Lambda delete runtime_name match semantics 
+- [Worker] Fixed potential issue that can appear during 'func_obj' loading from cache
+- [Monitor] Prevent potential 'keyerror' exception 
 
 
 ## [v3.3.0]
