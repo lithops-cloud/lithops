@@ -80,10 +80,10 @@ class Monitor(threading.Thread):
         self._print_status_log()
 
         for future in fs:
-            self.futures.remove(future)
+            if future in self.futures:
+                self.futures.remove(future)
 
-        present_jobs = {future.job_id for future in fs}
-        for job_id in present_jobs:
+        for job_id in {future.job_id for future in fs}:
             if job_id in self.present_jobs:
                 self.present_jobs.remove(job_id)
 
