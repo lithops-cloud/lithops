@@ -4,6 +4,14 @@ Lithops with *IBM Cloud Functions* as compute backend.
 
 **Note**: This backend is deprecated. See the [deprecation overview](https://cloud.ibm.com/docs/openwhisk?topic=openwhisk-dep-overview)
 
+## Installation
+
+1. Install IBM Cloud backend dependencies:
+
+```bash
+python3 -m pip install lithops[ibm]
+```
+
 ## Configuration
 
 1. Login to IBM Cloud and open up your [dashboard](https://cloud.ibm.com/).
