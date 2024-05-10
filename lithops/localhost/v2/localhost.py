@@ -183,6 +183,7 @@ class ExecutionEnvironment:
         self.runtime_name = self.config['runtime']
         self.worker_processes = self.config.get('worker_processes', CPU_COUNT)
         self.work_queue = queue.Queue()
+        self.is_unix = is_unix_system()
         self.task_processes = {}
         self.consumer_threads = []
         self.jobs = {}
@@ -310,9 +311,9 @@ class DefaultEnvironment(ExecutionEnvironment):
         """
 
         def kill_process(process):
-            if process.poll() is None:
+            if process and process.poll() is None:
                 PID = process.pid
-                if is_unix_system():
+                if self.is_unix:
                     PGID = os.getpgid(PID)
                     os.killpg(PGID, signal.SIGKILL)
                 else:
@@ -340,8 +341,8 @@ class ContainerEnvironment(ExecutionEnvironment):
         self.docker_path = get_docker_path()
         self.container_name = "lithops_" + str(uuid.uuid4()).replace('-', '')[:12]
         self.container_process = None
-        self.uid = os.getuid() if is_unix_system() else None
-        self.gid = os.getgid() if is_unix_system() else None
+        self.uid = os.getuid() if self.is_unix else None
+        self.gid = os.getgid() if self.is_unix else None
 
     def setup(self):
         logger.debug('Setting up container environment')
@@ -364,7 +365,7 @@ class ContainerEnvironment(ExecutionEnvironment):
         podman = is_podman(self.docker_path)
 
         cmd = f'{self.docker_path} run --name lithops_metadata '
-        cmd += f'--user {self.uid}:{self.gid} ' if is_unix_system() and not podman else ''
+        cmd += f'--user {self.uid}:{self.gid} ' if self.is_unix and not podman else ''
         cmd += f'--env USER={os.getenv("USER", "root")} '
         cmd += f'--rm -v {tmp_path}:/tmp --entrypoint "python3" '
         cmd += f'{self.runtime_name} /tmp/{USER_TEMP_DIR}/localhost-runner.py get_metadata'
@@ -385,7 +386,7 @@ class ContainerEnvironment(ExecutionEnvironment):
 
         cmd = f'{self.docker_path} run --name {self.container_name} '
         cmd += '--gpus all ' if self.config.get('use_gpu', False) else ''
-        cmd += f'--user {self.uid}:{self.gid} ' if is_unix_system() and not podman else ''
+        cmd += f'--user {self.uid}:{self.gid} ' if self.is_unix and not podman else ''
         cmd += f'--env USER={os.getenv("USER", "root")} '
         cmd += f'--rm -v {tmp_path}:/tmp -it --detach '
         cmd += f'--entrypoint=/bin/bash {self.runtime_name}'
@@ -403,18 +404,19 @@ class ContainerEnvironment(ExecutionEnvironment):
         """
         Runs a task
         """
+        job_key_call_id = f'{job_key}-{call_id}'
         docker_job_dir = f'/tmp/{USER_TEMP_DIR}/jobs/{job_key}'
         docker_task_filename = f'{docker_job_dir}/{call_id}.task'
 
         cmd = f'{self.docker_path} exec {self.container_name} /bin/bash -c '
-        cmd += f'"python3 /tmp/{USER_TEMP_DIR}/localhost-runner.py run_job {docker_task_filename}"'
+        cmd += f'"python3 /tmp/{USER_TEMP_DIR}/localhost-runner.py '
+        cmd += f'run_job {docker_task_filename}"'
+
         log = open(RN_LOG_FILE, 'a')
         process = sp.Popen(
             shlex.split(cmd), stdout=log,
             stderr=log, start_new_session=True
         )
-
-        job_key_call_id = f'{job_key}-{call_id}'
         self.task_processes[job_key_call_id] = process
         process.communicate()  # blocks until the process finishes
         del self.task_processes[job_key_call_id]
