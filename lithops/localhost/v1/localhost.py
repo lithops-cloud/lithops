@@ -134,11 +134,10 @@ class LocalhostHandler:
 
         logger.debug(f'ExecutorID {executor_id} | JobID {job_id} - Putting job into localhost queue')
 
-        self.start_manager()
-
         job_filename = self.env.prepare_job_file(job_payload)
-
         self.job_queue.put((job_payload, job_filename))
+
+        self.start_manager()
 
     def get_runtime_key(self, runtime_name, *args):
         """
