@@ -18,6 +18,7 @@
 import os
 import io
 import sys
+import ast
 import pika
 import time
 import pickle
@@ -209,7 +210,7 @@ class JobRunner:
             func = pickle.loads(self.job.func)
             data = pickle.loads(self.job.data)
 
-            if eval(os.environ.get('__LITHOPS_REDUCE_JOB', 'False')):
+            if ast.literal_eval(os.environ.get('__LITHOPS_REDUCE_JOB', 'False')):
                 self._wait_futures(data)
             elif is_object_processing_function(func):
                 self._load_object(data)
