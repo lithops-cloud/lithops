@@ -33,7 +33,6 @@ from lithops.version import __version__
 from lithops.constants import (
     JOBS_DIR,
     LOCALHOST_RUNTIME_DEFAULT,
-    RN_LOG_FILE,
     TEMP_DIR,
     LITHOPS_TEMP_DIR,
     COMPUTE_CLI_MSG,
@@ -299,8 +298,7 @@ class DefaultEnvironment(ExecutionEnvironment):
         task_filename = os.path.join(JOBS_DIR, job_key, call_id + '.task')
 
         cmd = [self.runtime_name, RUNNER_FILE, 'run_job', task_filename]
-        log = open(RN_LOG_FILE, 'a')
-        process = sp.Popen(cmd, stdout=log, stderr=log, start_new_session=True)
+        process = sp.Popen(cmd, start_new_session=True)
         self.task_processes[job_key_call_id] = process
         process.communicate()  # blocks until the process finishes
         del self.task_processes[job_key_call_id]
@@ -394,12 +392,8 @@ class ContainerEnvironment(ExecutionEnvironment):
         cmd += f'--rm -v {tmp_path}:/tmp -it --detach '
         cmd += f'--entrypoint=/bin/bash {self.runtime_name}'
 
-        log = open(RN_LOG_FILE, 'a')
-        self.container_process = sp.Popen(
-            shlex.split(cmd), stdout=log,
-            stderr=log, start_new_session=True
-        )
-        self.container_process.communicate()
+        self.container_process = sp.Popen(shlex.split(cmd), start_new_session=True)
+        self.container_process.communicate()  # blocks until the process finishes
 
         super().start()
 
@@ -415,11 +409,7 @@ class ContainerEnvironment(ExecutionEnvironment):
         cmd += f'"python3 /tmp/{USER_TEMP_DIR}/localhost-runner.py '
         cmd += f'run_job {docker_task_filename}"'
 
-        log = open(RN_LOG_FILE, 'a')
-        process = sp.Popen(
-            shlex.split(cmd), stdout=log,
-            stderr=log, start_new_session=True
-        )
+        process = sp.Popen(shlex.split(cmd), start_new_session=True)
         self.task_processes[job_key_call_id] = process
         process.communicate()  # blocks until the process finishes
         del self.task_processes[job_key_call_id]

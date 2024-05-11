@@ -25,7 +25,10 @@ import queue
 import threading
 import concurrent.futures as cf
 from tblib import pickling_support
-from lithops.constants import MONITORING_INTERVAL
+from lithops.constants import (
+    MONITORING_INTERVAL,
+    MONITORING_INTERVAL_LH
+)
 
 pickling_support.install()
 
@@ -464,23 +467,30 @@ class JobMonitor:
         self.executor_id = executor_id
         self.internal_storage = internal_storage
         self.config = config
-        self.backend = self.config['lithops']['monitoring'].lower() if config else 'storage'
+        self.backend_type = self.config['lithops']['monitoring'].lower() if config else 'storage'
+        self.storage_backend = self.internal_storage.backend
         self.token_bucket_q = queue.Queue()
         self.monitor = None
         self.job_chunksize = {}
 
         self.MonitorClass = getattr(
             lithops.monitor,
-            f'{self.backend.capitalize()}Monitor'
+            f'{self.backend_type.capitalize()}Monitor'
         )
 
     def start(self, fs, job_id=None, chunksize=None, generate_tokens=False):
-        if self.backend == 'storage':
-            mi = self.config['lithops'].get('monitoring_interval', MONITORING_INTERVAL) \
-                if self.config else MONITORING_INTERVAL
-            bk_config = {'monitoring_interval': mi}
+        if self.backend_type == 'storage':
+            monitoring_interval = None
+            if self.config and 'lithops' in self.config:
+                monitoring_interval = self.config['lithops'].get('monitoring_interval')
+            if not monitoring_interval:
+                if self.storage_backend == 'localhost':
+                    monitoring_interval = MONITORING_INTERVAL_LH
+                else:
+                    monitoring_interval = MONITORING_INTERVAL
+            bk_config = {'monitoring_interval': monitoring_interval}
         else:
-            bk_config = self.config.get(self.backend)
+            bk_config = self.config.get(self.backend_type)
 
         if job_id:
             self.job_chunksize[job_id] = chunksize

@@ -114,24 +114,21 @@ class TestMapReduce:
         result = fexec.get_result()
         assert result == self.words_in_files
 
-    def test_chunks_bucket(self):
+    def test_bucket_chunk_size(self):
         """tests the ability to create a separate function invocation
         based on the following parameters: chunk_size creates [file_size//chunk_size]
-        invocations to process each chunk_size bytes, of a given object. chunk_number
-        creates 'chunk_number' invocations that process [file_size//chunk_number] bytes each.
+        invocations to process each chunk_size bytes, of a given object. 
         """
-
-        logger.info('Testing chunks on a bucket')
         OBJ_CHUNK_SIZE = 1 * 800 ** 2  # create a new invocation
-        OBJ_CHUNK_NUMBER = 2
         activations = 0
 
         data_prefix = self.storage_backend + '://' + self.bucket + '/' + DATASET_PREFIX + '/'
 
         fexec = lithops.FunctionExecutor(config=pytest.lithops_config)
-        futures = fexec.map_reduce(my_map_function_obj, data_prefix,
-                                   my_reduce_function,
-                                   obj_chunk_size=OBJ_CHUNK_SIZE)
+        futures = fexec.map_reduce(
+            my_map_function_obj, data_prefix,
+            my_reduce_function, obj_chunk_size=OBJ_CHUNK_SIZE
+        )
         result = fexec.get_result(futures)
         assert result == self.words_in_files
 
@@ -140,27 +137,34 @@ class TestMapReduce:
 
         assert len(futures) == activations + 1  # +1 due to the reduce function
 
+    def test_bucket_chunk_number(self):
+        """tests the ability to create a separate function invocation
+        based on the following parameters: chunk_number
+        creates 'chunk_number' invocations that process [file_size//chunk_number] bytes each.
+        """
+        OBJ_CHUNK_NUMBER = 2
+
+        data_prefix = self.storage_backend + '://' + self.bucket + '/' + DATASET_PREFIX + '/'
+
         fexec = lithops.FunctionExecutor(config=pytest.lithops_config)
-        futures = fexec.map_reduce(my_map_function_obj, data_prefix,
-                                   my_reduce_function, obj_chunk_number=OBJ_CHUNK_NUMBER)
+        futures = fexec.map_reduce(
+            my_map_function_obj, data_prefix,
+            my_reduce_function, obj_chunk_number=OBJ_CHUNK_NUMBER
+        )
         result = fexec.get_result(futures)
         assert result == self.words_in_files
 
         assert len(futures) == len(TEST_FILES_URLS) * OBJ_CHUNK_NUMBER + 1
 
-    def test_chunks_bucket_one_reducer_per_object(self):
+    def test_bucket_chunk_size_one_reducer_per_object(self):
         """tests the ability to create a separate function invocation based
         on the following parameters, as well as create a separate invocation
         of a reduce function for each object: chunk_size creates [file_size//chunk_size]
         invocations to process each chunk_size bytes, of a given object. hunk_number
         creates 'chunk_number' invocations that process [file_size//chunk_number] bytes each.
         """
-
-        logger.info('Testing chunks on a bucket with one reducer per object')
         OBJ_CHUNK_SIZE = 1 * 1024 ** 2
-        OBJ_CHUNK_NUMBER = 2
         activations = 0
-
         data_prefix = self.storage_backend + '://' + self.bucket + '/' + DATASET_PREFIX + '/'
 
         fexec = lithops.FunctionExecutor(config=pytest.lithops_config)
@@ -178,6 +182,16 @@ class TestMapReduce:
 
         # + len(TEST_FILES_URLS) due to map_reduce activation per object
         assert len(futures) == activations + len(TEST_FILES_URLS)
+
+    def test_bucket_chunk_number_one_reducer_per_object(self):
+        """tests the ability to create a separate function invocation based
+        on the following parameters, as well as create a separate invocation
+        of a reduce function for each object: chunk_size creates [file_size//chunk_size]
+        invocations to process each chunk_size bytes, of a given object. hunk_number
+        creates 'chunk_number' invocations that process [file_size//chunk_number] bytes each.
+        """
+        OBJ_CHUNK_NUMBER = 2
+        data_prefix = self.storage_backend + '://' + self.bucket + '/' + DATASET_PREFIX + '/'
 
         fexec = lithops.FunctionExecutor(config=pytest.lithops_config)
         futures = fexec.map_reduce(
