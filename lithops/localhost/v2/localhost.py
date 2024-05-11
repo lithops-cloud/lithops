@@ -324,7 +324,10 @@ class DefaultEnvironment(ExecutionEnvironment):
             for job_key_call_id in list(self.task_processes.keys()):
                 if job_key_call_id.startswith(job_key):
                     process = self.task_processes[job_key_call_id]
-                    kill_process(process)
+                    try:
+                        kill_process(process)
+                    except Exception:
+                        pass
                     self.task_processes[job_key_call_id] = None
 
         super().stop(job_keys)
