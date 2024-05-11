@@ -117,7 +117,7 @@ class TestMapReduce:
     def test_bucket_chunk_size(self):
         """tests the ability to create a separate function invocation
         based on the following parameters: chunk_size creates [file_size//chunk_size]
-        invocations to process each chunk_size bytes, of a given object. 
+        invocations to process each chunk_size bytes, of a given object.
         """
         OBJ_CHUNK_SIZE = 1 * 800 ** 2  # create a new invocation
         activations = 0
