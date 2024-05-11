@@ -49,7 +49,7 @@ def wait(fs: Union[ResponseFuture, FuturesList, List[ResponseFuture]],
          download_results: Optional[bool] = False,
          timeout: Optional[int] = None,
          threadpool_size: Optional[int] = THREADPOOL_SIZE,
-         wait_dur_sec: Optional[int] = WAIT_DUR_SEC,
+         wait_dur_sec: Optional[int] = None,
          show_progressbar: Optional[bool] = True,
          futures_from_executor_wait: Optional[bool] = False) -> Tuple[FuturesList, FuturesList]:
     """
@@ -68,7 +68,7 @@ def wait(fs: Union[ResponseFuture, FuturesList, List[ResponseFuture]],
     :param download_results: Download results. Default false (Only get statuses)
     :param timeout: Timeout of waiting for results.
     :param threadpool_size: Number of threads to use. Default 64
-    :param wait_dur_sec: Time interval between each check.
+    :param wait_dur_sec: Time interval between each check. Default 1 second
     :param show_progressbar: whether or not to show the progress bar.
 
     :return: `(fs_done, fs_notdone)`
@@ -131,7 +131,8 @@ def wait(fs: Union[ResponseFuture, FuturesList, List[ResponseFuture]],
                     internal_storage=executor_data.internal_storage)
                 job_monitor.start(fs=executor_data.futures)
 
-        sleep_sec = wait_dur_sec if job_monitor.backend == 'storage' else 0.3
+        sleep_sec = wait_dur_sec or WAIT_DUR_SEC if job_monitor.backend_type == 'storage' \
+            and job_monitor.storage_backend != 'localhost' else 0.1
 
         if return_when == ALWAYS:
             for executor_data in executors_data:
@@ -186,7 +187,7 @@ def get_result(fs: Optional[Union[ResponseFuture, FuturesList, List[ResponseFutu
                throw_except: Optional[bool] = True,
                timeout: Optional[int] = None,
                threadpool_size: Optional[int] = THREADPOOL_SIZE,
-               wait_dur_sec: Optional[int] = WAIT_DUR_SEC,
+               wait_dur_sec: Optional[int] = None,
                show_progressbar: Optional[bool] = True):
     """
     For getting the results from all function activations
@@ -196,7 +197,7 @@ def get_result(fs: Optional[Union[ResponseFuture, FuturesList, List[ResponseFutu
     :param throw_except: Reraise exception if call raised. Default True.
     :param timeout: Timeout for waiting for results.
     :param threadpool_size: Number of threads to use. Default 128
-    :param wait_dur_sec: Time interval between each check.
+    :param wait_dur_sec: Time interval between each check. Default 1 second
     :param show_progressbar: whether or not to show the progress bar.
 
     :return: The result of the future/s

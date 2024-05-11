@@ -30,7 +30,7 @@ from lithops import constants
 from lithops.future import ResponseFuture
 from lithops.invokers import create_invoker
 from lithops.storage import InternalStorage
-from lithops.wait import wait, ALL_COMPLETED, THREADPOOL_SIZE, WAIT_DUR_SEC, ALWAYS
+from lithops.wait import wait, ALL_COMPLETED, THREADPOOL_SIZE, ALWAYS
 from lithops.job import create_map_job, create_reduce_job
 from lithops.config import default_config, \
     extract_localhost_config, extract_standalone_config, \
@@ -399,7 +399,7 @@ class FunctionExecutor:
         download_results: Optional[bool] = False,
         timeout: Optional[int] = None,
         threadpool_size: Optional[int] = THREADPOOL_SIZE,
-        wait_dur_sec: Optional[int] = WAIT_DUR_SEC,
+        wait_dur_sec: Optional[int] = None,
         show_progressbar: Optional[bool] = True
     ) -> Tuple[FuturesList, FuturesList]:
         """
@@ -416,7 +416,7 @@ class FunctionExecutor:
         :param download_results: Download results. Default false (Only get statuses)
         :param timeout: Timeout of waiting for results
         :param threadpool_size: Number of threads to use. Default 64
-        :param wait_dur_sec: Time interval between each check
+        :param wait_dur_sec: Time interval between each check. Default 1 second
         :param show_progressbar: whether or not to show the progress bar.
 
         :return: `(fs_done, fs_notdone)` where `fs_done` is a list of futures that have
@@ -470,7 +470,7 @@ class FunctionExecutor:
         throw_except: Optional[bool] = True,
         timeout: Optional[int] = None,
         threadpool_size: Optional[int] = THREADPOOL_SIZE,
-        wait_dur_sec: Optional[int] = WAIT_DUR_SEC,
+        wait_dur_sec: Optional[int] = None,
         show_progressbar: Optional[bool] = True
     ):
         """
@@ -480,7 +480,7 @@ class FunctionExecutor:
         :param throw_except: Reraise exception if call raised. Default True.
         :param timeout: Timeout for waiting for results.
         :param threadpool_size: Number of threads to use. Default 128
-        :param wait_dur_sec: Time interval between each check.
+        :param wait_dur_sec: Time interval between each check. Default 1 second
         :param show_progressbar: whether or not to show the progress bar.
 
         :return: The result of the future/s
