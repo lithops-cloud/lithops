@@ -15,6 +15,7 @@
 #
 
 import os
+import time
 import sys
 import pkgutil
 import logging
@@ -59,6 +60,9 @@ def get_function_and_modules(job, internal_storage):
             func_obj = f.read()
     elif os.path.exists(func_path):
         logger.info(f"Loading {job.func_key} from local cache")
+        while os.path.getsize(func_path) == 0:
+            logger.info(f"Waiting for {job.func_key} to be ready")
+            time.sleep(0.1)
         with open(func_path, 'rb') as f:
             func_obj = f.read()
     else:
