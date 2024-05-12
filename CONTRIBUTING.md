@@ -19,7 +19,7 @@ To contribute a patch:
 3. Make sure that your code passes the functional tests. See the [Functional testing](#functional-testing) section below.
 4. Make sure that your code passes the linter. Install `flake8` with `pip3 install flake8` and run the next command until you don't see any linitng error:
    ```bash
-   $ flake8 lithops --count --max-line-length=180 --statistics --ignore W605,W503
+   flake8 lithops --count --max-line-length=180 --statistics --ignore W605,W503
    ``` 
 6. Add new unit tests for your code.
 
