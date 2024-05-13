@@ -1,4 +1,5 @@
 import lithops
+import time
 import pickle
 
 
@@ -28,7 +29,13 @@ def lithops_return_futures_map(x):
         return x + 1
 
     fexec = lithops.FunctionExecutor()
-    return fexec.map(_func, range(x))
+    futures = fexec.map(_func, range(x))
+
+    # this while loop is required to pass localhost tests on Windows
+    while not all(f.running or f.ready for f in futures):
+        time.sleep(0.1)
+
+    return futures
 
 
 def lithops_return_futures_call_async(x):
@@ -36,7 +43,13 @@ def lithops_return_futures_call_async(x):
         return x + 1
 
     fexec = lithops.FunctionExecutor()
-    return fexec.call_async(_func, x + 5)
+    fut = fexec.call_async(_func, x + 5)
+
+    # this while loop is required to pass localhost tests on Windows
+    while not (fut.running or fut.ready):
+        time.sleep(0.1)
+
+    return fut
 
 
 def lithops_return_futures_map_multiple(x):
@@ -46,6 +59,11 @@ def lithops_return_futures_map_multiple(x):
     fexec = lithops.FunctionExecutor()
     fut1 = fexec.map(_func, range(x))
     fut2 = fexec.map(_func, range(x))
+
+    # this while loop is required to pass localhost tests on Windows
+    while not all(f.running or f.ready for f in fut1 + fut2):
+        time.sleep(0.1)
+
     return fut1 + fut2
 
 
