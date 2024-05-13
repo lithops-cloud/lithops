@@ -1,13 +1,6 @@
 name: Tests
 
 on:
-  push:
-    branches:
-      - master
-    paths:
-      - 'setup.py'
-      - 'lithops/**'
-
   pull_request:
     branches:
       - master

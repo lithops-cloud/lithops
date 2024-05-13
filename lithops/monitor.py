@@ -25,10 +25,6 @@ import queue
 import threading
 import concurrent.futures as cf
 from tblib import pickling_support
-from lithops.constants import (
-    MONITORING_INTERVAL,
-    MONITORING_INTERVAL_LH
-)
 
 pickling_support.install()
 
@@ -466,31 +462,26 @@ class JobMonitor:
     def __init__(self, executor_id, internal_storage, config=None):
         self.executor_id = executor_id
         self.internal_storage = internal_storage
+        self.storage_config = internal_storage.get_storage_config()
+        self.storage_backend = internal_storage.backend
         self.config = config
-        self.backend_type = self.config['lithops']['monitoring'].lower() if config else 'storage'
-        self.storage_backend = self.internal_storage.backend
+        self.type = self.config['lithops']['monitoring'].lower() if config else 'storage'
+
         self.token_bucket_q = queue.Queue()
         self.monitor = None
         self.job_chunksize = {}
 
         self.MonitorClass = getattr(
             lithops.monitor,
-            f'{self.backend_type.capitalize()}Monitor'
+            f'{self.type.capitalize()}Monitor'
         )
 
     def start(self, fs, job_id=None, chunksize=None, generate_tokens=False):
-        if self.backend_type == 'storage':
-            monitoring_interval = None
-            if self.config and 'lithops' in self.config:
-                monitoring_interval = self.config['lithops'].get('monitoring_interval')
-            if not monitoring_interval:
-                if self.storage_backend == 'localhost':
-                    monitoring_interval = MONITORING_INTERVAL_LH
-                else:
-                    monitoring_interval = MONITORING_INTERVAL
-            bk_config = {'monitoring_interval': monitoring_interval}
+        if self.type == 'storage':
+            monitoring_interval = self.storage_config['monitoring_interval']
+            monitor_config = {'monitoring_interval': monitoring_interval}
         else:
-            bk_config = self.config.get(self.backend_type)
+            monitor_config = self.config.get(self.type)
 
         if job_id:
             self.job_chunksize[job_id] = chunksize
@@ -502,7 +493,7 @@ class JobMonitor:
                 token_bucket_q=self.token_bucket_q,
                 job_chunksize=self.job_chunksize,
                 generate_tokens=generate_tokens,
-                config=bk_config
+                config=monitor_config
             )
 
         self.monitor.add_futures(fs)

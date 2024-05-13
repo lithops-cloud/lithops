@@ -201,6 +201,9 @@ def default_config(config_file=None, config_data=None, config_overwrite={}, load
     if 'monitoring' not in config_data['lithops']:
         config_data['lithops']['monitoring'] = c.MONITORING_DEFAULT
 
+    if 'monitoring_interval' not in config_data['lithops']:
+        config_data['lithops']['monitoring_interval'] = c.MONITORING_INTERVAL
+
     if 'execution_timeout' not in config_data['lithops']:
         config_data['lithops']['execution_timeout'] = c.EXECUTION_TIMEOUT_DEFAULT
 
@@ -240,6 +243,7 @@ def default_storage_config(config_file=None, config_data=None, backend=None):
 
 def extract_storage_config(config):
     s_config = {}
+    s_config['monitoring_interval'] = config['lithops']['monitoring_interval']
     backend = config['lithops']['storage']
     s_config['backend'] = backend
     s_config[backend] = config[backend] if backend in config and config[backend] else {}

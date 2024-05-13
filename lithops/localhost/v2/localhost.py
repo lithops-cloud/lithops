@@ -249,6 +249,7 @@ class ExecutionEnvironment:
                     break
                 process_task(task_payload_str)
 
+        logger.debug("Starting Localhost work queue consumer threads")
         for _ in range(self.worker_processes):
             t = threading.Thread(
                 target=queue_consumer,
@@ -261,6 +262,7 @@ class ExecutionEnvironment:
         """
         Stops running consumer threads
         """
+        logger.debug("Stopping Localhost work queue consumer threads")
         for _ in range(self.worker_processes):
             self.work_queue.put(None)
 
@@ -311,12 +313,13 @@ class DefaultEnvironment(ExecutionEnvironment):
         job_key_call_id = f'{job_key}-{call_id}'
         task_filename = os.path.join(JOBS_DIR, job_key, call_id + '.task')
 
-        logger.debug(f"Going to execute task {job_key_call_id}")
+        logger.debug(f"Going to execute task process {job_key_call_id}")
         cmd = [self.runtime_name, RUNNER_FILE, 'run_job', task_filename]
         process = sp.Popen(cmd, start_new_session=True)
         self.task_processes[job_key_call_id] = process
         process.communicate()  # blocks until the process finishes
         del self.task_processes[job_key_call_id]
+        logger.debug(f"Task process {job_key_call_id} finished")
 
     def stop(self, job_keys=None):
         """
@@ -419,6 +422,7 @@ class ContainerEnvironment(ExecutionEnvironment):
         docker_job_dir = f'/tmp/{USER_TEMP_DIR}/jobs/{job_key}'
         docker_task_filename = f'{docker_job_dir}/{call_id}.task'
 
+        logger.debug(f"Going to execute task process {job_key_call_id}")
         cmd = f'{self.docker_path} exec {self.container_name} /bin/bash -c '
         cmd += f'"python3 /tmp/{USER_TEMP_DIR}/localhost-runner.py '
         cmd += f'run_job {docker_task_filename}"'
@@ -427,6 +431,7 @@ class ContainerEnvironment(ExecutionEnvironment):
         self.task_processes[job_key_call_id] = process
         process.communicate()  # blocks until the process finishes
         del self.task_processes[job_key_call_id]
+        logger.debug(f"Task process {job_key_call_id} finished")
 
     def stop(self, job_keys=None):
         """
