@@ -25,7 +25,6 @@ def setup_global(request):
     backend = config.getoption("--backend")
     storage = config.getoption("--storage")
     region = config.getoption("--region")
-    debug = config.getoption("--debug")
 
     config_data = None
 
@@ -36,14 +35,13 @@ def setup_global(request):
             raise FileNotFoundError(f"The provided config file '{config_file}' does not exist")
 
     config_ow = {'lithops': {}, 'backend': {}}
+    config_ow['lithops']['log_level'] = 'DEBUG'
     if storage:
         config_ow['lithops']['storage'] = storage
         if storage == 'localhost':
             config_ow['lithops']['monitoring_interval'] = 0.1
     if backend:
         config_ow['lithops']['backend'] = backend
-    if debug:
-        config_ow['lithops']['log_level'] = 'DEBUG'
     if region:
         config_ow['backend']['region'] = region
 

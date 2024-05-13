@@ -1,0 +1,48 @@
+name: Tests
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'setup.py'
+      - 'lithops/**'
+
+  pull_request:
+    branches:
+      - master
+    paths:
+      - 'setup.py'
+      - 'lithops/**'
+
+  workflow_dispatch: 
+  # this allows to run the workflow manually through the github dashboard
+
+jobs:
+
+  localhost_tests:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.7', '3.8', '3.9', '3.10', '3.11', '3.12']
+
+    steps:
+      - name: Clone Lithops repository
+        uses: actions/checkout@v4
+
+      - name: Install Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Lithops
+        run: |
+          pip3 install -U .[tests]
+
+      - name: Run Lithops tests
+        run: |
+          cd lithops/tests
+          pytest -v --backend localhost --storage localhost
