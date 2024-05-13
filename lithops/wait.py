@@ -131,7 +131,7 @@ def wait(fs: Union[ResponseFuture, FuturesList, List[ResponseFuture]],
                     internal_storage=executor_data.internal_storage)
                 job_monitor.start(fs=executor_data.futures)
 
-        sleep_sec = wait_dur_sec or WAIT_DUR_SEC if job_monitor.backend_type == 'storage' \
+        sleep_sec = wait_dur_sec or WAIT_DUR_SEC if job_monitor.type == 'storage' \
             and job_monitor.storage_backend != 'localhost' else 0.1
 
         if return_when == ALWAYS:
