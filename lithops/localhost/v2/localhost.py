@@ -394,6 +394,7 @@ class ContainerEnvironment(ExecutionEnvironment):
             universal_newlines=True, start_new_session=True
         )
         runtime_meta = json.loads(process.stdout.strip())
+
         return runtime_meta
 
     def start(self):
