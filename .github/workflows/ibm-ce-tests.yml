@@ -1,4 +1,4 @@
-name: "functional-tests"
+name: IBM CE Tests
 
 on:  
   workflow_dispatch: 
@@ -47,7 +47,7 @@ jobs:
       - name: Run Lithops tests
         run: |
           cd lithops/tests
-          pytest -o log_cli=true --log-cli-level=DEBUG --backend localhost --storage localhost
+          pytest -v --backend localhost --storage localhost
 
 
   ibm_ce_cos_tests:
@@ -83,7 +83,7 @@ jobs:
       - name: Run Lithops tests
         run: |
           cd lithops/tests
-          pytest -o log_cli=true --log-cli-level=DEBUG --backend code_engine --storage ibm_cos
+          pytest -v --backend code_engine --storage ibm_cos
 
       - name: Delete Lithops CE runtime
         if: needs.determine_runnable_test_jobs.outputs.code_engine == 'true'
