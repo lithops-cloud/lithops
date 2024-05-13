@@ -38,8 +38,6 @@ def setup_global(request):
     config_ow['lithops']['log_level'] = 'DEBUG'
     if storage:
         config_ow['lithops']['storage'] = storage
-        if storage == 'localhost':
-            config_ow['lithops']['monitoring_interval'] = 0.1
     if backend:
         config_ow['lithops']['backend'] = backend
     if region:

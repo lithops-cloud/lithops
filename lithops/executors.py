@@ -118,7 +118,7 @@ class FunctionExecutor:
 
         if self.mode == LOCALHOST:
             localhost_config = extract_localhost_config(self.config)
-            if localhost_config.get('version', 1) == 1:
+            if localhost_config.get('version', 2) == 1:
                 self.compute_handler = LocalhostHandlerV1(localhost_config)
             else:
                 self.compute_handler = LocalhostHandlerV2(localhost_config)
