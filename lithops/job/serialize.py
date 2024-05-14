@@ -57,6 +57,7 @@ class SerializeIndependent:
 
         if include_modules is None:
             # If include_modules is explicitly set to None, no module is included
+            logger.debug('Module manager disabled. Modules to transmit: None')
             return (strs, mod_paths)
 
         if len(include_modules) == 0:

@@ -29,7 +29,6 @@ from pathlib import Path
 
 from lithops.version import __version__
 from lithops.constants import (
-    LOCALHOST_RUNTIME_DEFAULT,
     TEMP_DIR,
     USER_TEMP_DIR,
     LITHOPS_TEMP_DIR,
@@ -59,7 +58,8 @@ class LocalhostHandlerV1:
     def __init__(self, config):
         logger.debug('Creating Localhost compute client')
         self.config = config
-        self.runtime_name = self.config.get('runtime', LOCALHOST_RUNTIME_DEFAULT)
+        self.runtime_name = self.config['runtime']
+        self.environment = self.config['environment']
 
         self.env = None
         self.job_queue = queue.Queue()
@@ -79,9 +79,11 @@ class LocalhostHandlerV1:
         """
         Init tasks for localhost
         """
-        default_env = self.runtime_name.startswith(('python', '/'))
-        self.env = DefaultEnvironment(self.config) if default_env \
-            else ContainerEnvironment(self.config)
+        if self.environment == 'default':
+            self.env = DefaultEnvironment(self.config)
+        else:
+            self.env = ContainerEnvironment(self.config)
+
         self.env.setup()
 
     def start_manager(self):
