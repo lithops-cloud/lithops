@@ -172,20 +172,8 @@ def default_config(config_file=None, config_data=None, config_overwrite={}, load
 
     if mode == c.LOCALHOST:
         logger.debug("Loading compute backend module: localhost")
-
-        config_data[backend]['max_workers'] = 1
-
-        if 'execution_timeout' not in config_data['lithops']:
-            config_data['lithops']['execution_timeout'] = c.EXECUTION_TIMEOUT_LOCALHOST_DEFAULT
-
-        if 'storage' not in config_data['lithops']:
-            config_data['lithops']['storage'] = c.LOCALHOST
-
-        if 'worker_processes' not in config_data[c.LOCALHOST]:
-            config_data[backend]['worker_processes'] = c.CPU_COUNT
-
-        if 'runtime' not in config_data[c.LOCALHOST]:
-            config_data[backend]['runtime'] = c.LOCALHOST_RUNTIME_DEFAULT
+        cb_config = importlib.import_module('lithops.localhost.config')
+        cb_config.load_config(config_data)
 
     elif mode == c.SERVERLESS:
         logger.debug(f"Loading Serverless backend module: {backend}")
@@ -198,14 +186,9 @@ def default_config(config_file=None, config_data=None, config_overwrite={}, load
         sb_config.load_config(config_data)
         config_data['lithops']['chunksize'] = 0
 
-    if 'monitoring' not in config_data['lithops']:
-        config_data['lithops']['monitoring'] = c.MONITORING_DEFAULT
-
-    if 'monitoring_interval' not in config_data['lithops']:
-        config_data['lithops']['monitoring_interval'] = c.MONITORING_INTERVAL
-
-    if 'execution_timeout' not in config_data['lithops']:
-        config_data['lithops']['execution_timeout'] = c.EXECUTION_TIMEOUT_DEFAULT
+    for key in c.LITHOPS_DEFAULT_CONFIG_KEYS:
+        if key not in config_data['lithops']:
+            config_data['lithops'][key] = c.LITHOPS_DEFAULT_CONFIG_KEYS[key]
 
     if 'chunksize' not in config_data['lithops']:
         config_data['lithops']['chunksize'] = config_data[backend]['worker_processes']

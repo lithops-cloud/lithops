@@ -15,7 +15,6 @@
 #
 
 import os
-import sys
 import tempfile
 
 LOGGER_LEVEL = 'info'
@@ -35,9 +34,6 @@ STANDALONE = 'standalone'
 
 MODE_DEFAULT = SERVERLESS
 
-MONITORING_DEFAULT = 'storage'
-MONITORING_INTERVAL = 2  # seconds
-
 SERVERLESS_BACKEND_DEFAULT = 'aws_lambda'
 STANDALONE_BACKEND_DEFAULT = 'aws_ec2'
 STORAGE_BACKEND_DEFAULT = 'aws_s3'
@@ -46,13 +42,6 @@ JOBS_PREFIX = "lithops.jobs"
 TEMP_PREFIX = "lithops.jobs/tmp"
 LOGS_PREFIX = "lithops.logs"
 RUNTIMES_PREFIX = "lithops.runtimes"
-
-EXECUTION_TIMEOUT_DEFAULT = 1800  # seconds
-EXECUTION_TIMEOUT_LOCALHOST_DEFAULT = 3600  # seconds
-
-LOCALHOST_RUNTIME_DEFAULT = os.path.basename(sys.executable)
-LOCALHOST_SERVICE_IDLE_TIMEOUT = 3
-LOCALHOST_SERVICE_CHECK_INTERVAL = 2
 
 MAX_AGG_DATA_SIZE = 4  # 4MiB
 
@@ -79,6 +68,12 @@ CONFIG_DIR = os.path.join(HOME_DIR, '.lithops')
 CACHE_DIR = os.path.join(CONFIG_DIR, 'cache')
 CONFIG_FILE = os.path.join(CONFIG_DIR, 'config')
 CONFIG_FILE_GLOBAL = os.path.join("/etc", "lithops", "config")
+
+LITHOPS_DEFAULT_CONFIG_KEYS = {
+    'monitoring': 'storage',
+    'monitoring_interval': 2,
+    'execution_timeout': 1800
+}
 
 SA_INSTALL_DIR = '/opt/lithops'
 SA_SETUP_LOG_FILE = f'{SA_INSTALL_DIR}/setup.log'
