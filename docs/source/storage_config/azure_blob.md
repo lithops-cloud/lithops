@@ -11,7 +11,7 @@ Lithops with Azure Blob Storage as storage backend.
 $ python3 -m pip install lithops[azure]
 ```
 
-5. Create a Resource Group and a Storage Account:
+2. Create a Resource Group and a Storage Account:
 
    Option 1:
 

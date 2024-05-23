@@ -117,11 +117,20 @@ Example of providing configuration keys for IBM Code Engine and IBM Cloud Object
 ```python
 import lithops
 
-config = {'lithops': {'backend': 'code_engine', 'storage': 'ibm_cos'},
-          'ibm': {'region': 'REGION',
-                  'iam_api_key': 'IAM_API_KEY',
-                  'resource_group_id': 'RESOURCE_GROUP_ID'},
-          'ibm_cos': {'storage_bucket': 'STORAGE_BUCKET'}}
+config = {
+    'lithops': {
+        'backend': 'code_engine',
+        'storage': 'ibm_cos'
+    },
+    'ibm': {
+        'region': 'REGION',
+        'iam_api_key': 'IAM_API_KEY',
+        'resource_group_id': 'RESOURCE_GROUP_ID'
+    },
+    'ibm_cos': {
+        'storage_bucket': 'STORAGE_BUCKET'
+    }
+}
 
 def hello_world(name):
     return f'Hello {name}!'
@@ -136,8 +145,8 @@ if __name__ == '__main__':
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|lithops | backend | aws_lambda | no | Compute backend implementation. IBM Cloud Functions is the default |
-|lithops | storage | aws_s3 | no | Storage backend implementation. IBM Cloud Object Storage is the default |
+|lithops | backend | aws_lambda | no | Compute backend implementation. `localhost` is the default if no config or config file is provided|
+|lithops | storage | aws_s3 | no | Storage backend implementation. `localhost` is the default if no config or config file is provided|
 |lithops | data_cleaner | True | no |If set to True, then the cleaner will automatically delete all the temporary data that was written into `storage_bucket/lithops.jobs`|
 |lithops | monitoring | storage | no | Monitoring system implementation. One of: **storage** or **rabbitmq** |
 |lithops | monitoring_interval | 2 | no | Monitoring check interval in seconds in case of **storage** monitoring |

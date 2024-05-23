@@ -9,6 +9,7 @@ lithops_*.zip
 *.log
 *.txt
 *.csv
+*.coverage*
 
 # Virtual environments
 .env

@@ -89,7 +89,7 @@ Edit your lithops config and add the relevant keys:
 |azure_vms | ssh_username | ubuntu | yes | Username to access the VM. It will use `ubuntu` if not provided |
 |azure_vms | ssh_key_filename | ~/.ssh/id_rsa | yes | Path to the ssh key file provided to create the VM. It will use the default path if not provided |
 |azure_vms | region | |no | Location of the resource group, for example: `westeurope`, `westus2`, etc. Lithops will use the region set under the `azure` section if it is not set here |
-|azure_vms | worker_processes | AUTO | no | Number of Lithops processes within a given worker. This is used to parallelize function activations within the worker. By default it detects the amount of CPUs in the VM|
+|azure_vms | worker_processes | AUTO | no | Number of parallel Lithops processes in a worker. This is used to parallelize function activations within the worker. By default it detects the amount of CPUs in the VM|
 |azure_vms | runtime | python3 | no | Runtime name to run the functions. Can be a container image name. If not set Lithops will use the defeuv python3 interpreter of the VM |
 |azure_vms | auto_dismantle | True |no | If False then the VM is not stopped automatically.|
 |azure_vms | soft_dismantle_timeout | 300 |no| Time in seconds to stop the VM instance after a job **completed** its execution |
@@ -139,12 +139,12 @@ Edit your lithops config and add the relevant keys:
 |azure_vms | worker_instance_type | Standard_B2s | no | Profile name for the worker VMs |
 |azure_vms | delete_on_dismantle | False | no | Delete the worker VMs when they are stopped. Master VM is never deleted when stopped. `True` is NOT YET SUPPORTED |
 |azure_vms | max_workers | 100 | no | Max number of workers per `FunctionExecutor()`|
-|azure_vms | worker_processes | 2 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker. It is recommendable to set this value to the same number of CPUs of a worker VM. |
+|azure_vms | worker_processes | AUTO | no | Number of parallel Lithops processes in a worker. This is used to parallelize function activations within the worker. By default it detects the amount of CPUs in the `worker_instance_type` VM|
 |azure_vms | runtime | python3 | no | Runtime name to run the functions. Can be a container image name. If not set Lithops will use the default python3 interpreter of the VM |
 |azure_vms | auto_dismantle | True |no | If False then the VM is not stopped automatically.|
 |azure_vms | soft_dismantle_timeout | 300 |no| Time in seconds to stop the VM instance after a job **completed** its execution |
 |azure_vms | hard_dismantle_timeout | 3600 | no | Time in seconds to stop the VM instance after a job **started** its execution |
-|azure_vms | exec_mode | reuse | no | One of: **consume**, **create** or **reuse**. If set to  **create**, Lithops will automatically create new VMs for each map() call based on the number of elements in iterdata. If set to **reuse** will try to reuse running workers if exist |
+|azure_vms | exec_mode | reuse | no | One of: **consume**, **create** or **reuse**. If set to  **create**, Lithops will automatically create new VMs for each map() call based on the number of elements in `iterdata`. If set to **reuse** will try to reuse running workers if exist |
 
 
 ## Test Lithops
@@ -164,7 +164,7 @@ lithops logs poll
 
 ## VM Management
 
-Lithops for Azure VMs follows a Mater-Worker architecrue (1:N).
+Lithops for Azure VMs follows a Mater-Worker architecture (1:N).
 
 All the VMs, including the master VM, are automatically stopped after a configurable timeout (see hard/soft dismantle timeouts).
 
