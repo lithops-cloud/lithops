@@ -41,3 +41,4 @@ python3 -m pip install lithops[ceph]
 |ceph | secret_access_key | |yes | Account user secret access key |
 |ceph | session_token | |no | Session token for temporary AWS credentials |
 |ceph | storage_bucket | | no | The name of a bucket that exists in you account. This will be used by Lithops for intermediate data. Lithops will automatically create a new one if it is not provided |
+|ceph | region | |no | Region name. For example 'eu-west-1'  |
