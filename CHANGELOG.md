@@ -4,6 +4,7 @@
 
 ### Added
 - [CLI] Allow to pass a name in the "lithops runtime list" command
+- [Ceph] Added extra region parameter to Ceph backend
 
 ### Changed
 - [Setup] Removed unused 'lxml', 'docker' and 'python-dateutil' packages from the setup.py
@@ -16,6 +17,7 @@
 - [AWS Lambda] Fixed wrong AWS Lambda delete runtime_name match semantics 
 - [Worker] Fixed potential issue that can appear during 'func_obj' loading from cache
 - [Monitor] Fixed potential 'keyerror' exceptions
+- [Swift] Fixed OpenStack Swift parameters and authentication by adding domain information
 
 
 ## [v3.3.0]

@@ -11,7 +11,7 @@ infinispan_hotrod (native binary) endpoint.
 
 ## Configuration
 
-2. Edit your lithops config file and add the following keys:
+Edit your lithops config file and add the following keys:
 
 ### Rest endpoint
 ```yaml
@@ -30,7 +30,7 @@ infinispan_hotrod (native binary) endpoint.
         - ...
 ```
  
-### Summary of configuration keys for Infinispan:
+#### Summary of configuration keys for Infinispan:
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
@@ -61,7 +61,7 @@ To run this endpoint you need to compile and install the Infinispan python clien
         - ...
 ```
 
-### Summary of configuration keys for Infinispan_hotrod:
+#### Summary of configuration keys for Infinispan_hotrod:
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|

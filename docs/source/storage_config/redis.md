@@ -18,7 +18,7 @@ python3 -m pip install lithops[redis]
 
 ## Configuration
 
-1. Edit your lithops config file and add the following keys:
+Edit your lithops config file and add the following keys:
 
 ```yaml
     lithops:
@@ -35,10 +35,10 @@ python3 -m pip install lithops[redis]
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|redis | host | localhost |no | The host ip adress where you installed the Redis server. |
+|redis | host | localhost |no | The host ip address where you installed the Redis server. |
 |redis | port | 6379 |no | The port where the redis server is listening |
 |redis | username | None |no | The username (if any)|
 |redis | password | None |no | The password you set in the Redis configuration file (if any) |
 |redis | db | 0 |no | Number of database to use |
-|redis | ssl | False |no | Activate ssl conection |
+|redis | ssl | False |no | Activate ssl connection |
 |redis | ... | |no |  All the parameters set in this lithops `redis` config section are directly passed to a [`reds.Redis()`](https://redis-py.readthedocs.io/en/stable/index.html#redis.Redis) instance, so you can set all the same parameters if necessary. |

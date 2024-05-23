@@ -1,6 +1,6 @@
 # Virtual Machine
 
-Lithops can run functions using a remote host or a virtual machine (VM). In this backend, Lithops uses all the available VM CPUs to parallelize the tasks of a job. For testing purposes, it is preferable to have an Ubuntu > 20.04 host.
+Lithops can run functions using a remote host or a virtual machine (VM). In this backend, Lithops uses all the available VM CPUs to parallelize the tasks of a job. For testing purposes, it is preferable to have an Ubuntu > 22.04 host.
 
 ## Configuration
 
@@ -33,13 +33,13 @@ The Docker environment runs the functions within a ``docker container``. In this
 
 ```yaml
 vm:
-    runtime: lithopscloud/ibmcf-python-v38
+    runtime: lithopscloud/ibmcf-python-v312
 ```
 
 or by using the ``runtime`` param in a function executor:
 
 ```python
-fexec = lithops.FunctionExecutor(runtime='lithopscloud/ibmcf-python-v38')
+fexec = lithops.FunctionExecutor(runtime='lithopscloud/ibmcf-python-v312')
 ```
 
 In this backend, you can use any docker image that contains all the required dependencies. For example, the IBM Cloud Functions and Knative runtimes are compatible with it.

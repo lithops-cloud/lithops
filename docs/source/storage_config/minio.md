@@ -15,11 +15,9 @@ python3 -m pip install lithops[minio]
 
 3. Create a new user.
 
-4. Create a new bucket (e.g. `lithops-data`). Remember to update the corresponding Lithops config field with this bucket name.
-
 ## Configuration
 
-3. Edit your lithops config file and add the following keys:
+Edit your lithops config file and add the following keys:
 
 ```yaml
     lithops:
