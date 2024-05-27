@@ -51,7 +51,7 @@ if __name__ == '__main__':
     except Exception as e:
         print(e)
 
-    # Pool.apply con accept positional arguments, key word arguments or both
+    # Pool.apply can accept positional arguments, key word arguments or both
     pool.apply(multiple_args, args=(1, 2, 3))
     pool.apply(multiple_args, kwds={'arg1': 1, 'arg2': 2, 'arg3': 3})
     pool.apply(multiple_args, args=(1, 2), kwds={'arg3': 3})

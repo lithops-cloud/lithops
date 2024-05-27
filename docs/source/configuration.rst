@@ -44,7 +44,7 @@ Configuration File
 To configure Lithops through a `configuration file <https://github.com/lithops-cloud/lithops/blob/master/config/config_template.yaml>`_
 you have multiple options:
 
-1. Create e new file called ``config`` in the ``~/.lithops`` folder.
+1. Create a new file called ``config`` in the ``~/.lithops`` folder.
 
 2. Create a new file called ``.lithops_config`` in the root directory of your project from where you will execute your
    Lithops scripts.
