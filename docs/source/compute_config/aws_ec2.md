@@ -88,6 +88,41 @@ In summary, you can use one of the following settings:
 In the `create` mode, Lithops will automatically create new worker VM instances in runtime, scale Lithops job against generated VMs, and automatically delete the VMs when the job is completed.
 Alternatively, you can set the `reuse` mode to keep running the started worker VMs, and reuse them for further executions. In the `reuse` mode, Lithops checks all the available worker VMs and start new workers only if necessary.
 
+
+### Configuration
+
+1. Navigate to **IAM > Policies**. Click on **Create policy**. If you already created this policy for the AWS Lambda or AWS Batch backend, jump to step 4.
+
+2. Select **JSON** tab and paste the following JSON policy:
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "s3:*",
+                "lambda:*",
+                "ec2:*",
+                "ecr:*",
+                "sts:GetCallerIdentity",
+                "logs:CreateLogGroup",
+                "logs:CreateLogStream",
+                "logs:PutLogEvents"
+            ],
+            "Resource": "*"
+        }
+    ]
+}
+```
+
+3. Click **Next: Tags** and **Next: Review**. Fill the policy name field (you can name it `lithops-policy` or similar) and create the policy.
+
+4. Go back to **IAM** and navigate to **Roles** tab. Click **Create role**.
+
+5. Choose **EC2** on the use case list. Click **Next: Permissions**. Select the policy created before (`lithops-policy`). Click **Next: Tags** and **Next: Review**. Type a role name, for example `lithops-ec2-execution-role`. Click on **Create Role**.
+
+
 ### AWS Credential setup
 
 Lithops loads AWS credentials as specified in the [boto3 configuration guide](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/configuration.html).
@@ -137,7 +172,7 @@ In summary, you can use one of the following settings:
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |aws_ec2 | region | |no | Region name, for example: `eu-west-1`. Lithops will use the `region` set under the `aws` section if it is not set here |
-|aws_ec2 | iam_role | | yes | IAM EC2 role name. You can find it in the [IAM Console page](https://console.aws.amazon.com/iamv2/home#/roles). Create a new EC2 role if it does not exist|
+|aws_ec2 | iam_role | | yes | IAM EC2 role name. You can find it in the [IAM Console page](https://console.aws.amazon.com/iamv2/home#/roles). Create a new EC2 role if it does not exist. Do not use the full ARN here; only the role name is required|
 |aws_ec2 | vpc_id | | no | VPC id. You can find all the available VPCs in the [VPC Console page](https://console.aws.amazon.com/vpc/v2/home#vpcs:) |
 |aws_ec2 | subnet_id | | no | Subnet id. You can find all the available Subnets in the [VPC Console page](https://console.aws.amazon.com/vpc/v2/home#subnets:) |
 |aws_ec2 | security_group_id | | no | Security group ID. You can find the available security groups in the [VPC console page](https://console.aws.amazon.com/vpc/v2/home#SecurityGroups:). The security group must have ports 22 and 8080 open |

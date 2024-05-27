@@ -23,6 +23,37 @@ python3 -m pip install lithops[aws]
 3. Navigate to **IAM > Roles** to create the ECS Instance Role. AWS provides a default role named `ecsInstanceRole`, which can be used instead. If you want to create another role or it is missing, create a new role attached to `EC2`, and add the following policy:
     - `AmazonEC2ContainerServiceforEC2Role`
 
+4. Navigate to **IAM > Policies**. Click on **Create policy**. If you already created this policy for the AWS Lambda or AWS EC2 backend, jump to step 7.
+
+5. Select **JSON** tab and paste the following JSON policy:
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "s3:*",
+                "lambda:*",
+                "ec2:*",
+                "ecr:*",
+                "sts:GetCallerIdentity",
+                "logs:CreateLogGroup",
+                "logs:CreateLogStream",
+                "logs:PutLogEvents"
+            ],
+            "Resource": "*"
+        }
+    ]
+}
+```
+
+6. Click **Next: Tags** and **Next: Review**. Fill the policy name field (you can name it `lithops-policy` or similar) and create the policy.
+
+7. Go back to **IAM** and navigate to **Roles** tab. Click **Create role**.
+
+8. Choose **Elastic Container Service** on the use case list and then click on **Elastic Container Service Task**. Click **Next: Permissions**. Select the policy created before (`lithops-policy`). Click **Next: Tags** and **Next: Review**. Type a role name, for example `ecsTaskJobRole`. Click on **Create Role**.
+
 ## AWS Credential setup
 
 Lithops loads AWS credentials as specified in the [boto3 configuration guide](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/configuration.html).
@@ -90,6 +121,7 @@ In summary, you can use one of the following settings:
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 | aws_batch  | execution_role   |  | yes | ARN of the execution role used to execute AWS Batch tasks on ECS for Fargate environments |
+| aws_batch  | job_role   |  | yes | ARN of the job role used to execute AWS Batch tasks on ECS for Fargate environments|
 | aws_batch  | instance_role    |  | yes | ARN of the execution role used to execute AWS Batch tasks on ECS for EC2 environments |
 | aws_batch  | security_groups  |  | yes | List of Security groups to attach for ECS task containers. By default, you can use a security group that accepts all outbound traffic but blocks all inbound traffic. |
 | aws_batch  | subnets          |  | yes | List of subnets from a VPC where to deploy the ECS task containers. Note that if you are using a **private subnet**, you can set `assign_public_ip` to `false` but make sure containers can reach other AWS services like ECR, Secrets service, etc., by, for example, using a NAT gateway. If you are using a **public subnet** you must set `assign_public_up` to `true` |
