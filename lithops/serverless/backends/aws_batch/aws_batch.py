@@ -276,6 +276,7 @@ class AWSBatchBackend:
             container_properties = {
                 'image': image_name,
                 'executionRoleArn': self.aws_batch_config['execution_role'],
+                'jobRoleArn': self.aws_batch_config['job_role'],
                 'resourceRequirements': [
                     {
                         'type': 'VCPU',

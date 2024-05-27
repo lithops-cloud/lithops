@@ -43,7 +43,7 @@ python3 -m pip install lithops[aws]
 
 5. Go back to **IAM** and navigate to **Roles** tab. Click **Create role**.
 
-6. Choose **Lambda** on the use case list and click **Next: Permissions**. Select the policy created before (`lithops-policy`). Click **Next: Tags** and **Next: Review**. Type a role name, for example `lithops-execution-role`. Click on *Create Role*.
+6. Choose **Lambda** on the use case list and click **Next: Permissions**. Select the policy created before (`lithops-policy`). Click **Next: Tags** and **Next: Review**. Type a role name, for example `lithops-lambda-execution-role`. Click on *Create Role*.
 
 ## AWS Credential setup
 
