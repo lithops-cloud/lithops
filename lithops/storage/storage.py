@@ -37,7 +37,7 @@ COBJECTS_INDEX = itertools.count()
 class Storage:
     """
     An Storage object is used by partitioner and other components to access
-    underlying storage backend without exposing the the implementation details.
+    underlying storage backend without exposing the implementation details.
     """
 
     def __init__(self, config=None, backend=None, storage_config=None):
