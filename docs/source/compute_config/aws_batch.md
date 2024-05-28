@@ -71,13 +71,13 @@ In summary, you can use one of the following settings:
         region : <REGION_NAME>
         execution_role: <EXECUTION_ROLE_ARN>
         instance_role: <INSTANCE_ROLE_ARN>
+        job_role: <JOB_ROLE_ARN>
         subnets:
             - <SUBNET_ID_1>
             - <SUBNET_ID_2>
             - ...
         security_groups:
             - <SECURITY_GROUP_1>
-            - <SECURITY_GROUP_2>
             - ...
     ```
 
@@ -94,13 +94,13 @@ In summary, you can use one of the following settings:
     aws_batch:
         execution_role: <EXECUTION_ROLE_ARN>
         instance_role: <INSTANCE_ROLE_ARN>
+        job_role: <JOB_ROLE_ARN>
         subnets:
             - <SUBNET_ID_1>
             - <SUBNET_ID_2>
             - ...
         security_groups:
             - <SECURITY_GROUP_1>
-            - <SECURITY_GROUP_2>
             - ...
     ```
 
@@ -126,7 +126,7 @@ In summary, you can use one of the following settings:
 | aws_batch  | security_groups  |  | yes | List of Security groups to attach for ECS task containers. By default, you can use a security group that accepts all outbound traffic but blocks all inbound traffic. |
 | aws_batch  | subnets          |  | yes | List of subnets from a VPC where to deploy the ECS task containers. Note that if you are using a **private subnet**, you can set `assign_public_ip` to `false` but make sure containers can reach other AWS services like ECR, Secrets service, etc., by, for example, using a NAT gateway. If you are using a **public subnet** you must set `assign_public_up` to `true` |
 | aws_batch  | region      |  | no | Region name (like `us-east-1`) where to deploy the ECS cluster. Lithops will use the region set under the `aws` section if it is not set here |
-| aws_batch  | assign_public_ip | `true` | no | Assing public IPs to ECS task containers. Set to `true` if the tasks are being deployed in a public subnet. Set to `false` when deploying on a private subnet. |
+| aws_batch  | assign_public_ip | `true` | no | Assign public IPs to ECS task containers. Set to `true` if the tasks are being deployed in a public subnet. Set to `false` when deploying on a private subnet. |
 | aws_batch  | runtime          | `default_runtime-v3X` | no | Runtime name |
 | aws_batch  | runtime_timeout  | 180 | no | Runtime timeout |
 | aws_batch  | runtime_memory   | 1024 | no | Runtime memory |

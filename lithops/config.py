@@ -186,10 +186,6 @@ def default_config(config_file=None, config_data=None, config_overwrite={}, load
         sb_config.load_config(config_data)
         config_data['lithops']['chunksize'] = 0
 
-    for key in c.LITHOPS_DEFAULT_CONFIG_KEYS:
-        if key not in config_data['lithops']:
-            config_data['lithops'][key] = c.LITHOPS_DEFAULT_CONFIG_KEYS[key]
-
     if 'chunksize' not in config_data['lithops']:
         config_data['lithops']['chunksize'] = config_data[backend]['worker_processes']
 
@@ -198,6 +194,10 @@ def default_config(config_file=None, config_data=None, config_overwrite={}, load
         if config_data['lithops']['storage'] == c.LOCALHOST \
            and backend != c.LOCALHOST:
             raise Exception(f'Localhost storage backend cannot be used with {backend}')
+
+    for key in c.LITHOPS_DEFAULT_CONFIG_KEYS:
+        if key not in config_data['lithops']:
+            config_data['lithops'][key] = c.LITHOPS_DEFAULT_CONFIG_KEYS[key]
 
     return config_data
 
