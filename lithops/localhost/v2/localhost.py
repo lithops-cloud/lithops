@@ -46,6 +46,10 @@ from lithops.utils import (
     is_podman,
     is_unix_system
 )
+from lithops.localhost.config import (
+    LocvalhostEnvironment,
+    get_environment
+)
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +68,7 @@ class LocalhostHandlerV2:
         logger.debug('Creating Localhost compute client')
         self.config = localhost_config
         self.runtime_name = self.config['runtime']
-        self.environment = self.config['environment']
+        self.environment = get_environment(self.runtime_name)
 
         self.env = None
         self.job_manager = None
@@ -83,7 +87,7 @@ class LocalhostHandlerV2:
         """
         Init tasks for localhost
         """
-        if self.environment == 'default':
+        if self.environment == LocvalhostEnvironment.DEFAULT:
             self.env = DefaultEnvironment(self.config)
         else:
             self.env = ContainerEnvironment(self.config)

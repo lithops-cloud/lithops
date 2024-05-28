@@ -15,6 +15,7 @@
 import os
 import re
 import sys
+from enum import Enum
 
 
 DEFAULT_CONFIG_KEYS = {
@@ -23,6 +24,23 @@ DEFAULT_CONFIG_KEYS = {
 }
 
 LOCALHOST_EXECUTION_TIMEOUT = 3600
+
+
+class LocvalhostEnvironment(Enum):
+    DEFAULT = "default"
+    CONTAINER = "container"
+
+
+def get_environment(runtime_name):
+
+    windows_path_pattern = re.compile(r'^[A-Za-z]:\\.*$')
+    if runtime_name.startswith(('python', '/')) \
+       or windows_path_pattern.match(runtime_name) is not None:
+        environment = LocvalhostEnvironment.DEFAULT
+    else:
+        environment = LocvalhostEnvironment.CONTAINER
+
+    return environment
 
 
 def load_config(config_data):
@@ -41,12 +59,3 @@ def load_config(config_data):
 
     if 'storage' not in config_data['lithops']:
         config_data['lithops']['storage'] = 'localhost'
-
-    windows_path_pattern = re.compile(r'^[A-Za-z]:\\.*$')
-    runtime_name = config_data['localhost']['runtime']
-
-    if runtime_name.startswith(('python', '/')) \
-       or windows_path_pattern.match(runtime_name) is not None:
-        config_data['localhost']['environment'] = 'default'
-    else:
-        config_data['localhost']['environment'] = 'container'
