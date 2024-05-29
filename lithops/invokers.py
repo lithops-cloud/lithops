@@ -133,7 +133,7 @@ class Invoker:
 
     def _create_payload(self, job):
         """
-        Creates the default pyload dictionary
+        Creates the default payload dictionary
         """
         payload = {
             'config': self.config,
