@@ -12,13 +12,14 @@
 - [Future] Exposed 'wait_dur_sec' and 'retries' in future.wait() and future.get_result() methods
 - [Localhost] Upgraded localhost backend v2 and set it as the default localhost backend
 - [Localhost] Set monitoring_interval to 0.1 in the localhost storage backend
+- [AWS Batch] Updated CPU and Memory resource limits
 
 ### Fixed
 - [AWS Lambda] Fixed wrong AWS Lambda delete runtime_name match semantics 
 - [Worker] Fixed potential issue that can appear during 'func_obj' loading from cache
 - [Monitor] Fixed potential 'keyerror' exceptions
 - [Swift] Fixed OpenStack Swift parameters and authentication by adding domain information
-- [AWS Batch] Fixed missing ecsTaskJobRole & Updated resource limits
+- [AWS Batch] Fixed missing ecsTaskJobRole
 
 ## [v3.3.0]
 

@@ -110,19 +110,19 @@ def load_config(config_data):
 
     if config_data['aws_batch']['env_type'] in {'FARGATE', 'FARGATE_SPOT'}:
         runtime_memory = config_data['aws_batch']['runtime_memory']
-        container_vcpu = config_data['aws_batch']['runtime_cpu']
+        runtime_cpu = config_data['aws_batch']['runtime_cpu']
         env_type = config_data['aws_batch']['env_type']
         cpu_keys = list(AVAILABLE_CPU_MEM_FARGATE.keys())
-        if container_vcpu not in cpu_keys:
+        if runtime_cpu not in cpu_keys:
             raise Exception(
-                f"'{container_vcpu}' runtime cpu is not available for the {env_type} environment "
+                f"'{runtime_cpu}' runtime cpu is not available for the {env_type} environment "
                 f"(choose one of {', '.join(map(str, cpu_keys))})"
             )
-        mem_keys = AVAILABLE_CPU_MEM_FARGATE[container_vcpu]
+        mem_keys = AVAILABLE_CPU_MEM_FARGATE[runtime_cpu]
         if config_data['aws_batch']['runtime_memory'] not in mem_keys:
             raise Exception(
-                f"'{runtime_memory}' runtime memory is not valid for {container_vcpu} "
-                f"vCPU and the {env_type} environment (for {container_vcpu}vCPU "
+                f"'{runtime_memory}' runtime memory is not valid for {runtime_cpu} "
+                f"vCPU and the {env_type} environment (for {runtime_cpu}vCPU "
                 f"choose one of {', '.join(map(str, mem_keys))})"
             )
 
