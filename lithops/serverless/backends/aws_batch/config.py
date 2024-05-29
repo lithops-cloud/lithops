@@ -22,24 +22,29 @@ logger = logging.getLogger(__name__)
 ENV_TYPES = {'EC2', 'SPOT', 'FARGATE', 'FARGATE_SPOT'}
 RUNTIME_ZIP = 'lithops_aws_batch.zip'
 
-AVAILABLE_MEM_FARGATE = [512] + [1024 * i for i in range(1, 31)]
-AVAILABLE_CPU_FARGATE = [0.25, 0.5, 1, 2, 4]
+# https://docs.aws.amazon.com/batch/latest/APIReference/API_ResourceRequirement.html
+AVAILABLE_CPU_MEM_FARGATE = {
+    0.25: [512, 1024, 2048],
+    0.5: [1024, 2048, 3072, 4096],
+    1: [2048, 3072, 4096, 5120, 6144, 7168, 8192],
+    2: [4096, 5120, 6144, 7168, 8192, 9216, 10240, 11264, 12288, 13312, 14336, 15360, 16384],
+    4: [8192 + 1024 * i for i in range(21)],  # Starts at 8192, increments by 1024 up to 30720
+    8: [16384 + 4096 * i for i in range(12)],  # Starts at 16384, increments by 4096 up to 61440
+    16: [32768 + 8192 * i for i in range(12)]  # Starts at 32768, increments by 8192 up to 122880
+}
 
 DEFAULT_CONFIG_KEYS = {
     'runtime_timeout': 180,  # Default: 180 seconds => 3 minutes
     'runtime_memory': 1024,  # Default memory: 1GB
+    'runtime_cpu': 0.5,
     'worker_processes': 1,
-    'container_vcpus': 0.5,
     'env_max_cpus': 10,
     'env_type': 'FARGATE_SPOT',
     'assign_public_ip': True,
     'subnets': []
 }
 
-RUNTIME_TIMEOUT_MAX = 7200  # Max. timeout: 7200s == 2h
-RUNTIME_MEMORY_MAX = 30720  # Max. memory: 30720 MB
-
-REQ_PARAMS = ('execution_role', 'instance_role', 'security_groups')
+REQ_PARAMS = ('execution_role', 'security_groups')
 
 DOCKERFILE_DEFAULT = """
 RUN apt-get update && apt-get install -y \
@@ -58,7 +63,8 @@ RUN pip install --upgrade --ignore-installed setuptools six pip \
         numpy \
         cloudpickle \
         ps-mem \
-        tblib
+        tblib \
+        psutil
 
 # Copy Lithops proxy and lib to the container image.
 ENV APP_HOME /lithops
@@ -73,7 +79,7 @@ ENTRYPOINT python entry_point.py
 
 def load_config(config_data):
 
-    if not config_data['aws_batch']:
+    if 'aws_batch' not in config_data or not config_data['aws_batch']:
         raise Exception("'aws_batch' section is mandatory in the configuration")
 
     if 'aws' not in config_data:
@@ -92,37 +98,40 @@ def load_config(config_data):
         if key not in config_data['aws_batch']:
             config_data['aws_batch'][key] = DEFAULT_CONFIG_KEYS[key]
 
-    if config_data['aws_batch']['runtime_memory'] > RUNTIME_MEMORY_MAX:
-        logger.warning("Memory set to {} - {} exceeds "
-                       "the maximum amount".format(RUNTIME_MEMORY_MAX, config_data['aws_batch']['runtime_memory']))
-        config_data['aws_batch']['runtime_memory'] = RUNTIME_MEMORY_MAX
-
-    if config_data['aws_batch']['runtime_timeout'] > RUNTIME_TIMEOUT_MAX:
-        logger.warning("Timeout set to {} - {} exceeds the "
-                       "maximum amount".format(RUNTIME_TIMEOUT_MAX, config_data['aws_batch']['runtime_timeout']))
-        config_data['aws_batch']['runtime_timeout'] = RUNTIME_TIMEOUT_MAX
-
-    config_data['aws_batch']['max_workers'] = config_data['aws_batch']['env_max_cpus'] // config_data['aws_batch']['container_vcpus']
-
     if config_data['aws_batch']['env_type'] not in ENV_TYPES:
         raise Exception(
-            'AWS Batch env type must be one of {} (is {})'.format(ENV_TYPES, config_data['aws_batch']['env_type']))
+            f"AWS Batch env type must be one of {ENV_TYPES} "
+            f"(is {config_data['aws_batch']['env_type']})"
+        )
 
-    if config_data['aws_batch']['env_type'] in {'FARGATE, FARGATE_SPOT'}:
-        if config_data['aws_batch']['container_vcpus'] not in AVAILABLE_CPU_FARGATE:
-            raise Exception('{} container vcpus is not available for {} environment (choose one of {})'.format(
-                config_data['aws_batch']['runtime_memory'], config_data['aws_batch']['env_type'],
-                AVAILABLE_CPU_FARGATE
-            ))
-        if config_data['aws_batch']['runtime_memory'] not in AVAILABLE_MEM_FARGATE:
-            raise Exception('{} runtime memory is not available for {} environment (choose one of {})'.format(
-                config_data['aws_batch']['runtime_memory'], config_data['aws_batch']['env_type'],
-                AVAILABLE_MEM_FARGATE
-            ))
+    # container_vcpus is deprectaded. To be removed in a future release
+    if 'container_vcpus' in config_data['aws_batch']:
+        config_data['aws_batch']['runtime_cpu'] = config_data['aws_batch']['container_vcpus']
+
+    if config_data['aws_batch']['env_type'] in {'FARGATE', 'FARGATE_SPOT'}:
+        runtime_memory = config_data['aws_batch']['runtime_memory']
+        container_vcpu = config_data['aws_batch']['runtime_cpu']
+        env_type = config_data['aws_batch']['env_type']
+        cpu_keys = list(AVAILABLE_CPU_MEM_FARGATE.keys())
+        if container_vcpu not in cpu_keys:
+            raise Exception(
+                f"'{container_vcpu}' runtime cpu is not available for the {env_type} environment "
+                f"(choose one of {', '.join(map(str, cpu_keys))})"
+            )
+        mem_keys = AVAILABLE_CPU_MEM_FARGATE[container_vcpu]
+        if config_data['aws_batch']['runtime_memory'] not in mem_keys:
+            raise Exception(
+                f"'{runtime_memory}' runtime memory is not valid for {container_vcpu} "
+                f"vCPU and the {env_type} environment (for {container_vcpu}vCPU "
+                f"choose one of {', '.join(map(str, mem_keys))})"
+            )
 
     if config_data['aws_batch']['env_type'] in {'EC2', 'SPOT'}:
         if 'instance_role' not in config_data['aws_batch']:
             raise Exception("'instance_role' mandatory for EC2 or SPOT environments")
+
+    config_data['aws_batch']['max_workers'] = config_data['aws_batch']['env_max_cpus'] \
+        // config_data['aws_batch']['runtime_cpu']
 
     assert isinstance(config_data['aws_batch']['assign_public_ip'], bool)
 

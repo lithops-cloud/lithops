@@ -18,7 +18,7 @@
 - [Worker] Fixed potential issue that can appear during 'func_obj' loading from cache
 - [Monitor] Fixed potential 'keyerror' exceptions
 - [Swift] Fixed OpenStack Swift parameters and authentication by adding domain information
-- [AWS Batch] Fixed missing ecsTaskJobRole
+- [AWS Batch] Fixed missing ecsTaskJobRole & Updated resource limits
 
 ## [v3.3.0]
 

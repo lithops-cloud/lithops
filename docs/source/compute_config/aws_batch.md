@@ -70,7 +70,6 @@ In summary, you can use one of the following settings:
     aws_batch:
         region : <REGION_NAME>
         execution_role: <EXECUTION_ROLE_ARN>
-        instance_role: <INSTANCE_ROLE_ARN>
         job_role: <JOB_ROLE_ARN>
         subnets:
             - <SUBNET_ID_1>
@@ -81,7 +80,7 @@ In summary, you can use one of the following settings:
             - ...
     ```
 
-2. Provide the credentials in the `aws` section of the Lithops config file:
+2. Provide the credentials in the `aws` section of the Lithops config file. In this case you can omit setting the `job_role`:
     ```yaml
     lithops:
         backend: aws_batch
@@ -93,8 +92,7 @@ In summary, you can use one of the following settings:
 
     aws_batch:
         execution_role: <EXECUTION_ROLE_ARN>
-        instance_role: <INSTANCE_ROLE_ARN>
-        job_role: <JOB_ROLE_ARN>
+        job_role: <JOB_ROLE_ARN>  # Not mandatory if the credentials are in the aws section
         subnets:
             - <SUBNET_ID_1>
             - <SUBNET_ID_2>
@@ -121,17 +119,17 @@ In summary, you can use one of the following settings:
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 | aws_batch  | execution_role   |  | yes | ARN of the execution role used to execute AWS Batch tasks on ECS for Fargate environments |
-| aws_batch  | job_role   |  | yes | ARN of the job role used to execute AWS Batch tasks on ECS for Fargate environments|
-| aws_batch  | instance_role    |  | yes | ARN of the execution role used to execute AWS Batch tasks on ECS for EC2 environments |
+| aws_batch  | job_role   |  | yes | ARN of the job role used to execute AWS Batch tasks on ECS for Fargate environments. Not mandatory if the credentials are in the `aws` section of the configuration|
 | aws_batch  | security_groups  |  | yes | List of Security groups to attach for ECS task containers. By default, you can use a security group that accepts all outbound traffic but blocks all inbound traffic. |
 | aws_batch  | subnets          |  | yes | List of subnets from a VPC where to deploy the ECS task containers. Note that if you are using a **private subnet**, you can set `assign_public_ip` to `false` but make sure containers can reach other AWS services like ECR, Secrets service, etc., by, for example, using a NAT gateway. If you are using a **public subnet** you must set `assign_public_up` to `true` |
+| aws_batch  | instance_role    |  | no | ARN of the execution role used to execute AWS Batch tasks on ECS for EC2 environments. Mandatory if using the **EC2** or **SPOT** `env_type` |
 | aws_batch  | region      |  | no | Region name (like `us-east-1`) where to deploy the ECS cluster. Lithops will use the region set under the `aws` section if it is not set here |
 | aws_batch  | assign_public_ip | `true` | no | Assign public IPs to ECS task containers. Set to `true` if the tasks are being deployed in a public subnet. Set to `false` when deploying on a private subnet. |
-| aws_batch  | runtime          | `default_runtime-v3X` | no | Runtime name |
-| aws_batch  | runtime_timeout  | 180 | no | Runtime timeout |
-| aws_batch  | runtime_memory   | 1024 | no | Runtime memory |
-| aws_batch  | worker_processes | 1 | no | Worker processes |
-| aws_batch  | container_vcpus  | 0.5 | no | Number of vCPUs assigned to each task container. It can be different from `worker_processes`. Use it to run a task that uses multiple processes within a container. |
+| aws_batch  | runtime          |  | no | Container runtime name in ECR. If not provided Lithops will automatically build a default runtime |
+| aws_batch  | runtime_timeout  | 180 | no | Runtime timeout managed by the cloud provider. |
+| aws_batch  | runtime_memory   | 1024 | no | Runtime memory assigned to each task container. |
+| aws_batch  | runtime_cpu      | 0.5 | no | Number of vCPUs assigned to each task container. It can be different from `worker_processes`. |
+| aws_batch  | worker_processes | 1 | no |  Number of parallel Lithops processes in a worker. This is used to parallelize function activations within the worker. |
 | aws_batch  | service_role     | `None` | no | Service role for AWS Batch. Leave empty to use a service-linked execution role. More info [here](https://docs.aws.amazon.com/batch/latest/userguide/using-service-linked-roles.html) |
 | aws_batch  | env_max_cpus     | 10 | no | Maximum total CPUs of the compute environment  |
 | aws_batch  | env_type         | FARGATE_SPOT | no | Compute environment type, one of: `["EC2", "SPOT", "FARGATE", "FARGATE_SPOT"]` |
