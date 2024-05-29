@@ -280,7 +280,7 @@ class AWSBatchBackend:
                 'resourceRequirements': [
                     {
                         'type': 'VCPU',
-                        'value': str(self.aws_batch_config['container_vcpus'])
+                        'value': str(self.aws_batch_config['runtime_cpu'])
                     },
                     {
                         'type': 'MEMORY',
