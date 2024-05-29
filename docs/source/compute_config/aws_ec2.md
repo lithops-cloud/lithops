@@ -120,7 +120,7 @@ Alternatively, you can set the `reuse` mode to keep running the started worker V
 
 4. Go back to **IAM** and navigate to **Roles** tab. Click **Create role**.
 
-5. Choose **EC2** on the use case list. Click **Next: Permissions**. Select the policy created before (`lithops-policy`). Click **Next: Tags** and **Next: Review**. Type a role name, for example `lithops-ec2-execution-role`. Click on **Create Role**.
+5. Choose **EC2** on the use case list. Click **Next: Permissions**. Select the policy created before (`lithops-policy`). Click **Next: Tags** and **Next: Review**. Type a role name, for example `ec2LithopsInstanceRole`. Click on **Create Role**.
 
 
 ### AWS Credential setup
@@ -138,7 +138,7 @@ In summary, you can use one of the following settings:
 
     aws_ec2:
         region : <REGION_NAME>
-        iam_role: <IAM_ROLE_NAME>
+        instance_role: <IAM_INSTANCE_ROLE_NAME>
         exec_mode: reuse
     ```
 
@@ -153,7 +153,7 @@ In summary, you can use one of the following settings:
         region: <REGION_NAME>
 
     aws_ec2:
-        iam_role: <IAM_ROLE_NAME>
+        instance_role: <IAM_INSTANCE_ROLE_NAME>
         exec_mode: reuse
     ```
 
@@ -172,7 +172,7 @@ In summary, you can use one of the following settings:
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |aws_ec2 | region | |no | Region name, for example: `eu-west-1`. Lithops will use the `region` set under the `aws` section if it is not set here |
-|aws_ec2 | iam_role | | yes | IAM EC2 role name. You can find it in the [IAM Console page](https://console.aws.amazon.com/iamv2/home#/roles). Create a new EC2 role if it does not exist. Do not use the full ARN here; only the role name is required|
+|aws_ec2 | instance_role | | yes | EC2 Instance role name created in the configuration section above. Do not use the full ARN here; only the role name is required. For example: `ec2LithopsInstanceRole`|
 |aws_ec2 | vpc_id | | no | VPC id. You can find all the available VPCs in the [VPC Console page](https://console.aws.amazon.com/vpc/v2/home#vpcs:) |
 |aws_ec2 | subnet_id | | no | Subnet id. You can find all the available Subnets in the [VPC Console page](https://console.aws.amazon.com/vpc/v2/home#subnets:) |
 |aws_ec2 | security_group_id | | no | Security group ID. You can find the available security groups in the [VPC console page](https://console.aws.amazon.com/vpc/v2/home#SecurityGroups:). The security group must have ports 22 and 8080 open |

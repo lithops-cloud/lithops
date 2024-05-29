@@ -32,7 +32,7 @@ DEFAULT_CONFIG_KEYS = {
 }
 
 REQ_PARAMS_1 = ('instance_id',)
-REQ_PARAMS_2 = ('iam_role',)
+REQ_PARAMS_2 = ('instance_role',)
 
 
 def load_config(config_data):
@@ -65,6 +65,10 @@ def load_config(config_data):
         config_data['aws_ec2']['max_workers'] = 1
     else:
         params_to_check = REQ_PARAMS_2
+
+    # iam_role is deprectaded. To be removed in a future release
+    if 'iam_role' in config_data['aws_ec2']:
+        config_data['aws_ec2']['instance_role'] = config_data['aws_ec2'].pop('iam_role')
 
     for param in params_to_check:
         if param not in config_data['aws_ec2']:

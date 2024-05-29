@@ -106,7 +106,7 @@ def load_config(config_data):
 
     # container_vcpus is deprectaded. To be removed in a future release
     if 'container_vcpus' in config_data['aws_batch']:
-        config_data['aws_batch']['runtime_cpu'] = config_data['aws_batch']['container_vcpus']
+        config_data['aws_batch']['runtime_cpu'] = config_data['aws_batch'].pop('container_vcpus')
 
     if config_data['aws_batch']['env_type'] in {'FARGATE', 'FARGATE_SPOT'}:
         runtime_memory = config_data['aws_batch']['runtime_memory']
