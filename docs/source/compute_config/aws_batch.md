@@ -130,7 +130,7 @@ In summary, you can use one of the following settings:
 | aws_batch  | runtime_memory   | 1024 | no | Runtime memory assigned to each task container. |
 | aws_batch  | runtime_cpu      | 0.5 | no | Number of vCPUs assigned to each task container. It can be different from `worker_processes`. |
 | aws_batch  | worker_processes | 1 | no |  Number of parallel Lithops processes in a worker. This is used to parallelize function activations within the worker. |
-| aws_batch  | service_role     | `None` | no | Service role for AWS Batch. Leave empty to use a service-linked execution role. More info [here](https://docs.aws.amazon.com/batch/latest/userguide/using-service-linked-roles.html) |
+| aws_batch  | service_role     | | no | Service role for AWS Batch. Leave empty to use a service-linked execution role. More info [here](https://docs.aws.amazon.com/batch/latest/userguide/using-service-linked-roles.html) |
 | aws_batch  | env_max_cpus     | 10 | no | Maximum total CPUs of the compute environment  |
 | aws_batch  | env_type         | FARGATE_SPOT | no | Compute environment type, one of: `["EC2", "SPOT", "FARGATE", "FARGATE_SPOT"]` |
 
