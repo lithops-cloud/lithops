@@ -10,6 +10,12 @@ Execution summary plots
 
 The :code:`plot()` method from :code:`FunctionExecutor` creates a scatter plot and a histogram plot showing a summary of the tasks executed by a :code:`FunctionExecutor`. By default, lithops creates a :code:`plots/` directory in the working directory path containing both plots in PNG format. For more details refer to the `FunctionExecutor API reference <https://lithops-cloud.github.io/docs/source/api_futures.html>`_.
 
+To get started, first install Lithops and the plotting dependencies with:
+
+.. code-block:: bash
+
+   python3 -m pip install lithops[plotting]
+
 * **Scatter Plot**: the scatter plot shows a timeline on the horizontal axis where the stages of all invocations are arranged on the vertical axis.
     - :code:`host submit` indicates the time that the orchestrator process has invoked the function.
     - :code:`call start` indicates the timestamp at which the function starts its execution.
