@@ -543,8 +543,13 @@ class FunctionExecutor:
             logger.debug(f'ExecutorID {self.executor_id} - No futures ready to plot')
             return
 
-        logging.getLogger('matplotlib').setLevel(logging.WARNING)
-        from lithops.plots import create_timeline, create_histogram
+        try:
+            logging.getLogger('matplotlib').setLevel(logging.WARNING)
+            from lithops.plots import create_timeline, create_histogram
+        except ImportError:
+            raise ModuleNotFoundError(
+                "Please install 'pip3 install lithops[plotting]' for "
+                "making use of the plot() method")
 
         logger.info(f'ExecutorID {self.executor_id} - Creating execution plots')
 
@@ -628,8 +633,13 @@ class FunctionExecutor:
 
         :param cloud_objects_n: number of cloud object used in COS, declared by user.
         """
-        import pandas as pd
-        import numpy as np
+        try:
+            import pandas as pd
+            import numpy as np
+        except ImportError:
+            raise ModuleNotFoundError(
+                "Please install 'pip3 install lithops[plotting]' for "
+                "making use of the job_summary() method")
 
         def init():
             headers = ['Job_ID', 'Function', 'Invocations', 'Memory(MB)', 'AvgRuntime', 'Cost', 'CloudObjects']
