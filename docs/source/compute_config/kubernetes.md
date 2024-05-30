@@ -2,6 +2,13 @@
 
 Lithops with kubernetes as serverless compute backend.
 
+## Installation
+
+1. Install kubernetes backend dependencies:
+
+```bash
+python3 -m pip install lithops[kubernetes]
+```
 
 ## Configuration
 

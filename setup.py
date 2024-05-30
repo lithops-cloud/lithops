@@ -15,10 +15,6 @@ install_requires = [
     'seaborn',
     'paramiko',
     'matplotlib',
-    'kubernetes',
-    'ibm-cos-sdk',
-    'ibm-code-engine-sdk',
-    'ibm-vpc',
     'cloudpickle',
     'tblib',
     'ps-mem',
@@ -51,6 +47,18 @@ extras_require = {
     ],
     'ceph': [
         'boto3'
+    ],
+    'ibm': [
+        'ibm-cos-sdk',
+        'ibm-code-engine-sdk',
+        'ibm-vpc',
+        'kubernetes',
+    ],
+    'knative': [
+        'kubernetes',
+    ],
+    'kubernetes': [
+        'kubernetes',
     ],
     'minio': [
         'boto3'

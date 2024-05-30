@@ -14,6 +14,14 @@ All of these changes are **ideal** for pipelines where launching **hundreds of p
 
 * **Resource Utilization:** In this backend, CPU assignment is employed by allocating identifiers to each CPU. This approach facilitates more effective resource management within our cluster, enabling the creation of pods that by default match the entire capacity of a machine (worker_processes) and allowing the launch of precisely the number of tasks that can run concurrently.
 
+## Installation
+
+1. Install kubernetes backend dependencies:
+
+```bash
+python3 -m pip install lithops[kubernetes]
+```
+
 ## Configuration
 
 1. Edit your Lithops config and add the following keys:
