@@ -1,12 +1,31 @@
 # Changelog
 
-## [v3.3.1.dev0]
+## [v3.4.1.dev0]
+
+### Added
+- 
+
+### Changed
+- 
+
+### Fixed
+- 
+
+## [v3.4.0]
 
 ### Added
 - [CLI] Allow to pass a name in the "lithops runtime list" command
 - [Ceph] Added extra region parameter to Ceph backend
 
 ### Changed
+- [Setup] Moved IBM dependencies to lithops[ibm] extra
+- [Setup] Moved AWS dependencies to lithops[aws] extra
+- [Setup] Moved kubernetes dependencies to lithops[kubernetes] extra
+- [Setup] Moved knative dependencies to lithops[knative] extra
+- [Setup] Moved minio dependencies to lithops[minio] extra
+- [Setup] Moved ceph dependencies to lithops[ceph] extra
+- [Setup] Moved redis dependencies to lithops[redis] extra
+- [Setup] Moved matplotlib, seaborn, numpy and pandas dependencies to lithops[plotting] extra
 - [Setup] Removed unused 'lxml', 'docker' and 'python-dateutil' packages from the setup.py
 - [Core] Detached progress bar from INFO logs
 - [Future] Exposed 'wait_dur_sec' and 'retries' in future.wait() and future.get_result() methods
@@ -20,6 +39,7 @@
 - [Monitor] Fixed potential 'keyerror' exceptions
 - [Swift] Fixed OpenStack Swift parameters and authentication by adding domain information
 - [AWS Batch] Fixed missing ecsTaskJobRole
+
 
 ## [v3.3.0]
 
