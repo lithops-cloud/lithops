@@ -6,15 +6,13 @@ from itertools import chain
 install_requires = [
     'Click',
     'tabulate',
-    'pandas',
+    'six',
     'PyYAML',
     'pika',
     'tqdm',
     'tblib',
     'requests',
-    'seaborn',
     'paramiko',
-    'matplotlib',
     'cloudpickle',
     'tblib',
     'ps-mem',
@@ -23,19 +21,21 @@ install_requires = [
 
 
 extras_require = {
+    'ibm': [
+        'ibm-cos-sdk',
+        'ibm-code-engine-sdk',
+        'ibm-vpc',
+        'kubernetes',
+    ],
+    'aws': [
+        'boto3'
+    ],
     'gcp': [
         'httplib2',
         'google-cloud-storage',
         'google-cloud-pubsub',
         'google-api-python-client',
         'google-auth'
-    ],
-    'aliyun': [
-        'aliyun-fc2',
-        'oss2'
-    ],
-    'aws': [
-        'boto3'
     ],
     'azure': [
         'azure-mgmt-resource',
@@ -45,14 +45,12 @@ extras_require = {
         'azure-storage-blob',
         'azure-storage-queue'
     ],
+    'aliyun': [
+        'aliyun-fc2',
+        'oss2'
+    ],
     'ceph': [
         'boto3'
-    ],
-    'ibm': [
-        'ibm-cos-sdk',
-        'ibm-code-engine-sdk',
-        'ibm-vpc',
-        'kubernetes',
     ],
     'knative': [
         'kubernetes',
@@ -73,6 +71,12 @@ extras_require = {
     'joblib': [
         'joblib',
         'diskcache',
+        'numpy'
+    ],
+    'plotting': [
+        'pandas',
+        'matplotlib',
+        'seaborn',
         'numpy'
     ],
     'oracle': [
@@ -110,9 +114,6 @@ setup(
         'Operating System :: OS Independent',
         'Natural Language :: English',
         'License :: OSI Approved :: Apache Software License',
-        'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.6',
-        'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3.10',
