@@ -1,0 +1,9 @@
+lithops:
+  backend: k8s
+one:
+  # PATH to OneKE JSON config
+  oneke_config:
+  # ID for Public vnet (if not passed: service default network or create a new one)
+  public_vnet_id:
+  # ID for Private vnet (if not passed: create a new one)
+  private_vnet_id:
