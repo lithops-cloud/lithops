@@ -114,7 +114,10 @@ class LocalhostHandlerV1:
                 logger.debug(f'ExecutorID {executor_id} | JobID {job_id} - Running '
                              f'{total_calls} activations in the localhost worker')
                 process = self.env.run_job(job_key, job_filename)
-                process.communicate()  # blocks until the process finishes
+                stdout, stderr = process.communicate()  # blocks until the process finishes
+                if process.returncode != 0:
+                    logger.error(f"ExecutorID {executor_id} | JobID {job_id} - Job failed with return code {process.returncode}")
+                    logger.error(f"ExecutorID {executor_id} | JobID {job_id} - Error output from job process: {stderr}")
                 logger.debug(f'ExecutorID {executor_id} | JobID {job_id} - Execution finished')
 
                 if self.job_queue.empty():
@@ -301,7 +304,7 @@ class DefaultEnvironment(ExecutionEnvironment):
             self.setup()
 
         cmd = [self.runtime_name, RUNNER_FILE, 'run_job', job_filename]
-        process = sp.Popen(cmd, start_new_session=True)
+        process = sp.Popen(cmd, stdout=sp.PIPE, stderr=sp.PIPE, start_new_session=True)
         self.jobs[job_key] = process
 
         return process
@@ -369,7 +372,7 @@ class ContainerEnvironment(ExecutionEnvironment):
         cmd += f'--rm -v {tmp_path}:/tmp --entrypoint "python3" '
         cmd += f'{self.runtime_name} /tmp/{USER_TEMP_DIR}/localhost-runner.py run_job {job_filename}'
 
-        process = sp.Popen(shlex.split(cmd), start_new_session=True)
+        process = sp.Popen(shlex.split(cmd), stdout=sp.PIPE, stderr=sp.PIPE, start_new_session=True)
         self.jobs[job_key] = process
 
         return process

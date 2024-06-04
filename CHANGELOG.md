@@ -3,7 +3,7 @@
 ## [v3.4.1.dev0]
 
 ### Added
-- 
+- [Localhost] Added error capturing and logging for job/task process failures
 
 ### Changed
 - 
@@ -18,13 +18,9 @@
 - [Ceph] Added extra region parameter to Ceph backend
 
 ### Changed
-- [Setup] Moved IBM dependencies to lithops[ibm] extra
-- [Setup] Moved AWS dependencies to lithops[aws] extra
-- [Setup] Moved kubernetes dependencies to lithops[kubernetes] extra
-- [Setup] Moved knative dependencies to lithops[knative] extra
-- [Setup] Moved minio dependencies to lithops[minio] extra
-- [Setup] Moved ceph dependencies to lithops[ceph] extra
-- [Setup] Moved redis dependencies to lithops[redis] extra
+- [Setup] Moved IBM and AWS deps to lithops[ibm] and lithops[aws] extra
+- [Setup] Moved kubernetes and knative deps to lithops[kubernetes] and lithops[knative] extra
+- [Setup] Moved minio, ceph and redis deps to lithops[minio], lithops[ceph] and lithops[redis] extra
 - [Setup] Moved matplotlib, seaborn, numpy and pandas dependencies to lithops[plotting] extra
 - [Setup] Removed unused 'lxml', 'docker' and 'python-dateutil' packages from the setup.py
 - [Core] Detached progress bar from INFO logs

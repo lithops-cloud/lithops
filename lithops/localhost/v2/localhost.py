@@ -321,9 +321,12 @@ class DefaultEnvironment(ExecutionEnvironment):
 
         logger.debug(f"Going to execute task process {job_key_call_id}")
         cmd = [self.runtime_name, RUNNER_FILE, 'run_job', task_filename]
-        process = sp.Popen(cmd, start_new_session=True)
+        process = sp.Popen(cmd, stdout=sp.PIPE, stderr=sp.PIPE, start_new_session=True)
         self.task_processes[job_key_call_id] = process
-        process.communicate()  # blocks until the process finishes
+        stdout, stderr = process.communicate()  # blocks until the process finishes
+        if process.returncode != 0:
+            logger.error(f"Task process {job_key_call_id} failed with return code {process.returncode}")
+            logger.error(f"Error output from task process {job_key_call_id}: {stderr}")
         del self.task_processes[job_key_call_id]
         logger.debug(f"Task process {job_key_call_id} finished")
 
@@ -434,9 +437,12 @@ class ContainerEnvironment(ExecutionEnvironment):
         cmd += f'"python3 /tmp/{USER_TEMP_DIR}/localhost-runner.py '
         cmd += f'run_job {docker_task_filename}"'
 
-        process = sp.Popen(shlex.split(cmd), start_new_session=True)
+        process = sp.Popen(shlex.split(cmd), stdout=sp.PIPE, stderr=sp.PIPE, start_new_session=True)
         self.task_processes[job_key_call_id] = process
-        process.communicate()  # blocks until the process finishes
+        stdout, stderr = process.communicate()  # blocks until the process finishes
+        if process.returncode != 0:
+            logger.error(f"Task process {job_key_call_id} failed with return code {process.returncode}")
+            logger.error(f"Error output from task process {job_key_call_id}: {stderr}")
         del self.task_processes[job_key_call_id]
         logger.debug(f"Task process {job_key_call_id} finished")
 
