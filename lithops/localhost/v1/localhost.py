@@ -114,10 +114,10 @@ class LocalhostHandlerV1:
                 logger.debug(f'ExecutorID {executor_id} | JobID {job_id} - Running '
                              f'{total_calls} activations in the localhost worker')
                 process = self.env.run_job(job_key, job_filename)
-                stdout, stderr = process.communicate()  # blocks until the process finishes
+                process.communicate()  # blocks until the process finishes
                 if process.returncode != 0:
-                    logger.error(f"ExecutorID {executor_id} | JobID {job_id} - Job failed with return code {process.returncode}")
-                    logger.error(f"ExecutorID {executor_id} | JobID {job_id} - Error output from job process: {stderr}")
+                    logger.error(f"ExecutorID {executor_id} | JobID {job_id} - Job "
+                                 f"process failed with return code {process.returncode}")
                 logger.debug(f'ExecutorID {executor_id} | JobID {job_id} - Execution finished')
 
                 if self.job_queue.empty():

@@ -58,20 +58,9 @@ def get_function_and_modules(job, internal_storage):
         func_path = '/'.join([SA_INSTALL_DIR, job.func_key])
         with open(func_path, "rb") as f:
             func_obj = f.read()
-    elif os.path.exists(func_path):
-        logger.info(f"Loading {job.func_key} from local cache")
-        try:
-            with open(func_path, 'rb') as f:
-                func_obj = f.read()
-        except Exception:
-            logger.debug(f"Could not load {job.func_key} from local cache")
-
-    if not func_obj:
+    else:
         logger.info(f"Loading {job.func_key} from storage")
         func_obj = internal_storage.get_func(job.func_key)
-        os.makedirs(os.path.dirname(func_path), exist_ok=True)
-        with open(func_path, 'wb') as f:
-            f.write(func_obj)
 
     loaded_func_all = pickle.loads(func_obj)
 
