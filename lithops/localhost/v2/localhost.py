@@ -323,10 +323,9 @@ class DefaultEnvironment(ExecutionEnvironment):
         cmd = [self.runtime_name, RUNNER_FILE, 'run_job', task_filename]
         process = sp.Popen(cmd, stdout=sp.PIPE, stderr=sp.PIPE, start_new_session=True)
         self.task_processes[job_key_call_id] = process
-        stdout, stderr = process.communicate()  # blocks until the process finishes
+        process.communicate()  # blocks until the process finishes
         if process.returncode != 0:
             logger.error(f"Task process {job_key_call_id} failed with return code {process.returncode}")
-            logger.error(f"Error output from task process {job_key_call_id}: {stderr}")
         del self.task_processes[job_key_call_id]
         logger.debug(f"Task process {job_key_call_id} finished")
 
@@ -439,11 +438,9 @@ class ContainerEnvironment(ExecutionEnvironment):
 
         process = sp.Popen(shlex.split(cmd), stdout=sp.PIPE, stderr=sp.PIPE, start_new_session=True)
         self.task_processes[job_key_call_id] = process
-        stdout, stderr = process.communicate()  # blocks until the process finishes
+        process.communicate()  # blocks until the process finishes
         if process.returncode != 0:
             logger.error(f"Task process {job_key_call_id} failed with return code {process.returncode}")
-            logger.error(f"Error output from task process {job_key_call_id}: {stderr}")
-        del self.task_processes[job_key_call_id]
         logger.debug(f"Task process {job_key_call_id} finished")
 
     def stop(self, job_keys=None):
