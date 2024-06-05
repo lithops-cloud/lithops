@@ -35,22 +35,16 @@ SINGULARITYFILE_DEFAULT = """
     pip install --upgrade setuptools six pip \
     && pip install --no-cache-dir \
         pika \
-        boto3 \
-        ibm-cloud-sdk-core \
-        ibm-cos-sdk \
-        redis \
+        flask \
         gevent \
+        redis \
+        requests \
         PyYAML \
         numpy \
         cloudpickle \
         ps-mem \
         tblib \
         psutil
-
-%environment
-    export PYTHONUNBUFFERED=TRUE
-    export APP_HOME=/lithops
-    cd $APP_HOME
 
 %files
     lithops_singularity.zip /lithops/lithops_singularity.zip
@@ -60,9 +54,6 @@ SINGULARITYFILE_DEFAULT = """
     unzip lithops_singularity.zip && rm lithops_singularity.zip
 
 %runscript
-    echo "CPUs: $(nproc)"
-    echo "Memory: $(awk '/MemTotal/ {print $2/1024}' /proc/meminfo)"
-    echo "AMQP_URL: $AMQP_URL"
     python3 /lithops/lithopsentry.py $AMQP_URL $(nproc)
 """
 

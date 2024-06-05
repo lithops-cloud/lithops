@@ -46,7 +46,7 @@ class SingularityBackend:
         self.amqp_url = self.singularity_config.get('amqp_url', False)
 
         if not self.amqp_url:
-            raise Exception('RabbitMQ executor is needed in this backend')
+            raise Exception('RabbitMQ configuration is needed in this backend')
 
         # Init rabbitmq
         params = pika.URLParameters(self.amqp_url)
