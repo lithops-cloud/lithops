@@ -5,15 +5,19 @@ Lithops with MinIO storage backend.
 
 ## Installation
 
-1. Install MinIO.
+1. Install MinIO backend dependencies:
 
-2. Create a new user.
+```bash
+python3 -m pip install lithops[minio]
+```
 
-3. Create a new bucket (e.g. `lithops-data`). Remember to update the corresponding Lithops config field with this bucket name.
+2. Install MinIO.
+
+3. Create a new user.
 
 ## Configuration
 
-3. Edit your lithops config file and add the following keys:
+Edit your lithops config file and add the following keys:
 
 ```yaml
     lithops:

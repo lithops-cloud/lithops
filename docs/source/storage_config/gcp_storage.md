@@ -6,31 +6,29 @@ Lithops with GCP Storage as storage backend.
 
 1. Install Google Cloud Platform backend dependencies:
 
+```bash
+python3 -m pip install lithops[gcp]
 ```
-$ python3 -m pip install lithops[gcp]
-```
-
- 2. [Login](https://console.cloud.google.com) to Google Cloud Console (or signup if you don't have an account).
- 
- 3. Create a new project. Name it `lithops` or similar.
- 
- 4. Navigate to *IAM & Admin* > *Service Accounts*.
- 
- 5. Click on *Create Service Account*. Name the service account `lithops-executor` or similar. Then click on *Create*.
- 
- 6. Add the following roles to the service account:
-	 - Service Account User
-	 - Cloud Functions Admin
-	 - Pub/Sub Admin
-	 - Storage Admin
-
- 7. Click on *Continue*. Then, click on *Create key*. Select *JSON* and then *Create*. Download the JSON file to a secure location in you computer. Click *Done*.
-
- 8. Navigate to *Storage* on the menu. Create a bucket and name it `lithops-data` or similar. Remember to update the corresponding Lithops config field with this bucket name.
 
 ## Configuration
 
-9. Edit your lithops config file and add the following keys:
+1. [Login](https://console.cloud.google.com) to Google Cloud Console (or signup if you don't have an account).
+ 
+2. Create a new project. Name it `lithops` or similar.
+ 
+3. Navigate to *IAM & Admin* > *Service Accounts*.
+ 
+4. Click on *Create Service Account*. Name the service account `lithops-executor` or similar. Then click on *Create*.
+ 
+5. Add the following roles to the service account:
+	- Service Account User
+	- Cloud Functions Admin
+	- Pub/Sub Admin
+	- Storage Admin
+
+6. Click on *Continue*. Then, click on *Create key*. Select *JSON* and then *Create*. Download the JSON file to a secure location in you computer. Click *Done*.
+
+7. Edit your lithops config file and add the following keys:
 
 ```yaml
     lithops:

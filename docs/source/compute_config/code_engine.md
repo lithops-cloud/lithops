@@ -2,8 +2,13 @@
 
 [IBM Code Engine](https://cloud.ibm.com/codeengine/overview) allows you to run your application, job or container on a managed serverless platform. Auto-scale workloads and only pay for the resources you consume.
 
-IBM Code Engine exposes both Knative and Kubernetes Job Descriptor API. Lithops supports both of them. Follow IBM Code Engine documentation to get more details on the difference between those APIs.
+## Installation
 
+1. Install IBM Cloud backend dependencies:
+
+```bash
+python3 -m pip install lithops[ibm]
+```
 
 ## Configuration
 
@@ -13,7 +18,7 @@ IBM Code Engine exposes both Knative and Kubernetes Job Descriptor API. Lithops 
 
 3. Copy the generated IAM API key (You can only see the key the first time you create it, so make sure to copy it).
 
-4. Naviagete to the [resource groups dashboard](https://cloud.ibm.com/account/resource-groups), and copy the desired resource group ID.
+4. Navigate to the [resource groups dashboard](https://cloud.ibm.com/account/resource-groups), and copy the desired resource group ID.
 
 5. Edit your lithops config and add the following keys:
 
@@ -26,48 +31,6 @@ IBM Code Engine exposes both Knative and Kubernetes Job Descriptor API. Lithops 
         region: <REGION>
         resource_group_id: <RESOURCE_GROUP_ID>
     ```
-
-## Runtime
-
-### Use your own runtime
-If a pre-built runtime is not provided, Lithops will automatically build the default runtime the first time you run a script. For this task it uses the **docker** command installed locally in your machine. To make this working, you need:
-
-1. [Install the Docker CE version](https://docs.docker.com/get-docker/).
-
-2. Login to your container registry account:
-   ```bash
-   docker login
-   ```
-
-### Custom runtime
-
-If you need to create a runtime with custom system packages and libraries, please follow [Building and managing Lithops runtimes to run the functions](https://github.com/lithops-cloud/lithops/tree/master/runtime/code_engine)
-
-
-## Configure a private container registry for your runtime
-
-### Configure Docker hub
-To configure Lithops to access a private repository in your docker hub account, you need to extend the Code Engine config and add the following keys:
-
-```yaml
-code_engine:
-    ....
-    docker_server    : docker.io
-    docker_user      : <container registry username>
-    docker_password  : <container registry access TOEKN>
-```
-
-#### Configure IBM Container Registry
-To configure Lithops to access to a private repository in your IBM Container Registry, you need to extend the Code Engine config and add the following keys:
-
-```yaml
-code_engine:
-    ....
-    docker_server    : us.icr.io  # Change-me if you have the CR in another region
-    docker_user      : iamapikey
-    docker_password  : <IBM IAM API KEY>
-    docker_namespace : <namespace>  # namespace name from https://cloud.ibm.com/registry/namespaces
-```
 
 
 ## Summary of configuration keys for IBM Cloud:
@@ -99,9 +62,48 @@ code_engine:
 |code_engine | connection_retries | |no | If specified, number of job invoke retries in case of connection failure with error code 500 |
 |code_engine | runtime_include_function | False | no | If set to true, Lithops will automatically build a new runtime, including the function's code, instead of transferring it through the storage backend at invocation time. This is useful when the function's code size is large (in the order of 10s of MB) and the code does not change frequently |
 
-## Lithops using Knative API of Code Engine
 
-The preferable way to run Lithops in Code Engine is by using the JOB API. However, Lithops can be also executed in Code Engine using the Knative API. To configure this mode of execution refer to the [Knative documentation](https://github.com/lithops-cloud/lithops/blob/master/config/compute/knative.md#configuration) and follow the steps to configure Knative.
+## Runtime
+
+### Use your own runtime
+If a pre-built runtime is not provided, Lithops will automatically build the default runtime the first time you run a script. For this task it uses the **docker** command installed locally in your machine. To make this working, you need:
+
+1. [Install the Docker CE version](https://docs.docker.com/get-docker/).
+
+2. Login to your container registry account:
+   ```bash
+   docker login
+   ```
+
+### Custom runtime
+
+If you need to create a runtime with custom system packages and libraries, please follow [Building and managing Lithops runtimes to run the functions](https://github.com/lithops-cloud/lithops/tree/master/runtime/code_engine)
+
+
+## Configure a private container registry for your runtime
+
+### Configure Docker hub
+To configure Lithops to access a private repository in your docker hub account, you need to extend the Code Engine config and add the following keys:
+
+```yaml
+code_engine:
+    ....
+    docker_server    : docker.io
+    docker_user      : <container registry username>
+    docker_password  : <container registry access TOKEN>
+```
+
+#### Configure IBM Container Registry
+To configure Lithops to access to a private repository in your IBM Container Registry, you need to extend the Code Engine config and add the following keys:
+
+```yaml
+code_engine:
+    ....
+    docker_server    : us.icr.io  # Change-me if you have the CR in another region
+    docker_user      : iamapikey
+    docker_password  : <IBM IAM API KEY>
+    docker_namespace : <namespace>  # namespace name from https://cloud.ibm.com/registry/namespaces
+```
 
 
 ## Test Lithops
@@ -119,4 +121,3 @@ You can view the function executions logs in your local machine using the *litho
 ```bash
 lithops logs poll
 ```
-

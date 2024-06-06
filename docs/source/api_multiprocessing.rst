@@ -3,6 +3,13 @@ Multiprocessing API
 
 Lithops implements Python's `multiprocessing API <https://docs.python.org/3/library/multiprocessing.html>`_ to transparently run local-parallel applications but using serverless functions for Processes and a Redis instance for shared state and Inter-Process Communication (IPC).
 
+Before utilizing this API, you will need to install its dependencies:
+
+.. code-block:: bash
+
+   python3 -m pip install lithops[multiprocessing]
+
+
 Process and Pool
 ----------------
 
@@ -50,9 +57,9 @@ The Redis credentials (host, password...) is loaded from the ``redis`` section o
 
 The fastest way to deploy a Redis instance is using Docker in a VM located in the cloud of your choice:
 
-.. code::
+.. code:: bash
 
-    $ docker run --rm -d --network host --name redis redis:6.2.1 --requirepass redispassword
+    docker run --rm -d --network host --name redis redis:6.2.1 --requirepass redispassword
 
 To have lower latency, you can deploy the functions and the VM in the same VPC and use route through internal traffic instead of the internet.
 For example, in AWS, the functions and VM can be deployed in the same VPC: Lambdas go to a private subnet and the VM in a public subnet. This way, the VM has access to the internet and the local Lithops process can also access it.
@@ -79,7 +86,7 @@ For this reason, to set specific configuration in runtime, the ``Lithops.multipr
 
         # To set a config parameter, use the set_parameter
         # function and specify the parameter and the desired value
-        mp_config.set_parameter(mp_config.LITHOPS_CONFIG, {'lithops': {'mode': 'localhost'}})
+        mp_config.set_parameter(mp_config.LITHOPS_CONFIG, {'lithops': {'backend': 'localhost'}})
         mp_config.set_parameter(mp_config.STREAM_STDOUT, True)
         mp_config.set_parameter(mp_config.REDIS_EXPIRY_TIME, 1800)
         mp_config.set_parameter(mp_config.PIPE_CONNECTION_TYPE, 'redislist')
@@ -118,7 +125,6 @@ Multiprocessing configuration keys
    * - EXPORT_EXECUTION_DETAILS
      - Calls ``lithops.FunctionExecutor.plot()``, pass a path to store the plots, ``None`` to disable it
      - ``None``
-
 
 
 * To use nanomsg for Pipes, you must still deploy a Redis instance (used for pipe directory). Note that this feature only works in environments where functions can open a port and communicate with each other.

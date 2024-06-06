@@ -143,6 +143,7 @@ def get_host_setup_script(docker=True):
     fi;
     sudo systemctl enable redis-server.service;
     sed -i 's/^bind 127.0.0.1 ::1/bind 0.0.0.0/' /etc/redis/redis.conf;
+    sudo systemctl restart redis-server.service;
 
     fi;
 

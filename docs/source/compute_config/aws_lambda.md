@@ -2,6 +2,14 @@
 
 Lithops with *AWS Lambda* as serverless compute backend.
 
+## Installation
+
+1. Install AWS backend dependencies:
+
+```bash
+python3 -m pip install lithops[aws]
+```
+
 ## Configuration
 
 1. [Login](https://console.aws.amazon.com/?nc2=h_m_mc) to Amazon Web Services Console (or signup if you don't have an account)
@@ -31,26 +39,43 @@ Lithops with *AWS Lambda* as serverless compute backend.
 }
 ```
 
-4. Click **Next: Tags** and **Next: Review**. Fill the policy name field (you can name it `lithops-policy` or simmilar) and create the policy.
+4. Click **Next: Tags** and **Next: Review**. Fill the policy name field (you can name it `lithops-policy` or similar) and create the policy.
 
 5. Go back to **IAM** and navigate to **Roles** tab. Click **Create role**.
 
-6. Choose **Lambda** on the use case list and click **Next: Permissions**. Select the policy created before (`lithops-policy`). Click **Next: Tags** and **Next: Review**. Type a role name, for example `lithops-execution-role`. Click on *Create Role*.
+6. Choose **Lambda** on the use case list and click **Next: Permissions**. Select the policy created before (`lithops-policy`). Click **Next: Tags** and **Next: Review**. Type a role name, for example `lambdaLithopsExecutionRole`. Click on *Create Role*.
 
-7. Edit your lithops config and add the following keys:
+## AWS Credential setup
 
-```yaml
-lithops:
-    backend: aws_lambda
+Lithops loads AWS credentials as specified in the [boto3 configuration guide](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/configuration.html).
 
-aws:
-    region: <REGION_NAME>
-    access_key_id: <AWS_ACCESS_KEY_ID>
-    secret_access_key: <AWS_SECRET_ACCESS_KEY>
+In summary, you can use one of the following settings:
 
-aws_lambda:
-    execution_role: <EXECUTION_ROLE_ARN>
-```
+1. Provide the credentials via the `~/.aws/config` file, or set the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` environment variables.
+
+    You can run `aws configure` command if the AWS CLI is installed to setup the credentials. Then set in the Lithops config file:
+    ```yaml
+    lithops:
+        backend: aws_lambda
+
+    aws_lambda:
+        execution_role: <EXECUTION_ROLE_ARN>
+        region: <REGION_NAME>
+    ```
+
+2. Provide the credentials in the `aws` section of the Lithops config file:
+    ```yaml
+    lithops:
+        backend: aws_lambda
+
+    aws:
+        access_key_id: <AWS_ACCESS_KEY_ID>
+        secret_access_key: <AWS_SECRET_ACCESS_KEY>
+        region: <REGION_NAME>
+
+    aws_lambda:
+        execution_role: <EXECUTION_ROLE_ARN>
+    ```
 
 ## Summary of configuration keys for AWS
 
@@ -68,7 +93,7 @@ aws_lambda:
 
 | Group | Key | Default | Mandatory | Additional info |
 | --- | --- | --- | --- | --- |
-| aws_lambda | execution_role |  | yes | ARN of the execution role created at step 3. You can find it in the Role page at the *Roles* list in the *IAM* section (e.g. `arn:aws:iam::1234567890:role/lithops-execution-role` |
+| aws_lambda | execution_role |  | yes | ARN of the execution role created at step 3. You can find it in the Role page at the *Roles* list in the *IAM* section (e.g. `arn:aws:iam::1234567890:role/lambdaLithopsExecutionRole` |
 | aws_lambda | region |  | no | Region where Lambda functions will be invoked (e.g. `us-east-1`). Lithops will use the `region` set under the `aws` section if it is not set here |
 | aws_lambda | max_workers | 1000 | no | Max number of workers per `FunctionExecutor()` |
 | aws_lambda | worker_processes | 1 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker |
@@ -80,7 +105,7 @@ aws_lambda:
 | aws_lambda | architecture | x86_64 | no | Runtime architecture. One of **x86_64** or **arm64** |
 | aws_lambda | ephemeral_storage | 512 | no | Ephemeral storage (`/tmp`) size in MB (must be between 512 MB and 10240 MB) |
 | aws_lambda | env_vars | {} | no | List of {name: ..., value: ...} pairs for Lambda instance environment variables |
-| aws_lambda | namespace |  | no | Virtual namespace. This can be usefull to virtually group Lithops function workers. The functions deployed by lithops will be prefixed by this namespace. For example you can set it to differentiate between `prod`, `dev` and `stage` environments.  |
+| aws_lambda | namespace |  | no | Virtual namespace. This can be useful to virtually group Lithops function workers. The functions deployed by lithops will be prefixed by this namespace. For example you can set it to differentiate between `prod`, `dev` and `stage` environments.  |
 | aws_lambda | runtime_include_function | False | no | If set to true, Lithops will automatically build a new runtime, including the function's code, instead of transferring it through the storage backend at invocation time. This is useful when the function's code size is large (in the order of 10s of MB) and the code does not change frequently |
 
 

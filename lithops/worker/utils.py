@@ -50,6 +50,7 @@ def get_function_and_modules(job, internal_storage):
     logger.info("Getting function and modules")
     backend = job.config['lithops']['backend']
     func_path = '/'.join([LITHOPS_TEMP_DIR, job.func_key])
+    func_obj = None
 
     if job.config[backend].get('runtime_include_function'):
         logger.info("Runtime include function feature activated. Loading "
@@ -57,16 +58,9 @@ def get_function_and_modules(job, internal_storage):
         func_path = '/'.join([SA_INSTALL_DIR, job.func_key])
         with open(func_path, "rb") as f:
             func_obj = f.read()
-    elif os.path.exists(func_path):
-        logger.info(f"Loading {job.func_key} from local cache")
-        with open(func_path, 'rb') as f:
-            func_obj = f.read()
     else:
         logger.info(f"Loading {job.func_key} from storage")
         func_obj = internal_storage.get_func(job.func_key)
-        os.makedirs(os.path.dirname(func_path), exist_ok=True)
-        with open(func_path, 'wb') as f:
-            f.write(func_obj)
 
     loaded_func_all = pickle.loads(func_obj)
 

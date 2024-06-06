@@ -5,15 +5,20 @@ Lithops with Ceph storage backend.
 
 ## Installation
 
-1. Install Ceph.
+1. Install Ceph backend dependencies:
 
-2. Create a new user.
+```bash
+python3 -m pip install lithops[ceph]
+```
 
-3. Create a new bucket (e.g. `lithops-data`). Remember to update the corresponding Lithops config field with this bucket name.
+2. Install Ceph.
+
+3. Create a new user.
+
 
 ## Configuration
 
-3. Edit your lithops config file and add the following keys:
+1. Edit your lithops config file and add the following keys:
 
 ```yaml
     lithops:
@@ -30,7 +35,8 @@ Lithops with Ceph storage backend.
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|ceph | endpoint | |yes | The host ip adress where you installed the Ceph server. Must start with http:// or https:// |
+|ceph | endpoint | |yes | The host ip address where you installed the Ceph server. Must start with http:// or https:// |
+|ceph | region | |no | Region name. For example 'eu-west-1'  |
 |ceph | access_key_id | |yes | Account user access key |
 |ceph | secret_access_key | |yes | Account user secret access key |
 |ceph | session_token | |no | Session token for temporary AWS credentials |

@@ -1,7 +1,10 @@
-from .v1.localhost import LocalhostHandler
+from .v1.localhost import LocalhostHandlerV1
 from .v2.localhost import LocalhostHandlerV2
 
+# Set the default localhost handler
+LocalhostHandler = LocalhostHandlerV2
+
 __all__ = [
-    'LocalhostHandler',
+    'LocalhostHandlerV1',
     'LocalhostHandlerV2'
 ]

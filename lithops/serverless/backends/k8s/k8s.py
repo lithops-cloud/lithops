@@ -134,9 +134,9 @@ class KubernetesBackend:
 
         if dockerfile:
             assert os.path.isfile(dockerfile), f'Cannot locate "{dockerfile}"'
-            cmd = f'{docker_path} build -t {docker_image_name} -f {dockerfile} . '
+            cmd = f'{docker_path} build --platform=linux/amd64 -t {docker_image_name} -f {dockerfile} . '
         else:
-            cmd = f'{docker_path} build -t {docker_image_name} . '
+            cmd = f'{docker_path} build --platform=linux/amd64 -t {docker_image_name} . '
         cmd = cmd + ' '.join(extra_args)
 
         try:

@@ -33,11 +33,13 @@ class StorageBackend:
 
     def __init__(self, swift_config):
         logger.debug("Creating OpenStack Swift client")
-        self.auth_url = swift_config['swift_auth_url']
-        self.user_id = swift_config['swift_user_id']
-        self.project_id = swift_config['swift_project_id']
-        self.password = swift_config['swift_password']
-        self.region = swift_config['swift_region']
+        self.auth_url = swift_config['auth_url']
+        self.user_id = swift_config['user_id']
+        self.project_id = swift_config['project_id']
+        self.password = swift_config['password']
+        self.region = swift_config['region']
+        self.user_domain_name = swift_config.get("user_domain_name", "default")
+        self.project_domain_name = swift_config.get("project_domain_name", "default")
         self.endpoint = None
 
         if 'token' in swift_config:
@@ -72,9 +74,26 @@ class StorageBackend:
         """
         url = self.auth_url + "/v3/auth/tokens"
         headers = {'Content-Type': 'application/json'}
-        data = {"auth": {"identity": {"methods": ["password"],
-                                      "password": {"user": {"id": self.user_id, "password": self.password}}},
-                         "scope": {"project": {"id": self.project_id}}}}
+        data = {
+            "auth": {
+                "identity": {
+                    "methods": ["password"],
+                    "password": {
+                        "user": {
+                            "name": self.user_id,
+                            "password": self.password,
+                            "domain": {"name": self.user_domain_name}
+                        }
+                    }
+                },
+                "scope": {
+                    "project": {
+                        "id": self.project_id,
+                        "domain": {"name": self.project_domain_name}
+                    }
+                }
+            }
+        }
         json_data = json.dumps(data)
 
         r = requests.post(url, data=json_data, headers=headers)

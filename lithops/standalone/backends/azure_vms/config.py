@@ -26,7 +26,8 @@ DEFAULT_CONFIG_KEYS = {
     'ssh_password': str(uuid.uuid4()),
     'request_spot_instances': True,
     'delete_on_dismantle': False,
-    'max_workers': 100
+    'max_workers': 100,
+    'worker_processes': 'AUTO'
 }
 
 REQ_PARAMS_1 = ('resource_group', 'subscription_id', 'region')
@@ -70,6 +71,3 @@ def load_config(config_data):
             if param not in config_data['azure_vms']:
                 msg = f"'{param}' is mandatory in the 'azure_vms' section of the configuration"
                 raise Exception(msg)
-
-    if "worker_processes" not in config_data['azure_vms']:
-        config_data['azure_vms']['worker_processes'] = "AUTO"

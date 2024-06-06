@@ -4,6 +4,14 @@ Lithops with *IBM Cloud Functions* as compute backend.
 
 **Note**: This backend is deprecated. See the [deprecation overview](https://cloud.ibm.com/docs/openwhisk?topic=openwhisk-dep-overview)
 
+## Installation
+
+1. Install IBM Cloud backend dependencies:
+
+```bash
+python3 -m pip install lithops[ibm]
+```
+
 ## Configuration
 
 1. Login to IBM Cloud and open up your [dashboard](https://cloud.ibm.com/).
@@ -14,7 +22,7 @@ Lithops with *IBM Cloud Functions* as compute backend.
 
 4. Copy the generated IAM API key (You can only see the key the first time you create it, so make sure to copy it).
 
-5. Naviagete to the [resource groups dashboard](https://cloud.ibm.com/account/resource-groups), and copy the desired resource group ID.
+5. Navigate to the [resource groups dashboard](https://cloud.ibm.com/account/resource-groups), and copy the desired resource group ID.
 
 5. Edit your lithops config and add the following keys:
 
@@ -42,8 +50,8 @@ Lithops with *IBM Cloud Functions* as compute backend.
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|ibm_cf| namespace | |no | Value of CURRENT NAMESPACE from [here](https://cloud.ibm.com/functions/namespace-settings). Provide it if you want to use an existsing `namespace`. Lithops will automatically create a new namespace if not provided.|
-|ibm_cf| namespace_id |  |no |  Value of 'GUID' from [here](https://cloud.ibm.com/functions/namespace-settings). Provide it if you want to use an existsing `namespace`. Provide it along with `namespace`.|
+|ibm_cf| namespace | |no | Value of CURRENT NAMESPACE from [here](https://cloud.ibm.com/functions/namespace-settings). Provide it if you want to use an existing `namespace`. Lithops will automatically create a new namespace if not provided.|
+|ibm_cf| namespace_id |  |no |  Value of 'GUID' from [here](https://cloud.ibm.com/functions/namespace-settings). Provide it if you want to use an existing `namespace`. Provide it along with `namespace`.|
 |ibm_cf | region | |no | Service region. One of: `jp-tok`, `au-syd`, `eu-gb`, `eu-de`, `us-south`, `us-east`. Lithops will use the `region` set under the `ibm` section if it is not set here |
 |ibm_cf| endpoint | |no | IBM Cloud Functions endpoint (if region not provided). Make sure to use https:// prefix, for example: https://us-east.functions.cloud.ibm.com |
 |ibm_cf | max_workers | 1200 | no | Max number of workers per `FunctionExecutor()`|

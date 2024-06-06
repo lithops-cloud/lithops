@@ -29,6 +29,7 @@ import struct
 import lithops
 import zipfile
 import platform
+import threading
 import logging.config
 import subprocess as sp
 from enum import Enum
@@ -747,6 +748,27 @@ def is_podman(docker_path):
 class BackendType(Enum):
     BATCH = 'batch'
     FAAS = 'faas'
+
+
+class CountDownLatch:
+    def __init__(self, count):
+        self.count = count
+        self.event = threading.Event()
+        self.lock = threading.Lock()
+
+    def unlock(self):
+        with self.lock:
+            self.count -= 1
+            if self.count == 0:
+                self.event.set()
+
+    def wait(self):
+        if self.count > 0:
+            self.event.wait()
+
+    @property
+    def done(self):
+        return self.count == 0
 
 
 CURRENT_PY_VERSION = version_str(sys.version_info)

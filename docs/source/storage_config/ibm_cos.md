@@ -1,14 +1,18 @@
 # IBM Cloud Object Storage
 
-
 Lithops with IBM COS as storage backend.
-
 
 ## Installation
 
-1. Create an [IBM Cloud Object Storage account](https://www.ibm.com/cloud/object-storage).
+1. Install IBM Cloud backend dependencies:
 
-2. Crate a bucket in your desired region. Remember to update the corresponding Lithops config field with this bucket name.
+```bash
+python3 -m pip install lithops[ibm]
+```
+
+2. Create an [IBM Cloud Object Storage account](https://www.ibm.com/cloud/object-storage).
+
+3. Crate a bucket in your desired region. Remember to update the corresponding Lithops config field with this bucket name.
 
 ## Configuration
 
@@ -87,7 +91,7 @@ Lithops with IBM COS as storage backend.
 ## Lithops COS Endpoint configuration
 
 ### Using region
-The easiest apporach is to let Lithops to choose the right endpoint by itself. To enable this, just configure Lithops with the region name of your `storage_bucket`, as follows:
+The easiest approach is to let Lithops to choose the right endpoint by itself. To enable this, just configure Lithops with the region name of your `storage_bucket`, as follows:
 
 ```yaml
     ibm_cos:

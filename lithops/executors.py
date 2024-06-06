@@ -30,7 +30,7 @@ from lithops import constants
 from lithops.future import ResponseFuture
 from lithops.invokers import create_invoker
 from lithops.storage import InternalStorage
-from lithops.wait import wait, ALL_COMPLETED, THREADPOOL_SIZE, WAIT_DUR_SEC, ALWAYS
+from lithops.wait import wait, ALL_COMPLETED, THREADPOOL_SIZE, ALWAYS
 from lithops.job import create_map_job, create_reduce_job
 from lithops.config import default_config, \
     extract_localhost_config, extract_standalone_config, \
@@ -39,7 +39,7 @@ from lithops.constants import LOCALHOST, CLEANER_DIR, \
     SERVERLESS, STANDALONE
 from lithops.utils import setup_lithops_logger, \
     is_lithops_worker, create_executor_id, create_futures_list
-from lithops.localhost import LocalhostHandler, LocalhostHandlerV2
+from lithops.localhost import LocalhostHandlerV1, LocalhostHandlerV2
 from lithops.standalone import StandaloneHandler
 from lithops.serverless import ServerlessHandler
 from lithops.storage.utils import create_job_key, CloudObject
@@ -118,8 +118,8 @@ class FunctionExecutor:
 
         if self.mode == LOCALHOST:
             localhost_config = extract_localhost_config(self.config)
-            if localhost_config.get('version', 1) == 1:
-                self.compute_handler = LocalhostHandler(localhost_config)
+            if localhost_config.get('version', 2) == 1:
+                self.compute_handler = LocalhostHandlerV1(localhost_config)
             else:
                 self.compute_handler = LocalhostHandlerV2(localhost_config)
         elif self.mode == SERVERLESS:
@@ -399,7 +399,7 @@ class FunctionExecutor:
         download_results: Optional[bool] = False,
         timeout: Optional[int] = None,
         threadpool_size: Optional[int] = THREADPOOL_SIZE,
-        wait_dur_sec: Optional[int] = WAIT_DUR_SEC,
+        wait_dur_sec: Optional[int] = None,
         show_progressbar: Optional[bool] = True
     ) -> Tuple[FuturesList, FuturesList]:
         """
@@ -416,7 +416,7 @@ class FunctionExecutor:
         :param download_results: Download results. Default false (Only get statuses)
         :param timeout: Timeout of waiting for results
         :param threadpool_size: Number of threads to use. Default 64
-        :param wait_dur_sec: Time interval between each check
+        :param wait_dur_sec: Time interval between each check. Default 1 second
         :param show_progressbar: whether or not to show the progress bar.
 
         :return: `(fs_done, fs_notdone)` where `fs_done` is a list of futures that have
@@ -470,7 +470,7 @@ class FunctionExecutor:
         throw_except: Optional[bool] = True,
         timeout: Optional[int] = None,
         threadpool_size: Optional[int] = THREADPOOL_SIZE,
-        wait_dur_sec: Optional[int] = WAIT_DUR_SEC,
+        wait_dur_sec: Optional[int] = None,
         show_progressbar: Optional[bool] = True
     ):
         """
@@ -480,7 +480,7 @@ class FunctionExecutor:
         :param throw_except: Reraise exception if call raised. Default True.
         :param timeout: Timeout for waiting for results.
         :param threadpool_size: Number of threads to use. Default 128
-        :param wait_dur_sec: Time interval between each check.
+        :param wait_dur_sec: Time interval between each check. Default 1 second
         :param show_progressbar: whether or not to show the progress bar.
 
         :return: The result of the future/s
@@ -543,8 +543,13 @@ class FunctionExecutor:
             logger.debug(f'ExecutorID {self.executor_id} - No futures ready to plot')
             return
 
-        logging.getLogger('matplotlib').setLevel(logging.WARNING)
-        from lithops.plots import create_timeline, create_histogram
+        try:
+            logging.getLogger('matplotlib').setLevel(logging.WARNING)
+            from lithops.plots import create_timeline, create_histogram
+        except ImportError:
+            raise ModuleNotFoundError(
+                "Please install 'pip3 install lithops[plotting]' for "
+                "making use of the plot() method")
 
         logger.info(f'ExecutorID {self.executor_id} - Creating execution plots')
 
@@ -628,8 +633,13 @@ class FunctionExecutor:
 
         :param cloud_objects_n: number of cloud object used in COS, declared by user.
         """
-        import pandas as pd
-        import numpy as np
+        try:
+            import pandas as pd
+            import numpy as np
+        except ImportError:
+            raise ModuleNotFoundError(
+                "Please install 'pip3 install lithops[plotting]' for "
+                "making use of the job_summary() method")
 
         def init():
             headers = ['Job_ID', 'Function', 'Invocations', 'Memory(MB)', 'AvgRuntime', 'Cost', 'CloudObjects']

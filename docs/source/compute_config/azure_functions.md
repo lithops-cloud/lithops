@@ -6,7 +6,7 @@ Lithops with Azure Functions as serverless compute backend.
 
 1. Install Microsoft Azure backend dependencies:
 
-```
+```bash
 python3 -m pip install lithops[azure]
 ```
 
@@ -89,7 +89,7 @@ az login
 |---|---|---|---|---|
 |azure_functions| resource_group | |no | Name of a resource group, for example: `LithopsResourceGroup`. Lithops will use the `resource_group` set under the `azure` section if it is not set here |
 |azure_functions| region |  |no | The location of the consumption plan for the runtime. Use `az functionapp list-consumption-locations` to view the available locations. For example: `westeurope`, `westus2`, etc. Lithops will use the `region` set under the `azure` section if it is not set here|
-|azure_functions | max_workers | 1000 | no | Max number of parallel workers. Altough Azure limits the number of workrs to 200, it is convenient to keep this value high|
+|azure_functions | max_workers | 1000 | no | Max number of parallel workers. Although Azure limits the number of workers to 200, it is convenient to keep this value high|
 |azure_functions | worker_processes | 1 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker |
 |azure_functions| runtime |  |no | Runtime name already deployed in the service|
 |azure_functions | runtime_timeout | 300 |no | Runtime timeout in seconds. Default 5 minutes |

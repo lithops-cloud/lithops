@@ -31,7 +31,7 @@ If you want to upload local files to the custom VM Image, you can include them u
 lithops image build -b aws_ec2 -f myscript.sh -i /home/user/test.bin:/home/ubuntu/test.bin custom-lithops-runtime
 ```
 
-In the case of using using a custom name, you must provide the `target_ami`, printed at the end of the build command, in your lithops config:
+In the case of using using a custom name, you must provide the `target_ami`, printed at the end of the build command, in your lithops config, for example:
 
 ```yaml
 aws_ec2:
@@ -43,7 +43,7 @@ aws_ec2:
 
 ## Option 2:
 
-You can create a VM image manually. For example, you can create a VM in you AWS region, access the VM, install all the dependencies in the VM itself (apt-get, pip3 install, ...), stop the VM, create a VM Image, and then put the image_id in your lithops config file:
+You can create a VM image manually. For example, you can create a VM in you AWS region, access the VM, install all the dependencies in the VM itself (apt-get, pip3 install, ...), stop the VM, create a VM Image, and then put the AMI ID in your lithops config, for example:
 
 ```yaml
 aws_ec2:
@@ -52,4 +52,4 @@ aws_ec2:
     ...
 ```
 
-Note that if you name your VM Image (AMI) as "lithops-worker-default", there is no need to provide the `target_ami` in the config, since lithops automatically looks for this AMI name.
+Note that if you name your VM Image (AMI) as "lithops-ubuntu-jammy-22.04-amd64-server", there is no need to provide the `target_ami` in the config, since lithops automatically looks for this AMI name.

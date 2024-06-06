@@ -52,9 +52,6 @@ class ResponseFuture:
         Done = "Done"
         Unknown = "Unknown"
 
-    GET_RESULT_SLEEP_SECS = 1
-    GET_RESULT_MAX_RETRIES = 10
-
     def __init__(self, call_id, job, job_metadata, storage_config):
         self.call_id = call_id
         self.job_id = job.job_id
@@ -169,7 +166,7 @@ class ResponseFuture:
         if self.success:
             self._state = ResponseFuture.State.Done
 
-    def status(self, throw_except=True, internal_storage=None, check_only=False):
+    def status(self, throw_except=True, internal_storage=None, check_only=False, wait_dur_sec=1):
         """
         Return the status returned by the call.
         If the call raised an exception, this method will raise the same exception
@@ -178,6 +175,8 @@ class ResponseFuture:
         :param check_only: Return None immediately if job is not complete. Default False.
         :param throw_except: Reraise exception if call raised. Default true.
         :param internal_storage: Storage handler to poll cloud storage. Default None.
+        :param wait_dur_sec: Time interval between each check
+
         :return: Result of the call.
         :raises CancelledError: If the job is cancelled before completed.
         :raises TimeoutError: If job is not complete after `timeout` seconds.
@@ -199,7 +198,7 @@ class ResponseFuture:
                 return self._call_status
 
             while self._call_status is None:
-                time.sleep(self.GET_RESULT_SLEEP_SECS)
+                time.sleep(wait_dur_sec)
                 self._call_status = internal_storage.get_call_status(self.executor_id, self.job_id, self.call_id)
                 self._status_query_count += 1
             self._host_status_done_tstamp = time.time()
@@ -296,7 +295,7 @@ class ResponseFuture:
 
         return self._call_status
 
-    def result(self, throw_except=True, internal_storage=None):
+    def result(self, throw_except=True, internal_storage=None, retries=10, wait_dur_sec=1):
         """
         Return the value returned by the call.
         If the call raised an exception, this method will raise the same exception
@@ -304,6 +303,9 @@ class ResponseFuture:
 
         :param throw_except: Reraise exception if call raised. Default true.
         :param internal_storage: Storage handler to poll cloud storage. Default None.
+        :param retries: Number of times to check if the result file is in the storage
+        :param wait_dur_sec: Time interval between each retry check
+
         :return: Result of the call.
         :raises CancelledError: If the job is cancelled before completed.
         :raises TimeoutError: If job is not complete after `timeout` seconds.
@@ -314,7 +316,7 @@ class ResponseFuture:
         if not self.done and internal_storage is None:
             internal_storage = InternalStorage(storage_config=self._storage_config)
 
-        self.status(throw_except=throw_except, internal_storage=internal_storage)
+        self.status(throw_except=throw_except, internal_storage=internal_storage, wait_dur_sec=wait_dur_sec)
 
         if self.futures:
             self._call_output = self._new_futures
@@ -327,8 +329,8 @@ class ResponseFuture:
             call_output = internal_storage.get_call_output(self.executor_id, self.job_id, self.call_id)
             self._output_query_count += 1
 
-            while call_output is None and self._output_query_count < self.GET_RESULT_MAX_RETRIES:
-                time.sleep(self.GET_RESULT_SLEEP_SECS)
+            while call_output is None and self._output_query_count < retries:
+                time.sleep(wait_dur_sec)
                 call_output = internal_storage.get_call_output(self.executor_id, self.job_id, self.call_id)
                 self._output_query_count += 1
 

@@ -19,5 +19,7 @@ def load_config(config_data):
     if 'localhost' not in config_data or config_data['localhost'] is None:
         config_data['localhost'] = {}
 
-    if 'storage_bucket' not in config_data['localhost']:
-        config_data['localhost']['storage_bucket'] = 'storage'
+    if 'monitoring_interval' not in config_data['lithops']:
+        config_data['lithops']['monitoring_interval'] = 0.1
+
+    config_data['localhost']['storage_bucket'] = 'storage'

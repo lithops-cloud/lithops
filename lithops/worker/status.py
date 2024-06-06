@@ -1,4 +1,5 @@
 import os
+import ast
 import pika
 import json
 import time
@@ -44,7 +45,7 @@ class CallStatus:
             'chunksize': job.chunksize
         }
 
-        if eval(os.environ.get('WARM_CONTAINER', 'False')):
+        if ast.literal_eval(os.environ.get('WARM_CONTAINER', 'False')):
             self.status['worker_cold_start'] = False
         else:
             self.status['worker_cold_start'] = True

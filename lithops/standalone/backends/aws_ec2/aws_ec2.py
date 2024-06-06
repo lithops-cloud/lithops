@@ -20,12 +20,11 @@ import time
 import uuid
 import logging
 import base64
+import boto3
+import botocore
 from botocore.exceptions import ClientError
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
-
-import boto3
-import botocore
 
 from lithops.version import __version__
 from lithops.util.ssh_client import SSHClient
@@ -55,10 +54,10 @@ def b64s(string):
 
 class AWSEC2Backend:
 
-    def __init__(self, config, mode):
+    def __init__(self, ec2_config, mode):
         logger.debug("Creating AWS EC2 client")
         self.name = 'aws_ec2'
-        self.config = config
+        self.config = ec2_config
         self.mode = mode
         self.region_name = self.config['region']
 
@@ -72,21 +71,28 @@ class AWSEC2Backend:
         self.ec2_data = {}
         self.vpc_name = None
         self.vpc_key = None
-        self.user_key = self.config['access_key_id'][-4:].lower()
 
         self.instance_types = {}
 
-        client_config = botocore.client.Config(
-            user_agent_extra=self.config['user_agent']
-        )
-
-        self.ec2_client = boto3.client(
-            'ec2', aws_access_key_id=self.config['access_key_id'],
-            aws_secret_access_key=self.config['secret_access_key'],
-            aws_session_token=self.config.get('session_token'),
-            config=client_config,
+        self.aws_session = boto3.Session(
+            aws_access_key_id=ec2_config.get('access_key_id'),
+            aws_secret_access_key=ec2_config.get('secret_access_key'),
+            aws_session_token=ec2_config.get('session_token'),
             region_name=self.region_name
         )
+
+        self.ec2_client = self.aws_session.client(
+            'ec2', config=botocore.client.Config(
+                user_agent_extra=self.config['user_agent']
+            )
+        )
+
+        if 'user_id' not in self.config:
+            sts_client = self.aws_session.client('sts')
+            identity = sts_client.get_caller_identity()
+
+        self.user_id = self.config.get('user_id') or identity["UserId"]
+        self.user_key = self.user_id.split(":")[0][-4:].lower()
 
         self.master = None
         self.workers = []
@@ -581,7 +587,7 @@ class AWSEC2Backend:
                 'master_id': self.vpc_key,
                 'vpc_name': self.vpc_name,
                 'vpc_id': self.config['vpc_id'],
-                'iam_role': self.config['iam_role'],
+                'instance_role': self.config['instance_role'],
                 'target_ami': self.config['target_ami'],
                 'ssh_key_name': self.config['ssh_key_name'],
                 'ssh_key_filename': self.config['ssh_key_filename'],
@@ -1168,7 +1174,7 @@ class EC2Instance:
             "ImageId": self.config['target_ami'],
             "InstanceType": self.instance_type,
             "EbsOptimized": False,
-            "IamInstanceProfile": {'Name': self.config['iam_role']},
+            "IamInstanceProfile": {'Name': self.config['instance_role']},
             "Monitoring": {'Enabled': False},
             'KeyName': self.config['ssh_key_name']
         }

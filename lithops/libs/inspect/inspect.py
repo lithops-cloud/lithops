@@ -100,7 +100,7 @@ def _shadowed_dict_from_mro_tuple(mro):
         dunder_dict = _get_dunder_dict_of_class(entry)
         if '__dict__' in dunder_dict:
             class_dict = dunder_dict['__dict__']
-            if not (type(class_dict) is types.GetSetDescriptorType
+            if not (isinstance(class_dict, types.GetSetDescriptorType)
                     and class_dict.__name__ == "__dict__"
                     and class_dict.__objclass__ is entry):
                 return class_dict
@@ -128,7 +128,7 @@ def getattr_static(obj, attr, default=_sentinel):
     if type not in _static_getmro(objtype):
         klass = objtype
         dict_attr = _shadowed_dict(klass)
-        if (dict_attr is _sentinel or type(dict_attr) is types.MemberDescriptorType):
+        if (dict_attr is _sentinel or isinstance(dict_attr, types.MemberDescriptorType)):
             instance_result = _check_instance(obj, attr)
     else:
         klass = obj

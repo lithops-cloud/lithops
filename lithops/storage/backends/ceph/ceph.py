@@ -49,6 +49,8 @@ class CephStorageBackend:
             read_timeout=CONN_READ_TIMEOUT,
             retries={'max_attempts': OBJ_REQ_RETRIES}
         )
+        if 'region' in ceph_config:
+            client_config.region_name = ceph_config['region']
 
         self.s3_client = boto3.client(
             's3', aws_access_key_id=ceph_config['access_key_id'],
