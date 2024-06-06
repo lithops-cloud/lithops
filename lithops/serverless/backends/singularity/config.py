@@ -54,7 +54,7 @@ SINGULARITYFILE_DEFAULT = """
     unzip lithops_singularity.zip && rm lithops_singularity.zip
 
 %runscript
-    python3 /lithops/lithopsentry.py $AMQP_URL $(nproc)
+    python3 /lithops/lithopsentry.py $AMQP_URL
 """
 
 def load_config(config_data):

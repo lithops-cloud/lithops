@@ -21,29 +21,28 @@ import uuid
 import json
 import logging
 import threading
+import multiprocessing
 
 from lithops.version import __version__
 from lithops.utils import setup_lithops_logger, b64str_to_dict, dict_to_b64str
 from lithops.worker import function_handler
 from lithops.worker.utils import get_runtime_metadata
+from lithops.constants import JOBS_PREFIX
+from lithops.storage.storage import InternalStorage
 
 logger = logging.getLogger('lithops.worker')
 
 
-def extract_runtime_meta():
+def extract_runtime_meta(payload):
     logger.info(f"Lithops v{__version__} - Generating metadata")
 
     runtime_meta = get_runtime_metadata()
 
-    channel.basic_publish(
-        exchange='',
-        routing_key='status_queue',
-        body=json.dumps(runtime_meta),
-        properties=pika.BasicProperties(
-            delivery_mode=pika.spec.PERSISTENT_DELIVERY_MODE
-        ))
-    
-    logger.info(f"Runtime metadata generated")
+    internal_storage = InternalStorage(payload)
+    status_key = '/'.join([JOBS_PREFIX, payload['runtime_name'] + '.meta'])
+    dmpd_response_status = json.dumps(runtime_meta)
+    internal_storage.put_data(status_key, dmpd_response_status)
+    logger.info(f"Runtime metadata key {status_key}")
 
 
 def run_job_k8s_rabbitmq(payload):
@@ -122,7 +121,7 @@ def actions_switcher(ch, method, properties, body):
     logger.info(f"Action {action} received from lithops.")
 
     if action == 'get_metadata':
-        extract_runtime_meta()
+        extract_runtime_meta(payload)
         ch.basic_ack(delivery_tag=method.delivery_tag)
 
     elif action == 'send_task':
@@ -138,14 +137,11 @@ def actions_switcher(ch, method, properties, body):
     
 
 if __name__ == '__main__':
-    amqp_url = sys.argv[1]
-    cpus_pod = int(sys.argv[2])
-
     # Set up the semaphore NEW
-    semaphore = threading.Semaphore(cpus_pod)
+    semaphore = threading.Semaphore(multiprocessing.cpu_count())
 
     # Connect to rabbitmq
-    params = pika.URLParameters(amqp_url)
+    params = pika.URLParameters(sys.argv[1])
     connection = pika.BlockingConnection(params)
     channel = connection.channel()
     channel.queue_declare(queue='task_queue', durable=True)
