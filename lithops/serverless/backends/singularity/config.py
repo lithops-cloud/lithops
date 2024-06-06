@@ -62,5 +62,7 @@ def load_config(config_data):
         if key not in config_data['singularity']:
             config_data['singularity'][key] = DEFAULT_CONFIG_KEYS[key]
     
-    if 'rabbitmq' in config_data:
+    if 'rabbitmq' not in config_data:
+        raise Exception('RabbitMQ configuration is needed in this backend')
+    else:
         config_data['singularity']['amqp_url'] = config_data['rabbitmq'].get('amqp_url', False)

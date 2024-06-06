@@ -43,10 +43,7 @@ class SingularityBackend:
         self.type = utils.BackendType.BATCH.value
         self.singularity_config = singularity_config
         self.internal_storage = internal_storage
-        self.amqp_url = self.singularity_config.get('amqp_url', False)
-
-        if not self.amqp_url:
-            raise Exception('RabbitMQ configuration is needed in this backend')
+        self.amqp_url = self.singularity_config['amqp_url']
 
         # Init rabbitmq
         params = pika.URLParameters(self.amqp_url)
@@ -84,11 +81,10 @@ class SingularityBackend:
 
         if singularityfile:
             assert os.path.isfile(singularityfile), f'Cannot locate "{singularityfile}"'
-            cmd = f'{singularity_path} build  --fakeroot --force {singularity_image_path} {singularityfile} '
+            cmd = f'{singularity_path} build ' + ' '.join(extra_args) + f' {singularity_image_path} {singularityfile}'
         else:
             default_singularityfile = self._create_default_runtime()
-            cmd = f'{singularity_path} build --fakeroot --force {singularity_image_path} {default_singularityfile}'
-        cmd = cmd + ' '.join(extra_args)
+            cmd = f'{singularity_path} build ' + ' '.join(extra_args) + f' {singularity_image_path} {default_singularityfile}'
 
         try:
             entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
@@ -107,7 +103,7 @@ class SingularityBackend:
         Builds the default runtime
         """
         # Build default runtime using local dokcer
-        singularityfile = 'singularity_template'
+        singularityfile = 'singularity_template.def'
 
         with open(singularityfile, 'w') as f:
             f.write(f"Bootstrap: docker\n")
