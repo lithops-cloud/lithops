@@ -1,15 +1,24 @@
 # Changelog
 
-## [v3.4.1.dev0]
+## [v3.4.2.dev0]
 
 ### Added
-- [Localhost] Added error capturing and logging for job/task process failures
+- 
 
 ### Changed
 - 
 
 ### Fixed
 - 
+
+## [v3.4.1]
+
+### Added
+- [Localhost] Added error capturing and logging for job/task process failures
+
+### Fixed
+- [Worker] Fixed potential issue that can appear during 'func_obj' loading from cache
+
 
 ## [v3.4.0]
 
