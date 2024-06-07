@@ -124,14 +124,6 @@ def actions_switcher(ch, method, properties, body):
     elif action == 'send_task':
         manage_work_queue(ch, method, payload)
 
-    elif action == 'stop_containers':
-        ch.stop_consuming()
-        ch.close()
-        connection.close()
-        logger.info("Stopped listening to rabbitmq")
-        
-        sys.exit(0)
-    
 
 if __name__ == '__main__':
     # Shared variable to track completed jobs

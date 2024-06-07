@@ -34,6 +34,7 @@ SINGULARITYFILE_DEFAULT = """
 
     pip install --upgrade setuptools six pip \
     && pip install --no-cache-dir \
+        boto3 \
         pika \
         flask \
         gevent \

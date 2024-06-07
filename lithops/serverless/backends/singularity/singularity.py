@@ -139,23 +139,6 @@ class SingularityBackend:
         """
         Deletes all jobs
         """
-        logger.debug('Cleaning lithops resources in singularity')
-
-        message = {
-            'action': 'stop_containers',
-            'payload': utils.dict_to_b64str({})
-        }
-
-        # Send 100 times
-        for _ in range(100):
-            self.channel.basic_publish(
-                exchange='',
-                routing_key='task_queue',
-                body=json.dumps(message),
-                properties=pika.BasicProperties(
-                delivery_mode=pika.spec.PERSISTENT_DELIVERY_MODE
-            ))
-
         logger.debug('Cleaning RabbitMQ queues')
         delete_queues = ['task_queue', 'status_queue']
         for queue in delete_queues:
@@ -209,7 +192,7 @@ class SingularityBackend:
 
     def _generate_runtime_meta(self, singularity_image_name):
         runtime_name = self._format_job_name(singularity_image_name, 128)
-        meta_job_name = f'{runtime_name}-meta'
+
         logger.info(f"Extracting metadata from: {singularity_image_name}")
 
         payload = copy.deepcopy(self.internal_storage.storage.config)
@@ -233,7 +216,7 @@ class SingularityBackend:
 
         logger.debug("Waiting for runtime metadata")
 
-        for i in range(0, 15):
+        for i in range(0, 300):
             try:
                 data_key = '/'.join([JOBS_PREFIX, runtime_name + '.meta'])
                 json_str = self.internal_storage.get_data(key=data_key)
