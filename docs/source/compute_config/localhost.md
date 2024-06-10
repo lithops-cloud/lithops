@@ -38,25 +38,25 @@ or alternatively, you can force the Localhost executor with:
 fexec = lithops.LocalhostExecutor()
 ```
 
-### Docker Environment
+### Container Environment
 
-The Docker environment runs the functions within a ``docker container``. In this case you must [install the Docker CE version](https://docs.docker.com/get-docker/) in your machine. This environment is automatically activated when you provide a docker image as a runtime. For example, by adding the following keys in the config:
+The Container environment runs the functions within a ``docker container``. In this case you must [install the Docker CE version](https://docs.docker.com/get-docker/) in your machine. This environment is automatically activated when you provide a docker image as a runtime. For example, by adding the following keys in the config:
 
 ```yaml
 localhost:
-    runtime: lithopscloud/ibmcf-python-v312
+    runtime: docker.io/lithopscloud/ibmcf-python-v312
 ```
 
 or by using the ``runtime`` param in a function executor:
 
 ```python
 # As we use the default FunctionExecutor(), the "backend" config parameter must be set to localhost in config
-fexec = lithops.FunctionExecutor(runtime='lithopscloud/ibmcf-python-v312')
+fexec = lithops.FunctionExecutor(runtime='docker.io/lithopscloud/ibmcf-python-v312')
 ```
 
 ```python
 # As we use/force the LocalhostExecutor(), the "backend" config parameter does not need to be set to localhost in config
-fexec = lithops.LocalhostExecutor(runtime='lithopscloud/ibmcf-python-v312')
+fexec = lithops.LocalhostExecutor(runtime='docker.io/lithopscloud/ibmcf-python-v312')
 ```
 
 In this mode of execution, you can use any docker image that contains all the required dependencies. For example, the IBM Cloud Functions and Knative runtimes are compatible with it.
@@ -66,7 +66,7 @@ In this mode of execution, you can use any docker image that contains all the re
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |localhost | runtime | python3 | no | By default it uses the `python3` interpreter. It can be a container image name |
-|localhost | version | 1 | no | There are 2 different localhost implementations. Use '2' for using the alternative version (beta) |
+|localhost | version | 2 | no | There are 2 different localhost implementations. Use '1' for using the alternative version |
 |localhost | worker_processes | CPU_COUNT | no | Number of Lithops processes. This is used to parallelize function activations. By default it is set to the number of CPUs of your machine |
 
 ## Test Lithops
@@ -84,3 +84,5 @@ You can view the function executions logs in your local machine using the *litho
 ```bash
 lithops logs poll
 ```
+
+You can view the localhost runner logs in `/tmp/lithops-*/localhost-runner.log`

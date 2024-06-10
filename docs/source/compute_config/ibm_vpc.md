@@ -1,6 +1,6 @@
 # IBM Virtual Private Cloud
 
-The IBM VPC client of Lithops can provide a truely serverless user experience on top of IBM VPC where Lithops creates new VSIs (Virtual Server Instance) dynamically in runtime, and scale Lithops jobs against them. Alternatively Lithops can start and stop an existing VSI instances.
+The IBM VPC client of Lithops can provide a truely serverless user experience on top of IBM VPC where Lithops creates new VSIs (Virtual Server Instance) dynamically in runtime, and scale Lithops jobs against them (Create & Reuse modes). Alternatively Lithops can start and stop an existing VSI instance (Consume mode).
 
 ## Installation
 
@@ -23,7 +23,8 @@ Any Virtual Service Instance (VSI) need to define the instance’s operating sys
 - Option 2: Alternatively, you can use a pre-built custom image (based on Ubuntu) that will greatly improve VSI creation time for Lithops jobs. To benefit from this approach, navigate to [runtime/ibm_vpc](https://github.com/lithops-cloud/lithops/tree/master/runtime/ibm_vpc), and follow the instructions.
 
 
-## Lithops and the VM auto create|reuse mode
+## Create and reuse modes
+
 In the `create` mode, Lithops will automatically create new worker VM instances in runtime, scale Lithops job against generated VMs, and automatically delete the VMs when the job is completed.
 Alternatively, you can set the `reuse` mode to keep running the started worker VMs, and reuse them for further executions. In the `reuse` mode, Lithops checks all the available worker VMs and start new workers only if necessary.
 
@@ -109,7 +110,7 @@ ibm_vpc:
 |ibm_vpc | singlesocket | False | no | Try to allocate workers with single socket CPU. If eventually running on multiple socket, a warning message printed to user. Is **True** standalone **workers_policy** must be set to **strict** to trace workers states|
 |ibm_vpc | gpu | False | no | If `True` docker started with gpu support. Requires host to have necessary hardware and software pre-configured, and docker image runtime with gpu support specified |
 
-## Lithops and the VSI consume mode
+## Consume mode
 
 In this mode, Lithops can start and stop an existing VM, and deploy an entire job to that VM. The partition logic in this scenario is different from the `create/reuse` modes, since the entire job is executed in the same VM.
 
@@ -141,7 +142,7 @@ If you need to create new VM, then follow the steps to create and update Lithops
 
 ## Summary of configuration keys for IBM Cloud:
 
-### IBM IAM:
+### IBM:
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
