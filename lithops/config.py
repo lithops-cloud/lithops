@@ -191,9 +191,6 @@ def default_config(config_file=None, config_data=None, config_overwrite={}, load
 
     if load_storage_config:
         config_data = default_storage_config(config_data=config_data)
-        if config_data['lithops']['storage'] == c.LOCALHOST \
-           and backend != c.LOCALHOST:
-            raise Exception(f'Localhost storage backend cannot be used with {backend}')
 
     for key in c.LITHOPS_DEFAULT_CONFIG_KEYS:
         if key not in config_data['lithops']:
