@@ -75,7 +75,7 @@ class SingularityBackend:
         singularity_path = utils.get_singularity_path()
 
         sif_path = self.singularity_config.get('sif_path', '/tmp/')
-        # Check if sif_path ends with /, if not, put it
+        # Check if sif_path ends with /, if not, put it
         sif_path = sif_path if sif_path.endswith('/') else sif_path + '/'
         singularity_image_path = f'{sif_path}{singularity_image_name}.sif'
 
@@ -106,7 +106,7 @@ class SingularityBackend:
         singularityfile = 'singularity_template.def'
 
         with open(singularityfile, 'w') as f:
-            f.write(f"Bootstrap: docker\n")
+            f.write("Bootstrap: docker\n")
             f.write(f"From: python:{utils.CURRENT_PY_VERSION}-slim-buster\n")
             f.write(config.SINGULARITYFILE_DEFAULT)
 
@@ -183,8 +183,8 @@ class SingularityBackend:
                 routing_key='task_queue',
                 body=json.dumps(message),
                 properties=pika.BasicProperties(
-                delivery_mode=pika.spec.PERSISTENT_DELIVERY_MODE
-            ))
+                    delivery_mode=pika.spec.PERSISTENT_DELIVERY_MODE
+                ))
 
         activation_id = f'lithops-{job_key.lower()}'
 
@@ -205,14 +205,14 @@ class SingularityBackend:
             'payload': encoded_payload
         }
 
-        # Send message to RabbitMQ
+        # Send message to RabbitMQ
         self.channel.basic_publish(
             exchange='',
             routing_key='task_queue',
             body=json.dumps(message),
             properties=pika.BasicProperties(
-            delivery_mode=pika.spec.PERSISTENT_DELIVERY_MODE
-        ))
+                delivery_mode=pika.spec.PERSISTENT_DELIVERY_MODE
+            ))
 
         logger.debug("Waiting for runtime metadata")
 

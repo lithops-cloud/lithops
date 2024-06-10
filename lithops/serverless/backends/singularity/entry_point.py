@@ -134,7 +134,7 @@ if __name__ == '__main__':
     channel = connection.channel()
     channel.queue_declare(queue='task_queue', durable=True)
     channel.basic_qos(prefetch_count=1)
-    
+
     # Start listening to the new job
     channel.basic_consume(queue='task_queue', on_message_callback=actions_switcher)
 

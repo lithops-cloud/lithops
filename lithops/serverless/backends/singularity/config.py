@@ -58,11 +58,12 @@ SINGULARITYFILE_DEFAULT = """
     python3 /lithops/lithopsentry.py $AMQP_URL
 """
 
+
 def load_config(config_data):
     for key in DEFAULT_CONFIG_KEYS:
         if key not in config_data['singularity']:
             config_data['singularity'][key] = DEFAULT_CONFIG_KEYS[key]
-    
+
     if 'rabbitmq' not in config_data:
         raise Exception('RabbitMQ configuration is needed in this backend')
     else:
