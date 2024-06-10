@@ -60,7 +60,7 @@ computing capabilities.
     fexec = lithops.ServerlessExecutor()
 
 
-- Available backends: `IBM Cloud Functions <compute_config/ibm_cf.md>`_, `IBM Code Engine <compute_config/code_engine.md>`_, `AWS Lambda <compute_config/aws_lambda.md>`_, `AWS Batch <compute_config/aws_batch.md>`_, `Google Cloud Functions <compute_config/gcp_functions.md>`_, `Google Cloud Run <compute_config/gcp_cloudrun.md>`_, `Azure Functions <compute_config/azure_functions.md>`_, `Azure Container APPs <compute_config/azure_containers.md>`_, `Aliyun Function Compute <compute_config/aliyun_functions.md>`_, `Oracle Functions <compute_config/oracle_functions.md>`_, `Kubernetes Jobs <compute_config/kubernetes.md>`_, `Knative <compute_config/knative.md>`_, `OpenWhisk <compute_config/openwhisk.md>`_
+- Available backends: `IBM Cloud Functions <compute_config/ibm_cf.md>`_, `IBM Code Engine <compute_config/code_engine.md>`_, `AWS Lambda <compute_config/aws_lambda.md>`_, `AWS Batch <compute_config/aws_batch.md>`_, `Google Cloud Functions <compute_config/gcp_functions.md>`_, `Google Cloud Run <compute_config/gcp_cloudrun.md>`_, `Azure Functions <compute_config/azure_functions.md>`_, `Azure Container APPs <compute_config/azure_containers.md>`_, `Aliyun Function Compute <compute_config/aliyun_functions.md>`_, `Oracle Functions <compute_config/oracle_functions.md>`_, `Kubernetes Jobs <compute_config/kubernetes.md>`_, `Knative <compute_config/knative.md>`_, `Singularity <compute_config/singularity.md>`_, `OpenWhisk <compute_config/openwhisk.md>`_
 
 
 Standalone mode

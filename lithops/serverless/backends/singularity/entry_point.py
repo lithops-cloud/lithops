@@ -25,7 +25,7 @@ from multiprocessing import Value, cpu_count
 from threading import Thread
 
 from lithops.version import __version__
-from lithops.utils import setup_lithops_logger, b64str_to_dict
+from lithops.utils import setup_lithops_logger, b64str_to_dict, dict_to_b64str
 from lithops.worker import function_handler
 from lithops.worker.utils import get_runtime_metadata
 from lithops.constants import JOBS_PREFIX
@@ -83,8 +83,7 @@ def manage_work_queue(ch, method, payload):
         message_to_send['total_calls'] = tasks - running_jobs.value
         message_to_send['call_ids'] = message_to_send['call_ids'][running_jobs.value:]
         message_to_send['data_byte_ranges'] = message_to_send['data_byte_ranges'][running_jobs.value:]
-
-        message['total_calls'] = running_jobs.value
+        message_to_send = {'action': 'send_task', 'payload': dict_to_b64str(message_to_send)}
         message['call_ids'] = message['call_ids'][:running_jobs.value]
         message['data_byte_ranges'] = message['data_byte_ranges'][:running_jobs.value]
 
