@@ -44,7 +44,7 @@ class AzureFunctionAppBackend:
     def __init__(self, af_config, internal_storage):
         logger.debug("Creating Azure Functions client")
         self.name = 'azure_functions'
-        self.type = utils.BackendType.FAAS.value
+        self.type = utils.BackendType.FAAS
         self.af_config = af_config
         self.trigger = af_config['trigger']
         self.resource_group = af_config['resource_group']

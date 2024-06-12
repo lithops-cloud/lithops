@@ -27,8 +27,20 @@ from concurrent.futures import ThreadPoolExecutor
 from lithops.future import ResponseFuture
 from lithops.config import extract_storage_config
 from lithops.version import __version__
-from lithops.utils import verify_runtime_name, version_str, is_lithops_worker, iterchunks
-from lithops.constants import LOGGER_LEVEL, LOGS_DIR, SERVERLESS, SA_INSTALL_DIR, STANDALONE_BACKENDS
+from lithops.utils import (
+    verify_runtime_name,
+    version_str,
+    is_lithops_worker,
+    iterchunks,
+    BackendType
+)
+from lithops.constants import (
+    LOGGER_LEVEL,
+    LOGS_DIR,
+    SERVERLESS,
+    SA_INSTALL_DIR,
+    STANDALONE_BACKENDS
+)
 from lithops.util.metrics import PrometheusExporter
 
 logger = logging.getLogger(__name__)
@@ -39,7 +51,7 @@ def create_invoker(config, executor_id, internal_storage,
     """
     Creates the appropriate invoker based on the backend type
     """
-    if compute_handler.get_backend_type() == 'batch':
+    if compute_handler.get_backend_type() == BackendType.BATCH:
         return BatchInvoker(
             config,
             executor_id,
@@ -48,7 +60,7 @@ def create_invoker(config, executor_id, internal_storage,
             job_monitor
         )
 
-    elif compute_handler.get_backend_type() == 'faas':
+    elif compute_handler.get_backend_type() == BackendType.FAAS:
         return FaaSInvoker(
             config,
             executor_id,

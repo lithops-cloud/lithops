@@ -44,7 +44,7 @@ class AWSBatchBackend:
         logger.debug('Creating AWS Batch client')
 
         self.name = 'aws_batch'
-        self.type = utils.BackendType.BATCH.value
+        self.type = utils.BackendType.BATCH
         self.aws_batch_config = batch_config
         self.user_agent = batch_config['user_agent']
         self.region = batch_config['region']

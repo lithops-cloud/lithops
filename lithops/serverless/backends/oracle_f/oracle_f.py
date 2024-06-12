@@ -38,7 +38,7 @@ class OracleCloudFunctionsBackend:
 
     def __init__(self, oci_config, internal_storage):
         self.name = 'oracle_f'
-        self.type = utils.BackendType.FAAS.value
+        self.type = utils.BackendType.FAAS
         self.config = oci_config
 
         self.user = oci_config['user']

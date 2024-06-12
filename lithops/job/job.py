@@ -30,7 +30,7 @@ from lithops.storage.utils import create_func_key, create_data_key, \
     create_job_key, func_key_suffix
 from lithops.job.serialize import SerializeIndependent, create_module_data
 from lithops.constants import MAX_AGG_DATA_SIZE, LOCALHOST, \
-    SERVERLESS, STANDALONE, CUSTOM_RUNTIME_DIR, FAAS_BACKENDS
+    SERVERLESS, STANDALONE, CUSTOM_RUNTIME_DIR
 
 
 logger = logging.getLogger(__name__)
@@ -297,7 +297,7 @@ def _create_job(
         host_job_meta['host_func_upload_time'] = 0
 
     # upload data
-    if upload_data or backend not in FAAS_BACKENDS:
+    if upload_data or config['lithops']['backend_type'] == utils.BackendType.BATCH:
         # Upload iterdata to COS only if a single element is greater than MAX_DATA_IN_PAYLOAD
         logger.debug('ExecutorID {} | JobID {} - Uploading data to the storage backend'
                      .format(executor_id, job_id))

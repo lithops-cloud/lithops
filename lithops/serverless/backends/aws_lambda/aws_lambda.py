@@ -53,7 +53,7 @@ class AWSLambdaBackend:
         logger.debug('Creating AWS Lambda client')
 
         self.name = 'aws_lambda'
-        self.type = utils.BackendType.FAAS.value
+        self.type = utils.BackendType.FAAS
         self.lambda_config = lambda_config
         self.internal_storage = internal_storage
         self.user_agent = lambda_config['user_agent']

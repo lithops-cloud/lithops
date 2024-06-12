@@ -79,7 +79,7 @@ class CodeEngineBackend:
     def __init__(self, ce_config, internal_storage):
         logger.debug("Creating IBM Code Engine client")
         self.name = 'code_engine'
-        self.type = utils.BackendType.BATCH.value
+        self.type = utils.BackendType.BATCH
         self.config = ce_config
         self.internal_storage = internal_storage
         self.is_lithops_worker = utils.is_lithops_worker()

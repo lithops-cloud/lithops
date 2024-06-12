@@ -81,7 +81,7 @@ class LocalhostHandlerV2:
         """
         Wrapper method that returns the type of the backend (Batch or FaaS)
         """
-        return BackendType.BATCH.value
+        return BackendType.BATCH
 
     def init(self):
         """

@@ -402,7 +402,7 @@ class StandaloneHandler:
         """
         Wrapper method that returns the type of the backend (Batch or FaaS)
         """
-        return BackendType.BATCH.value
+        return BackendType.BATCH
 
     def _setup_master_service(self):
         """
