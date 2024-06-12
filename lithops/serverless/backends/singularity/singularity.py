@@ -1,5 +1,5 @@
 #
-# (C) Copyright Cloudlab URV 2021
+# (C) Copyright Cloudlab URV 2024
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -72,7 +72,7 @@ class SingularityBackend:
         """
         logger.info(f'Building runtime {singularity_image_name} from {singularityfile or "Singularity"}')
 
-        singularity_path = utils.get_singularity_path()
+        singularity_path = config.get_singularity_path()
 
         sif_path = self.singularity_config.get('sif_path', '/tmp/')
         # Check if sif_path ends with /, if not, put it
