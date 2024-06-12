@@ -3,13 +3,14 @@
 ## [v3.4.2.dev0]
 
 ### Added
-- 
+- [Singularity] Added new singularity compute backend
 
 ### Changed
 - 
 
 ### Fixed
 - 
+
 
 ## [v3.4.1]
 

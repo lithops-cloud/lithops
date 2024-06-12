@@ -120,27 +120,3 @@ STANDALONE_BACKENDS = [
     'azure_vms',
     'vm'
 ]
-
-FAAS_BACKENDS = [
-    'ibm_cf',
-    'knative',
-    'openwhisk',
-    'aws_lambda',
-    'gcp_cloudrun',
-    'gcp_functions',
-    'cloudrun',
-    'azure_functions',
-    'azure_containers',
-    'aliyun_fc',
-    'oracle_f'
-]
-
-BATCH_BACKENDS = [
-    'ibm_vpc',
-    'aws_ec2',
-    'azure_vms',
-    'aws_batch',
-    'k8s',
-    'code_engine'
-    'vm'
-]

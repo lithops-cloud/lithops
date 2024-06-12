@@ -61,7 +61,8 @@ class FunctionExecutor:
     :param backend: Compute backend to run the functions
     :param storage: Storage backend to store Lithops data
     :param monitoring: Monitoring system implementation. One of: storage, rabbitmq
-    :param log_level: Log level printing (INFO, DEBUG, ...). Set it to None to hide all logs. If this is param is set, all logging params in config are disabled
+    :param log_level: Log level printing (INFO, DEBUG, ...). Set it to None to hide all logs.
+        If this is param is set, all logging params in config are disabled
     :param kwargs: Any parameter that can be set in the compute backend section of the config file, can be set here
     """
 
@@ -128,6 +129,8 @@ class FunctionExecutor:
         elif self.mode == STANDALONE:
             standalone_config = extract_standalone_config(self.config)
             self.compute_handler = StandaloneHandler(standalone_config)
+
+        self.config['lithops']['backend_type'] = self.compute_handler.get_backend_type()
 
         # Create the monitoring system
         self.job_monitor = JobMonitor(
