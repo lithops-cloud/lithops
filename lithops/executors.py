@@ -61,7 +61,7 @@ class FunctionExecutor:
     :param backend: Compute backend to run the functions
     :param storage: Storage backend to store Lithops data
     :param monitoring: Monitoring system implementation. One of: storage, rabbitmq
-    :param log_level: Log level printing (INFO, DEBUG, ...). Set it to None to hide all logs. 
+    :param log_level: Log level printing (INFO, DEBUG, ...). Set it to None to hide all logs.
         If this is param is set, all logging params in config are disabled
     :param kwargs: Any parameter that can be set in the compute backend section of the config file, can be set here
     """
