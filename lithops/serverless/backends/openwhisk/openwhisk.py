@@ -35,7 +35,7 @@ class OpenWhiskBackend:
     def __init__(self, ow_config, internal_storage):
         logger.debug("Creating OpenWhisk client")
         self.name = 'openwhisk'
-        self.type = utils.BackendType.FAAS
+        self.type = utils.BackendType.FAAS.value
         self.ow_config = ow_config
         self.is_lithops_worker = utils.is_lithops_worker()
 

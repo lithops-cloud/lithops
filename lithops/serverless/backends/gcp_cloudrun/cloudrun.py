@@ -44,7 +44,7 @@ class GCPCloudRunBackend:
 
     def __init__(self, cloudrun_config, internal_storage):
         self.name = 'gcp_cloudrun'
-        self.type = utils.BackendType.FAAS
+        self.type = utils.BackendType.FAAS.value
         self.cr_config = cloudrun_config
         self.region = cloudrun_config['region']
         self.trigger = cloudrun_config['trigger']

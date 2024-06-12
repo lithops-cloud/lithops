@@ -40,7 +40,7 @@ class AliyunFunctionComputeBackend:
     def __init__(self, afc_config, internal_storage):
         logger.debug("Creating Aliyun Function Compute client")
         self.name = 'aliyun_fc'
-        self.type = utils.BackendType.FAAS
+        self.type = utils.BackendType.FAAS.value
         self.config = afc_config
         self.user_agent = afc_config['user_agent']
 

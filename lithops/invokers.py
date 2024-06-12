@@ -51,7 +51,7 @@ def create_invoker(config, executor_id, internal_storage,
     """
     Creates the appropriate invoker based on the backend type
     """
-    if compute_handler.get_backend_type() == BackendType.BATCH:
+    if compute_handler.get_backend_type() == BackendType.BATCH.value:
         return BatchInvoker(
             config,
             executor_id,
@@ -60,7 +60,7 @@ def create_invoker(config, executor_id, internal_storage,
             job_monitor
         )
 
-    elif compute_handler.get_backend_type() == BackendType.FAAS:
+    elif compute_handler.get_backend_type() == BackendType.FAAS.value:
         return FaaSInvoker(
             config,
             executor_id,

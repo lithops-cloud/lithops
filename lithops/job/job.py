@@ -297,7 +297,7 @@ def _create_job(
         host_job_meta['host_func_upload_time'] = 0
 
     # upload data
-    if upload_data or config['lithops']['backend_type'] == utils.BackendType.BATCH:
+    if upload_data or config['lithops']['backend_type'] == utils.BackendType.BATCH.value:
         # Upload iterdata to COS only if a single element is greater than MAX_DATA_IN_PAYLOAD
         logger.debug('ExecutorID {} | JobID {} - Uploading data to the storage backend'
                      .format(executor_id, job_id))
