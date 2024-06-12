@@ -110,7 +110,8 @@ SERVERLESS_BACKENDS = [
     'azure_containers',
     'aliyun_fc',
     'oracle_f',
-    'k8s'
+    'k8s',
+    'singularity'
 ]
 
 STANDALONE_BACKENDS = [

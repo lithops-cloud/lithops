@@ -14,3 +14,4 @@ Choose your compute backend:
 10. [Kubernetes](kubernetes/)
 11. [OpenWhisk](openwhisk/)
 12. [Knative](knative/)
+13. [Singularity](singularity/)

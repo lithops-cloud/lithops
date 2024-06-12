@@ -1,0 +1,46 @@
+Bootstrap: docker
+
+# Python 3.7
+#FROM python:3.7-slim-buster
+
+# Python 3.8
+#FROM python:3.8-slim-buster
+
+# Python 3.9
+#FROM python:3.9-slim-buster
+
+# Python 3.10
+#FROM: python:3.10-slim-buster
+
+# Python 3.11
+FROM: python:3.11-slim-buster
+
+%post
+    apt-get update && apt-get install -y \
+        zip \
+        && rm -rf /var/lib/apt/lists/*
+
+    pip install --upgrade setuptools six pip \
+    && pip install --no-cache-dir \
+        boto3 \
+        pika \
+        flask \
+        gevent \
+        redis \
+        requests \
+        PyYAML \
+        numpy \
+        cloudpickle \
+        ps-mem \
+        tblib \
+        psutil
+
+%files
+    lithops_singularity.zip /lithops/lithops_singularity.zip
+
+%post
+    cd /lithops
+    unzip lithops_singularity.zip && rm lithops_singularity.zip
+
+%runscript
+    python3 /lithops/lithopsentry.py $AMQP_URL

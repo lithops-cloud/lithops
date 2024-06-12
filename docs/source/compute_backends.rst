@@ -32,6 +32,7 @@ Compute Backends
    compute_config/azure_containers.md
    compute_config/kubernetes.md
    compute_config/knative.md
+   compute_config/singularity.md
 
 **Standalone Backends:**
 
