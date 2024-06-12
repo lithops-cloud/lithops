@@ -114,9 +114,9 @@ Currently, Lithops for Kubernetes and On-Premise supports these backends:
      - `OpenStack Swift <https://docs.openstack.org/swift/latest/>`_
    * - `Knative <https://knative.dev/>`_
      - `Redis <https://redis.io/documentation>`_
-   * - `OpenWhisk <https://openwhisk.apache.org/>`_
+   * - `Singularity <https://docs.sylabs.io/guides/latest/user-guide/index.html>`_
      - `Ceph <https://docs.ceph.com/en/latest/>`_
-   * -
+   * - `OpenWhisk <https://openwhisk.apache.org/>`_
      - `MinIO <https://docs.min.io/minio/baremetal/>`_
    * -
      - `Infinispan <https://infinispan.org/documentation/>`_
