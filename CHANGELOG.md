@@ -4,6 +4,7 @@
 
 ### Added
 - [Singularity] Added new singularity compute backend
+- [Oracle Functions] Added support for python 3.11
 
 ### Changed
 - 
