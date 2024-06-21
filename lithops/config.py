@@ -22,6 +22,7 @@ import importlib
 import logging
 
 from lithops import constants as c
+from lithops.constants import LITHOPS_DEFAULT_CONFIG_KEYS
 from lithops.version import __version__
 from lithops.utils import CURRENT_PY_VERSION, get_mode, get_default_backend
 from builtins import FileNotFoundError
@@ -192,7 +193,7 @@ def default_config(config_file=None, config_data=None, config_overwrite={}, load
     if load_storage_config:
         config_data = default_storage_config(config_data=config_data)
         if config_data['lithops']['storage'] == c.LOCALHOST \
-           and backend != c.LOCALHOST:
+                and backend != c.LOCALHOST:
             raise Exception(f'Localhost storage backend cannot be used with {backend}')
 
     for key in c.LITHOPS_DEFAULT_CONFIG_KEYS:
@@ -226,7 +227,8 @@ def default_storage_config(config_file=None, config_data=None, backend=None):
 
 def extract_storage_config(config):
     s_config = {}
-    s_config['monitoring_interval'] = config['lithops']['monitoring_interval']
+    s_config['monitoring_interval'] = config['lithops'].get('monitoring_interval',
+                                                            LITHOPS_DEFAULT_CONFIG_KEYS['monitoring_interval'])
     backend = config['lithops']['storage']
     s_config['backend'] = backend
     s_config[backend] = config[backend] if backend in config and config[backend] else {}
