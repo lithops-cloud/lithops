@@ -62,6 +62,7 @@ Storage Backends
 - [Azure Container APPs](../docs/source/compute_config/azure_containers.md)
 - [Kubernetes](../docs/source/compute_config/kubernetes.md)
 - [Knative](../docs/source/compute_config/knative.md)
+- [Singularity](../docs/source/compute_config/singularity.md)
 
 <b>Standalone Backends:</b>
 - [Virtual Machine](../docs/source/compute_config/vm.md)
