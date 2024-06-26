@@ -10,7 +10,7 @@
 - 
 
 ### Fixed
-- 
+- [Storage] Fixed "KeyError: 'monitoring_interval'" error when instantiating Storage() class
 
 
 ## [v3.4.1]
