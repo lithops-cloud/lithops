@@ -93,8 +93,8 @@ gcp_cloudrun:
     ENV APP_HOME /lithops
     WORKDIR $APP_HOME
     
-    COPY lithops_knative.zip .
-    RUN unzip lithops_knative.zip && rm lithops_knative.zip
+    COPY lithops_cloudrun.zip .
+    RUN unzip lithops_cloudrun.zip && rm lithops_cloudrun.zip
     
     CMD exec gunicorn --bind :$PORT lithopsproxy:proxy
     ```
