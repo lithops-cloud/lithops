@@ -40,6 +40,9 @@ RUN pip install --upgrade setuptools six pip \
         google-auth \
         psutil
 
+ENV CONCURRENCY 1
+ENV TIMEOUT 600
+
 # Copy Lithops proxy and lib to the container image.
 ENV APP_HOME /lithops
 WORKDIR $APP_HOME
@@ -47,4 +50,4 @@ WORKDIR $APP_HOME
 COPY lithops_cloudrun.zip .
 RUN unzip lithops_cloudrun.zip && rm lithops_cloudrun.zip
 
-CMD exec gunicorn --bind :$PORT lithopsproxy:proxy
+CMD exec gunicorn --bind :$PORT --workers $CONCURRENCY --timeout $TIMEOUT lithopsproxy:proxy

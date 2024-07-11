@@ -42,6 +42,9 @@ RUN pip install --upgrade setuptools six pip \
         google-auth \
         psutil
 
+ENV CONCURRENCY 1
+ENV TIMEOUT 600
+
 # Add your Conda required packages here. Ensure "conda clean --all" at 
 # the end to remove temporary data. One "RUN" line is better than multiple
 # ones in terms of image size.
@@ -54,4 +57,4 @@ WORKDIR $APP_HOME
 COPY lithops_cloudrun.zip .
 RUN unzip lithops_cloudrun.zip && rm lithops_cloudrun.zip
 
-CMD exec gunicorn --bind :$PORT lithopsproxy:proxy
+CMD exec gunicorn --bind :$PORT --workers $CONCURRENCY --timeout $TIMEOUT lithopsproxy:proxy
