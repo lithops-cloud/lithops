@@ -70,8 +70,34 @@ class OpenWhiskBackend:
 
     def _unformat_function_name(self, action_name):
         runtime_name, memory, version = action_name.rsplit('_', 2)
-        image_name = runtime_name.replace('_', '/', 2)
-        image_name = image_name.replace('_', ':', -1)
+        image_name_parts = runtime_name.split('_')
+
+        domain = image_name_parts[0]
+
+        try:
+            port = int(image_name_parts[1])
+            namespace = image_name_parts[2]
+            name = image_name_parts[3]
+            last_id = 4
+        except Exception:
+            port = None
+            namespace = image_name_parts[1]
+            name = image_name_parts[2]
+            last_id = 3
+
+        try:
+            tag = image_name_parts[last_id]
+        except Exception:
+            tag = None
+
+        if port:
+            image_name = f'{domain}:{port}/{namespace}/{name}'
+        else:
+            image_name = f'{domain}/{namespace}/{name}'
+
+        if tag:
+            image_name = f'{image_name}:{tag}'
+
         return version, image_name, int(memory.replace('MB', ''))
 
     def _get_default_runtime_image_name(self):
