@@ -452,6 +452,7 @@ class KubernetesBackend:
         master_res['metadata']['namespace'] = self.namespace
         master_res['metadata']['labels']['version'] = 'lithops_v' + __version__
         master_res['metadata']['labels']['user'] = self.user
+        master_res['spec']['activeDeadlineSeconds'] = self.k8s_config['master_timeout']
 
         container = master_res['spec']['template']['spec']['containers'][0]
         container['image'] = docker_image_name
