@@ -5,6 +5,7 @@
 ### Added
 - [Singularity] Added new singularity compute backend
 - [Oracle Functions] Added support for python 3.11
+- [k8s] Added 'master_timeout' parameter to k8s backend
 
 ### Changed
 - 

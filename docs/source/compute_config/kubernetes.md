@@ -75,6 +75,7 @@ k8s:
 |k8s | runtime_cpu | 1 |no | CPU limit. Default 1vCPU |
 |k8s | runtime_memory | 512 |no | Memory limit in MB. Default 512MB |
 |k8s | runtime_timeout | 600 |no | Runtime timeout in seconds. Default 600 seconds |
+|k8s | master_timeout | 600 |no | Master pod timeout in seconds. Default 600 seconds |
 
 ## Test Lithops
 
