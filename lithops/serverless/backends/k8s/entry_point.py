@@ -24,8 +24,7 @@ import flask
 import time
 import requests
 from functools import partial
-from multiprocessing import Value
-from threading import Thread
+from multiprocessing import Value, Process
 
 from lithops.version import __version__
 from lithops.utils import setup_lithops_logger, b64str_to_dict
@@ -178,7 +177,7 @@ def callback_work_queue(ch, method, properties, body):
     with running_jobs.get_lock():
         running_jobs.value -= processes_to_start
 
-    Thread(target=run_job_k8s_rabbitmq, args=([message])).start()
+    Process(target=run_job_k8s_rabbitmq, args=(message,)).start()
 
     ch.basic_ack(delivery_tag=method.delivery_tag)
 
