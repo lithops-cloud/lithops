@@ -12,6 +12,7 @@
 
 ### Fixed
 - [Storage] Fixed "KeyError: 'monitoring_interval'" error when instantiating Storage() class
+- [k8s] Fixed bug between threads when there are multiple executions
 
 
 ## [v3.4.1]
