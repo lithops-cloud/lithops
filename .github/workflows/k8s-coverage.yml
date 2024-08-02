@@ -1,0 +1,100 @@
+# This workflow will run a k8s backend.
+name: K8s coverage
+on:
+  push:
+    branches: [ "add-code-coverage" ]
+    paths:
+      - 'lithops/serverless/**'
+      - '!lithops/serverless/backends/aws_lambda/**'
+      - '.github/workflows/k8s-coverage.yml'
+      - 'lithops/storage/**'
+  pull_request:
+    branches: [ "add-code-coverage" ]
+    paths:
+      - 'lithops/serverless/**'
+      - '!lithops/serverless/backends/aws_lambda/**'
+      - '.github/workflows/k8s-coverage.yml'
+      - 'lithops/storage/**'
+jobs:
+  build_k8s:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10"]
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v3
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install pytest
+        python -m pip install pytest-cov
+    - name: Install lithops
+      run: |
+        pip install .
+    - name: Install docker
+      run: |
+        sudo apt-get update
+        sudo apt-get install ca-certificates curl
+        sudo install -m 0755 -d /etc/apt/keyrings
+        sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+        sudo chmod a+r /etc/apt/keyrings/docker.asc
+        echo \
+          "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+          $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+          sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+        sudo apt-get update
+        sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+        sudo docker run hello-world
+        sudo usermod -aG docker $USER
+        docker login -u ${{ secrets.DOCKER_USER }} -p ${{ secrets.DOCKER_TOKEN }}
+    - name: Install minikube
+      run: |
+        curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+        sudo install minikube-linux-amd64 /usr/local/bin/minikube
+        minikube start
+    - name: Install kubectl
+      run: |
+        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+        sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+    - name: Wait until aws-coverage finishes
+      run: |
+        status="in_progress"
+        check="completed"
+        while [ "$check" != "$status" ]; do
+          response=$(curl -H "Accept: application/vnd.github.v3+json" "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/runs?&head_sha=$GITHUB_SHA")
+          status=$(echo "$response" | jq -r '.workflow_runs[] | select(.path == ".github/workflows/aws-coverage.yml") | .status')
+          if [ "$status" == "" ]; then
+            status="completed"
+          fi
+          sleep 30
+        done
+    - name: Test k8s with pytest
+      run: |
+        echo "lithops:" > .lithops_config
+        echo "  backend: k8s" >> .lithops_config
+        echo "  storage: aws_s3" >> .lithops_config
+        echo "k8s:" >> .lithops_config
+        echo "  docker_server: docker.io" >> .lithops_config
+        echo "  docker_user: ${{ secrets.DOCKER_USER }}" >> .lithops_config
+        echo "  docker_password: ${{ secrets.DOCKER_TOKEN }}" >> .lithops_config
+        echo "  runtime: ${{ secrets.DOCKER_RUNTIME }}" >> .lithops_config
+        echo "  runtime_memory: 500" >> .lithops_config
+        echo "  runtime_cpu: 1" >> .lithops_config
+        echo "aws:" >> .lithops_config
+        echo "  region: us-east-1" >> .lithops_config
+        echo "  access_key_id: ${{ secrets.AWS_KEY_ID }}" >> .lithops_config
+        echo "  secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> .lithops_config
+        coverage run --omit=./lithops/standalone/*,./lithops/util/*,./lithops/libs/*,./lithops/localhost/*,./lithops/utils.py,./lithops/tests/util_func/*,./lithops/scripts/**,./lithops/tests/test_template.py,./lithops/tests/tests_main.py -m pytest ./lithops/tests/github_coverage.py -k k8s
+        coverage xml   
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4.0.1
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        verbose: true
+        slug: acanadil/lithops
+        flags: k8s
