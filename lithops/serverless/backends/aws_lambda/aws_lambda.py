@@ -492,7 +492,8 @@ class AWSLambdaBackend:
                 ],
                 Tags={
                     'runtime_name': runtime_name,
-                    'lithops_version': __version__
+                    'lithops_version': __version__,
+                    **self.lambda_config.get('user_tags'),
                 },
                 Architectures=[self.lambda_config['architecture']],
                 EphemeralStorage={
