@@ -1,18 +1,18 @@
 # Changelog
 
-## [v3.4.2.dev0]
+## [v3.5.0]
 
 ### Added
 - [Singularity] Added new singularity compute backend
 - [Oracle Functions] Added support for python 3.11
 - [k8s] Added 'master_timeout' parameter to k8s backend
-
-### Changed
-- 
+- [AWS Lambda] Added user_tags to the runtime deployment
 
 ### Fixed
 - [Storage] Fixed "KeyError: 'monitoring_interval'" error when instantiating Storage() class
 - [k8s] Fixed bug between threads when there are multiple executions
+- [OpenWhisk] Fixed issue in the list_runtimes method
+- [OpenWhisk] Fixed runtime name formatting for self hosted container registries
 
 
 ## [v3.4.1]
