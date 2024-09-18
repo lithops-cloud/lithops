@@ -5,6 +5,7 @@ on:
     branches: [ "add-code-coverage" ]
     paths:
       - 'lithops/**'
+      - '.github/workflows/localhost-coverage.yml'
   pull_request:
     branches: [ "add-code-coverage" ]
     paths:
