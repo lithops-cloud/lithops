@@ -54,3 +54,4 @@ jobs:
         verbose: true
         slug: acanadil/lithops
         flags: aws
+        
