@@ -288,7 +288,7 @@ class ResponseFuture:
                 f'from call {self.call_id} - Activation ID: {self.activation_id}'
             )
 
-        if self._call_output or not self._produce_output:
+        if self._call_output is not None or not self._produce_output:
             self._set_state(ResponseFuture.State.Done)
         else:
             self._set_state(ResponseFuture.State.Success)
