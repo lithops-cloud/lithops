@@ -24,4 +24,3 @@ def test_fn_returns_obj_with_ambiguous_truth_value():
     future = fexec.call_async(returns_obj_with_ambiguous_truth_value, "Hello World!")
     result = future.result()
     assert result.data == "Hello World!"
-
