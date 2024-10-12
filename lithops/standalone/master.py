@@ -214,15 +214,13 @@ def save_worker(worker, standalone_config, work_queue_name):
 
     worker_processes = CPU_COUNT if worker.config['worker_processes'] == 'AUTO' \
         else worker.config['worker_processes']
-    instance_type = 'unknow' if config['exec_mode'] == StandaloneMode.CONSUME.value \
-        else worker.instance_type
 
     redis_client.hset(f"worker:{worker.name}", mapping={
         'name': worker.name,
         'status': WorkerStatus.STARTING.value,
         'private_ip': worker.private_ip or '',
         'instance_id': worker.instance_id or '',
-        'instance_type': instance_type,
+        'instance_type': worker.instance_type,
         'worker_processes': worker_processes,
         'created': str(time.time()),
         'ssh_credentials': json.dumps(worker.ssh_credentials),

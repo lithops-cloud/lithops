@@ -458,7 +458,8 @@ class IBMVPCBackend:
                     'ssh_data_type': 'provided',
                     'master_name': master_name,
                     'master_id': self.config['instance_id'],
-                    'floating_ip': self.config['floating_ip']
+                    'floating_ip': self.config['floating_ip'],
+                    'instance_type': 'unknown'
                 }
 
             # Create the master VM instance
@@ -834,7 +835,7 @@ class IBMVPCBackend:
         instance = IBMVPCInstance(name, self.config, self.vpc_cli)
 
         for key in kwargs:
-            if hasattr(instance, key):
+            if hasattr(instance, key) and kwargs[key] is not None:
                 setattr(instance, key, kwargs[key])
 
         return instance

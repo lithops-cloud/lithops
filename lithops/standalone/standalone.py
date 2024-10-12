@@ -303,7 +303,8 @@ class StandaloneHandler:
             {'name': inst.name,
              'private_ip': inst.private_ip,
              'instance_id': inst.instance_id,
-             'ssh_credentials': inst.ssh_credentials}
+             'ssh_credentials': inst.ssh_credentials,
+             'instance_type': inst.instance_type}
             for inst in new_workers
         ]
 
