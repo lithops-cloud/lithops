@@ -20,8 +20,8 @@ import uuid
 from lithops.constants import SA_DEFAULT_CONFIG_KEYS
 
 DEFAULT_CONFIG_KEYS = {
-    'master_instance_type': 't2.micro',
-    'worker_instance_type': 't2.medium',
+    'master_instance_type': 't3.micro',
+    'worker_instance_type': 't3.medium',
     'ssh_username': 'ubuntu',
     'ssh_password': str(uuid.uuid4()),
     'ssh_key_filename': '~/.ssh/id_rsa',

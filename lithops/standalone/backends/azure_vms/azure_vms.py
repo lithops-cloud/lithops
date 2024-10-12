@@ -380,7 +380,7 @@ class AzureVMSBackend:
         name = self.config.get('master_name') or f'lithops-master-{self.vnet_key}'
         self.master = VMInstance(name, self.config, self.compute_client, public=True)
         self.master.name = self.config['instance_name'] if self.mode == StandaloneMode.CONSUME.value else name
-        self.master.public_ip = self.config['floating_ip']
+        self.master.public_ip = self.config['floating_ip'] if self.mode != StandaloneMode.CONSUME.value else '0.0.0.0'
         self.master.instance_type = self.config['master_instance_type']
         self.master.delete_on_dismantle = False
         self.master.ssh_credentials.pop('password')
@@ -399,25 +399,23 @@ class AzureVMSBackend:
             instance_name = self.config['instance_name']
             if not self.azure_data or instance_name != self.azure_data.get('instance_name'):
                 try:
-                    self.compute_client.virtual_machines.get(
+                    instance_data = self.compute_client.virtual_machines.get(
                         self.config['resource_group'], instance_name
                     )
                 except ResourceNotFoundError:
-                    raise Exception(f"VM Instance {instance_name} does not exists")
+                    raise Exception(f"VM Instance {instance_name} does not exist")
 
-            # Make sure that the ssh key is provided
-            self.config['ssh_key_filename'] = self.config.get('ssh_key_filename', '~/.ssh/id_rsa')
-
-            self.azure_data = {
-                'mode': self.mode,
-                'vnet_data_type': 'provided',
-                'ssh_data_type': 'provided',
-                'instance_name': self.config['instance_name'],
-                'master_id': self.config['instance_id'],
-                'ssh_key_filename': self.config['ssh_key_filename'],
-            }
+                self.azure_data = {
+                    'mode': self.mode,
+                    'vnet_data_type': 'provided',
+                    'ssh_data_type': 'provided',
+                    'instance_name': self.config['instance_name'],
+                    'master_id': instance_data.vm_id,
+                    'instance_type': instance_data.hardware_profile.vm_size
+                }
 
             # Create the master VM instance
+            self.config['master_instance_type'] = self.azure_data['instance_type']
             self._create_master_instance()
 
         elif self.mode in [StandaloneMode.CREATE.value, StandaloneMode.REUSE.value]:
@@ -635,7 +633,7 @@ class AzureVMSBackend:
         instance = VMInstance(name, self.config, self.compute_client)
 
         for key in kwargs:
-            if hasattr(instance, key):
+            if hasattr(instance, key) and kwargs[key] is not None:
                 setattr(instance, key, kwargs[key])
 
         return instance

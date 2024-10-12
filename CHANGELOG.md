@@ -9,7 +9,9 @@
 -
 
 ### Fixed
-- 
+- [Core] Fix issue in "if self._call_output in future.py" for objects with ambiguous truth values
+- [Standalone] Consume execution mode failing to run the installation script thus failing all the jobs
+- [Azure VMs] Consume execution mode failing to execute jobs
 
 
 ## [v3.5.0]

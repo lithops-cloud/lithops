@@ -542,11 +542,13 @@ class AWSEC2Backend:
                     'vpc_data_type': 'provided',
                     'ssh_data_type': 'provided',
                     'master_name': master_name,
-                    'master_id': self.config['instance_id']
+                    'master_id': self.config['instance_id'],
+                    'instance_type': instance_data['InstanceType']
                 }
 
             # Create the master VM instance
             self.config['master_name'] = self.ec2_data['master_name']
+            self.config['master_instance_type'] = self.ec2_data['instance_type']
             self._create_master_instance()
 
         elif self.mode in [StandaloneMode.CREATE.value, StandaloneMode.REUSE.value]:
@@ -958,7 +960,7 @@ class AWSEC2Backend:
         instance = EC2Instance(name, self.config, self.ec2_client)
 
         for key in kwargs:
-            if hasattr(instance, key):
+            if hasattr(instance, key) and kwargs[key] is not None:
                 setattr(instance, key, kwargs[key])
 
         return instance
