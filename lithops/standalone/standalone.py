@@ -438,7 +438,8 @@ class StandaloneHandler:
         script += get_master_setup_script(self.config, master_data)
 
         ssh_client.upload_data_to_file(script, remote_script)
-        ssh_client.run_remote_command(f"chmod 777 {remote_script}; sudo {remote_script};")
+        cmd = f"chmod 755 {remote_script}; sudo {remote_script}; rm {remote_script}"
+        ssh_client.run_remote_command(cmd)
 
         # Download the master VM public key generated with the installation script
         # This public key will be used to create the workers
