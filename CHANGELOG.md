@@ -1,12 +1,6 @@
 # Changelog
 
-## [v3.5.1.dev0]
-
-### Added
-- 
-
-### Changed
--
+## [v3.5.1]
 
 ### Fixed
 - [Core] Fix issue in "if self._call_output in future.py" for objects with ambiguous truth values
