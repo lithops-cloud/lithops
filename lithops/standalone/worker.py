@@ -154,20 +154,12 @@ def redis_queue_consumer(pid, work_queue_name, exec_mode, backend):
     logger.info(f"Redis consumer process {pid} started")
 
     while True:
-        if exec_mode == StandaloneMode.CONSUME.value:
-            task_payload_str = redis_client.rpop(work_queue_name)
-            if not task_payload_str:
-                time.sleep(1)
-                if all(worker['status'] == WorkerStatus.IDLE.value
-                       for worker in worker_threads.values()):
-                    break
-                continue
-        elif exec_mode == StandaloneMode.REUSE.value:
-            key, task_payload_str = redis_client.brpop(work_queue_name)
-        else:
+        if exec_mode == StandaloneMode.CREATE.value:
             task_payload_str = redis_client.rpop(work_queue_name)
             if task_payload_str is None:
                 break
+        else:
+            key, task_payload_str = redis_client.brpop(work_queue_name)
 
         worker_threads[pid]['status'] = WorkerStatus.BUSY.value
 
