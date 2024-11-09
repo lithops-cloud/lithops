@@ -9,7 +9,8 @@
 - 
 
 ### Fixed
-- 
+- [Standalone] Fix issue causing worker to stop prematurely in Consume mode
+
 
 ## [v3.5.1]
 
