@@ -16,7 +16,6 @@
 #
 
 import os
-import time
 import json
 import redis
 import flask
