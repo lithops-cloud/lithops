@@ -87,7 +87,14 @@ class S3Backend:
                 logger.debug(f"Could not find the bucket {bucket_name} in the AWS S3 storage backend")
                 logger.debug(f"Creating new bucket {bucket_name} in the AWS S3 storage backend")
                 bucket_config = {'LocationConstraint': self.region}
-                self.s3_client.create_bucket(Bucket=bucket_name, CreateBucketConfiguration=bucket_config)
+                try:
+                    self.s3_client.create_bucket(Bucket=bucket_name, CreateBucketConfiguration=bucket_config)
+                except botocore.exceptions.ClientError as ce:
+                    error_code = ce.response.get('Error', {}).get('Code', 'Unknown')
+                    if error_code == "InvalidLocationConstraint" and self.region == "us-east-1":
+                        self.s3_client.create_bucket(Bucket=bucket_name)
+                    else:
+                        raise ce
             else:
                 raise e
 
