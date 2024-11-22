@@ -282,7 +282,7 @@ class StandaloneHandler:
                 total_workers += len(new_workers)
 
         if total_workers == 0:
-            raise Exception('It was not possible to create any worker')
+            raise Exception('It was not possible to create any workers')
 
         logger.debug(f'ExecutorID {executor_id} | JobID {job_id} - Going to run '
                      f'{total_calls} activations in {total_workers} workers')
