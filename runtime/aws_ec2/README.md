@@ -43,7 +43,7 @@ aws_ec2:
 
 ## Option 2:
 
-You can create a VM image manually. For example, you can create a VM in you AWS region, access the VM, install all the dependencies in the VM itself (apt-get, pip3 install, ...), stop the VM, create a VM Image, and then put the AMI ID in your lithops config, for example:
+You can create a VM image manually. For example, you can create a VM in your AWS region, access the VM, install all the dependencies in the VM itself (apt-get, pip3 install, ...), stop the VM, create a VM Image, and then put the AMI ID in your lithops config, for example:
 
 ```yaml
 aws_ec2:
