@@ -11,7 +11,7 @@ lithops image build -b aws_ec2
 ```
 
 This command will create an image called "lithops-ubuntu-jammy-22.04-amd64-server" in the target region.
-If the image already exists, and you want to updete it, use the `--overwrite` or `-o` parameter:
+If the image already exists, and you want to update it, use the `--overwrite` or `-o` parameter:
 
 ```
 lithops image build -b aws_ec2 --overwrite
