@@ -447,7 +447,7 @@ Deletes objects from a given bucket.
 ``lithops storage list <bucket>``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Deletes objects from a given bucket.
+Lists objects from a given bucket.
 
 +-----------------+---------------------------------+
 | Parameter       | Description                     |
