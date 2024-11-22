@@ -211,7 +211,7 @@ lithops logs poll
 
 ## VM Management
 
-Lithops for AWS EC2 follows a Mater-Worker architecture (1:N).
+Lithops for AWS EC2 follows a Master-Worker architecture (1:N).
 
 All the VMs, including the master VM, are automatically stopped after a configurable timeout (see hard/soft dismantle timeouts).
 
