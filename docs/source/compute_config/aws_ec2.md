@@ -6,9 +6,9 @@ The AWS EC2 client of Lithops can provide a truely serverless user experience on
 The assumption that you already familiar with AWS, and you have AUTH credentials to your account (HMAC Credentials).
 
 ### Choose an operating system image for the VM
-Any Virtual Machine (VM) need to define the instance’s operating system and version. Lithops support both standard operating system choices provided by the VPC or using pre-defined custom images that already contains all dependencies required by Lithops.
+Any Virtual Machine (VM) needs to define the instance’s operating system and version. Lithops supports both standard operating system choices provided by the VPC or using pre-defined custom images that already contains all dependencies required by Lithops.
 
-- Option 1: By default, Lithops uses an Ubuntu 22.04 image. In this case, no further action is required and you can continue to the next step. Lithops will install all required dependencies in the VM by itself. Notice this can consume about 3 min to complete all installations.
+- Option 1: By default, Lithops uses an Ubuntu 22.04 image. In this case, no further action is required and you can continue to the next step. Lithops will install all required dependencies in the VM by itself. Note this can consume about 3 min to complete all installations.
 
 - Option 2: Alternatively, you can use a pre-built custom image that will greatly improve VM creation time for Lithops jobs. To benefit from this approach, navigate to [runtime/aws_ec2](https://github.com/lithops-cloud/lithops/tree/master/runtime/aws_ec2), and follow the instructions.
 
