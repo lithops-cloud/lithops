@@ -99,7 +99,7 @@ In this scenario, specifying either the ``worker_instance_type`` or ``worker_pro
 the desired parallelism inside worker VMs. By default, Lithops determines the total number of worker processes based on the
 number of CPUs in the specified instance type. For example, an AWS EC2 instance of type ``t2.medium``, with 2 CPUs, would set
 ``worker_processes`` to 2. Additionally, users have the flexibility to manually adjust parallelism by setting a different
-value for ``worker_processes``. Depenidng on the use case, it would be conveneint to set more ``worker_processes`` than CPUs,
+value for ``worker_processes``. Depending on the use case, it would be convenient to set more ``worker_processes`` than CPUs,
 or less ``worker_processes`` than CPUs. For example, we can use a ``t2.medium`` instance types that has 2 CPUs, but
 set ``worker_processes`` to 4:
 
