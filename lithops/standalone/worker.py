@@ -251,7 +251,7 @@ def run_worker():
     # Start the consumer threads
     worker_processes = standalone_config[standalone_config['backend']]['worker_processes']
     worker_processes = CPU_COUNT if worker_processes == 'AUTO' else worker_processes
-    logger.info(f"Starting Worker - Instace type: {worker_data['instance_type']} - Runtime "
+    logger.info(f"Starting Worker - Instance type: {worker_data['instance_type']} - Runtime "
                 f"name: {standalone_config['runtime']} - Worker processes: {worker_processes}")
 
     # Create a ThreadPoolExecutor for cosnuming tasks
