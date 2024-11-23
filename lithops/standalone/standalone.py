@@ -173,7 +173,7 @@ class StandaloneHandler:
         """
         Waits until the master service is ready to receive http connections
         """
-        logger.info(f'Waiting Lithops service to become ready on {self.backend.master}')
+        logger.info(f'Waiting for Lithops service to become ready on {self.backend.master}')
 
         start = time.time()
         while (time.time() - start < self.start_timeout):
