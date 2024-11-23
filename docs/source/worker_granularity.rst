@@ -90,7 +90,7 @@ understanding the flexibility VMs provide is essential for effectively utilizing
 Unlike FaaS and CaaS platforms, when deploying Lithops on Virtual Machine backends, such as EC2, a master-worker architecture
 is adopted. In this paradigm, the master node holds a work queue containing tasks for a specific job, and workers pick up and
 process tasks one by one. In this sense, the chunksize parameter, which determines the number of functions allocated
-to each worker for parallel processing, is not applicable in this context.Consequently, the worker granularity is inherently
+to each worker for parallel processing, is not applicable in this context. Consequently, the worker granularity is inherently
 determined by the number of worker processess in the VM setup. Adjusting the number of VM instances or the configuration of
 each VM, such as the CPU core count, becomes crucial for optimizing performance and resource utilization in this master-worker
 approach.
