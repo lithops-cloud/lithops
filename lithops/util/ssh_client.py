@@ -28,7 +28,7 @@ class SSHClient():
 
     def create_client(self, timeout=2):
         """
-        Crate the SSH client connection
+        Create the SSH client connection
         """
         try:
             self.ssh_client = paramiko.SSHClient()

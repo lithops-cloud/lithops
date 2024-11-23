@@ -90,7 +90,7 @@ understanding the flexibility VMs provide is essential for effectively utilizing
 Unlike FaaS and CaaS platforms, when deploying Lithops on Virtual Machine backends, such as EC2, a master-worker architecture
 is adopted. In this paradigm, the master node holds a work queue containing tasks for a specific job, and workers pick up and
 process tasks one by one. In this sense, the chunksize parameter, which determines the number of functions allocated
-to each worker for parallel processing, is not applicable in this context.Consequently, the worker granularity is inherently
+to each worker for parallel processing, is not applicable in this context. Consequently, the worker granularity is inherently
 determined by the number of worker processess in the VM setup. Adjusting the number of VM instances or the configuration of
 each VM, such as the CPU core count, becomes crucial for optimizing performance and resource utilization in this master-worker
 approach.
@@ -99,7 +99,7 @@ In this scenario, specifying either the ``worker_instance_type`` or ``worker_pro
 the desired parallelism inside worker VMs. By default, Lithops determines the total number of worker processes based on the
 number of CPUs in the specified instance type. For example, an AWS EC2 instance of type ``t2.medium``, with 2 CPUs, would set
 ``worker_processes`` to 2. Additionally, users have the flexibility to manually adjust parallelism by setting a different
-value for ``worker_processes``. Depenidng on the use case, it would be conveneint to set more ``worker_processes`` than CPUs,
+value for ``worker_processes``. Depending on the use case, it would be convenient to set more ``worker_processes`` than CPUs,
 or less ``worker_processes`` than CPUs. For example, we can use a ``t2.medium`` instance types that has 2 CPUs, but
 set ``worker_processes`` to 4:
 

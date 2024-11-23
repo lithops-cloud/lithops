@@ -151,7 +151,7 @@ Runtime management
 ------------------
 
 For complete instructions on how to build runtimes for Lithops, please
-refer to ``runtime/`` folder and choose your compute backend.
+refer to the ``runtime/`` folder and choose your compute backend.
 
 ``lithops runtime build <runtime-name>``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -159,7 +159,7 @@ refer to ``runtime/`` folder and choose your compute backend.
 Build a new runtime image. Depending of the compute backend, there must
 be a Dockerfile located in the same folder you run the command,
 otherwise use ``-f`` parameter. Note that this command only builds the
-image and puts it to a container registry. This command do not deploy
+image and puts it into a container registry. This command do not deploy
 the runtime to the compute backend.
 
 +-----------------+-----------------------------------+
@@ -447,7 +447,7 @@ Deletes objects from a given bucket.
 ``lithops storage list <bucket>``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Deletes objects from a given bucket.
+Lists objects from a given bucket.
 
 +-----------------+---------------------------------+
 | Parameter       | Description                     |

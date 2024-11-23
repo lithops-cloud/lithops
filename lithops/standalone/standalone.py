@@ -173,7 +173,7 @@ class StandaloneHandler:
         """
         Waits until the master service is ready to receive http connections
         """
-        logger.info(f'Waiting Lithops service to become ready on {self.backend.master}')
+        logger.info(f'Waiting for Lithops service to become ready on {self.backend.master}')
 
         start = time.time()
         while (time.time() - start < self.start_timeout):
@@ -282,7 +282,7 @@ class StandaloneHandler:
                 total_workers += len(new_workers)
 
         if total_workers == 0:
-            raise Exception('It was not possible to create any worker')
+            raise Exception('It was not possible to create any workers')
 
         logger.debug(f'ExecutorID {executor_id} | JobID {job_id} - Going to run '
                      f'{total_calls} activations in {total_workers} workers')
