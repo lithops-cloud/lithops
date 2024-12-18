@@ -1131,7 +1131,7 @@ class EC2Instance:
 
     def is_stopped(self):
         """
-        Checks if the VM instance is stoped
+        Checks if the VM instance is stopped
         """
         state = self.get_instance_data()['State']
         if state['Name'] == 'stopped':
@@ -1140,7 +1140,7 @@ class EC2Instance:
 
     def wait_stopped(self, timeout=INSTANCE_STX_TIMEOUT):
         """
-        Waits until the VM instance is stoped
+        Waits until the VM instance is stopped
         """
         logger.debug(f'Waiting {self} to become stopped')
 
