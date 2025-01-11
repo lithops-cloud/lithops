@@ -12,6 +12,7 @@
 - [Standalone] Fixed an issue causing workers to stop prematurely in Consume mode
 - [Invoker] Reduced the number of threads used in the async FaaS Invoker
 - [Monitoring] Fixed token bucket issue that prevented generating the correct number of tokens
+- [Code Engine] Allow to build the default runtime with Python 3.13
 
 
 ## [v3.5.1]
