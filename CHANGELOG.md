@@ -3,7 +3,7 @@
 ## [v3.5.2.dev0]
 
 ### Added
-- 
+- [Core] Added support for python 3.13
 
 ### Changed
 - 
