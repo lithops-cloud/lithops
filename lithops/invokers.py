@@ -301,8 +301,8 @@ class FaaSInvoker(Invoker):
         self.should_run = False
         self.sync = is_lithops_worker()
 
-        invoke_pool_threads = self.config[self.backend]['invoke_pool_threads']
-        self.executor = ThreadPoolExecutor(invoke_pool_threads)
+        self.invoke_pool_threads = self.config[self.backend]['invoke_pool_threads']
+        self.executor = ThreadPoolExecutor(self.invoke_pool_threads)
 
         logger.debug(f'ExecutorID {self.executor_id} - Serverless invoker created')
 
@@ -315,7 +315,7 @@ class FaaSInvoker(Invoker):
             """Run process that implements token bucket scheduling approach"""
             logger.debug(f'ExecutorID {self.executor_id} - Async invoker {inv_id} started')
 
-            with ThreadPoolExecutor(max_workers=250) as executor:
+            with ThreadPoolExecutor(max_workers=min(64, self.invoke_pool_threads // 4)) as executor:
                 while self.should_run:
                     try:
                         self.job_monitor.token_bucket_q.get()
@@ -330,6 +330,7 @@ class FaaSInvoker(Invoker):
             logger.debug(f'ExecutorID {self.executor_id} - Async invoker {inv_id} finished')
 
         for inv_id in range(self.ASYNC_INVOKERS):
+            self.job_monitor.token_bucket_q.put('#')
             p = threading.Thread(target=invoker_process, args=(inv_id,))
             self.invokers.append(p)
             p.daemon = True
@@ -429,6 +430,16 @@ class FaaSInvoker(Invoker):
             self.running_workers = 0
             self.should_run = True
             self._start_async_invokers()
+
+        if self.running_workers > 0 and not self.job_monitor.token_bucket_q.empty():
+            while not self.job_monitor.token_bucket_q.empty():
+                try:
+                    self.job_monitor.token_bucket_q.get(False)
+                    self.running_workers -= 1
+                    if self.running_workers == 0:
+                        break
+                except Exception:
+                    pass
 
         if self.running_workers < self.max_workers:
             free_workers = self.max_workers - self.running_workers
