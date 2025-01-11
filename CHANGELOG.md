@@ -9,7 +9,9 @@
 - 
 
 ### Fixed
-- [Standalone] Fix issue causing worker to stop prematurely in Consume mode
+- [Standalone] Fixed an issue causing workers to stop prematurely in Consume mode
+- [Invoker] Reduced the number of threads used in the async FaaS Invoker
+- [Monitoring] Fixed token bucket issue that prevented generating the correct number of tokens
 
 
 ## [v3.5.1]

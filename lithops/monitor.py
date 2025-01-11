@@ -429,8 +429,21 @@ class StorageMonitor(Monitor):
         logger.debug(f'ExecutorID {self.executor_id} - Starting Storage job monitor')
 
         wait_dur_sec = self.monitoring_interval
-        prevoius_log = None
+        previous_log = None
         log_time = 0
+
+        def process_callids():
+            nonlocal previous_log, log_time
+            callids_running, callids_done = self.internal_storage.get_job_status(self.executor_id)
+            # verify if there are new callids_done and reduce the sleep
+            new_callids_done = callids_done - self.callids_done_processed_status
+            # generate tokens and mark futures as running/done
+            self._generate_tokens(callids_running, callids_done)
+            self._tag_future_as_running(callids_running)
+            self._tag_future_as_ready(callids_done)
+            previous_log, log_time = self._print_status_log(previous_log, log_time)
+
+            return new_callids_done
 
         while not self._all_ready():
             time.sleep(wait_dur_sec)
@@ -440,19 +453,10 @@ class StorageMonitor(Monitor):
             if not self.should_run:
                 break
 
-            callids_running, callids_done = \
-                self.internal_storage.get_job_status(self.executor_id)
-
-            # verify if there are new callids_done and reduce the sleep
-            new_callids_done = callids_done - self.callids_done_processed_status
-            if len(new_callids_done) > 0:
+            if len(process_callids()) > 0:
                 wait_dur_sec = self.monitoring_interval / 5
 
-            # generate tokens and mark futures as running/done
-            self._generate_tokens(callids_running, callids_done)
-            self._tag_future_as_running(callids_running)
-            self._tag_future_as_ready(callids_done)
-            prevoius_log, log_time = self._print_status_log(prevoius_log, log_time)
+        process_callids()
 
         logger.debug(f'ExecutorID {self.executor_id} - Storage job monitor finished')
 
