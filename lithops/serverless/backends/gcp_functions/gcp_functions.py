@@ -251,6 +251,7 @@ class GCPFunctionsBackend:
 
         # Wait until the function is completely deployed
         logger.info('Waiting for the function to be deployed')
+        # note: this causes a bug, function metadata is yet not created, getting 404
         while True:
             response = self._api_resource.projects().locations().functions().get(
                 name=function_location
