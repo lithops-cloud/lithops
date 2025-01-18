@@ -4,6 +4,8 @@
 
 ### Added
 - [Core] Added support for python 3.13
+- [AWS EC2] Add support for configuring EBS volumes in EC2 lithops workers
+- [AWS EC2] Add support for specifying CIDR block in EC2 public subnet
 
 ### Changed
 - 
