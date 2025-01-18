@@ -163,13 +163,13 @@ aws_ec2:
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-| ebs | volume_size | 8  | No | Size of the volume in GiB.                                                                     |
-| ebs | volume_type | 'gp2' | No | Type of volume. Options: 'gp2', 'gp3', 'io1', 'io2', 'sc1', 'st1', 'standard'.                |
-| ebs | delete_on_termination| True | No | Whether the volume is deleted automatically when the instance is terminated.                   |
-| ebs | encrypted | False | No | Whether the volume is encrypted.                                                               |
-| ebs | kms_key_i | | No | ARN of the KMS key used for encryption. If not provided, the default AWS-managed key is used.  |
-| ebs | iops | | No | Provisioned IOPS for 'io1', 'io2', or 'gp3' volumes.                                           |
-| ebs | throughput | | No | Throughput in MiB/s for 'gp3' volumes.                                                         |
+| ebs | volume_size | 8  | No | Size of the volume in GiB |
+| ebs | volume_type | gp2 | No | Type of volume. Options: `gp2`, `gp3`, `io1`, `io2`, `sc1`, `st1`, `standard`|
+| ebs | delete_on_termination| True | No | Whether the volume is deleted automatically when the instance is terminated |
+| ebs | encrypted | False | No | Whether the volume is encrypted |
+| ebs | kms_key_i | | No | ARN of the KMS key used for encryption. If not provided, the default AWS-managed key is used |
+| ebs | iops | | No | Provisioned IOPS for `io1`, `io2`, or `gp3` volumes |
+| ebs | throughput | | No | Throughput in MiB/s for `gp3` volumes |
 
 
 ## Consume mode
