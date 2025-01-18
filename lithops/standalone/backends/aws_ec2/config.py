@@ -28,7 +28,8 @@ DEFAULT_CONFIG_KEYS = {
     'request_spot_instances': True,
     'delete_on_dismantle': True,
     'max_workers': 100,
-    'worker_processes': 'AUTO'
+    'worker_processes': 'AUTO',
+    'public_subnet_cidr_block': '10.0.1.0/24'
 }
 
 REQ_PARAMS_1 = ('instance_id',)

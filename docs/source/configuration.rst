@@ -71,22 +71,30 @@ Here is an example of providing configuration keys for IBM Cloud Functions and I
 
 .. code:: python
 
-    import lithops
+   import lithops
 
+   config = {
+      'lithops': {
+         'backend': 'code_engine',
+         'storage': 'ibm_cos'
+      },
+      'ibm': {
+         'region': 'REGION',
+         'iam_api_key': 'IAM_API_KEY',
+         'resource_group_id': 'RESOURCE_GROUP_ID'
+      },
+      'ibm_cos': {
+         'storage_bucket': 'STORAGE_BUCKET'
+      }
+   }
 
-    config = {'lithops': {'backend': 'ibm_cf', 'storage': 'ibm_cos'},
-              'ibm': {'region': 'REGION',
-                      'iam_api_key': 'IAM_API_KEY',
-                      'resource_group_id': 'RESOURCE_GROUP_ID'}
-              'ibm_cos': {'storage_bucket': 'STORAGE_BUCKET'}}
+   def hello_world(number):
+      return f'Hello {number}!'
 
-    def hello_world(name):
-        return 'Hello {}!'.format(name)
-
-    if __name__ == '__main__':
-        fexec = lithops.FunctionExecutor(config=config)
-        fexec.call_async(hello_world, 'World')
-        print(fexec.get_result())
+   if __name__ == '__main__':
+      fexec = lithops.FunctionExecutor(config=config)
+      fexec.map(hello_world, [1, 2, 3, 4])
+      print(fexec.get_result())
 
 
 .. _config-reference-label:
