@@ -116,7 +116,7 @@ In summary, you can use one of the following settings:
 |aws_ec2 | ssh_key_name | | no | SSH Key name. You can find the available keys in the [EC2 console page](https://console.aws.amazon.com/ec2/v2/home#KeyPairs:). Create a new one or upload your own key if it does not exist|
 |aws_ec2 | ssh_username | ubuntu |no | Username to access the VM |
 |aws_ec2 | ssh_password |  |no | Password for accessing the worker VMs. If not provided, it is created randomly|
-|aws_ec2 | ssh_key_filename | ~/.ssh/id_rsa | no | Path to the ssh key file provided to access the VPC. If not provided, Lithops will use the default path and create a new ssk key for the VPC |
+|aws_ec2 | ssh_key_filename | ~/.ssh/id_rsa | no | Path to the ssh key file provided to access the VPC. If not provided, Lithops will use the default path and create a new ssh key for the VPC |
 |aws_ec2 | request_spot_instances | True | no | Request spot instance for worker VMs|
 |aws_ec2 | target_ami | | no | Virtual machine image id. Default is Ubuntu Server 22.04 |
 |aws_ec2 | master_instance_type | t2.micro | no | Profile name for the master VM |
