@@ -169,6 +169,7 @@ class RabbitmqMonitor(Monitor):
 
         self.rabbit_amqp_url = config.get('amqp_url')
         self.queue = f'lithops-{self.executor_id}'
+        self.tag = None
         self._create_resources()
 
     def _create_resources(self):
@@ -189,6 +190,8 @@ class RabbitmqMonitor(Monitor):
         """
         connection = pika.BlockingConnection(self.pikaparams)
         channel = connection.channel()
+        if self.tag:
+            channel.basic_cancel(self.tag)
         channel.queue_delete(queue=self.queue)
         channel.close()
         connection.close()
@@ -241,9 +244,7 @@ class RabbitmqMonitor(Monitor):
                 self.token_bucket_q.put('#')
 
     def run(self):
-        logger.debug(f'ExecutorID {self.executor_id} |  Starting RabbitMQ job monitor')
-        prevoius_log = None
-        log_time = 0
+        logger.debug(f'ExecutorID {self.executor_id} | Starting RabbitMQ job monitor')
         SLEEP_TIME = 2
 
         channel = self.connection.channel()
@@ -261,21 +262,24 @@ class RabbitmqMonitor(Monitor):
             if self._all_ready() or not self.should_run:
                 ch.stop_consuming()
                 ch.close()
-                self._print_status_log()
-                logger.debug(f'ExecutorID {self.executor_id} | RabbitMQ job monitor finished')
 
-        channel.basic_consume(self.queue, callback, auto_ack=True)
-        threading.Thread(target=channel.start_consuming, daemon=True).start()
+        def manage_timeouts():
+            prevoius_log = None
+            log_time = 0
+            while self.should_run and not self._all_ready():
+                # Format call_ids running, pending and done
+                prevoius_log, log_time = self._print_status_log(previous_log=prevoius_log, log_time=log_time)
+                self._future_timeout_checker(self.futures)
+                time.sleep(SLEEP_TIME)
+                log_time += SLEEP_TIME
 
-        while not self._all_ready():
-            # Format call_ids running, pending and done
-            prevoius_log, log_time = self._print_status_log(previous_log=prevoius_log, log_time=log_time)
-            self._future_timeout_checker(self.futures)
-            time.sleep(SLEEP_TIME)
-            log_time += SLEEP_TIME
+        threading.Thread(target=manage_timeouts, daemon=True).start()
 
-            if not self.should_run:
-                break
+        self.tag = channel.basic_consume(self.queue, callback, auto_ack=True)
+        channel.start_consuming()
+        self.tag = None
+        self._print_status_log()
+        logger.debug(f'ExecutorID {self.executor_id} | RabbitMQ job monitor finished')
 
 
 class StorageMonitor(Monitor):
