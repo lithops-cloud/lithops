@@ -1,21 +1,19 @@
 # Changelog
 
-## [v3.5.2.dev0]
+## [v3.6.0]
 
 ### Added
 - [Core] Added support for python 3.13
 - [AWS EC2] Add support for configuring EBS volumes in EC2 lithops workers
 - [AWS EC2] Add support for specifying CIDR block in EC2 public subnet
 
-### Changed
-- 
-
 ### Fixed
 - [Standalone] Fixed an issue causing workers to stop prematurely in Consume mode
 - [Invoker] Reduced the number of threads used in the async FaaS Invoker
 - [Monitoring] Fixed token bucket issue that prevented generating the correct number of tokens
 - [Code Engine] Allow to build the default runtime with Python 3.13
-
+- [Monitoring] Fixed race condition in RMQ Monitor
+- [AWS S3] Fixed InvalidLocationConstraint error in AWS S3 handled
 
 ## [v3.5.1]
 
