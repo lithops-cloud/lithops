@@ -49,6 +49,7 @@ class SingularityBackend:
         params = pika.URLParameters(self.amqp_url)
         self.connection = pika.BlockingConnection(params)
         self.channel = self.connection.channel()
+        self.channel.queue_declare(queue='task_queue', durable=True)
 
         msg = COMPUTE_CLI_MSG.format('Singularity')
         logger.info(f"{msg}")
@@ -140,9 +141,7 @@ class SingularityBackend:
         Deletes all jobs
         """
         logger.debug('Cleaning RabbitMQ queues')
-        delete_queues = ['task_queue', 'status_queue']
-        for queue in delete_queues:
-            self.channel.queue_delete(queue=queue)
+        self.channel.queue_delete(queue='task_queue')
 
     def list_runtimes(self, singularity_image_name='all'):
         """
