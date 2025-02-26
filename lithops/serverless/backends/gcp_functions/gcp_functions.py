@@ -244,26 +244,26 @@ class GCPFunctionsBackend:
                 'failurePolicy': {}
             }
 
-        response = self._api_resource.projects().locations().functions().create(
+        operation = self._api_resource.projects().locations().functions().create(
             location=self._default_location,
             body=cloud_function
         ).execute(num_retries=self.num_retries)
 
         # Wait until the function is completely deployed
         logger.info('Waiting for the function to be deployed')
+        operation_name = operation['name']
         while True:
-            response = self._api_resource.projects().locations().functions().get(
-                name=function_location
+            op_status = self._api_resource.operations().get(
+                name=operation_name
             ).execute(num_retries=self.num_retries)
-            logger.debug(f'Function status is {response["status"]}')
-            if response['status'] == 'ACTIVE':
+            if op_status.get('done'):
+                if 'error' in op_status:
+                    raise Exception(f'Error while deploying Cloud Function: {op_status["error"]}')
+                logger.info("Deployment completed successfully.")
                 break
-            elif response['status'] == 'OFFLINE':
-                raise Exception('Error while deploying Cloud Function')
-            elif response['status'] == 'DEPLOY_IN_PROGRESS':
-                time.sleep(self.retry_sleep)
             else:
-                raise Exception(f"Unknown status {response['status']}")
+                logger.debug("Deployment in progress, waiting...")
+                time.sleep(self.retry_sleep)
 
     def build_runtime(self, runtime_name, requirements_file, extra_args=[]):
         if not requirements_file:
