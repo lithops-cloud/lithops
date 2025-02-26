@@ -133,12 +133,12 @@ config = {
     }
 }
 
-def hello_world(name):
-    return f'Hello {name}!'
+def hello_world(number):
+    return f'Hello {number}!'
 
 if __name__ == '__main__':
     fexec = lithops.FunctionExecutor(config=config)
-    fexec.call_async(hello_world, 'World')
+    fexec.map(hello_world, [1, 2, 3, 4])
     print(fexec.get_result())
 ```
 

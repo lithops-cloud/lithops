@@ -173,7 +173,7 @@ class StandaloneHandler:
         """
         Waits until the master service is ready to receive http connections
         """
-        logger.info(f'Waiting Lithops service to become ready on {self.backend.master}')
+        logger.info(f'Waiting for Lithops service to become ready on {self.backend.master}')
 
         start = time.time()
         while (time.time() - start < self.start_timeout):
@@ -282,7 +282,7 @@ class StandaloneHandler:
                 total_workers += len(new_workers)
 
         if total_workers == 0:
-            raise Exception('It was not possible to create any worker')
+            raise Exception('It was not possible to create any workers')
 
         logger.debug(f'ExecutorID {executor_id} | JobID {job_id} - Going to run '
                      f'{total_calls} activations in {total_workers} workers')
@@ -303,7 +303,8 @@ class StandaloneHandler:
             {'name': inst.name,
              'private_ip': inst.private_ip,
              'instance_id': inst.instance_id,
-             'ssh_credentials': inst.ssh_credentials}
+             'ssh_credentials': inst.ssh_credentials,
+             'instance_type': inst.instance_type}
             for inst in new_workers
         ]
 
@@ -438,7 +439,8 @@ class StandaloneHandler:
         script += get_master_setup_script(self.config, master_data)
 
         ssh_client.upload_data_to_file(script, remote_script)
-        ssh_client.run_remote_command(f"chmod 777 {remote_script}; sudo {remote_script};")
+        cmd = f"chmod 755 {remote_script}; sudo {remote_script}; rm {remote_script}"
+        ssh_client.run_remote_command(cmd)
 
         # Download the master VM public key generated with the installation script
         # This public key will be used to create the workers

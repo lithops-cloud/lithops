@@ -11,7 +11,7 @@ lithops image build -b aws_ec2
 ```
 
 This command will create an image called "lithops-ubuntu-jammy-22.04-amd64-server" in the target region.
-If the image already exists, and you want to updete it, use the `--overwrite` or `-o` parameter:
+If the image already exists, and you want to update it, use the `--overwrite` or `-o` parameter:
 
 ```
 lithops image build -b aws_ec2 --overwrite
@@ -43,7 +43,7 @@ aws_ec2:
 
 ## Option 2:
 
-You can create a VM image manually. For example, you can create a VM in you AWS region, access the VM, install all the dependencies in the VM itself (apt-get, pip3 install, ...), stop the VM, create a VM Image, and then put the AMI ID in your lithops config, for example:
+You can create a VM image manually. For example, you can create a VM in your AWS region, access the VM, install all the dependencies in the VM itself (apt-get, pip3 install, ...), stop the VM, create a VM Image, and then put the AMI ID in your lithops config, for example:
 
 ```yaml
 aws_ec2:

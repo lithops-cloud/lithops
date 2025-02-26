@@ -182,7 +182,8 @@ class AWSEC2Backend:
         if 'public_subnet_id' not in self.config:
             logger.debug(f'Creating new public subnet in VPC {self.vpc_name}')
             response = self.ec2_client.create_subnet(
-                CidrBlock='10.0.1.0/24', VpcId=self.config['vpc_id'],
+                CidrBlock=self.config['public_subnet_cidr_block'],
+                VpcId=self.config['vpc_id'],
             )
             public_subnet_id = response['Subnet']['SubnetId']
             self.config['public_subnet_id'] = public_subnet_id
@@ -542,11 +543,13 @@ class AWSEC2Backend:
                     'vpc_data_type': 'provided',
                     'ssh_data_type': 'provided',
                     'master_name': master_name,
-                    'master_id': self.config['instance_id']
+                    'master_id': self.config['instance_id'],
+                    'instance_type': instance_data['InstanceType']
                 }
 
             # Create the master VM instance
             self.config['master_name'] = self.ec2_data['master_name']
+            self.config['master_instance_type'] = self.ec2_data['instance_type']
             self._create_master_instance()
 
         elif self.mode in [StandaloneMode.CREATE.value, StandaloneMode.REUSE.value]:
@@ -958,7 +961,7 @@ class AWSEC2Backend:
         instance = EC2Instance(name, self.config, self.ec2_client)
 
         for key in kwargs:
-            if hasattr(instance, key):
+            if hasattr(instance, key) and kwargs[key] is not None:
                 setattr(instance, key, kwargs[key])
 
         return instance
@@ -1129,7 +1132,7 @@ class EC2Instance:
 
     def is_stopped(self):
         """
-        Checks if the VM instance is stoped
+        Checks if the VM instance is stopped
         """
         state = self.get_instance_data()['State']
         if state['Name'] == 'stopped':
@@ -1138,7 +1141,7 @@ class EC2Instance:
 
     def wait_stopped(self, timeout=INSTANCE_STX_TIMEOUT):
         """
-        Waits until the VM instance is stoped
+        Waits until the VM instance is stopped
         """
         logger.debug(f'Waiting {self} to become stopped')
 
@@ -1155,20 +1158,28 @@ class EC2Instance:
         """
         Creates a new VM instance
         """
-        if self.fast_io:
-            BlockDeviceMappings = [
-                {
-                    'DeviceName': '/dev/xvda',
-                    'Ebs': {
-                        'VolumeSize': 100,
-                        'DeleteOnTermination': True,
-                        'VolumeType': 'gp2',
-                        # 'Iops' : 10000,
-                    },
-                },
-            ]
-        else:
-            BlockDeviceMappings = None
+        ebs_volumes = self.config.get('ebs_volumes', [])
+        BlockDeviceMappings = []
+
+        for volume in ebs_volumes:
+            ebs_config = volume.get('ebs', {})
+            block_device = {
+                'DeviceName': volume['device_name'],
+                'Ebs': {
+                    'VolumeSize': ebs_config.get('volume_size', 8),  # Default 8 GiB
+                    'VolumeType': ebs_config.get('volume_type', 'gp2'),
+                    'DeleteOnTermination': ebs_config.get('delete_on_termination', True),
+                    'Encrypted': ebs_config.get('encrypted', False),
+                }
+            }
+            if 'iops' in ebs_config:
+                block_device['Ebs']['Iops'] = ebs_config['iops']
+            if 'throughput' in ebs_config:
+                block_device['Ebs']['Throughput'] = ebs_config['throughput']
+            if 'kms_key_id' in ebs_config:
+                block_device['Ebs']['KmsKeyId'] = ebs_config['kms_key_id']
+
+            BlockDeviceMappings.append(block_device)
 
         LaunchSpecification = {
             "ImageId": self.config['target_ami'],

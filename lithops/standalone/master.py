@@ -214,15 +214,13 @@ def save_worker(worker, standalone_config, work_queue_name):
 
     worker_processes = CPU_COUNT if worker.config['worker_processes'] == 'AUTO' \
         else worker.config['worker_processes']
-    instance_type = 'unknow' if config['exec_mode'] == StandaloneMode.CONSUME.value \
-        else worker.instance_type
 
     redis_client.hset(f"worker:{worker.name}", mapping={
         'name': worker.name,
         'status': WorkerStatus.STARTING.value,
         'private_ip': worker.private_ip or '',
         'instance_id': worker.instance_id or '',
-        'instance_type': instance_type,
+        'instance_type': worker.instance_type,
         'worker_processes': worker_processes,
         'created': str(time.time()),
         'ssh_credentials': json.dumps(worker.ssh_credentials),
@@ -310,7 +308,7 @@ def setup_worker_create_reuse(standalone_handler, worker_info, work_queue_name):
 
         logger.debug(f'Submitting installation script to {worker}')
         worker.get_ssh_client().upload_data_to_file(script, remote_script)
-        cmd = f"chmod 777 {remote_script}; sudo {remote_script};"
+        cmd = f"chmod 755 {remote_script}; sudo {remote_script}; rm {remote_script}"
         worker.get_ssh_client().run_remote_command(cmd, run_async=True)
         worker.del_ssh_client()
 
@@ -349,13 +347,13 @@ def setup_worker_consume(standalone_handler, worker_info, work_queue_name):
         }
         worker_setup_script = "/tmp/install_lithops.sh"
         script = get_worker_setup_script(standalone_handler.config, vm_data)
-
         with open(worker_setup_script, 'w') as wis:
             wis.write(script)
 
         redis_client.hset(f"worker:{instance.name}", 'status', WorkerStatus.INSTALLING.value)
         os.chmod(worker_setup_script, 0o755)
         os.system("sudo " + worker_setup_script)
+        os.remove(worker_setup_script)
 
     except Exception as e:
         redis_client.hset(f"worker:{instance.name}", 'status', WorkerStatus.ERROR.value)
@@ -387,6 +385,8 @@ def handle_workers(job_payload, workers, work_queue_name):
             )
             total_correct += 1
         except Exception as e:
+            # TODO: If the local worker can't start, cancel all jobs
+            # in the budget keeper
             logger.error(e)
     else:
         with ThreadPoolExecutor(len(workers)) as executor:

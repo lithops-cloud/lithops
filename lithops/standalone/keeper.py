@@ -61,6 +61,10 @@ class BudgetKeeper(threading.Thread):
         self.last_usage_time = time.time()
         self.jobs[job_key] = JobStatus.RUNNING.value
 
+    def set_job_done(self, job_key):
+        self.last_usage_time = time.time()
+        self.jobs[job_key] = JobStatus.DONE.value
+
     def run(self):
         self.runing = True
         jobs_running = False

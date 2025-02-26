@@ -104,6 +104,7 @@ In summary, you can use one of the following settings:
 | aws_lambda | remote_invoker | False | no | Activate the remote invoker feature that uses one cloud function to spawn all the actual `map()` activations |
 | aws_lambda | architecture | x86_64 | no | Runtime architecture. One of **x86_64** or **arm64** |
 | aws_lambda | ephemeral_storage | 512 | no | Ephemeral storage (`/tmp`) size in MB (must be between 512 MB and 10240 MB) |
+| aws_lambda | user_tags | {} | no | List of {name: ..., value: ...} pairs for Lambda instance user tags |
 | aws_lambda | env_vars | {} | no | List of {name: ..., value: ...} pairs for Lambda instance environment variables |
 | aws_lambda | namespace |  | no | Virtual namespace. This can be useful to virtually group Lithops function workers. The functions deployed by lithops will be prefixed by this namespace. For example you can set it to differentiate between `prod`, `dev` and `stage` environments.  |
 | aws_lambda | runtime_include_function | False | no | If set to true, Lithops will automatically build a new runtime, including the function's code, instead of transferring it through the storage backend at invocation time. This is useful when the function's code size is large (in the order of 10s of MB) and the code does not change frequently |

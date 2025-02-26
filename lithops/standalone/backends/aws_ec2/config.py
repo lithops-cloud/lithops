@@ -20,15 +20,16 @@ import uuid
 from lithops.constants import SA_DEFAULT_CONFIG_KEYS
 
 DEFAULT_CONFIG_KEYS = {
-    'master_instance_type': 't2.micro',
-    'worker_instance_type': 't2.medium',
+    'master_instance_type': 't3.micro',
+    'worker_instance_type': 't3.medium',
     'ssh_username': 'ubuntu',
     'ssh_password': str(uuid.uuid4()),
     'ssh_key_filename': '~/.ssh/id_rsa',
     'request_spot_instances': True,
     'delete_on_dismantle': True,
     'max_workers': 100,
-    'worker_processes': 'AUTO'
+    'worker_processes': 'AUTO',
+    'public_subnet_cidr_block': '10.0.1.0/24'
 }
 
 REQ_PARAMS_1 = ('instance_id',)
