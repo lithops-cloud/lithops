@@ -100,6 +100,7 @@ class KubernetesBackend:
             params = pika.URLParameters(self.amqp_url)
             self.connection = pika.BlockingConnection(params)
             self.channel = self.connection.channel()
+            self.channel.queue_declare(queue='task_queue', durable=True)
 
             # Define some needed variables
             self._get_nodes()
@@ -275,6 +276,9 @@ class KubernetesBackend:
                         pass
         except ApiException:
             pass
+
+        if self.rabbitmq_executor:
+            self.channel.queue_delete(queue='task_queue')
 
     def clear(self, job_keys=None):
         """
