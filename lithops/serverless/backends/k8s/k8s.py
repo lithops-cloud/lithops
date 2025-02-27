@@ -276,7 +276,7 @@ class KubernetesBackend:
                         pass
         except ApiException:
             pass
-        
+
         if self.rabbitmq_executor:
             self.channel.queue_delete(queue='task_queue')
 
