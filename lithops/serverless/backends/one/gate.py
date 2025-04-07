@@ -16,7 +16,7 @@ class OneGateClient:
         self.endpoint = os.getenv(
             "ONEGATE_ENDPOINT", self.get_config("ONEGATE_ENDPOINT")
         )
-        self.token = self.read_file("/mnt/context/token.txt")
+        self.token = self.read_file("/context/token.txt")
         self.vm_id = self.get_config("VMID")
 
     @staticmethod
@@ -25,7 +25,7 @@ class OneGateClient:
             return file.read().strip()
 
     @staticmethod
-    def get_config(param, filepath="/mnt/context/context.sh"):
+    def get_config(param, filepath="/context/context.sh"):
         with open(filepath, "r") as file:
             for line in file:
                 if line.startswith(f"{param}="):
