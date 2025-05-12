@@ -382,17 +382,22 @@ def list_bucket(prefix, bucket, backend, debug, config):
     logger.info('Listing objects in bucket {}'.format(bucket))
     objects = storage.list_objects(bucket, prefix=prefix)
 
-    objs = []
-    for obj in objects:
-        key = obj['Key']
-        date = obj['LastModified'].strftime("%b %d %Y %H:%M:%S")
-        size = sizeof_fmt(obj['Size'])
-        objs.append([key, date, size])
-
-    headers = ['Key', 'Last modified', 'Size']
-    print()
-    print(tabulate(objs, headers=headers))
-    print(f'\nTotal objects: {len(objs)}')
+    objs = [
+        {
+            key: obj[key].strftime("%b %d %Y %H:%M:%S") if key == 'LastModified' else
+                 sizeof_fmt(obj[key]) if key == 'Size' else
+                 obj[key]
+            for key in ('Key', 'LastModified', 'Size') if key in obj
+        }
+        for obj in objects
+    ]
+    
+    if objs[0]:
+        print()
+        print(tabulate(objs, headers="keys"))
+        print(f'\nTotal objects: {len(objs)}')
+    else:
+        print(f'\nNo information can be listed from bucket \"{bucket}\" using current \"{storage.backend}\" backend')
 
 
 # /---------------------------------------------------------------------------/
