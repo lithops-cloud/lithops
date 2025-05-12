@@ -384,14 +384,13 @@ def list_bucket(prefix, bucket, backend, debug, config):
 
     objs = [
         {
-            key: obj[key].strftime("%b %d %Y %H:%M:%S") if key == 'LastModified' else
-                 sizeof_fmt(obj[key]) if key == 'Size' else
-                 obj[key]
-            for key in ('Key', 'LastModified', 'Size') if key in obj
+            key: obj[key].strftime("%b %d %Y %H:%M:%S") if key == 'LastModified' else sizeof_fmt(obj[key]) if key == 'Size' else obj[key]
+            for key in ('Key', 'LastModified', 'Size')
+            if key in obj
         }
         for obj in objects
     ]
-    
+
     if objs[0]:
         print()
         print(tabulate(objs, headers="keys"))
