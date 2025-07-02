@@ -16,6 +16,7 @@
 #
 
 import os
+import re
 import base64
 import hashlib
 import json
@@ -89,7 +90,7 @@ class CodeEngineBackend:
         self.namespace = ce_config.get('namespace')
         self.region = ce_config['region']
 
-        self.user_key = self.iam_api_key[:4].lower()
+        self.user_key = re.sub(r'[^a-z0-9\-\.]', '0', self.iam_api_key[:4].lower())  # RFC 1123 compliant
         self.project_name = ce_config.get('project_name', f'lithops-{self.region}-{self.user_key}')
         self.project_id = None
 
