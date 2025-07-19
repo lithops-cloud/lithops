@@ -146,8 +146,6 @@ def notify_task_done(job_key, call_id):
 
 
 def redis_queue_consumer(pid, work_queue_name, exec_mode, backend):
-    global worker_threads
-
     worker_threads[pid]['status'] = WorkerStatus.IDLE.value
 
     logger.info(f"Redis consumer process {pid} started")
@@ -213,7 +211,6 @@ def redis_queue_consumer(pid, work_queue_name, exec_mode, backend):
 def run_worker():
     global redis_client
     global budget_keeper
-    global worker_threads
 
     os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
 

@@ -177,8 +177,6 @@ def _create_job(
     """
     Creates a new Job
     """
-    global FUNCTION_CACHE
-
     ext_env = {} if extra_env is None else extra_env.copy()
     if ext_env:
         ext_env = utils.convert_bools_to_string(ext_env)
