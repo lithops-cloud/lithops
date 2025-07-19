@@ -9,8 +9,11 @@
 - 
 
 ### Fixed
--
-
+- [GCP Functions] Poll long-running operations for GCP Function deployment
+- [GCP Functions] Retry function creation on failure to improve reliability
+- [IBM CE] Sanitize user_key in IBM CE to be RFC 1233 compliant
+- [CLI] Fix storage list error
+- [K8s] Fixed bug with first execution of K8s and Singularity
 
 ## [v3.6.0]
 
