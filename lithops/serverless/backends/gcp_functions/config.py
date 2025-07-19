@@ -48,7 +48,7 @@ DEFAULT_CONFIG_KEYS = {
     'invoke_pool_threads': 1000,
     'trigger': 'pub/sub',
     'retries': 5,
-    'retry_sleep': 10,
+    'retry_sleep': 10
 }
 
 REQUIREMENTS_FILE = """
