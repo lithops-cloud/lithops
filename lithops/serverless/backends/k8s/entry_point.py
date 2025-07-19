@@ -44,8 +44,6 @@ JOB_INDEXES = {}
 
 @proxy.route('/get-range/<jobkey>/<total_calls>/<chunksize>', methods=['GET'])
 def get_range(jobkey, total_calls, chunksize):
-    global JOB_INDEXES
-
     range_start = 0 if jobkey not in JOB_INDEXES else JOB_INDEXES[jobkey]
     range_end = min(range_start + int(chunksize), int(total_calls))
     JOB_INDEXES[jobkey] = range_end

@@ -244,10 +244,19 @@ class GCPFunctionsBackend:
                 'failurePolicy': {}
             }
 
-        operation = self._api_resource.projects().locations().functions().create(
-            location=self._default_location,
-            body=cloud_function
-        ).execute(num_retries=self.num_retries)
+        logger.info(f'Deploying function {function_location}')
+        for attempt in range(self.num_retries):
+            try:
+                operation = self._api_resource.projects().locations().functions().create(
+                    location=self._default_location,
+                    body=cloud_function
+                ).execute()
+                break
+            except Exception as e:
+                if attempt < self.num_retries - 1:
+                    time.sleep(self.retry_sleep)
+                else:
+                    raise Exception(f"Failed to create Cloud Function after {self.num_retries} attempts.") from e
 
         # Wait until the function is completely deployed
         logger.info('Waiting for the function to be deployed')

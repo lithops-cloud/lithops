@@ -29,16 +29,14 @@ AUDIENCE = "https://pubsub.googleapis.com/google.pubsub.v1.Publisher"
 RUNTIME_MEMORY_MAX = 8192  # 8GB
 RUNTIME_MEMORY_OPTIONS = {128, 256, 512, 1024, 2048, 4096, 8192}
 
-RETRIES = 5
-RETRY_SLEEP = 20
-
 AVAILABLE_PY_RUNTIMES = {
     '3.7': 'python37',
     '3.8': 'python38',
     '3.9': 'python39',
     '3.10': 'python310',
     '3.11': 'python311',
-    '3.12': 'python312'
+    '3.12': 'python312',
+    '3.13': 'python313'
 }
 
 USER_RUNTIMES_PREFIX = 'lithops.user_runtimes'
@@ -49,7 +47,9 @@ DEFAULT_CONFIG_KEYS = {
     'max_workers': 1000,
     'worker_processes': 1,
     'invoke_pool_threads': 1000,
-    'trigger': 'pub/sub'
+    'trigger': 'pub/sub',
+    'retries': 5,
+    'retry_sleep': 10
 }
 
 REQUIREMENTS_FILE = """
@@ -102,9 +102,6 @@ def load_config(config_data=None):
 
     if config_data['gcp_functions']['runtime_memory'] > RUNTIME_MEMORY_MAX:
         config_data['gcp_functions']['runtime_memory'] = RUNTIME_MEMORY_MAX
-
-    config_data['gcp_functions']['retries'] = RETRIES
-    config_data['gcp_functions']['retry_sleep'] = RETRY_SLEEP
 
     if 'region' not in config_data['gcp']:
         config_data['gcp']['region'] = config_data['gcp_functions']['region']
