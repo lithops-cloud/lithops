@@ -1,0 +1,33 @@
+{
+    "name": "Custom_Lithops_Service",
+    "deployment": "straight",
+    "description": "",
+    "roles": [
+      {
+        "name": "lithops_client",
+        "cardinality": 1,
+        "vm_template": EDIT_ME,
+        "vm_template_contents": "NIC = [\n  NAME = \"_NIC0\",\n  NETWORK_ID = \"$Public\" ]\n ",
+        "min_vms": 1,
+        "max_vms": 1,
+        "elasticity_policies": [],
+        "scheduled_policies": [],
+        "cooldown": 5
+      },
+      {
+        "name": "lithops_worker",
+        "cardinality": 1,
+        "vm_template": EDIT_ME,
+        "vm_template_contents": "NIC = [\n  NAME = \"_NIC0\",\n  NETWORK_ID = \"$Public\" ]\n ",
+        "elasticity_policies": [],
+        "scheduled_policies": [],
+        "cooldown": 5
+      }
+    ],
+    "ready_status_gate": false,
+    "automatic_deletion": false,
+    "networks": {
+      "Public": "M|network|Public| |id:"
+    },
+    "registration_time": 1742379547
+  }
