@@ -90,7 +90,10 @@ class Monitor(threading.Thread):
         """
         Checks if all futures are ready, success or done
         """
-        return all([f.ready or f.success or f.done for f in self.futures])
+        try:
+            return all(f.ready or f.success or f.done for f in self.futures)
+        except Exception:
+            return False
 
     def _check_new_futures(self, call_status, f):
         """Checks if a functions returned new futures to track"""
@@ -426,9 +429,30 @@ class StorageMonitor(Monitor):
         self.callids_running_processed.update(callids_running_to_process)
         self.callids_done_processed.update(callids_done_to_process)
 
+    def _poll_and_process_job_status(self, previous_log, log_time):
+        """
+        Polls the storage backend for job status, updates futures,
+        and prints status logs.
+
+        Returns:
+            new_callids_done (set): New callids that were marked as done.
+            previous_log (str): Updated log message.
+            log_time (float): Updated log time counter.
+        """
+        callids_running, callids_done = self.internal_storage.get_job_status(self.executor_id)
+        new_callids_done = callids_done - self.callids_done_processed_status
+
+        self._generate_tokens(callids_running, callids_done)
+        self._tag_future_as_running(callids_running)
+        self._tag_future_as_ready(callids_done)
+
+        previous_log, log_time = self._print_status_log(previous_log, log_time)
+
+        return new_callids_done, previous_log, log_time
+
     def run(self):
         """
-        Run method
+        Run method for the Storage job monitor thread.
         """
         logger.debug(f'ExecutorID {self.executor_id} - Starting Storage job monitor')
 
@@ -436,31 +460,23 @@ class StorageMonitor(Monitor):
         previous_log = None
         log_time = 0
 
-        def process_callids():
-            nonlocal previous_log, log_time
-            callids_running, callids_done = self.internal_storage.get_job_status(self.executor_id)
-            # verify if there are new callids_done and reduce the sleep
-            new_callids_done = callids_done - self.callids_done_processed_status
-            # generate tokens and mark futures as running/done
-            self._generate_tokens(callids_running, callids_done)
-            self._tag_future_as_running(callids_running)
-            self._tag_future_as_ready(callids_done)
-            previous_log, log_time = self._print_status_log(previous_log, log_time)
-
-            return new_callids_done
-
         while not self._all_ready():
             time.sleep(wait_dur_sec)
             wait_dur_sec = self.monitoring_interval
             log_time += wait_dur_sec
 
             if not self.should_run:
+                logger.debug(f'ExecutorID {self.executor_id} - Monitor stopped externally')
                 break
 
-            if len(process_callids()) > 0:
-                wait_dur_sec = self.monitoring_interval / 5
+            try:
+                new_callids_done, previous_log, log_time = self._poll_and_process_job_status(previous_log, log_time)
+                if new_callids_done:
+                    wait_dur_sec = self.monitoring_interval / 5
+            except Exception as e:
+                logger.error(f'ExecutorID {self.executor_id} - Error during monitor: {e}', exc_info=True)
 
-        process_callids()
+        self._poll_and_process_job_status(previous_log, log_time)
 
         logger.debug(f'ExecutorID {self.executor_id} - Storage job monitor finished')
 
@@ -508,6 +524,9 @@ class JobMonitor:
 
         if not self.monitor.is_alive():
             self.monitor.start()
+
+    def is_alive(self):
+        self.monitor.is_alive()
 
     def remove(self, fs):
         if self.monitor and self.monitor.is_alive():
