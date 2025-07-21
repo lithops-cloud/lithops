@@ -90,7 +90,10 @@ class Monitor(threading.Thread):
         """
         Checks if all futures are ready, success or done
         """
-        return all([f.ready or f.success or f.done for f in self.futures])
+        try:
+            return all(f.ready or f.success or f.done for f in self.futures)
+        except Exception:
+            return False
 
     def _check_new_futures(self, call_status, f):
         """Checks if a functions returned new futures to track"""
