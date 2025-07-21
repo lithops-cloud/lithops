@@ -142,6 +142,8 @@ def wait(fs: Union[ResponseFuture, FuturesList, List[ResponseFuture]],
                                    threadpool_size=threadpool_size)
         else:
             while not _check_done(fs, return_when, download_results):
+                if not job_monitor.is_alive():
+                    job_monitor.start(fs=fs)
                 for executor_data in executors_data:
                     new_data = _get_executor_data(fs, executor_data, pbar=pbar,
                                                   throw_except=throw_except,

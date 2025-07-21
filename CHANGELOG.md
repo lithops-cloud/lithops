@@ -14,6 +14,8 @@
 - [IBM CE] Sanitize user_key in IBM CE to be RFC 1233 compliant
 - [CLI] Fix storage list error
 - [K8s] Fixed bug with first execution of K8s and Singularity
+- [Core] Prevent job monitor from stopping abruptly on iteration error causing hanging jobs
+
 
 ## [v3.6.0]
 
