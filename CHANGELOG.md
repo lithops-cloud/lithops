@@ -1,12 +1,17 @@
 # Changelog
 
-## [v3.6.1.dev0]
+## [v3.6.2.dev0]
 
 ### Added
 -
 
 ### Changed
 - 
+
+### Fixed
+- 
+
+## [v3.6.1]
 
 ### Fixed
 - [GCP Functions] Poll long-running operations for GCP Function deployment
@@ -31,6 +36,7 @@
 - [Code Engine] Allow to build the default runtime with Python 3.13
 - [Monitoring] Fixed race condition in RMQ Monitor
 - [AWS S3] Fixed InvalidLocationConstraint error in AWS S3 handled
+
 
 ## [v3.5.1]
 
