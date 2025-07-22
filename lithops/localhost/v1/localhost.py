@@ -213,8 +213,9 @@ class ExecutionEnvironment:
         if is_lithops_worker() and os.path.isfile(RUNNER_FILE):
             return
         os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
-        shutil.rmtree(os.path.join(LITHOPS_TEMP_DIR, 'lithops'), ignore_errors=True)
-        shutil.copytree(LITHOPS_LOCATION, os.path.join(LITHOPS_TEMP_DIR, 'lithops'))
+        dst_path = os.path.join(LITHOPS_TEMP_DIR, 'lithops')
+        shutil.rmtree(dst_path, ignore_errors=True)
+        shutil.copytree(LITHOPS_LOCATION, dst_path, dirs_exist_ok=True)
         src_handler = os.path.join(LITHOPS_LOCATION, 'localhost', 'v1', 'runner.py')
         copyfile(src_handler, RUNNER_FILE)
 
