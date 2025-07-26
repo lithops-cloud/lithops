@@ -1,64 +1,98 @@
-What is Lithops?
-****************
+Welcome to Lithops!
+********************
 
-**Lithops is a Python multi-cloud serverless computing framework. It allows to run unmodified local python code at massive scale in the main serverless computing platforms.**
+**Lithops is a Python multi-cloud serverless computing framework** that empowers you to **run unmodified Python code at massive scale** on leading serverless platforms and beyond.
 
-Lithops delivers the user’s code into the cloud without requiring knowledge of how it is deployed and run.
-Moreover, its multicloud-agnostic architecture ensures portability across cloud providers, overcoming vendor lock-in.
-
-------------
-
-**Lithops provides great value for data-intensive applications like Big Data analytics and embarrassingly parallel jobs.**
-
-It is specially suited for highly-parallel programs with little or no need for communication between processes.
-
-Examples of applications that run with Lithops include Monte Carlo simulations, deep learning and machine learning processes, metabolomics computations, and geospatial
-analytics, to name a few.
-
-------------
-
-**Lithops facilitates consuming data from object storage (like AWS S3, GCP Storage or IBM Cloud Object Storage) by providing automatic partitioning and data discovery for common data formats like CSV.**
-
-Lithops abstracts away the underlying cloud-specific APIs for accessing storage and provides an intuitive and easy to use interface to process high volumes of data.
+Whether you're processing terabytes of data or launching thousands of parallel tasks, Lithops lets you **focus on your code, not infrastructure**. It brings simplicity, performance, and flexibility to cloud-native computing.
 
 
-Use any Cloud
--------------
-**Lithops provides an extensible backend architecture that is designed to work with different compute and storage services available on Cloud providers and on-premise backends.**
+Why Lithops?
+============
 
-In this sense, you can code your application in Python and run it unmodified wherever your data is located at: IBM Cloud, AWS, Azure, Google Cloud and Alibaba Aliyun...
+Serverless computing makes it easy to run code in the cloud — but scaling data-intensive workloads across clouds is hard. Lithops solves this by providing:
+
+- ✅ **Zero-configuration scale-out**: Run your Python functions on thousands of cloud workers with no infrastructure management.
+- 🌍 **True multi-cloud portability**: Move seamlessly between AWS, GCP, Azure, IBM Cloud, etc...
+- 💡 **Developer-first experience**: Write standard Python code, including NumPy, pandas, and scikit-learn — no cloud-specific boilerplate required.
+- 🧠 **Optimized for big data and AI**: Efficiently process massive datasets stored in object storage services with automatic partitioning.
+
+
+What You Can Build
+===================
+
+Lithops is ideal for **highly parallel, data-heavy workloads**. These include:
+
+- 🔁 Monte Carlo simulations
+- 🧬 Metabolomics and genomics pipelines
+- 🗺️ Geospatial analytics
+- 🧠 Deep learning and hyperparameter tuning
+- 📊 Big Data ETL and analytics workflows
+
+If your problem can be broken down into many small, independent tasks, Lithops will help you solve it at scale — fast.
+
+Key Features
+============
+
+Compute Anywhere
+----------------
+**Lithops features a modular and extensible backend architecture**, allowing you to run workloads across:
+
+- Serverless functions
+- Cloud VMs and Kubernetes clusters
+- On-premise compute resources
+
+No matter where your data lives, Lithops can execute your code right next to it.
 
 .. image:: source/images/multicloud.jpg
    :alt: Available backends
    :align: center
 
-|
 
-Quick Start
------------
+Object Storage Made Easy
+-------------------------
 
-Lithops is available for Python 3.6 and up. Install it using ``pip``:
+**Seamlessly process large-scale data stored in object storage.**
 
-.. code-block::
+Lithops simplifies working with data lakes and object storage by providing:
 
-    pip install -U lithops
+- 🔍 **Automatic data discovery**: Detects and lists files across nested directories.
+- 📂 **Transparent data partitioning**: Splits large files (e.g., CSV, Parquet, JSON) into chunks for efficient parallel processing.
+- 🧰 **Unified, Pythonic API**: Interact with your data using a single interface, regardless of where it's stored.
 
-You're ready to execute a simple example!
+You write simple Python code — Lithops handles the complexity of parallel I/O, data distribution, and storage backends under the hood.
 
-.. code:: python
 
-    from lithops import FunctionExecutor
+Get Started Quickly
+====================
 
-    def hello(name):
-        return 'Hello {}!'.format(name)
+To start using Lithops:
 
-    with FunctionExecutor() as fexec:
-        fut = fexec.call_async(hello, 'World')
-        print(fut.result())
+1. Install via pip:
+
+   .. code-block:: bash
+
+      pip install lithops
+
+2. Configure your cloud credentials (see the full guide in :doc:`/config`)
+
+3. Write and run your first parallel job:
+
+   .. code-block:: python
+
+      import lithops
+
+      def my_function(x):
+          return x * 2
+
+      fexec = lithops.FunctionExecutor()
+      fexec.map(my_function, range(10))
+      print(fexec.get_result())
+
+You're now running massively parallel workloads with just a few lines of code!
 
 
 Success stories
----------------
+===============
 
 * `Metaspace Metabolomics Platform <https://metaspace2020.eu/>`_ is running in production in AWS with hundreds of users.
   MetaSpace is using Lithops over Lambda Functions and EC2 VMs to access metabolomics data in Amazon S3.
@@ -77,8 +111,9 @@ Success stories
   reaching tens of thousands of concurrent functions. LithopsHPC is now being used in the neardata.eu project for extreme
   data analytics of genomics pipelines.
 
+
 Blogs and Talks
----------------
+===============
 
 * `Simplify the developer experience with OpenShift for Big Data processing by using Lithops framework
   <https://medium.com/@gvernik/simplify-the-developer-experience-with-openshift-for-big-data-processing-by-using-lithops-framework-d62a795b5e1c>`_
@@ -117,8 +152,9 @@ Blogs and Talks
 * `Industrial project in Technion on Lithops
   <http://www.cs.technion.ac.il/~cs234313/projects_sites/W19/04/site/>`_
 
+
 Papers
-------
+======
 
 * `Serverful Functions: Leveraging Servers in Complex Serverless Workflows
   <https://dl.acm.org/doi/10.1145/3700824.3701095>`_ - ACM Middleware Industrial Track 2024
@@ -142,6 +178,21 @@ Papers
 
 * `Serverless data analytics in the IBM Cloud
   <https://dl.acm.org/citation.cfm?id=3284029>`_ - ACM/IFIP International Middleware Conference 2018
+
+
+Join the Community
+==================
+
+Lithops is an open-source project, actively maintained and supported by a community of contributors and users. You can:
+
+- 💬 Join the discussion on `GitHub Discussions <https://github.com/lithops-cloud/lithops/discussions>`_
+- 🐞 Report issues or contribute on `GitHub <https://github.com/lithops-cloud/lithops>`_
+- 📖 Read more in the full documentation
+
+
+---
+
+**Start writing scalable cloud applications — with Lithops.**
 
 
 .. toctree::

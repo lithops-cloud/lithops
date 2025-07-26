@@ -9,7 +9,8 @@
 - 
 
 ### Fixed
-- 
+- [Localhost] Fix shutil.Error caused by existing __pycache__ directory when copying files in the runner
+
 
 ## [v3.6.1]
 

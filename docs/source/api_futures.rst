@@ -3,24 +3,53 @@
 Lithops Futures API
 ===================
 
-The primary object in Lithops is the executor. The standard way to get everything set up is to import `lithops`, and create an instance of one of the available modes of executions.
+The core abstraction in Lithops is the **executor**, responsible for orchestrating the execution of your functions across different environments.
 
-Lithops is shipped with 3 modes of execution: **Localhost**, **Serverless** and **Standalone**. In this sense, each mode of execution has its own executor class:
+To get started, you typically import `lithops` and create an executor instance to run your code. Lithops provides a flexible set of executors to suit different needs.
 
-* `lithops.LocalhostExecutor()`: Executor that uses local processes to run jobs in the local machine.
-* `lithops.ServerlessExecutor()`: Executor to run jobs in one of the available serverless compute backends.
-* `lithops.StandaloneExecutor()`: Executor to run jobs in one of the available standalone compute backends.
+### Primary Executors
 
-Additionally, Lithops includes a top-level function executor, which encompasses all three previous executors:
+* **FunctionExecutor** (`lithops.FunctionExecutor()`):  
+  The main, generic executor that automatically selects its execution mode based on the provided configuration.  
+  This lets you write your code once and run it seamlessly on localhost, serverless, or standalone backends without changing your code.
 
-* `lithops.FunctionExecutor()`: Generic executor that will use the configuration to determine its mode of execution, i.e., based on the configuration it will be **localhost**, **serverless** or **standalone**.
+* **RetryingFunctionExecutor** (`lithops.RetryingFunctionExecutor()`):  
+  A robust wrapper around `FunctionExecutor` that transparently handles retries on failed tasks.  
+  It supports all features of `FunctionExecutor` with added automatic retry logic, improving fault tolerance and reliability for unstable or transient failure-prone environments.
 
-By default, the executor load the configuration from the config file. Alternatively, you can pass the configuration with a python dictionary. In any case, note that all the parameters set in the executor will overwrite those set in the configuration.
+### Secondary Executors
+
+For more specialized use cases, Lithops also provides explicit executors for each execution mode:
+
+* **LocalhostExecutor** (`lithops.LocalhostExecutor()`):  
+  Runs jobs locally using multiple processes on your machine. Ideal for development, debugging, or small-scale workloads.
+
+* **ServerlessExecutor** (`lithops.ServerlessExecutor()`):  
+  Executes jobs on serverless compute platforms, managing scaling and deployment automatically. Best for massively parallel, ephemeral workloads.
+
+* **StandaloneExecutor** (`lithops.StandaloneExecutor()`):  
+  Runs jobs on standalone compute backends such as clusters or virtual machines, suitable for long-running or resource-heavy tasks.
+
+---
+
+### Configuration and Initialization
+
+By default, executors load configuration from the Lithops configuration file (e.g., `lithops_config.yaml`). You can also supply configuration parameters programmatically via a Python dictionary when creating an executor instance. Parameters passed explicitly override those in the config file, allowing for flexible customization on the fly.
+
+---
+
+This layered executor design lets Lithops provide a powerful, unified API for parallel function execution — from local development to multi-cloud production deployments with fault tolerance and retries built-in.
+
 
 Futures API Reference
 ---------------------
 
 .. automodule:: lithops.executors
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. autoclass:: lithops.retries.RetryingFunctionExecutor
    :members:
    :undoc-members:
    :show-inheritance:
