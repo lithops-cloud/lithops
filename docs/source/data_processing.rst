@@ -1,156 +1,292 @@
 .. _data-processing:
 
-Processing data from the Cloud
-===========================================
+Processing Data from the Cloud
+==============================
 
-Lithops has built-in logic for processing data objects from public URLs and object storage services. This logic is automatically activated with the reseverd parameter named **obj**. When you write in the parameters of a function the parameter name **obj**, you are telling to Lithops that you want to process objects located in an object storage service, public urls, or localhost files.
+Lithops provides built-in support for reading and processing data from **object storage**, **public URLs**, and **local files**. This functionality is automatically enabled when your function includes a reserved parameter named **obj**.
 
-Additionally, the built-in data-processing logic integrates a **data partitioner** system that allows to automatically split the dataset in smallest chunks. Splitting a file into smaller chunks permit to leverage the parallelism provided by the compute backends to process the data. We designed the partitioner within the ``map()`` and ``map_reduce()`` API calls, an it is configurable by specifying the *size of the chunk*, or the *number of chunks* to split each file. The current implementation of the data partitioner supports to split files that contain multiple lines (or rows) ended by '\n', for example, a .txt book or a common .csv file among others. More data-types will be supported in future releases.
+When you define a function with the parameter `obj`, Lithops knows to pass in a special object representing a file (or a chunk of a file) from an external data source. This allows you to write scalable data processing workflows with minimal boilerplate.
 
+Data Partitioning
+-----------------
 
-Cloud Object Storage
---------------------
-For processing data from a cloud object storage service, the input data must be either a list of buckets, a list of buckets with object prefix, or a list of data objects. If you set the *size of the chunk* or the *number of chunks*, the partitioner is activated inside Lithops and it is responsible to split the objects into smaller chunks, eventually running one function activation for each generated chunk. If *size of the chunk* and *number of chunks* are not set, chunk is an entire object, so one function activation is executed for each individual object.
+Lithops includes an integrated **data partitioner** that allows you to automatically split large datasets into smaller, more manageable chunks. This partitioning enables massive parallelism across the compute backend, accelerating data processing tasks.
 
-The **obj** parameter is a python class from where you can access all the information related to the object (or chunk) that the function is processing. For example, consider the following function that shows all the available attributes in **obj** when you are processing objects from an object store:
+Partitioning is supported directly within the :meth:`map()` and :meth:`map_reduce()` APIs and can be controlled via:
 
+- **`obj_chunk_size`**: The size (in bytes) of each chunk to split the object into.
+- **`obj_chunk_number`**: The total number of chunks to split each object into.
 
-.. code:: python
+Currently, the partitioner supports **text-based files** where rows are separated by newline characters (`\n`), such as `.txt` and `.csv`. Support for additional data types is planned in future releases.
+
+Cloud Object Storage Integration
+--------------------------------
+
+When processing data from cloud object storage, your input must be one of the following:
+
+1. A single bucket or a list of buckets  
+2. A bucket prefix (e.g., a folder path)  
+3. A list of specific object keys
+
+Based on your configuration:
+
+- If `obj_chunk_size` or `obj_chunk_number` is set, **each object is automatically split into smaller chunks**, and Lithops runs one function activation per chunk.
+- If chunking is not configured, Lithops runs one function activation per full object.
+
+Accessing Object Metadata
+--------------------------
+
+Inside your function, the `obj` parameter gives you access to metadata and data for the current chunk being processed.
+
+Example:
+
+.. code-block:: python
 
     def my_map_function(obj):
-        print(obj.bucket)
-        print(obj.key)
-        print(obj.part)
-        print(obj.data_byte_range)
-        print(obj.chunk_size)
-    
-        data = obj.data_stream.read()
+        print(obj.bucket)             # Bucket name
+        print(obj.key)                # Object key
+        print(obj.part)               # Chunk number
+        print(obj.data_byte_range)    # Byte range for this chunk
+        print(obj.chunk_size)         # Chunk size in bytes
+        
+        data = obj.data_stream.read() # Read the data for this chunk
 
-The allowed inputs of a function can be:
+Accepted Input Formats
+-----------------------
 
-- Input data is a bucket or a list of buckets. See an example in [map_reduce_cos_bucket.py](../../examples/map_reduce_cos_bucket.py):
+Lithops accepts **only one type** of input format per execution. Do not mix formats in the same list. The supported formats are:
 
-.. code:: python
+- **Buckets**: One or more buckets  
+  *(See: `map_reduce_cos_bucket.py <../../examples/map_reduce_cos_bucket.py>`_)*
 
-    iterdata = 'bucket1'
+  .. code-block:: python
 
-- Input data is a bucket(s) with object prefix. See an example in [map_cos_prefix.py](../../examples/map_cos_prefix.py):
+      iterdata = ['my-bucket-1', 'my-bucket-2']
 
-.. code:: python
+- **Object Prefixes**: Folder-like paths ending with `/`  
+  *(See: `map_cos_prefix.py <../../examples/map_cos_prefix.py>`_)*
 
-    iterdata = ['bucket1/images/', 'bucket1/videos/']
+  .. code-block:: python
 
-Notice that you must write the end slash (/) to inform partitioner you are providing an object prefix.
+      iterdata = ['my-bucket/data/csvs/', 'my-bucket/logs/']
 
-- Input data is a list of object keys. See an example in [map_reduce_cos_key.py](../../examples/map_reduce_cos_key.py):
+  ⚠️ Prefixes must end with a `/` to indicate to the partitioner that you're specifying a folder-like path.
 
-.. code:: python
+- **Object Keys**: Specific file paths  
+  *(See: `map_reduce_cos_key.py <../../examples/map_reduce_cos_key.py>`_)*
 
-    iterdata = ['bucket1/object1', 'bucket1/object2', 'bucket1/object3']
+  .. code-block:: python
 
-Notice that *iterdata* must be only one of the previous 3 types. Intermingled types are not allowed. For example, you cannot set in the same *iterdata* a bucket and some object keys:
+      iterdata = ['my-bucket/file1.csv', 'my-bucket/file2.csv']
 
-.. code:: python
+❌ **Mixing formats is not allowed**:
 
-    iterdata = ['bucket1', 'bucket1/object2', 'bucket1/object3']  # Not allowed
+.. code-block:: python
 
-Once iterdata is defined, you can execute Lithops as usual, either using *map()* or *map_reduce()* calls. If you need to split the files in smaller chunks, you can set (optionally) the *obj_chunk_size* or *obj_chunk_number* parameters.
+    # This will raise an error
+    iterdata = ['my-bucket', 'my-bucket/file2.csv']
 
-.. code:: python
+Putting It All Together
+------------------------
+
+Once you've defined your input and function, you can run Lithops as usual with optional chunking:
+
+.. code-block:: python
 
     import lithops
 
-    object_chunksize = 4*1024**2  # 4MB
+    object_chunksize = 4 * 1024 ** 2  # 4 MB per chunk
 
     fexec = lithops.FunctionExecutor()
     fexec.map_reduce(my_map_function, iterdata, obj_chunk_size=object_chunksize)
     result = fexec.get_result()
 
-Processing data from public URLs
---------------------------------
-For processing data from public URLs, the input data must be either a single URL or a list of URLs. As in the previous case, if you set the *size of the chunk* or the *number of chunks*, the partitioner is activated inside Lithops and it is responsible to split the objects into smaller chunks, as long as the remote storage server allows requests in chunks (ranges). If range requests are not allowed in the remote storage server, each URL is treated as a single object.
 
-The **obj** parameter is a python class from where you can access all the information related to the object (or chunk) that the function is processing. For example, consider the following function that shows all the available attributes in **obj** when you are processing URLs:
+Processing Data from Public URLs
+================================
 
+Lithops also supports processing data directly from **public URLs**. The input can be a single URL or a list of URLs.
 
-.. code:: python
+If you set the `obj_chunk_size` or `obj_chunk_number`, Lithops activates its internal partitioner to split each file into smaller chunks—**provided that the remote server supports HTTP range requests**. If range requests are not supported, each URL is processed as a single object.
 
-    import lithops
+As with other backends, the special **`obj`** parameter gives you access to metadata and the content of the chunk being processed.
 
-    def my_map_function(obj):
-        print(obj.url)
-        print(obj.part)
-        print(obj.data_byte_range)
-        print(obj.chunk_size)
+Example:
 
-        data = obj.data_stream.read()
-
-        for line in data.splitlines():
-            # Do some process
-        return partial_intersting_data
-
-    def my_reduce_function(results):
-        for partial_intersting_data in results:
-            # Do some process
-        return final_result
-
-    iterdata = ['http://myurl/my_file_1.csv', 'http://myurl/my_file_2.csv']
-    object_chunk_number= 2
-
-    fexec = lithops.FunctionExecutor()
-    fexec.map_reduce(my_map_function, iterdata, my_reduce_function,
-                     obj_chunk_number=object_chunk_number)
-    result = fexec.get_result()
-
-See a complete example in `map_reduce_url.py <https://github.com/lithops-cloud/lithops/blob/master/examples/map_reduce_url.py>`_
-
-
-Processing data from localhost files
-------------------------------------
-
-.. note:: This is only allowed when running Lithops with the localhost backend
-
-For processing data from localhost files, the input data must be either a directory path, a list of directory paths, a file path a list of file paths. As in the previous cases, if you set the *size of the chunk* or the *number of chunks*, the partitioner is activated inside Lithops and it is responsible to split the objects into smaller chunks, eventually spawning one function for each generated chunk. If *size of the chunk* and *number of chunks* are not set, chunk is an entire object, so one function activation is executed for each individual object.
-
-The **obj** parameter is a python class from where you can access all the information related to the object (or chunk) that the function is processing. For example, consider the following function that shows all the available attributes in **obj** when you are processing localhost files:
-
-.. code:: python
+.. code-block:: python
 
     import lithops
 
     def my_map_function(obj):
-        print(obj.path)
-        print(obj.part)
-        print(obj.data_byte_range)
-        print(obj.chunk_size)
+        print(obj.url)               # Full URL of the object
+        print(obj.part)              # Chunk number
+        print(obj.data_byte_range)   # Byte range for this chunk
+        print(obj.chunk_size)        # Size of this chunk (in bytes)
 
         data = obj.data_stream.read()
 
         for line in data.splitlines():
-            # Do some process
-        return partial_intersting_data
+            # Process each line
+            pass
+
+        return partial_result
 
     def my_reduce_function(results):
-        for partial_intersting_data in results:
-            # Do some process
+        for partial_result in results:
+            # Aggregate results
+            pass
+
         return final_result
 
-    iterdata = ['/home/user/data/my_file_1.csv', '/home/user/data/my_file_2.csv']
-    object_chunk_number= 2
+    iterdata = ['http://example.com/file1.csv', 'http://example.com/file2.csv']
+    chunk_number = 2
 
     fexec = lithops.FunctionExecutor()
     fexec.map_reduce(my_map_function, iterdata, my_reduce_function,
-                     obj_chunk_number=object_chunk_number)
+                     obj_chunk_number=chunk_number)
     result = fexec.get_result()
 
-See a complete example in `map_reduce_localhost.py <https://github.com/lithops-cloud/lithops/blob/master/examples/map_reduce_localhost.py>`_.
+📄 See the full example in:  
+`map_reduce_url.py <https://github.com/lithops-cloud/lithops/blob/master/examples/map_reduce_url.py>`_
 
 
-Reducer granularity
+Processing Data from Localhost Files
+====================================
+
+.. note:: This feature is only available when using the **localhost backend**.
+
+Lithops can also process files stored on the local filesystem. The input can be:
+
+- A single file path
+- A list of file paths
+- A directory path
+- A list of directory paths
+
+As in other cases, if you set `obj_chunk_size` or `obj_chunk_number`, the file(s) will be split into chunks and processed in parallel. If not set, each file is processed as a single object.
+
+The **`obj`** parameter again exposes the metadata and content of the chunk.
+
+Example:
+
+.. code-block:: python
+
+    import lithops
+
+    def my_map_function(obj):
+        print(obj.path)              # Full local file path
+        print(obj.part)              # Chunk number
+        print(obj.data_byte_range)   # Byte range for this chunk
+        print(obj.chunk_size)        # Size of this chunk (in bytes)
+
+        data = obj.data_stream.read()
+
+        for line in data.splitlines():
+            # Process each line
+            pass
+
+        return partial_result
+
+    def my_reduce_function(results):
+        for partial_result in results:
+            # Aggregate results
+            pass
+
+        return final_result
+
+    iterdata = ['/home/user/file1.csv', '/home/user/file2.csv']
+    chunk_number = 2
+
+    fexec = lithops.FunctionExecutor()
+    fexec.map_reduce(my_map_function, iterdata, my_reduce_function,
+                     obj_chunk_number=chunk_number)
+    result = fexec.get_result()
+
+📄 See the full example in:  
+`map_reduce_localhost.py <https://github.com/lithops-cloud/lithops/blob/master/examples/map_reduce_localhost.py>`_
+
+
+Reducer Granularity
 -------------------
-When using the ``map_reduce()`` API call with ``obj_chunk_size`` or ``obj_chunk_number``, by default there will be only one reducer for all the object chunks from all the objects. Alternatively, you can spawn one reducer for each object by setting the parameter ``obj_reduce_by_key=True``.
 
-.. code:: python
+When using the :meth:`map_reduce()` API along with `obj_chunk_size` or `obj_chunk_number`, Lithops defaults to using **a single reducer** to aggregate results across **all chunks and objects**.
+
+If you'd prefer to reduce results **per original object** (e.g., one reducer per file), you can set the parameter `obj_reduce_by_key=True`.
+
+Example:
+
+.. code-block:: python
 
     fexec.map_reduce(my_map_function, bucket_name, my_reduce_function,
-                     obj_chunk_size=obj_chunk_size, obj_reduce_by_key=True)
+                     obj_chunk_size=obj_chunk_size,
+                     obj_reduce_by_key=True)
+
+
+Elastic Data Processing and Cloud-Optimized Formats
+===================================================
+
+Lithops is especially powerful for **massively parallel data processing**. When the input to `map()` or `map_reduce()` is a **storage bucket** or a collection of large files, Lithops will automatically:
+
+- Launch one function per file, or  
+- Partition large files into chunks and assign each chunk to a different function  
+
+This behavior enables **elastic scaling** that fully utilizes the underlying compute backend.
+
+Cloud-Optimized Formats
+------------------------
+
+Lithops is ideally suited for processing **cloud-optimized data formats** such as:
+
+- **ZARR**
+- **COG** (Cloud Optimized GeoTIFF)
+- **COPC** (Cloud Optimized Point Clouds)
+- **FlatGeoBuf**
+
+These formats are designed to support **random access via HTTP range requests**, making them a perfect match for cloud object storage and serverless computing.
+
+By leveraging HTTP range primitives, Lithops enables fast and scalable parallel processing — distributing workload across many concurrent function activations, each fetching only the data it needs. This approach takes full advantage of the **high aggregate bandwidth** provided by modern object storage systems.
+
+Partitioning Non-Optimized Formats with Dataplug
+-------------------------------------------------
+
+Thanks to the `DATAPLUG <https://github.com/CLOUDLAB-URV/dataplug>`_ library, Lithops also supports **on-the-fly partitioning** of data formats that are **not cloud-optimized**. Supported formats include:
+
+- Genomics: **FASTA**, **FASTQ**, **FASTQ.GZ**
+- Metabolomics: **mlMZ**
+- Geospatial: **LIDAR (.laz)**
+
+Dataplug wraps these formats into cloud-native interfaces and exposes partitioning strategies that Lithops can consume directly.
+
+Example: Parallel Processing of a Cloud-Hosted LIDAR File
+----------------------------------------------------------
+
+In the example below, we use Dataplug to wrap a COPC (Cloud Optimized Point Cloud) file stored in S3, partition it into spatial chunks, and process each chunk in parallel using Lithops:
+
+.. code-block:: python
+
+    from dataplug import CloudObject
+    from dataplug.formats.geospatial.copc import CloudOptimizedPointCloud, square_split_strategy
+    import laspy
+    import lithops
+
+    # Function to process each LiDAR slice
+    def process_lidar_slice(data_slice):
+        las_data = data_slice.get()
+        lidar_file = laspy.open(las_data)
+        ...
+    
+    # Load the COPC file from S3 using Dataplug
+    co = CloudObject.from_s3(
+        CloudOptimizedPointCloud,
+        "s3://geospatial/copc/CA_YosemiteNP_2019/USGS_LPC_CA_YosemiteNP_2019_D19_11SKB6892.laz",
+        s3_config=local_minio,
+    )
+
+    # Partition the point cloud into 9 spatial chunks
+    slices = co.partition(square_split_strategy, num_chunks=9)
+
+    # Process slices in parallel using Lithops
+    with lithops.FunctionExecutor() as executor:
+        futures = executor.map(process_lidar_slice, slices)
+        results = executor.get_result(futures)
+
+This enables truly **elastic and serverless geospatial processing pipelines**, with no infrastructure overhead and full cloud-native efficiency.
