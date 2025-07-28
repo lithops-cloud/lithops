@@ -10,6 +10,7 @@
 
 ### Fixed
 - [Localhost] Fix shutil.Error caused by existing __pycache__ directory when copying files in the runner
+- [Executor] Make retry count configurable in RetryingFunctionExecutor
 
 
 ## [v3.6.1]
