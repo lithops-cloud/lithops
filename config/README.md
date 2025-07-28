@@ -159,4 +159,4 @@ if __name__ == '__main__':
 | lithops | log_format          | "%(asctime)s [%(levelname)s] %(name)s -- %(message)s" | no | Format string for log messages.                                                                    |
 | lithops | log_stream          | ext://sys.stderr | no     | Logging output stream, e.g., ext://sys.stderr or ext://sys.stdout.                                |
 | lithops | log_filename        | (empty)      | no        | File path for logging output. Overrides `log_stream` if set.                                     |
-| lithops | retries             | 0            | no        | Number of retries for failed function invocations. Default is 3. Can be overridden per API call. |
+| lithops | retries             | 0            | no        | Number of retries for failed function invocations when using the `RetryingFunctionExecutor`. Default is 0. Can be overridden per API call. |
