@@ -16,12 +16,12 @@ To contribute a patch:
 1. Break your work into small, single-purpose patches if possible. It's much
    harder to merge in a large change with a lot of disjoint features.
 2. Submit the patch as a GitHub pull request against the master branch.
-3. Make sure that your code passes the functional tests. See the [Functional testing](#functional-testing) section below.
+3. Make sure that your code passes the tests.
 4. Make sure that your code passes the linter. Install `flake8` with `pip3 install flake8` and run the next command until you don't see any linitng error:
    ```bash
    flake8 lithops --count --max-line-length=180 --statistics --ignore W605,W503
    ``` 
-6. Add new unit tests for your code.
+5. Add new tests for your code.
 
 
 Testing

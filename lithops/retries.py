@@ -182,6 +182,7 @@ class RetryingFunctionExecutor:
 
     def __init__(self, executor: FunctionExecutor):
         self.executor = executor
+        self.config = executor.config
 
     def __enter__(self):
         """
@@ -231,6 +232,13 @@ class RetryingFunctionExecutor:
 
         :return: A list of RetryingFuture objects, one for each function activation.
         """
+
+        retries_to_use = (
+            retries
+            if retries is not None
+            else self.config.get('lithops', {}).get('retries', 0)
+        )
+
         futures_list = self.executor.map(
             map_function,
             map_iterdata,
@@ -250,7 +258,7 @@ class RetryingFunctionExecutor:
                 f,
                 map_function=map_function,
                 input=i,
-                retries=retries,
+                retries=retries_to_use,
                 chunksize=chunksize,
                 extra_args=extra_args,
                 extra_env=extra_env,
