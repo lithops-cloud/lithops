@@ -4,7 +4,7 @@
 
 All of these changes are **ideal** for pipelines where launching **hundreds of parallel tasks as quickly as possible** is a critical requirement, in a fixed size heterogeneous cluster.
 
-### Changes of K8s RabbitMQ
+## Changes of K8s RabbitMQ
 
 * **Utilization of RabbitMQ:** Within this architecture, RabbitMQ is employed to launch group invocations in a single call, avoiding the need for multiple calls for each function execution. Additionally, it enables data exchange between the client and running pods, bypassing the Storage Backend as an intermediary, which is slower. This accelerates and streamlines communication significantly.
 
@@ -74,25 +74,25 @@ All of these tests consist of running 225 functions on a 2-node cluster, each wi
 
 In this scenario, it is evident that the invocation time is consistently reduced by a factor of **up to 5x** on cold start and **up to 7x** on warm start. This represents a significant enhancement for parallel function execution.
 
-#### Plot 1: Kubernetes K8s original. 
+- Plot 1: Kubernetes K8s original. 
 
 *Elapsed time = 16,9 sec.*
 
 ![Kubernetes K8s original plot](../images/plots_kubernetes/k8s_original_histogram.png)
 
-#### Plot 2: Kubernetes K8s original with master on Warm Start. 
+- Plot 2: Kubernetes K8s original with master on Warm Start. 
 
 *Elapsed time = 8,1 sec.*
 
 ![Kubernetes K8s original with Warm Start plot](../images/plots_kubernetes/k8s_original_warm_start_histogram.png)
 
-#### Plot 3: Kubernetes K8s RabbitMQ. 
+- Plot 3: Kubernetes K8s RabbitMQ. 
 
 *Elapsed time = 8 sec.*
 
 ![Kubernetes K8s RabbitMQ plot](../images/plots_kubernetes/rabbitmq_histogram.png)
 
-#### Plot 4: Kubernetes K8s RabbitMQ with workers on Warm Start. 
+- Plot 4: Kubernetes K8s RabbitMQ with workers on Warm Start. 
 
 *Elapsed time = 5,9 sec.*
 

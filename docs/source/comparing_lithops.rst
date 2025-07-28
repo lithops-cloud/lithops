@@ -21,11 +21,8 @@ Ray and Dask
 ------------
 
 .. image:: https://github.com/ray-project/ray/raw/master/doc/source/images/ray_logo.png
-   :align: center
    :width: 250
-
 .. image:: https://docs.dask.org/en/stable/_images/dask_horizontal.svg
-   :align: center
    :width: 250
 
 
@@ -39,7 +36,6 @@ PySpark
 -------
 
 .. image:: https://upload.wikimedia.org/wikipedia/commons/thumb/f/f3/Apache_Spark_logo.svg/2560px-Apache_Spark_logo.svg.png
-   :align: center
    :width: 250
 
 `PySpark <https://spark.apache.org/docs/latest/api/python/>`_ is the Python interface for Apache Spark, a well-established distributed computing engine. Spark is typically deployed on a **static cluster of machines**, either on-premises or in cloud environments using HDFS or cloud-native file systems.
@@ -50,7 +46,6 @@ Serverless Framework
 --------------------
 
 .. image:: https://cdn.diegooo.com/media/20210606183353/serverless-framework-icon.png
-   :align: center
    :width: 250
 
 `Serverless Framework <https://www.serverless.com/>`_ is a deployment toolchain designed primarily for **building and deploying serverless web applications**, especially on AWS, GCP, and Azure. It is widely used to manage HTTP APIs, event-driven services, and infrastructure-as-code (IaC) for cloud-native apps.

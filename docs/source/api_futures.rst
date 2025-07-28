@@ -7,7 +7,8 @@ The core abstraction in Lithops is the **executor**, responsible for orchestrati
 
 To get started, you typically import `lithops` and create an executor instance to run your code. Lithops provides a flexible set of executors to suit different needs.
 
-### Primary Executors
+Primary Executors
+-----------------
 
 * **FunctionExecutor** (`lithops.FunctionExecutor()`):  
   The main, generic executor that automatically selects its execution mode based on the provided configuration.  
@@ -17,7 +18,8 @@ To get started, you typically import `lithops` and create an executor instance t
   A robust wrapper around `FunctionExecutor` that transparently handles retries on failed tasks.  
   It supports all features of `FunctionExecutor` with added automatic retry logic, improving fault tolerance and reliability for unstable or transient failure-prone environments.
 
-### Secondary Executors
+Secondary Executors
+-------------------
 
 For more specialized use cases, Lithops also provides explicit executors for each execution mode:
 
@@ -30,13 +32,11 @@ For more specialized use cases, Lithops also provides explicit executors for eac
 * **StandaloneExecutor** (`lithops.StandaloneExecutor()`):  
   Runs jobs on standalone compute backends such as clusters or virtual machines, suitable for long-running or resource-heavy tasks.
 
----
 
-### Configuration and Initialization
+Configuration and Initialization
+================================
 
 By default, executors load configuration from the Lithops configuration file (e.g., `lithops_config.yaml`). You can also supply configuration parameters programmatically via a Python dictionary when creating an executor instance. Parameters passed explicitly override those in the config file, allowing for flexible customization on the fly.
-
----
 
 This layered executor design lets Lithops provide a powerful, unified API for parallel function execution — from local development to multi-cloud production deployments with fault tolerance and retries built-in.
 
