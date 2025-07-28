@@ -1,37 +1,26 @@
-Comparing Lithops with other distributed computing frameworks
+Comparing Lithops with Other Distributed Computing Frameworks
 =============================================================
 
-In a nutshell, Lithops differs from other distributed computing frameworks in that Lithops leverages serverless
-functions to compute massively parallel computations.
+Lithops introduces a novel approach to distributed computing by leveraging **serverless functions** for massively parallel computations. Unlike traditional frameworks that require managing a cluster of nodes, Lithops utilizes Function-as-a-Service (FaaS) platforms to dynamically scale execution resources — down to zero when idle and massively up when needed.
 
-In addition, Lithops provides a simple and easy-to-use interface to access and process data stored in Object Storage
-from your serverless functions.
-
-Moreover, Lithops abstract design allows seamlessly portability between clouds and FaaS services, avoiding vendor
-lock-in.
+In addition, Lithops offers a simple and consistent programming interface to transparently process data stored in **Object Storage** from within serverless functions. Its **modular and cloud-agnostic architecture** enables seamless portability across different cloud providers and FaaS platforms, effectively avoiding vendor lock-in.
 
 PyWren
 ------
 
-.. image:: https://www.faasification.com/assets/img/tools/pywren-logo-big.png
-   :align: center
-   :width: 250
+`PyWren <http://pywren.io/>`_ is the precursor to Lithops. Initially designed to run exclusively on AWS Lambda using a Conda runtime and supporting only Python 2.7, it served as a proof of concept for using serverless functions in scientific computing.
 
+In 2018, the Lithops team forked PyWren to adapt it for **IBM Cloud Functions**, which offered a Docker-based runtime. This evolution also introduced support for **Object Storage as a primary data source** and opened the door to more advanced use cases such as Big Data analytics.
 
-`PyWren <http://pywren.io/>`_  is Lithops' "father" project. PyWren was only designed to run in AWS Lambda with a
-Conda environment and only supported Python 2.7. In 2018, Lithops' creators forked PyWren and adapted it to IBM Cloud
-Functions, which, in contrast, uses a Docker runtime. The authors also explored new usages for PyWren, like processing Big Data from
-Object Storage. Then, on September 2020, IBM PyWren authors decided that the project had evolved enough to no longer be
-considered a simple fork of PyWren for IBM cloud and became Lithops. With this change, the project would no longer be
-tied to the old PyWren model and could move to more modern features such as mulit-cloud support or the transparent
-multiprocessing interface.
+By September 2020, the IBM PyWren fork had diverged significantly. The maintainers rebranded the project as **Lithops**, reflecting its broader goals — including multi-cloud compatibility, improved developer experience, and support for modern Python environments and distributed computing patterns.
 
-You can read more about PyWren IBM Cloud at the Middleware'18 industry paper `Serverless Data Analytics in the IBM Cloud <https://dl.acm.org/doi/10.1145/3284028.3284029>`_.
+For more details, refer to the Middleware'18 industry paper:  
+`Serverless Data Analytics in the IBM Cloud <https://dl.acm.org/doi/10.1145/3284028.3284029>`_.
 
 Ray and Dask
 ------------
 
-.. image:: https://warehouse-camo.ingress.cmh1.psfhosted.org/98ae79911b7a91517ba16ef2dc7dc3b972214820/68747470733a2f2f6769746875622e636f6d2f7261792d70726f6a6563742f7261792f7261772f6d61737465722f646f632f736f757263652f696d616765732f7261795f6865616465725f6c6f676f2e706e67
+.. image:: https://github.com/ray-project/ray/raw/master/doc/source/images/ray_logo.png
    :align: center
    :width: 250
 
@@ -40,13 +29,11 @@ Ray and Dask
    :width: 250
 
 
-In comparison with Lithops, both `Ray <https://ray.io/>`_ and `Dask <https://dask.org/>`_ leverage a cluster of nodes for distributed computing, while Lithops
-mainly leverages serverless functions. This restraint makes Ray much less flexible than Lithops in terms of scalability.
+`Ray <https://ray.io/>`_ and `Dask <https://dask.org/>`_ are distributed computing frameworks designed to operate on a **predefined cluster of nodes** (typically virtual machines). In contrast, Lithops relies on **serverless runtimes**, which allows for *elastic and fine-grained scaling* — including scaling to zero — with no idle infrastructure costs.
 
-Although Dask and Ray can scale and adapt the resources to the amount of computation needed, they don't scale to zero since
-they must keep a "head node" or "master" that controls the cluster and must be kept up.
+While Ray and Dask provide dynamic task scheduling and can autoscale within an IaaS environment, they always require a **centralized "head node" or controller** to manage the cluster, making them less suitable for ephemeral and cost-efficient cloud-native computing.
 
-In any case, the capacity and scalability of Ray or Dask in IaaS using virtual machines is not comparable to that of serverless functions.
+Additionally, the performance and elasticity of Ray and Dask in IaaS environments are not directly comparable to Lithops' **fully serverless model**, which benefits from the near-infinite parallelism offered by cloud functions.
 
 PySpark
 -------
@@ -55,11 +42,9 @@ PySpark
    :align: center
    :width: 250
 
+`PySpark <https://spark.apache.org/docs/latest/api/python/>`_ is the Python interface for Apache Spark, a well-established distributed computing engine. Spark is typically deployed on a **static cluster of machines**, either on-premises or in cloud environments using HDFS or cloud-native file systems.
 
-Much like Ray or Dask, PySpark is a distributed computing framework that uses cluster technologies. PySpark provides Python bindings for Spark.
-Spark is designed to work with a fixed-size node cluster, and it is typically used to process data from on-prem HDFS
-and analyze it using SparkSQL and Spark DataFrame.
-
+PySpark is optimized for **batch analytics** using DataFrames and SparkSQL, but it lacks native integration with FaaS models. Its operational model is not inherently elastic and requires continuous management of a Spark cluster, which may not align with modern, fully managed, or serverless computing paradigms.
 
 Serverless Framework
 --------------------
@@ -68,10 +53,14 @@ Serverless Framework
    :align: center
    :width: 250
 
+`Serverless Framework <https://www.serverless.com/>`_ is a deployment toolchain designed primarily for **building and deploying serverless web applications**, especially on AWS, GCP, and Azure. It is widely used to manage HTTP APIs, event-driven services, and infrastructure-as-code (IaC) for cloud-native apps.
 
-Serverless Framework is a tool to develop serverless applications (mainly NodeJS) and deploy them seemlessly on AWS, GCP
-or Azure.
+Although both Lithops and Serverless Framework leverage **serverless functions**, their objectives are fundamentally different:
 
-Although both Serverless Framework and Lithops use serverless functions, their objective is completely different:
-Serverless Framework aims to provide an easy-to-use tool to develop applications related to web services, like HTTP APIs,
-while Lithops aims to develop applications related to highly parallel scientific computation and Big Data processing.
+- **Serverless Framework** focuses on application deployment (e.g., microservices, REST APIs).
+- **Lithops** targets **parallel and data-intensive workloads**, enabling large-scale execution of Python functions over scientific datasets, data lakes, and unstructured data in object storage.
+
+Summary
+-------
+
+Lithops stands out as a **cloud-native, serverless-first framework** purpose-built for **parallel computing, data analytics, and scientific workloads**. By abstracting away infrastructure management and providing built-in object storage integration, it delivers a unique balance of **simplicity**, **performance**, and **multi-cloud compatibility** — distinguishing it from traditional cluster-based frameworks and generic serverless tools alike.
