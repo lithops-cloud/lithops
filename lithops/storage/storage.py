@@ -20,7 +20,7 @@ import json
 import logging
 import itertools
 import importlib
-from typing import Optional, List, Union, Tuple, Dict, TextIO, BinaryIO, Any
+from typing import Optional, List, Union, Dict, TextIO, BinaryIO, Any
 
 from lithops.constants import CACHE_DIR, RUNTIMES_PREFIX, JOBS_PREFIX, TEMP_PREFIX
 from lithops.utils import is_lithops_worker
@@ -219,16 +219,17 @@ class Storage:
     def list_objects(self,
                      bucket: str,
                      prefix: Optional[str] = None,
-                     match_pattern: Optional[str] = None) -> List[Tuple[str,
-                                                                        int]]:
+                     match_pattern: Optional[str] = None) -> List[Dict[str,
+                                                                       Any]]:
         """
-        Returns all of the object keys in a bucket. For each object, the list contains the name
-        of the object (key) and the size.
+        Returns all of the object keys in a bucket. For each object, the list contains a dictionary
+        with at least the object key ('Key') and the size in bytes ('Size'). Additional fields may be
+        present, depending on the backend implementation.
 
         :param bucket: Name of the bucket
         :param prefix: Key prefix for filtering
 
-        :return: List of tuples containing the object key and size in bytes
+        :return: List of dictionaries containing at least 'Key' and 'Size' for each object
         """
 
         return self.storage_handler.list_objects(bucket, prefix, match_pattern)
