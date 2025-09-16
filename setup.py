@@ -14,7 +14,6 @@ install_requires = [
     'requests',
     'paramiko',
     'cloudpickle',
-    'tblib',
     'ps-mem',
     'psutil'
 ]

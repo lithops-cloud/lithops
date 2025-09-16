@@ -43,7 +43,7 @@ k8s:
     ....
     docker_server    : docker.io
     docker_user      : <Docker hub Username>
-    docker_password  : <DOcker hub access TOEKN>
+    docker_password  : <Docker hub access TOKEN>
 ```
 
 ### Configure IBM Container Registry
