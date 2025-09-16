@@ -29,7 +29,7 @@ Choose your compute and storage engines from the table below:
 || `Azure Container Apps <compute_config/azure_containers.html>`_    || `Redis <storage_config/redis.html>`_                              |
 || `Aliyun Function Compute <compute_config/aliyun_functions.html>`_ || `OpenStack Swift <storage_config/swift.html>`_                    |
 || `Oracle Functions <compute_config/oracle_functions.html>`_        || `Oracle Object Storage <storage_config/oracle_oss.html>`_         |
-|| `Kubernetes <compute_config/Kubernetes.html>`_                    ||                                                                   |
+|| `Kubernetes <compute_config/kubernetes.md>`_                    ||                                                                   |
 || `Knative <compute_config/knative.html>`_                          ||                                                                   |
 || `Singularity <compute_config/singularity.html>`_                  ||                                                                   |
 || `OpenWhisk <compute_config/openwhisk.html>`_                      ||                                                                   |
