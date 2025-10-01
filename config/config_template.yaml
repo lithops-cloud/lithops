@@ -141,6 +141,7 @@
 #ibm_cos:
     #storage_bucket: <BUCKET_NAME>
     #region: <REGION>
+    #service_instance_id: <SERVICE_INSTANCE_ID>
     #endpoint: <REGION_ENDPOINT>
     #private_endpoint: <PRIVATE_REGION_ENDPOINT>
     #api_key: <API_KEY>
