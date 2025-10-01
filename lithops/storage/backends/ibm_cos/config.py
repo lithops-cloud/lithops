@@ -80,7 +80,7 @@ def load_config(config_data):
         endpoint = config_data['ibm_cos']['endpoint']
         config_data['ibm_cos']['region'] = endpoint.split('//')[1].split('.')[1]
 
-    if ('service_instance_id' not in config_data['ibm_cos'] and
-            {'access_key_id', 'secret_access_key'}.isdisjoint(config_data['ibm_cos'])):
+    if ('service_instance_id' not in config_data['ibm_cos']
+            and {'access_key_id', 'secret_access_key'}.isdisjoint(config_data['ibm_cos'])):
         raise Exception('You must provide the service_instance_id or the (access_key_id,secret_access_key) to '
                         'access to IBM COS')
