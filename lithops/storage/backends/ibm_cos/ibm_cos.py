@@ -103,7 +103,8 @@ class IBMCloudObjectStorageBackend:
                 aws_secret_access_key="",
                 aws_session_token=token,
                 config=client_config,
-                endpoint_url=service_endpoint
+                endpoint_url=service_endpoint,
+                ibm_service_instance_id=self.config.get('service_instance_id')
             )
 
         msg = STORAGE_CLI_MSG.format('IBM COS')

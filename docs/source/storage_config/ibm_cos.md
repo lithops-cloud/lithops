@@ -127,12 +127,13 @@ Alternative to using region, you can configure the public and private endpoints 
 
 ### IBM Cloud Object Storage:
 
-|Group|Key|Default|Mandatory|Additional info|
-|---|---|---|---|---|
-|ibm_cos | region | |yes | Region of your bucket. One of: `eu-gb`, `eu-de`, `us-south`, `us-east`, `br-sao`, `ca-tor`, `jp-tok`, `jp-osa`, `au-syd`. Lithops will use the region set under the `ibm` section if it is not set here|
-|ibm_cos | api_key | |yes | API Key to your COS account. Not needed if using IAM API Key|
-|ibm_cos | storage_bucket | | yes | The name of a bucket that exists in you account. This will be used by Lithops for intermediate data. You must provide HMAC Credentials if you want the bucket to be automatically created |
-|ibm_cos | access_key_id | |no | HMAC Credentials. **Mandatory** if no api_key. Not needed if using IAM API Key|
-|ibm_cos | secret_access_key | |no | HMAC Credentials. **Mandatory** if no api_key. Not needed if using IAM API Key|
-|ibm_cos | endpoint | |no | Endpoint to your COS account. **Mandatory** if no region. Make sure to use the full path with 'https://' as prefix |
-|ibm_cos | private_endpoint | |no | Private endpoint to your COS account. **Mandatory** if no region. Make sure to use the full path with 'https://' or http:// as prefix |
+| Group   | Key                 |Default|Mandatory| Additional info                                                                                                                                                                                         |
+|---------|---------------------|---|---|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| ibm_cos | region              | |yes | Region of your bucket. One of: `eu-gb`, `eu-de`, `us-south`, `us-east`, `br-sao`, `ca-tor`, `jp-tok`, `jp-osa`, `au-syd`. Lithops will use the region set under the `ibm` section if it is not set here |
+| ibm_cos | api_key             | |yes | API Key to your COS account. Not needed if using IAM API Key                                                                                                                                            |
+| ibm_cos | storage_bucket      | | yes | The name of a bucket that exists in you account. This will be used by Lithops for intermediate data. You must provide HMAC Credentials if you want the bucket to be automatically created               |
+| ibm_cos | service_instance_id | |no | The service instance (CRN format) of your COS instance. **Mandatory** if no HMAC Credentials provided.                                                                                                  |                                                                                                 |                                                                                                   |                                                                                                                                  |                                                                                                                                        |
+| ibm_cos | access_key_id       | |no | HMAC Credentials. **Mandatory** if no api_key. Not needed if using IAM API Key                                                                                                                          |
+| ibm_cos | secret_access_key   | |no | HMAC Credentials. **Mandatory** if no api_key. Not needed if using IAM API Key                                                                                                                          |
+| ibm_cos | endpoint            | |no | Endpoint to your COS account. **Mandatory** if no region. Make sure to use the full path with 'https://' as prefix                                                                                      |
+| ibm_cos | private_endpoint    | |no | Private endpoint to your COS account. **Mandatory** if no region. Make sure to use the full path with 'https://' or http:// as prefix                                                                   |
