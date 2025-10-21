@@ -1,17 +1,17 @@
 # Python 3.6
-#FROM python:3.6-slim-buster
+#FROM python:3.6-slim-trixie
 
 # Python 3.7
-#FROM python:3.7-slim-buster
+#FROM python:3.7-slim-trixie
 
 # Python 3.8
-#FROM python:3.8-slim-buster
+#FROM python:3.8-slim-trixie
 
 # Python 3.9
-#FROM python:3.9-slim-buster
+#FROM python:3.9-slim-trixie
 
 # Python 3.10
-FROM python:3.10-slim-buster
+FROM python:3.10-slim-trixie
 
 RUN apt-get update \
     # Install aws-lambda-cpp build dependencies
