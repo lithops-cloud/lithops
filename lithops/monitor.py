@@ -526,7 +526,7 @@ class JobMonitor:
             self.monitor.start()
 
     def is_alive(self):
-        self.monitor.is_alive()
+        return self.monitor.is_alive()
 
     def remove(self, fs):
         if self.monitor and self.monitor.is_alive():
