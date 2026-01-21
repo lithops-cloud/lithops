@@ -513,7 +513,6 @@ class StorageMonitor(Monitor):
 
         while self.should_run:
             try:
-                # Poll first, then sleep - ensures we catch fast-completing jobs
                 new_callids_done, previous_log, log_time = (
                     self._poll_and_process_job_status(previous_log, log_time)
                 )
@@ -527,7 +526,6 @@ class StorageMonitor(Monitor):
                     exc_info=True,
                 )
 
-            # Sleep after polling, not before
             time.sleep(wait_dur_sec)
             log_time += wait_dur_sec
 
