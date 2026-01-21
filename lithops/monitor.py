@@ -460,21 +460,17 @@ class StorageMonitor(Monitor):
         previous_log = None
         log_time = 0
 
-        while not self._all_ready():
-            time.sleep(wait_dur_sec)
-            wait_dur_sec = self.monitoring_interval
-            log_time += wait_dur_sec
-
-            if not self.should_run:
-                logger.debug(f'ExecutorID {self.executor_id} - Monitor stopped externally')
-                break
-
+        while self.should_run:
             try:
                 new_callids_done, previous_log, log_time = self._poll_and_process_job_status(previous_log, log_time)
                 if new_callids_done:
                     wait_dur_sec = self.monitoring_interval / 5
+                else: 
+                    wait_dur_sec = self.monitoring_interval
             except Exception as e:
                 logger.error(f'ExecutorID {self.executor_id} - Error during monitor: {e}', exc_info=True)
+            time.sleep(wait_dur_sec)
+            log_time += wait_dur_sec
 
         self._poll_and_process_job_status(previous_log, log_time)
 
