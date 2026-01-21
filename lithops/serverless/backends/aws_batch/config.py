@@ -28,7 +28,7 @@ AVAILABLE_CPU_MEM_FARGATE = {
     0.5: [1024, 2048, 3072, 4096],
     1: [2048, 3072, 4096, 5120, 6144, 7168, 8192],
     2: [4096, 5120, 6144, 7168, 8192, 9216, 10240, 11264, 12288, 13312, 14336, 15360, 16384],
-    4: [8192 + 1024 * i for i in range(21)],  # Starts at 8192, increments by 1024 up to 30720
+    4: [8192 + 1024 * i for i in range(23)],  # Starts at 8192, increments by 1024 up to 30720
     8: [16384 + 4096 * i for i in range(12)],  # Starts at 16384, increments by 4096 up to 61440
     16: [32768 + 8192 * i for i in range(12)]  # Starts at 32768, increments by 8192 up to 122880
 }
