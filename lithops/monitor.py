@@ -465,7 +465,7 @@ class StorageMonitor(Monitor):
                 new_callids_done, previous_log, log_time = self._poll_and_process_job_status(previous_log, log_time)
                 if new_callids_done:
                     wait_dur_sec = self.monitoring_interval / 5
-                else: 
+                else:
                     wait_dur_sec = self.monitoring_interval
             except Exception as e:
                 logger.error(f'ExecutorID {self.executor_id} - Error during monitor: {e}', exc_info=True)
