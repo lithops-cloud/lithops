@@ -1,6 +1,6 @@
 # Changelog
 
-## [v3.6.3.dev0]
+## [v3.6.4.dev0]
 
 ### Added
 -
@@ -10,6 +10,12 @@
 
 ### Fixed
 - 
+
+## [v3.6.3]
+
+### Fixed
+- Fixed memory available options for aws batch: 4 cpus 
+- Fixed race condition and improving monitor stability 
 
 
 ## [v3.6.2]
