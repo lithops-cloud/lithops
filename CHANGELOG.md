@@ -6,16 +6,17 @@
 -
 
 ### Changed
-- 
+-
 
 ### Fixed
-- 
+- [Executor] Support use of `functools.partial` with FunctionExecutor's
+  `call_async` and `map` methods
 
 ## [v3.6.3]
 
 ### Fixed
-- Fixed memory available options for aws batch: 4 cpus 
-- Fixed race condition and improving monitor stability 
+- Fixed memory available options for aws batch: 4 cpus
+- Fixed race condition and improving monitor stability
 
 
 ## [v3.6.2]
@@ -103,7 +104,7 @@
 - [AWS Batch] Updated CPU and Memory resource limits
 
 ### Fixed
-- [AWS Lambda] Fixed wrong AWS Lambda delete runtime_name match semantics 
+- [AWS Lambda] Fixed wrong AWS Lambda delete runtime_name match semantics
 - [Worker] Fixed potential issue that can appear during 'func_obj' loading from cache
 - [Monitor] Fixed potential 'keyerror' exceptions
 - [Swift] Fixed OpenStack Swift parameters and authentication by adding domain information
@@ -175,7 +176,7 @@
 ### Added
 - [k8s] Added a new way of invoking functions using a RabbitMQ work queue
 - [IBM VPC] Added "zone" config parameter
-- [IBM Code Engine] Get and print an error message in case of container execution failure 
+- [IBM Code Engine] Get and print an error message in case of container execution failure
 
 ### Changed
 - [OpenWhisk] Updated default runtimes
@@ -723,7 +724,7 @@
 - [Config] Allow 'log_stream' and 'log_filename' keys in configuration
 - [Config] Allow 'runtime' being configured at serverless backend level
 - [Config] Allow 'invoke_pool_threads' being configured at serverless backend level
-- [Multiprocessing] Added generic Manager 
+- [Multiprocessing] Added generic Manager
 - [Kubernetes] Add kubernetes job backend
 - [CLI] Extended lithops cli with storage put, get, delete and list options
 - [Azure] Added missing azure functions backend methods
@@ -970,7 +971,7 @@
 - [Core] Generic compute client logic
 - [Core] IBM IAM service client lib
 - [Core] IBM VPC service client lib
-- [Docker] Docker backend compatible with IBM VPC VM 
+- [Docker] Docker backend compatible with IBM VPC VM
 
 ### Changed
 -  [Docker] Improved Docker executor
@@ -1599,8 +1600,8 @@
 - Docs updated
 - Storage separation
 - Project update. 'bx' and 'wsk' CLI tools are no longer necessary
-- Updated setup.py 
-- Deleted requirements.txt 
+- Updated setup.py
+- Deleted requirements.txt
 - Updated default_preinstalls
 
 ### Fixed
@@ -1658,7 +1659,7 @@ First release.
 - When a new *executor class* is instantiated, it is created a *storage_handler* used in the all PyWren execution.
 - Now it is possible to specify the **runtime** when the user instantiates the *executor class* instead of changing the config file every time (In the config file is specified the default runtime).
 - The **logging level** is now specified when the user instantiates the *executor class* instead of put it in the first line of the code within an env variable.
-- The PyWren code which is executed remotely as a wrapper of the function now uses the main storage handler as the rest of the PyWren code. In previous versions, PyWren creates a new storage client directly with *boto3* library instead of using pywren/storage/storage.py wrapper. 
+- The PyWren code which is executed remotely as a wrapper of the function now uses the main storage handler as the rest of the PyWren code. In previous versions, PyWren creates a new storage client directly with *boto3* library instead of using pywren/storage/storage.py wrapper.
 - Added support for multiple parameters in the functions which are executed remotely as a cloud functions. Previous versions just allows one parameter.
 - Eased the usage of the storage backend within a function. By simply specifying *storage_handler* as a parameter of the function, the user will get access to the storage backend.
 - Added a new method for retrieving the results of an execution called **fetch_all_resuslts()**. Previous PyWren versions already includes a method called *get_all_results()*, but this is a sequential method and it takes long time to retrieve all the results. It was also included a *wait()* class which is more similar to *get_all_results()* method, the main difference is that the new method is all based on *list the available objects in a bucket*, and it returns when all the tasks are finished. The new method also has the possibility to activate a progress bar in order to track the current status of the execution (really useful for larger executions).

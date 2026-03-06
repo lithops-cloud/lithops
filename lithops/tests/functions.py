@@ -38,6 +38,22 @@ def lithops_return_futures_map(x):
     return futures
 
 
+def lithops_return_futures_map_over_partial(x):
+    from functools import partial
+
+    def _func(x, y):
+        return x * y
+
+    fexec = lithops.FunctionExecutor()
+    futures = fexec.map(partial(_func, 2), range(x))
+
+    # this while loop is required to pass localhost tests on Windows
+    while not all(f.running or f.ready for f in futures):
+        time.sleep(0.1)
+
+    return futures
+
+
 def lithops_return_futures_call_async(x):
     def _func(x):
         return x + 1

@@ -21,9 +21,10 @@ from lithops.tests.functions import (
     hello_world,
     lithops_inside_lithops_map_function,
     lithops_return_futures_map,
+    lithops_return_futures_map_over_partial,
     lithops_return_futures_call_async,
     lithops_return_futures_map_multiple,
-    concat
+    concat,
 )
 
 
@@ -105,6 +106,12 @@ class TestMap:
         fexec.call_async(lithops_return_futures_map, 3)
         result = fexec.get_result()
         assert result == [1, 2, 3]
+
+    def test_lithops_return_futures_map_over_partial(self):
+        fexec = lithops.FunctionExecutor(config=pytest.lithops_config)
+        fexec.call_async(lithops_return_futures_map_over_partial, 3)
+        result = fexec.get_result()
+        assert result == [0, 2, 4]
 
     def test_lithops_return_futures_call_async(self):
         fexec = lithops.FunctionExecutor(config=pytest.lithops_config)
