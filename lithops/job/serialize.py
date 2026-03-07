@@ -24,7 +24,7 @@ import inspect
 import cloudpickle
 from pathlib import Path
 from dis import Bytecode
-from functools import reduce
+from functools import partial, reduce
 from importlib import import_module
 from types import CodeType, FunctionType, ModuleType
 
@@ -151,6 +151,9 @@ class SerializeIndependent:
                     for k, v in linspect.getmembers_static(param):
                         if inspect.isfunction(v) or (inspect.ismethod(v) and inspect.isfunction(v.__func__)):
                             worklist.append(v)
+        elif isinstance(obj, partial):
+            found_methods = ["__call__"]
+            worklist.append(obj.func)
         else:
             # The obj is the user's function but in form of a class
             found_methods = []
@@ -159,8 +162,10 @@ class SerializeIndependent:
                     found_methods.append(k)
                     worklist.append(v)
             if "__call__" not in found_methods:
-                raise Exception('The class you passed as the function to '
-                                'run must contain the "__call__" method')
+                raise ValueError(
+                    "The class you passed as the function to "
+                    'run must contain the "__call__" method'
+                )
 
         # The worklist is only used for analyzing functions
         for fn in worklist:
@@ -199,7 +204,7 @@ class SerializeIndependent:
                     elif inspect.iscode(v):
                         codeworklist.append(v)
 
-        return set([mod_name.split('.')[0] for mod_name in mods])
+        return {mod_name.split(".")[0] for mod_name in mods}
 
     def _inner_module_inspect(self, inst):
         """

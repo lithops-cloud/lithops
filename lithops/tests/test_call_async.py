@@ -49,6 +49,14 @@ class TestCallAsync:
         result = fexec.get_result()
         assert result == 10
 
+    def test_partial_function(self):
+        from functools import partial
+
+        fexec = lithops.FunctionExecutor(config=pytest.lithops_config)
+        fexec.call_async(partial(simple_map_function, 4), 6)
+        result = fexec.get_result()
+        assert result == 10
+
     def test_dict_iterdata(self):
         fexec = lithops.FunctionExecutor(config=pytest.lithops_config)
         fexec.call_async(simple_map_function, {'x': 2, 'y': 8})
