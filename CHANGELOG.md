@@ -1,16 +1,9 @@
 # Changelog
 
-## [v3.6.4.dev0]
-
-### Added
--
-
-### Changed
--
+## [v3.6.4]
 
 ### Fixed
-- [Executor] Support use of `functools.partial` with FunctionExecutor's
-  `call_async` and `map` methods
+- [Executor] Support use of `functools.partial` with FunctionExecutor's `call_async` and `map` methods
 
 ## [v3.6.3]
 
