@@ -125,3 +125,31 @@ class TestMap:
         fexec.wait()
         result = fexec.get_result()
         assert result == [1, 2, 3, 1, 2, 3]
+
+    def test_lithops_return_futures_map_over_decorator(self):
+        def doubled(f):
+            def wrapper(*args, **kwargs):
+                return 2 * f(*args, **kwargs)
+
+            return wrapper
+
+        @doubled
+        def total(a, b, c=0, *args, d, e=5, **kwargs):
+            return sum([a, b, c, d, e, *args, *kwargs.values()])
+
+        with lithops.FunctionExecutor(config=pytest.lithops_config) as fexec:
+            fexec.map(
+                total,
+                [
+                    {"a": 1, "b": 2, "d": 3},
+                    {"args": (1, 2), "d": 3},
+                    {"args": (1, 2), "d": 3, "e": 4},
+                    {"args": (1, 2), "d": 3, "f": 4},
+                    {"a": 1, "b": 2, "d": 3, "e": 6, "f": 4},
+                    {"args": (1, 2), "d": 3, "e": 6, "f": 4},
+                    {"args": (1, 2), "kwargs": {"d": 3, "e": 6, "f": 4}},
+                ],
+            )
+            result = fexec.get_result()
+
+        assert result == [22, 22, 20, 30, 32, 32, 32]
