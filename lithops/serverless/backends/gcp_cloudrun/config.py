@@ -32,7 +32,8 @@ DEFAULT_CONFIG_KEYS = {
     'worker_processes': 1,
     'invoke_pool_threads': 100,
     'trigger': 'https',
-    'docker_server': 'gcr.io'
+    'docker_server': 'pkg.dev',
+    'artifact_registry_repository': 'lithops',
 }
 
 MAX_RUNTIME_MEMORY = 32768  # 32 GiB

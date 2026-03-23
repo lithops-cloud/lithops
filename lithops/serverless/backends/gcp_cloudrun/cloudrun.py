@@ -75,15 +75,29 @@ class GCPCloudRunBackend:
             self.name, self.cr_config, 'lithops-cloudrun-default'
         )
 
+    def _full_container_image_reference(self, name):
+        """True if name already includes a registry hostname (user-supplied image)."""
+        if '/' not in name:
+            return False
+        host = name.split('/', 1)[0]
+        if host.startswith('./') or host.startswith('../'):
+            return False
+        # hostname or host:port (e.g. REGION-docker.pkg.dev, docker.io)
+        return '.' in host or (':' in host and not host.startswith('/'))
+
+    def _docker_login_registry_host(self):
+        """Artifact Registry hostname for docker login / push."""
+        return f'{self.region}-docker.pkg.dev'
+
     def _format_image_name(self, runtime_name):
         """
-        Formats GCR image name from runtime name
+        Formats Artifact Registry image reference from runtime name.
         """
-        if 'gcr.io' not in runtime_name:
-            country = self.region.split('-')[0]
-            return f'{country}.gcr.io/{self.project_name}/{runtime_name}'
-        else:
+        if self._full_container_image_reference(runtime_name):
             return runtime_name
+
+        repo = self.cr_config.get('artifact_registry_repository', 'lithops')
+        return f'{self.region}-docker.pkg.dev/{self.project_name}/{repo}/{runtime_name}'
 
     def _build_api_resource(self):
         """
@@ -229,16 +243,16 @@ class GCPCloudRunBackend:
         finally:
             os.remove(config.FH_ZIP_LOCATION)
 
-        logger.debug('Authorizing Docker client with GCR permissions')
-        country = self.region.split('-')[0]
-        cmd = f'cat {self.credentials_path} | {docker_path} login {country}.gcr.io -u _json_key --password-stdin'
+        registry_host = self._docker_login_registry_host()
+        logger.debug(f'Authorizing Docker client for registry {registry_host}')
+        cmd = f'cat {self.credentials_path} | {docker_path} login {registry_host} -u _json_key --password-stdin'
         if logger.getEffectiveLevel() != logging.DEBUG:
             cmd = cmd + f" >{os.devnull} 2>&1"
         res = os.system(cmd)
         if res != 0:
-            raise Exception('There was an error authorizing Docker for push to GCR')
+            raise Exception(f'There was an error authorizing Docker for push to {registry_host}')
 
-        logger.debug(f'Pushing runtime {image_name} to GCP Container Registry')
+        logger.debug(f'Pushing runtime {image_name} to {registry_host}')
         if utils.is_podman(docker_path):
             cmd = f'{docker_path} push {image_name} --format docker --remove-signatures'
         else:
