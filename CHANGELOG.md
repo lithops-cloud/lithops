@@ -1,15 +1,23 @@
 # Changelog
 
+## [v3.6.5.dev0]
+
+### Added
+- [Core] Support var-len params in func passed to executor.
+- [GCP Cloud Run] Default runtimes use Artifact Registry; added `artifact_registry_repository` (default `lithops`).
+
+
 ## [v3.6.4]
 
 ### Fixed
 - [Executor] Support use of `functools.partial` with FunctionExecutor's `call_async` and `map` methods
 
+
 ## [v3.6.3]
 
 ### Fixed
-- Fixed memory available options for aws batch: 4 cpus
-- Fixed race condition and improving monitor stability
+- [AWS Batch] Fixed memory available options for aws batch: 4 cpus
+- [Monitor] Fixed race condition and improving monitor stability
 
 
 ## [v3.6.2]
@@ -977,7 +985,7 @@
 ## [v1.7.2]
 
 ### Added
-- [GCR] Added Google Cloud Run Backend
+- [GCP Cloud Run] Added Google Cloud Run backend
 
 
 ### Changed
