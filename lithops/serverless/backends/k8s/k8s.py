@@ -169,10 +169,10 @@ class KubernetesBackend:
         """
         Builds the default runtime
         """
-        # Build default runtime using local dokcer
-        dockerfile = "Dockefile.default-k8s-runtime"
+        # Build default runtime using local docker
+        dockerfile = "Dockerfile.default-k8s-runtime"
         with open(dockerfile, 'w') as f:
-            f.write(f"FROM python:{utils.CURRENT_PY_VERSION}-slim-buster\n")
+            f.write(f"FROM python:{utils.CURRENT_PY_VERSION}-slim-bookworm\n")
             f.write(config.DOCKERFILE_DEFAULT)
         try:
             self.build_runtime(docker_image_name, dockerfile)
