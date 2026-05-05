@@ -26,6 +26,14 @@ DEFAULT_CONFIG_KEYS = {
     'docker_server': 'docker.io'
 }
 
+# Pod Security Standards "Baseline"-aligned container defaults; safe to
+# enable without runtime image changes. Override via `container_security_context`.
+DEFAULT_CONTAINER_SECURITY_CONTEXT = {
+    'allowPrivilegeEscalation': False,
+    'capabilities': {'drop': ['ALL']},
+    'seccompProfile': {'type': 'RuntimeDefault'},
+}
+
 DEFAULT_GROUP = "batch"
 DEFAULT_VERSION = "v1"
 MASTER_NAME = "lithops-master"
@@ -141,6 +149,15 @@ def load_config(config_data):
     for key in DEFAULT_CONFIG_KEYS:
         if key not in config_data['k8s']:
             config_data['k8s'][key] = DEFAULT_CONFIG_KEYS[key]
+
+    if 'container_security_context' not in config_data['k8s']:
+        config_data['k8s']['container_security_context'] = DEFAULT_CONTAINER_SECURITY_CONTEXT
+    config_data['k8s'].setdefault('pod_security_context', None)
+
+    for key in ('container_security_context', 'pod_security_context'):
+        value = config_data['k8s'][key]
+        if value is not None and not isinstance(value, dict):
+            raise Exception(f"'{key}' under 'k8s' must be a mapping or null, got {type(value).__name__}")
 
     if 'runtime' in config_data['k8s']:
         runtime = config_data['k8s']['runtime']
