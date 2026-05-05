@@ -57,29 +57,17 @@ k8s:
 
 2. **Use an already built runtime from a public repository**
 
-    Maybe someone already built a Docker image with all the packages you need, and put it in a public repository.
-    In this case, you can use that Docker image and avoid the building process by simply specifying the image name when creating a new executor, for example:
+    If someone has already built a Docker image with the packages you need and pushed it to a public registry, you can avoid the build step entirely and reference that image when creating a new executor, for example:
 
     ```python
     import lithops
-    fexec = lithops.FunctionExecutor(runtime='docker.io/lithopscloud/lithops-k8s-conda-v312:01')
+    fexec = lithops.FunctionExecutor(runtime='docker.io/<docker_username>/<runtime_name>:<tag>')
     ```
 
-    Alternatively, you can create a Lithops runtime based on already built Docker image by executing the following command, which will deploy all the necessary information to use the runtime with your Lithops.
+    Alternatively, you can pre-register a Lithops runtime from an already built Docker image with:
 
     ```
-    $ lithops runtime deploy -b k8s docker_username/runtimename:tag
-    ```
-
-    For example, you can use an already buit runtime based on Python 3.12 and with the *matplotlib* and *nltk* libraries by running:
-
-    ```
-    $ lithops runtime deploy -b k8s docker.io/lithopscloud/lithops-k8s-matplotlib-v312:01
-    ```
-
-    ```python
-    import lithops
-    fexec = lithops.FunctionExecutor(runtime='docker.io/lithopscloud/lithops-k8s-matplotlib:v312:01')
+    $ lithops runtime deploy -b k8s <docker_username>/<runtime_name>:<tag>
     ```
 
 3. **Clean everything**

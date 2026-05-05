@@ -165,14 +165,14 @@
 #ceph:
     #storage_bucket: <BUCKET_NAME>
     #endpoint: <ENDPOINT_URL>
-    #access_key: <ACCESS_KEY>
-    #secret_key: <ACCESS_KEY>
-    
+    #access_key_id: <ACCESS_KEY_ID>
+    #secret_access_key: <SECRET_ACCESS_KEY>
+
 #minio:
     #storage_bucket: <BUCKET_NAME>
     #endpoint: <ENDPOINT_URL>
-    #access_key: <ACCESS_KEY>
-    #secret_key: <ACCESS_KEY>
+    #access_key_id: <ACCESS_KEY_ID>
+    #secret_access_key: <SECRET_ACCESS_KEY>
     
 #redis:
     #host: <ENDPOINT_URL>
