@@ -135,6 +135,43 @@ class KubernetesBackend:
         if container_sc:
             pod_spec['containers'][0]['securityContext'] = container_sc
 
+    def _detect_cluster_arch(self):
+        """Return the dominant node architecture, or None if mixed/unknown."""
+        try:
+            nodes = self.core_api.list_node()
+        except ApiException as e:
+            logger.warning(f"Could not list cluster nodes for arch detection: {e}")
+            return None
+        archs = {
+            n.status.node_info.architecture for n in nodes.items
+            if n.status and n.status.node_info
+        }
+        if len(archs) == 1:
+            return archs.pop()
+        if len(archs) > 1:
+            logger.warning(
+                f"Cluster has mixed node architectures {sorted(archs)}; "
+                "set 'runtime_arch' in the k8s config to pick one explicitly."
+            )
+        return None
+
+    def _resolve_runtime_arch(self):
+        """Resolve the platform arch for `docker build --platform=linux/<arch>`."""
+        configured = self.k8s_config.get('runtime_arch')
+        if configured:
+            return configured
+        detected = self._detect_cluster_arch()
+        if detected in config.SUPPORTED_RUNTIME_ARCHS:
+            logger.debug(f"Auto-detected cluster arch: {detected}")
+            return detected
+        if detected is not None:
+            logger.warning(
+                f"Auto-detected cluster arch '{detected}' is not supported by Lithops "
+                f"(expected one of {sorted(config.SUPPORTED_RUNTIME_ARCHS)}); "
+                f"falling back to '{config.DEFAULT_RUNTIME_ARCH}'."
+            )
+        return config.DEFAULT_RUNTIME_ARCH
+
     def build_runtime(self, docker_image_name, dockerfile, extra_args=[]):
         """
         Builds a new runtime from a Docker file and pushes it to the registry
@@ -143,11 +180,13 @@ class KubernetesBackend:
 
         docker_path = utils.get_docker_path()
 
+        arch = self._resolve_runtime_arch()
+        platform = f'linux/{arch}'
         if dockerfile:
             assert os.path.isfile(dockerfile), f'Cannot locate "{dockerfile}"'
-            cmd = f'{docker_path} build --platform=linux/amd64 -t {docker_image_name} -f {dockerfile} . '
+            cmd = f'{docker_path} build --platform={platform} -t {docker_image_name} -f {dockerfile} . '
         else:
-            cmd = f'{docker_path} build --platform=linux/amd64 -t {docker_image_name} . '
+            cmd = f'{docker_path} build --platform={platform} -t {docker_image_name} . '
         cmd = cmd + ' '.join(extra_args)
 
         try:

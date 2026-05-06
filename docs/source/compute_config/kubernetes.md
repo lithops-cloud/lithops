@@ -78,6 +78,7 @@ k8s:
 |k8s | master_timeout | 600 |no | Master pod timeout in seconds. Default 600 seconds |
 |k8s | container_security_context | PSS Baseline (drop ALL caps, no privilege escalation, RuntimeDefault seccomp) | no | Mapping injected as the container `securityContext` on every Lithops pod. Set to `null` to disable. |
 |k8s | pod_security_context | | no | Mapping injected as the pod-level `securityContext`. Required for clusters enforcing Pod Security Standards Restricted (e.g. EGI Rancher, GKE Autopilot, OpenShift). Requires a non-root runtime image. |
+|k8s | runtime_arch | auto-detected from cluster nodes; falls back to `amd64` if mixed or unknown | no | Architecture passed to `docker build --platform=linux/<arch>`. Set explicitly when targeting a specific architecture on a mixed-arch cluster. Allowed values: `amd64`, `arm64`. |
 
 ## Running on Pod Security Standards Restricted clusters
 
