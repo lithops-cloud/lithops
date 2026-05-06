@@ -1,7 +1,7 @@
 # Lithops runtime for Singularity
 This document describes how to use Singularity containers as runtimes for your Lithops functions.
 
-The runtime provides a pre-configured environment to execute your Lithops functions within Singularity containers. It includes the necessary and dependencies to execute your lithops code. 
+The runtime provides a pre-configured environment to execute your Lithops functions within Singularity containers. It includes the necessary dependencies to execute your lithops code. 
 
 **Note:** This backend requires a RabbitMQ server for communication.
 
@@ -13,7 +13,7 @@ Use the `lithops runtime build` command to create a `.sif` image containing the 
 
         $ lithops runtime build -b singularity singularity-runtime-name --fakeroot --force
 
-    This command creates the a new `singularity-runtime-name.sif` file with the necessary libraries.
+    This command creates a new `singularity-runtime-name.sif` file with the necessary libraries.
 
 
 2. **Building a custom runtime from a definition file**
@@ -59,7 +59,7 @@ singularity:
     runtime: singularity-runtime-name
 ```
 
-Also, to execute the Singularity backend, you need to set the RabbitMQ AMPQ URL in your configuration file:
+Also, to execute the Singularity backend, you need to set the RabbitMQ AMQP URL in your configuration file:
 
 ```yaml
 rabbitmq:
