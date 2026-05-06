@@ -63,6 +63,7 @@ def is_valid_cloud_run_cpu(cpu):
     expected = round(0.08 + n * 0.001, 3)
     return abs(r - expected) < 1e-5 and 0 <= n <= 919
 
+
 FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_cloudrun.zip')
 
 DEFAULT_DOCKERFILE = """
