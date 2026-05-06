@@ -31,7 +31,7 @@ If you want to upload local files to the custom VM Image, you can include them u
 lithops image build -b aws_ec2 -f myscript.sh -i /home/user/test.bin:/home/ubuntu/test.bin custom-lithops-runtime
 ```
 
-In the case of using using a custom name, you must provide the `target_ami`, printed at the end of the build command, in your lithops config, for example:
+In the case of using a custom name, you must provide the `target_ami`, printed at the end of the build command, in your lithops config, for example:
 
 ```yaml
 aws_ec2:

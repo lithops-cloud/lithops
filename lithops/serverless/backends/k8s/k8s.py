@@ -125,6 +125,16 @@ class KubernetesBackend:
             self.name, self.k8s_config, 'lithops-kubernetes-default'
         )
 
+    def _apply_security_context(self, job_res):
+        """Inject pod- and container-level securityContext from config (if any)."""
+        pod_spec = job_res['spec']['template']['spec']
+        pod_sc = self.k8s_config.get('pod_security_context')
+        if pod_sc:
+            pod_spec['securityContext'] = pod_sc
+        container_sc = self.k8s_config.get('container_security_context')
+        if container_sc:
+            pod_spec['containers'][0]['securityContext'] = container_sc
+
     def build_runtime(self, docker_image_name, dockerfile, extra_args=[]):
         """
         Builds a new runtime from a Docker file and pushes it to the registry
@@ -169,10 +179,10 @@ class KubernetesBackend:
         """
         Builds the default runtime
         """
-        # Build default runtime using local dokcer
-        dockerfile = "Dockefile.default-k8s-runtime"
+        # Build default runtime using local docker
+        dockerfile = "Dockerfile.default-k8s-runtime"
         with open(dockerfile, 'w') as f:
-            f.write(f"FROM python:{utils.CURRENT_PY_VERSION}-slim-buster\n")
+            f.write(f"FROM python:{utils.CURRENT_PY_VERSION}-slim-bookworm\n")
             f.write(config.DOCKERFILE_DEFAULT)
         try:
             self.build_runtime(docker_image_name, dockerfile)
@@ -458,6 +468,8 @@ class KubernetesBackend:
         master_res['metadata']['labels']['user'] = self.user
         master_res['spec']['activeDeadlineSeconds'] = self.k8s_config['master_timeout']
 
+        self._apply_security_context(master_res)
+
         container = master_res['spec']['template']['spec']['containers'][0]
         container['image'] = docker_image_name
         container['env'][0]['value'] = 'run_master'
@@ -648,6 +660,8 @@ class KubernetesBackend:
             job_res['spec']['activeDeadlineSeconds'] = self.k8s_config['runtime_timeout']
             job_res['spec']['parallelism'] = total_workers
 
+            self._apply_security_context(job_res)
+
             container = job_res['spec']['template']['spec']['containers'][0]
             container['image'] = docker_image_name
             if not docker_image_name.endswith(':latest'):
@@ -693,6 +707,8 @@ class KubernetesBackend:
         job_res['metadata']['namespace'] = self.namespace
         job_res['metadata']['labels']['version'] = 'lithops_v' + __version__
         job_res['metadata']['labels']['user'] = self.user
+
+        self._apply_security_context(job_res)
 
         container = job_res['spec']['template']['spec']['containers'][0]
         container['image'] = docker_image_name

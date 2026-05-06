@@ -11,7 +11,7 @@ lithops image build -b ibm_vpc
 ```
 
 This command will create an image called "lithops-ubuntu-22-04-3-minimal-amd64-1" in the target region.
-If the image already exists, and you want to updete it, use the `--overwrite` or `-o` parameter:
+If the image already exists, and you want to update it, use the `--overwrite` or `-o` parameter:
 
 ```
 lithops image build -b ibm_vpc --overwrite
@@ -31,7 +31,7 @@ If you want to upload local files to the custom VM Image, you can include them u
 lithops image build -b ibm_vpc -f myscript.sh -i /home/user/test.bin:/home/ubuntu/test.bin custom-lithops-runtime
 ```
 
-In the case of using using a custom name, you must provide the Image ID, printed at the end of the build command, in your lithops config, for eaxmple:
+In the case of using a custom name, you must provide the Image ID, printed at the end of the build command, in your lithops config, for example:
 
 ```yaml
 ibm_vpc:
@@ -42,7 +42,7 @@ ibm_vpc:
 
 ## Option 2:
 
-You can create a VM image manually. For example, you can create a VM in you AWS region, access the VM, install all the dependencies in the VM itself (apt-get, pip3 install, ...), stop the VM, create a VM Image, and then put the image_id in your lithops config, for example:
+You can create a VM image manually. For example, you can create a VM in your IBM Cloud region, access the VM, install all the dependencies in the VM itself (apt-get, pip3 install, ...), stop the VM, create a VM Image, and then put the image_id in your lithops config, for example:
 
 ```yaml
 ibm_vpc:
@@ -64,14 +64,14 @@ and make it executable with
 
 ### Build the Image with Docker runtime
 
-If you plan to run your function within a **docker runtime** in the VM, it is preferable to include the docker image into the VM image. In this way, you will avoid the initial `docker pull <image/name>` command, thus reducing the overall execution time. To do so, add the `-d` flag followed by the docker image name you plant to use, for example:
+If you plan to run your function within a **docker runtime** in the VM, it is preferable to include the docker image into the VM image. In this way, you will avoid the initial `docker pull <image/name>` command, thus reducing the overall execution time. To do so, add the `-d` flag followed by the docker image name you plan to use, for example:
 
  ```
  $ ./build_lithops_vm_image.sh -d lithopscloud/ibmcf-python-v38 lithops-ubuntu-20.04.qcow2
  ```
 **Important**
 
-Lithops will include all the local Docker images together with the Lithops runtime. To avoid this and include only Lithops runtime, it's adviced to delete all local Docker images or run the script in a vanilla Ubuntu 20.04 VM. To delete all local images and include only Lithops runtime you need to execute
+Lithops will include all the local Docker images together with the Lithops runtime. To avoid this and include only Lithops runtime, it's advised to delete all local Docker images or run the script in a vanilla Ubuntu 20.04 VM. To delete all local images and include only Lithops runtime you need to execute
 
 ```
  $ ./build_lithops_vm_image.sh -p prune -d lithopscloud/ibmcf-python-v38  lithops-ubuntu-20.04.qcow2
@@ -80,7 +80,7 @@ Lithops will include all the local Docker images together with the Lithops runti
 In this example the script generates a VM image named `lithops-ubuntu-20.04.qcow2` that contains all dependencies required by Lithops.
 
 ### Build the Image without a Docker runtime
-Alternative is to build a VM image without a Docker runtime. This approach is mainly focused to run Lithops functions within the VM in the python3 interpreter, without using a docker runtime. If you plant to use a docker runtime to run the functions within the VM, consider to follow the previous approach. The default `build_lithops_vm_image.sh` file contains contains all required dependencies for Lithops. If you need extra linux packages and python libraries, you must edit the `build_lithops_vm_image.sh` file and include all them.
+Alternative is to build a VM image without a Docker runtime. This approach is mainly focused to run Lithops functions within the VM in the python3 interpreter, without using a docker runtime. If you plan to use a docker runtime to run the functions within the VM, consider to follow the previous approach. The default `build_lithops_vm_image.sh` file contains contains all required dependencies for Lithops. If you need extra linux packages and python libraries, you must edit the `build_lithops_vm_image.sh` file and include all them.
 
  ```
  $ ./build_lithops_vm_image.sh lithops-ubuntu-20.04.qcow2

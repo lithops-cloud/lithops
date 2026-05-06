@@ -1,6 +1,6 @@
 # Lithops runtime for OpenWhisk
 
-The runtime is the place where your functions are executed. In Lithops, runtimes are based on docker images, and it includes by default three different runtimes that allows you to run functions with Python >= 3.6 environments. Lithops main runtime is responsible to execute Python functions within OpenWhisk. The strong requirement here is to match Python versions between the client and the runtime. The runtime may also contain additional packages which your code depends on.
+The runtime is the place where your functions are executed. In Lithops, runtimes are based on docker images, and it includes default runtimes that allow you to run functions with Python >= 3.8 environments. Lithops main runtime is responsible to execute Python functions within OpenWhisk. The strong requirement here is to match Python versions between the client and the runtime. The runtime may also contain additional packages which your code depends on.
 
 
 The default runtime is created the first time you execute a function. Lithops automatically detects the Python version of your environment and deploys the default runtime based on it.
@@ -39,7 +39,7 @@ fexec = lithops.FunctionExecutor(runtime_memory=512)
 
     This alternative usage is based on to build a local Docker image, deploy it to the docker hub (you need a [Docker Hub account](https://hub.docker.com)) (or another registry) and use it as a Lithops base runtime. 
     
-    In this folder you will finde some Dockerfile skeletons that you can use to build your runtimes. To build your own runtime, first install the Docker CE version in your client machine. You can find the instructions [here](https://docs.docker.com/get-docker/). If you already have Docker installed omit this step.
+    In this folder you will find some Dockerfile skeletons that you can use to build your runtimes. To build your own runtime, first install the Docker CE version in your client machine. You can find the instructions [here](https://docs.docker.com/get-docker/). If you already have Docker installed omit this step.
 
     Login to your Docker hub account by running in a terminal the next command.
 
@@ -60,14 +60,14 @@ fexec = lithops.FunctionExecutor(runtime_memory=512)
         $ lithops runtime build -b openwhisk -f openwhisk/Dockerfile.conda username/lithops-conda-runtime-v312:0.1
 
     Once you have built your runtime with all of your necessary packages, you can already use it with Lithops.
-    To do so, you have to specify the full docker image name in the configuration or when you create the **ibm_cf_executor** instance, for example:
+    To do so, specify the full Docker image name in the configuration or when you create a `FunctionExecutor`, for example:
 
     ```python
     import lithops
     fexec = lithops.FunctionExecutor(runtime='jsampe/lithops-custom-runtime-v312:0.1')
     ```
 
-    *NOTE: In this previous example we built a Docker image based on Python v312, this means that now we also need Python v312 in the client machine.*
+    *Note: In this example, the image uses Python 3.12, so your client environment should also use Python 3.12.*
 
 2. **Use an already built runtime from a public repository**
 

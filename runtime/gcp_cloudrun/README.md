@@ -34,7 +34,7 @@ import lithops
 pw = lithops.FunctionExecutor(runtime_memory=512)
 ```
 
-By default, Lithops uses 1vCPU for the Google Cloud Run runtimes. However, you can change it in the `config` by setting the appropiate vCPU size in vCPUs units.
+By default, Lithops uses 1 vCPU for Google Cloud Run runtimes. You can change it in the `config` by setting `runtime_cpu`.
 
 ```yaml
 gcp_cloudrun:
@@ -55,7 +55,7 @@ gcp_cloudrun:
     To build your own runtime, first install the Docker CE version in your client machine. You can find the instructions [here](https://docs.docker.com/get-docker/). If you already have Docker installed omit this step.
 
     Update the Dockerfile that better fits to your requirements with your required system packages and Python modules.
-    If you need another Python version, for example Python 3.12, you must change the initial line of the Dockefile.
+    If you need another Python version, for example Python 3.12, you must change the initial line of the Dockerfile.
     
     For example, we will add `PyTorch` to our Lithops runtime. The Dockerfile would look like this:
     ```dockerfile

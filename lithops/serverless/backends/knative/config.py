@@ -164,9 +164,9 @@ spec:
           name: lithops-git
     params:
       - name: pathToDockerFile
-        value: lithops/compute/backends/knative/tekton/Dockerfile.python36
+        value: lithops/compute/backends/knative/tekton/Dockerfile.python38
       - name: imageUrl
-        value: docker.io/jsampe/lithops-knative-v36
+        value: docker.io/jsampe/lithops-knative-v38
       - name: imageTag
         value: latest
 """

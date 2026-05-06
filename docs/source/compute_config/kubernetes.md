@@ -76,6 +76,33 @@ k8s:
 |k8s | runtime_memory | 512 |no | Memory limit in MB. Default 512MB |
 |k8s | runtime_timeout | 600 |no | Runtime timeout in seconds. Default 600 seconds |
 |k8s | master_timeout | 600 |no | Master pod timeout in seconds. Default 600 seconds |
+|k8s | container_security_context | PSS Baseline (drop ALL caps, no privilege escalation, RuntimeDefault seccomp) | no | Mapping injected as the container `securityContext` on every Lithops pod. Set to `null` to disable. |
+|k8s | pod_security_context | | no | Mapping injected as the pod-level `securityContext`. Required for clusters enforcing Pod Security Standards Restricted (e.g. EGI Rancher, GKE Autopilot, OpenShift). Requires a non-root runtime image. |
+
+## Running on Pod Security Standards Restricted clusters
+
+Clusters enforcing the [Pod Security Standards "Restricted"](https://kubernetes.io/docs/concepts/security/pod-security-standards/) profile (Rancher with EGI policies, GKE Autopilot, OpenShift, AKS with Azure Policy, EKS with admission controllers) require pods to run as a non-root user with additional hardening. Set `pod_security_context` and use a runtime image that has a non-root `USER` directive:
+
+```yaml
+k8s:
+    runtime: <your_user>/<non_root_runtime>:<tag>
+    pod_security_context:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+            type: RuntimeDefault
+    container_security_context:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+            drop: ["ALL"]
+        seccompProfile:
+            type: RuntimeDefault
+```
+
+Providing `container_security_context` fully replaces the defaults — copy the snippet above and adjust if you want to extend rather than override.
 
 ## Test Lithops
 

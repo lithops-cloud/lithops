@@ -1,8 +1,8 @@
 # Lithops runtime for IBM Code Engine
 
-The runtime is the place where the functions are executed. In IBM Code Engine, runtimes are based on docker images, in this sense you can run functions using any Python version > 3.6.
+The runtime is the place where the functions are executed. In IBM Code Engine, runtimes are based on docker images, in this sense you can run functions using modern Python versions supported by your base image.
 
-For running lithops on Code Engine, you need a runtime build on the docker hub (or any other container registry), or you need a docker hub account for placing the runtimes automatically created by lithops.
+For running lithops on Code Engine, you need a runtime built on Docker Hub (or any other container registry), or you need a Docker Hub account for placing the runtimes automatically created by lithops.
 
 If you don't have an already built runtime, the default runtime is built the first time you execute a function. Lithops automatically detects the Python version of your environment and deploys the default runtime based on it.
 
@@ -28,7 +28,7 @@ result = fexec.get_result()
 By default, Lithops uses 256MB as runtime memory size and 0.125vCPU for the Code Engine runtimes. However, you can change it in the `config` by setting the appropriate vCPU  and memory sizes:
 
 ```yaml
-code_enigne:
+code_engine:
     runtime_memory: 256
     runtime_cpu: 0.5
 ```
@@ -40,7 +40,7 @@ code_enigne:
 
     If you need some Python modules (or other system libraries) which are not included in the default docker images (see table above), it is possible to build your own Lithops runtime with all of them.
 
-    This alternative usage is based on to build a local Docker image, deploy it to the docker hub (you need a [Docker Hub account](https://hub.docker.com)) and use it as a Lithops base runtime.
+    This option is based on building a local Docker image, deploy it to the docker hub (you need a [Docker Hub account](https://hub.docker.com)) and use it as a Lithops base runtime.
     Project provides some skeletons of Docker images, for example:
 
     * [Dockerfile](Dockerfile) 
@@ -52,7 +52,7 @@ code_enigne:
         $ docker login
 
     Update the Dockerfile that better fits to your requirements with your required system packages and Python modules.
-    If you need another Python version, for example Python 3.12, you must change the initial line of the Dockefile:
+    If you need another Python version, for example Python 3.12, you must change the initial line of the Dockerfile:
 
         $ lithops runtime build docker_username/runtimename:tag -b code_engine
 
@@ -72,7 +72,7 @@ code_enigne:
     fexec = lithops.FunctionExecutor(runtime='myaccount/lithops-ce-custom-v312:01')
     ```
 
-    *NOTE: In this previous example shows how to build a Docker image based on Python 3.12, this means that now you also need Python 3.12 in the client machine.*
+    *Note: if you build a Docker image based on Python 3.12, your client should also run Python 3.12.*
 
 2. **Use an already built runtime from a public repository**
 
