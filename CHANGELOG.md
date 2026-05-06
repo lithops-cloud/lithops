@@ -3,8 +3,17 @@
 ## [v3.6.5.dev0]
 
 ### Added
-- [Core] Support var-len params in func passed to executor.
-- [GCP Cloud Run] Default runtimes use Artifact Registry; added `artifact_registry_repository` (default `lithops`).
+- [Core] Added support for variable-length parameters in functions passed to the executor.
+
+### Changed
+- [K8s] Auto-detect cluster architecture when building runtimes.
+- [Runtimes] Updated runtime images and related version references across backends.
+- [K8s] Added configuration for pod and container `securityContext`.
+- [Docs] Corrected MinIO/Ceph config template keys and removed obsolete Kubernetes image references.
+
+### Fixed
+- [K8s] Fixed default runtime builds impacted by Debian Buster end-of-life.
+- [GCP Cloud Run] Added Artifact Registry (`pkg.dev`) runtime deployment support
 
 
 ## [v3.6.4]
