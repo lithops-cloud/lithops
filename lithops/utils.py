@@ -401,15 +401,16 @@ def get_default_container_name(backend, backend_config, runtime_name):
                             f'in config under "{backend}" section')
         return f'{docker_server}/{docker_namespace}/{img}'
 
-    elif 'gcr.io' in docker_server:
-        # Google container registry
+    elif 'pkg.dev' in docker_server:
+        # Google Artifact Registry (Docker)
         try:
-            country = backend_config['region'].split('-')[0]
+            region = backend_config['region']
             project_name = backend_config['project_name']
+            repository = backend_config.get('artifact_registry_repository', 'lithops')
         except Exception:
             raise Exception('You must provide "region" and "project_name" params'
                             'in config under "gcp" section')
-        return f'{country}.gcr.io/{project_name}/{img}'
+        return f'{region}-docker.pkg.dev/{project_name}/{repository}/{img}'
 
     else:
         return f'{docker_server}/{img}'

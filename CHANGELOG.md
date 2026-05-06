@@ -1,15 +1,32 @@
 # Changelog
 
+## [v3.6.5.dev0]
+
+### Added
+- [Core] Added support for variable-length parameters in functions passed to the executor.
+
+### Changed
+- [K8s] Auto-detect cluster architecture when building runtimes.
+- [Runtimes] Updated runtime images and related version references across backends.
+- [K8s] Added configuration for pod and container `securityContext`.
+- [Docs] Corrected MinIO/Ceph config template keys and removed obsolete Kubernetes image references.
+
+### Fixed
+- [K8s] Fixed default runtime builds impacted by Debian Buster end-of-life.
+- [GCP Cloud Run] Added Artifact Registry (`pkg.dev`) runtime deployment support
+
+
 ## [v3.6.4]
 
 ### Fixed
 - [Executor] Support use of `functools.partial` with FunctionExecutor's `call_async` and `map` methods
 
+
 ## [v3.6.3]
 
 ### Fixed
-- Fixed memory available options for aws batch: 4 cpus
-- Fixed race condition and improving monitor stability
+- [AWS Batch] Fixed memory available options for aws batch: 4 cpus
+- [Monitor] Fixed race condition and improving monitor stability
 
 
 ## [v3.6.2]
@@ -977,7 +994,7 @@
 ## [v1.7.2]
 
 ### Added
-- [GCR] Added Google Cloud Run Backend
+- [GCP Cloud Run] Added Google Cloud Run backend
 
 
 ### Changed
