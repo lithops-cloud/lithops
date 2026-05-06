@@ -30,7 +30,7 @@ DEFAULT_CONFIG_KEYS = {
     'runtime_timeout': 300,  # seconds (max 3600 for services)
     'runtime_memory': 256,  # MiB (max 32768)
     'runtime_cpu': 0.25,  # vCPU: 0.08–<1 in 0.001 steps, or 1, 2, 4, 6, 8
-    'max_workers': 1000,
+    'max_workers': 100,
     'min_workers': 0,
     'worker_processes': 1,
     'invoke_pool_threads': 100,
@@ -85,7 +85,6 @@ RUN pip install --upgrade --ignore-installed setuptools six pip \
         cloudpickle \
         ps-mem \
         tblib \
-        namegenerator \
         cryptography \
         httplib2 \
         google-cloud-storage \
@@ -96,20 +95,20 @@ RUN pip install --upgrade --ignore-installed setuptools six pip \
         psutil
 
 
-ENV PORT 8080
-ENV PYTHONUNBUFFERED TRUE
+ENV PORT=8080
+ENV PYTHONUNBUFFERED=TRUE
 
-ENV CONCURRENCY 1
-ENV TIMEOUT 600
+ENV CONCURRENCY=1
+ENV TIMEOUT=600
 
 # Copy Lithops proxy and lib to the container image.
-ENV APP_HOME /lithops
+ENV APP_HOME=/lithops
 WORKDIR $APP_HOME
 
 COPY lithops_cloudrun.zip .
 RUN unzip lithops_cloudrun.zip && rm lithops_cloudrun.zip
 
-CMD exec gunicorn --bind :$PORT --workers $CONCURRENCY --timeout $TIMEOUT lithopsproxy:proxy
+CMD ["sh", "-c", "exec gunicorn --bind :$PORT --workers $CONCURRENCY --timeout $TIMEOUT lithopsproxy:proxy"]
 """
 
 service_res = """
@@ -162,6 +161,13 @@ def load_config(config_data):
 
     if 'credentials_path' in config_data['gcp']:
         config_data['gcp']['credentials_path'] = os.path.expanduser(config_data['gcp']['credentials_path'])
+    if 'credentials_path' not in config_data['gcp']:
+        raise Exception("'credentials_path' parameter is mandatory under the 'gcp' section for gcp_cloudrun")
+    if not os.path.isfile(config_data['gcp']['credentials_path']):
+        raise Exception(
+            'A valid "gcp.credentials_path" service account JSON file is required '
+            f'({config_data["gcp"]["credentials_path"]})'
+        )
 
     temp = copy.deepcopy(config_data['gcp_cloudrun'])
     config_data['gcp_cloudrun'].update(config_data['gcp'])

@@ -17,17 +17,19 @@
 import os
 import time
 import json
-import urllib
 import yaml
 import hashlib
 import logging
 import httplib2
+import requests
 import google.auth
 import google.oauth2.id_token
+import google.auth.transport.requests
 from threading import Lock
 from google.oauth2 import service_account
 from google_auth_httplib2 import AuthorizedHttp
 from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 
 from lithops import utils
 from lithops.constants import COMPUTE_CLI_MSG
@@ -51,6 +53,7 @@ class GCPCloudRunBackend:
         self.credentials_path = cloudrun_config.get('credentials_path')
 
         self._build_api_resource()
+        self._resolve_artifact_registry_repository_fallback()
 
         self._service_url = None
         self._id_token = None
@@ -121,9 +124,121 @@ class GCPCloudRunBackend:
                 'api_endpoint': f'https://{self.region}-run.googleapis.com'
             }
         )
+        self._ar_resource = build(
+            'artifactregistry', 'v1',
+            http=http, cache_discovery=False
+        )
 
         self.cr_config['project_name'] = self.project_name
         self.cr_config['service_account'] = self.service_account
+
+    def _parse_artifact_registry_image_name(self, image_name):
+        """
+        Parse Artifact Registry image format:
+        REGION-docker.pkg.dev/PROJECT/REPOSITORY/IMAGE[:TAG]
+        """
+        parts = image_name.split('/')
+        if len(parts) < 4:
+            return None
+        host, project, repository = parts[0], parts[1], parts[2]
+        if not host.endswith('-docker.pkg.dev'):
+            return None
+        location = host.replace('-docker.pkg.dev', '')
+        return project, location, repository
+
+    def _artifact_registry_uploader_identity(self):
+        if self.credentials_path and os.path.isfile(self.credentials_path):
+            try:
+                with open(self.credentials_path, 'r') as f:
+                    cred_data = json.load(f)
+                return cred_data.get('client_email')
+            except Exception:
+                return None
+        return self.service_account
+
+    def _list_docker_repositories(self):
+        parent = f'projects/{self.project_name}/locations/{self.region}'
+        repos = []
+        page_token = None
+        while True:
+            req = self._ar_resource.projects().locations().repositories().list(
+                parent=parent, pageToken=page_token
+            )
+            res = req.execute()
+            for repo in res.get('repositories', []):
+                if repo.get('format') == 'DOCKER':
+                    repos.append(repo['name'].rsplit('/', 1)[-1])
+            page_token = res.get('nextPageToken')
+            if not page_token:
+                break
+        return repos
+
+    def _resolve_artifact_registry_repository_fallback(self):
+        """
+        Minimal repository resolution:
+        - Use configured repository if accessible
+        - Otherwise fallback to an existing DOCKER repository (prefer gcf-artifacts)
+        """
+        repository = self.cr_config.get('artifact_registry_repository', 'lithops')
+        name = f'projects/{self.project_name}/locations/{self.region}/repositories/{repository}'
+
+        try:
+            self._ar_resource.projects().locations().repositories().get(name=name).execute()
+            return
+        except Exception:
+            pass
+
+        try:
+            docker_repos = self._list_docker_repositories()
+        except Exception:
+            docker_repos = []
+
+        if not docker_repos:
+            return
+
+        fallback = 'gcf-artifacts' if 'gcf-artifacts' in docker_repos else sorted(docker_repos)[0]
+        if fallback != repository:
+            self.cr_config['artifact_registry_repository'] = fallback
+            logger.info(
+                f'Using Artifact Registry repository "{fallback}" '
+                f'(configured "{repository}" is not accessible).'
+            )
+
+    def _ensure_artifact_registry_upload_permission(self, image_name):
+        """
+        Check that current principal can upload artifacts to the target repo.
+        """
+        parsed = self._parse_artifact_registry_image_name(image_name)
+        if not parsed:
+            return
+
+        project, location, repository = parsed
+        resource = f'projects/{project}/locations/{location}/repositories/{repository}'
+
+        try:
+            result = self._ar_resource.projects().locations().repositories().testIamPermissions(
+                resource=resource,
+                body={
+                    'permissions': ['artifactregistry.repositories.uploadArtifacts']
+                }
+            ).execute()
+        except HttpError:
+            # If we cannot test permissions (forbidden/unavailable), fail later on push.
+            return
+
+        granted = set(result.get('permissions', []))
+        if 'artifactregistry.repositories.uploadArtifacts' in granted:
+            return
+
+        principal = self._artifact_registry_uploader_identity() or 'current credentials principal'
+        raise Exception(
+            'Missing Artifact Registry permission to push runtime image. '
+            f'Principal "{principal}" does not have '
+            f'"artifactregistry.repositories.uploadArtifacts" on "{resource}". '
+            'Grant role "roles/artifactregistry.writer" on the repository/project or configure '
+            'a repository where this principal has write access via '
+            '`gcp_cloudrun.artifact_registry_repository`.'
+        )
 
     def _get_url_and_token(self, service_name):
         """
@@ -207,17 +322,24 @@ class GCPCloudRunBackend:
         else:
             logger.debug('Invoking function')
 
-        req = urllib.request.Request(service_url + route, data=json.dumps(payload, default=str).encode('utf-8'))
-        req.add_header("Authorization", f"Bearer {id_token}")
-        res = urllib.request.urlopen(req)
+        headers = {
+            "Authorization": f"Bearer {id_token}",
+            "Content-Type": "application/json"
+        }
+        response = requests.post(
+            service_url + route,
+            data=json.dumps(payload, default=str),
+            headers=headers,
+            timeout=120
+        )
 
-        if res.getcode() in (200, 202):
-            data = json.loads(res.read())
+        if response.status_code in (200, 202):
+            data = response.json()
             if return_result:
                 return data
             return data["activationId"]
         else:
-            raise Exception(res.text)
+            raise Exception(response.text)
 
     def build_runtime(self, runtime_name, dockerfile, extra_args=[]):
         """
@@ -253,11 +375,19 @@ class GCPCloudRunBackend:
             raise Exception(f'There was an error authorizing Docker for push to {registry_host}')
 
         logger.debug(f'Pushing runtime {image_name} to {registry_host}')
+        self._ensure_artifact_registry_upload_permission(image_name)
         if utils.is_podman(docker_path):
             cmd = f'{docker_path} push {image_name} --format docker --remove-signatures'
         else:
             cmd = f'{docker_path} push {image_name}'
-        utils.run_command(cmd)
+        try:
+            utils.run_command(cmd)
+        except Exception as e:
+            raise Exception(
+                f'Unable to push runtime image to Artifact Registry ({image_name}). '
+                'Verify the repository exists and that your identity has Artifact Registry write permissions '
+                '(artifactregistry.repositories.uploadArtifacts).'
+            ) from e
 
     def _create_service(self, runtime_name, runtime_memory, timeout):
         """
@@ -292,9 +422,19 @@ class GCPCloudRunBackend:
         container['resources']['requests']['cpu'] = str(self.cr_config['runtime_cpu'])
 
         logger.debug(f"Creating service: {service_name}")
-        res = self._api_resource.namespaces().services().create(
-            parent=f'namespaces/{self.project_name}', body=svc_res
-        ).execute()
+        try:
+            res = self._api_resource.namespaces().services().create(
+                parent=f'namespaces/{self.project_name}', body=svc_res
+            ).execute()
+        except HttpError as e:
+            if e.resp.status == 409:
+                logger.debug(f'Service {service_name} already exists. Recreating it')
+                self._delete_service(service_name)
+                res = self._api_resource.namespaces().services().create(
+                    parent=f'namespaces/{self.project_name}', body=svc_res
+                ).execute()
+            else:
+                raise
         logger.debug(f'Ok -- service created {service_name}')
 
         # Wait until service is up

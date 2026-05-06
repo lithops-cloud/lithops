@@ -25,7 +25,6 @@ RUN pip install --upgrade setuptools six pip \
         cloudpickle \
         ps-mem \
         tblib \
-        namegenerator \
         cryptography \
         httplib2 \
         google-cloud-storage \

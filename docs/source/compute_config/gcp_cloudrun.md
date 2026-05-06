@@ -42,6 +42,18 @@ gcloud artifacts repositories create lithops \
 
 Grant the service account **Artifact Registry Writer** (or **Artifact Registry Create-on-push Writer** if you prefer) so it can push images.
 
+Example command:
+
+```bash
+gcloud artifacts repositories add-iam-policy-binding gcf-artifacts \
+  --location=us-east1 \
+  --project=lithops-dev \
+  --member="serviceAccount:lithops-executor@lithops-dev.iam.gserviceaccount.com" \
+  --role="roles/artifactregistry.writer"
+```
+
+Replace `gcf-artifacts`, `us-east1`, `lithops-dev`, and the service account email with your own values.
+
 ## Configuration
 
 1. Edit your lithops config and add the following keys:

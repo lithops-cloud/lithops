@@ -80,7 +80,6 @@ gcp_cloudrun:
             cloudpickle \
             ps-mem \
             tblib \
-            namegenerator \
             torch \
             torchvision \
             google-cloud-storage \
