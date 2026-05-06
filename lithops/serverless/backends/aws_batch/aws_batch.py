@@ -117,7 +117,7 @@ class AWSBatchBackend:
         python_version = utils.version_str(sys.version_info)
         dockerfile = "Dockerfile.default-batch-runtime"
         with open(dockerfile, 'w') as f:
-            f.write(f"FROM python:{python_version}-slim-buster\n")
+            f.write(f"FROM python:{python_version}-slim-bookworm\n")
             f.write(batch_config.DOCKERFILE_DEFAULT)
         try:
             self.build_runtime(runtime_name, dockerfile)

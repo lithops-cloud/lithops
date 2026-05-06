@@ -284,7 +284,7 @@ class CodeEngineBackend:
         # Build default runtime using local dokcer
         dockerfile = "Dockefile.default-ce-runtime"
         python_version = utils.CURRENT_PY_VERSION
-        base_image = "slim-buster" if int(python_version.split('.')[1]) < 13 else "bookworm"
+        base_image = "slim-bookworm"
         with open(dockerfile, 'w') as f:
             f.write(f"FROM python:{python_version}-{base_image}\n")
             f.write(config.DOCKERFILE_DEFAULT)

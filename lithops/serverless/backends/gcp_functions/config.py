@@ -30,7 +30,6 @@ RUNTIME_MEMORY_MAX = 8192  # 8GB
 RUNTIME_MEMORY_OPTIONS = {128, 256, 512, 1024, 2048, 4096, 8192}
 
 AVAILABLE_PY_RUNTIMES = {
-    '3.7': 'python37',
     '3.8': 'python38',
     '3.9': 'python39',
     '3.10': 'python310',

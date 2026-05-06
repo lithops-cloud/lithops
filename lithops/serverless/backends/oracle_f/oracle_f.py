@@ -227,7 +227,7 @@ class OracleCloudFunctionsBackend:
         # Build default runtime using local dokcer
         dockerfile = "Dockefile.default-oracle-runtime"
         with open(dockerfile, 'w') as f:
-            f.write(f"FROM python:{utils.CURRENT_PY_VERSION}-slim-buster\n")
+            f.write(f"FROM python:{utils.CURRENT_PY_VERSION}-slim-bookworm\n")
             f.write(config.DEFAULT_DOCKERFILE)
         try:
             self.build_runtime(runtime_name, dockerfile)

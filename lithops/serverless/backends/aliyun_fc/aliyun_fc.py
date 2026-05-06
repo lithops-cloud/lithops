@@ -108,7 +108,7 @@ class AliyunFunctionComputeBackend:
             if docker_path:
                 # Build the runtime in a docker
                 cmd = 'python3 -m pip install -U -t . -r requirements.txt'
-                cmd = f'docker run -w /tmp -v {build_dir}:/tmp python:{utils.CURRENT_PY_VERSION}-slim-buster {cmd}'
+                cmd = f'docker run -w /tmp -v {build_dir}:/tmp python:{utils.CURRENT_PY_VERSION}-slim-bookworm {cmd}'
                 utils.run_command(cmd)
             else:
                 logger.warning('Aliyun Functions use a Linux environment. Building'
