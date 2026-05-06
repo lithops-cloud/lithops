@@ -34,6 +34,11 @@ DEFAULT_CONTAINER_SECURITY_CONTEXT = {
     'seccompProfile': {'type': 'RuntimeDefault'},
 }
 
+# Architectures supported by `docker build --platform=linux/<arch>`; matches the
+# values emitted by `v1.NodeStatus.NodeInfo.architecture`.
+SUPPORTED_RUNTIME_ARCHS = {'amd64', 'arm64'}
+DEFAULT_RUNTIME_ARCH = 'amd64'
+
 DEFAULT_GROUP = "batch"
 DEFAULT_VERSION = "v1"
 MASTER_NAME = "lithops-master"
@@ -158,6 +163,12 @@ def load_config(config_data):
         value = config_data['k8s'][key]
         if value is not None and not isinstance(value, dict):
             raise Exception(f"'{key}' under 'k8s' must be a mapping or null, got {type(value).__name__}")
+
+    arch = config_data['k8s'].get('runtime_arch')
+    if arch is not None and arch not in SUPPORTED_RUNTIME_ARCHS:
+        raise Exception(
+            f"'runtime_arch' under 'k8s' must be one of {sorted(SUPPORTED_RUNTIME_ARCHS)} or null, got '{arch}'"
+        )
 
     if 'runtime' in config_data['k8s']:
         runtime = config_data['k8s']['runtime']
