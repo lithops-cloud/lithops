@@ -23,9 +23,10 @@ import hashlib
 import httplib2
 import zipfile
 import time
-import urllib
+import requests
 import google.auth
 import google.oauth2.id_token
+import google.auth.transport.requests
 from threading import Lock
 from google.cloud import pubsub_v1
 from google.oauth2 import service_account
@@ -58,13 +59,13 @@ class GCPFunctionsBackend:
         self.internal_storage = internal_storage
 
         self._build_api_resource()
-
-        self._api_endpoint = f'https://{self.region}-{self.project_name}.cloudfunctions.net/'
+        self._function_url = None
+        self._function_name = None
         self._api_token = None
 
         logger.debug(f'Invocation trigger set to: {self.trigger}')
 
-        msg = COMPUTE_CLI_MSG.format('Google Cloud Functions')
+        msg = COMPUTE_CLI_MSG.format('Google Cloud Run functions (v2)')
         logger.info(f"{msg} - Region: {self.region} - Project: {self.project_name}")
 
     def _build_api_resource(self):
@@ -128,6 +129,21 @@ class GCPFunctionsBackend:
         function_name = self._format_function_name(runtime_name)
         return config.USER_RUNTIMES_PREFIX + '/' + function_name + '_bin.zip'
 
+    def _memory_to_gcfv2(self, memory_mb):
+        return f'{memory_mb}Mi'
+
+    def _memory_from_gcfv2(self, memory_value):
+        if isinstance(memory_value, int):
+            return memory_value
+        if isinstance(memory_value, str):
+            if memory_value.endswith('Mi'):
+                return int(memory_value[:-2])
+            if memory_value.endswith('Gi'):
+                return int(memory_value[:-2]) * 1024
+            if memory_value.endswith('M'):
+                return int(memory_value[:-1])
+        raise ValueError(f'Unable to parse memory value: {memory_value}')
+
     def _encode_payload(self, payload):
         return base64.b64encode(bytes(json.dumps(payload), 'utf-8')).decode('utf-8')
 
@@ -137,9 +153,14 @@ class GCPFunctionsBackend:
         """
         invoke_mutex.acquire()
 
-        if not self._api_token or function_name not in self._function_url:
+        if not self._api_token or self._function_name != function_name:
             logger.debug('Getting authentication token')
-            self._function_url = self._api_endpoint + function_name
+            function_location = self._get_function_location(function_name)
+            response = self._api_resource.projects().locations().functions().get(
+                name=function_location
+            ).execute(num_retries=self.num_retries)
+            self._function_url = response['serviceConfig']['uri']
+            self._function_name = function_name
             if self.credentials_path and os.path.isfile(self.credentials_path):
                 os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = self.credentials_path
             auth_req = google.auth.transport.requests.Request()
@@ -168,14 +189,10 @@ class GCPFunctionsBackend:
         # Wait until function is completely deleted
         while True:
             try:
-                response = self._api_resource.projects().locations().functions().get(
+                self._api_resource.projects().locations().functions().get(
                     name=function_location
                 ).execute(num_retries=self.num_retries)
-                logger.debug(f'Function status is {response["status"]}')
-                if response['status'] == 'DELETE_IN_PROGRESS':
-                    time.sleep(self.retry_sleep)
-                else:
-                    raise Exception(f'Unknown status: {response["status"]}')
+                time.sleep(self.retry_sleep)
             except Exception:
                 logger.debug('Function status is DELETED')
                 break
@@ -218,13 +235,25 @@ class GCPFunctionsBackend:
         cloud_function = {
             'name': function_location,
             'description': 'Lithops Worker for Lithops v' + __version__,
-            'entryPoint': 'main',
-            'runtime': config.AVAILABLE_PY_RUNTIMES[utils.CURRENT_PY_VERSION],
-            'timeout': str(timeout) + 's',
-            'availableMemoryMb': memory,
-            'serviceAccountEmail': self.service_account,
-            'maxInstances': 0,
-            'sourceArchiveUrl': f'gs://{self.internal_storage.bucket}/{bin_location}',
+            'buildConfig': {
+                'runtime': config.AVAILABLE_PY_RUNTIMES[utils.CURRENT_PY_VERSION],
+                'entryPoint': 'main',
+                'source': {
+                    'storageSource': {
+                        'bucket': self.internal_storage.bucket,
+                        'object': bin_location
+                    }
+                }
+            },
+            'serviceConfig': {
+                'timeoutSeconds': timeout,
+                'availableMemory': self._memory_to_gcfv2(memory),
+                'serviceAccountEmail': self.service_account,
+                'maxInstanceCount': self.gcf_config['max_workers'],
+                'minInstanceCount': 0,
+                'maxInstanceRequestConcurrency': 1,
+                'allTrafficOnLatestRevision': True
+            },
             'labels': {
                 'type': 'lithops-runtime',
                 'lithops_version': __version__.replace('.', '-'),
@@ -233,22 +262,24 @@ class GCPFunctionsBackend:
         }
 
         if self.trigger == 'https':
-            cloud_function['httpsTrigger'] = {}
+            pass
 
         elif self.trigger == 'pub/sub':
             topic_name = self._format_topic_name(function_name)
             topic_location = self._get_topic_location(topic_name)
             cloud_function['eventTrigger'] = {
-                'eventType': 'providers/cloud.pubsub/eventTypes/topic.publish',
-                'resource': topic_location,
-                'failurePolicy': {}
+                'triggerRegion': self.region,
+                'eventType': 'google.cloud.pubsub.topic.v1.messagePublished',
+                'pubsubTopic': topic_location,
+                'retryPolicy': 'RETRY_POLICY_RETRY'
             }
 
         logger.info(f'Deploying function {function_location}')
         for attempt in range(self.num_retries):
             try:
                 operation = self._api_resource.projects().locations().functions().create(
-                    location=self._default_location,
+                    parent=self._default_location,
+                    functionId=function_name,
                     body=cloud_function
                 ).execute()
                 break
@@ -256,18 +287,18 @@ class GCPFunctionsBackend:
                 if attempt < self.num_retries - 1:
                     time.sleep(self.retry_sleep)
                 else:
-                    raise Exception(f"Failed to create Cloud Function after {self.num_retries} attempts.") from e
+                    raise Exception(f"Failed to create Cloud Run function (v2) after {self.num_retries} attempts.") from e
 
         # Wait until the function is completely deployed
         logger.info('Waiting for the function to be deployed')
         operation_name = operation['name']
         while True:
-            op_status = self._api_resource.operations().get(
+            op_status = self._api_resource.projects().locations().operations().get(
                 name=operation_name
             ).execute(num_retries=self.num_retries)
             if op_status.get('done'):
                 if 'error' in op_status:
-                    raise Exception(f'Error while deploying Cloud Function: {op_status["error"]}')
+                    raise Exception(f'Error while deploying Cloud Run function (v2): {op_status["error"]}')
                 logger.info("Deployment completed successfully.")
                 break
             else:
@@ -376,7 +407,7 @@ class GCPFunctionsBackend:
                 fn_name = func['name'].rsplit('/', 1)[-1]
                 version = func['labels']['lithops_version'].replace('-', '.')
                 rt_name = func['labels']['runtime_name']
-                memory = func['availableMemoryMb']
+                memory = self._memory_from_gcfv2(func['serviceConfig']['availableMemory'])
                 if runtime_name == rt_name or runtime_name == 'all':
                     runtimes.append((rt_name, memory, version, fn_name))
 
@@ -401,18 +432,23 @@ class GCPFunctionsBackend:
 
         if self.trigger == 'pub/sub':
             if return_result:
-                function_location = self._get_function_location(function_name)
-                response = self._api_resource.projects().locations().functions().call(
-                    name=function_location,
-                    body={'data': json.dumps({'data': self._encode_payload(payload)})}
-                ).execute(num_retries=self.num_retries)
-                if 'result' in response and response['result'] == 'OK':
-                    object_key = '/'.join([JOBS_PREFIX, runtime_name + '.meta'])
-                    runtime_meta = json.loads(self.internal_storage.get_data(object_key))
-                    self.internal_storage.storage.delete_object(self.internal_storage.bucket, object_key)
-                    return runtime_meta
-                else:
-                    raise Exception(f'Error at retrieving runtime metadata: {response}')
+                topic_location = self._get_topic_location(self._format_topic_name(function_name))
+                fut = self._pub_client.publish(
+                    topic_location,
+                    bytes(json.dumps(payload, default=str).encode('utf-8'))
+                )
+                invocation_id = fut.result()
+                object_key = '/'.join([JOBS_PREFIX, runtime_name + '.meta'])
+                for _ in range(max(1, self.num_retries * 4)):
+                    try:
+                        runtime_meta = json.loads(self.internal_storage.get_data(object_key))
+                        self.internal_storage.storage.delete_object(self.internal_storage.bucket, object_key)
+                        return runtime_meta
+                    except Exception:
+                        time.sleep(self.retry_sleep)
+                raise Exception(
+                    f'Timed out waiting for runtime metadata for invocation {invocation_id}'
+                )
             else:
                 topic_location = self._get_topic_location(self._format_topic_name(function_name))
                 fut = self._pub_client.publish(
@@ -423,12 +459,19 @@ class GCPFunctionsBackend:
 
         elif self.trigger == 'https':
             function_url, api_token = self._get_token(function_name)
-            req = urllib.request.Request(function_url, data=json.dumps(payload, default=str).encode('utf-8'))
-            req.add_header("Authorization", f"Bearer {api_token}")
-            res = urllib.request.urlopen(req)
+            headers = {
+                "Authorization": f"Bearer {api_token}",
+                "Content-Type": "application/json"
+            }
+            res = requests.post(
+                function_url,
+                data=json.dumps(payload, default=str),
+                headers=headers,
+                timeout=120
+            )
 
-            if res.getcode() in (200, 202):
-                data = json.loads(res.read())
+            if res.status_code in (200, 202):
+                data = res.json()
                 if return_result:
                     return data
                 return data["activationId"]
