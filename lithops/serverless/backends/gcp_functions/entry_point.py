@@ -44,7 +44,7 @@ def main(data, context=None):
 
     activation_id = uuid.uuid4().hex
     os.environ['__LITHOPS_ACTIVATION_ID'] = activation_id
-    os.environ['__LITHOPS_BACKEND'] = 'Google Cloud Functions'
+    os.environ['__LITHOPS_BACKEND'] = 'Google Cloud Run functions (v2)'
 
     if 'get_metadata' in args:
         runtime_meta = get_runtime_metadata()
@@ -58,10 +58,10 @@ def main(data, context=None):
         else:
             return runtime_meta
     elif 'remote_invoker' in args:
-        logger.info(f"Lithops v{__version__} - Starting Google Cloud Functions invoker")
+        logger.info(f"Lithops v{__version__} - Starting Google Cloud Run functions (v2) invoker")
         function_invoker(args)
     else:
-        logger.info(f"Lithops v{__version__} - Starting Google Cloud Functions execution")
+        logger.info(f"Lithops v{__version__} - Starting Google Cloud Run functions (v2) execution")
         function_handler(args)
 
     return {"activationId": activation_id}

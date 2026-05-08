@@ -48,8 +48,8 @@ Currently, Lithops for Google Cloud Platform supports these backends:
 
    * - Compute
      - Storage
-   * - `Google Cloud Functions <https://cloud.google.com/functions/docs>`_
-     - `Google Cloud Storage <ttps://cloud.google.com/storage/docs>`_
+   * - `Google Cloud Run functions (v2) <https://docs.cloud.google.com/functions/docs/>`_
+     - `Google Cloud Storage <https://cloud.google.com/storage/docs>`_
    * - `Google Cloud Run <https://cloud.google.com/run/docs>`_
      -
 

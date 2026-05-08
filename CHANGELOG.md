@@ -10,6 +10,7 @@
 - [Runtimes] Updated runtime images and related version references across backends.
 - [K8s] Added configuration for pod and container `securityContext`.
 - [Docs] Corrected MinIO/Ceph config template keys and removed obsolete Kubernetes image references.
+- [GCP Functions] Updated `gcp_functions` backend to Google Cloud Run functions (Cloud Functions v2 API).
 
 ### Fixed
 - [K8s] Fixed default runtime builds impacted by Debian Buster end-of-life.
