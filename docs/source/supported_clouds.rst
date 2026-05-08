@@ -52,6 +52,8 @@ Currently, Lithops for Google Cloud Platform supports these backends:
      - `Google Cloud Storage <https://cloud.google.com/storage/docs>`_
    * - `Google Cloud Run <https://cloud.google.com/run/docs>`_
      -
+   * - `Google Compute Engine (GCE) <https://cloud.google.com/compute/docs>`_
+     -
 
 Microsoft Azure
 ---------------
