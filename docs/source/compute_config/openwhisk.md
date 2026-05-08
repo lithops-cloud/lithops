@@ -5,10 +5,10 @@ Lithops with *OpenWhisk* as serverless compute backend. Lithops can also run fun
 
 ## Installation
 
-1. install the [openwhisk-cli](https://github.com/apache/openwhisk-cli)
+1. Install the [openwhisk-cli](https://github.com/apache/openwhisk-cli).
 
 
-2. Make sure you can run end-to-end [python example](https://github.com/apache/openwhisk/blob/master/docs/actions-python.md#creating-and-invoking-python-actions).
+2. Make sure you can run an end-to-end [Python example](https://github.com/apache/openwhisk/blob/master/docs/actions-python.md#creating-and-invoking-python-actions).
 
     For example, create a file named `hello.py` with the next content:
     
@@ -47,7 +47,7 @@ Lithops with *OpenWhisk* as serverless compute backend. Lithops can also run fun
         insecure    : <True/False>
     ```
 
-    - You can find all the values in the `~/.wskprops` file. The content of the file should looks like:
+    - You can find all the values in the `~/.wskprops` file. The content of the file should look like:
 
         ```
         APIHOST=192.168.1.30

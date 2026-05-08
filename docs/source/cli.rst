@@ -33,8 +33,8 @@ Runs a *hello-world* function.
 ``lithops test``
 ~~~~~~~~~~~~~~~~
 
-Runs the unit testing suite. For more instructions about testing `view
-this page <testing.md>`__.
+Runs the unit testing suite. For more instructions about testing, see the
+`CONTRIBUTING guide <https://github.com/lithops-cloud/lithops/blob/master/CONTRIBUTING.md>`__.
 
 +------------------------+----------------------------------------------------------------+
 | Parameter              | Description                                                    |
@@ -156,10 +156,10 @@ refer to the ``runtime/`` folder and choose your compute backend.
 ``lithops runtime build <runtime-name>``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Build a new runtime image. Depending of the compute backend, there must
+Build a new runtime image. Depending on the compute backend, there must
 be a Dockerfile located in the same folder you run the command,
-otherwise use ``-f`` parameter. Note that this command only builds the
-image and puts it into a container registry. This command do not deploy
+otherwise use the ``-f`` parameter. Note that this command only builds the
+image and puts it into a container registry. This command does not deploy
 the runtime to the compute backend.
 
 +-----------------+-----------------------------------+
@@ -206,7 +206,7 @@ cases you can avoid using this command.
 +-----------------+------------------------------------------------+
 | --memory, -m    | Memory size in MBs to assign to the runtime.   |
 +-----------------+------------------------------------------------+
-| --timeout, -t   | Timeout is seconds to assign to the runtime    |
+| --timeout, -t   | Timeout in seconds to assign to the runtime    |
 +-----------------+------------------------------------------------+
 
 -  **Usage example**:
@@ -241,7 +241,7 @@ let Lithops create the runtime automatically with the new Lithops code.
 ``lithops runtime list``
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-Lists all created/deployed runtimes of an specific compute backend.
+Lists all created/deployed runtimes of a specific compute backend.
 
 +-----------------+------------------------------+
 | Parameter       | Description                  |
@@ -259,9 +259,9 @@ Lists all created/deployed runtimes of an specific compute backend.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Deletes all runtimes created/deployed in the compute backend that
-matches the provided runtime-name. As an alternative, you can run
+match the provided runtime-name. As an alternative, you can run
 ``lithops clean -b <backend-name>`` to delete not only the runtimes that
-match the provided runtime-name, but all them.
+match the provided runtime-name, but all of them.
 
 +-----------------+----------------------------------------------+
 | Parameter       | Description                                  |
@@ -349,7 +349,7 @@ Prints to the screen the Lithops function logs as they are produced.
 ``lithops logs get <job-key>``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Prints to the screen the Lithops function of a specific job.
+Prints to the screen the Lithops function logs of a specific job.
 
 +-------------+---------------+
 | Parameter   | Description   |
@@ -434,15 +434,16 @@ Deletes objects from a given bucket.
 | --config, -c    | Path to your config file           |
 +-----------------+------------------------------------+
 
--  **Usage example**:
--  To delete a given
-   object:\ ``lithops storage delete -b ibm_cos cloudbucket test.txt``
+-  **Usage examples**:
 
--  To delete all objects that start with given prefix
-   :``lithops storage delete -b ibm_cos cloudbucket -p test/``
+   - To delete a given object:
+     ``lithops storage delete -b ibm_cos cloudbucket test.txt``
 
--  To delete all the objects (empty the bucket):
-   ``lithops storage delete -b ibm_cos cloudbucket``
+   - To delete all objects that start with a given prefix:
+     ``lithops storage delete -b ibm_cos cloudbucket -p test/``
+
+   - To delete all objects (empty the bucket):
+     ``lithops storage delete -b ibm_cos cloudbucket``
 
 ``lithops storage list <bucket>``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -463,9 +464,10 @@ Lists objects from a given bucket.
 | --config, -c    | Path to your config file        |
 +-----------------+---------------------------------+
 
--  **Usage example**:
--  To list all the objects in a
-   bucket:\ ``lithops storage list -b ibm_cos cloudbucket``
+-  **Usage examples**:
 
--  To list all objects that start with given prefix
-   :``lithops storage list -b ibm_cos cloudbucket -p test/``
+   - To list all objects in a bucket:
+     ``lithops storage list -b ibm_cos cloudbucket``
+
+   - To list all objects that start with a given prefix:
+     ``lithops storage list -b ibm_cos cloudbucket -p test/``

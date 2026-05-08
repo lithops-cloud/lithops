@@ -6,7 +6,7 @@ Lithops with *Singularity* as a serverless compute backend is **ideal for High-P
 
 ## Configuration
 
-### Configure RabbiMQ
+### Configure RabbitMQ
 
    ```yaml
    lithops:

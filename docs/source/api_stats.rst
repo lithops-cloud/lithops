@@ -32,7 +32,7 @@ To get started, first install Lithops and the plotting dependencies with:
    :alt: Lithops histogram plot
    :align: center
 
-The following example snipped was used to create the execution plots shown above:
+The following example snippet was used to create the execution plots shown above:
 
 .. code:: python
 
@@ -145,7 +145,7 @@ The user can obtain these statistics through the future object:
    * - :code:`worker_end_tstamp`
      - Timestamp in which the worker function had finished its execution.
    * - :code:`worker_exec_time`
-     - Total execution time of the worker function (lithops wrapper + user defined funtion execution time).
+     - Total execution time of the worker function (Lithops wrapper + user-defined function execution time).
    * - :code:`worker_func_cpu_usage`
      - Array of CPU usage percentages, with each element representing the average usage of each CPU core during user-defined function execution.
    * - :code:`worker_func_cpu_user_time`

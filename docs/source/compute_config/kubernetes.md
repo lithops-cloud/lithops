@@ -1,10 +1,10 @@
 # Kubernetes
 
-Lithops with kubernetes as serverless compute backend.
+Lithops with Kubernetes as serverless compute backend.
 
 ## Installation
 
-1. Install kubernetes backend dependencies:
+1. Install Kubernetes backend dependencies:
 
 ```bash
 python3 -m pip install lithops[kubernetes]
@@ -58,19 +58,19 @@ k8s:
     docker_namespace : <namespace>  # namespace name from https://cloud.ibm.com/registry/namespaces
 ```
 
-## Summary of configuration keys for kubernetes:
+## Summary of configuration keys for Kubernetes:
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|k8s | kubecfg_path | |no | Path to kubecfg file. Mandatory if config file not in `~/.kube/config` or KUBECONFIG env var not present|
-|k8s | kubecfg_context |  |no | kubernetes context to use from your kubeconfig file. It will use the default active context if not provided |
-|k8s | namespace | default |no | Kubernetes namespace to use for lithops execution |
+|k8s | kubecfg_path | |no | Path to the kubecfg file. Mandatory if the config file is not in `~/.kube/config` or the `KUBECONFIG` env var is not present|
+|k8s | kubecfg_context |  |no | Kubernetes context to use from your kubeconfig file. The default active context will be used if not provided |
+|k8s | namespace | default |no | Kubernetes namespace to use for Lithops execution |
 |k8s | docker_server | docker.io |no | Container registry URL |
 |k8s | docker_user | |no | Container registry user name |
 |k8s | docker_password | |no | Container registry password/token. In case of Docker hub, login to your docker hub account and generate a new access token [here](https://hub.docker.com/settings/security)|
-|k8s | rabbitmq_executor | False | no | Alternative K8s backend accelerating parallel function execution (map) thanks to rabbitmq group calls and warm-state pods of higher granularity. For more information [here](./kubernetes_rabbitmq.md).|
+|k8s | rabbitmq_executor | False | no | Alternative K8s backend that accelerates parallel function execution (map) by using RabbitMQ group calls and warm-state pods with higher granularity. For more information, see [here](./kubernetes_rabbitmq.md). |
 |k8s | max_workers | 100 | no | Max number of workers per `FunctionExecutor()`|
-|k8s | worker_processes | 1 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker. It is recommendable to set this value to the same number of CPUs of the container. |
+|k8s | worker_processes | 1 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker. It is recommended to set this value to the same number of CPUs as the container. |
 |k8s | runtime |  |no | Docker image name.|
 |k8s | runtime_cpu | 1 |no | CPU limit. Default 1vCPU |
 |k8s | runtime_memory | 512 |no | Memory limit in MB. Default 512MB |

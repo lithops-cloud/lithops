@@ -36,7 +36,7 @@ aliyun_fc:
     role_arn: <ROLE_ARN>
 ```
 
-4. **(optional)** By default Lithops will automatically create a new **service** in your *Function Compute* account. For this purpose your user must have **List** and **Create** permissions to *Function Compute*. Alternatively, you can create a new service through the dashboard (or use one already created), assign the Role created in the previous step (Accessing to *service configuration* --> *Modify Configuration* --> *Role Config*), and configure the *service* entry in the *aliyun_cf* config section.
+5. **(optional)** By default Lithops will automatically create a new **service** in your *Function Compute* account. For this purpose your user must have **List** and **Create** permissions for *Function Compute*. Alternatively, you can create a new service through the dashboard (or use one already created), assign the Role created in the previous step (under *Service Configuration* --> *Modify Configuration* --> *Role Config*), and configure the *service* entry in the *aliyun_fc* config section.
 
 
 ## Summary of configuration keys for Aliyun

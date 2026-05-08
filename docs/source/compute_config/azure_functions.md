@@ -76,11 +76,11 @@ az login
 |azure| region |  |yes | Location of the resource group, for example: `westeurope`, `westus2`, etc|
 |azure| subscription_id |  |no | Subscription ID from your account. Find it [here](https://portal.azure.com/#view/Microsoft_Azure_Billing/SubscriptionsBlade)|
 
-## Azure Storage
+### Azure Storage
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|azure_storage| storage_account_name | |yes |  Storage account name. The name generated in the step 5 of the installation if you followed these instructions |
+|azure_storage| storage_account_name | |yes |  Storage account name. The name generated in step 5 of the installation if you followed these instructions |
 |azure_storage| storage_account_key |  | yes |  An Account Key, found in *Storage Accounts* > `account_name` > *Security + networking* > *Access Keys*|
 
 ### Azure Functions

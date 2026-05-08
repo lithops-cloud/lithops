@@ -47,7 +47,7 @@ Lithops is shipped with 2 different high-level Compute APIs, and 2 high-level St
 <tr>
   <th>
     <img width="50%" height="1px">
-    <p><small><a href="docs/api_futures.md">Futures API</a></small></p>
+    <p><small><a href="docs/source/api_futures.rst">Futures API</a></small></p>
   </th>
   <th>
     <img width="50%" height="1px">
@@ -90,7 +90,7 @@ with Pool() as pool:
 <tr>
   <th>
     <img width="50%" height="1px">
-    <p><small><a href="docs/api_storage.md">Storage API</a></small></p>
+    <p><small><a href="docs/source/api_storage.rst">Storage API</a></small></p>
   </th>
   <th>
     <img width="50%" height="1px">
