@@ -8,11 +8,11 @@ All of these changes are **ideal** for pipelines where launching **hundreds of p
 
 * **Utilization of RabbitMQ:** Within this architecture, RabbitMQ is employed to launch group invocations in a single call, avoiding the need for multiple calls for each function execution. Additionally, it enables data exchange between the client and running pods, bypassing the Storage Backend as an intermediary, which is slower. This accelerates and streamlines communication significantly.
 
-* **Warm Start Capability:** Unlike K8s, Lithops K8s RabbitMQ introduces the ability to perform warm starts on the workers pods. This means that previous workers pods still listening to RabbitMQ to launch a new task, further reducing invocation time to almost 0.
+* **Warm Start Capability:** Unlike standard K8s, Lithops K8s RabbitMQ introduces the ability to perform warm starts on the worker pods. This means that previous worker pods keep listening on RabbitMQ to launch new tasks, further reducing invocation time to almost 0.
 
-* **Improved Invocation Time:** Lithops K8s RabbitMQ offers an **up x4** significant enhancement in cold start time, effectively reducing the delay before your functions start executing.
+* **Improved Invocation Time:** Lithops K8s RabbitMQ offers an **up to 4x** significant enhancement in cold start time, effectively reducing the delay before your functions start executing.
 
-* **Resource Utilization:** In this backend, CPU assignment is employed by allocating identifiers to each CPU. This approach facilitates more effective resource management within our cluster, enabling the creation of pods that by default match the entire capacity of a machine (worker_processes) and allowing the launch of precisely the number of tasks that can run concurrently.
+* **Resource Utilization:** In this backend, CPU assignment is performed by allocating identifiers to each CPU. This approach facilitates more effective resource management within the cluster, enabling the creation of pods that by default match the entire capacity of a machine (`worker_processes`) and allowing the launch of precisely the number of tasks that can run concurrently.
 
 ## Installation
 
@@ -34,7 +34,7 @@ python3 -m pip install lithops[kubernetes]
     ....
     docker_server       : docker.io
     docker_user         : <Docker hub Username>
-    docker_password     : <DOcker hub access TOEKN>
+    docker_password     : <Docker hub access TOKEN>
     ....
     rabbitmq_executor : True
 ```

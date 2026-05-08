@@ -1,183 +1,541 @@
-#lithops: 
-    #backend: aws_lambda
-    #storage: aws_s3
-    #data_cleaner: <True/False>
-    #monitoring: storage
-    #monitoring_interval: 2
-    #data_limit: 4  # in MiB
-    #execution_timeout: 1800
-    #include_modules: <LIST_OF_MODULES>
-    #exclude_modules: <LIST_OF_MODULES>
-    #log_level: INFO
+# =============================================================================
+# Lithops configuration template
+# =============================================================================
+#
+# Copy this file to ~/.lithops/config (or point to it via the LITHOPS_CONFIG_FILE
+# environment variable) and uncomment / fill in the sections corresponding to
+# the compute and storage backends you want to use.
+#
+# Only one compute backend (`lithops.backend`) and one storage backend
+# (`lithops.storage`) are active per Lithops execution. Sections for backends
+# you do not use can be left commented out.
+#
+# Each backend documentation page (under `docs/source/compute_config/` and
+# `docs/source/storage_config/`) lists every available key, its default value,
+# and whether it is mandatory.
+# =============================================================================
+
+
+# -----------------------------------------------------------------------------
+# Global Lithops settings
+# -----------------------------------------------------------------------------
+#lithops:
+    #backend: aws_lambda                  # Default: aws_lambda
+    #storage: aws_s3                      # Default: aws_s3
+    #data_cleaner: True                   # Clean intermediate data after execution. Default: True
+    #monitoring: storage                  # One of: storage, rabbitmq. Default: storage
+    #monitoring_interval: 2               # Polling interval (seconds) when monitoring=storage. Default: 2
+    #data_limit: 4                        # Max iterdata aggregated size (MiB) before using storage. Default: 4
+    #execution_timeout: 1800              # Per-call timeout in seconds. Default: 1800
+    #include_modules: []                  # Extra local modules to ship with the worker
+    #exclude_modules: []                  # Modules to exclude from the worker payload
+    #chunksize: 1                         # Number of tasks per worker invocation. Default: worker_processes
+    #log_level: INFO                      # One of: DEBUG, INFO, WARNING, ERROR, CRITICAL
     #log_format: "%(asctime)s [%(levelname)s] %(name)s -- %(message)s"
-    #log_stream: ext://sys.stdout
-    #log_filename <path_to_a_file>
+    #log_stream: ext://sys.stderr
+    #log_filename: <PATH_TO_LOG_FILE>
+    #telemetry: False                     # Enable Prometheus push-gateway metrics
 
+
+# =============================================================================
+# Localhost (compute and/or storage)
+# =============================================================================
 #localhost:
-    #runtime: python3
-    #worker_processes: CPU_COUNT
+    #runtime: python3                     # Python interpreter or container image. Default: current interpreter
+    #worker_processes: <CPU_COUNT>        # Default: number of CPUs
+    #version: 2                           # Localhost backend implementation. One of: 1, 2. Default: 2
 
-#ibm:
-    #iam_api_key: <IAM KEY>
-    #region : <REGION>
-    #resource_group_id: <RESOURCE_GROUP_ID>
 
-#ibm_cf:
-    #region : <REGION>
-    #endpoint : <REGION_ENDPOINT>
-    #namespace : <NAMESPACE>
-    #api_key : <API_KEY>
-    #namespace_id : <NAMESPACE_ID> # Only for IAM auth
-    #runtime : <RUNTIME_NAME>
-    #runtime_timeout: 600
-    #runtime_memory: 256
-    #remote_invoker: <True/False>
-    #max_workers: <MAX_WORKERS> Default is 1200
-    #worker_processes: <WORKER_GRANULARITY> Default is 1
-    #runtime_include_function: <True/False>
+# =============================================================================
+# AWS – credentials shared by all aws_* sections
+# =============================================================================
+#aws:
+    #region: <REGION_NAME>                # e.g. us-east-1
+    #access_key_id: <AWS_ACCESS_KEY_ID>
+    #secret_access_key: <AWS_SECRET_ACCESS_KEY>
+    #session_token: <AWS_SESSION_TOKEN>   # Optional, for temporary credentials
+    #account_id: <AWS_ACCOUNT_ID>         # Optional, used to build container image names
 
-#code_engine:
-    #namespace: <namespace id>
-    #region: <namespace region>
-    #docker_server: <registry server url>
-    #docker_user: <registry username>
-    #docker_password: <registry password>
-    #kubecfg_path: <Location for kubectl yaml file>
-    #runtime : <RUNTIME_NAME>
-    #runtime_timeout: 600
-    #runtime_memory: 256
-    #runtime_cpu : 0.125
-    #max_workers: <MAX_WORKERS> Default is 1000
-    #worker_processes: <WORKER_GRANULARITY> Default is 1
-    #connection_retries: <RETRIES_NUMBER>
-    #runtime_include_function: <True/False>
+# AWS Lambda – serverless compute
+#aws_lambda:
+    #execution_role: <EXECUTION_ROLE_ARN> # Mandatory, full ARN of the Lambda execution role
+    #region: <REGION_NAME>                # Falls back to aws.region
+    #runtime: <RUNTIME_NAME>              # Container image name (optional)
+    #runtime_memory: 256                  # MB. Range: 128–10240
+    #runtime_timeout: 180                 # Seconds. Max: 900
+    #max_workers: 1000
+    #worker_processes: 1
+    #invoke_pool_threads: 64
+    #architecture: x86_64                 # One of: x86_64, arm64
+    #ephemeral_storage: 512               # MB. Range: 512–10240
+    #remote_invoker: False
+    #runtime_include_function: False
+    #namespace: <VIRTUAL_NAMESPACE>       # Optional prefix for deployed functions
+    #env_vars: {}                         # {NAME: VALUE} pairs
+    #user_tags: {}                        # {NAME: VALUE} pairs
+    #vpc:
+        #subnets: []                      # List of subnet IDs
+        #security_groups: []              # List of security group IDs
+    #efs:                                 # List of {access_point, mount_path} pairs (mount_path must start with /mnt)
+        #- access_point: <EFS_ACCESS_POINT_ARN>
+          #mount_path: /mnt/<NAME>
 
-#ibm_vpc:
-    #region : <REGION>
-    #endpoint: <REGION_ENDPOINT>
+# AWS Batch – serverless batch compute
+#aws_batch:
+    #execution_role: <EXECUTION_ROLE_ARN> # Mandatory
+    #job_role: <JOB_ROLE_ARN>             # Mandatory unless credentials are in `aws`
+    #security_groups: []                  # Mandatory list of security group IDs
+    #subnets: []                          # Mandatory list of subnet IDs
+    #region: <REGION_NAME>                # Falls back to aws.region
+    #env_type: FARGATE_SPOT               # One of: EC2, SPOT, FARGATE, FARGATE_SPOT
+    #env_max_cpus: 10                     # Max total vCPUs of the compute environment
+    #instance_role: <INSTANCE_ROLE_ARN>   # Mandatory for env_type EC2 / SPOT
+    #service_role: <SERVICE_ROLE_ARN>
+    #assign_public_ip: True
+    #runtime: <RUNTIME_NAME>
+    #runtime_memory: 1024                 # MB
+    #runtime_cpu: 0.5                     # vCPU
+    #runtime_timeout: 180                 # Seconds
+    #worker_processes: 1
+
+# AWS EC2 – standalone compute
+#aws_ec2:
+    #region: <REGION_NAME>                # Falls back to aws.region
+    #instance_role: <IAM_INSTANCE_ROLE>   # Mandatory in create/reuse mode (role name only, not ARN)
+    #instance_id: <INSTANCE_ID>           # Mandatory in consume mode
     #vpc_id: <VPC_ID>
+    #public_subnet_id: <SUBNET_ID>
+    #public_subnet_cidr_block: 10.0.1.0/24
+    #security_group_id: <SECURITY_GROUP_ID>
+    #ssh_key_name: <SSH_KEY_NAME>
+    #ssh_username: ubuntu
+    #ssh_password: <RANDOM_IF_NOT_PROVIDED>
+    #ssh_key_filename: ~/.ssh/id_rsa
+    #request_spot_instances: True
+    #target_ami: <AMI_ID>                 # Default: Ubuntu Server 22.04
+    #master_instance_type: t3.micro
+    #worker_instance_type: t3.medium
+    #delete_on_dismantle: True
+    #max_workers: 100
+    #worker_processes: AUTO               # Default: number of CPUs of the worker VM
+    #ebs_volumes:                         # Optional list of EBS volume mappings
+        #- device_name: /dev/xvda
+          #ebs:
+              #volume_size: 100
+              #volume_type: gp2
+              #delete_on_termination: True
+              #encrypted: False
+              #kms_key_id: <KMS_KEY_ARN>
+
+# AWS S3 – object storage
+#aws_s3:
+    #region: <REGION_NAME>                # Falls back to aws.region
+    #storage_bucket: <BUCKET_NAME>        # Auto-created if not provided
+
+
+# =============================================================================
+# Google Cloud Platform – credentials shared by all gcp_* sections
+# =============================================================================
+#gcp:
+    #region: <REGION_NAME>                # e.g. us-east1
+    #credentials_path: <ABSOLUTE_PATH_TO_SERVICE_ACCOUNT_JSON>
+
+# Google Cloud Run functions (v2) – serverless compute
+#gcp_functions:
+    #region: <REGION_NAME>                # Falls back to gcp.region
+    #runtime: <RUNTIME_NAME>
+    #runtime_memory: 256                  # MB. Allowed: 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768
+    #runtime_timeout: 300                 # Seconds. Max: 540 (HTTP), 540 (Pub/Sub)
+    #trigger: pub/sub                     # One of: pub/sub, https
+    #max_workers: 1000
+    #worker_processes: 1
+    #invoke_pool_threads: 1000
+
+# Google Cloud Run – serverless containerized compute
+#gcp_cloudrun:
+    #region: <REGION_NAME>                # Falls back to gcp.region
+    #runtime: <RUNTIME_NAME>              # Artifact Registry image
+    #runtime_memory: 256                  # MiB. Max: 32768
+    #runtime_cpu: 0.25                    # vCPU. Allowed: 1, 2, 4, 6, 8, or 0.08–<1.0 in steps of 0.001
+    #runtime_timeout: 300                 # Seconds. Max: 3600
+    #trigger: https
+    #min_workers: 0
+    #max_workers: 100
+    #worker_processes: 1
+    #invoke_pool_threads: 100
+    #docker_server: pkg.dev               # Marker for Artifact Registry image names
+    #artifact_registry_repository: lithops
+    #runtime_include_function: False
+
+# Google Cloud Storage – object storage
+#gcp_storage:
+    #region: <REGION_NAME>                # Falls back to gcp.region
+    #storage_bucket: <BUCKET_NAME>        # Auto-created if not provided
+
+
+# =============================================================================
+# Microsoft Azure – credentials shared by all azure_* sections
+# =============================================================================
+#azure:
+    #resource_group: <RESOURCE_GROUP_NAME>
+    #region: <LOCATION>                   # e.g. westeurope
+    #subscription_id: <SUBSCRIPTION_ID>   # Mandatory for azure_vms
+
+# Azure Functions – serverless compute
+#azure_functions:
+    #resource_group: <RESOURCE_GROUP_NAME># Falls back to azure.resource_group
+    #region: <LOCATION>                   # Falls back to azure.region
+    #runtime: <RUNTIME_NAME>
+    #runtime_memory: 1536                 # MB
+    #runtime_timeout: 300                 # Seconds
+    #functions_version: 4
+    #trigger: pub/sub                     # One of: pub/sub, https
+    #max_workers: 1000
+    #worker_processes: 1
+    #invoke_pool_threads: 10
+
+# Azure Container Apps – serverless compute
+#azure_containers:
+    #resource_group: <RESOURCE_GROUP_NAME># Falls back to azure.resource_group
+    #region: <LOCATION>                   # Falls back to azure.region
+    #environment: lithops                 # Container Apps environment name
+    #docker_server: index.docker.io
+    #docker_user: <REGISTRY_USERNAME>
+    #docker_password: <REGISTRY_TOKEN>
+    #runtime: <RUNTIME_NAME>
+    #runtime_memory: 512                  # MB (must match an allowed CPU/memory pair)
+    #runtime_timeout: 600                 # Seconds
+    #trigger: pub/sub
+    #max_workers: 1000
+    #worker_processes: 1
+    #invoke_pool_threads: 32
+    #runtime_include_function: False
+
+# Azure Virtual Machines – standalone compute
+#azure_vms:
+    #region: <LOCATION>                   # Falls back to azure.region
+    #instance_name: <VM_NAME>             # Mandatory in consume mode
+    #image_id: Canonical:0001-com-ubuntu-server-jammy:22_04-lts-gen2:latest
+    #master_instance_type: Standard_B1s
+    #worker_instance_type: Standard_B2s
+    #ssh_username: ubuntu
+    #ssh_password: <RANDOM_IF_NOT_PROVIDED>
+    #ssh_key_filename: ~/.ssh/id_rsa
+    #request_spot_instances: True
+    #delete_on_dismantle: False           # `True` is not yet supported on Azure
+    #max_workers: 100
+    #worker_processes: AUTO
+
+# Azure Blob Storage – object storage
+#azure_storage:
+    #storage_account_name: <STORAGE_ACCOUNT_NAME>
+    #storage_account_key: <STORAGE_ACCOUNT_KEY>
+    #storage_bucket: <CONTAINER_NAME>     # Auto-created if not provided
+
+
+# =============================================================================
+# IBM Cloud – credentials shared by all ibm_* / code_engine sections
+# =============================================================================
+#ibm:
+    #iam_api_key: <IAM_API_KEY>
+    #region: <REGION>                     # One of: eu-gb, eu-de, us-south, us-east, br-sao, ca-tor, jp-tok, jp-osa, au-syd
     #resource_group_id: <RESOURCE_GROUP_ID>
+
+# IBM Cloud Functions – DEPRECATED serverless compute
+#ibm_cf:
+    #region: <REGION>                     # Falls back to ibm.region
+    #endpoint: <REGION_ENDPOINT>          # Alternative to `region` (e.g. https://us-east.functions.cloud.ibm.com)
+    #namespace: <NAMESPACE>               # Existing namespace (auto-created otherwise)
+    #namespace_id: <NAMESPACE_ID>         # GUID, required if `namespace` is set
+    #docker_server: docker.io
+    #runtime: <RUNTIME_NAME>
+    #runtime_memory: 256                  # MB
+    #runtime_timeout: 600                 # Seconds
+    #max_workers: 1200
+    #worker_processes: 1
+    #invoke_pool_threads: 500
+    #remote_invoker: False
+    #runtime_include_function: False
+
+# IBM Cloud Code Engine – serverless compute
+#code_engine:
+    #region: <REGION>                     # Falls back to ibm.region
+    #project_name: <PROJECT_NAME>         # Existing Code Engine project (auto-created otherwise)
+    #namespace: <NAMESPACE>               # Alternative to project_name
+    #kubecfg_path: <PATH_TO_KUBECONFIG>
+    #docker_server: docker.io
+    #docker_user: <REGISTRY_USERNAME>
+    #docker_password: <REGISTRY_TOKEN>
+    #docker_namespace: <REGISTRY_NAMESPACE>
+    #runtime: <RUNTIME_NAME>
+    #runtime_cpu: 0.125                   # See valid combinations in the IBM docs
+    #runtime_memory: 256                  # MB
+    #runtime_timeout: 600                 # Seconds
+    #max_workers: 1000
+    #worker_processes: 1
+    #connection_retries: <RETRIES>
+    #runtime_include_function: False
+
+# IBM VPC – standalone compute
+#ibm_vpc:
+    #region: <REGION>                     # Falls back to ibm.region. May also be a zone (e.g. eu-gb-2)
+    #endpoint: <REGION_ENDPOINT>          # Alternative to `region`
+    #vpc_id: <VPC_ID>
+    #vpc_name: <VPC_NAME>
     #security_group_id: <SECURITY_GROUP_ID>
     #subnet_id: <SUBNET_ID>
-    #key_id: <PUBLIC_KEY_ID>
-    #image_id: <IMAGE_ID_FOR_VMs> # Default is ubuntu 20.04
-    #ssh_username : <SSH_USER_FOR_VPC> # Default is 'root'
-    #ssh_password : <SSH_PASS_FOR_WORKER_VMS> # Default is randomly generated
-    #ssh_key_filename : <PATH_TO_SSH_KEYFILE_FOR_MASTER_VM> # Default path in OS
-    #worker_profile_name: <PROFILE_NAME> # Default is 'cx2-2x4'
-    #master_profile_name:  <PROFILE_NAME> # Default is 'cx2-2x4'
-    #delete_on_dismantle: <True/False> # Default is 'True
-    #max_workers: <MAX_WORKERS> Default is 100
-    #worker_processes: <WORKER_GRANULARITY> Default is 2
-    #singlesocket: <True/False> # Optional, default is False
+    #ssh_key_id: <SSH_PUBLIC_KEY_ID>
+    #gateway_id: <PUBLIC_GATEWAY_ID>
+    #image_id: <IMAGE_ID>                 # Default: Ubuntu Server 22.04
+    #instance_id: <INSTANCE_ID>           # Mandatory in consume mode
+    #floating_ip: <FLOATING_IP>           # Mandatory in consume mode
+    #ssh_username: root
+    #ssh_password: <RANDOM_IF_NOT_PROVIDED>
+    #ssh_key_filename: ~/.ssh/id_rsa
+    #boot_volume_profile: general-purpose
+    #boot_volume_capacity: 100            # GB
+    #worker_profile_name: cx2-2x4
+    #master_profile_name: cx2-2x4
+    #verify_resources: True
+    #delete_on_dismantle: True
+    #max_workers: 100
+    #worker_processes: AUTO
+    #singlesocket: False
+    #gpu: False
+    #docker_server: <REGISTRY_SERVER>
+    #docker_user: <REGISTRY_USERNAME>
+    #docker_password: <REGISTRY_TOKEN>
+    #docker_namespace: <REGISTRY_NAMESPACE>
 
+# IBM Cloud Object Storage
+#ibm_cos:
+    #region: <REGION>                     # Or set `endpoint` directly
+    #endpoint: <PUBLIC_ENDPOINT>          # https://s3.<region>.cloud-object-storage.appdomain.cloud
+    #private_endpoint: <PRIVATE_ENDPOINT> # Required for ibm_cf, code_engine, ibm_vpc compute backends
+    #api_key: <API_KEY>                   # COS service API key
+    #service_instance_id: <SERVICE_INSTANCE_ID>
+    #access_key_id: <ACCESS_KEY_ID>       # HMAC credentials (alternative to api_key)
+    #secret_access_key: <SECRET_ACCESS_KEY>
+    #storage_bucket: <BUCKET_NAME>        # Mandatory unless HMAC credentials allow auto-creation
+
+
+# =============================================================================
+# Alibaba Cloud – credentials shared by all aliyun_* sections
+# =============================================================================
+#aliyun:
+    #account_id: <ACCOUNT_ID>
+    #access_key_id: <ACCESS_KEY_ID>
+    #access_key_secret: <ACCESS_KEY_SECRET>
+    #region: <REGION_NAME>                # e.g. eu-west-1
+
+# Aliyun Function Compute – serverless compute
+#aliyun_fc:
+    #role_arn: <ROLE_ARN>                 # Mandatory
+    #region: <REGION_NAME>                # Falls back to aliyun.region
+    #service: <SERVICE_NAME>
     #runtime: <RUNTIME_NAME>
-    #exec_mode: reuse
-    #auto_dismantle: True
-    #hard_dismantle_timeout: 3600
-    #soft_dismantle_timeout: 300
-    #workers_policy: <Workers create policy> # Optional, strict/permissive. Default is 'permissive'
-    #docker_server: <registry server url>
-    #docker_user: <registry username>
-    #docker_password: <registry password>
+    #runtime_memory: 256                  # MB
+    #runtime_timeout: 300                 # Seconds
+    #max_workers: 300
+    #worker_processes: 1
+    #invoke_pool_threads: 300
 
-#aws_ec2:
-    #region: <REGION_NAME>
-    #vpc_id: <VPC_ID>
-    #execution_role: <IAM_ROLE>
-    #key_name: <SSH_KEY_NAME>
-    #security_group_id: <SECURITY_GROUP_ID>
-    #master_instance_type: t2.micro
-    #worker_instance_type: t2.medium
-    #ssh_username : <SSH_USER_FOR_VPC> # Default is 'ubuntu'
-    #ssh_password : <SSH_PASS_FOR_WORKER_VMS> # Default is randomly generated
-    #ssh_key_filename : <PATH_TO_SSH_KEYFILE_FOR_MASTER_VM> # Default path in OS
-    #target_ami: <TARGET_AMI>  # Default is Ubuntu 20.04
-    #request_spot_instances: <true/false>
-    #delete_on_dismantle: <True/False> # Default is 'True
-    #max_workers: <MAX_WORKERS> Default is 100
-    #worker_processes: <WORKER_GRANULARITY> Default is 2
+# Aliyun Object Storage Service
+#aliyun_oss:
+    #region: <REGION_NAME>                # Falls back to aliyun.region
+    #storage_bucket: <BUCKET_NAME>        # Auto-created if not provided
 
+
+# =============================================================================
+# Oracle Cloud – credentials shared by all oracle_* sections
+# =============================================================================
+#oracle:
+    #user: <USER_OCID>
+    #region: <REGION_IDENTIFIER>          # e.g. eu-madrid-1
+    #fingerprint: <KEY_FINGERPRINT>
+    #tenancy: <TENANCY_OCID>
+    #key_file: <PATH_TO_PRIVATE_KEY_PEM>
+    #compartment_id: <COMPARTMENT_OCID>
+    #tenancy_namespace: <OBJECT_STORAGE_NAMESPACE>
+
+# Oracle Functions – serverless compute (beta)
+#oracle_f:
+    #subnet_id: <PRIVATE_SUBNET_OCID>     # Mandatory
+    #region: <REGION_IDENTIFIER>          # Falls back to oracle.region
     #runtime: <RUNTIME_NAME>
-    #exec_mode: reuse
-    #auto_dismantle: True
-    #hard_dismantle_timeout: 3600
-    #soft_dismantle_timeout: 300
-    #workers_policy: <Workers create policy> # Optional, strict/permissive. Default is 'permissive'
-    #docker_server: <registry server url>
-    #docker_user: <registry username>
-    #docker_password: <registry password>
+    #runtime_memory: 256                  # MB
+    #runtime_timeout: 300                 # Seconds
+    #max_workers: 300
+    #worker_processes: 1
+    #invoke_pool_threads: 64
+    #runtime_include_function: False
 
-#vm:
-    #ip_address: <IP_ADDRESS>
-    #ssh_user: <SSH_USERNAME>
-    #ssh_password: <SSH_PASSWORD>
-    #ssh_key_filename : <PATH_TO_SSH_KEYFILE_FOR_MASTER_VM> # Default path in OS
-    #runtime : <RUNTIME_NAME>
-    #worker_processes: <WORKER_GRANULARITY> Default is 1
+# Oracle Object Storage – object storage (beta)
+#oracle_oss:
+    #region: <REGION_IDENTIFIER>          # Falls back to oracle.region
+    #storage_bucket: <BUCKET_NAME>        # Auto-created if not provided
+
+
+# =============================================================================
+# Kubernetes / Knative / OpenWhisk / Singularity
+# =============================================================================
+#k8s:
+    #kubecfg_path: <PATH_TO_KUBECONFIG>   # Mandatory if not in ~/.kube/config and KUBECONFIG is not set
+    #kubecfg_context: <CONTEXT_NAME>
+    #namespace: default
+    #docker_server: docker.io
+    #docker_user: <REGISTRY_USERNAME>
+    #docker_password: <REGISTRY_TOKEN>
+    #docker_namespace: <REGISTRY_NAMESPACE>
+    #runtime: <RUNTIME_NAME>
+    #runtime_cpu: 1                       # vCPU
+    #runtime_memory: 512                  # MB
+    #runtime_timeout: 600                 # Seconds
+    #master_timeout: 600                  # Seconds
+    #runtime_arch: <amd64|arm64>          # Defaults to cluster nodes; falls back to amd64
+    #max_workers: 100
+    #worker_processes: 1
+    #rabbitmq_executor: False             # Use the RabbitMQ-based K8s executor (requires `rabbitmq` section)
+    #pod_security_context: null           # Mapping injected as the pod-level securityContext
+    #container_security_context:          # PSS Baseline by default (drop ALL caps, no privilege escalation, RuntimeDefault seccomp)
+        #allowPrivilegeEscalation: False
+        #capabilities:
+            #drop:
+                #- ALL
+        #seccompProfile:
+            #type: RuntimeDefault
 
 #knative:
-   #istio_endpoint  : <ISTIO_INGRESS_ENDPOINT>
-   #docker_user     : <DOCKER_HUB_USERNAME>
-   #docker_token    : <DOCKER_HUB_TOKEN>
-   #runtime: <RUNTIME_NAME>
-   #runtime_timeout: 600
-   #runtime_memory: 256
-   #runtime_cpu : 0.5
-   #max_workers: <MAX_WORKERS> Default is 250
-   #worker_processes: <WORKER_GRANULARITY> Default is 1
+    #kubecfg_path: <PATH_TO_KUBECONFIG>
+    #networking_layer: kourier            # One of: kourier, istio
+    #ingress_endpoint: <INGRESS_URL>
+    #docker_server: docker.io
+    #docker_user: <REGISTRY_USERNAME>
+    #docker_password: <REGISTRY_TOKEN>
+    #docker_namespace: <REGISTRY_NAMESPACE>
+    #git_url: <GIT_REPO_URL>
+    #git_rev: <GIT_REVISION>
+    #runtime: <RUNTIME_NAME>
+    #runtime_cpu: 1                       # vCPU
+    #runtime_memory: 512                  # MB
+    #runtime_timeout: 600                 # Seconds
+    #max_workers: 100
+    #worker_processes: 1
+    #invoke_pool_threads: 100
 
 #openwhisk:
-    #endpoint: <OW_ENDPOINT>
-    #namespace: <NAMESPACE>
-    #api_key: <AUTH_KEY>
-    #insecure: <True/False>
+    #endpoint: <OW_ENDPOINT>              # Mandatory
+    #namespace: <NAMESPACE>               # Mandatory
+    #api_key: <AUTH_KEY>                  # Mandatory
+    #insecure: False
+    #docker_server: docker.io
     #runtime: <RUNTIME_NAME>
-    #runtime_timeout: 600
-    #runtime_memory: 256
-    #max_workers: <MAX_WORKERS> Default is 100
-    #worker_processes: <WORKER_GRANULARITY> Default is 1
+    #runtime_memory: 256                  # MB
+    #runtime_timeout: 300                 # Seconds
+    #max_workers: 100
+    #worker_processes: 1
+    #invoke_pool_threads: 500
+    #runtime_include_function: False
 
-#ibm_cos:
-    #storage_bucket: <BUCKET_NAME>
-    #region: <REGION>
-    #service_instance_id: <SERVICE_INSTANCE_ID>
-    #endpoint: <REGION_ENDPOINT>
-    #private_endpoint: <PRIVATE_REGION_ENDPOINT>
-    #api_key: <API_KEY>
-    #access_key_id: <ACCESS_KEY>  # Optional
-    #secret_access_key: <SECRET_KEY>  # Optional
+#singularity:
+    # Requires the `rabbitmq` section to be configured.
+    #runtime: <SIF_FILE_NAME>             # Singularity image (.sif)
+    #sif_path: /tmp                       # Local directory to store the .sif image
+    #runtime_memory: 512                  # MB
+    #runtime_timeout: 600                 # Seconds
+    #max_workers: 100
+    #worker_processes: 1
 
-#swift:
-    #storage_bucket: <BUCKET_NAME>
-    #auth_url   : <SWIFT_AUTH_URL>
-    #region     : <SWIFT_REGION>
-    #user_id    : <SWIFT_USER_ID>
-    #project_id : <SWIFT_PROJECT_ID>
-    #password   : <SWIFT_PASSWORD>
 
-#infinispan:
-    #username   : <USER_NAME>
-    #password   : <PASSWORD>
-    #endpoint   : <INFINISPAN_SERVER_URL:PORT>
-    #cache_manager : <CACHE MANAGER> # Optional
-  
+# =============================================================================
+# Generic remote VM (standalone compute)
+# =============================================================================
+#vm:
+    #ip_address: <IP_ADDRESS>             # Mandatory
+    #ssh_username: <SSH_USERNAME>         # Mandatory
+    #ssh_password: <SSH_PASSWORD>
+    #ssh_key_filename: ~/.ssh/id_rsa
+    #runtime: python3                     # Or a Docker image name
+    #worker_processes: AUTO
+
+
+# =============================================================================
+# Standalone shared settings (applies to ibm_vpc, aws_ec2, azure_vms, vm)
+# =============================================================================
+#standalone:
+    #runtime: python3
+    #exec_mode: reuse                     # One of: consume, create, reuse
+    #use_gpu: False
+    #start_timeout: 300                   # Seconds
+    #auto_dismantle: True
+    #soft_dismantle_timeout: 300          # Seconds after a job completes
+    #hard_dismantle_timeout: 3600         # Seconds after a job starts
+
+
+# =============================================================================
+# Self-hosted object storage backends
+# =============================================================================
 #ceph:
-    #storage_bucket: <BUCKET_NAME>
-    #endpoint: <ENDPOINT_URL>
+    #endpoint: <ENDPOINT_URL>             # Must start with http:// or https://
     #access_key_id: <ACCESS_KEY_ID>
     #secret_access_key: <SECRET_ACCESS_KEY>
+    #session_token: <SESSION_TOKEN>
+    #region: <REGION_NAME>
+    #storage_bucket: <BUCKET_NAME>        # Auto-created if not provided
 
 #minio:
-    #storage_bucket: <BUCKET_NAME>
-    #endpoint: <ENDPOINT_URL>
+    #endpoint: <ENDPOINT_URL>             # Must start with http:// or https://
     #access_key_id: <ACCESS_KEY_ID>
     #secret_access_key: <SECRET_ACCESS_KEY>
-    
-#redis:
-    #host: <ENDPOINT_URL>
-    #port: <ACCESS_KEY>
-    #password: <ACCESS_KEY>
+    #session_token: <SESSION_TOKEN>
+    #storage_bucket: <BUCKET_NAME>        # Auto-created if not provided
 
+#redis:
+    #host: <REDIS_HOST>                   # Mandatory
+    #port: 6379
+    #username: <USERNAME>
+    #password: <PASSWORD>
+    #db: 0
+    #ssl: False
+    # Any additional key in this section is forwarded to redis.Redis(...)
+
+#swift:
+    #auth_url: <SWIFT_AUTH_URL>
+    #region: <SWIFT_REGION>
+    #user_id: <SWIFT_USER_ID>
+    #project_id: <SWIFT_PROJECT_ID>
+    #password: <SWIFT_PASSWORD>
+    #user_domain_name: default
+    #project_domain_name: default
+    #storage_bucket: <CONTAINER_NAME>
+
+#infinispan:
+    #endpoint: <INFINISPAN_SERVER_URL:PORT>
+    #username: <USERNAME>
+    #password: <PASSWORD>
+    #mech: DIGEST                         # Authentication mechanism: DIGEST or BASIC
+    #cache_names:                         # Each Lithops bucket maps to a cache with the same name
+        #- storage
+    #cache_type: default                  # Cache type
+
+#infinispan_hotrod:
+    #endpoint: <INFINISPAN_SERVER_HOSTNAME:PORT>
+    #username: <USERNAME>
+    #password: <PASSWORD>
+    #cache_names:
+        #- storage
+
+
+# =============================================================================
+# RabbitMQ – required when `lithops.monitoring=rabbitmq`, by k8s with
+# `rabbitmq_executor: True`, and by the singularity backend
+# =============================================================================
 #rabbitmq:
-    #amqp_url   : <RABBIT_AMQP_URL>  # amqp://
+    #amqp_url: amqp://<USER>:<PASSWORD>@<HOST>:<PORT>/<VHOST>
+
+
+# =============================================================================
+# Prometheus – pushed metrics when `lithops.telemetry=True`
+# =============================================================================
+#prometheus:
+    #apigateway: <PUSH_GATEWAY_URL>       # Prometheus Pushgateway base URL

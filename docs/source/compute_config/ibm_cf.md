@@ -2,7 +2,7 @@
 
 Lithops with *IBM Cloud Functions* as compute backend.
 
-**Note**: This backend is deprecated. See the [deprecation overview](https://cloud.ibm.com/docs/openwhisk?topic=openwhisk-dep-overview)
+**Note**: This backend is deprecated. See the [deprecation overview](https://cloud.ibm.com/docs/openwhisk?topic=openwhisk-dep-overview).
 
 ## Installation
 
@@ -24,7 +24,7 @@ python3 -m pip install lithops[ibm]
 
 5. Navigate to the [resource groups dashboard](https://cloud.ibm.com/account/resource-groups), and copy the desired resource group ID.
 
-5. Edit your lithops config and add the following keys:
+6. Edit your lithops config and add the following keys:
 
     ```yaml
     lithops:

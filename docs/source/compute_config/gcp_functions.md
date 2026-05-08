@@ -19,12 +19,12 @@ python3 -m pip install lithops[gcp]
 5. Click on *Create Service Account*. Name the service account `lithops-executor` or similar. Then click on *Create*.
 
 6. Add the following roles to the service account:
- - Service Accounts --> Service Account User
- - Cloud Functions --> Cloud Functions Admin
- - Pub/Sub --> Pub/Sub Admin
- - Cloud Storage --> Storage Admin
+   - Service Accounts --> Service Account User
+   - Cloud Functions --> Cloud Functions Admin
+   - Pub/Sub --> Pub/Sub Admin
+   - Cloud Storage --> Storage Admin
 
-7. Click on *Continue* and *Done*. Next, access the newly created service account, and click on the *keys* tab. Click on *Add key*. Select *JSON* and then *Create*. Download the JSON file to a secure location in you computer.
+7. Click on *Continue* and *Done*. Next, access the newly created service account and click on the *Keys* tab. Click on *Add key*. Select *JSON* and then *Create*. Download the JSON file to a secure location on your computer.
 
 8. Enable the **Cloud Build API** : Navigate to *APIs & services* tab on the menu. Click *ENABLE APIS AND SERVICES*. Look for "Cloud Build API" at the search bar. Click *Enable*.
 
@@ -96,8 +96,8 @@ lithops hello -b gcp_functions -s gcp_storage
 
 ## References
 
-- [Cloud Functions v2 REST API reference](https://docs.cloud.google.com/functions/docs/reference/rest)
-- [Cloud Run functions best practices](https://docs.cloud.google.com/run/docs/tips/functions-best-practices)
+- [Cloud Functions v2 REST API reference](https://cloud.google.com/functions/docs/reference/rest)
+- [Cloud Run functions best practices](https://cloud.google.com/run/docs/tips/functions-best-practices)
 
 
 ## Viewing the execution logs

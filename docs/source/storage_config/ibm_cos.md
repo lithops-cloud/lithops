@@ -12,7 +12,7 @@ python3 -m pip install lithops[ibm]
 
 2. Create an [IBM Cloud Object Storage account](https://www.ibm.com/cloud/object-storage).
 
-3. Crate a bucket in your desired region. Remember to update the corresponding Lithops config field with this bucket name.
+3. Create a bucket in your desired region. Remember to update the corresponding Lithops config field with this bucket name.
 
 ## Configuration
 
@@ -52,7 +52,7 @@ python3 -m pip install lithops[ibm]
 
 6. Click `View credentials` and copy the *access_key_id* and *secret_access_key* values.
 
-7. When using HMAC credentials, you can omit providing an storage bucket, since Lithops will be able to create it automatically.
+7. When using HMAC credentials, you can omit providing a storage bucket, since Lithops will be able to create it automatically.
 
 8. Edit your lithops config file and add the following keys:
 
@@ -79,7 +79,8 @@ python3 -m pip install lithops[ibm]
 
     ```yaml
     lithops:
-        storage_backend: ibm_cos
+        storage: ibm_cos
+
     ibm:
         iam_api_key: <IAM_API_KEY>
 
@@ -91,27 +92,27 @@ python3 -m pip install lithops[ibm]
 ## Lithops COS Endpoint configuration
 
 ### Using region
-The easiest approach is to let Lithops to choose the right endpoint by itself. To enable this, just configure Lithops with the region name of your `storage_bucket`, as follows:
+The easiest approach is to let Lithops choose the right endpoint by itself. To enable this, just configure Lithops with the region name of your `storage_bucket`, as follows:
 
 ```yaml
     ibm_cos:
         region   : <REGION>
 ```
 
-Valid region names are: `us-east`, `us-south`, `eu-gb`, `eu-de`, etc..
+Valid region names are: `us-east`, `us-south`, `eu-gb`, `eu-de`, etc.
 
-### Using endpoints path
+### Using endpoint paths
 
-Alternative to using region, you can configure the public and private endpoints as follows:
+As an alternative to using `region`, you can configure the public and private endpoints as follows:
 
 1. Login to IBM Cloud and open up your dashboard. Then navigate to your instance of Object Storage.
 
-2. In the side navigation, click `Endpoints` to find your COS endpoints. You must copy both `public` and `private` endpoints of the region where you created your bucket.
+2. In the side navigation, click `Endpoints` to find your COS endpoints. You must copy both the `public` and `private` endpoints of the region where you created your bucket.
 
 ```yaml
     ibm_cos:
-        endpoint: https://s3.<region>.cloud-object-storage_config.appdomain.cloud
-        private_endpoint: https://s3.private.<region>.cloud-object-storage_config.appdomain.cloud 
+        endpoint: https://s3.<region>.cloud-object-storage.appdomain.cloud
+        private_endpoint: https://s3.private.<region>.cloud-object-storage.appdomain.cloud
 ```
 
 
@@ -131,9 +132,9 @@ Alternative to using region, you can configure the public and private endpoints 
 |---------|---------------------|---|---|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | ibm_cos | region              | |yes | Region of your bucket. One of: `eu-gb`, `eu-de`, `us-south`, `us-east`, `br-sao`, `ca-tor`, `jp-tok`, `jp-osa`, `au-syd`. Lithops will use the region set under the `ibm` section if it is not set here |
 | ibm_cos | api_key             | |yes | API Key to your COS account. Not needed if using IAM API Key                                                                                                                                            |
-| ibm_cos | storage_bucket      | | yes | The name of a bucket that exists in you account. This will be used by Lithops for intermediate data. You must provide HMAC Credentials if you want the bucket to be automatically created               |
+| ibm_cos | storage_bucket      | | yes | The name of a bucket that exists in your account. This will be used by Lithops for intermediate data. You must provide HMAC credentials if you want the bucket to be automatically created               |
 | ibm_cos | service_instance_id | |no | The service instance (CRN format) of your COS instance. **Mandatory** if no HMAC Credentials provided.                                                                                                  |                                                                                                 |                                                                                                   |                                                                                                                                  |                                                                                                                                        |
 | ibm_cos | access_key_id       | |no | HMAC Credentials. **Mandatory** if no api_key. Not needed if using IAM API Key                                                                                                                          |
 | ibm_cos | secret_access_key   | |no | HMAC Credentials. **Mandatory** if no api_key. Not needed if using IAM API Key                                                                                                                          |
 | ibm_cos | endpoint            | |no | Endpoint to your COS account. **Mandatory** if no region. Make sure to use the full path with 'https://' as prefix                                                                                      |
-| ibm_cos | private_endpoint    | |no | Private endpoint to your COS account. **Mandatory** if no region. Make sure to use the full path with 'https://' or http:// as prefix                                                                   |
+| ibm_cos | private_endpoint    | |no | Private endpoint to your COS account. **Mandatory** if no region. Make sure to use the full path with 'https://' or 'http://' as prefix                                                                   |

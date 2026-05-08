@@ -131,7 +131,7 @@ Blogs and Talks
   <https://www.youtube.com/watch?v=-uS-wi8CxBo>`_
 
 * `Using Serverless to Run Your Python Code on 1000 Cores by Changing Two Lines of Code
-  <https://www.ibm.com/blog/using-serverless-to-run-your-python-code-on-1000-cores-by-changing-two-line-of-code>`_
+  <https://www.ibm.com/blog/using-serverless-to-run-your-python-code-on-1000-cores-by-changing-two-lines-of-code>`_
 
 * `Decoding dark molecular matter in spatial metabolomics with IBM Cloud Functions
   <https://www.ibm.com/blog/decoding-dark-molecular-matter-in-spatial-metabolomics-with-ibm-cloud-functions>`_
@@ -238,15 +238,15 @@ Lithops is an open-source project, actively maintained and supported by a commun
    :maxdepth: 0
    :caption: Lithops Storage API
 
-   source/api_storage.md
+   source/api_storage.rst
 
 .. toctree::
    :hidden:
    :maxdepth: 0
    :caption: Data Processing
 
-   source/data_processing.md
-   source/data_partitioning.md
+   source/data_processing.rst
+   source/data_partitioning.rst
 
 .. toctree::
    :hidden:
@@ -254,7 +254,7 @@ Lithops is an open-source project, actively maintained and supported by a commun
    :caption: Integrations
 
    source/api_multiprocessing.rst
-   source/api_storage_os.md
+   source/api_storage_os.rst
    source/sklearn_joblib.rst
    source/airflow.rst
 

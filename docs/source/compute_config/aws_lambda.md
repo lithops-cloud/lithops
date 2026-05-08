@@ -12,7 +12,7 @@ python3 -m pip install lithops[aws]
 
 ## Configuration
 
-1. [Login](https://console.aws.amazon.com/?nc2=h_m_mc) to Amazon Web Services Console (or signup if you don't have an account)
+1. [Login](https://console.aws.amazon.com/?nc2=h_m_mc) to the Amazon Web Services Console (or sign up if you don't have an account).
  
 2. Navigate to **IAM > Policies**. Click on **Create policy**.
 
@@ -87,13 +87,13 @@ In summary, you can use one of the following settings:
 |aws | access_key_id | |no | Account access key to AWS services. To find them, navigate to *My Security Credentials* and click *Create Access Key* if you don't already have one. |
 |aws | secret_access_key | |no | Account secret access key to AWS services. To find them, navigate to *My Security Credentials* and click *Create Access Key* if you don't already have one. |
 |aws | session_token | |no | Session token for temporary AWS credentials |
-|aws | account_id | |no | *This field will be used if present to retrieve the account ID instead of using AWS STS. The account ID is used to format full image names for container runtimes. |
+|aws | account_id | |no | This field, if present, will be used to retrieve the account ID instead of using AWS STS. The account ID is used to format full image names for container runtimes. |
 
 ### AWS Lambda
 
 | Group | Key | Default | Mandatory | Additional info |
 | --- | --- | --- | --- | --- |
-| aws_lambda | execution_role |  | yes | ARN of the execution role created at step 3. You can find it in the Role page at the *Roles* list in the *IAM* section (e.g. `arn:aws:iam::1234567890:role/lambdaLithopsExecutionRole` |
+| aws_lambda | execution_role |  | yes | ARN of the execution role created in step 3. You can find it in the Role page at the *Roles* list in the *IAM* section (e.g. `arn:aws:iam::1234567890:role/lambdaLithopsExecutionRole`) |
 | aws_lambda | region |  | no | Region where Lambda functions will be invoked (e.g. `us-east-1`). Lithops will use the `region` set under the `aws` section if it is not set here |
 | aws_lambda | max_workers | 1000 | no | Max number of workers per `FunctionExecutor()` |
 | aws_lambda | worker_processes | 1 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker |
