@@ -77,16 +77,15 @@ k8s:
 |k8s | runtime_timeout | 600 |no | Runtime timeout in seconds. Default 600 seconds |
 |k8s | master_timeout | 600 |no | Master pod timeout in seconds. Default 600 seconds |
 |k8s | container_security_context | PSS Baseline (drop ALL caps, no privilege escalation, RuntimeDefault seccomp) | no | Mapping injected as the container `securityContext` on every Lithops pod. Set to `null` to disable. |
-|k8s | pod_security_context | | no | Mapping injected as the pod-level `securityContext`. Required for clusters enforcing Pod Security Standards Restricted (e.g. EGI Rancher, GKE Autopilot, OpenShift). Requires a non-root runtime image. |
+|k8s | pod_security_context | | no | Mapping injected as the pod-level `securityContext`. Required for clusters enforcing Pod Security Standards Restricted (e.g. EGI Rancher, GKE Autopilot, OpenShift). The runtime image must have a non-root `USER` directive — the bundled `runtime/kubernetes/Dockerfile` and the auto-built default ship with `USER 1000:1000`. |
 |k8s | runtime_arch | auto-detected from cluster nodes; falls back to `amd64` if mixed or unknown | no | Architecture passed to `docker build --platform=linux/<arch>`. Set explicitly when targeting a specific architecture on a mixed-arch cluster. Allowed values: `amd64`, `arm64`. |
 
 ## Running on Pod Security Standards Restricted clusters
 
-Clusters enforcing the [Pod Security Standards "Restricted"](https://kubernetes.io/docs/concepts/security/pod-security-standards/) profile (Rancher with EGI policies, GKE Autopilot, OpenShift, AKS with Azure Policy, EKS with admission controllers) require pods to run as a non-root user with additional hardening. Set `pod_security_context` and use a runtime image that has a non-root `USER` directive:
+Clusters enforcing the [Pod Security Standards "Restricted"](https://kubernetes.io/docs/concepts/security/pod-security-standards/) profile (Rancher with EGI policies, GKE Autopilot, OpenShift, AKS with Azure Policy, EKS with admission controllers) require pods to run as a non-root user with additional hardening. The bundled runtime image and the auto-built default already ship as `USER 1000:1000`, so a custom non-root rebuild is no longer required — set `pod_security_context` to opt in:
 
 ```yaml
 k8s:
-    runtime: <your_user>/<non_root_runtime>:<tag>
     pod_security_context:
         runAsNonRoot: true
         runAsUser: 1000
