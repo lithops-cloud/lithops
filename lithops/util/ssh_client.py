@@ -1,8 +1,28 @@
 import paramiko
 import logging
 import os
+import time
 
 logger = logging.getLogger(__name__)
+
+# Paramiko logs full tracebacks on transient boot-time failures (banner EOF,
+# port closed, etc.). Lithops already retries; keep paramiko quiet.
+for _log_name in ('paramiko', 'paramiko.transport', 'paramiko.client'):
+    logging.getLogger(_log_name).setLevel(logging.CRITICAL)
+
+
+def ssh_boot_status_message(err):
+    """
+    Map transient SSH errors during VM boot to a short user-facing status.
+    """
+    msg = str(err).lower()
+    if 'timed out' in msg or 'timeout' in msg:
+        return 'VM is starting, waiting for network/SSH'
+    if 'unable to connect' in msg or 'connection refused' in msg:
+        return 'VM is up, starting SSH service'
+    if 'banner' in msg or 'no existing session' in msg or 'connection reset' in msg:
+        return 'Configuring SSH on VM'
+    return str(err)
 
 
 class SSHClient():
@@ -23,37 +43,60 @@ class SSHClient():
         """
         Closes the SSH client connection
         """
-        self.ssh_client.close()
+        if self.ssh_client:
+            try:
+                self.ssh_client.close()
+            except Exception:
+                pass
         self.ssh_client = None
 
-    def create_client(self, timeout=2):
+    def _is_transient_ssh_error(self, err):
+        if isinstance(err, (paramiko.SSHException, TimeoutError, OSError)):
+            return True
+        msg = str(err).lower()
+        return any(s in msg for s in (
+            'banner', 'timed out', 'timeout', 'unable to connect',
+            'no existing session', 'connection reset', 'connection refused',
+        ))
+
+    def create_client(self, timeout=2, retries=3, retry_delay=1):
         """
-        Create the SSH client connection
+        Create the SSH client connection, retrying transient boot-time errors.
         """
-        try:
-            self.ssh_client = paramiko.SSHClient()
-            self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        last_err = None
+        for attempt in range(retries):
+            try:
+                self.ssh_client = paramiko.SSHClient()
+                self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
-            user = self.ssh_credentials.get('username')
-            password = self.ssh_credentials.get('password')
-            pkey = None
+                user = self.ssh_credentials.get('username')
+                password = self.ssh_credentials.get('password')
+                pkey = None
 
-            if self.ssh_credentials.get('key_filename'):
-                with open(self.ssh_credentials['key_filename']) as f:
-                    pkey = paramiko.RSAKey.from_private_key(f)
+                if self.ssh_credentials.get('key_filename'):
+                    with open(self.ssh_credentials['key_filename']) as f:
+                        pkey = paramiko.RSAKey.from_private_key(f)
 
-            self.ssh_client.connect(
-                self.ip_address, username=user,
-                password=password, pkey=pkey,
-                timeout=timeout, banner_timeout=200,
-                allow_agent=False, look_for_keys=False
-            )
+                self.ssh_client.connect(
+                    self.ip_address, username=user,
+                    password=password, pkey=pkey,
+                    timeout=timeout, banner_timeout=200,
+                    allow_agent=False, look_for_keys=False
+                )
 
-            logger.debug(f"{self.ip_address} ssh client created")
-        except Exception as e:
-            raise e
-
-        return self.ssh_client
+                logger.debug(f"{self.ip_address} ssh client created")
+                return self.ssh_client
+            except Exception as err:
+                last_err = err
+                self.close()
+                if attempt < retries - 1 and self._is_transient_ssh_error(err):
+                    logger.debug(
+                        f"{self.ip_address}: {ssh_boot_status_message(err)} "
+                        f"(retry {attempt + 1}/{retries})"
+                    )
+                    time.sleep(retry_delay)
+                    continue
+                raise last_err
 
     def run_remote_command(self, cmd, timeout=None, run_async=False):
         """
