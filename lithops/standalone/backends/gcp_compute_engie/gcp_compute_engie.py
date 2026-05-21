@@ -31,7 +31,11 @@ from lithops.version import __version__
 from lithops.util.ssh_client import SSHClient
 from lithops.constants import COMPUTE_CLI_MSG, CACHE_DIR
 from lithops.config import load_yaml_config, dump_yaml_config
-from lithops.standalone.utils import StandaloneMode
+from lithops.standalone.utils import (
+    StandaloneMode,
+    CLOUD_CONFIG_WORKER,
+    CLOUD_CONFIG_WORKER_PK,
+)
 from lithops.standalone import LithopsValidationError
 
 
@@ -70,6 +74,7 @@ class GCPComputeEngieBackend:
 
         self.master = None
         self.workers = []
+        self.instance_types = {}
 
         msg = COMPUTE_CLI_MSG.format('GCP Compute Engine')
         logger.info(f"{msg} - Zone: {self.zone} - Project: {self.project_name}")
@@ -176,11 +181,18 @@ class GCPComputeEngieBackend:
         self.config['internal_firewall_name'] = internal_fw_name
 
     def _create_ssh_key(self):
-        if 'ssh_key_filename' in self.config:
-            return
-
+        """
+        Creates a new SSH key pair on the client (same pattern as AWS EC2 / IBM VPC).
+        Used for Lithops client -> master SSH; workers use the master lithops_id_rsa key.
+        """
         if 'ssh_key_filename' in self.gce_data and os.path.isfile(self.gce_data['ssh_key_filename']):
             self.config['ssh_key_filename'] = self.gce_data['ssh_key_filename']
+            return
+
+        user_key = os.path.expanduser(self.config.get('ssh_key_filename', '~/.ssh/id_rsa'))
+        if os.path.isfile(user_key) and 'lithops-key-' not in os.path.basename(user_key):
+            logger.debug(f'Using user-provided SSH key {user_key}')
+            self.config['ssh_key_filename'] = user_key
             return
 
         keyname = f'lithops-key-{str(uuid.uuid4())[-8:]}'
@@ -189,7 +201,25 @@ class GCPComputeEngieBackend:
         if not os.path.isfile(key_filename):
             logger.debug("Generating new ssh key pair")
             os.system(f'ssh-keygen -b 2048 -t rsa -f {key_filename} -q -N ""')
+            logger.debug(f"SSH key pair generated: {key_filename}")
         self.config['ssh_key_filename'] = key_filename
+
+    def _load_instance_types(self):
+        if 'instance_types' in self.gce_data:
+            self.instance_types = self.gce_data['instance_types']
+            return
+
+        self.instance_types = {}
+        request = self.compute_client.machineTypes().list(
+            project=self.project_name, zone=self.zone
+        )
+        while request is not None:
+            response = request.execute()
+            for machine_type in response.get('items', []):
+                self.instance_types[machine_type['name']] = machine_type.get('guestCpus', 1)
+            request = self.compute_client.machineTypes().list_next(
+                previous_request=request, previous_response=response
+            )
 
     def _instance_exists(self, instance_name):
         return self._resource_exists(
@@ -200,7 +230,7 @@ class GCPComputeEngieBackend:
 
     def _create_master_instance(self):
         name = self.config.get('instance_name') or f'lithops-master-{self.network_key}'
-        self.master = GCPComputeEngieInstance(self.config, self.compute_client)
+        self.master = GCPComputeEngieInstance(self.config, self.compute_client, public=True)
         self.master.name = name
         self.master.instance_type = self.config['master_instance_type']
         self.master.delete_on_dismantle = False
@@ -247,6 +277,7 @@ class GCPComputeEngieBackend:
         if 'instance_name' not in self.config:
             self.config['instance_name'] = f'lithops-master-{self.network_key}'
         self._create_master_instance()
+        self._load_instance_types()
         self.gce_data = {
             'mode': self.mode,
             'vpc_data_type': self.vpc_data_type,
@@ -258,7 +289,8 @@ class GCPComputeEngieBackend:
             'subnet_name': self.config['subnet_name'],
             'firewall_name': self.config['firewall_name'],
             'internal_firewall_name': self.config['internal_firewall_name'],
-            'ssh_key_filename': self.config['ssh_key_filename']
+            'ssh_key_filename': self.config['ssh_key_filename'],
+            'instance_types': self.instance_types,
         }
         self._dump_gce_data()
 
@@ -325,6 +357,13 @@ class GCPComputeEngieBackend:
             return
 
         self._delete_vm_instances(all=all_clean)
+
+        master_name = self.gce_data.get('master_name') or (self.master.name if self.master else None)
+        if master_name:
+            master_pk = os.path.join(self.cache_dir, f'{master_name}-id_rsa.pub')
+            if all_clean and os.path.isfile(master_pk):
+                os.remove(master_pk)
+
         if all_clean:
             self._delete_network_resources()
             self._delete_ssh_key()
@@ -421,31 +460,52 @@ class GCPComputeEngieBackend:
         return self.config['worker_instance_type']
 
     def get_worker_cpu_count(self):
-        return 1
+        return self.instance_types.get(self.config['worker_instance_type'], 1)
 
     def create_worker(self, name):
+        """
+        Creates a new worker VM instance (same flow as AWS EC2 / IBM VPC).
+        """
         if self.mode == StandaloneMode.CONSUME.value:
             raise NotImplementedError(f'{self.name}.create_worker() not available in consume mode')
 
-        worker = GCPComputeEngieInstance(self.config, self.compute_client)
+        worker = GCPComputeEngieInstance(self.config, self.compute_client, public=False)
         worker.name = name
         worker.instance_type = self.config['worker_instance_type']
-        worker.ssh_credentials['key_filename'] = '~/.ssh/lithops_id_rsa'
-        worker.ssh_credentials.pop('password', None)
-        worker.create(public=False)
+
+        user = worker.ssh_credentials['username']
+        pub_key = os.path.join(self.cache_dir, f'{self.master.name}-id_rsa.pub')
+        ssh_public_key = None
+        user_data = None
+
+        if os.path.isfile(pub_key):
+            with open(pub_key, 'r') as pk:
+                pk_data = pk.read().strip()
+            user_data = CLOUD_CONFIG_WORKER_PK.format(user, pk_data)
+            ssh_public_key = pk_data
+            worker.ssh_credentials['key_filename'] = '~/.ssh/lithops_id_rsa'
+            worker.ssh_credentials.pop('password', None)
+        else:
+            logger.error(f'Unable to locate {pub_key}')
+            worker.ssh_credentials.pop('key_filename', None)
+            token = worker.ssh_credentials['password']
+            user_data = CLOUD_CONFIG_WORKER.format(user, token)
+
+        worker.create(public=False, user_data=user_data, ssh_public_key=ssh_public_key)
         self.workers.append(worker)
 
     def get_runtime_key(self, runtime_name, version=__version__):
         runtime = runtime_name.replace('/', '-').replace(':', '-')
-        master_id = self.config['instance_name']
+        master_id = self.gce_data.get('master_id', self.config.get('instance_name', self.master.name))
         return os.path.join(self.name, version, master_id, runtime)
 
 
 class GCPComputeEngieInstance:
 
-    def __init__(self, config, compute_client):
+    def __init__(self, config, compute_client, public=False):
         self.config = config
         self.compute_client = compute_client
+        self.public = public
         self.name = self.config['instance_name']
         self.project_name = self.config['project_name']
         self.zone = self.config['zone']
@@ -490,12 +550,16 @@ class GCPComputeEngieInstance:
             self.ssh_client = None
 
     def is_ready(self):
+        login_type = 'password' if 'password' in self.ssh_credentials and \
+            not self.public else 'publickey'
         try:
             self.get_ssh_client().run_remote_command('id')
         except LithopsValidationError as err:
             raise err
         except Exception as err:
-            logger.debug(f'SSH to {self.public_ip or self.private_ip} failed: {err}')
+            logger.debug(
+                f'SSH to {self.public_ip or self.private_ip} failed ({login_type}): {err}'
+            )
             self.del_ssh_client()
             return False
         return True
@@ -503,7 +567,10 @@ class GCPComputeEngieInstance:
     def wait_ready(self, timeout=INSTANCE_START_TIMEOUT):
         logger.debug(f'Waiting {self} to become ready')
         start = time.time()
-        self.get_public_ip()
+        if self.public:
+            self.get_public_ip()
+        else:
+            self.get_private_ip()
         while (time.time() - start < timeout):
             if self.is_ready():
                 return True
@@ -542,12 +609,16 @@ class GCPComputeEngieInstance:
             self.get_instance_data()
         return self.public_ip
 
-    def create(self, public=False, **kwargs):
-        if self.get_instance_data() if self._exists() else False:
+    def create(self, public=False, ssh_public_key=None, user_data=None, **kwargs):
+        if self._exists():
+            self.get_instance_data()
             return
 
-        with open(os.path.expanduser(self.ssh_credentials['key_filename'] + '.pub'), 'r') as pkf:
-            public_key_data = pkf.read().strip()
+        if ssh_public_key is None and 'key_filename' in self.ssh_credentials:
+            pub_path = os.path.expanduser(self.ssh_credentials['key_filename'] + '.pub')
+            if os.path.isfile(pub_path):
+                with open(pub_path, 'r') as pkf:
+                    ssh_public_key = pkf.read().strip()
 
         network_iface = {
             'subnetwork': (
@@ -571,16 +642,22 @@ class GCPComputeEngieInstance:
                 }
             }],
             'networkInterfaces': [network_iface],
-            'metadata': {
-                'items': [{
-                    'key': 'ssh-keys',
-                    'value': f'{self.ssh_credentials["username"]}:{public_key_data}'
-                }]
-            },
             'labels': {
                 'type': 'lithops-runtime'
             }
         }
+
+        metadata_items = []
+        if ssh_public_key:
+            metadata_items.append({
+                'key': 'ssh-keys',
+                'value': f'{self.ssh_credentials["username"]}:{ssh_public_key}'
+            })
+        if user_data:
+            metadata_items.append({'key': 'user-data', 'value': user_data})
+        if metadata_items:
+            body['metadata'] = {'items': metadata_items}
+
         if self.config.get('request_spot_instances', False) and not public:
             body['scheduling'] = {
                 'provisioningModel': 'SPOT',
