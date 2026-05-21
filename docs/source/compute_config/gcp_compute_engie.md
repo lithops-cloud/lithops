@@ -19,6 +19,20 @@ Install Google Cloud dependencies:
 python3 -m pip install lithops[gcp]
 ```
 
+## VM setup troubleshooting
+
+If master/worker installation fails with ``Cannot uninstall typing_extensions`` (or similar
+``RECORD file not found`` / ``installed by debian`` errors), pip is conflicting with Ubuntu
+system packages. On the VM, run:
+
+```bash
+sudo PIP_BREAK_SYSTEM_PACKAGES=1 pip3 install --ignore-installed -U pip
+sudo PIP_BREAK_SYSTEM_PACKAGES=1 pip3 install --ignore-installed flask gevent 'lithops[gcp,redis]'
+sudo systemctl restart lithops-master
+```
+
+New installs use ``--ignore-installed`` in the Lithops setup script to avoid this issue.
+
 ## Required IAM/API setup
 
 ### Enable the Compute Engine API
@@ -106,6 +120,8 @@ gcp_compute_engie:
 |gcp_compute_engie|max_workers|100|no|Max number of workers per `FunctionExecutor()` |
 |gcp_compute_engie|worker_processes|AUTO|no|Worker process count |
 |gcp_compute_engie|exec_mode|reuse|no|One of `consume`, `create`, `reuse` |
+|gcp_compute_engie|extra_apt_packages|[]|no|Extra Debian/Ubuntu packages installed on master/worker VMs during setup. List or space-separated string. See [VM installation extras](../execution_modes.rst#vm-installation-extras) |
+|gcp_compute_engie|extra_python_packages|[]|no|Extra pip packages installed on master/worker VMs after Lithops. List or space-separated string. See [VM installation extras](../execution_modes.rst#vm-installation-extras) |
 
 ## Consume mode
 

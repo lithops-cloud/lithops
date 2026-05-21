@@ -1,5 +1,7 @@
 import os
+import re
 import json
+import shlex
 from enum import Enum
 
 from lithops.constants import (
@@ -101,6 +103,48 @@ runcmd:
 """
 
 
+def _normalize_package_list(packages):
+    if not packages:
+        return []
+    if isinstance(packages, str):
+        return [p.strip() for p in packages.split() if p.strip()]
+    return [str(p).strip() for p in packages if str(p).strip()]
+
+
+def _format_apt_packages_for_shell(packages):
+    safe = []
+    for package in _normalize_package_list(packages):
+        if not re.match(r'^[a-z0-9][a-z0-9.+~-]*$', package, re.IGNORECASE):
+            raise LithopsValidationError(
+                f'Invalid apt package name "{package}" in extra_apt_packages'
+            )
+        safe.append(package)
+    return ' '.join(safe)
+
+
+def _format_pip_packages_for_shell(packages):
+    quoted = []
+    for package in _normalize_package_list(packages):
+        if re.search(r'[;&|`$(){}]', package):
+            raise LithopsValidationError(
+                f'Invalid pip package spec "{package}" in extra_python_packages'
+            )
+        quoted.append(shlex.quote(package))
+    return ' '.join(quoted)
+
+
+def install_script_kwargs_from_config(config=None):
+    """
+    Build keyword arguments for get_host_setup_script() from standalone config.
+    """
+    config = config or {}
+    return {
+        'lithops_pip_spec': lithops_pip_spec_from_config(config),
+        'extra_apt_packages': _format_apt_packages_for_shell(config.get('extra_apt_packages')),
+        'extra_python_packages': _format_pip_packages_for_shell(config.get('extra_python_packages')),
+    }
+
+
 def lithops_pip_spec_from_config(config=None, default='lithops'):
     """
     Build a minimal pip spec from lithops config (avoid lithops[all] on VMs).
@@ -132,10 +176,17 @@ def lithops_pip_spec_from_config(config=None, default='lithops'):
     return f"lithops[{','.join(sorted(extras))}]"
 
 
-def get_host_setup_script(docker=True, run_install=True, lithops_pip_spec='lithops'):
+def get_host_setup_script(
+    docker=True,
+    run_install=True,
+    lithops_pip_spec='lithops',
+    extra_apt_packages='',
+    extra_python_packages='',
+):
     """
     Returns the script necessary for installing a lithops VM host.
     Set run_install=False when appending master/worker setup (they run install first).
+    extra_apt_packages/extra_python_packages are pre-validated space-separated strings.
     """
     script = f"""#!/bin/bash
     mkdir -p {SA_INSTALL_DIR};
@@ -194,11 +245,28 @@ def get_host_setup_script(docker=True, run_install=True, lithops_pip_spec='litho
 
     fi;
 
+    EXTRA_APT="{extra_apt_packages}"
+    if [ -n "$EXTRA_APT" ]; then
+    wait_internet_connection;
+    apt_install update
+    echo "--> Installing extra apt packages: $EXTRA_APT"
+    apt_install install -y $EXTRA_APT
+    fi;
+
     if ! pip3 list 2>/dev/null | grep -q lithops; then
     wait_internet_connection;
     echo "--> Installing Lithops python dependencies ({lithops_pip_spec})"
     export PIP_BREAK_SYSTEM_PACKAGES=1
-    pip3 install -U pip flask gevent {lithops_pip_spec}
+    # --ignore-installed: do not uninstall Debian python packages (avoids RECORD errors)
+    pip3 install --ignore-installed -U pip
+    pip3 install --ignore-installed flask gevent {lithops_pip_spec}
+    fi;
+
+    EXTRA_PY="{extra_python_packages}"
+    if [ -n "$EXTRA_PY" ]; then
+    echo "--> Installing extra python packages: $EXTRA_PY"
+    export PIP_BREAK_SYSTEM_PACKAGES=1
+    pip3 install --ignore-installed $EXTRA_PY
     fi;
     }}
     """

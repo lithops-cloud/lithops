@@ -129,6 +129,8 @@ In summary, you can use one of the following settings:
 |aws_ec2 | soft_dismantle_timeout | 300 |no| Time in seconds to stop the VM instance after a job **completed** its execution |
 |aws_ec2 | hard_dismantle_timeout | 3600 | no | Time in seconds to stop the VM instance after a job **started** its execution |
 |aws_ec2 | exec_mode | reuse | no | One of: **consume**, **create** or **reuse**. If set to  **create**, Lithops will automatically create new VMs for each map() call based on the number of elements in iterdata. If set to **reuse** will try to reuse running workers if exist |
+|aws_ec2 | extra_apt_packages | [] | no | Extra Debian/Ubuntu packages installed on master/worker VMs during setup. List or space-separated string. See [VM installation extras](../execution_modes.rst#vm-installation-extras) |
+|aws_ec2 | extra_python_packages | [] | no | Extra pip packages installed on master/worker VMs after Lithops. List or space-separated string. See [VM installation extras](../execution_modes.rst#vm-installation-extras) |
 
 
 ## Additional configuration

@@ -93,7 +93,9 @@ SA_DEFAULT_CONFIG_KEYS = {
     'start_timeout': 300,
     'auto_dismantle': True,
     'soft_dismantle_timeout': 300,
-    'hard_dismantle_timeout': 3600
+    'hard_dismantle_timeout': 3600,
+    'extra_apt_packages': [],
+    'extra_python_packages': [],
 }
 
 SERVERLESS_BACKENDS = [
