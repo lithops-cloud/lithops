@@ -124,6 +124,10 @@ class GCPComputeEngieBackend:
 
     def _create_network(self):
         if 'network_name' in self.config:
+            logger.debug(
+                f'Using user-provided network {self.config["network_name"]} '
+                f'(subnet {self.config.get("subnet_name", "default")})'
+            )
             return
 
         if 'network_name' in self.gce_data:
@@ -132,9 +136,23 @@ class GCPComputeEngieBackend:
             self.config['firewall_name'] = self.gce_data['firewall_name']
             self.config['internal_firewall_name'] = self.gce_data.get('internal_firewall_name')
             self.network_name = self.config['network_name']
+            logger.debug(f'Using network {self.config["network_name"]}')
+            logger.debug(
+                f'Using subnet {self.config["subnet_name"]} in region {self.region}'
+            )
+            logger.debug(f'Using firewall {self.config["firewall_name"]} (SSH)')
+            if self.config.get('internal_firewall_name'):
+                logger.debug(
+                    f'Using firewall {self.config["internal_firewall_name"]} '
+                    f'(internal ports 8080/8081/6379/22)'
+                )
             if self.gce_data.get('router_name'):
                 self.config['router_name'] = self.gce_data['router_name']
                 self.config['nat_name'] = self.gce_data.get('nat_name')
+                logger.debug(
+                    f'Using Cloud NAT router {self.config["router_name"]} '
+                    f'(NAT {self.config.get("nat_name")})'
+                )
             else:
                 self._create_cloud_nat()
                 self.gce_data['router_name'] = self.config.get('router_name')
@@ -148,6 +166,10 @@ class GCPComputeEngieBackend:
         subnet_name = f'{self.network_name}-subnet'
         firewall_name = f'{self.network_name}-fw'
 
+        logger.debug(
+            f'Creating VPC network {self.network_name} '
+            f'(CIDR {self.config["network_cidr"]})'
+        )
         body = {
             'name': self.network_name,
             'autoCreateSubnetworks': False
@@ -155,6 +177,10 @@ class GCPComputeEngieBackend:
         op = self.compute_client.networks().insert(project=self.project_name, body=body).execute()
         self._wait_operation(op['name'], scope='global')
 
+        logger.debug(
+            f'Creating subnet {subnet_name} in {self.region} '
+            f'(CIDR {self.config["subnet_cidr"]})'
+        )
         body = {
             'name': subnet_name,
             'ipCidrRange': self.config['subnet_cidr'],
@@ -167,6 +193,7 @@ class GCPComputeEngieBackend:
         ).execute()
         self._wait_operation(op['name'], scope='region')
 
+        logger.debug(f'Creating firewall {firewall_name} (SSH tcp/22 from internet)')
         body = {
             'name': firewall_name,
             'network': f'projects/{self.project_name}/global/networks/{self.network_name}',
@@ -177,6 +204,10 @@ class GCPComputeEngieBackend:
         self._wait_operation(op['name'], scope='global')
 
         internal_fw_name = f'{self.network_name}-internal-fw'
+        logger.debug(
+            f'Creating firewall {internal_fw_name} '
+            f'(internal tcp 8080/8081/6379/22 from {self.config["network_cidr"]})'
+        )
         body = {
             'name': internal_fw_name,
             'network': f'projects/{self.project_name}/global/networks/{self.network_name}',
@@ -192,6 +223,10 @@ class GCPComputeEngieBackend:
         self.config['internal_firewall_name'] = internal_fw_name
 
         self._create_cloud_nat()
+        logger.debug(
+            f'VPC setup complete: network={self.network_name}, '
+            f'subnet={subnet_name}, router={self.config.get("router_name")}'
+        )
 
     def _create_cloud_nat(self):
         """
@@ -222,7 +257,10 @@ class GCPComputeEngieBackend:
             self.config['nat_name'] = nat_name
             return
 
-        logger.debug(f'Creating Cloud NAT router {router_name} for worker outbound internet')
+        logger.debug(
+            f'Creating Cloud NAT router {router_name} with NAT {nat_name} '
+            f'on subnet {subnet_name} (worker outbound internet)'
+        )
         network_url = (
             f'https://www.googleapis.com/compute/v1/projects/{self.project_name}'
             f'/global/networks/{network_name}'
@@ -314,7 +352,13 @@ class GCPComputeEngieBackend:
         self.master.instance_type = self.config['master_instance_type']
         self.master.delete_on_dismantle = False
 
-        if self.mode != StandaloneMode.CONSUME.value and not self._instance_exists(name):
+        if self._instance_exists(name):
+            logger.debug(f'Using existing master VM {name}')
+        elif self.mode != StandaloneMode.CONSUME.value:
+            logger.debug(
+                f'Creating master VM {name} ({self.config["master_instance_type"]}) '
+                f'in subnet {self.config.get("subnet_name")} with external IP'
+            )
             self.master.create(public=True)
         self.master.get_instance_data()
 
@@ -728,8 +772,16 @@ class GCPComputeEngieInstance:
 
     def create(self, public=False, ssh_public_key=None, user_data=None, **kwargs):
         if self._exists():
+            logger.debug(f'VM instance {self.name} already exists')
             self.get_instance_data()
             return
+
+        role = 'master' if public else 'worker'
+        ext_ip = 'with external IP' if (public or self.config.get('worker_public_ip', False)) else 'private IP only (NAT egress)'
+        logger.debug(
+            f'Creating {role} VM {self.name} ({self.instance_type}) '
+            f'in subnet {self.config.get("subnet_name")} ({ext_ip})'
+        )
 
         if ssh_public_key is None and 'key_filename' in self.ssh_credentials:
             pub_path = os.path.expanduser(self.ssh_credentials['key_filename'] + '.pub')

@@ -210,6 +210,20 @@ def get_host_setup_script(
     }}
     }}
 
+    configure_redis_for_standalone(){{
+    # Workers connect to the master private IP; Redis must not listen on loopback only.
+    if [ ! -f /etc/redis/redis.conf ]; then
+        return 0
+    fi
+    echo "--> Configuring Redis for standalone workers (bind 0.0.0.0)"
+    sed -i -E 's/^bind .*/bind 0.0.0.0 -::1/' /etc/redis/redis.conf
+    if grep -q '^protected-mode yes' /etc/redis/redis.conf; then
+        sed -i 's/^protected-mode yes/protected-mode no/' /etc/redis/redis.conf
+    fi
+    systemctl enable redis-server.service
+    systemctl restart redis-server.service
+    }}
+
     install_packages(){{
     set -e
     export DEBIAN_FRONTEND=noninteractive
@@ -239,9 +253,7 @@ def get_host_setup_script(
     else
     apt_install install -y unzip redis-server python3-pip
     fi;
-    systemctl enable redis-server.service
-    sed -i 's/^bind 127.0.0.1 ::1/bind 0.0.0.0/' /etc/redis/redis.conf
-    systemctl restart redis-server.service
+    configure_redis_for_standalone
 
     fi;
 
@@ -299,6 +311,7 @@ def get_master_setup_script(config, vm_data):
     echo '{json.dumps(config)}' > {SA_CONFIG_FILE};
     }}
     setup_service(){{
+    configure_redis_for_standalone >> {SA_SETUP_LOG_FILE} 2>&1
     echo '{MASTER_SERVICE_FILE}' > /etc/systemd/system/{MASTER_SERVICE_NAME};
     chmod 644 /etc/systemd/system/{MASTER_SERVICE_NAME};
     systemctl daemon-reload;
