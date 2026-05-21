@@ -206,8 +206,8 @@ gcp_compute_engie:
 |gcp_compute_engie|max_workers|100|no|Max number of workers per `FunctionExecutor()` |
 |gcp_compute_engie|worker_processes|AUTO|no|Worker process count |
 |gcp_compute_engie|exec_mode|reuse|no|One of `consume`, `create`, `reuse` |
-|gcp_compute_engie|extra_apt_packages|[]|no|Extra Debian/Ubuntu packages installed on master/worker VMs during setup. List or space-separated string. See [VM installation extras](../execution_modes.rst#vm-installation-extras) |
-|gcp_compute_engie|extra_python_packages|[]|no|Extra pip packages installed on master/worker VMs after Lithops. List or space-separated string. See [VM installation extras](../execution_modes.rst#vm-installation-extras) |
+|gcp_compute_engie|extra_apt_packages|[]|no|Extra Debian/Ubuntu packages on master/worker VMs during setup (YAML list or space-separated string) |
+|gcp_compute_engie|extra_python_packages|[]|no|Extra pip packages on master/worker VMs after Lithops (YAML list or space-separated string) |
 
 ## Consume mode
 
