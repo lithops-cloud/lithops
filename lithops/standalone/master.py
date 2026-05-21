@@ -205,13 +205,24 @@ def get_workers():
     return response
 
 
+def _redis_field(value):
+    """
+    Redis hash values must be bytes, str, int, or float.
+    """
+    if isinstance(value, (dict, list)):
+        return json.dumps(value)
+    if isinstance(value, bool):
+        return str(value)
+    return value
+
+
 def save_worker(worker, standalone_config, work_queue_name):
     """
     Saves the worker instance with the provided data in redis
     """
     config = copy.deepcopy(standalone_config)
     del config[config['backend']]
-    config = {key: str(value) if isinstance(value, bool) else value for key, value in config.items()}
+    config = {key: _redis_field(value) for key, value in config.items()}
 
     worker_processes = CPU_COUNT if worker.config['worker_processes'] == 'AUTO' \
         else worker.config['worker_processes']
