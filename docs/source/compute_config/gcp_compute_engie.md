@@ -65,7 +65,49 @@ gcloud projects add-iam-policy-binding lithops-dev \
   --role="roles/compute.admin"
 ```
 
-For **consume** mode (existing VM only), narrower roles may suffice if the VM and network already exist; you still need SSH access to the instance.
+### GCS access from master and worker VMs
+
+Your laptop uses the JSON key in `gcp.credentials_path`. **VMs do not copy that file**; they use the [GCE metadata service](https://cloud.google.com/compute/docs/access/service-accounts) and need a **service account attached at boot**.
+
+Lithops attaches the account from `gcp.credentials_path` (`client_email` in the JSON) to every master and worker it creates. You can override with:
+
+```yaml
+gcp_compute_engie:
+  service_account: lithops-executor@lithops-dev.iam.gserviceaccount.com
+```
+
+That service account also needs permission to use **Google Cloud Storage** (runtime data, job payloads). **Run this yourself** (replace project and email if yours differ):
+
+```bash
+gcloud projects add-iam-policy-binding lithops-dev \
+  --member="serviceAccount:lithops-executor@lithops-dev.iam.gserviceaccount.com" \
+  --role="roles/storage.objectAdmin"
+```
+
+To confirm the role is present:
+
+```bash
+gcloud projects get-iam-policy lithops-dev \
+  --flatten="bindings[].members" \
+  --filter="bindings.members:lithops-executor@lithops-dev.iam.gserviceaccount.com" \
+  --format="table(bindings.role)"
+```
+
+You should see at least `roles/compute.admin` and `roles/storage.objectAdmin`.
+
+### After updating Lithops (service account on VMs)
+
+1. Ensure both IAM bindings above exist (manual, one-time).
+2. Recreate VMs so they boot with the service account attached:
+
+```bash
+lithops clean -a -b gcp_compute_engie -s gcp_storage
+lithops hello -b gcp_compute_engie -s gcp_storage
+```
+
+If you see `metadata ... service-accounts/default ... 404`, the VM has **no service account attached** (typical for VMs created before this backend change). Use `clean -a` + `hello`, or in the GCP console edit the instance → **Service account** → select your Lithops executor SA → save and restart the VM.
+
+For **consume** mode (existing VM only), narrower roles may suffice if the VM and network already exist; you still need SSH access to the instance and a service account on that VM with GCS permissions.
 
 ## List VM images
 
@@ -150,7 +192,8 @@ gcp_compute_engie:
 |gcp_compute_engie|project_name||yes|GCP project ID |
 |gcp_compute_engie|zone||yes|Compute Engine zone, for example `us-east1-b` |
 |gcp_compute_engie|region|derived from zone|no|Region used for subnet creation |
-|gcp_compute_engie|credentials_path||no|Service account JSON path. If omitted, ADC is used |
+|gcp_compute_engie|credentials_path||no|Service account JSON path. If omitted, ADC is used. Also used to pick the SA attached to master/worker VMs |
+|gcp_compute_engie|service_account||no|Service account email for VMs (GCS via metadata). Default: `client_email` from `credentials_path` |
 |gcp_compute_engie|master_instance_type|e2-small|no|Master VM machine type |
 |gcp_compute_engie|worker_instance_type|e2-standard-2|no|Worker VM machine type |
 |gcp_compute_engie|source_image|ubuntu-2404-lts-amd64 family (Python 3.12)|no|Boot image reference |

@@ -16,6 +16,7 @@
 
 import os
 import re
+import json
 import time
 import uuid
 import logging
@@ -48,6 +49,9 @@ UBUNTU_LTS_FAMILIES = (
     'ubuntu-2204-lts',
 )
 
+# Scopes for the SA attached to master/worker VMs (GCS, etc. via metadata credentials).
+GCE_INSTANCE_SCOPES = ['https://www.googleapis.com/auth/cloud-platform']
+
 
 class GCPComputeEngieBackend:
 
@@ -71,6 +75,7 @@ class GCPComputeEngieBackend:
         self.network_key = None
 
         self.compute_client = self._create_compute_client()
+        self._resolve_service_account_email()
 
         self.master = None
         self.workers = []
@@ -78,6 +83,47 @@ class GCPComputeEngieBackend:
 
         msg = COMPUTE_CLI_MSG.format('GCP Compute Engine')
         logger.info(f"{msg} - Zone: {self.zone} - Project: {self.project_name}")
+
+    def _resolve_service_account_email(self):
+        """
+        VMs use the GCE metadata service for GCS credentials (not the laptop key file).
+        Attach the same service account as gcp.credentials_path when creating instances.
+        """
+        if self.config.get('service_account'):
+            self.config['service_account_email'] = self.config['service_account']
+            logger.debug(
+                f'VM service account (from config): {self.config["service_account_email"]}'
+            )
+            return
+
+        if self.credentials_path and os.path.isfile(self.credentials_path):
+            with open(self.credentials_path) as f:
+                sa_data = json.load(f)
+            email = sa_data.get('client_email')
+            if email:
+                self.config['service_account_email'] = email
+                logger.debug(
+                    f'VM service account (from credentials_path): {email}'
+                )
+                return
+
+        try:
+            credentials, _ = google.auth.default(
+                scopes=['https://www.googleapis.com/auth/cloud-platform']
+            )
+            email = getattr(credentials, 'service_account_email', None)
+            if email:
+                self.config['service_account_email'] = email
+                logger.debug(f'VM service account (from ADC): {email}')
+                return
+        except Exception:
+            pass
+
+        logger.warning(
+            'No service account resolved for GCE VMs. Workers/master cannot access GCS '
+            'via metadata unless you set gcp_compute_engie.service_account or '
+            'gcp.credentials_path.'
+        )
 
     def _wait_operation(self, operation_name, scope='zone'):
         while True:
@@ -828,6 +874,19 @@ class GCPComputeEngieInstance:
             metadata_items.append({'key': 'user-data', 'value': user_data})
         if metadata_items:
             body['metadata'] = {'items': metadata_items}
+
+        sa_email = self.config.get('service_account_email')
+        if sa_email:
+            body['serviceAccounts'] = [{
+                'email': sa_email,
+                'scopes': GCE_INSTANCE_SCOPES,
+            }]
+            logger.debug(f'Attaching service account {sa_email} to VM {self.name}')
+        else:
+            logger.warning(
+                f'Creating VM {self.name} without a service account; '
+                f'GCS access from the VM will fail'
+            )
 
         if self.config.get('request_spot_instances', False) and not public:
             body['scheduling'] = {
