@@ -1,7 +1,6 @@
 import paramiko
 import logging
 import os
-import time
 
 logger = logging.getLogger(__name__)
 
@@ -50,53 +49,34 @@ class SSHClient():
                 pass
         self.ssh_client = None
 
-    def _is_transient_ssh_error(self, err):
-        if isinstance(err, (paramiko.SSHException, TimeoutError, OSError)):
-            return True
-        msg = str(err).lower()
-        return any(s in msg for s in (
-            'banner', 'timed out', 'timeout', 'unable to connect',
-            'no existing session', 'connection reset', 'connection refused',
-        ))
-
-    def create_client(self, timeout=2, retries=3, retry_delay=1):
+    def create_client(self, timeout=2):
         """
-        Create the SSH client connection, retrying transient boot-time errors.
+        Create the SSH client connection
         """
-        last_err = None
-        for attempt in range(retries):
-            try:
-                self.ssh_client = paramiko.SSHClient()
-                self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        try:
+            self.ssh_client = paramiko.SSHClient()
+            self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
-                user = self.ssh_credentials.get('username')
-                password = self.ssh_credentials.get('password')
-                pkey = None
+            user = self.ssh_credentials.get('username')
+            password = self.ssh_credentials.get('password')
+            pkey = None
 
-                if self.ssh_credentials.get('key_filename'):
-                    with open(self.ssh_credentials['key_filename']) as f:
-                        pkey = paramiko.RSAKey.from_private_key(f)
+            if self.ssh_credentials.get('key_filename'):
+                with open(self.ssh_credentials['key_filename']) as f:
+                    pkey = paramiko.RSAKey.from_private_key(f)
 
-                self.ssh_client.connect(
-                    self.ip_address, username=user,
-                    password=password, pkey=pkey,
-                    timeout=timeout, banner_timeout=200,
-                    allow_agent=False, look_for_keys=False
-                )
+            self.ssh_client.connect(
+                self.ip_address, username=user,
+                password=password, pkey=pkey,
+                timeout=timeout, banner_timeout=200,
+                allow_agent=False, look_for_keys=False
+            )
 
-                logger.debug(f"{self.ip_address} ssh client created")
-                return self.ssh_client
-            except Exception as err:
-                last_err = err
-                self.close()
-                if attempt < retries - 1 and self._is_transient_ssh_error(err):
-                    logger.debug(
-                        f"{self.ip_address}: {ssh_boot_status_message(err)} "
-                        f"(retry {attempt + 1}/{retries})"
-                    )
-                    time.sleep(retry_delay)
-                    continue
-                raise last_err
+            logger.debug(f"{self.ip_address} ssh client created")
+        except Exception as e:
+            raise e
+
+        return self.ssh_client
 
     def run_remote_command(self, cmd, timeout=None, run_async=False):
         """

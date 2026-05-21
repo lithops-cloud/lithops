@@ -77,6 +77,48 @@ lithops image list -b gcp_compute_engie
 
 Use the **Image ID** column value as `source_image` in your config (for example `projects/ubuntu-os-cloud/global/images/family/ubuntu-2404-lts-amd64`).
 
+## Networking and internet access
+
+In `create` / `reuse` mode Lithops provisions a custom VPC, subnet, firewalls, and **Cloud NAT** (outbound internet for private worker VMs). This matches the pattern used on **IBM VPC** (public gateway on the subnet) rather than giving every worker its own public IP.
+
+| VM | External IP | Outbound internet | SSH from your laptop |
+|---|---|---|---|
+| Master | Yes (ephemeral) | Direct | Yes (public IP) |
+| Workers | No (private IP only) | Via Cloud NAT | No (master reaches workers on the private network) |
+
+**AWS EC2** in Lithops assigns a public IP to every instance in the public subnet (`AssociatePublicIpAddress`), so workers reach apt/Docker without NAT. On GCP, a public IP per short-lived worker is optional but usually more expensive than one Cloud NAT gateway.
+
+Set `worker_public_ip: true` in `gcp_compute_engie` if you prefer the AWS-style model (one ephemeral external IP per worker) instead of Cloud NAT.
+
+If you created a Lithops VPC **before** Cloud NAT support was added, run `lithops hello` once (init will add NAT to the existing subnet) or `lithops clean -a` and let Lithops recreate the network.
+
+### Resources Lithops creates (`create` / `reuse`)
+
+All of these are shared by the **master** and **workers** (same subnet). The master is just another VM with `public=True` (ephemeral external IP for SSH from your laptop).
+
+| Resource | Name pattern | Purpose |
+|---|---|---|
+| VPC network | `lithops-net-XXXXXX` | Custom mode VPC |
+| Regional subnet | `lithops-net-XXXXXX-subnet` | Master + workers NICs (`10.0.0.0/24` by default) |
+| Firewall (SSH) | `lithops-net-XXXXXX-fw` | TCP/22 from `0.0.0.0/0` |
+| Firewall (internal) | `lithops-net-XXXXXX-internal-fw` | TCP 8080, 8081, 6379, 22 inside VPC CIDR |
+| Cloud Router + NAT | `lithops-net-XXXXXX-router` | Outbound internet for private workers |
+| Master VM | `lithops-master-XXXXXX` | Redis, Lithops master service, SSH entry point |
+| Worker VMs | `lithops-worker-<id>` | Job execution (created per run) |
+| Boot disks | auto-deleted with VM | `autoDelete: true` on instance disks |
+| Master external IP | ephemeral | Released when the master VM is deleted |
+
+**Local (not in GCP):** cache file `~/.lithops/cache/gcp_compute_engie/<project>_<region>_vpc_data`, optional Lithops-generated SSH key, `{master}-id_rsa.pub` for worker cloud-init.
+
+### `lithops clean` vs `lithops clean -a`
+
+| Command | VMs | VPC / subnet / firewalls / NAT | Cache + Lithops SSH key |
+|---|---|---|---|
+| `lithops clean` | Workers only | Kept | Kept |
+| `lithops clean -a` | Master + workers | Deleted (reverse order: firewalls → router → subnet → network) | Removed |
+
+If you set `network_name` in config (bring your own VPC), Lithops does **not** create or delete network resources (`vpc_data_type: provided`).
+
 ## Create and reuse modes
 
 In `create` mode, Lithops automatically provisions VPC/network resources plus worker VMs during execution and dismantles workers afterward.  
@@ -116,6 +158,7 @@ gcp_compute_engie:
 |gcp_compute_engie|boot_disk_type|pd-standard|no|Boot disk type |
 |gcp_compute_engie|network_cidr|10.0.0.0/16|no|CIDR for created network |
 |gcp_compute_engie|subnet_cidr|10.0.0.0/24|no|CIDR for created subnet |
+|gcp_compute_engie|worker_public_ip|False|no|If `true`, assign an external IP to each worker (AWS-style). Default uses Cloud NAT instead |
 |gcp_compute_engie|request_spot_instances|False|no|Use Spot VMs for workers |
 |gcp_compute_engie|max_workers|100|no|Max number of workers per `FunctionExecutor()` |
 |gcp_compute_engie|worker_processes|AUTO|no|Worker process count |
@@ -167,4 +210,28 @@ lithops hello -b gcp_compute_engie -s gcp_storage
 
 ```bash
 lithops logs poll
+```
+
+## Architecture diagram
+
+The master and workers share one Lithops VPC and subnet. The master has an ephemeral external IP for SSH from your laptop; workers use private IPs and reach the internet through Cloud NAT.
+
+```mermaid
+flowchart TB
+  subgraph gcp [GCP project / region]
+    NET["VPC lithops-net-XXXXXX"]
+    SUB["Subnet lithops-net-XXXXXX-subnet"]
+    FW1["Firewall SSH :22 from internet"]
+    FW2["Firewall internal :8080/8081/6379/22"]
+    NAT["Cloud Router + NAT lithops-net-XXXXXX-router"]
+    M["Master VM lithops-master-XXXXXX\n+ ephemeral external IP"]
+    W["Worker VMs lithops-worker-*\nprivate IP only"]
+  end
+  LAPTOP["Your laptop"] -->|SSH :22| M
+  M -->|private network| W
+  W -->|egress| NAT
+  NAT --> INTERNET[Internet apt/docker/pip]
+  M --> SUB
+  W --> SUB
+  SUB --> NET
 ```

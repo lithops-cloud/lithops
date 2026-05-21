@@ -130,6 +130,16 @@ class GCPComputeEngieBackend:
             self.config['network_name'] = self.gce_data['network_name']
             self.config['subnet_name'] = self.gce_data['subnet_name']
             self.config['firewall_name'] = self.gce_data['firewall_name']
+            self.config['internal_firewall_name'] = self.gce_data.get('internal_firewall_name')
+            self.network_name = self.config['network_name']
+            if self.gce_data.get('router_name'):
+                self.config['router_name'] = self.gce_data['router_name']
+                self.config['nat_name'] = self.gce_data.get('nat_name')
+            else:
+                self._create_cloud_nat()
+                self.gce_data['router_name'] = self.config.get('router_name')
+                self.gce_data['nat_name'] = self.config.get('nat_name')
+                self._dump_gce_data()
             return
 
         self.network_name = f'lithops-net-{str(uuid.uuid4())[-6:]}'
@@ -149,7 +159,8 @@ class GCPComputeEngieBackend:
             'name': subnet_name,
             'ipCidrRange': self.config['subnet_cidr'],
             'network': f'projects/{self.project_name}/global/networks/{self.network_name}',
-            'region': self.region
+            'region': self.region,
+            'privateIpGoogleAccess': True,
         }
         op = self.compute_client.subnetworks().insert(
             project=self.project_name, region=self.region, body=body
@@ -179,6 +190,74 @@ class GCPComputeEngieBackend:
         self.config['subnet_name'] = subnet_name
         self.config['firewall_name'] = firewall_name
         self.config['internal_firewall_name'] = internal_fw_name
+
+        self._create_cloud_nat()
+
+    def _create_cloud_nat(self):
+        """
+        Provision Cloud NAT so private worker VMs can reach the internet
+        (same role as IBM VPC public gateway / AWS NAT for private subnets).
+        The master keeps an ephemeral external IP for SSH from the client.
+        """
+        if 'router_name' in self.config:
+            return
+
+        network_name = self.network_name or self.config.get('network_name')
+        subnet_name = self.config.get('subnet_name')
+        if not network_name or not subnet_name:
+            return
+
+        router_name = f'{network_name}-router'
+        nat_name = f'{network_name}-nat'
+
+        if self._resource_exists(
+            lambda: self.compute_client.routers().get(
+                project=self.project_name,
+                region=self.region,
+                router=router_name,
+            ).execute()
+        ):
+            logger.debug(f'Using existing Cloud NAT router {router_name}')
+            self.config['router_name'] = router_name
+            self.config['nat_name'] = nat_name
+            return
+
+        logger.debug(f'Creating Cloud NAT router {router_name} for worker outbound internet')
+        network_url = (
+            f'https://www.googleapis.com/compute/v1/projects/{self.project_name}'
+            f'/global/networks/{network_name}'
+        )
+        region_url = (
+            f'https://www.googleapis.com/compute/v1/projects/{self.project_name}'
+            f'/regions/{self.region}'
+        )
+        subnet_url = (
+            f'https://www.googleapis.com/compute/v1/projects/{self.project_name}'
+            f'/regions/{self.region}/subnetworks/{subnet_name}'
+        )
+        body = {
+            'name': router_name,
+            'network': network_url,
+            'region': region_url,
+            'nats': [{
+                'name': nat_name,
+                'natIpAllocateOption': 'AUTO_ONLY',
+                'sourceSubnetworkIpRangesToNat': 'LIST_OF_SUBNETWORKS',
+                'subnetworks': [{
+                    'name': subnet_url,
+                    'sourceIpRangesToNat': ['ALL_IP_RANGES'],
+                }],
+            }],
+        }
+        op = self.compute_client.routers().insert(
+            project=self.project_name,
+            region=self.region,
+            body=body,
+        ).execute()
+        self._wait_operation(op['name'], scope='region')
+
+        self.config['router_name'] = router_name
+        self.config['nat_name'] = nat_name
 
     def _create_ssh_key(self):
         """
@@ -289,6 +368,8 @@ class GCPComputeEngieBackend:
             'subnet_name': self.config['subnet_name'],
             'firewall_name': self.config['firewall_name'],
             'internal_firewall_name': self.config['internal_firewall_name'],
+            'router_name': self.config.get('router_name'),
+            'nat_name': self.config.get('nat_name'),
             'ssh_key_filename': self.config['ssh_key_filename'],
             'instance_types': self.instance_types,
         }
@@ -352,6 +433,9 @@ class GCPComputeEngieBackend:
 
     def clean(self, **kwargs):
         all_clean = kwargs.get('all', False)
+        if not self.gce_data:
+            self._load_gce_data()
+
         if self.mode == StandaloneMode.CONSUME.value:
             self._delete_vpc_data()
             return
@@ -386,7 +470,15 @@ class GCPComputeEngieBackend:
             self._wait_operation(op['name'], scope='zone')
 
     def _delete_network_resources(self):
+        """
+        Remove Lithops-created VPC resources (reverse order of creation).
+        VMs must already be deleted (they hold NICs on the subnet).
+        """
         if self.gce_data.get('vpc_data_type') == 'provided':
+            return
+
+        if not self.gce_data.get('network_name'):
+            logger.debug('No Lithops network in cache; skipping VPC cleanup')
             return
 
         fw_names = [
@@ -397,6 +489,7 @@ class GCPComputeEngieBackend:
             if not fw_name:
                 continue
             try:
+                logger.debug(f'Deleting firewall {fw_name}')
                 op = self.compute_client.firewalls().delete(
                     project=self.project_name, firewall=fw_name
                 ).execute()
@@ -405,9 +498,27 @@ class GCPComputeEngieBackend:
                 if getattr(e.resp, 'status', None) != 404:
                     raise
 
+        network_name = self.gce_data.get('network_name')
+        router_name = self.gce_data.get('router_name') or (
+            f'{network_name}-router' if network_name else None
+        )
+        if router_name:
+            try:
+                logger.debug(f'Deleting Cloud Router (NAT) {router_name}')
+                op = self.compute_client.routers().delete(
+                    project=self.project_name,
+                    region=self.region,
+                    router=router_name,
+                ).execute()
+                self._wait_operation(op['name'], scope='region')
+            except HttpError as e:
+                if getattr(e.resp, 'status', None) != 404:
+                    raise
+
         subnet_name = self.gce_data.get('subnet_name')
         if subnet_name:
             try:
+                logger.debug(f'Deleting subnet {subnet_name}')
                 op = self.compute_client.subnetworks().delete(
                     project=self.project_name, region=self.region, subnetwork=subnet_name
                 ).execute()
@@ -416,9 +527,9 @@ class GCPComputeEngieBackend:
                 if getattr(e.resp, 'status', None) != 404:
                     raise
 
-        network_name = self.gce_data.get('network_name')
         if network_name:
             try:
+                logger.debug(f'Deleting network {network_name}')
                 op = self.compute_client.networks().delete(
                     project=self.project_name, network=network_name
                 ).execute()
@@ -532,10 +643,17 @@ class GCPComputeEngieInstance:
         return f'VM instance {self.name}'
 
     def get_ssh_client(self):
-        ip_address = self.public_ip or self.private_ip
+        if self.public:
+            if not self.public_ip:
+                self.get_public_ip()
+            ip_address = self.public_ip
+        else:
+            if not self.private_ip:
+                self.get_instance_data()
+            ip_address = self.private_ip
+
         if not ip_address:
-            self.get_public_ip()
-            ip_address = self.public_ip or self.private_ip
+            raise Exception(f'No IP address available for {self.name}')
 
         if not self.ssh_client or self.ssh_client.ip_address != ip_address:
             self.ssh_client = SSHClient(ip_address, self.ssh_credentials)
@@ -625,7 +743,9 @@ class GCPComputeEngieInstance:
                 f'/subnetworks/{self.config["subnet_name"]}'
             )
         }
-        if public:
+        # Master: external IP for SSH from the Lithops client.
+        # Workers: no external IP; outbound internet uses Cloud NAT on the subnet.
+        if public or self.config.get('worker_public_ip', False):
             network_iface['accessConfigs'] = [{'name': 'External NAT', 'type': 'ONE_TO_ONE_NAT'}]
 
         body = {
