@@ -28,7 +28,7 @@ DEFAULT_CONFIG_KEYS = {
     'boot_disk_type': 'pd-standard',
     'network_cidr': '10.0.0.0/16',
     'subnet_cidr': '10.0.0.0/24',
-    'source_image': 'projects/ubuntu-os-cloud/global/images/family/ubuntu-2204-lts',
+    'source_image': 'projects/ubuntu-os-cloud/global/images/family/ubuntu-2404-lts-amd64',
     'ssh_username': 'ubuntu',
     'ssh_password': str(uuid.uuid4()),
     'ssh_key_filename': '~/.ssh/id_rsa',

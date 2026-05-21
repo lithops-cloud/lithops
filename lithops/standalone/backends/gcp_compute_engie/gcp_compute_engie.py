@@ -19,6 +19,7 @@ import re
 import time
 import uuid
 import logging
+from datetime import datetime
 import httplib2
 import google.auth
 from google.oauth2 import service_account
@@ -37,6 +38,11 @@ from lithops.standalone import LithopsValidationError
 logger = logging.getLogger(__name__)
 
 INSTANCE_START_TIMEOUT = 180
+UBUNTU_OS_PROJECT = 'ubuntu-os-cloud'
+UBUNTU_LTS_FAMILIES = (
+    'ubuntu-2404-lts-amd64',
+    'ubuntu-2204-lts',
+)
 
 
 class GCPComputeEngieBackend:
@@ -262,8 +268,55 @@ class GCPComputeEngieBackend:
     def delete_image(self, **kwargs):
         raise NotImplementedError(f'{self.name}.delete_image() is not implemented yet')
 
+    @staticmethod
+    def _format_image_timestamp(timestamp):
+        if not timestamp:
+            return 'Unknown'
+        try:
+            created_at = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+        except ValueError:
+            return timestamp
+        return created_at.strftime('%Y-%m-%d %H:%M:%S')
+
+    def _iter_project_images(self, project):
+        request = self.compute_client.images().list(project=project)
+        while request is not None:
+            response = request.execute()
+            yield from response.get('items', [])
+            request = self.compute_client.images().list_next(
+                previous_request=request, previous_response=response
+            )
+
     def list_images(self, **kwargs):
-        raise NotImplementedError(f'{self.name}.list_images() is not implemented yet')
+        """
+        List Ubuntu LTS image families (latest) and custom Lithops images in the project.
+        Returns tuples of (name, image_id, creation_date) like other standalone backends.
+        """
+        result = set()
+
+        for family in UBUNTU_LTS_FAMILIES:
+            try:
+                image = self.compute_client.images().getFromFamily(
+                    project=UBUNTU_OS_PROJECT, family=family
+                ).execute()
+            except HttpError as err:
+                if getattr(err.resp, 'status', None) == 404:
+                    continue
+                raise
+
+            created_at = self._format_image_timestamp(image.get('creationTimestamp'))
+            family_ref = f'projects/{UBUNTU_OS_PROJECT}/global/images/family/{family}'
+            result.add((image['name'], family_ref, created_at))
+
+        for image in self._iter_project_images(self.project_name):
+            name = image.get('name', '')
+            if 'lithops' not in name.lower():
+                continue
+            created_at = self._format_image_timestamp(image.get('creationTimestamp'))
+            image_ref = f'projects/{self.project_name}/global/images/{name}'
+            result.add((name, image_ref, created_at))
+
+        return sorted(result, key=lambda x: x[2], reverse=True)
 
     def clean(self, **kwargs):
         all_clean = kwargs.get('all', False)

@@ -57,7 +57,8 @@ from lithops.standalone.utils import (
     StandaloneMode,
     WorkerStatus,
     get_host_setup_script,
-    get_worker_setup_script
+    get_worker_setup_script,
+    lithops_pip_spec_from_config,
 )
 
 os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
@@ -303,7 +304,8 @@ def setup_worker_create_reuse(standalone_handler, worker_info, work_queue_name):
             'lithops_version': __version__
         }
         remote_script = "/tmp/install_lithops.sh"
-        script = get_host_setup_script()
+        pip_spec = lithops_pip_spec_from_config(standalone_handler.config)
+        script = get_host_setup_script(run_install=False, lithops_pip_spec=pip_spec)
         script += get_worker_setup_script(standalone_handler.config, vm_data)
 
         logger.debug(f'Submitting installation script to {worker}')
@@ -346,7 +348,9 @@ def setup_worker_consume(standalone_handler, worker_info, work_queue_name):
             'lithops_version': __version__
         }
         worker_setup_script = "/tmp/install_lithops.sh"
-        script = get_worker_setup_script(standalone_handler.config, vm_data)
+        pip_spec = lithops_pip_spec_from_config(standalone_handler.config)
+        script = get_host_setup_script(run_install=False, lithops_pip_spec=pip_spec)
+        script += get_worker_setup_script(standalone_handler.config, vm_data)
         with open(worker_setup_script, 'w') as wis:
             wis.write(script)
 

@@ -118,5 +118,6 @@ STANDALONE_BACKENDS = [
     'ibm_vpc',
     'aws_ec2',
     'azure_vms',
+    'gcp_compute_engie',
     'vm'
 ]

@@ -21,15 +21,47 @@ python3 -m pip install lithops[gcp]
 
 ## Required IAM/API setup
 
-Use a service account with permissions to manage Compute Engine resources (instances, networks, subnetworks, firewalls) and enable:
-
-- Compute Engine API (`compute.googleapis.com`)
-
-Optional command:
+### Enable the Compute Engine API
 
 ```bash
 gcloud services enable compute.googleapis.com --project <PROJECT_ID>
 ```
+
+Replace `<PROJECT_ID>` with your GCP project. API changes can take a few minutes to propagate.
+
+### Grant IAM to the Lithops service account
+
+`create` and `reuse` modes create VPC networks, subnets, firewalls, and VMs. The service account in `gcp.credentials_path` needs Compute Engine permissions.
+
+If the API is enabled but you still see **403** with a message like `Required 'compute.networks.create' permission`, that is an **IAM** issue, not API propagation.
+
+Grant **Compute Admin** on the project (adjust member if your service account email differs):
+
+```bash
+gcloud projects add-iam-policy-binding <PROJECT_ID> \
+  --member="serviceAccount:<SERVICE_ACCOUNT_EMAIL>" \
+  --role="roles/compute.admin"
+```
+
+Example for `lithops-executor@lithops-dev.iam.gserviceaccount.com`:
+
+```bash
+gcloud projects add-iam-policy-binding lithops-dev \
+  --member="serviceAccount:lithops-executor@lithops-dev.iam.gserviceaccount.com" \
+  --role="roles/compute.admin"
+```
+
+For **consume** mode (existing VM only), narrower roles may suffice if the VM and network already exist; you still need SSH access to the instance.
+
+## List VM images
+
+List Ubuntu LTS families (latest image per family) and custom images in your project whose name contains `lithops`:
+
+```bash
+lithops image list -b gcp_compute_engie
+```
+
+Use the **Image ID** column value as `source_image` in your config (for example `projects/ubuntu-os-cloud/global/images/family/ubuntu-2404-lts-amd64`).
 
 ## Create and reuse modes
 
@@ -65,7 +97,7 @@ gcp_compute_engie:
 |gcp_compute_engie|credentials_path||no|Service account JSON path. If omitted, ADC is used |
 |gcp_compute_engie|master_instance_type|e2-small|no|Master VM machine type |
 |gcp_compute_engie|worker_instance_type|e2-standard-2|no|Worker VM machine type |
-|gcp_compute_engie|source_image|ubuntu-2204-lts family|no|Boot image reference |
+|gcp_compute_engie|source_image|ubuntu-2404-lts-amd64 family (Python 3.12)|no|Boot image reference |
 |gcp_compute_engie|boot_disk_size|50|no|Boot disk size (GB) |
 |gcp_compute_engie|boot_disk_type|pd-standard|no|Boot disk type |
 |gcp_compute_engie|network_cidr|10.0.0.0/16|no|CIDR for created network |

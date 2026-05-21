@@ -555,7 +555,7 @@ class IBMVPCBackend:
 
         logger.debug(f"Uploading installation script to {build_vm}")
         remote_script = "/tmp/install_lithops.sh"
-        script = get_host_setup_script()
+        script = get_host_setup_script(lithops_pip_spec='lithops[ibm,redis]')
         build_vm.get_ssh_client().upload_data_to_file(script, remote_script)
         logger.debug("Executing Lithops installation script. Be patient, this process can take up to 3 minutes")
         build_vm.get_ssh_client().run_remote_command(f"chmod 777 {remote_script}; sudo {remote_script}; rm {remote_script};")
