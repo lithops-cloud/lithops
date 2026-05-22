@@ -54,6 +54,8 @@ In this backend, you can use any docker image that contains all the required dep
 |vm | ssh_key_filename | | no | Path to SSH key |
 |vm | runtime |  python3  |no | `python3` or a docker image name |
 |vm | worker_processes | 1 | no | Number of Lithops processes within the VM. This can be used to parallelize function activations within the VM. It is recommended to set it to the same number of CPUs as the VM |
+|vm | extra_apt_packages | [] | no | Extra Debian/Ubuntu packages during Lithops setup on the VM (YAML list or space-separated string) |
+|vm | extra_python_packages | [] | no | Extra pip packages after Lithops on the VM (YAML list or space-separated string) |
 
 ## Test Lithops
 

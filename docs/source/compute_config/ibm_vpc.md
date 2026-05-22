@@ -109,6 +109,8 @@ ibm_vpc:
 |ibm_vpc | exec_mode | reuse | no | One of: **consume**, **create** or **reuse**. If set to **create**, Lithops will automatically create new VMs for each `map()` call based on the number of elements in `iterdata`. If set to **reuse**, Lithops will try to reuse running workers if they exist |
 |ibm_vpc | singlesocket | False | no | Try to allocate workers with a single-socket CPU. If they end up running on multiple sockets, a warning message is printed to the user. If **True**, the standalone **workers_policy** must be set to **strict** to track worker states |
 |ibm_vpc | gpu | False | no | If `True`, Docker is started with GPU support. Requires the host to have the necessary hardware and software pre-configured, and a Docker image runtime with GPU support specified |
+|ibm_vpc | extra_apt_packages | [] | no | Extra Debian/Ubuntu packages on master/worker VMs during setup (YAML list or space-separated string) |
+|ibm_vpc | extra_python_packages | [] | no | Extra pip packages on master/worker VMs after Lithops (YAML list or space-separated string) |
 
 ## Consume mode
 

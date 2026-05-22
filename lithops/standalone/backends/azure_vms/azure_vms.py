@@ -27,7 +27,7 @@ from azure.mgmt.network import NetworkManagementClient
 from azure.core.exceptions import ResourceNotFoundError
 
 from lithops.version import __version__
-from lithops.util.ssh_client import SSHClient
+from lithops.util.ssh_client import SSHClient, ssh_boot_status_message
 from lithops.constants import COMPUTE_CLI_MSG, CACHE_DIR, SA_CONFIG_FILE
 from lithops.config import load_yaml_config, dump_yaml_config
 from lithops.standalone.utils import StandaloneMode
@@ -752,14 +752,13 @@ class VMInstance:
         """
         Checks if the VM instance is ready to receive ssh connections
         """
-        login_type = 'password' if 'password' in self.ssh_credentials and \
-            not self.public else 'publickey'
         try:
             self.get_ssh_client().run_remote_command('id')
         except LithopsValidationError as err:
             raise err
         except Exception as err:
-            logger.debug(f'SSH to {self.public_ip if self.public else self.private_ip} failed ({login_type}): {err}')
+            ip = self.public_ip if self.public else self.private_ip
+            logger.debug(f'SSH to {ip}: {ssh_boot_status_message(err)}')
             self.del_ssh_client()
             return False
         return True

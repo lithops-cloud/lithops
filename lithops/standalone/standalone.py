@@ -40,7 +40,8 @@ from lithops.standalone.utils import (
     StandaloneMode,
     LithopsValidationError,
     get_host_setup_script,
-    get_master_setup_script
+    get_master_setup_script,
+    install_script_kwargs_from_config,
 )
 from lithops.version import __version__
 
@@ -435,7 +436,7 @@ class StandaloneHandler:
         logger.debug('Be patient, initial installation process may take up to 3 minutes')
 
         remote_script = "/tmp/install_lithops.sh"
-        script = get_host_setup_script()
+        script = get_host_setup_script(run_install=False, **install_script_kwargs_from_config(self.config))
         script += get_master_setup_script(self.config, master_data)
 
         ssh_client.upload_data_to_file(script, remote_script)

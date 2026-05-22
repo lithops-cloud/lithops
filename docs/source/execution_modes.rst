@@ -83,4 +83,4 @@ underlying infrastructure.
 
     fexec = lithops.StandaloneExecutor()
 
-- Available backends: `IBM Virtual Private Cloud <compute_config/ibm_vpc.html>`_, `AWS Elastic Compute Cloud (EC2) <compute_config/aws_ec2.html>`_, `Azure Virtual Machines <compute_config/azure_vms.html>`_, `Virtual Machine <compute_config/vm.html>`_
+- Available backends: `IBM Virtual Private Cloud <compute_config/ibm_vpc.html>`_, `AWS Elastic Compute Cloud (EC2) <compute_config/aws_ec2.html>`_, `Azure Virtual Machines <compute_config/azure_vms.html>`_, `Google Compute Engine <compute_config/gcp_compute_engie.html>`_, `Virtual Machine <compute_config/vm.html>`_

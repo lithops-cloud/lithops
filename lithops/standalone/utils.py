@@ -1,5 +1,7 @@
 import os
+import re
 import json
+import shlex
 from enum import Enum
 
 from lithops.constants import (
@@ -101,9 +103,90 @@ runcmd:
 """
 
 
-def get_host_setup_script(docker=True):
+def _normalize_package_list(packages):
+    if not packages:
+        return []
+    if isinstance(packages, str):
+        return [p.strip() for p in packages.split() if p.strip()]
+    return [str(p).strip() for p in packages if str(p).strip()]
+
+
+def _format_apt_packages_for_shell(packages):
+    safe = []
+    for package in _normalize_package_list(packages):
+        if not re.match(r'^[a-z0-9][a-z0-9.+~-]*$', package, re.IGNORECASE):
+            raise LithopsValidationError(
+                f'Invalid apt package name "{package}" in extra_apt_packages'
+            )
+        safe.append(package)
+    return ' '.join(safe)
+
+
+def _format_pip_packages_for_shell(packages):
+    quoted = []
+    for package in _normalize_package_list(packages):
+        if re.search(r'[;&|`$(){}]', package):
+            raise LithopsValidationError(
+                f'Invalid pip package spec "{package}" in extra_python_packages'
+            )
+        quoted.append(shlex.quote(package))
+    return ' '.join(quoted)
+
+
+def install_script_kwargs_from_config(config=None):
     """
-    Returns the script necessary for installing a lithops VM host
+    Build keyword arguments for get_host_setup_script() from standalone config.
+    """
+    config = config or {}
+    return {
+        'lithops_pip_spec': lithops_pip_spec_from_config(config),
+        'extra_apt_packages': _format_apt_packages_for_shell(config.get('extra_apt_packages')),
+        'extra_python_packages': _format_pip_packages_for_shell(config.get('extra_python_packages')),
+    }
+
+
+def lithops_pip_spec_from_config(config=None, default='lithops'):
+    """
+    Build a minimal pip spec from lithops config (avoid lithops[all] on VMs).
+    Standalone master/workers always need the redis extra for the job queue.
+    """
+    if not config:
+        return default
+
+    extras = {'redis'}
+    lithops_cfg = config.get('lithops') or {}
+    for key in ('backend', 'storage'):
+        name = (config.get(key) or lithops_cfg.get(key) or '').lower()
+        if name.startswith('gcp'):
+            extras.add('gcp')
+        elif name.startswith('aws') or name in ('aws_s3', 'aws_sqs'):
+            extras.add('aws')
+        elif name.startswith('azure'):
+            extras.add('azure')
+        elif name.startswith('ibm'):
+            extras.add('ibm')
+        elif name.startswith('aliyun'):
+            extras.add('aliyun')
+        elif name in ('oracle', 'oci', 'oracle_storage'):
+            extras.add('oracle')
+
+    cloud_extras = extras - {'redis'}
+    if not cloud_extras:
+        return 'lithops[redis]'
+    return f"lithops[{','.join(sorted(extras))}]"
+
+
+def get_host_setup_script(
+    docker=True,
+    run_install=True,
+    lithops_pip_spec='lithops',
+    extra_apt_packages='',
+    extra_python_packages='',
+):
+    """
+    Returns the script necessary for installing a lithops VM host.
+    Set run_install=False when appending master/worker setup (they run install first).
+    extra_apt_packages/extra_python_packages are pre-validated space-separated strings.
     """
     script = f"""#!/bin/bash
     mkdir -p {SA_INSTALL_DIR};
@@ -116,7 +199,34 @@ def get_host_setup_script(docker=True):
     done;
     }}
 
+    apt_install(){{
+    # Serialize apt and recover from interrupted/corrupt package lists.
+    flock -w 600 /var/lib/dpkg/lock-frontend apt-get "$@" || {{
+        echo "--> apt failed, repairing package lists and retrying"
+        rm -rf /var/lib/apt/lists/partial/*
+        apt-get clean
+        apt-get update
+        flock -w 600 /var/lib/dpkg/lock-frontend apt-get "$@"
+    }}
+    }}
+
+    configure_redis_for_standalone(){{
+    # Workers connect to the master private IP; Redis must not listen on loopback only.
+    if [ ! -f /etc/redis/redis.conf ]; then
+        return 0
+    fi
+    echo "--> Configuring Redis for standalone workers (bind 0.0.0.0)"
+    sed -i -E 's/^bind .*/bind 0.0.0.0 -::1/' /etc/redis/redis.conf
+    if grep -q '^protected-mode yes' /etc/redis/redis.conf; then
+        sed -i 's/^protected-mode yes/protected-mode no/' /etc/redis/redis.conf
+    fi
+    systemctl enable redis-server.service
+    systemctl restart redis-server.service
+    }}
+
     install_packages(){{
+    set -e
+    export DEBIAN_FRONTEND=noninteractive
     export DOCKER_REQUIRED={str(docker).lower()};
     command -v docker >/dev/null 2>&1 || {{ export INSTALL_DOCKER=true; export INSTALL_LITHOPS_DEPS=true;}};
     command -v unzip >/dev/null 2>&1 || {{ export INSTALL_LITHOPS_DEPS=true; }};
@@ -124,38 +234,56 @@ def get_host_setup_script(docker=True):
 
     if [ "$INSTALL_DOCKER" = true ] && [ "$DOCKER_REQUIRED" = true ]; then
     wait_internet_connection;
-    echo "--> Installing Docker"
-    apt-get update;
-    apt-get install apt-transport-https ca-certificates curl software-properties-common gnupg-agent -y;
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -;
-    add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable";
+    echo "--> Installing Docker repository"
+    apt_install update
+    apt_install install -y apt-transport-https ca-certificates curl gnupg software-properties-common
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+    DOCKER_APT="deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg]"
+    DOCKER_APT="$DOCKER_APT https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+    echo "$DOCKER_APT" > /etc/apt/sources.list.d/docker.list
     fi;
 
     if [ "$INSTALL_LITHOPS_DEPS" = true ]; then
     wait_internet_connection;
     echo "--> Installing Lithops system dependencies"
-    apt-get update;
+    apt_install update
 
     if [ "$INSTALL_DOCKER" = true ] && [ "$DOCKER_REQUIRED" = true ]; then
-    apt-get install unzip redis-server python3-pip docker-ce docker-ce-cli containerd.io -y --fix-missing;
+    apt_install install -y unzip redis-server python3-pip docker-ce docker-ce-cli containerd.io
     else
-    apt-get install unzip redis-server python3-pip -y --fix-missing;
+    apt_install install -y unzip redis-server python3-pip
     fi;
-    sudo systemctl enable redis-server.service;
-    sed -i 's/^bind 127.0.0.1 ::1/bind 0.0.0.0/' /etc/redis/redis.conf;
-    sudo systemctl restart redis-server.service;
+    configure_redis_for_standalone
 
     fi;
 
-    if [[ ! $(pip3 list|grep "lithops") ]]; then
+    EXTRA_APT="{extra_apt_packages}"
+    if [ -n "$EXTRA_APT" ]; then
     wait_internet_connection;
-    echo "--> Installing Lithops python dependencies"
-    pip3 install -U pip flask gevent lithops[all];
+    apt_install update
+    echo "--> Installing extra apt packages: $EXTRA_APT"
+    apt_install install -y $EXTRA_APT
+    fi;
+
+    if ! pip3 list 2>/dev/null | grep -q lithops; then
+    wait_internet_connection;
+    echo "--> Installing Lithops python dependencies ({lithops_pip_spec})"
+    export PIP_BREAK_SYSTEM_PACKAGES=1
+    # --ignore-installed: do not uninstall Debian python packages (avoids RECORD errors)
+    pip3 install --ignore-installed -U pip
+    pip3 install --ignore-installed flask gevent {lithops_pip_spec}
+    fi;
+
+    EXTRA_PY="{extra_python_packages}"
+    if [ -n "$EXTRA_PY" ]; then
+    echo "--> Installing extra python packages: $EXTRA_PY"
+    export PIP_BREAK_SYSTEM_PACKAGES=1
+    pip3 install --ignore-installed $EXTRA_PY
     fi;
     }}
-    install_packages >> {SA_SETUP_LOG_FILE} 2>&1
-    touch {SA_SETUP_DONE_FILE};
     """
+    if run_install:
+        script += f"install_packages >> {SA_SETUP_LOG_FILE} 2>&1 && touch {SA_SETUP_DONE_FILE};\n"
     return script
 
 
@@ -182,8 +310,8 @@ def get_master_setup_script(config, vm_data):
     echo '{json.dumps(vm_data)}' > {SA_MASTER_DATA_FILE};
     echo '{json.dumps(config)}' > {SA_CONFIG_FILE};
     }}
-    setup_host >> {SA_SETUP_LOG_FILE} 2>&1;
     setup_service(){{
+    configure_redis_for_standalone >> {SA_SETUP_LOG_FILE} 2>&1
     echo '{MASTER_SERVICE_FILE}' > /etc/systemd/system/{MASTER_SERVICE_NAME};
     chmod 644 /etc/systemd/system/{MASTER_SERVICE_NAME};
     systemctl daemon-reload;
@@ -191,7 +319,6 @@ def get_master_setup_script(config, vm_data):
     systemctl enable {MASTER_SERVICE_NAME};
     systemctl start {MASTER_SERVICE_NAME};
     }}
-    setup_service >> {SA_SETUP_LOG_FILE} 2>&1;
     USER_HOME=$(eval echo ~${{SUDO_USER}});
     generate_ssh_key(){{
     echo '    StrictHostKeyChecking no
@@ -204,7 +331,10 @@ def get_master_setup_script(config, vm_data):
     echo '127.0.0.1 lithops-master' >> /etc/hosts;
     cat $USER_HOME/.ssh/id_rsa.pub >> $USER_HOME/.ssh/authorized_keys;
     }}
-    test -f $USER_HOME/.ssh/lithops_id_rsa || generate_ssh_key >> {SA_SETUP_LOG_FILE} 2>&1;
+    install_packages >> {SA_SETUP_LOG_FILE} 2>&1 && touch {SA_SETUP_DONE_FILE} && \\
+    setup_host >> {SA_SETUP_LOG_FILE} 2>&1 && \\
+    setup_service >> {SA_SETUP_LOG_FILE} 2>&1 && \\
+    (test -f $USER_HOME/.ssh/lithops_id_rsa || generate_ssh_key >> {SA_SETUP_LOG_FILE} 2>&1)
     echo 'tail -f -n 100 /tmp/lithops-*/master-service.log'>>  $USER_HOME/.bash_history
     """
     return script
@@ -237,7 +367,6 @@ def get_worker_setup_script(config, vm_data):
     echo '{json.dumps(vm_data)}' > {SA_WORKER_DATA_FILE};
     echo '{json.dumps(config)}' > {SA_CONFIG_FILE};
     }}
-    setup_host >> {SA_SETUP_LOG_FILE} 2>&1;
     USER_HOME=$(eval echo ~${{SUDO_USER}});
     setup_service(){{
     echo '{WORKER_SERVICE_FILE.format(cmd_pre, cmd_start, cmd_stop)}' > /etc/systemd/system/{WORKER_SERVICE_NAME};
@@ -247,6 +376,8 @@ def get_worker_setup_script(config, vm_data):
     systemctl enable {WORKER_SERVICE_NAME};
     systemctl start {WORKER_SERVICE_NAME};
     }}
+    install_packages >> {SA_SETUP_LOG_FILE} 2>&1 && touch {SA_SETUP_DONE_FILE} && \\
+    setup_host >> {SA_SETUP_LOG_FILE} 2>&1 && \\
     setup_service >> {SA_SETUP_LOG_FILE} 2>&1
     echo '{vm_data['master_ip']} lithops-master' >> /etc/hosts
     echo 'tail -f -n 100 {SA_WORKER_LOG_FILE}'>> $USER_HOME/.bash_history

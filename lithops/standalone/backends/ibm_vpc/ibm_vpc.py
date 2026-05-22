@@ -29,7 +29,7 @@ from ibm_cloud_sdk_core import ApiException
 from concurrent.futures import ThreadPoolExecutor
 
 from lithops.version import __version__
-from lithops.util.ssh_client import SSHClient
+from lithops.util.ssh_client import SSHClient, ssh_boot_status_message
 from lithops.constants import COMPUTE_CLI_MSG, CACHE_DIR
 from lithops.config import load_yaml_config, dump_yaml_config
 from lithops.standalone.utils import (
@@ -555,7 +555,7 @@ class IBMVPCBackend:
 
         logger.debug(f"Uploading installation script to {build_vm}")
         remote_script = "/tmp/install_lithops.sh"
-        script = get_host_setup_script()
+        script = get_host_setup_script(lithops_pip_spec='lithops[ibm,redis]')
         build_vm.get_ssh_client().upload_data_to_file(script, remote_script)
         logger.debug("Executing Lithops installation script. Be patient, this process can take up to 3 minutes")
         build_vm.get_ssh_client().run_remote_command(f"chmod 777 {remote_script}; sudo {remote_script}; rm {remote_script};")
@@ -963,14 +963,13 @@ class IBMVPCInstance:
         """
         Checks if the VM instance is ready to receive ssh connections
         """
-        login_type = 'password' if 'password' in self.ssh_credentials and \
-            not self.public else 'publickey'
         try:
             self.get_ssh_client().run_remote_command('id')
         except LithopsValidationError as err:
             raise err
         except Exception as err:
-            logger.debug(f'SSH to {self.public_ip if self.public else self.private_ip} failed ({login_type}): {err}')
+            ip = self.public_ip if self.public else self.private_ip
+            logger.debug(f'SSH to {ip}: {ssh_boot_status_message(err)}')
             self.del_ssh_client()
             return False
         return True
