@@ -20,6 +20,7 @@ import json
 import time
 import uuid
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 import httplib2
 import google.auth
@@ -639,14 +640,22 @@ class GCPComputeEngieBackend:
             if os.path.isfile(f"{key_filename}.pub"):
                 os.remove(f"{key_filename}.pub")
 
-    def clear(self, **kwargs):
-        return
+    def clear(self, job_keys=None):
+        """
+        Delete all the workers
+        """
+        # clear() is automatically called after get_result(),
+        self.dismantle(include_master=False)
 
     def dismantle(self, include_master=True):
+        """
+        Stop all worker VM instances
+        """
         if len(self.workers) > 0:
-            for worker in self.workers:
-                worker.stop()
+            with ThreadPoolExecutor(len(self.workers)) as ex:
+                ex.map(lambda worker: worker.stop(), self.workers)
             self.workers = []
+
         if include_master and self.master:
             self.master.stop()
 
