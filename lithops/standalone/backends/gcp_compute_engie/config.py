@@ -32,7 +32,7 @@ DEFAULT_CONFIG_KEYS = {
     'ssh_username': 'ubuntu',
     'ssh_password': str(uuid.uuid4()),
     'ssh_key_filename': '~/.ssh/id_rsa',
-    'delete_on_dismantle': False,
+    'delete_on_dismantle': True,
     'max_workers': 100,
     'request_spot_instances': False,
     'worker_processes': 'AUTO'

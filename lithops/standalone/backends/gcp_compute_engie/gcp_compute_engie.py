@@ -182,21 +182,21 @@ class GCPComputeEngieBackend:
             self.config['firewall_name'] = self.gce_data['firewall_name']
             self.config['internal_firewall_name'] = self.gce_data.get('internal_firewall_name')
             self.network_name = self.config['network_name']
-            logger.debug(f'Using network {self.config["network_name"]}')
+            logger.debug(f'Using existing network {self.config["network_name"]}')
             logger.debug(
-                f'Using subnet {self.config["subnet_name"]} in region {self.region}'
+                f'Using existing subnet {self.config["subnet_name"]} in region {self.region}'
             )
-            logger.debug(f'Using firewall {self.config["firewall_name"]} (SSH)')
+            logger.debug(f'Using existing firewall {self.config["firewall_name"]} (SSH)')
             if self.config.get('internal_firewall_name'):
                 logger.debug(
-                    f'Using firewall {self.config["internal_firewall_name"]} '
+                    f'Using existing firewall {self.config["internal_firewall_name"]} '
                     f'(internal ports 8080/8081/6379/22)'
                 )
             if self.gce_data.get('router_name'):
                 self.config['router_name'] = self.gce_data['router_name']
                 self.config['nat_name'] = self.gce_data.get('nat_name')
                 logger.debug(
-                    f'Using Cloud NAT router {self.config["router_name"]} '
+                    f'Using existing Cloud NAT router {self.config["router_name"]} '
                     f'(NAT {self.config.get("nat_name")})'
                 )
             else:
@@ -400,11 +400,12 @@ class GCPComputeEngieBackend:
 
         if self._instance_exists(name):
             logger.debug(f'Using existing master VM {name}')
+            self.master.get_instance_data()
+            if self.master.get_status() == 'TERMINATED':
+                logger.debug(f'Master VM {name} is stopped, starting')
+                self.master.start()
         elif self.mode != StandaloneMode.CONSUME.value:
-            logger.debug(
-                f'Creating master VM {name} ({self.config["master_instance_type"]}) '
-                f'in subnet {self.config.get("subnet_name")} with external IP'
-            )
+            logger.debug(f'Creating new VM instance {name}')
             self.master.create(public=True)
         self.master.get_instance_data()
 
@@ -733,17 +734,22 @@ class GCPComputeEngieInstance:
         return f'VM instance {self.name}'
 
     def get_ssh_client(self):
+        self.get_instance_data()
         if self.public:
             if not self.public_ip:
-                self.get_public_ip()
+                if self.get_status() == 'TERMINATED':
+                    self.start()
+                else:
+                    self._wait_public_ip(timeout=60)
             ip_address = self.public_ip
         else:
-            if not self.private_ip:
-                self.get_instance_data()
             ip_address = self.private_ip
 
         if not ip_address:
-            raise Exception(f'No IP address available for {self.name}')
+            raise Exception(
+                f'No IP address available for {self.name} '
+                f'(status={self.get_status()}, public={self.public})'
+            )
 
         if not self.ssh_client or self.ssh_client.ip_address != ip_address:
             self.ssh_client = SSHClient(ip_address, self.ssh_credentials)
@@ -816,18 +822,43 @@ class GCPComputeEngieInstance:
             self.get_instance_data()
         return self.public_ip
 
-    def create(self, public=False, ssh_public_key=None, user_data=None, **kwargs):
-        if self._exists():
-            logger.debug(f'VM instance {self.name} already exists')
+    def get_status(self):
+        try:
             self.get_instance_data()
+        except HttpError:
+            return None
+        return self.instance_data.get('status') if self.instance_data else None
+
+    def _wait_public_ip(self, timeout=INSTANCE_START_TIMEOUT):
+        start = time.time()
+        while time.time() - start < timeout:
+            self.get_instance_data()
+            if self.public_ip:
+                return self.public_ip
+            time.sleep(2)
+        raise TimeoutError(f'Public IP not available for {self.name} after {timeout}s')
+
+    def create(self, public=False, ssh_public_key=None, user_data=None,
+               check_if_exists=False, **kwargs):
+        if self._exists():
+            self.get_instance_data()
+            if check_if_exists:
+                status = self.get_status()
+                if status == 'TERMINATED':
+                    logger.debug(f'VM instance {self.name} is stopped, starting')
+                    self.start()
+                elif status == 'RUNNING':
+                    logger.debug(f'VM instance {self.name} already running')
+                elif status in ('STAGING', 'PROVISIONING', 'REPAIRING', 'STOPPING'):
+                    logger.debug(
+                        f'VM instance {self.name} is {status}, waiting until running'
+                    )
+                    self._wait_until_status('RUNNING')
+                return
+            logger.debug(f'VM instance {self.name} already exists')
             return
 
-        role = 'master' if public else 'worker'
-        ext_ip = 'with external IP' if (public or self.config.get('worker_public_ip', False)) else 'private IP only (NAT egress)'
-        logger.debug(
-            f'Creating {role} VM {self.name} ({self.instance_type}) '
-            f'in subnet {self.config.get("subnet_name")} ({ext_ip})'
-        )
+        logger.debug(f'Creating new VM instance {self.name}')
 
         if ssh_public_key is None and 'key_filename' in self.ssh_credentials:
             pub_path = os.path.expanduser(self.ssh_credentials['key_filename'] + '.pub')
@@ -881,7 +912,6 @@ class GCPComputeEngieInstance:
                 'email': sa_email,
                 'scopes': GCE_INSTANCE_SCOPES,
             }]
-            logger.debug(f'Attaching service account {sa_email} to VM {self.name}')
         else:
             logger.warning(
                 f'Creating VM {self.name} without a service account; '
@@ -901,11 +931,45 @@ class GCPComputeEngieInstance:
         self._wait_zone_operation(op['name'])
         self.get_instance_data()
 
+    def _wait_until_status(self, target_status, timeout=INSTANCE_START_TIMEOUT):
+        start = time.time()
+        last_status = None
+        while time.time() - start < timeout:
+            status = self.get_status()
+            if status != last_status:
+                logger.debug(
+                    f'VM instance {self.name} status: {status} '
+                    f'(waiting for {target_status})'
+                )
+                last_status = status
+            if status == target_status:
+                return status
+            time.sleep(2)
+        raise TimeoutError(
+            f'{self.name} did not reach status {target_status} (last: {self.get_status()})'
+        )
+
     def start(self):
+        status = self.get_status()
+        if status == 'RUNNING':
+            logger.debug(f'VM instance {self.name} already running')
+            if self.public and not self.public_ip:
+                self._wait_public_ip(timeout=60)
+            return
+
+        logger.debug(f'Starting VM instance {self.name}')
         op = self.compute_client.instances().start(
             project=self.project_name, zone=self.zone, instance=self.name
         ).execute()
         self._wait_zone_operation(op['name'])
+        logger.debug(f'VM instance {self.name} start operation completed')
+        self.del_ssh_client()
+        self.public_ip = None
+        self._wait_until_status('RUNNING')
+        if self.public:
+            self._wait_public_ip()
+        ip = self.public_ip or self.private_ip
+        logger.debug(f'VM instance {self.name} started ({ip})')
 
     def stop(self):
         if self.delete_on_dismantle:
@@ -935,8 +999,9 @@ class GCPComputeEngieInstance:
                 return False
             raise
 
-    def _wait_zone_operation(self, operation_name):
-        while True:
+    def _wait_zone_operation(self, operation_name, timeout=INSTANCE_START_TIMEOUT):
+        start = time.time()
+        while time.time() - start < timeout:
             op = self.compute_client.zoneOperations().get(
                 project=self.project_name, zone=self.zone, operation=operation_name
             ).execute()
@@ -945,3 +1010,6 @@ class GCPComputeEngieInstance:
                     raise Exception(op['error'])
                 return
             time.sleep(2)
+        raise TimeoutError(
+            f'Zone operation {operation_name} timed out after {timeout}s'
+        )
