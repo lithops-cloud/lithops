@@ -1,9 +1,9 @@
 Apache Airflow
 ==============
 
-Airflow is a platform created by the community to programmatically author, schedule and monitor workflows.
-The Airflow/Lithops integration allows Airflow users to keep all of their Ray code in Python functions and
-define task dependencies by moving data through python functions.
+Airflow is a platform created by the community to programmatically author, schedule, and monitor workflows.
+The Airflow/Lithops integration allows Airflow users to keep all of their Lithops code in Python functions and
+define task dependencies by moving data through Python functions.
 
 
 Refer to the `integration repository <https://github.com/lithops-cloud/airflow-plugin>`_ .

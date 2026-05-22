@@ -1,6 +1,6 @@
 # IBM Virtual Private Cloud
 
-The IBM VPC client of Lithops can provide a truely serverless user experience on top of IBM VPC where Lithops creates new VSIs (Virtual Server Instance) dynamically in runtime, and scale Lithops jobs against them (Create & Reuse modes). Alternatively Lithops can start and stop an existing VSI instance (Consume mode).
+The IBM VPC client of Lithops can provide a truly serverless user experience on top of IBM VPC where Lithops creates new VSIs (Virtual Server Instances) dynamically at runtime and scales Lithops jobs against them (Create & Reuse modes). Alternatively, Lithops can start and stop an existing VSI instance (Consume mode).
 
 ## Installation
 
@@ -11,22 +11,22 @@ python3 -m pip install lithops[ibm]
 ```
 
 ## IBM VPC
-The assumption that you already familiar with IBM Cloud, have your IBM IAM API key created (you can create new keys [here](https://cloud.ibm.com/iam/apikeys)), have valid IBM COS account, region and resource group.
+This guide assumes that you are already familiar with IBM Cloud, have your IBM IAM API key created (you can create new keys [here](https://cloud.ibm.com/iam/apikeys)), and have a valid IBM COS account, region, and resource group.
 
-Follow [IBM VPC setup](https://cloud.ibm.com/vpc-ext/overview) if you need to create IBM Virtual Private Cloud. Decide the region for your VPC. The best practice is to use the same region both for VPC and IBM COS, however there is no requirement to keep them in the same region.
+Follow the [IBM VPC setup](https://cloud.ibm.com/vpc-ext/overview) if you need to create an IBM Virtual Private Cloud. Decide on the region for your VPC. The best practice is to use the same region for both VPC and IBM COS, however there is no requirement to keep them in the same region.
 
 ## Choose an operating system image for VSI
-Any Virtual Service Instance (VSI) need to define the instance’s operating system and version. Lithops support both standard Ubuntu operating system choices provided by the VPC and using pre-defined custom images that already contains all dependencies required by Lithops.
+Any Virtual Server Instance (VSI) needs to define the instance's operating system and version. Lithops supports both standard Ubuntu operating system choices provided by the VPC and pre-defined custom images that already contain all dependencies required by Lithops.
 
-- Option 1: Lithops is compatible with any Ubuntu 22.04 image provided in IBM Cloud. In this case, no further action is required and you can continue to the next step. Lithops will install all required dependencies in the VSI by itself. Notice this can consume about 3 min to complete all installations.
+- Option 1: Lithops is compatible with any Ubuntu 22.04 image provided in IBM Cloud. In this case, no further action is required and you can continue to the next step. Lithops will install all required dependencies in the VSI by itself. Note that this can take about 3 minutes to complete all installations.
 
 - Option 2: Alternatively, you can use a pre-built custom image (based on Ubuntu) that will greatly improve VSI creation time for Lithops jobs. To benefit from this approach, navigate to [runtime/ibm_vpc](https://github.com/lithops-cloud/lithops/tree/master/runtime/ibm_vpc), and follow the instructions.
 
 
 ## Create and reuse modes
 
-In the `create` mode, Lithops will automatically create new worker VM instances in runtime, scale Lithops job against generated VMs, and automatically delete the VMs when the job is completed.
-Alternatively, you can set the `reuse` mode to keep running the started worker VMs, and reuse them for further executions. In the `reuse` mode, Lithops checks all the available worker VMs and start new workers only if necessary.
+In the `create` mode, Lithops will automatically create new worker VM instances at runtime, scale Lithops jobs against the generated VMs, and automatically delete the VMs when the job is completed.
+Alternatively, you can set the `reuse` mode to keep the started worker VMs running and reuse them for further executions. In the `reuse` mode, Lithops checks all the available worker VMs and starts new workers only if necessary.
 
 ### Lithops configuration for the *create* and *reuse* mode
 
@@ -106,9 +106,9 @@ ibm_vpc:
 |ibm_vpc | auto_dismantle | True |no | If False then the VM is not stopped automatically.|
 |ibm_vpc | soft_dismantle_timeout | 300 |no| Time in seconds to stop the VM instance after a job **completed** its execution |
 |ibm_vpc | hard_dismantle_timeout | 3600 | no | Time in seconds to stop the VM instance after a job **started** its execution |
-|ibm_vpc | exec_mode | reuse | no | One of: **consume**, **create** or **reuse**. If set to  **create**, Lithops will automatically create new VMs for each map() call based on the number of elements in iterdata. If set to **reuse** will try to reuse running workers if exist |
-|ibm_vpc | singlesocket | False | no | Try to allocate workers with single socket CPU. If eventually running on multiple socket, a warning message printed to user. Is **True** standalone **workers_policy** must be set to **strict** to trace workers states|
-|ibm_vpc | gpu | False | no | If `True` docker started with gpu support. Requires host to have necessary hardware and software pre-configured, and docker image runtime with gpu support specified |
+|ibm_vpc | exec_mode | reuse | no | One of: **consume**, **create** or **reuse**. If set to **create**, Lithops will automatically create new VMs for each `map()` call based on the number of elements in `iterdata`. If set to **reuse**, Lithops will try to reuse running workers if they exist |
+|ibm_vpc | singlesocket | False | no | Try to allocate workers with a single-socket CPU. If they end up running on multiple sockets, a warning message is printed to the user. If **True**, the standalone **workers_policy** must be set to **strict** to track worker states |
+|ibm_vpc | gpu | False | no | If `True`, Docker is started with GPU support. Requires the host to have the necessary hardware and software pre-configured, and a Docker image runtime with GPU support specified |
 |ibm_vpc | extra_apt_packages | [] | no | Extra Debian/Ubuntu packages on master/worker VMs during setup (YAML list or space-separated string) |
 |ibm_vpc | extra_python_packages | [] | no | Extra pip packages on master/worker VMs after Lithops (YAML list or space-separated string) |
 
@@ -134,13 +134,13 @@ ibm_vpc:
     floating_ip  : <FLOATING IP ADDRESS OF THE VM>
 ```
 
-If you need to create new VM, then follow the steps to create and update Lithops configuration:
+If you need to create a new VM, follow the steps below to create the VM and update the Lithops configuration:
 
 1. Create an Ubuntu 22.04 virtual server instance (VSI) in [IBM VPC virtual server instances UI](https://cloud.ibm.com/vpc-ext/compute/vs) with CPUs and RAM needed for your application.
-2. Reserve and associate a floating IP address in [IBM VPC floating IPs UI](https://cloud.ibm.com/vpc-ext/network/floatingIPs) to be used for the virtual server instance.
-3. Get the floating IP address of your virtual server instance which can be found [here](https://cloud.ibm.com/vpc-ext/network/floatingIPs).
-4. Get the endpoint of your subnet region, endpoint URLs list can be found [here](https://cloud.ibm.com/apidocs/vpc#endpoint-url).
-5. Get the virtual server instance ID by selecting on your instance in [IBM VPC virtual server instances UI](https://cloud.ibm.com/vpc-ext/compute/vs) and then extracting from the instance's details.
+2. Reserve and associate a floating IP address in the [IBM VPC floating IPs UI](https://cloud.ibm.com/vpc-ext/network/floatingIPs) to be used for the virtual server instance.
+3. Get the floating IP address of your virtual server instance, which can be found [here](https://cloud.ibm.com/vpc-ext/network/floatingIPs).
+4. Get the endpoint of your subnet region. The endpoint URLs list can be found [here](https://cloud.ibm.com/apidocs/vpc#endpoint-url).
+5. Get the virtual server instance ID by selecting your instance in the [IBM VPC virtual server instances UI](https://cloud.ibm.com/vpc-ext/compute/vs) and extracting it from the instance's details.
 
 ## Summary of configuration keys for IBM Cloud:
 
@@ -185,7 +185,7 @@ lithops logs poll
 
 ## VM Management
 
-Lithops for IBM VPC follows a Mater-Worker architecture (1:N).
+Lithops for IBM VPC follows a Master-Worker architecture (1:N).
 
 All the VMs, including the master VM, are automatically stopped after a configurable timeout (see hard/soft dismantle timeouts).
 

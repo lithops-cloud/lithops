@@ -21,9 +21,9 @@ python3 -m pip install lithops[oracle]
 
 1. **Sign in to the Oracle Cloud Console.** 
 
-2. **Open the navigation menu.** Under Identity & Security , go to Polices and then click **Domains**.
+2. **Open the navigation menu.** Under Identity & Security, go to Policies and then click **Domains**.
 
-3. On the left menu, select one compartment. Your account name is the dfault compartment.
+3. On the left menu, select a compartment. Your account name is the default compartment.
 
 4. Click on the current Domain (It's called **Default** by default) and then click on **Dynamic groups**. Click **Create Dynamic Group.**
 
@@ -58,7 +58,7 @@ Now that the dynamic group is set up, you'll need to create a policy that allows
         Allow dynamic-group <group_name> to manage all-resources in tenancy
         ```
 
-5. **Click Create** to create the policy.
+4. **Click Create** to create the policy.
 
 
 ### Configure lithops
@@ -68,7 +68,7 @@ Now, your Oracle Functions have the necessary permissions to manage resources in
 
 2. The **VCN Wizard** will create all the necessary VCN resources, including the subnets. Now access the private subnet and copy the OCID to the `subnet_id` parameter under the `oracle_f` section of the configuration.
 
-3. Navigate to the [API keys page](https://cloud.oracle.com/identity/domains/my-profile/api-keys) and generate and download a new API signing keys. Omit this step if you already generated and downloaded one key. When you generate a new Key, oracle provides a sample config file with most of the required parameters by lithops. Copy all the `key:value` pairs and configure lithops as follows:
+3. Navigate to the [API keys page](https://cloud.oracle.com/identity/domains/my-profile/api-keys) and generate and download a new API signing key. Omit this step if you have already generated and downloaded a key. When you generate a new key, Oracle provides a sample config file with most of the parameters required by Lithops. Copy all the `key:value` pairs and configure Lithops as follows:
 
 
 ```yaml
@@ -88,7 +88,7 @@ oracle_f:
 ```
 
 
-Also, remember to login into your Oracle container registry before you build your runtime. This is because runtimes are uploaded to the Oracle container registry. `<username>` is probably your email address. You can create a new auth token [here](https://cloud.oracle.com/identity/domains/my-profile/auth-tokens)
+Also, remember to log in to your Oracle container registry before you build your runtime, since runtimes are uploaded to the Oracle container registry. `<username>` is most likely your email address. You can create a new auth token [here](https://cloud.oracle.com/identity/domains/my-profile/auth-tokens).
 
 ```
 docker login <region>.ocir.io -u <tenancy-namespace>/<username> -p <authentication_token>
@@ -113,7 +113,7 @@ docker login <region>.ocir.io -u <tenancy-namespace>/<username> -p <authenticati
 |---|---|---|---|---|
 |oracle_f | subnet_id |  |yes | Private subnet OCID |
 |oracle_f | region | |no | Region name. For example: `eu-madrid-1`. Lithops will use the region set under the `oracle` section if it is not set here |
-|oracle_f | max_workers | 300 | no | Max number of workers. Oracle limits to 60 GB RAM, any number of workers  |
+|oracle_f | max_workers | 300 | no | Max number of workers. Oracle limits the total to 60 GB RAM across any number of workers  |
 |oracle_f | worker_processes | 1 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker |
 |oracle_f | runtime |  |no | Runtime name you built and deployed using the lithops client|
 |oracle_f | runtime_memory | 256 |no | Memory limit in MB. Default 256MB |

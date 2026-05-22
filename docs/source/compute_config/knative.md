@@ -28,7 +28,7 @@ python3 -m pip install lithops[knative]
    minikube start --addons=ingress
    ```
 
-6. [Follow this instructions to install knative serving.](https://knative.dev/docs/install/yaml-install/serving/install-serving-with-yaml/)
+6. [Follow these instructions to install Knative Serving.](https://knative.dev/docs/install/yaml-install/serving/install-serving-with-yaml/)
 
 7. Install a networking layer. Currently Lithops supports **Kourier**. [Follow these instructions to install Kourier.](https://knative.dev/docs/install/yaml-install/serving/install-serving-with-yaml/#install-a-networking-layer)
 
@@ -49,7 +49,7 @@ python3 -m pip install lithops[knative]
 
 6. Once the cluster is running, follow the instructions of the "Actions"--> "Connect via CLI" option of the dashboard to configure the *kubectl* client in your local machine. 
 
-7. [Follow this instructions to install knative serving.](https://knative.dev/docs/install/yaml-install/serving/install-serving-with-yaml/)
+7. [Follow these instructions to install Knative Serving.](https://knative.dev/docs/install/yaml-install/serving/install-serving-with-yaml/)
 
 8. Install a networking layer. Currently Lithops supports **Kourier**. [Follow these instructions to install Kourier.](https://knative.dev/docs/install/yaml-install/serving/install-serving-with-yaml/#install-a-networking-layer)
 
@@ -58,7 +58,7 @@ python3 -m pip install lithops[knative]
 
 5. Install Kubernetes >= v1.16 and make sure the *kubectl* client is running.
 
-6. [Follow this instructions to install knative serving.](https://knative.dev/docs/install/yaml-install/serving/install-serving-with-yaml/)
+6. [Follow these instructions to install Knative Serving.](https://knative.dev/docs/install/yaml-install/serving/install-serving-with-yaml/)
 
 7. Install a networking layer. Currently Lithops supports **Kourier**. [Follow these instructions to install Kourier.](https://knative.dev/docs/install/yaml-install/serving/install-serving-with-yaml/#install-a-networking-layer)
 
@@ -86,7 +86,7 @@ knative:
     ....
     docker_server    : docker.io
     docker_user      : <Docker hub Username>
-    docker_password  : <DOcker hub access TOEKN>
+    docker_password  : <Docker hub access TOKEN>
 ```
 
 #### Configure IBM Container Registry
@@ -114,7 +114,7 @@ knative:
 |knative | git_url | |no | Git repository to build the image |
 |knative | git_rev | |no | Git revision to build the image |
 |knative | max_workers | 100 | no | Max number of workers per `FunctionExecutor()`|
-|knative | worker_processes | 1 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker. It is recommendable to set this value to the same number of CPUs of the container. |
+|knative | worker_processes | 1 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker. It is recommended to set this value to the same number of CPUs as the container. |
 |knative | runtime |  |no | Docker image name|
 |knative | runtime_cpu | 1 |no | CPU limit. Default 1vCPU |
 |knative | runtime_memory | 512 |no | Memory limit in MB. Default 512 |

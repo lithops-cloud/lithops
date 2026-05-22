@@ -43,18 +43,18 @@ python3 -m pip install lithops[ibm]
 |ibm | region | |yes | IBM Region.  One of: `eu-gb`, `eu-de`, `us-south`, `us-east`, `br-sao`, `ca-tor`, `jp-tok`, `jp-osa`, `au-syd` |
 |ibm | resource_group_id | | yes | Resource group id from your IBM Cloud account. Get it from [here](https://cloud.ibm.com/account/resource-groups) |
 
-## Code Engine:
+### Code Engine:
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|code_engine | project_name |  |no | Project name that already exists in Code Engine. If not provided lithops will automatically create a new project|
-|code_engine | namespace |  |no | Alternatively to `project_name`, you can provide `namespace`. Get it from you code engine k8s config file.|
+|code_engine | project_name |  |no | Project name that already exists in Code Engine. If not provided, Lithops will automatically create a new project|
+|code_engine | namespace |  |no | As an alternative to `project_name`, you can provide `namespace`. Get it from your Code Engine k8s config file.|
 |code_engine | region |  | no | Cluster region. One of: `eu-gb`, `eu-de`, `us-south`, `us-east`, `br-sao`, `ca-tor`, `jp-tok`, `jp-osa`, `au-syd`. Lithops will use the `region` set under the `ibm` section if it is not set here |
 |code_engine | docker_server | docker.io |no | Container registry URL |
 |code_engine | docker_user | |no | Container registry user name |
 |code_engine | docker_password | |no | Container registry password/token. In case of Docker hub, login to your docker hub account and generate a new access token [here](https://hub.docker.com/settings/security)|
 |code_engine | max_workers | 1000 | no | Max number of workers per `FunctionExecutor()`|
-|code_engine | worker_processes | 1 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker. It is recommendable to set this value to the same number of CPUs of the container. |
+|code_engine | worker_processes | 1 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker. It is recommended to set this value to the same number of CPUs as the container. |
 |code_engine | runtime |  |no | Docker image name.|
 |code_engine | runtime_cpu | 0.125 |no | CPU limit. Default 0.125vCPU. See [valid combinations](https://cloud.ibm.com/docs/codeengine?topic=codeengine-mem-cpu-combo) |
 |code_engine | runtime_memory | 256 |no | Memory limit in MB. Default 256Mi. See [valid combinations](https://cloud.ibm.com/docs/codeengine?topic=codeengine-mem-cpu-combo) |
@@ -66,7 +66,7 @@ python3 -m pip install lithops[ibm]
 ## Runtime
 
 ### Use your own runtime
-If a pre-built runtime is not provided, Lithops will automatically build the default runtime the first time you run a script. For this task it uses the **docker** command installed locally in your machine. To make this working, you need:
+If a pre-built runtime is not provided, Lithops will automatically build the default runtime the first time you run a script. For this task it uses the **docker** command installed locally on your machine. To make this work, you need to:
 
 1. [Install the Docker CE version](https://docs.docker.com/get-docker/).
 

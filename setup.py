@@ -83,6 +83,8 @@ extras_require = {
     ],
     'tests': [
         'pytest',
+        'kubernetes',
+        'pika',
     ]
 }
 

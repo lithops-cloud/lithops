@@ -13,7 +13,7 @@ Before utilizing this API, you will need to install its dependencies:
 Process and Pool
 ----------------
 
-`Processes <https://docs.python.org/3/library/multiprocessing.html#the-process-class>`_ and `Pool <https://docs.python.org/3/library/multiprocessing.html#using-a-pool-of-workers>`_ are the abstractions used in multiprocessing to parallelize computation. They interact directly with Lithop's Futures API.
+`Processes <https://docs.python.org/3/library/multiprocessing.html#the-process-class>`_ and `Pool <https://docs.python.org/3/library/multiprocessing.html#using-a-pool-of-workers>`_ are the abstractions used in multiprocessing to parallelize computation. They interact directly with Lithops' Futures API.
 
 .. code:: python
 
@@ -22,7 +22,7 @@ Process and Pool
 
 
     def my_process_function(name):
-        print(f'Hello {name}!)
+        print(f'Hello {name}!')
 
     p = Process(target=my_process_function, args=('World',))
     p.start()
@@ -47,13 +47,13 @@ Process and Pool
 Stateful abstractions
 ---------------------
 
-Lithops also implements all stateful abstractions from Python mutliprocessing: Queue, Pipes, Shared memory, Events...
+Lithops also implements all stateful abstractions from Python multiprocessing: Queue, Pipes, Shared memory, Events, etc.
 
-Since FaaS lacks mechanisms for function-to-function communication, a `Redis <https://redis.io/>`_ database instance node is used.
+Since FaaS lacks mechanisms for function-to-function communication, a `Redis <https://redis.io/>`_ database instance is used.
 
-.. note:: Both the functions and the Lithops orchestrator local process must be able to access the Redis instance -- for example, deploying it in your local machine won't work
+.. note:: Both the functions and the Lithops orchestrator (local process) must be able to access the Redis instance. For example, deploying it on your local machine won't work, since the cloud functions won't be able to reach it.
 
-The Redis credentials (host, password...) is loaded from the ``redis`` section of the Lithops configuration.
+The Redis credentials (host, password, etc.) are loaded from the ``redis`` section of the Lithops configuration.
 
 The fastest way to deploy a Redis instance is using Docker in a VM located in the cloud of your choice:
 
@@ -61,15 +61,15 @@ The fastest way to deploy a Redis instance is using Docker in a VM located in th
 
     docker run --rm -d --network host --name redis redis:6.2.1 --requirepass redispassword
 
-To have lower latency, you can deploy the functions and the VM in the same VPC and use route through internal traffic instead of the internet.
-For example, in AWS, the functions and VM can be deployed in the same VPC: Lambdas go to a private subnet and the VM in a public subnet. This way, the VM has access to the internet and the local Lithops process can also access it.
+To reduce latency, you can deploy the functions and the VM in the same VPC, so that they communicate over internal traffic instead of the public internet.
+For example, in AWS, the functions and the VM can be deployed in the same VPC: Lambdas go in a private subnet and the VM in a public subnet. This way, the VM has access to the internet and the local Lithops process can also reach it.
 
 Extra multiprocessing configuration
 -----------------------------------
 
 The Lithops multiprocessing module has extra configuration specific to the multiprocessing functionality.
-To preserve transparency, the functions and method signature has remain completely compatible with the original multiprocessing module.
-For this reason, to set specific configuration in runtime, the ``Lithops.multiprocessing.config`` module is used:
+To preserve transparency, the functions and method signatures remain completely compatible with the original multiprocessing module.
+For this reason, to set specific configuration at runtime, the ``lithops.multiprocessing.config`` module is used:
 
 .. code:: python
 
@@ -108,7 +108,7 @@ Multiprocessing configuration keys
      - Description
      - Default
    * - LITHOPS_CONFIG
-     - Lithops configuration, passed directly to Lithop's FunctionExecutor
+     - Lithops configuration, passed directly to the Lithops FunctionExecutor
      - ``{}``
    * - STREAM_STDOUT
      - Stream processes STDOUT to the local terminal through Redis pubsub
@@ -117,7 +117,7 @@ Multiprocessing configuration keys
      - Expiry time for used Redis keys
      - ``3600`` (1 hour)
    * - PIPE_CONNECTION_TYPE
-     - Connection type for the ``Pipe`` abstraction, can be ``redislist`` for using Redis or ``nanomsg`` for function-to-function direct communication using NanoMSG*
+     - Connection type for the ``Pipe`` abstraction. Can be ``redislist`` to use Redis or ``nanomsg`` for direct function-to-function communication using NanoMSG\*
      - ``redislist``
    * - ENV_VARS
      - Environment variables for the processes, passed directly to Lithops FunctionExecutor ``extra_env`` argument
@@ -127,4 +127,4 @@ Multiprocessing configuration keys
      - ``None``
 
 
-* To use nanomsg for Pipes, you must still deploy a Redis instance (used for pipe directory). Note that this feature only works in environments where functions can open a port and communicate with each other.
+\* To use nanomsg for Pipes, you must still deploy a Redis instance (used for the pipe directory). Note that this feature only works in environments where functions can open a port and communicate with each other.

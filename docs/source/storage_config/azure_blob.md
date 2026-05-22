@@ -17,7 +17,7 @@ $ python3 -m pip install lithops[azure]
 
      1. Access to the [Azure portal Resource Groups](https://portal.azure.com/#blade/HubsExtension/BrowseResourceGroups) and create a new Resource group named **LithopsResourceGroup** in your preferred region. If you already have a resource group, omit this step.
      
-     2. Access to the [Azure portal Storage Accounts](https://portal.azure.com/#blade/HubsExtension/BrowseResourceGroups) and create a new Storage Account with a unique name, for example: **lithops0sa25s1**. If you already have a storage account, omit this step.
+     2. Access the [Azure portal Storage Accounts](https://portal.azure.com/#view/HubsExtension/BrowseResource/resourceType/Microsoft.Storage%2FStorageAccounts) and create a new Storage Account with a unique name, for example: **lithops0sa25s1**. If you already have a storage account, omit this step.
 
    Option 2:
    
@@ -67,4 +67,4 @@ $ python3 -m pip install lithops[azure]
 |---|---|---|---|---|
 |azure_storage | storage_account_name | | yes |  The storage account name |
 |azure_storage | storage_account_key  | | yes |  An Account Key, found in *Storage Accounts* > `account_name` > *Security + networking* > *Access Keys*|
-|azure_storage | storage_bucket | | no | The name of a container that exists in you account. This will be used by Lithops for intermediate data. Lithops will automatically create a new one if it is not provided |
+|azure_storage | storage_bucket | | no | The name of a container that exists in your account. This will be used by Lithops for intermediate data. Lithops will automatically create a new one if it is not provided |

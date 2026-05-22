@@ -1,14 +1,15 @@
 # AWS Elastic Compute Cloud (EC2)
 
-The AWS EC2 client of Lithops can provide a truely serverless user experience on top of EC2 where Lithops creates new Virtual Machines (VMs) dynamically in runtime and scale Lithops jobs against them (Create & Reuse modes). Alternatively Lithops can start and stop an existing VM instance (Consume mode).
+The AWS EC2 client of Lithops can provide a truly serverless user experience on top of EC2 where Lithops creates new Virtual Machines (VMs) dynamically at runtime and scales Lithops jobs against them (Create & Reuse modes). Alternatively, Lithops can start and stop an existing VM instance (Consume mode).
 
-## AWS 
-The assumption that you already familiar with AWS, and you have AUTH credentials to your account (HMAC Credentials).
+## AWS
+
+This guide assumes that you are already familiar with AWS, and that you have authentication credentials for your account (HMAC Credentials).
 
 ### Choose an operating system image for the VM
-Any Virtual Machine (VM) needs to define the instance’s operating system and version. Lithops supports both standard operating system choices provided by the VPC or using pre-defined custom images that already contains all dependencies required by Lithops.
+Any Virtual Machine (VM) needs to define the instance's operating system and version. Lithops supports both standard operating system choices provided by AWS and pre-defined custom images that already contain all dependencies required by Lithops.
 
-- Option 1: By default, Lithops uses an Ubuntu 22.04 image. In this case, no further action is required and you can continue to the next step. Lithops will install all required dependencies in the VM by itself. Note this can consume about 3 min to complete all installations.
+- Option 1: By default, Lithops uses an Ubuntu 22.04 image. In this case, no further action is required and you can continue to the next step. Lithops will install all required dependencies in the VM by itself. Note that this can take about 3 minutes to complete all installations.
 
 - Option 2: Alternatively, you can use a pre-built custom image that will greatly improve VM creation time for Lithops jobs. To benefit from this approach, navigate to [runtime/aws_ec2](https://github.com/lithops-cloud/lithops/tree/master/runtime/aws_ec2), and follow the instructions.
 
@@ -21,8 +22,8 @@ python3 -m pip install lithops[aws]
 ```
 
 ## Create and reuse modes
-In the `create` mode, Lithops will automatically create new worker VM instances in runtime, scale Lithops job against generated VMs, and automatically delete the VMs when the job is completed.
-Alternatively, you can set the `reuse` mode to keep running the started worker VMs, and reuse them for further executions. In the `reuse` mode, Lithops checks all the available worker VMs and start new workers only if necessary.
+In the `create` mode, Lithops will automatically create new worker VM instances at runtime, scale Lithops jobs against the generated VMs, and automatically delete the VMs when the job is completed.
+Alternatively, you can set the `reuse` mode to keep the started worker VMs running and reuse them for further executions. In the `reuse` mode, Lithops checks all the available worker VMs and starts new workers only if necessary.
 
 
 ### Configuration
@@ -101,7 +102,7 @@ In summary, you can use one of the following settings:
 |aws | access_key_id | |no | Account access key to AWS services. To find them, navigate to *My Security Credentials* and click *Create Access Key* if you don't already have one. |
 |aws | secret_access_key | |no | Account secret access key to AWS services. To find them, navigate to *My Security Credentials* and click *Create Access Key* if you don't already have one. |
 |aws | session_token | |no | Session token for temporary AWS credentials |
-|aws | account_id | |no | *This field will be used if present to retrieve the account ID instead of using AWS STS. The account ID is used to format full image names for container runtimes. |
+|aws | account_id | |no | This field, if present, will be used to retrieve the account ID instead of using AWS STS. The account ID is used to format full image names for container runtimes. |
 
 ### EC2 - Create and Reuse Modes
 
@@ -135,7 +136,7 @@ In summary, you can use one of the following settings:
 
 ## Additional configuration
 
-# Elastic Block Store (EBS)
+### Elastic Block Store (EBS)
 
 To attach EBS volumes to an EC2 instance in Lithops, you can configure the `aws_ec2` section as follows.
 
@@ -169,7 +170,7 @@ aws_ec2:
 | ebs | volume_type | gp2 | No | Type of volume. Options: `gp2`, `gp3`, `io1`, `io2`, `sc1`, `st1`, `standard`|
 | ebs | delete_on_termination| True | No | Whether the volume is deleted automatically when the instance is terminated |
 | ebs | encrypted | False | No | Whether the volume is encrypted |
-| ebs | kms_key_i | | No | ARN of the KMS key used for encryption. If not provided, the default AWS-managed key is used |
+| ebs | kms_key_id | | No | ARN of the KMS key used for encryption. If not provided, the default AWS-managed key is used |
 | ebs | iops | | No | Provisioned IOPS for `io1`, `io2`, or `gp3` volumes |
 | ebs | throughput | | No | Throughput in MiB/s for `gp3` volumes |
 
@@ -221,7 +222,7 @@ In summary, you can use one of the following settings:
 |aws | access_key_id | |no | Account access key to AWS services. To find them, navigate to *My Security Credentials* and click *Create Access Key* if you don't already have one. |
 |aws | secret_access_key | |no | Account secret access key to AWS services. To find them, navigate to *My Security Credentials* and click *Create Access Key* if you don't already have one. |
 |aws | session_token | |no | Session token for temporary AWS credentials |
-|aws | account_id | |no | *This field will be used if present to retrieve the account ID instead of using AWS STS. The account ID is used to format full image names for container runtimes. |
+|aws | account_id | |no | This field, if present, will be used to retrieve the account ID instead of using AWS STS. The account ID is used to format full image names for container runtimes. |
 
 ### Summary of configuration keys for the consume Mode
 

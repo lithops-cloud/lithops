@@ -29,7 +29,7 @@ Choose your compute and storage engines from the table below:
 || `Azure Container Apps <compute_config/azure_containers.html>`_    || `Redis <storage_config/redis.html>`_                              |
 || `Aliyun Function Compute <compute_config/aliyun_functions.html>`_ || `OpenStack Swift <storage_config/swift.html>`_                    |
 || `Oracle Functions <compute_config/oracle_functions.html>`_        || `Oracle Object Storage <storage_config/oracle_oss.html>`_         |
-|| `Kubernetes <compute_config/kubernetes.md>`_                      ||                                                                   |
+|| `Kubernetes <compute_config/kubernetes.html>`_                    ||                                                                   |
 || `Knative <compute_config/knative.html>`_                          ||                                                                   |
 || `Singularity <compute_config/singularity.html>`_                  ||                                                                   |
 || `OpenWhisk <compute_config/openwhisk.html>`_                      ||                                                                   |
@@ -51,11 +51,11 @@ you have multiple options:
 2. Create a new file called ``.lithops_config`` in the root directory of your project from where you will execute your
    Lithops scripts.
 
-3. Create a new file called `config` in the `/etc/lithops/` folder (i.e: `/etc/lithops/config`).
-Useful for sharing the config file on multi-user machines.
+3. Create a new file called ``config`` in the ``/etc/lithops/`` folder (i.e. ``/etc/lithops/config``).
+   Useful for sharing the config file on multi-user machines.
 
-4. Create the config file in any other location and configure the `LITHOPS_CONFIG_FILE` system environment variable
-indicating the absolute or relative location of the configuration file:
+4. Create the config file in any other location and configure the ``LITHOPS_CONFIG_FILE`` system environment variable
+   indicating the absolute or relative location of the configuration file:
 
 .. code-block::
 
@@ -64,9 +64,9 @@ indicating the absolute or relative location of the configuration file:
 Configuration keys in runtime
 -----------------------------
 
-An alternative mode of configuration is to use a Python dictionary. This option allows to pass all the configuration
-details as part of the Lithops invocation in runtime. You can see an entire list of configuration keys at the
-:ref:`config-reference-label` section.
+An alternative way to configure Lithops is by using a Python dictionary. This option allows you to pass all the
+configuration details as part of the Lithops invocation at runtime. You can see the full list of configuration keys
+in the :ref:`config-reference-label` section.
 
 Here is an example of providing configuration keys for IBM Cloud Functions and IBM Cloud Object Storage:
 

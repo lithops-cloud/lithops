@@ -19,11 +19,11 @@ python3 -m pip install lithops[gcp]
 5. Click on *Create Service Account*. Name the service account `lithops-executor` or similar. Then click on *Create*.
 
 6. Add the following roles to the service account:
- - Service Accounts --> Service Account User
- - Cloud Run --> Cloud Run Admin
- - Cloud Storage -->Storage Admin
+   - Service Accounts --> Service Account User
+   - Cloud Run --> Cloud Run Admin
+   - Cloud Storage --> Storage Admin
 
-7. Click on *Continue*. Then, click on *Create key*. Select *JSON* and then *Create*. Download the JSON file to a secure location in you computer. Click *Done*.
+7. Click on *Continue*. Then, click on *Create key*. Select *JSON* and then *Create*. Download the JSON file to a secure location on your computer. Click *Done*.
 
 8. Enable the **Cloud Build API** : Navigate to *APIs & services* tab on the menu. Click *ENABLE APIS AND SERVICES*. Look for "Cloud Build API" at the search bar. Click *Enable*.
 
@@ -82,7 +82,7 @@ Replace `gcf-artifacts`, `us-east1`, `lithops-dev`, and the service account emai
 |gcp_cloudrun | region | |no | Region name (e.g. `us-east1`). Lithops will use the region set under the `gcp` section if it is not set here |
 |gcp_cloudrun | min_workers | 0 | no | Minimum number of workers of a given runtime to keep in warm status|
 |gcp_cloudrun | max_workers | 1000 | no | Maximum number of workers to scale a given runtime|
-|gcp_cloudrun | worker_processes | 1 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker. It is recommendable to set this value to the same number of CPUs of the container. |
+|gcp_cloudrun | worker_processes | 1 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker. It is recommended to set this value to the same number of CPUs as the container. |
 |gcp_cloudrun | runtime |  |no | Container image name|
 |gcp_cloudrun | runtime_cpu | 0.25 |no | CPU limit. Default 0.25vCPU |
 |gcp_cloudrun | runtime_memory | 256 |no | Memory limit in MB. Default 256Mi |
