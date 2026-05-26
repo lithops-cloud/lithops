@@ -343,7 +343,8 @@ class StandaloneHandler:
         """
         Clan all the backend resources
         """
-        if self.is_initialized():
+        all_clean = kwargs.get('all', False)
+        if self.is_initialized() and not all_clean:
             try:
                 self.init()
                 self._make_request('POST', 'clean')
