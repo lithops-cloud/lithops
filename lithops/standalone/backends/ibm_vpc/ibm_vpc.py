@@ -1297,7 +1297,7 @@ def vpc_retry_on_except(func):
         def _sleep_or_raise(sleep_time, err):
             if i < RETRIES - 1:
                 time.sleep(sleep_time)
-                logger.warning((f'Got exception {err}, retrying for the {i} time, left retries {RETRIES - 1 -i}'))
+                logger.warning((f'Got exception {err}, retrying for the {i} time, left retries {RETRIES - 1 - i}'))
                 return min(sleep_time * SLEEP_FACTOR, MAX_SLEEP)
             else:
                 raise err

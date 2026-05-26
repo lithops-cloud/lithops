@@ -447,7 +447,7 @@ class GCPComputeEngineBackend:
             self._create_master_instance()
             self._dump_gce_data()
             return
-        
+
         elif self.mode in [StandaloneMode.CREATE.value, StandaloneMode.REUSE.value]:
             self._create_network()
             self._create_ssh_key()

@@ -167,16 +167,12 @@ class AzureContainerAppBackend:
         finally:
             os.remove(config.FH_ZIP_LOCATION)
 
-        docker_user = self.ac_config.get("docker_user")
-        docker_password = self.ac_config.get("docker_password")
-        docker_server = self.ac_config.get("docker_server")
-
         logger.debug(f'Pushing runtime {runtime_name} to container registry')
-
-        if docker_user and docker_password:
-            logger.debug('Container registry credentials found in config. Logging in into the registry')
-            cmd = f'{docker_path} login -u {docker_user} --password-stdin {docker_server}'
-            utils.run_command(cmd, input=docker_password)
+        utils.docker_login(
+            self.ac_config.get('docker_user'),
+            self.ac_config.get('docker_password'),
+            self.ac_config.get('docker_server'),
+        )
 
         if utils.is_podman(docker_path):
             cmd = f'{docker_path} push {runtime_name} --format docker --remove-signatures'
@@ -339,7 +335,7 @@ class AzureContainerAppBackend:
                 logger.debug("Metadata extracted succesfully")
                 return runtime_meta
             except StorageNoSuchKeyError:
-                logger.debug(f'Get runtime metadata retry {i+1}')
+                logger.debug(f'Get runtime metadata retry {i + 1}')
 
         raise Exception('Could not get metadata. Review container logs in the Azure Portal')
 

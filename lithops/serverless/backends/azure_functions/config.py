@@ -52,6 +52,7 @@ def get_flex_instance_memory(memory):
         return 2048
     return 4096
 
+
 REQUIRED_AZURE_STORAGE_PARAMS = ('storage_account_name', 'storage_account_key')
 REQUIRED_AZURE_FUNCTIONS_PARAMS = ('resource_group', 'region')
 

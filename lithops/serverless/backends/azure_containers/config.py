@@ -167,7 +167,7 @@ def load_config(config_data):
         config_data['azure_containers']['region'] = config_data['azure_containers'].pop('location')
 
     for key in DEFAULT_CONFIG_KEYS:
-        if key not in config_data['azure_containers']:
+        if key not in config_data['azure_containers'] or not config_data['azure_containers'][key]:
             config_data['azure_containers'][key] = DEFAULT_CONFIG_KEYS[key]
 
     for key in REQUIRED_AZURE_STORAGE_PARAMS:
