@@ -966,9 +966,13 @@ class GCPComputeEngineInstance:
 
     def get_ssh_client(self):
         self.get_instance_data()
+        if not self.instance_data:
+            raise Exception(f'VM instance {self.name} does not exist')
+
         if self.public:
             if not self.public_ip:
-                if self.get_status() == 'TERMINATED':
+                status = self.get_status()
+                if status == 'TERMINATED':
                     self.start()
                 else:
                     self._wait_public_ip(timeout=60)
@@ -1080,6 +1084,8 @@ class GCPComputeEngineInstance:
         start = time.time()
         while time.time() - start < timeout:
             self.get_instance_data()
+            if not self.instance_data:
+                raise Exception(f'VM instance {self.name} does not exist')
             if self.public_ip:
                 return self.public_ip
             time.sleep(2)
@@ -1121,7 +1127,9 @@ class GCPComputeEngineInstance:
         }
         # Master: external IP for SSH from the Lithops client.
         # Workers: no external IP; outbound internet uses Cloud NAT on the subnet.
-        if public or self.config.get('worker_public_ip', False):
+        # Use self.public (set in __init__) when create() is called without public=...
+        use_public_ip = public or self.public or self.config.get('worker_public_ip', False)
+        if use_public_ip:
             network_iface['accessConfigs'] = [{'name': 'External NAT', 'type': 'ONE_TO_ONE_NAT'}]
 
         body = {
@@ -1165,7 +1173,7 @@ class GCPComputeEngineInstance:
                 f'GCS access from the VM will fail'
             )
 
-        if self.config.get('request_spot_instances', False) and not public:
+        if self.config.get('request_spot_instances', False) and not use_public_ip:
             body['scheduling'] = {
                 'provisioningModel': 'SPOT',
                 'instanceTerminationAction': 'STOP'

@@ -3,6 +3,7 @@
 ## [v3.6.5.dev0]
 
 ### Added
+- [GCP Compute Engine] Added new GCP Compute Engine standalone backend
 - [Core] Added support for variable-length parameters in functions passed to the executor.
 
 ### Changed
@@ -15,6 +16,7 @@
 ### Fixed
 - [K8s] Fixed default runtime builds impacted by Debian Buster end-of-life.
 - [GCP Cloud Run] Added Artifact Registry (`pkg.dev`) runtime deployment support
+- [K8s] Run default runtime image as non-root user (uid 1000) (#1469)
 
 
 ## [v3.6.4]

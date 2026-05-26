@@ -213,10 +213,9 @@ def get_host_setup_script(
     configure_redis_for_standalone(){{
     # Workers connect to the master private IP; Redis must not listen on loopback only.
     if [ ! -f /etc/redis/redis.conf ]; then
-        echo "--> Redis: /etc/redis/redis.conf not found, skipping Redis configuration"
         return 0
     fi
-    echo "--> Redis: configuring for standalone workers (bind 0.0.0.0)"
+    echo "--> Configuring Redis for standalone workers (bind 0.0.0.0)"
     sed -i -E 's/^bind .*/bind 0.0.0.0 -::1/' /etc/redis/redis.conf
     if grep -q '^protected-mode yes' /etc/redis/redis.conf; then
         sed -i 's/^protected-mode yes/protected-mode no/' /etc/redis/redis.conf
@@ -227,55 +226,26 @@ def get_host_setup_script(
 
     install_packages(){{
     set -e
-    if [ -f {SA_SETUP_DONE_FILE} ]; then
-        echo "--> Lithops host setup: already completed ({SA_SETUP_DONE_FILE}), skipping install_packages"
-        return 0
-    fi
-    echo "--> Lithops host setup: running install_packages"
     export DEBIAN_FRONTEND=noninteractive
     export DOCKER_REQUIRED={str(docker).lower()};
-    INSTALL_DOCKER=false
-    INSTALL_LITHOPS_DEPS=false
-    if command -v docker >/dev/null 2>&1; then
-        echo "--> docker: already installed ($(docker --version 2>/dev/null | head -1))"
-    else
-        INSTALL_DOCKER=true
-        INSTALL_LITHOPS_DEPS=true
-        echo "--> docker: not found, will install"
-    fi
-    if command -v unzip >/dev/null 2>&1; then
-        echo "--> unzip: already installed"
-    else
-        INSTALL_LITHOPS_DEPS=true
-        echo "--> unzip: not found, will install Lithops system dependencies"
-    fi
-    if command -v pip3 >/dev/null 2>&1; then
-        echo "--> pip3: already installed ($(pip3 --version 2>/dev/null | head -1))"
-    else
-        INSTALL_LITHOPS_DEPS=true
-        echo "--> pip3: not found, will install Lithops system dependencies"
-    fi
+    command -v docker >/dev/null 2>&1 || {{ export INSTALL_DOCKER=true; export INSTALL_LITHOPS_DEPS=true;}};
+    command -v unzip >/dev/null 2>&1 || {{ export INSTALL_LITHOPS_DEPS=true; }};
+    command -v pip3 >/dev/null 2>&1 || {{ export INSTALL_LITHOPS_DEPS=true; }};
 
     if [ "$INSTALL_DOCKER" = true ] && [ "$DOCKER_REQUIRED" = true ]; then
     wait_internet_connection;
-    echo "--> Installing Docker apt repository"
+    echo "--> Installing Docker repository"
     apt_install update
     apt_install install -y apt-transport-https ca-certificates curl gnupg software-properties-common
     curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
     DOCKER_APT="deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg]"
     DOCKER_APT="$DOCKER_APT https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
     echo "$DOCKER_APT" > /etc/apt/sources.list.d/docker.list
-    else
-    if [ "$DOCKER_REQUIRED" != true ]; then
-        echo "--> Docker: not required for this runtime, skipping Docker repository setup"
-    else
-        echo "--> Docker: repository setup skipped (Docker already installed)"
-    fi
     fi;
 
     if [ "$INSTALL_LITHOPS_DEPS" = true ]; then
     wait_internet_connection;
-    echo "--> Installing Lithops system dependencies (apt)"
+    echo "--> Installing Lithops system dependencies"
     apt_install update
 
     if [ "$INSTALL_DOCKER" = true ] && [ "$DOCKER_REQUIRED" = true ]; then
@@ -284,9 +254,7 @@ def get_host_setup_script(
     apt_install install -y unzip redis-server python3-pip
     fi;
     configure_redis_for_standalone
-    else
-    echo "--> Lithops system dependencies (apt): already present, skipping apt install"
-    configure_redis_for_standalone
+
     fi;
 
     EXTRA_APT="{extra_apt_packages}"
@@ -295,15 +263,11 @@ def get_host_setup_script(
     apt_install update
     echo "--> Installing extra apt packages: $EXTRA_APT"
     apt_install install -y $EXTRA_APT
-    else
-    echo "--> Extra apt packages: none configured, skipping"
     fi;
 
-    if pip3 list 2>/dev/null | grep -q lithops; then
-    echo "--> Lithops python package: already installed ($(pip3 show lithops 2>/dev/null | awk '/^Version:/ {{print $2}}' | head -1)), skipping pip install"
-    else
+    if ! pip3 list 2>/dev/null | grep -q lithops; then
     wait_internet_connection;
-    echo "--> Lithops python package: not found, installing ({lithops_pip_spec})"
+    echo "--> Installing Lithops python dependencies ({lithops_pip_spec})"
     export PIP_BREAK_SYSTEM_PACKAGES=1
     # --ignore-installed: do not uninstall Debian python packages (avoids RECORD errors)
     pip3 install --ignore-installed -U pip
@@ -315,18 +279,11 @@ def get_host_setup_script(
     echo "--> Installing extra python packages: $EXTRA_PY"
     export PIP_BREAK_SYSTEM_PACKAGES=1
     pip3 install --ignore-installed $EXTRA_PY
-    else
-    echo "--> Extra python packages: none configured, skipping"
     fi;
-    echo "--> Lithops host setup: install_packages finished"
     }}
     """
     if run_install:
-        script += f"""echo "--> Lithops host setup: starting ({SA_SETUP_LOG_FILE})"
-install_packages 2>&1 | tee -a {SA_SETUP_LOG_FILE}
-touch {SA_SETUP_DONE_FILE}
-echo "--> Lithops host setup: marked complete ({SA_SETUP_DONE_FILE})"
-"""
+        script += f"install_packages >> {SA_SETUP_LOG_FILE} 2>&1 && touch {SA_SETUP_DONE_FILE};\n"
     return script
 
 
@@ -374,7 +331,7 @@ def get_master_setup_script(config, vm_data):
     echo '127.0.0.1 lithops-master' >> /etc/hosts;
     cat $USER_HOME/.ssh/id_rsa.pub >> $USER_HOME/.ssh/authorized_keys;
     }}
-    install_packages 2>&1 | tee -a {SA_SETUP_LOG_FILE}; test ${{PIPESTATUS[0]}} -eq 0 && touch {SA_SETUP_DONE_FILE} && \\
+    install_packages >> {SA_SETUP_LOG_FILE} 2>&1 && touch {SA_SETUP_DONE_FILE} && \\
     setup_host >> {SA_SETUP_LOG_FILE} 2>&1 && \\
     setup_service >> {SA_SETUP_LOG_FILE} 2>&1 && \\
     (test -f $USER_HOME/.ssh/lithops_id_rsa || generate_ssh_key >> {SA_SETUP_LOG_FILE} 2>&1)
@@ -419,7 +376,7 @@ def get_worker_setup_script(config, vm_data):
     systemctl enable {WORKER_SERVICE_NAME};
     systemctl start {WORKER_SERVICE_NAME};
     }}
-    install_packages 2>&1 | tee -a {SA_SETUP_LOG_FILE}; test ${{PIPESTATUS[0]}} -eq 0 && touch {SA_SETUP_DONE_FILE} && \\
+    install_packages >> {SA_SETUP_LOG_FILE} 2>&1 && touch {SA_SETUP_DONE_FILE} && \\
     setup_host >> {SA_SETUP_LOG_FILE} 2>&1 && \\
     setup_service >> {SA_SETUP_LOG_FILE} 2>&1
     echo '{vm_data['master_ip']} lithops-master' >> /etc/hosts
