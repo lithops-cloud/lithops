@@ -6,6 +6,8 @@ You can check supported runtimes and language details in the Cloud Run functions
 - [Runtime support](https://docs.cloud.google.com/functions/docs/runtime-support)
 - [Python dependencies](https://docs.cloud.google.com/run/docs/runtimes/python-dependencies)
 
+Cloud Run functions currently supports Python 3.10, 3.11, 3.12, 3.13 and 3.14.
+
 In addition, the Lithops default runtimes are built with the packages included in this [requirements.txt](requirements.txt) file:
 
 The default runtime is created automatically the first time you execute a function. Lithops automatically detects the Python version of your environment and deploys the default runtime based on it. In this sense, to run a function with the default runtime you don't need to specify anything in the code, since everything is managed internally by Lithops:
