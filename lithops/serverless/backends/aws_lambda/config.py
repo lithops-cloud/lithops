@@ -32,11 +32,11 @@ DEFAULT_REQUIREMENTS = [
 ]
 
 AVAILABLE_PY_RUNTIMES = {
-    '3.8': 'python3.8',
-    '3.9': 'python3.9',
     '3.10': 'python3.10',
     '3.11': 'python3.11',
-    '3.12': 'python3.12'
+    '3.12': 'python3.12',
+    '3.13': 'python3.13',
+    '3.14': 'python3.14',
 }
 
 USER_RUNTIME_PREFIX = 'lithops.user_runtimes'

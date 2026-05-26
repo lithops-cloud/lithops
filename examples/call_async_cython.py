@@ -4,7 +4,7 @@ cythonized function located in function.cpython-39-x86_64-linux-gnu.so
 
 Commands to compile the function.py into function.so (Ubuntu):
 cython3 -3 --embed -X always_allow_keywords=true -o function.c function.py
-gcc -shared -o function.so -fPIC -I /usr/include/python3.9 function.c
+gcc -shared -o function.so -fPIC -I /usr/include/python3.12 function.c
 
 To make this example working, you have to delete funtion.py and rename
 function.cpython-39-x86_64-linux-gnu.so -> function.so

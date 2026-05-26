@@ -1,6 +1,6 @@
 # Lithops runtime for OpenWhisk
 
-The runtime is the place where your functions are executed. In Lithops, runtimes are based on docker images, and it includes default runtimes that allow you to run functions with Python >= 3.8 environments. Lithops main runtime is responsible to execute Python functions within OpenWhisk. The strong requirement here is to match Python versions between the client and the runtime. The runtime may also contain additional packages which your code depends on.
+The runtime is the place where your functions are executed. In Lithops, runtimes are based on docker images, and it includes default runtimes that allow you to run functions with Python >= 3.10 environments. Lithops main runtime is responsible to execute Python functions within OpenWhisk. The strong requirement here is to match Python versions between the client and the runtime. The runtime may also contain additional packages which your code depends on.
 
 
 The default runtime is created the first time you execute a function. Lithops automatically detects the Python version of your environment and deploys the default runtime based on it.

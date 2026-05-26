@@ -33,8 +33,8 @@ SERVICE_NAME = 'lithops'
 BUILD_DIR = os.path.join(TEMP_DIR, 'AliyunRuntimeBuild')
 
 AVAILABLE_PY_RUNTIMES = {
-    '3.9': 'python3.9',
-    '3.10': 'python3.10'
+    '3.10': 'python3.10',
+    '3.12': 'python3.12',
 }
 
 REQUIREMENTS_FILE = """
