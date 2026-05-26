@@ -447,32 +447,33 @@ class GCPComputeEngineBackend:
             self._create_master_instance()
             self._dump_gce_data()
             return
-
-        self._create_network()
-        self._create_ssh_key()
-        self._request_source_image()
-        if 'instance_name' not in self.config:
-            self.config['instance_name'] = f'lithops-master-{self.network_key}'
-        self._create_master_instance()
-        self._load_instance_types()
-        self.gce_data = {
-            'mode': self.mode,
-            'vpc_data_type': self.vpc_data_type,
-            'ssh_data_type': self.ssh_data_type,
-            'master_name': self.master.name,
-            'master_id': self.network_key,
-            'network_name': self.config['network_name'],
-            'network_key': self.network_key,
-            'subnet_name': self.config['subnet_name'],
-            'firewall_name': self.config['firewall_name'],
-            'internal_firewall_name': self.config['internal_firewall_name'],
-            'router_name': self.config.get('router_name'),
-            'nat_name': self.config.get('nat_name'),
-            'ssh_key_filename': self.config['ssh_key_filename'],
-            'source_image': self.config['source_image'],
-            'instance_types': self.instance_types,
-        }
-        self._dump_gce_data()
+        
+        elif self.mode in [StandaloneMode.CREATE.value, StandaloneMode.REUSE.value]:
+            self._create_network()
+            self._create_ssh_key()
+            self._request_source_image()
+            if 'instance_name' not in self.config:
+                self.config['instance_name'] = f'lithops-master-{self.network_key}'
+            self._create_master_instance()
+            self._load_instance_types()
+            self.gce_data = {
+                'mode': self.mode,
+                'vpc_data_type': self.vpc_data_type,
+                'ssh_data_type': self.ssh_data_type,
+                'master_name': self.master.name,
+                'master_id': self.network_key,
+                'network_name': self.config['network_name'],
+                'network_key': self.network_key,
+                'subnet_name': self.config['subnet_name'],
+                'firewall_name': self.config['firewall_name'],
+                'internal_firewall_name': self.config['internal_firewall_name'],
+                'router_name': self.config.get('router_name'),
+                'nat_name': self.config.get('nat_name'),
+                'ssh_key_filename': self.config['ssh_key_filename'],
+                'source_image': self.config['source_image'],
+                'instance_types': self.instance_types,
+            }
+            self._dump_gce_data()
 
     @staticmethod
     def _is_default_ubuntu_source_image(source_image):
@@ -609,6 +610,7 @@ class GCPComputeEngineBackend:
             )
             logger.debug(f"User script '{script_file}' finsihed")
 
+        logger.debug(f'Stopping {build_vm} before creating VM image')
         build_vm.stop()
         build_vm.wait_stopped()
 
@@ -628,7 +630,6 @@ class GCPComputeEngineBackend:
         self._wait_operation(op['name'], scope='global')
 
         logger.debug("Starting VM image creation")
-        logger.debug("Be patient, VM imaging can take up to 10 minutes")
         self._wait_image_ready(image_name)
 
         if not is_initialized:
@@ -1021,11 +1022,18 @@ class GCPComputeEngineInstance:
         raise TimeoutError(f'Readiness probe expired on {self}')
 
     def get_instance_data(self):
-        res = self.compute_client.instances().get(
-            project=self.project_name,
-            zone=self.zone,
-            instance=self.name
-        ).execute()
+        try:
+            res = self.compute_client.instances().get(
+                project=self.project_name,
+                zone=self.zone,
+                instance=self.name
+            ).execute()
+        except HttpError as err:
+            if getattr(err.resp, 'status', None) == 404:
+                self.instance_data = None
+                return None
+            raise
+
         self.instance_data = res
         self.instance_id = str(res.get('id'))
 
@@ -1053,10 +1061,7 @@ class GCPComputeEngineInstance:
         return self.public_ip
 
     def get_status(self):
-        try:
-            self.get_instance_data()
-        except HttpError:
-            return None
+        self.get_instance_data()
         return self.instance_data.get('status') if self.instance_data else None
 
     def is_stopped(self):
