@@ -103,7 +103,7 @@ az containerapp env create --name lithops --resource-group LithopsResourceGroup 
 |azure_containers | max_workers | 1000 | no | Max number of parallel workers. Although Azure limits the number of parallel workers to 30, it is convenient to keep this value high|
 |azure_containers | worker_processes | 1 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker |
 |azure_containers| runtime |  |no | Docker image name|
-|azure_containers | runtime_memory | 512 |no | Memory limit in MB. Default 512Mi |
+|azure_containers | runtime_memory | 512 |no | Memory limit in MB. Allowed values (MB): 512, 1024, 1536, 2048, 2560, 3072, 3584, 4096, 4608, 5120, 5632, 6144, 6656, 7168, 7680, 8192. Each maps to a fixed CPU/memory pair on the Consumption plan. Consumption-only environments are limited to 4096 MB (2 vCPU / 4 Gi) |
 |azure_containers | runtime_timeout | 600 |no | Runtime timeout in seconds. Default 10 minutes |
 |azure_containers| trigger | pub/sub  | no | Currently it supports pub/sub invocation|
 |azure_containers | invoke_pool_threads | 32 |no | Number of concurrent threads used for invocation |

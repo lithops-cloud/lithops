@@ -229,7 +229,7 @@ class AzureContainerAppBackend:
         ca_template['properties']['template']['scale']['rules'][0]['azureQueue']['queueName'] = containerapp_name
         ca_template['properties']['template']['scale']['maxReplicas'] = min(self.ac_config['max_workers'], 30)
 
-        ca_template['properties']['managedEnvironmentId'] = self._get_managed_environment_id()
+        ca_template['properties']['environmentId'] = self._get_managed_environment_id()
 
         cmd = f"az storage account show-connection-string -g {self.resource_group} --name {self.storage_account_name} --query connectionString --out json"
         queueconnection = self._run_az_command(cmd, return_result=True)
