@@ -43,48 +43,48 @@ MANDATORY_PARAMETERS_2 = ('project_name', 'zone')
 
 
 def load_config(config_data):
-    if 'gcp_compute_engie' not in config_data or not config_data['gcp_compute_engie']:
-        raise Exception("'gcp_compute_engie' section is mandatory in the configuration")
+    if not config_data['gcp_compute_engine']:
+        raise Exception("'gcp_compute_engine' section is mandatory in the configuration")
 
     if 'gcp' not in config_data:
         config_data['gcp'] = {}
 
-    temp = copy.deepcopy(config_data['gcp_compute_engie'])
-    config_data['gcp_compute_engie'].update(config_data['gcp'])
-    config_data['gcp_compute_engie'].update(temp)
+    temp = copy.deepcopy(config_data['gcp_compute_engine'])
+    config_data['gcp_compute_engine'].update(config_data['gcp'])
+    config_data['gcp_compute_engine'].update(temp)
 
-    if 'credentials_path' in config_data['gcp_compute_engie']:
-        config_data['gcp_compute_engie']['credentials_path'] = os.path.expanduser(
-            config_data['gcp_compute_engie']['credentials_path']
+    if 'credentials_path' in config_data['gcp_compute_engine']:
+        config_data['gcp_compute_engine']['credentials_path'] = os.path.expanduser(
+            config_data['gcp_compute_engine']['credentials_path']
         )
 
     for key in DEFAULT_CONFIG_KEYS:
-        if key not in config_data['gcp_compute_engie']:
-            config_data['gcp_compute_engie'][key] = DEFAULT_CONFIG_KEYS[key]
+        if key not in config_data['gcp_compute_engine']:
+            config_data['gcp_compute_engine'][key] = DEFAULT_CONFIG_KEYS[key]
 
     if 'standalone' not in config_data or config_data['standalone'] is None:
         config_data['standalone'] = {}
 
     for key in SA_DEFAULT_CONFIG_KEYS:
-        if key in config_data['gcp_compute_engie']:
-            config_data['standalone'][key] = config_data['gcp_compute_engie'].pop(key)
+        if key in config_data['gcp_compute_engine']:
+            config_data['standalone'][key] = config_data['gcp_compute_engine'].pop(key)
         elif key not in config_data['standalone']:
             config_data['standalone'][key] = SA_DEFAULT_CONFIG_KEYS[key]
 
     if config_data['standalone']['exec_mode'] == 'consume':
         params_to_check = MANDATORY_PARAMETERS_1
-        config_data['gcp_compute_engie']['max_workers'] = 1
+        config_data['gcp_compute_engine']['max_workers'] = 1
     else:
         params_to_check = MANDATORY_PARAMETERS_2
 
     for param in params_to_check:
-        if param not in config_data['gcp_compute_engie']:
-            msg = f"'{param}' is mandatory in the 'gcp_compute_engie' section of the configuration"
+        if param not in config_data['gcp_compute_engine']:
+            msg = f"'{param}' is mandatory in the 'gcp_compute_engine' or 'gcp' section of the configuration"
             raise Exception(msg)
 
-    if 'region' not in config_data['gcp_compute_engie']:
-        zone = config_data['gcp_compute_engie']['zone']
-        config_data['gcp_compute_engie']['region'] = '-'.join(zone.split('-')[:-1])
+    if 'region' not in config_data['gcp_compute_engine']:
+        zone = config_data['gcp_compute_engine']['zone']
+        config_data['gcp_compute_engine']['region'] = '-'.join(zone.split('-')[:-1])
 
-    if 'region' not in config_data['gcp'] and 'region' in config_data['gcp_compute_engie']:
-        config_data['gcp']['region'] = config_data['gcp_compute_engie']['region']
+    if 'region' not in config_data['gcp'] and 'region' in config_data['gcp_compute_engine']:
+        config_data['gcp']['region'] = config_data['gcp_compute_engine']['region']

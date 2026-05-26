@@ -69,6 +69,7 @@ Storage Backends
 - [IBM Virtual Private Cloud](../docs/source/compute_config/ibm_vpc.md)
 - [AWS Elastic Compute Cloud (EC2)](../docs/source/compute_config/aws_ec2.md)
 - [Azure Virtual Machines](../docs/source/compute_config/azure_vms.md)
+- [Google Compute Engine](../docs/source/compute_config/gcp_compute_engine.md)
 
 </td>
 <td valign="top">

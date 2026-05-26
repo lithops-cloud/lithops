@@ -37,6 +37,7 @@ from lithops.standalone.utils import (
     StandaloneMode,
     CLOUD_CONFIG_WORKER,
     CLOUD_CONFIG_WORKER_PK,
+    get_host_setup_script,
 )
 from lithops.standalone import LithopsValidationError
 
@@ -49,16 +50,20 @@ UBUNTU_LTS_FAMILIES = (
     'ubuntu-2404-lts-amd64',
     'ubuntu-2204-lts',
 )
+DEFAULT_UBUNTU_SOURCE_IMAGE = (
+    'projects/ubuntu-os-cloud/global/images/family/ubuntu-2404-lts-amd64'
+)
+DEFAULT_LITHOPS_IMAGE_NAME = 'lithops-ubuntu-2404-lts-amd64-server'
 
 # Scopes for the SA attached to master/worker VMs (GCS, etc. via metadata credentials).
 GCE_INSTANCE_SCOPES = ['https://www.googleapis.com/auth/cloud-platform']
 
 
-class GCPComputeEngieBackend:
+class GCPComputeEngineBackend:
 
     def __init__(self, config, mode):
         logger.debug("Creating GCP Compute Engine client")
-        self.name = 'gcp_compute_engie'
+        self.name = 'gcp_compute_engine'
         self.config = config
         self.mode = mode
         self.project_name = self.config['project_name']
@@ -122,7 +127,7 @@ class GCPComputeEngieBackend:
 
         logger.warning(
             'No service account resolved for GCE VMs. Workers/master cannot access GCS '
-            'via metadata unless you set gcp_compute_engie.service_account or '
+            'via metadata unless you set gcp_compute_engine.service_account or '
             'gcp.credentials_path.'
         )
 
@@ -394,7 +399,7 @@ class GCPComputeEngieBackend:
 
     def _create_master_instance(self):
         name = self.config.get('instance_name') or f'lithops-master-{self.network_key}'
-        self.master = GCPComputeEngieInstance(self.config, self.compute_client, public=True)
+        self.master = GCPComputeEngineInstance(self.config, self.compute_client, public=True)
         self.master.name = name
         self.master.instance_type = self.config['master_instance_type']
         self.master.delete_on_dismantle = False
@@ -445,6 +450,7 @@ class GCPComputeEngieBackend:
 
         self._create_network()
         self._create_ssh_key()
+        self._request_source_image()
         if 'instance_name' not in self.config:
             self.config['instance_name'] = f'lithops-master-{self.network_key}'
         self._create_master_instance()
@@ -463,15 +469,202 @@ class GCPComputeEngieBackend:
             'router_name': self.config.get('router_name'),
             'nat_name': self.config.get('nat_name'),
             'ssh_key_filename': self.config['ssh_key_filename'],
+            'source_image': self.config['source_image'],
             'instance_types': self.instance_types,
         }
         self._dump_gce_data()
 
-    def build_image(self, **kwargs):
-        raise NotImplementedError(f'{self.name}.build_image() is not implemented yet')
+    @staticmethod
+    def _is_default_ubuntu_source_image(source_image):
+        if not source_image:
+            return True
+        return (
+            source_image == DEFAULT_UBUNTU_SOURCE_IMAGE
+            or source_image.endswith('/family/ubuntu-2404-lts-amd64')
+            or source_image.endswith('/family/ubuntu-2204-lts')
+        )
 
-    def delete_image(self, **kwargs):
-        raise NotImplementedError(f'{self.name}.delete_image() is not implemented yet')
+    def _project_image_ref(self, image_name):
+        return f'projects/{self.project_name}/global/images/{image_name}'
+
+    def _get_project_image(self, image_name):
+        try:
+            return self.compute_client.images().get(
+                project=self.project_name, image=image_name
+            ).execute()
+        except HttpError as err:
+            if getattr(err.resp, 'status', None) == 404:
+                return None
+            raise
+
+    def _request_source_image(self):
+        """
+        Use a pre-built Lithops custom image when available; otherwise keep the
+        configured Ubuntu base image.
+        """
+        if not self._is_default_ubuntu_source_image(self.config.get('source_image')):
+            return
+
+        if 'source_image' in self.gce_data:
+            self.config['source_image'] = self.gce_data['source_image']
+            return
+
+        for image in self._iter_project_images(self.project_name):
+            if image.get('name') == DEFAULT_LITHOPS_IMAGE_NAME:
+                image_ref = self._project_image_ref(DEFAULT_LITHOPS_IMAGE_NAME)
+                logger.debug(f'Found default VM image: {DEFAULT_LITHOPS_IMAGE_NAME}')
+                self.config['source_image'] = image_ref
+                return
+
+    def _get_boot_disk_source(self, instance_data):
+        for disk in instance_data.get('disks', []):
+            if disk.get('boot'):
+                disk_url = disk.get('source', '')
+                if '/disks/' in disk_url:
+                    return disk_url.split('/disks/')[-1]
+        raise Exception(f'Boot disk not found for instance {instance_data.get("name")}')
+
+    def _wait_image_ready(self, image_name, timeout=600):
+        start = time.time()
+        while time.time() - start < timeout:
+            image = self._get_project_image(image_name)
+            if image:
+                status = image.get('status', 'UNKNOWN')
+                logger.debug(f'VM Image is being created. Current status: {status}')
+                if status == 'READY':
+                    return image
+                if status == 'FAILED':
+                    raise Exception(
+                        f"VM image '{image_name}' creation failed: {image}"
+                    )
+            time.sleep(20)
+        raise TimeoutError(
+            f"VM image '{image_name}' was not ready after {timeout}s"
+        )
+
+    def build_image(self, image_name, script_file, overwrite, include, extra_args=[]):
+        """
+        Builds a custom GCE image with Lithops dependencies pre-installed.
+        """
+        image_name = image_name or DEFAULT_LITHOPS_IMAGE_NAME
+
+        if self._get_project_image(image_name):
+            if overwrite:
+                self.delete_image(image_name)
+            else:
+                image_ref = self._project_image_ref(image_name)
+                raise Exception(
+                    f"The image with name '{image_name}' already exists "
+                    f"({image_ref}). Use '--overwrite' or '-o' to replace it"
+                )
+
+        is_initialized = self.is_initialized()
+        self.init()
+
+        try:
+            del self.config['source_image']
+        except Exception:
+            pass
+        try:
+            del self.gce_data['source_image']
+        except Exception:
+            pass
+
+        self.config['source_image'] = DEFAULT_UBUNTU_SOURCE_IMAGE
+
+        build_name = re.sub(
+            r'[^a-z0-9-]',
+            '-',
+            f'building-image-{image_name}'.lower()
+        )[:63].rstrip('-')
+
+        build_vm = GCPComputeEngineInstance(self.config, self.compute_client, public=True)
+        build_vm.name = build_name
+        build_vm.instance_type = self.config['master_instance_type']
+        build_vm.delete_on_dismantle = False
+        build_vm.create(public=True)
+        build_vm.wait_ready()
+
+        logger.debug(f'Uploading installation script to {build_vm}')
+        remote_script = '/tmp/install_lithops.sh'
+        script = get_host_setup_script(lithops_pip_spec='lithops[gcp,redis]')
+        build_vm.get_ssh_client().upload_data_to_file(script, remote_script)
+        logger.debug(
+            'Executing Lithops installation script. Be patient, this can take up to 3 minutes'
+        )
+        build_vm.get_ssh_client().run_remote_command(
+            f'chmod 777 {remote_script}; sudo {remote_script}; rm {remote_script};'
+        )
+        logger.debug('Lithops installation script finished')
+
+        for src_dst_file in include:
+            src_file, dst_file = src_dst_file.split(':')
+            if os.path.isfile(src_file):
+                logger.debug(
+                    f"Uploading local file '{src_file}' to VM image at '{dst_file}'"
+                )
+                build_vm.get_ssh_client().upload_local_file(src_file, dst_file)
+
+        if script_file:
+            script_path = os.path.expanduser(script_file)
+            logger.debug(f"Uploading user script '{script_file}' to {build_vm}")
+            remote_user_script = '/tmp/install_user_lithops.sh'
+            build_vm.get_ssh_client().upload_local_file(script_path, remote_user_script)
+            logger.debug(f"Executing user script '{script_file}'")
+            build_vm.get_ssh_client().run_remote_command(
+                f'chmod 777 {remote_user_script}; sudo {remote_user_script}; '
+                f'rm {remote_user_script};'
+            )
+            logger.debug(f"User script '{script_file}' finished")
+
+        build_vm.stop()
+        build_vm.wait_stopped()
+
+        instance_data = build_vm.get_instance_data()
+        disk_name = self._get_boot_disk_source(instance_data)
+        source_disk = f'zones/{self.zone}/disks/{disk_name}'
+
+        logger.debug('Starting VM image creation')
+        logger.debug('Be patient, VM imaging can take up to 10 minutes')
+
+        op = self.compute_client.images().insert(
+            project=self.project_name,
+            body={
+                'name': image_name,
+                'description': 'Lithops custom VM image',
+                'sourceDisk': source_disk,
+                'labels': {'type': 'lithops-runtime'},
+            },
+        ).execute()
+        self._wait_operation(op['name'], scope='global')
+        self._wait_image_ready(image_name)
+
+        if not is_initialized:
+            self.clean(all=True)
+        else:
+            build_vm.delete()
+
+        image_ref = self._project_image_ref(image_name)
+        logger.info(f'VM Image created. source_image: {image_ref}')
+
+    def delete_image(self, image_name):
+        """
+        Deletes a custom GCE image from the project.
+        """
+        image = self._get_project_image(image_name)
+        if not image:
+            logger.debug(f"VM Image '{image_name}' does not exist")
+            return
+
+        logger.debug(f"Deleting VM Image '{image_name}'")
+        op = self.compute_client.images().delete(
+            project=self.project_name, image=image_name
+        ).execute()
+        self._wait_operation(op['name'], scope='global')
+
+        while self._get_project_image(image_name):
+            time.sleep(2)
+        logger.debug(f"VM Image '{image_name}' successfully deleted")
 
     @staticmethod
     def _format_image_timestamp(timestamp):
@@ -660,7 +853,7 @@ class GCPComputeEngieBackend:
             self.master.stop()
 
     def get_instance(self, name, **kwargs):
-        instance = GCPComputeEngieInstance(self.config, self.compute_client)
+        instance = GCPComputeEngineInstance(self.config, self.compute_client)
         instance.name = name
         for key in kwargs:
             if hasattr(instance, key) and kwargs[key] is not None:
@@ -680,7 +873,7 @@ class GCPComputeEngieBackend:
         if self.mode == StandaloneMode.CONSUME.value:
             raise NotImplementedError(f'{self.name}.create_worker() not available in consume mode')
 
-        worker = GCPComputeEngieInstance(self.config, self.compute_client, public=False)
+        worker = GCPComputeEngineInstance(self.config, self.compute_client, public=False)
         worker.name = name
         worker.instance_type = self.config['worker_instance_type']
 
@@ -711,7 +904,7 @@ class GCPComputeEngieBackend:
         return os.path.join(self.name, version, master_id, runtime)
 
 
-class GCPComputeEngieInstance:
+class GCPComputeEngineInstance:
 
     def __init__(self, config, compute_client, public=False):
         self.config = config
@@ -837,6 +1030,18 @@ class GCPComputeEngieInstance:
         except HttpError:
             return None
         return self.instance_data.get('status') if self.instance_data else None
+
+    def is_stopped(self):
+        return self.get_status() == 'TERMINATED'
+
+    def wait_stopped(self, timeout=INSTANCE_START_TIMEOUT):
+        logger.debug(f'Waiting {self} to become stopped')
+        start = time.time()
+        while time.time() - start < timeout:
+            if self.is_stopped():
+                return True
+            time.sleep(3)
+        raise TimeoutError(f'Stop probe expired on {self}')
 
     def _wait_public_ip(self, timeout=INSTANCE_START_TIMEOUT):
         start = time.time()

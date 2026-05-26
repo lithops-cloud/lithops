@@ -2,19 +2,27 @@
 
 The GCP Compute Engine backend of Lithops can provide a serverless user experience on top of GCE where Lithops creates new Virtual Machines (VMs) dynamically at runtime and scales Lithops jobs against them (create and reuse modes). Alternatively Lithops can start and stop an existing VM instance (consume mode).
 
-The backend key is `gcp_compute_engie` (matches the Lithops module name).
+The backend key is `gcp_compute_engine` (matches the Lithops module name).
 
 ## Choose an operating system image for the VM
 
-Any VM needs an operating system image. By default Lithops uses Ubuntu 24.04 (`ubuntu-2404-lts-amd64`). Lithops installs required dependencies on the VM on first use (this can take a few minutes).
+Any VM needs an operating system image. By default Lithops uses Ubuntu 24.04 (`projects/ubuntu-os-cloud/global/images/family/ubuntu-2404-lts-amd64`). Lithops installs required dependencies on the VM on first use (this can take a few minutes).
+
+For faster startups, build a pre-configured custom image (see [runtime/gcp_compute_engine](https://github.com/lithops-cloud/lithops/tree/master/runtime/gcp_compute_engine)):
+
+```bash
+lithops image build -b gcp_compute_engine
+```
+
+This creates `lithops-ubuntu-2404-lts-amd64-server` in your project; Lithops uses it automatically when present.
 
 To list available images:
 
 ```bash
-lithops image list -b gcp_compute_engie
+lithops image list -b gcp_compute_engine
 ```
 
-Use the **Image ID** column as `source_image` in your config.
+Use the **Image ID** column as `source_image` in your config when using a custom image name.
 
 ## Installation
 
@@ -54,12 +62,12 @@ gcloud projects add-iam-policy-binding <PROJECT_ID> \
 
 ```yaml
 lithops:
-  backend: gcp_compute_engie
+  backend: gcp_compute_engine
 
 gcp:
   credentials_path: <FULL_PATH_TO_SERVICE_ACCOUNT_JSON>
 
-gcp_compute_engie:
+gcp_compute_engine:
   project_name: <GCP_PROJECT_ID>
   zone: <ZONE>
   exec_mode: reuse
@@ -78,29 +86,29 @@ Lithops attaches the service account from `credentials_path` to master and worke
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|gcp_compute_engie | project_name | |yes | GCP project ID |
-|gcp_compute_engie | zone | |yes | Compute Engine zone, for example `us-east1-b` |
-|gcp_compute_engie | region | derived from zone |no | Region used for subnet and NAT |
-|gcp_compute_engie | service_account | |no | Service account email attached to VMs. Default: `client_email` from `credentials_path` |
-|gcp_compute_engie | network_name | |no | Existing VPC name. If not provided, Lithops creates a new network |
-|gcp_compute_engie | subnet_name | |no | Existing subnet name when using a custom VPC |
-|gcp_compute_engie | source_image | ubuntu-2404-lts-amd64 |no | Boot image reference |
-|gcp_compute_engie | master_instance_type | e2-small |no | Master VM machine type |
-|gcp_compute_engie | worker_instance_type | e2-standard-2 |no | Worker VM machine type |
-|gcp_compute_engie | ssh_username | ubuntu |no | Username to access the VM |
-|gcp_compute_engie | ssh_password | |no | Password for worker VMs. If not provided, it is created randomly |
-|gcp_compute_engie | ssh_key_filename | ~/.ssh/id_rsa |no | SSH private key for the master VM. If not provided, Lithops creates one |
-|gcp_compute_engie | request_spot_instances | False |no | Use Spot VMs for workers |
-|gcp_compute_engie | delete_on_dismantle | True |no | Delete worker VMs when stopped. Master VM is never deleted when stopped |
-|gcp_compute_engie | max_workers | 100 |no | Max number of workers per `FunctionExecutor()` |
-|gcp_compute_engie | worker_processes | AUTO |no | Parallel Lithops processes per worker. Default: CPUs of `worker_instance_type` |
-|gcp_compute_engie | runtime | python3 |no | Runtime name. Default: python3 on the VM |
-|gcp_compute_engie | auto_dismantle | True |no | If False, VMs are not stopped automatically |
-|gcp_compute_engie | soft_dismantle_timeout | 300 |no | Seconds to stop the VM after a job **completed** |
-|gcp_compute_engie | hard_dismantle_timeout | 3600 |no | Seconds to stop the VM after a job **started** |
-|gcp_compute_engie | exec_mode | reuse |no | One of: **consume**, **create** or **reuse** |
-|gcp_compute_engie | extra_apt_packages | [] |no | Extra apt packages on master/worker VMs during setup |
-|gcp_compute_engie | extra_python_packages | [] |no | Extra pip packages on master/worker VMs after Lithops |
+|gcp_compute_engine | project_name | |yes | GCP project ID |
+|gcp_compute_engine | zone | |yes | Compute Engine zone, for example `us-east1-b` |
+|gcp_compute_engine | region | derived from zone |no | Region used for subnet and NAT |
+|gcp_compute_engine | service_account | |no | Service account email attached to VMs. Default: `client_email` from `credentials_path` |
+|gcp_compute_engine | network_name | |no | Existing VPC name. If not provided, Lithops creates a new network |
+|gcp_compute_engine | subnet_name | |no | Existing subnet name when using a custom VPC |
+|gcp_compute_engine | source_image | ubuntu-2404-lts-amd64 |no | Boot image reference |
+|gcp_compute_engine | master_instance_type | e2-small |no | Master VM machine type |
+|gcp_compute_engine | worker_instance_type | e2-standard-2 |no | Worker VM machine type |
+|gcp_compute_engine | ssh_username | ubuntu |no | Username to access the VM |
+|gcp_compute_engine | ssh_password | |no | Password for worker VMs. If not provided, it is created randomly |
+|gcp_compute_engine | ssh_key_filename | ~/.ssh/id_rsa |no | SSH private key for the master VM. If not provided, Lithops creates one |
+|gcp_compute_engine | request_spot_instances | False |no | Use Spot VMs for workers |
+|gcp_compute_engine | delete_on_dismantle | True |no | Delete worker VMs when stopped. Master VM is never deleted when stopped |
+|gcp_compute_engine | max_workers | 100 |no | Max number of workers per `FunctionExecutor()` |
+|gcp_compute_engine | worker_processes | AUTO |no | Parallel Lithops processes per worker. Default: CPUs of `worker_instance_type` |
+|gcp_compute_engine | runtime | python3 |no | Runtime name. Default: python3 on the VM |
+|gcp_compute_engine | auto_dismantle | True |no | If False, VMs are not stopped automatically |
+|gcp_compute_engine | soft_dismantle_timeout | 300 |no | Seconds to stop the VM after a job **completed** |
+|gcp_compute_engine | hard_dismantle_timeout | 3600 |no | Seconds to stop the VM after a job **started** |
+|gcp_compute_engine | exec_mode | reuse |no | One of: **consume**, **create** or **reuse** |
+|gcp_compute_engine | extra_apt_packages | [] |no | Extra apt packages on master/worker VMs during setup |
+|gcp_compute_engine | extra_python_packages | [] |no | Extra pip packages on master/worker VMs after Lithops |
 
 ## Consume mode
 
@@ -110,12 +118,12 @@ In this mode, Lithops uses an existing VM. The VM must be reachable by SSH and h
 
 ```yaml
 lithops:
-  backend: gcp_compute_engie
+  backend: gcp_compute_engine
 
 gcp:
   credentials_path: <FULL_PATH_TO_SERVICE_ACCOUNT_JSON>
 
-gcp_compute_engie:
+gcp_compute_engine:
   exec_mode: consume
   project_name: <GCP_PROJECT_ID>
   zone: <ZONE>
@@ -126,19 +134,19 @@ gcp_compute_engie:
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|gcp_compute_engie | instance_name | |yes | Existing VM instance name |
-|gcp_compute_engie | project_name | |yes | GCP project ID |
-|gcp_compute_engie | zone | |yes | Compute Engine zone |
-|gcp_compute_engie | ssh_username | ubuntu |no | Username to access the VM |
-|gcp_compute_engie | ssh_key_filename | ~/.ssh/id_rsa |no | Path to the SSH private key |
-|gcp_compute_engie | worker_processes | AUTO |no | Parallel Lithops processes per worker |
+|gcp_compute_engine | instance_name | |yes | Existing VM instance name |
+|gcp_compute_engine | project_name | |yes | GCP project ID |
+|gcp_compute_engine | zone | |yes | Compute Engine zone |
+|gcp_compute_engine | ssh_username | ubuntu |no | Username to access the VM |
+|gcp_compute_engine | ssh_key_filename | ~/.ssh/id_rsa |no | Path to the SSH private key |
+|gcp_compute_engine | worker_processes | AUTO |no | Parallel Lithops processes per worker |
 
 ## Test Lithops
 
 Once you have your compute and storage backends configured, you can run a hello world function with:
 
 ```bash
-lithops hello -b gcp_compute_engie -s gcp_storage
+lithops hello -b gcp_compute_engine -s gcp_storage
 ```
 
 ## Viewing the execution logs
@@ -158,7 +166,7 @@ All VMs, including the master, are automatically stopped after a configurable ti
 You can open an SSH session to the master VM with:
 
 ```bash
-lithops attach -b gcp_compute_engie
+lithops attach -b gcp_compute_engine
 ```
 
 The master and worker VMs store Lithops service logs in `/tmp/lithops-root/*-service.log`.
@@ -166,25 +174,25 @@ The master and worker VMs store Lithops service logs in `/tmp/lithops-root/*-ser
 To list available workers:
 
 ```bash
-lithops worker list -b gcp_compute_engie
+lithops worker list -b gcp_compute_engine
 ```
 
 To list submitted jobs:
 
 ```bash
-lithops job list -b gcp_compute_engie
+lithops job list -b gcp_compute_engine
 ```
 
 To delete workers only:
 
 ```bash
-lithops clean -b gcp_compute_engie -s gcp_storage
+lithops clean -b gcp_compute_engine -s gcp_storage
 ```
 
 To delete workers, the master VM, and Lithops-created network resources:
 
 ```bash
-lithops clean -b gcp_compute_engie -s gcp_storage --all
+lithops clean -b gcp_compute_engine -s gcp_storage --all
 ```
 
 ## Architecture diagram

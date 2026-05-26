@@ -37,7 +37,7 @@ Choose your compute and storage engines from the table below:
 || `IBM Virtual Private Cloud <compute_config/ibm_vpc.html>`_        ||                                                                   |
 || `AWS Elastic Compute Cloud (EC2) <compute_config/aws_ec2.html>`_  ||                                                                   |
 || `Azure Virtual Machines <compute_config/azure_vms.html>`_         ||                                                                   |
-|| `Google Compute Engine <compute_config/gcp_compute_engie.html>`_  ||                                                                   |
+|| `Google Compute Engine <compute_config/gcp_compute_engine.html>`_  ||                                                                   |
 +--------------------------------------------------------------------+--------------------------------------------------------------------+
 
 Configuration File
