@@ -19,6 +19,8 @@ import json
 import time
 import logging
 import hashlib
+import shutil
+import subprocess as sp
 from azure.storage.queue import QueueServiceClient
 
 from lithops import utils
@@ -57,6 +59,44 @@ class AzureContainerAppBackend:
 
         msg = COMPUTE_CLI_MSG.format('Azure Container Apps')
         logger.info(f"{msg} - Region: {self.location}")
+
+    def _check_az_cli(self):
+        if not shutil.which('az'):
+            raise Exception(
+                'Azure CLI (az) command not found. '
+                'Install it from https://docs.microsoft.com/en-us/cli/azure/install-azure-cli'
+            )
+
+    def _run_az_command(self, cmd, return_json=False, return_result=False):
+        """
+        Run an Azure CLI command using shell=True.
+        """
+        self._check_az_cli()
+        kwargs = {}
+        if logger.getEffectiveLevel() != logging.DEBUG:
+            kwargs['stderr'] = sp.DEVNULL
+        try:
+            if return_json or return_result:
+                result = sp.check_output(cmd, shell=True, encoding='UTF-8', **kwargs)
+            else:
+                if logger.getEffectiveLevel() != logging.DEBUG:
+                    kwargs['stdout'] = sp.DEVNULL
+                sp.check_call(cmd, shell=True, **kwargs)
+                return None
+        except sp.CalledProcessError as e:
+            raise Exception(f'Azure CLI command failed: {cmd}') from e
+
+        result = result.strip()
+        if return_json:
+            try:
+                return json.loads(result)
+            except json.JSONDecodeError as e:
+                raise Exception(
+                    f'Failed to parse Azure CLI output as JSON: {result}'
+                ) from e
+        if return_result:
+            return result.replace('"', '')
+        return result
 
     def _format_containerapp_name(self, runtime_name, runtime_memory, version=__version__):
         """
@@ -183,11 +223,11 @@ class AzureContainerAppBackend:
         ca_temaplate['properties']['template']['scale']['maxReplicas'] = min(self.ac_config['max_workers'], 30)
 
         cmd = f"az containerapp env show -g {self.resource_group} -n {self.environment} --query id --only-show-errors"
-        envorinemnt_id = utils.run_command(cmd, return_result=True)
+        envorinemnt_id = self._run_az_command(cmd, return_result=True)
         ca_temaplate['properties']['managedEnvironmentId'] = envorinemnt_id
 
         cmd = f"az storage account show-connection-string -g {self.resource_group} --name {self.storage_account_name} --query connectionString --out json"
-        queueconnection = utils.run_command(cmd, return_result=True)
+        queueconnection = self._run_az_command(cmd, return_result=True)
         ca_temaplate['properties']['configuration']['secrets'][0]['value'] = queueconnection
 
         if self.ac_config.get('docker_password'):
@@ -211,7 +251,7 @@ class AzureContainerAppBackend:
 
         while retries < 10:
             try:
-                utils.run_command(cmd)
+                self._run_az_command(cmd)
                 os.remove(config.CA_JSON_LOCATION)
                 deployed = True
                 break
@@ -229,7 +269,7 @@ class AzureContainerAppBackend:
         logger.info(f'Deleting runtime: {runtime_name} - {memory}MB')
         containerapp_name = self._format_containerapp_name(runtime_name, memory, version)
         cmd = f'az containerapp delete --name {containerapp_name} --resource-group {self.resource_group} -y --only-show-errors'
-        utils.run_command(cmd)
+        self._run_az_command(cmd)
 
         try:
             self.queue_service.delete_queue(containerapp_name)
@@ -310,8 +350,8 @@ class AzureContainerAppBackend:
         logger.debug('Listing all deployed runtimes')
 
         runtimes = []
-        response = os.popen('az containerapp list --query "[].{Name:name, Tags:tags}\" --only-show-errors').read()
-        response = json.loads(response)
+        cmd = 'az containerapp list --query "[].{Name:name, Tags:tags}" --only-show-errors'
+        response = self._run_az_command(cmd, return_json=True)
 
         for containerapp in response:
             if containerapp['Tags'] and 'type' in containerapp['Tags'] \

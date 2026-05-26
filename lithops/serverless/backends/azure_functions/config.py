@@ -27,7 +27,7 @@ FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_azure_fa.zip')
 
 DEFAULT_CONFIG_KEYS = {
     'runtime_timeout': 300,  # Default: 300 seconds => 5 minutes
-    'runtime_memory': 1536,  # Default memory: 1536 MB
+    'runtime_memory': 2048,  # Default Flex Consumption instance memory: 2048 MB
     'max_workers': 1000,
     'worker_processes': 1,
     'invoke_pool_threads': 10,
@@ -36,6 +36,21 @@ DEFAULT_CONFIG_KEYS = {
 }
 
 AVAILABLE_PY_RUNTIMES = ['3.10', '3.11', '3.12', '3.13', '3.14']
+
+FLEX_INSTANCE_MEMORY = {512, 2048, 4096}
+
+
+def get_flex_instance_memory(memory):
+    """
+    Map runtime_memory to a valid Flex Consumption instance size (MB).
+    """
+    if memory in FLEX_INSTANCE_MEMORY:
+        return memory
+    if memory <= 512:
+        return 512
+    if memory <= 2048:
+        return 2048
+    return 4096
 
 REQUIRED_AZURE_STORAGE_PARAMS = ('storage_account_name', 'storage_account_key')
 REQUIRED_AZURE_FUNCTIONS_PARAMS = ('resource_group', 'region')
@@ -118,7 +133,7 @@ HOST_FILE = """
     },
     "extensionBundle": {
         "id": "Microsoft.Azure.Functions.ExtensionBundle",
-        "version": "[2.*, 3.0.0)"
+        "version": "[4.*, 5.0.0)"
     }
 }
 """

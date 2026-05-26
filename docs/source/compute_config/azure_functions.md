@@ -88,9 +88,10 @@ az login
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |azure_functions| resource_group | |no | Name of a resource group, for example: `LithopsResourceGroup`. Lithops will use the `resource_group` set under the `azure` section if it is not set here |
-|azure_functions| region |  |no | The location of the consumption plan for the runtime. Use `az functionapp list-consumption-locations` to view the available locations. For example: `westeurope`, `westus2`, etc. Lithops will use the `region` set under the `azure` section if it is not set here|
+|azure_functions| region |  |no | The Flex Consumption plan location for the runtime. Use `az functionapp list-flexconsumption-locations` to view the available locations. For example: `westeurope`, `westus2`, etc. Lithops will use the `region` set under the `azure` section if it is not set here|
+|azure_functions | runtime_memory | 2048 | no | Flex Consumption instance memory in MB. Supported values: `512`, `2048`, `4096`. Other values are mapped to the nearest supported size |
 |azure_functions | max_workers | 1000 | no | Max number of parallel workers. Although Azure limits the number of workers to 200, it is convenient to keep this value high|
-|azure_functions | worker_processes | 1 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker |
+|azure_functions | worker_processes | 1 | no | Lithops-side parallelism setting. Not applied as an Azure Functions app setting on Flex Consumption |
 |azure_functions| runtime |  |no | Runtime name already deployed in the service|
 |azure_functions | runtime_timeout | 300 |no | Runtime timeout in seconds. Default 5 minutes |
 |azure_functions| trigger | pub/sub  | no | One of 'https' or 'pub/sub'|

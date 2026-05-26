@@ -17,7 +17,7 @@ fexec.call_async(my_function, 3)
 result = lithops.get_result()
 ```
 
-* Note that Azure Functions does not allow to set a specific memory size for the runtimes, so the parameter `runtime_memory` won't take effect.
+* Flex Consumption supports instance memory sizes of 512 MB, 2048 MB, and 4096 MB. Lithops maps `runtime_memory` to the nearest supported value (default: 2048 MB).
 
 ## Custom runtime
 
