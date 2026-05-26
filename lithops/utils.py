@@ -164,7 +164,7 @@ def get_mode(backend):
 
     if backend is None:
         return constants.MODE_DEFAULT
-    elif backend == constants.LOCALHOST:
+    if backend == constants.LOCALHOST:
         return constants.LOCALHOST
     elif backend in constants.SERVERLESS_BACKENDS:
         return constants.SERVERLESS

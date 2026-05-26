@@ -137,6 +137,7 @@
 # Google Cloud Platform – credentials shared by all gcp_* sections
 # =============================================================================
 #gcp:
+    #project_name: <GCP_PROJECT_ID>
     #region: <REGION_NAME>                # e.g. us-east1
     #credentials_path: <ABSOLUTE_PATH_TO_SERVICE_ACCOUNT_JSON>
 
@@ -171,6 +172,26 @@
 #gcp_storage:
     #region: <REGION_NAME>                # Falls back to gcp.region
     #storage_bucket: <BUCKET_NAME>        # Auto-created if not provided
+
+# Google Compute Engine – standalone compute
+#gcp_compute_engine:
+    #project_name: <GCP_PROJECT_ID>       # Falls back to gcp.project_name
+    #zone: <ZONE_NAME>                    # e.g. us-east1-b. Mandatory
+    #region: <REGION_NAME>                # Falls back to gcp.region; derived from zone if omitted
+    #service_account: <SERVICE_ACCOUNT_EMAIL>
+    #network_name: <VPC_NETWORK_NAME>     # Lithops creates a VPC if not provided
+    #subnet_name: <SUBNET_NAME>
+    #source_image: projects/ubuntu-os-cloud/global/images/family/ubuntu-2404-lts-amd64
+    #instance_name: <INSTANCE_NAME>       # Mandatory in consume mode
+    #master_instance_type: e2-small
+    #worker_instance_type: e2-standard-2
+    #ssh_username: ubuntu
+    #ssh_password: <RANDOM_IF_NOT_PROVIDED>
+    #ssh_key_filename: ~/.ssh/id_rsa
+    #request_spot_instances: False
+    #delete_on_dismantle: True
+    #max_workers: 100
+    #worker_processes: AUTO               # Default: number of CPUs of the worker VM
 
 
 # =============================================================================
@@ -460,7 +481,7 @@
 
 
 # =============================================================================
-# Standalone shared settings (applies to ibm_vpc, aws_ec2, azure_vms, vm)
+# Standalone shared settings (applies to ibm_vpc, aws_ec2, azure_vms, gcp_compute_engine, vm)
 # =============================================================================
 #standalone:
     #runtime: python3

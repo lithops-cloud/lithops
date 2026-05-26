@@ -37,6 +37,7 @@ from lithops.standalone.utils import (
     StandaloneMode,
     CLOUD_CONFIG_WORKER,
     CLOUD_CONFIG_WORKER_PK,
+    get_host_setup_script,
 )
 from lithops.standalone import LithopsValidationError
 
@@ -49,16 +50,20 @@ UBUNTU_LTS_FAMILIES = (
     'ubuntu-2404-lts-amd64',
     'ubuntu-2204-lts',
 )
+DEFAULT_UBUNTU_SOURCE_IMAGE = (
+    'projects/ubuntu-os-cloud/global/images/family/ubuntu-2404-lts-amd64'
+)
+DEFAULT_LITHOPS_IMAGE_NAME = 'lithops-ubuntu-2404-lts-amd64-server'
 
 # Scopes for the SA attached to master/worker VMs (GCS, etc. via metadata credentials).
 GCE_INSTANCE_SCOPES = ['https://www.googleapis.com/auth/cloud-platform']
 
 
-class GCPComputeEngieBackend:
+class GCPComputeEngineBackend:
 
     def __init__(self, config, mode):
         logger.debug("Creating GCP Compute Engine client")
-        self.name = 'gcp_compute_engie'
+        self.name = 'gcp_compute_engine'
         self.config = config
         self.mode = mode
         self.project_name = self.config['project_name']
@@ -122,7 +127,7 @@ class GCPComputeEngieBackend:
 
         logger.warning(
             'No service account resolved for GCE VMs. Workers/master cannot access GCS '
-            'via metadata unless you set gcp_compute_engie.service_account or '
+            'via metadata unless you set gcp_compute_engine.service_account or '
             'gcp.credentials_path.'
         )
 
@@ -393,21 +398,15 @@ class GCPComputeEngieBackend:
         )
 
     def _create_master_instance(self):
+        """
+        Creates the master VM instance
+        """
         name = self.config.get('instance_name') or f'lithops-master-{self.network_key}'
-        self.master = GCPComputeEngieInstance(self.config, self.compute_client, public=True)
-        self.master.name = name
+        self.master = GCPComputeEngineInstance(
+            name, self.config, self.compute_client, public=True
+        )
         self.master.instance_type = self.config['master_instance_type']
         self.master.delete_on_dismantle = False
-
-        if self._instance_exists(name):
-            logger.debug(f'Using existing master VM {name}')
-            self.master.get_instance_data()
-            if self.master.get_status() == 'TERMINATED':
-                logger.debug(f'Master VM {name} is stopped, starting')
-                self.master.start()
-        elif self.mode != StandaloneMode.CONSUME.value:
-            logger.debug(f'Creating new VM instance {name}')
-            self.master.create(public=True)
         self.master.get_instance_data()
 
     def _create_compute_client(self):
@@ -434,44 +433,232 @@ class GCPComputeEngieBackend:
         self._load_gce_data()
 
         if self.mode == StandaloneMode.CONSUME.value:
+            instance_name = self.config['instance_name']
+            if not self.gce_data or instance_name != self.gce_data.get('master_name'):
+                self.gce_data = {
+                    'mode': self.mode,
+                    'vpc_data_type': 'provided',
+                    'ssh_data_type': 'provided',
+                    'master_name': instance_name,
+                    'master_id': instance_name,
+                }
+
+            self.config['instance_name'] = self.gce_data['master_name']
             self._create_master_instance()
-            self.gce_data = {
-                'mode': self.mode,
-                'master_name': self.master.name,
-                'master_id': self.master.get_instance_id()
-            }
             self._dump_gce_data()
             return
+        
+        elif self.mode in [StandaloneMode.CREATE.value, StandaloneMode.REUSE.value]:
+            self._create_network()
+            self._create_ssh_key()
+            self._request_source_image()
+            if 'instance_name' not in self.config:
+                self.config['instance_name'] = f'lithops-master-{self.network_key}'
+            self._create_master_instance()
+            self._load_instance_types()
+            self.gce_data = {
+                'mode': self.mode,
+                'vpc_data_type': self.vpc_data_type,
+                'ssh_data_type': self.ssh_data_type,
+                'master_name': self.master.name,
+                'master_id': self.network_key,
+                'network_name': self.config['network_name'],
+                'network_key': self.network_key,
+                'subnet_name': self.config['subnet_name'],
+                'firewall_name': self.config['firewall_name'],
+                'internal_firewall_name': self.config['internal_firewall_name'],
+                'router_name': self.config.get('router_name'),
+                'nat_name': self.config.get('nat_name'),
+                'ssh_key_filename': self.config['ssh_key_filename'],
+                'source_image': self.config['source_image'],
+                'instance_types': self.instance_types,
+            }
+            self._dump_gce_data()
 
-        self._create_network()
-        self._create_ssh_key()
-        if 'instance_name' not in self.config:
-            self.config['instance_name'] = f'lithops-master-{self.network_key}'
-        self._create_master_instance()
-        self._load_instance_types()
-        self.gce_data = {
-            'mode': self.mode,
-            'vpc_data_type': self.vpc_data_type,
-            'ssh_data_type': self.ssh_data_type,
-            'master_name': self.master.name,
-            'master_id': self.master.get_instance_id(),
-            'network_name': self.config['network_name'],
-            'network_key': self.network_key,
-            'subnet_name': self.config['subnet_name'],
-            'firewall_name': self.config['firewall_name'],
-            'internal_firewall_name': self.config['internal_firewall_name'],
-            'router_name': self.config.get('router_name'),
-            'nat_name': self.config.get('nat_name'),
-            'ssh_key_filename': self.config['ssh_key_filename'],
-            'instance_types': self.instance_types,
-        }
-        self._dump_gce_data()
+    @staticmethod
+    def _is_default_ubuntu_source_image(source_image):
+        if not source_image:
+            return True
+        return (
+            source_image == DEFAULT_UBUNTU_SOURCE_IMAGE
+            or source_image.endswith('/family/ubuntu-2404-lts-amd64')
+            or source_image.endswith('/family/ubuntu-2204-lts')
+        )
 
-    def build_image(self, **kwargs):
-        raise NotImplementedError(f'{self.name}.build_image() is not implemented yet')
+    def _project_image_ref(self, image_name):
+        return f'projects/{self.project_name}/global/images/{image_name}'
 
-    def delete_image(self, **kwargs):
-        raise NotImplementedError(f'{self.name}.delete_image() is not implemented yet')
+    def _get_project_image(self, image_name):
+        try:
+            return self.compute_client.images().get(
+                project=self.project_name, image=image_name
+            ).execute()
+        except HttpError as err:
+            if getattr(err.resp, 'status', None) == 404:
+                return None
+            raise
+
+    def _request_source_image(self):
+        """
+        Requests the default image if not provided
+        """
+        if not self._is_default_ubuntu_source_image(self.config.get('source_image')):
+            return
+
+        if 'source_image' in self.gce_data:
+            self.config['source_image'] = self.gce_data['source_image']
+            return
+
+        for image in self._iter_project_images(self.project_name):
+            if image.get('name') == DEFAULT_LITHOPS_IMAGE_NAME:
+                image_ref = self._project_image_ref(DEFAULT_LITHOPS_IMAGE_NAME)
+                logger.debug(f'Found default VM image: {DEFAULT_LITHOPS_IMAGE_NAME}')
+                self.config['source_image'] = image_ref
+                return
+
+        if 'source_image' not in self.config:
+            self.config['source_image'] = DEFAULT_UBUNTU_SOURCE_IMAGE
+
+    def _get_boot_disk_source(self, instance_data):
+        for disk in instance_data.get('disks', []):
+            if disk.get('boot'):
+                disk_url = disk.get('source', '')
+                if '/disks/' in disk_url:
+                    return disk_url.split('/disks/')[-1]
+        raise Exception(f'Boot disk not found for instance {instance_data.get("name")}')
+
+    def _wait_image_ready(self, image_name, timeout=600):
+        start = time.time()
+        while time.time() - start < timeout:
+            image = self._get_project_image(image_name)
+            if image:
+                status = image.get('status', 'UNKNOWN')
+                logger.debug(f'VM Image is being created. Current status: {status}')
+                if status == 'READY':
+                    return image
+                if status == 'FAILED':
+                    raise Exception(
+                        f"VM image '{image_name}' creation failed: {image}"
+                    )
+            time.sleep(20)
+        raise TimeoutError(
+            f"VM image '{image_name}' was not ready after {timeout}s"
+        )
+
+    def build_image(self, image_name, script_file, overwrite, include, extra_args=[]):
+        """
+        Builds a new VM Image
+        """
+        image_name = image_name or DEFAULT_LITHOPS_IMAGE_NAME
+
+        if self._get_project_image(image_name):
+            if overwrite:
+                self.delete_image(image_name)
+            else:
+                image_ref = self._project_image_ref(image_name)
+                raise Exception(
+                    f"The image with name '{image_name}' already exists with ID: "
+                    f"'{image_ref}'. Use '--overwrite' or '-o' if you want to overwrite it"
+                )
+
+        is_initialized = self.is_initialized()
+        self.init()
+
+        try:
+            del self.config['source_image']
+        except Exception:
+            pass
+        try:
+            del self.gce_data['source_image']
+        except Exception:
+            pass
+
+        self._request_source_image()
+
+        build_vm = GCPComputeEngineInstance(
+            'building-image-' + image_name, self.config, self.compute_client, public=True
+        )
+        build_vm.instance_type = self.config['master_instance_type']
+        build_vm.delete_on_dismantle = False
+        build_vm.create(public=True)
+        build_vm.wait_ready()
+
+        logger.debug(f"Uploading installation script to {build_vm}")
+        remote_script = "/tmp/install_lithops.sh"
+        script = get_host_setup_script(lithops_pip_spec='lithops[gcp,redis]')
+        build_vm.get_ssh_client().upload_data_to_file(script, remote_script)
+        logger.debug("Executing Lithops installation script. Be patient, this process can take up to 3 minutes")
+        build_vm.get_ssh_client().run_remote_command(
+            f"chmod 777 {remote_script}; sudo {remote_script}; rm {remote_script};"
+        )
+        logger.debug("Lithops installation script finsihed")
+
+        for src_dst_file in include:
+            src_file, dst_file = src_dst_file.split(':')
+            if os.path.isfile(src_file):
+                logger.debug(f"Uploading local file '{src_file}' to VM image in '{dst_file}'")
+                build_vm.get_ssh_client().upload_local_file(src_file, dst_file)
+
+        if script_file:
+            script = os.path.expanduser(script_file)
+            logger.debug(f"Uploading user script '{script_file}' to {build_vm}")
+            remote_script = "/tmp/install_user_lithops.sh"
+            build_vm.get_ssh_client().upload_local_file(script, remote_script)
+            logger.debug(f"Executing user script '{script_file}'")
+            build_vm.get_ssh_client().run_remote_command(
+                f"chmod 777 {remote_script}; sudo {remote_script}; rm {remote_script};"
+            )
+            logger.debug(f"User script '{script_file}' finsihed")
+
+        logger.debug(f'Stopping {build_vm} before creating VM image')
+        build_vm.stop()
+        build_vm.wait_stopped()
+
+        instance_data = build_vm.get_instance_data()
+        disk_name = self._get_boot_disk_source(instance_data)
+        source_disk = f'zones/{self.zone}/disks/{disk_name}'
+
+        op = self.compute_client.images().insert(
+            project=self.project_name,
+            body={
+                'name': image_name,
+                'description': 'Lithops Image',
+                'sourceDisk': source_disk,
+                'labels': {'type': 'lithops-runtime'},
+            },
+        ).execute()
+        self._wait_operation(op['name'], scope='global')
+
+        logger.debug("Starting VM image creation")
+        self._wait_image_ready(image_name)
+
+        if not is_initialized:
+            while not self.clean(all=True):
+                time.sleep(5)
+        else:
+            build_vm.delete()
+
+        image_ref = self._project_image_ref(image_name)
+        logger.info(f"VM Image created. Image ID: {image_ref}")
+
+    def delete_image(self, image_name):
+        """
+        Deletes a custom GCE image from the project.
+        """
+        image = self._get_project_image(image_name)
+        if not image:
+            logger.debug(f"VM Image '{image_name}' does not exist")
+            return
+
+        logger.debug(f"Deleting VM Image '{image_name}'")
+        op = self.compute_client.images().delete(
+            project=self.project_name, image=image_name
+        ).execute()
+        self._wait_operation(op['name'], scope='global')
+
+        while self._get_project_image(image_name):
+            time.sleep(2)
+        logger.debug(f"VM Image '{image_name}' successfully deleted")
 
     @staticmethod
     def _format_image_timestamp(timestamp):
@@ -524,42 +711,73 @@ class GCPComputeEngieBackend:
         return sorted(result, key=lambda x: x[2], reverse=True)
 
     def clean(self, **kwargs):
+        """
+        Clean all the backend resources.
+        Returns True when cleanup completed, False if resources are still in use.
+        """
         all_clean = kwargs.get('all', False)
+        logger.info('Cleaning GCP Compute Engine resources')
+
         if not self.gce_data:
             self._load_gce_data()
 
         if self.mode == StandaloneMode.CONSUME.value:
             self._delete_vpc_data()
-            return
+            return True
 
-        self._delete_vm_instances(all=all_clean)
+        try:
+            self._delete_vm_instances(all=all_clean)
 
-        master_name = self.gce_data.get('master_name') or (self.master.name if self.master else None)
-        if master_name:
-            master_pk = os.path.join(self.cache_dir, f'{master_name}-id_rsa.pub')
-            if all_clean and os.path.isfile(master_pk):
-                os.remove(master_pk)
+            master_name = self.gce_data.get('master_name') or (
+                self.master.name if self.master else None
+            )
+            if master_name:
+                master_pk = os.path.join(self.cache_dir, f'{master_name}-id_rsa.pub')
+                if all_clean and os.path.isfile(master_pk):
+                    os.remove(master_pk)
 
-        if all_clean:
-            self._delete_network_resources()
-            self._delete_ssh_key()
-            self._delete_vpc_data()
+            if all_clean:
+                self._delete_network_resources()
+                self._delete_ssh_key()
+                self._delete_vpc_data()
+            return True
+        except HttpError:
+            return False
 
     def _delete_vm_instances(self, all=False):
-        prefixes = ('lithops-worker-', 'lithops-master-') if all else ('lithops-worker-',)
-        instances = self.compute_client.instances().list(
-            project=self.project_name, zone=self.zone
-        ).execute().get('items', [])
+        """
+        Deletes all worker VM instances
+        """
+        msg = (
+            f'Deleting all Lithops worker VMs from {self.network_name}'
+            if self.network_name else 'Deleting all Lithops worker VMs'
+        )
+        logger.info(msg)
 
-        for ins in instances:
-            name = ins.get('name', '')
-            if not name.startswith(prefixes):
-                continue
-            logger.debug(f"Deleting VM instance {name}")
-            op = self.compute_client.instances().delete(
-                project=self.project_name, zone=self.zone, instance=name
-            ).execute()
-            self._wait_operation(op['name'], scope='zone')
+        prefixes = (
+            ('lithops-worker-', 'lithops-master-', 'building-image-')
+            if all else ('lithops-worker-',)
+        )
+
+        def get_instance_names():
+            instances = self.compute_client.instances().list(
+                project=self.project_name, zone=self.zone
+            ).execute().get('items', []) or []
+            return [
+                ins['name'] for ins in instances
+                if ins.get('name', '').startswith(prefixes)
+            ]
+
+        while True:
+            names = get_instance_names()
+            if not names:
+                break
+            for name in names:
+                logger.debug(f"Deleting VM instance {name}")
+                op = self.compute_client.instances().delete(
+                    project=self.project_name, zone=self.zone, instance=name
+                ).execute()
+                self._wait_operation(op['name'], scope='zone')
 
     def _delete_network_resources(self):
         """
@@ -660,8 +878,7 @@ class GCPComputeEngieBackend:
             self.master.stop()
 
     def get_instance(self, name, **kwargs):
-        instance = GCPComputeEngieInstance(self.config, self.compute_client)
-        instance.name = name
+        instance = GCPComputeEngineInstance(name, self.config, self.compute_client)
         for key in kwargs:
             if hasattr(instance, key) and kwargs[key] is not None:
                 setattr(instance, key, kwargs[key])
@@ -675,13 +892,14 @@ class GCPComputeEngieBackend:
 
     def create_worker(self, name):
         """
-        Creates a new worker VM instance (same flow as AWS EC2 / IBM VPC).
+        Creates a new worker VM instance
         """
         if self.mode == StandaloneMode.CONSUME.value:
             raise NotImplementedError(f'{self.name}.create_worker() not available in consume mode')
 
-        worker = GCPComputeEngieInstance(self.config, self.compute_client, public=False)
-        worker.name = name
+        worker = GCPComputeEngineInstance(
+            name, self.config, self.compute_client, public=False
+        )
         worker.instance_type = self.config['worker_instance_type']
 
         user = worker.ssh_credentials['username']
@@ -711,13 +929,17 @@ class GCPComputeEngieBackend:
         return os.path.join(self.name, version, master_id, runtime)
 
 
-class GCPComputeEngieInstance:
+class GCPComputeEngineInstance:
 
-    def __init__(self, config, compute_client, public=False):
+    def __init__(self, name, config, compute_client, public=False):
+        """
+        Initialize a GCPComputeEngineInstance.
+        VMs with public=True get an external IP (e.g. master or image build VM).
+        """
+        self.name = name.lower()
         self.config = config
         self.compute_client = compute_client
         self.public = public
-        self.name = self.config['instance_name']
         self.project_name = self.config['project_name']
         self.zone = self.config['zone']
 
@@ -744,9 +966,13 @@ class GCPComputeEngieInstance:
 
     def get_ssh_client(self):
         self.get_instance_data()
+        if not self.instance_data:
+            raise Exception(f'VM instance {self.name} does not exist')
+
         if self.public:
             if not self.public_ip:
-                if self.get_status() == 'TERMINATED':
+                status = self.get_status()
+                if status == 'TERMINATED':
                     self.start()
                 else:
                     self._wait_public_ip(timeout=60)
@@ -800,11 +1026,18 @@ class GCPComputeEngieInstance:
         raise TimeoutError(f'Readiness probe expired on {self}')
 
     def get_instance_data(self):
-        res = self.compute_client.instances().get(
-            project=self.project_name,
-            zone=self.zone,
-            instance=self.name
-        ).execute()
+        try:
+            res = self.compute_client.instances().get(
+                project=self.project_name,
+                zone=self.zone,
+                instance=self.name
+            ).execute()
+        except HttpError as err:
+            if getattr(err.resp, 'status', None) == 404:
+                self.instance_data = None
+                return None
+            raise
+
         self.instance_data = res
         self.instance_id = str(res.get('id'))
 
@@ -832,16 +1065,27 @@ class GCPComputeEngieInstance:
         return self.public_ip
 
     def get_status(self):
-        try:
-            self.get_instance_data()
-        except HttpError:
-            return None
+        self.get_instance_data()
         return self.instance_data.get('status') if self.instance_data else None
+
+    def is_stopped(self):
+        return self.get_status() == 'TERMINATED'
+
+    def wait_stopped(self, timeout=INSTANCE_START_TIMEOUT):
+        logger.debug(f'Waiting {self} to become stopped')
+        start = time.time()
+        while time.time() - start < timeout:
+            if self.is_stopped():
+                return True
+            time.sleep(3)
+        raise TimeoutError(f'Stop probe expired on {self}')
 
     def _wait_public_ip(self, timeout=INSTANCE_START_TIMEOUT):
         start = time.time()
         while time.time() - start < timeout:
             self.get_instance_data()
+            if not self.instance_data:
+                raise Exception(f'VM instance {self.name} does not exist')
             if self.public_ip:
                 return self.public_ip
             time.sleep(2)
@@ -883,7 +1127,9 @@ class GCPComputeEngieInstance:
         }
         # Master: external IP for SSH from the Lithops client.
         # Workers: no external IP; outbound internet uses Cloud NAT on the subnet.
-        if public or self.config.get('worker_public_ip', False):
+        # Use self.public (set in __init__) when create() is called without public=...
+        use_public_ip = public or self.public or self.config.get('worker_public_ip', False)
+        if use_public_ip:
             network_iface['accessConfigs'] = [{'name': 'External NAT', 'type': 'ONE_TO_ONE_NAT'}]
 
         body = {
@@ -927,7 +1173,7 @@ class GCPComputeEngieInstance:
                 f'GCS access from the VM will fail'
             )
 
-        if self.config.get('request_spot_instances', False) and not public:
+        if self.config.get('request_spot_instances', False) and not use_public_ip:
             body['scheduling'] = {
                 'provisioningModel': 'SPOT',
                 'instanceTerminationAction': 'STOP'
