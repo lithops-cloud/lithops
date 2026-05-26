@@ -109,6 +109,15 @@ class AzureContainerAppBackend:
 
         return f'lithops-worker-{version.replace(".", "")}-{name_hash}'[:31]
 
+    def _get_managed_environment_id(self):
+        environment_id = self.ac_config.get('environment_id')
+        if environment_id:
+            return environment_id
+
+        cmd = (f'az containerapp env show -g {self.resource_group} -n {self.environment} '
+               f'--query id --only-show-errors')
+        return self._run_az_command(cmd, return_result=True)
+
     def _get_default_runtime_image_name(self):
         """
         Generates the default runtime image name
@@ -220,9 +229,7 @@ class AzureContainerAppBackend:
         ca_template['properties']['template']['scale']['rules'][0]['azureQueue']['queueName'] = containerapp_name
         ca_template['properties']['template']['scale']['maxReplicas'] = min(self.ac_config['max_workers'], 30)
 
-        cmd = f"az containerapp env show -g {self.resource_group} -n {self.environment} --query id --only-show-errors"
-        envorinemnt_id = self._run_az_command(cmd, return_result=True)
-        ca_template['properties']['managedEnvironmentId'] = envorinemnt_id
+        ca_template['properties']['managedEnvironmentId'] = self._get_managed_environment_id()
 
         cmd = f"az storage account show-connection-string -g {self.resource_group} --name {self.storage_account_name} --query connectionString --out json"
         queueconnection = self._run_az_command(cmd, return_result=True)

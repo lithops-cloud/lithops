@@ -220,6 +220,7 @@
     #resource_group: <RESOURCE_GROUP_NAME># Falls back to azure.resource_group
     #region: <LOCATION>                   # Falls back to azure.region
     #environment: lithops                 # Container Apps environment name
+    #environment_id: <ENVIRONMENT_ID>     # Optional. Full resource ID of the Container Apps environment
     #docker_server: index.docker.io
     #docker_user: <REGISTRY_USERNAME>
     #docker_password: <REGISTRY_TOKEN>

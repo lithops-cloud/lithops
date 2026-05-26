@@ -95,7 +95,8 @@ az containerapp env create --name lithops --resource-group LithopsResourceGroup 
 |---|---|---|---|---|
 |azure_containers| resource_group | |no | Name of a resource group, for example: `LithopsResourceGroup`. Lithops will use the `resource_group` set under the `azure` section if it is not set here |
 |azure_containers| region |  |no | The location where you created the `lithops` Container APP environment. For example: `westeurope`, `westus2`, etc. Lithops will use the `region` set under the `azure` section if it is not set here|
-|azure_containers| environment | lithops |no | The environment name you created in the step 5 of the installation |
+|azure_containers| environment | lithops |no | Container Apps environment name. Used to resolve the environment resource ID at deploy time when `environment_id` is not set |
+|azure_containers| environment_id | |no | Full Azure resource ID of the Container Apps environment (for example: `/subscriptions/<SUBSCRIPTION_ID>/resourceGroups/<RESOURCE_GROUP>/providers/Microsoft.App/managedEnvironments/lithops`). If set, Lithops uses it directly and skips the `az containerapp env show` lookup |
 |azure_containers | docker_server | index.docker.io |no | Container registry URL |
 |azure_containers | docker_user | |no | Container registry user name |
 |azure_containers | docker_password | |no | Container registry password/token. In case of Docker hub, login to your docker hub account and generate a new access token [here](https://hub.docker.com/settings/security)|
