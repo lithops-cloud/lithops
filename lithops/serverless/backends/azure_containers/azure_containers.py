@@ -73,19 +73,21 @@ class AzureContainerAppBackend:
         Run an Azure CLI command using shell=True.
         """
         self._check_az_cli()
-        kwargs = {}
-        if logger.getEffectiveLevel() != logging.DEBUG:
-            kwargs['stderr'] = sp.DEVNULL
+        quiet = logger.getEffectiveLevel() != logging.DEBUG
+        kwargs = {'shell': True, 'encoding': 'UTF-8', 'stderr': sp.PIPE}
+        if quiet and not (return_json or return_result):
+            kwargs['stdout'] = sp.DEVNULL
         try:
             if return_json or return_result:
-                result = sp.check_output(cmd, shell=True, encoding='UTF-8', **kwargs)
+                result = sp.check_output(cmd, **kwargs)
             else:
-                if logger.getEffectiveLevel() != logging.DEBUG:
-                    kwargs['stdout'] = sp.DEVNULL
-                sp.check_call(cmd, shell=True, **kwargs)
+                sp.check_call(cmd, **kwargs)
                 return None
         except sp.CalledProcessError as e:
-            raise Exception(f'Azure CLI command failed: {cmd}') from e
+            err_msg = f'Azure CLI command failed: {cmd}'
+            if e.stderr:
+                err_msg += f'\n{e.stderr.strip()}'
+            raise Exception(err_msg) from e
 
         result = result.strip()
         if return_json:
@@ -118,6 +120,20 @@ class AzureContainerAppBackend:
                f'--query id --only-show-errors')
         return self._run_az_command(cmd, return_result=True)
 
+    def _containerapp_exists(self, containerapp_name):
+        cmd = (f'az containerapp show --name {containerapp_name} '
+               f'--resource-group {self.resource_group} --only-show-errors')
+        kwargs = {'shell': True}
+        if logger.getEffectiveLevel() != logging.DEBUG:
+            kwargs['stderr'] = sp.DEVNULL
+            kwargs['stdout'] = sp.DEVNULL
+        try:
+            sp.check_call(cmd, **kwargs)
+            return True
+        except sp.CalledProcessError:
+            logger.debug(f'Container app {containerapp_name} not found, will create it')
+            return False
+
     def _get_default_runtime_image_name(self):
         """
         Generates the default runtime image name
@@ -128,8 +144,8 @@ class AzureContainerAppBackend:
 
     def deploy_runtime(self, runtime_name, memory, timeout):
         """
-        Deploys a new runtime into Azure Function Apps
-        from the provided Linux image for consumption plan
+        Deploys a new runtime into Azure Container Apps
+        from the provided container image
         """
         if runtime_name == self._get_default_runtime_image_name():
             self._build_default_runtime(runtime_name)
@@ -229,6 +245,14 @@ class AzureContainerAppBackend:
         ca_template['properties']['template']['scale']['rules'][0]['azureQueue']['queueName'] = containerapp_name
         ca_template['properties']['template']['scale']['maxReplicas'] = min(self.ac_config['max_workers'], 30)
 
+        grace_period = min(int(timeout), 600)
+        if int(timeout) > 600:
+            logger.debug(
+                f'Container Apps terminationGracePeriodSeconds is capped at 600 seconds '
+                f'(requested {timeout} seconds)'
+            )
+        ca_template['properties']['template']['terminationGracePeriodSeconds'] = grace_period
+
         ca_template['properties']['environmentId'] = self._get_managed_environment_id()
 
         cmd = f"az storage account show-connection-string -g {self.resource_group} --name {self.storage_account_name} --query connectionString --out json"
@@ -246,10 +270,6 @@ class AzureContainerAppBackend:
         with open(config.CA_JSON_LOCATION, 'w') as f:
             f.write(json.dumps(ca_template))
 
-        cmd = (f'az containerapp create --name {containerapp_name} '
-               f'--resource-group {self.resource_group} '
-               f'--yaml {config.CA_JSON_LOCATION} --only-show-errors')
-
         logger.info('Deploying Azure Container App (this may take several minutes)')
         deployed = False
         retries = 0
@@ -257,6 +277,15 @@ class AzureContainerAppBackend:
 
         while retries < 10:
             try:
+                if self._containerapp_exists(containerapp_name):
+                    logger.debug(f'Container app {containerapp_name} already exists, updating')
+                    cmd = (f'az containerapp update --name {containerapp_name} '
+                           f'--resource-group {self.resource_group} '
+                           f'--yaml {config.CA_JSON_LOCATION} --only-show-errors')
+                else:
+                    cmd = (f'az containerapp create --name {containerapp_name} '
+                           f'--resource-group {self.resource_group} '
+                           f'--yaml {config.CA_JSON_LOCATION} --only-show-errors')
                 self._run_az_command(cmd)
                 os.remove(config.CA_JSON_LOCATION)
                 deployed = True

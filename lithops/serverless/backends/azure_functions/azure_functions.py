@@ -76,19 +76,21 @@ class AzureFunctionAppBackend:
         Run an Azure CLI command using shell=True.
         """
         self._check_az_cli()
-        kwargs = {}
-        if logger.getEffectiveLevel() != logging.DEBUG:
-            kwargs['stderr'] = sp.DEVNULL
+        quiet = logger.getEffectiveLevel() != logging.DEBUG
+        kwargs = {'shell': True, 'encoding': 'UTF-8', 'stderr': sp.PIPE}
+        if quiet and not (return_json or return_result):
+            kwargs['stdout'] = sp.DEVNULL
         try:
             if return_json or return_result:
-                result = sp.check_output(cmd, shell=True, encoding='UTF-8', **kwargs)
+                result = sp.check_output(cmd, **kwargs)
             else:
-                if logger.getEffectiveLevel() != logging.DEBUG:
-                    kwargs['stdout'] = sp.DEVNULL
-                sp.check_call(cmd, shell=True, **kwargs)
+                sp.check_call(cmd, **kwargs)
                 return None
         except sp.CalledProcessError as e:
-            raise Exception(f'Azure CLI command failed: {cmd}') from e
+            err_msg = f'Azure CLI command failed: {cmd}'
+            if e.stderr:
+                err_msg += f'\n{e.stderr.strip()}'
+            raise Exception(err_msg) from e
 
         result = result.strip()
         if return_json:
