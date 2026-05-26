@@ -113,6 +113,7 @@ class AzureFunctionAppBackend:
             sp.check_call(cmd, shell=True, **kwargs)
             return True
         except sp.CalledProcessError:
+            logger.debug(f'Function app {function_name} not found, will create it')
             return False
 
     def _create_deploy_zip(self, build_dir):
@@ -304,14 +305,6 @@ class AzureFunctionAppBackend:
         logger.info(f'Creating Azure Function from runtime {runtime_name}')
         function_name = self._format_function_name(runtime_name)
 
-        if self.trigger == 'pub/sub':
-            in_q_name = self._format_queue_name(function_name, config.IN_QUEUE)
-            logger.debug(f'Creating queue {in_q_name}')
-            self._ensure_queue(in_q_name)
-            out_q_name = self._format_queue_name(function_name, config.OUT_QUEUE)
-            logger.debug(f'Creating queue {out_q_name}')
-            self._ensure_queue(out_q_name)
-
         instance_memory = config.get_flex_instance_memory(memory)
         if instance_memory != memory:
             logger.debug(
@@ -341,6 +334,14 @@ class AzureFunctionAppBackend:
 
         build_dir = os.path.join(config.BUILD_DIR, function_name)
         self._publish_function(function_name, build_dir)
+
+        if self.trigger == 'pub/sub':
+            in_q_name = self._format_queue_name(function_name, config.IN_QUEUE)
+            logger.debug(f'Creating queue {in_q_name}')
+            self._ensure_queue(in_q_name)
+            out_q_name = self._format_queue_name(function_name, config.OUT_QUEUE)
+            logger.debug(f'Creating queue {out_q_name}')
+            self._ensure_queue(out_q_name)
 
     def delete_runtime(self, runtime_name, memory, version=__version__, function_name=None):
         """

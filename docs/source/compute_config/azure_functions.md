@@ -12,15 +12,13 @@ python3 -m pip install lithops[azure]
 
 2. Install [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli?view=azure-cli-latest)
 
-3. Install the [Azure Functions core tools](https://github.com/Azure/azure-functions-core-tools)
-
-4. Sign in with the Azure CLI:
+3. Sign in with the Azure CLI:
 
 ```bash
 az login
 ```
 
-5. Create a Resource Group and a Storage Account:
+4. Create a Resource Group and a Storage Account:
 
    Option 1:
 
@@ -80,7 +78,7 @@ az login
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|azure_storage| storage_account_name | |yes |  Storage account name. The name generated in step 5 of the installation if you followed these instructions |
+|azure_storage| storage_account_name | |yes |  Storage account name. The name generated in step 4 of the installation if you followed these instructions |
 |azure_storage| storage_account_key |  | yes |  An Account Key, found in *Storage Accounts* > `account_name` > *Security + networking* > *Access Keys*|
 
 ### Azure Functions
