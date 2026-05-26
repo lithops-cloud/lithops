@@ -17,6 +17,7 @@
 import os
 import json
 import time
+import copy
 import logging
 import hashlib
 import shutil
@@ -168,11 +169,12 @@ class AzureContainerAppBackend:
             os.remove(config.FH_ZIP_LOCATION)
 
         logger.debug(f'Pushing runtime {runtime_name} to container registry')
-        utils.docker_login(
-            self.ac_config.get('docker_user'),
-            self.ac_config.get('docker_password'),
-            self.ac_config.get('docker_server'),
-        )
+        docker_user = self.ac_config.get('docker_user')
+        docker_password = self.ac_config.get('docker_password')
+        docker_server = self.ac_config.get('docker_server')
+        if docker_user and docker_password:
+            logger.debug('Container registry credentials found in config. Logging in into the registry')
+            utils.docker_login(docker_user, docker_password, docker_server)
 
         if utils.is_podman(docker_path):
             cmd = f'{docker_path} push {runtime_name} --format docker --remove-signatures'
@@ -197,53 +199,54 @@ class AzureContainerAppBackend:
                 in_queue = self.queue_service.get_queue_client(containerapp_name)
                 in_queue.clear_messages()
 
-        ca_temaplate = config.CONTAINERAPP_JSON
-        ca_temaplate['name'] = containerapp_name
-        ca_temaplate['location'] = self.location
-        ca_temaplate['tags']['type'] = 'lithops-runtime'
-        ca_temaplate['tags']['lithops_version'] = str(__version__)
-        ca_temaplate['tags']['runtime_name'] = runtime_name
-        ca_temaplate['tags']['runtime_memory'] = str(memory)
+        ca_template = copy.deepcopy(config.CONTAINERAPP_JSON)
+        ca_template['name'] = containerapp_name
+        ca_template['location'] = self.location
+        ca_template['tags']['type'] = 'lithops-runtime'
+        ca_template['tags']['lithops_version'] = str(__version__)
+        ca_template['tags']['runtime_name'] = runtime_name
+        ca_template['tags']['runtime_memory'] = str(memory)
 
         try:
             runtime_memory, runtime_cpu = config.ALLOWED_MEM[memory]
-            ca_temaplate['properties']['template']['containers'][0]['resources']['cpu'] = runtime_cpu
-            ca_temaplate['properties']['template']['containers'][0]['resources']['memory'] = runtime_memory
+            ca_template['properties']['template']['containers'][0]['resources']['cpu'] = runtime_cpu
+            ca_template['properties']['template']['containers'][0]['resources']['memory'] = runtime_memory
         except Exception:
             raise Exception(f'The memory {memory} is not allowed, you must choose '
                             f'one of thses memory values: {config.ALLOWED_MEM.keys()}')
 
-        ca_temaplate['properties']['template']['containers'][0]['image'] = runtime_name
-        ca_temaplate['properties']['template']['containers'][0]['env'][0]['value'] = containerapp_name
-        ca_temaplate['properties']['template']['scale']['rules'][0]['azureQueue']['queueName'] = containerapp_name
-        ca_temaplate['properties']['template']['scale']['maxReplicas'] = min(self.ac_config['max_workers'], 30)
+        ca_template['properties']['template']['containers'][0]['image'] = runtime_name
+        ca_template['properties']['template']['containers'][0]['env'][0]['value'] = containerapp_name
+        ca_template['properties']['template']['scale']['rules'][0]['azureQueue']['queueName'] = containerapp_name
+        ca_template['properties']['template']['scale']['maxReplicas'] = min(self.ac_config['max_workers'], 30)
 
         cmd = f"az containerapp env show -g {self.resource_group} -n {self.environment} --query id --only-show-errors"
         envorinemnt_id = self._run_az_command(cmd, return_result=True)
-        ca_temaplate['properties']['managedEnvironmentId'] = envorinemnt_id
+        ca_template['properties']['managedEnvironmentId'] = envorinemnt_id
 
         cmd = f"az storage account show-connection-string -g {self.resource_group} --name {self.storage_account_name} --query connectionString --out json"
         queueconnection = self._run_az_command(cmd, return_result=True)
-        ca_temaplate['properties']['configuration']['secrets'][0]['value'] = queueconnection
+        ca_template['properties']['configuration']['secrets'][0]['value'] = queueconnection
 
         if self.ac_config.get('docker_password'):
-            ca_temaplate['properties']['configuration']['secrets'][1]['value'] = self.ac_config['docker_password']
-            ca_temaplate['properties']['configuration']['registries'][0]['server'] = self.ac_config['docker_server']
-            ca_temaplate['properties']['configuration']['registries'][0]['username'] = self.ac_config['docker_user']
+            ca_template['properties']['configuration']['secrets'][1]['value'] = self.ac_config['docker_password']
+            ca_template['properties']['configuration']['registries'][0]['server'] = self.ac_config['docker_server']
+            ca_template['properties']['configuration']['registries'][0]['username'] = self.ac_config['docker_user']
         else:
-            del ca_temaplate['properties']['configuration']['secrets'][1]
-            del ca_temaplate['properties']['configuration']['registries']
+            del ca_template['properties']['configuration']['secrets'][1]
+            del ca_template['properties']['configuration']['registries']
 
         with open(config.CA_JSON_LOCATION, 'w') as f:
-            f.write(json.dumps(ca_temaplate))
+            f.write(json.dumps(ca_template))
 
         cmd = (f'az containerapp create --name {containerapp_name} '
                f'--resource-group {self.resource_group} '
                f'--yaml {config.CA_JSON_LOCATION} --only-show-errors')
 
-        logger.debug('Deploying Azure Container App')
+        logger.info('Deploying Azure Container App (this may take several minutes)')
         deployed = False
         retries = 0
+        last_error = None
 
         while retries < 10:
             try:
@@ -251,12 +254,14 @@ class AzureContainerAppBackend:
                 os.remove(config.CA_JSON_LOCATION)
                 deployed = True
                 break
-            except Exception:
+            except Exception as e:
+                last_error = e
+                logger.warning(f'Container app deploy attempt {retries + 1} failed: {e}')
                 time.sleep(10)
                 retries += 1
 
         if not deployed:
-            raise Exception(f"The Azure Container App cannot be deployed: {cmd}")
+            raise Exception(f"The Azure Container App cannot be deployed: {cmd}") from last_error
 
     def delete_runtime(self, runtime_name, memory, version=__version__):
         """
