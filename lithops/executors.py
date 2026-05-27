@@ -628,10 +628,6 @@ class FunctionExecutor:
         if (jobs_to_clean or cs) and spawn_cleaner:
             cmd = [sys.executable, '-m', 'lithops.scripts.cleaner']
             env = os.environ.copy()
-            # Cleaner is forked while gRPC clients may already be active in the parent process.
-            # Reduce noisy gRPC fork logs in the detached cleaner subprocess.
-            env.setdefault('GRPC_ENABLE_FORK_SUPPORT', '0')
-            env.setdefault('GRPC_VERBOSITY', 'ERROR')
             CLEANER_PROCESS = sp.Popen(
                 cmd,
                 start_new_session=True,
