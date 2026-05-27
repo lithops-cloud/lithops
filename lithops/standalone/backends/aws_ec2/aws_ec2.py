@@ -96,6 +96,7 @@ class AWSEC2Backend:
 
         self.master = None
         self.workers = []
+        self._init_created = None
 
         msg = COMPUTE_CLI_MSG.format('AWS EC2')
         logger.info(f"{msg} - Region: {self.region_name}")
@@ -104,6 +105,8 @@ class AWSEC2Backend:
         """
         Checks if the backend is initialized
         """
+        if self.mode == StandaloneMode.CONSUME.value:
+            return True
         return os.path.isfile(self.cache_file)
 
     def _load_ec2_data(self):
@@ -115,7 +118,7 @@ class AWSEC2Backend:
         if self.ec2_data:
             logger.debug(f'EC2 data loaded from {self.cache_file}')
 
-        if 'vpc_id' in self.ec2_data:
+        if self.ec2_data and 'vpc_id' in self.ec2_data:
             self.vpc_key = self.ec2_data['vpc_id'][-6:]
             self.vpc_name = self.ec2_data['vpc_name']
 
@@ -131,6 +134,93 @@ class AWSEC2Backend:
         """
         if os.path.exists(self.cache_file):
             os.remove(self.cache_file)
+
+    def _reset_init_created(self):
+        self._init_created = {
+            'vpc': False,
+            'subnet': False,
+            'internet_gateway': False,
+            'security_group': False,
+            'ssh_key': False,
+        }
+
+    def _safe_rollback_delete(self, delete_fn, resource_desc):
+        try:
+            delete_fn()
+        except ClientError as err:
+            code = err.response.get('Error', {}).get('Code', '')
+            if code in ('InvalidGroup.NotFound', 'InvalidSubnetID.NotFound',
+                        'InvalidVpcID.NotFound', 'InvalidInternetGatewayID.NotFound',
+                        'InvalidKeyPair.NotFound'):
+                pass
+            else:
+                logger.warning(f'Rollback: could not delete {resource_desc}: {err}')
+        except Exception as err:
+            logger.warning(f'Rollback: could not delete {resource_desc}: {err}')
+
+    def _rollback_init_resources(self):
+        """
+        Deletes AWS resources created during a failed init().
+        """
+        if not self._init_created:
+            return
+
+        logger.info('Rolling back AWS EC2 resources provisioned during failed init')
+        created = self._init_created
+
+        if created.get('security_group') and self.config.get('security_group_id'):
+            sg_id = self.config['security_group_id']
+            self._safe_rollback_delete(
+                lambda: self.ec2_client.delete_security_group(GroupId=sg_id),
+                f'security group {sg_id}',
+            )
+
+        if created.get('internet_gateway') and self.config.get('internet_gateway_id'):
+            igw_id = self.config['internet_gateway_id']
+            vpc_id = self.config.get('vpc_id')
+            if vpc_id:
+                self._safe_rollback_delete(
+                    lambda: self.ec2_client.detach_internet_gateway(
+                        InternetGatewayId=igw_id, VpcId=vpc_id
+                    ),
+                    f'detach internet gateway {igw_id}',
+                )
+            self._safe_rollback_delete(
+                lambda: self.ec2_client.delete_internet_gateway(InternetGatewayId=igw_id),
+                f'internet gateway {igw_id}',
+            )
+
+        if created.get('subnet') and self.config.get('public_subnet_id'):
+            subnet_id = self.config['public_subnet_id']
+            self._safe_rollback_delete(
+                lambda: self.ec2_client.delete_subnet(SubnetId=subnet_id),
+                f'subnet {subnet_id}',
+            )
+
+        if created.get('vpc') and self.config.get('vpc_id'):
+            vpc_id = self.config['vpc_id']
+            self._safe_rollback_delete(
+                lambda: self.ec2_client.delete_vpc(VpcId=vpc_id),
+                f'VPC {vpc_id}',
+            )
+
+        if created.get('ssh_key'):
+            key_filename = self.config.get('ssh_key_filename')
+            if key_filename and 'lithops-key-' in key_filename:
+                for path in (key_filename, f'{key_filename}.pub'):
+                    if os.path.isfile(path):
+                        os.remove(path)
+            if self.config.get('ssh_key_name'):
+                key_name = self.config['ssh_key_name']
+                self._safe_rollback_delete(
+                    lambda: self.ec2_client.delete_key_pair(KeyName=key_name),
+                    f'SSH key pair {key_name}',
+                )
+
+        if self.vpc_data_type == 'created':
+            self._delete_vpc_data()
+
+        self._init_created = None
 
     def _create_vpc(self):
         """
@@ -164,6 +254,8 @@ class AWSEC2Backend:
             self.ec2_client.create_tags(Resources=[response['Vpc']['VpcId']], Tags=tags)
 
             self.config['vpc_id'] = response['Vpc']['VpcId']
+            if self._init_created is not None:
+                self._init_created['vpc'] = True
 
     def _create_subnets(self):
         """
@@ -187,6 +279,8 @@ class AWSEC2Backend:
             )
             public_subnet_id = response['Subnet']['SubnetId']
             self.config['public_subnet_id'] = public_subnet_id
+            if self._init_created is not None:
+                self._init_created['subnet'] = True
 
         # if 'private_subnet_id' in self.ec2_data:
         #     sg_info = self.ec2_client.describe_subnets(
@@ -232,6 +326,8 @@ class AWSEC2Backend:
                 VpcId=self.config['vpc_id'], InternetGatewayId=internet_gateway_id
             )
             self.config['internet_gateway_id'] = internet_gateway_id
+            if self._init_created is not None:
+                self._init_created['internet_gateway'] = True
 
     def _create_nat_gateway(self):
         """
@@ -390,6 +486,8 @@ class AWSEC2Backend:
             )
 
             self.config['security_group_id'] = response['GroupId']
+            if self._init_created is not None:
+                self._init_created['security_group'] = True
 
     def _create_ssh_key(self):
         """
@@ -409,10 +507,12 @@ class AWSEC2Backend:
         filename = os.path.join("~", ".ssh", f"{keyname}.{self.name}.id_rsa")
         key_filename = os.path.expanduser(filename)
 
+        ssh_key_created = False
         if not os.path.isfile(key_filename):
             logger.debug("Generating new ssh key pair")
             os.system(f'ssh-keygen -b 2048 -t rsa -f {key_filename} -q -N ""')
             logger.debug(f"SHH key pair generated: {key_filename}")
+            ssh_key_created = True
             try:
                 self.ec2_client.delete_key_pair(KeyName=keyname)
             except ClientError:
@@ -427,8 +527,11 @@ class AWSEC2Backend:
                 ssh_key_data = file.read()
             self.ec2_client.import_key_pair(KeyName=keyname, PublicKeyMaterial=ssh_key_data)
             self.config['ssh_key_name'] = keyname
+            ssh_key_created = True
 
         self.config['ssh_key_filename'] = key_filename
+        if self._init_created is not None and ssh_key_created:
+            self._init_created['ssh_key'] = True
 
     def _request_image_id(self):
         """
@@ -554,57 +657,63 @@ class AWSEC2Backend:
 
         elif self.mode in [StandaloneMode.CREATE.value, StandaloneMode.REUSE.value]:
 
-            # Create the VPC if not exists
-            self._create_vpc()
+            self._reset_init_created()
+            try:
+                # Create the VPC if not exists
+                self._create_vpc()
 
-            # Set the suffix used for the VPC resources
-            self.vpc_key = self.config['vpc_id'][-6:]
+                # Set the suffix used for the VPC resources
+                self.vpc_key = self.config['vpc_id'][-6:]
 
-            # Create the Subnet if not exists
-            self._create_subnets()
-            # Create the internet gateway if not exists
-            self. _create_internet_gateway()
-            # Create the NAT gateway
-            # self._create_nat_gateway()
-            # Create routing tables
-            self._create_routing_tables()
-            # Create the security group if not exists
-            self._create_security_group()
-            # Create the ssh key pair if not exists
-            self._create_ssh_key()
-            # Requests the Ubuntu image ID
-            self._request_image_id()
-            # Request SPOT price
-            self._request_spot_price()
-            # Request instance types
-            self._get_all_instance_types()
+                # Create the Subnet if not exists
+                self._create_subnets()
+                # Create the internet gateway if not exists
+                self._create_internet_gateway()
+                # Create the NAT gateway
+                # self._create_nat_gateway()
+                # Create routing tables
+                self._create_routing_tables()
+                # Create the security group if not exists
+                self._create_security_group()
+                # Create the ssh key pair if not exists
+                self._create_ssh_key()
+                # Requests the Ubuntu image ID
+                self._request_image_id()
+                # Request SPOT price
+                self._request_spot_price()
+                # Request instance types
+                self._get_all_instance_types()
 
-            # Create the master VM instance
-            self._create_master_instance()
+                # Create the master VM instance
+                self._create_master_instance()
 
-            self.ec2_data = {
-                'mode': self.mode,
-                'vpc_data_type': self.vpc_data_type,
-                'ssh_data_type': self.ssh_data_type,
-                'master_name': self.master.name,
-                'master_id': self.vpc_key,
-                'vpc_name': self.vpc_name,
-                'vpc_id': self.config['vpc_id'],
-                'instance_role': self.config['instance_role'],
-                'target_ami': self.config['target_ami'],
-                'ssh_key_name': self.config['ssh_key_name'],
-                'ssh_key_filename': self.config['ssh_key_filename'],
-                'public_subnet_id': self.config['public_subnet_id'],
-                # 'private_subnet_id': self.config['private_subnet_id'],
-                'security_group_id': self.config['security_group_id'],
-                'internet_gateway_id': self.config['internet_gateway_id'],
-                # 'nat_gateway_id': self.config['nat_gateway_id'],
-                # 'private_rtb_id': self.config['private_rtb_id'],
-                'public_rtb_id': self.config['public_rtb_id'],
-                'instance_types': self.instance_types
-            }
-
-        self._dump_ec2_data()
+                self.ec2_data = {
+                    'mode': self.mode,
+                    'vpc_data_type': self.vpc_data_type,
+                    'ssh_data_type': self.ssh_data_type,
+                    'master_name': self.master.name,
+                    'master_id': self.vpc_key,
+                    'vpc_name': self.vpc_name,
+                    'vpc_id': self.config['vpc_id'],
+                    'instance_role': self.config['instance_role'],
+                    'target_ami': self.config['target_ami'],
+                    'ssh_key_name': self.config['ssh_key_name'],
+                    'ssh_key_filename': self.config['ssh_key_filename'],
+                    'public_subnet_id': self.config['public_subnet_id'],
+                    # 'private_subnet_id': self.config['private_subnet_id'],
+                    'security_group_id': self.config['security_group_id'],
+                    'internet_gateway_id': self.config['internet_gateway_id'],
+                    # 'nat_gateway_id': self.config['nat_gateway_id'],
+                    # 'private_rtb_id': self.config['private_rtb_id'],
+                    'public_rtb_id': self.config['public_rtb_id'],
+                    'instance_types': self.instance_types
+                }
+                self._dump_ec2_data()
+            except Exception:
+                self._rollback_init_resources()
+                raise
+            finally:
+                self._init_created = None
 
     def build_image(self, image_name, script_file, overwrite, include, extra_args=[]):
         """
@@ -1007,7 +1116,11 @@ class AWSEC2Backend:
         Creates the runtime key
         """
         name = runtime_name.replace('/', '-').replace(':', '-')
-        runtime_key = os.path.join(self.name, version, self.ec2_data['master_id'], name)
+        if self.mode == StandaloneMode.CONSUME.value:
+            master_id = self.config['instance_id']
+        else:
+            master_id = self.ec2_data['master_id']
+        runtime_key = os.path.join(self.name, version, master_id, name)
         return runtime_key
 
 
@@ -1153,10 +1266,36 @@ class EC2Instance:
 
         raise TimeoutError(f'Stop probe expired on {self}')
 
+    def _rollback_instance_resources(self, instance_created=False, spot_request_id=None):
+        """
+        Deletes EC2 instance resources provisioned during a failed create().
+        """
+        logger.info(f'Rolling back resources provisioned for {self.name}')
+
+        if spot_request_id:
+            try:
+                self.ec2_client.cancel_spot_instance_requests(
+                    SpotInstanceRequestIds=[spot_request_id]
+                )
+            except ClientError as err:
+                logger.warning(f'Rollback: could not cancel spot request: {err}')
+
+        if instance_created and self.instance_id:
+            try:
+                self.ec2_client.terminate_instances(InstanceIds=[self.instance_id])
+            except ClientError as err:
+                logger.warning(f'Rollback: could not terminate {self.name}: {err}')
+
+        self.instance_data = None
+        self.instance_id = None
+
     def _create_instance(self, user_data=None):
         """
         Creates a new VM instance
         """
+        instance_created = False
+        spot_request_id = None
+
         ebs_volumes = self.config.get('ebs_volumes', [])
         BlockDeviceMappings = []
 
@@ -1199,62 +1338,72 @@ class EC2Instance:
         if BlockDeviceMappings is not None:
             LaunchSpecification['BlockDeviceMappings'] = BlockDeviceMappings
 
-        if self.spot_instance and not self.public:
+        try:
+            if self.spot_instance and not self.public:
 
-            logger.debug(f"Creating new VM instance {self.name} (Spot)")
+                logger.debug(f"Creating new VM instance {self.name} (Spot)")
 
-            if user_data:
-                # Allow master VM to access workers trough ssh key or password
-                LaunchSpecification['UserData'] = b64s(user_data)
+                if user_data:
+                    # Allow master VM to access workers trough ssh key or password
+                    LaunchSpecification['UserData'] = b64s(user_data)
 
-            spot_request = self.ec2_client.request_spot_instances(
-                SpotPrice=str(self.config['spot_price']),
-                InstanceCount=1,
-                LaunchSpecification=LaunchSpecification)['SpotInstanceRequests'][0]
+                spot_request = self.ec2_client.request_spot_instances(
+                    SpotPrice=str(self.config['spot_price']),
+                    InstanceCount=1,
+                    LaunchSpecification=LaunchSpecification)['SpotInstanceRequests'][0]
 
-            request_id = spot_request['SpotInstanceRequestId']
-            failures = ['price-too-low', 'capacity-not-available']
+                spot_request_id = spot_request['SpotInstanceRequestId']
+                failures = ['price-too-low', 'capacity-not-available']
 
-            while spot_request['State'] == 'open':
-                time.sleep(5)
-                spot_request = self.ec2_client.describe_spot_instance_requests(
-                    SpotInstanceRequestIds=[request_id])['SpotInstanceRequests'][0]
+                while spot_request['State'] == 'open':
+                    time.sleep(5)
+                    spot_request = self.ec2_client.describe_spot_instance_requests(
+                        SpotInstanceRequestIds=[spot_request_id])['SpotInstanceRequests'][0]
 
-                if spot_request['State'] == 'failed' or spot_request['Status']['Code'] in failures:
-                    msg = "The spot request failed for the following reason: " + spot_request['Status']['Message']
-                    logger.debug(msg)
-                    self.ec2_client.cancel_spot_instance_requests(SpotInstanceRequestIds=[request_id])
-                    raise Exception(msg)
-                else:
-                    logger.debug(spot_request['Status']['Message'])
+                    if spot_request['State'] == 'failed' or spot_request['Status']['Code'] in failures:
+                        msg = "The spot request failed for the following reason: " + spot_request['Status']['Message']
+                        logger.debug(msg)
+                        self.ec2_client.cancel_spot_instance_requests(
+                            SpotInstanceRequestIds=[spot_request_id]
+                        )
+                        raise Exception(msg)
+                    else:
+                        logger.debug(spot_request['Status']['Message'])
 
-            self.ec2_client.create_tags(
-                Resources=[spot_request['InstanceId']],
-                Tags=[{'Key': 'Name', 'Value': self.name}]
+                self.ec2_client.create_tags(
+                    Resources=[spot_request['InstanceId']],
+                    Tags=[{'Key': 'Name', 'Value': self.name}]
+                )
+
+                filters = [{'Name': 'instance-id', 'Values': [spot_request['InstanceId']]}]
+                resp = self.ec2_client.describe_instances(Filters=filters)['Reservations'][0]
+
+            else:
+                logger.debug(f"Creating new VM instance {self.name}")
+
+                LaunchSpecification['MinCount'] = 1
+                LaunchSpecification['MaxCount'] = 1
+                LaunchSpecification["TagSpecifications"] = [{"ResourceType": "instance", "Tags": [{'Key': 'Name', 'Value': self.name}]}]
+                LaunchSpecification["InstanceInitiatedShutdownBehavior"] = 'terminate' if self.delete_on_dismantle else 'stop'
+
+                if user_data:
+                    LaunchSpecification['UserData'] = user_data
+
+                resp = self.ec2_client.run_instances(**LaunchSpecification)
+
+            logger.debug(f"VM instance {self.name} created successfully ")
+
+            self.instance_data = resp['Instances'][0]
+            self.instance_id = self.instance_data['InstanceId']
+            instance_created = True
+
+            return self.instance_data
+        except Exception:
+            self._rollback_instance_resources(
+                instance_created=instance_created,
+                spot_request_id=spot_request_id,
             )
-
-            filters = [{'Name': 'instance-id', 'Values': [spot_request['InstanceId']]}]
-            resp = self.ec2_client.describe_instances(Filters=filters)['Reservations'][0]
-
-        else:
-            logger.debug(f"Creating new VM instance {self.name}")
-
-            LaunchSpecification['MinCount'] = 1
-            LaunchSpecification['MaxCount'] = 1
-            LaunchSpecification["TagSpecifications"] = [{"ResourceType": "instance", "Tags": [{'Key': 'Name', 'Value': self.name}]}]
-            LaunchSpecification["InstanceInitiatedShutdownBehavior"] = 'terminate' if self.delete_on_dismantle else 'stop'
-
-            if user_data:
-                LaunchSpecification['UserData'] = user_data
-
-            resp = self.ec2_client.run_instances(**LaunchSpecification)
-
-        logger.debug(f"VM instance {self.name} created successfully ")
-
-        self.instance_data = resp['Instances'][0]
-        self.instance_id = self.instance_data['InstanceId']
-
-        return self.instance_data
+            raise
 
     def get_instance_data(self):
         """

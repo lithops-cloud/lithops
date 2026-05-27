@@ -14,6 +14,7 @@
 # limitations under the License.
 #
 
+import glob
 import os
 import re
 import time
@@ -23,8 +24,22 @@ import base64
 from concurrent.futures import ThreadPoolExecutor
 from azure.identity import DefaultAzureCredential
 from azure.mgmt.compute import ComputeManagementClient
+from azure.mgmt.compute.models import (
+    HardwareProfile,
+    ImageReference,
+    LinuxConfiguration,
+    ManagedDiskParameters,
+    NetworkInterfaceReference,
+    NetworkProfile,
+    OSDisk,
+    OSProfile,
+    SshConfiguration,
+    SshPublicKey,
+    StorageProfile,
+    VirtualMachine,
+)
 from azure.mgmt.network import NetworkManagementClient
-from azure.core.exceptions import ResourceNotFoundError
+from azure.core.exceptions import HttpResponseError, ResourceNotFoundError
 
 from lithops.version import __version__
 from lithops.util.ssh_client import SSHClient, ssh_boot_status_message
@@ -37,7 +52,7 @@ from lithops.standalone import LithopsValidationError
 logger = logging.getLogger(__name__)
 
 INSTANCE_START_TIMEOUT = 180
-DEFAULT_UBUNTU_IMAGE = 'Canonical:0001-com-ubuntu-server-jammy:22_04-lts-gen2:latest'
+DEFAULT_UBUNTU_IMAGE = 'Canonical:ubuntu-24_04-lts:server:latest'
 
 
 def b64s(string):
@@ -75,6 +90,7 @@ class AzureVMSBackend:
         self.master = None
         self.workers = []
         self.instance_types = {}
+        self._init_created = None
 
         msg = COMPUTE_CLI_MSG.format('Azure Virtual Machines')
         logger.info(f"{msg} - Region: {self.location}")
@@ -83,6 +99,8 @@ class AzureVMSBackend:
         """
         Checks if the backend is initialized
         """
+        if self.mode == StandaloneMode.CONSUME.value:
+            return True
         return os.path.isfile(self.cache_file)
 
     def _load_azure_vms_data(self):
@@ -93,8 +111,12 @@ class AzureVMSBackend:
 
         if self.azure_data:
             logger.debug(f'Azure VMs data loaded from {self.cache_file}')
+            if self.azure_data.get('vnet_name'):
+                logger.debug(
+                    f'Reusing Lithops Azure stack for virtual network {self.azure_data["vnet_name"]}'
+                )
 
-        if 'vnet_name' in self.azure_data:
+        if self.azure_data and 'vnet_name' in self.azure_data:
             self.vnet_key = self.azure_data['vnet_id'][-6:]
             self.vnet_name = self.azure_data['vnet_name']
 
@@ -111,19 +133,92 @@ class AzureVMSBackend:
         if os.path.exists(self.cache_file):
             os.remove(self.cache_file)
 
+    def _reset_init_created(self):
+        self._init_created = {
+            'vnet': False,
+            'subnet': False,
+            'nsg': False,
+            'floating_ip': False,
+            'ssh_key': False,
+        }
+
+    def _safe_rollback_delete(self, delete_fn, resource_desc):
+        try:
+            delete_fn()
+        except ResourceNotFoundError:
+            pass
+        except Exception as err:
+            logger.warning(f'Rollback: could not delete {resource_desc}: {err}')
+
+    def _rollback_init_resources(self):
+        """
+        Deletes Azure resources created during a failed init().
+        """
+        if not self._init_created:
+            return
+
+        logger.info('Rolling back Azure VMs resources provisioned during failed init')
+        rg = self.config['resource_group']
+        created = self._init_created
+
+        if created.get('floating_ip') and self.config.get('floating_ip_name'):
+            fip_name = self.config['floating_ip_name']
+            self._safe_rollback_delete(
+                lambda: self.network_client.public_ip_addresses.begin_delete(rg, fip_name).result(),
+                f'public IP {fip_name}',
+            )
+
+        if created.get('nsg') and self.config.get('security_group_name'):
+            sg_name = self.config['security_group_name']
+            self._safe_rollback_delete(
+                lambda: self.network_client.network_security_groups.begin_delete(rg, sg_name).result(),
+                f'network security group {sg_name}',
+            )
+
+        if created.get('subnet') and self.config.get('vnet_name') and self.config.get('subnet_name'):
+            vnet_name = self.config['vnet_name']
+            subnet_name = self.config['subnet_name']
+            self._safe_rollback_delete(
+                lambda: self.network_client.subnets.begin_delete(
+                    rg, vnet_name, subnet_name
+                ).result(),
+                f'subnet {subnet_name}',
+            )
+
+        if created.get('vnet') and self.config.get('vnet_name'):
+            vnet_name = self.config['vnet_name']
+            self._safe_rollback_delete(
+                lambda: self.network_client.virtual_networks.begin_delete(rg, vnet_name).result(),
+                f'virtual network {vnet_name}',
+            )
+
+        if created.get('ssh_key'):
+            key_filename = self.config.get('ssh_key_filename')
+            if key_filename and 'lithops-key-' in key_filename:
+                for path in (key_filename, f'{key_filename}.pub'):
+                    if os.path.isfile(path):
+                        os.remove(path)
+
+        if self.vnet_data_type == 'created':
+            self._delete_vpc_data()
+
+        self._init_created = None
+
     def _create_vnet(self):
         """
         Creates a new Virtual Network
         """
         if 'vnet_name' in self.config:
+            logger.debug(f'Using user-provided virtual network {self.config["vnet_name"]}')
             return
 
-        if 'vnet_name' in self.azure_data:
+        if self.azure_data and 'vnet_name' in self.azure_data:
             vnets_info = list(self.network_client.virtual_networks.list(self.config['resource_group']))
             for vnet in vnets_info:
                 if vnet.name == self.vnet_name:
                     self.config['vnet_id'] = vnet.id
                     self.config['vnet_name'] = vnet.name
+                    logger.debug(f'Using existing virtual network {vnet.name}')
                     return
 
         self.vnet_name = self.config.get('vnet_name', f'lithops-vnet-{str(uuid.uuid4())[-6:]}')
@@ -137,6 +232,7 @@ class AzureVMSBackend:
             if vnet.name == self.vnet_name:
                 self.config['vnet_id'] = vnet.id
                 self.config['vnet_name'] = vnet.name
+                logger.debug(f'Using existing virtual network {vnet.name}')
                 break
 
         if 'vnet_name' not in self.config:
@@ -152,36 +248,40 @@ class AzureVMSBackend:
                 },
             )
             vnet_result = poller.result()
-            logger.debug(
-                f"Provisioned virtual network {vnet_result.name} with address prefixes {vnet_result.address_space.address_prefixes}"
-            )
             self.config['vnet_id'] = vnet_result.id
             self.config['vnet_name'] = vnet_result.name
+            if self._init_created is not None:
+                self._init_created['vnet'] = True
 
     def _create_subnet(self):
         """
         Creates a new subnet
         """
         if 'subnet_name' in self.config:
+            logger.debug(f'Using user-provided virtual subnet {self.config["subnet_name"]}')
             return
 
-        if 'subnet_name' in self.azure_data:
+        if self.azure_data and 'subnet_name' in self.azure_data:
             subnets_info = list(self.network_client.subnets.list(self.config['resource_group'], self.vnet_name))
             for subnet in subnets_info:
                 if subnet.name == self.azure_data['subnet_name']:
                     self.config['subnet_id'] = subnet.id
                     self.config['subnet_name'] = subnet.name
+                    logger.debug(f'Using existing virtual subnet {subnet.name}')
                     return
 
         self.subnet_name = self.vnet_name + '-subnet'
 
         subnets_info = list(self.network_client.subnets.list(self.config['resource_group'], self.vnet_name))
         for subnet in subnets_info:
-            if subnet.name == self.azure_data['subnet_name']:
+            if subnet.name == self.subnet_name:
                 self.config['subnet_id'] = subnet.id
                 self.config['subnet_name'] = subnet.name
+                logger.debug(f'Using existing virtual subnet {subnet.name}')
+                break
 
         if 'subnet_name' not in self.config:
+            logger.debug(f'Creating virtual subnet {self.subnet_name}')
             poller = self.network_client.subnets.begin_create_or_update(
                 self.config['resource_group'],
                 self.vnet_name,
@@ -189,28 +289,47 @@ class AzureVMSBackend:
                 {"address_prefix": "10.0.0.0/24"},
             )
             subnet_result = poller.result()
-
-            logger.debug(
-                f"Provisioned virtual subnet {subnet_result.name} with address prefix {subnet_result.address_prefix}"
-            )
             self.config['subnet_id'] = subnet_result.id
             self.config['subnet_name'] = subnet_result.name
+            if self._init_created is not None:
+                self._init_created['subnet'] = True
+
+    def _use_security_group(self, sg_info):
+        """
+        Reuse an existing security group when it is in the configured region.
+        """
+        if sg_info.location.lower() != self.location.lower():
+            logger.debug(
+                f'Skipping security group {sg_info.name} in {sg_info.location}; '
+                f'expected region {self.location}'
+            )
+            return False
+
+        self.config['security_group_id'] = sg_info.id
+        self.config['security_group_name'] = sg_info.name
+        logger.debug(
+            f'Using existing network security group {sg_info.name} in {sg_info.location}'
+        )
+        return True
 
     def _create_security_group(self):
         """
         Creates a new Security group
         """
         if 'security_group_id' in self.config:
+            logger.debug(
+                f'Using user-provided network security group '
+                f'{self.config.get("security_group_name", self.config["security_group_id"])}'
+            )
             return
 
-        if 'security_group_id' in self.azure_data:
+        if self.azure_data and 'security_group_id' in self.azure_data:
             try:
                 sg_info = self.network_client.network_security_groups.get(
                     self.config['resource_group'], self.azure_data['security_group_name']
                 )
-                self.config['security_group_id'] = sg_info.id
-                self.config['security_group_name'] = sg_info.name
-                return
+                if self._use_security_group(sg_info):
+                    return
             except ResourceNotFoundError:
                 pass
 
@@ -220,12 +339,12 @@ class AzureVMSBackend:
             sg_info = self.network_client.network_security_groups.get(
                 self.config['resource_group'], security_group_name
             )
-            self.config['security_group_id'] = sg_info.id
-            self.config['security_group_name'] = sg_info.name
+            self._use_security_group(sg_info)
         except ResourceNotFoundError:
             pass
 
         if 'security_group_id' not in self.config:
+            logger.debug(f'Creating network security group {security_group_name}')
             nsg_rules = [
                 {
                     "name": "allow-ssh",
@@ -289,6 +408,8 @@ class AzureVMSBackend:
 
             self.config['security_group_name'] = sg_result.name
             self.config['security_group_id'] = sg_result.id
+            if self._init_created is not None:
+                self._init_created['nsg'] = True
 
     def _create_master_floating_ip(self):
         """
@@ -303,10 +424,13 @@ class AzureVMSBackend:
                 self.config['floating_ip'] = fip_info.ip_address
                 self.config['floating_ip_name'] = fip_info.name
                 self.config['floating_ip_id'] = fip_info.id
+                logger.debug(
+                    f'Using existing public IP address {fip_info.ip_address} ({fip_info.name})'
+                )
             except ResourceNotFoundError:
                 pass
 
-        if 'floating_ip_id' in self.azure_data:
+        if self.azure_data and 'floating_ip_id' in self.azure_data:
             get_floating_ip(self.azure_data['floating_ip_name'])
 
         floating_ip_name = self.vnet_name + '-ip'
@@ -315,6 +439,7 @@ class AzureVMSBackend:
             get_floating_ip(floating_ip_name)
 
         if 'floating_ip_id' not in self.config:
+            logger.debug(f'Creating public IP address {floating_ip_name}')
             poller = self.network_client.public_ip_addresses.begin_create_or_update(
                 self.config['resource_group'],
                 floating_ip_name,
@@ -326,21 +451,24 @@ class AzureVMSBackend:
                 },
             )
             ip_address_result = poller.result()
-            logger.debug(f"Provisioned public IP address {ip_address_result.ip_address}")
             self.config['floating_ip'] = ip_address_result.ip_address
             self.config['floating_ip_name'] = ip_address_result.name
             self.config['floating_ip_id'] = ip_address_result.id
+            if self._init_created is not None:
+                self._init_created['floating_ip'] = True
 
     def _create_ssh_key(self):
         """
         Creates a new ssh key pair
         """
         if 'ssh_key_filename' in self.config:
+            logger.debug(f'Using user-provided SSH key pair {self.config["ssh_key_filename"]}')
             return
 
-        if 'ssh_key_filename' in self.azure_data:
+        if self.azure_data and 'ssh_key_filename' in self.azure_data:
             if os.path.isfile(self.azure_data['ssh_key_filename']):
                 self.config['ssh_key_filename'] = self.azure_data['ssh_key_filename']
+                logger.debug(f'Using existing SSH key pair {self.config["ssh_key_filename"]}')
                 return
 
         keyname = f'lithops-key-{str(uuid.uuid4())[-8:]}'
@@ -351,6 +479,8 @@ class AzureVMSBackend:
             logger.debug("Generating new ssh key pair")
             os.system(f'ssh-keygen -b 2048 -t rsa -f {key_filename} -q -N ""')
             logger.debug(f"SHH key pair generated: {key_filename}")
+            if self._init_created is not None:
+                self._init_created['ssh_key'] = True
 
         self.config['ssh_key_filename'] = key_filename
 
@@ -358,7 +488,7 @@ class AzureVMSBackend:
         """
         Get all virtual machine sizes in the specified location
         """
-        if 'instance_types' in self.azure_data:
+        if self.azure_data and 'instance_types' in self.azure_data:
             self.instance_types = self.azure_data['instance_types']
             return
 
@@ -393,72 +523,69 @@ class AzureVMSBackend:
         """
         logger.debug(f'Initializing Azure Virtual Machines backend ({self.mode} mode)')
 
-        self._load_azure_vms_data()
-
         if self.mode == StandaloneMode.CONSUME.value:
-            instance_name = self.config['instance_name']
-            if not self.azure_data or instance_name != self.azure_data.get('instance_name'):
+            if 'master_instance_type' not in self.config:
                 try:
                     instance_data = self.compute_client.virtual_machines.get(
-                        self.config['resource_group'], instance_name
+                        self.config['resource_group'], self.config['instance_name']
                     )
                 except ResourceNotFoundError:
-                    raise Exception(f"VM Instance {instance_name} does not exist")
+                    raise Exception(
+                        f"VM Instance {self.config['instance_name']} does not exist"
+                    )
+                self.config['master_instance_type'] = instance_data.hardware_profile.vm_size
+            self._create_master_instance()
+            return
+
+        self._load_azure_vms_data()
+
+        if self.mode in [StandaloneMode.CREATE.value, StandaloneMode.REUSE.value]:
+
+            self._reset_init_created()
+            try:
+                # Create the Virtual Netowrk if not exists
+                self._create_vnet()
+
+                # Set the suffix used for the VNET resources
+                self.vnet_key = self.config['vnet_id'][-6:]
+
+                # Create the Subnet if not exists
+                self._create_subnet()
+                # Create the security group if not exists
+                self._create_security_group()
+                # Create the master VM floating IP address
+                self._create_master_floating_ip()
+                # Create the ssh key pair if not exists
+                self._create_ssh_key()
+                # Request instance types
+                self._get_all_instance_types()
+
+                # Create the master VM instance
+                self._create_master_instance()
 
                 self.azure_data = {
                     'mode': self.mode,
-                    'vnet_data_type': 'provided',
-                    'ssh_data_type': 'provided',
-                    'instance_name': self.config['instance_name'],
-                    'master_id': instance_data.vm_id,
-                    'instance_type': instance_data.hardware_profile.vm_size
+                    'vnet_data_type': self.vnet_data_type,
+                    'ssh_data_type': self.ssh_data_type,
+                    'master_name': self.master.name,
+                    'master_id': self.vnet_key,
+                    'vnet_name': self.config['vnet_name'],
+                    'vnet_id': self.config['vnet_id'],
+                    'subnet_name': self.config['subnet_name'],
+                    'subnet_id': self.config['subnet_id'],
+                    'ssh_key_filename': self.config['ssh_key_filename'],
+                    'security_group_id': self.config['security_group_id'],
+                    'security_group_name': self.config['security_group_name'],
+                    'floating_ip_id': self.config['floating_ip_id'],
+                    'floating_ip_name': self.config['floating_ip_name'],
+                    'instance_types': self.instance_types
                 }
-
-            # Create the master VM instance
-            self.config['master_instance_type'] = self.azure_data['instance_type']
-            self._create_master_instance()
-
-        elif self.mode in [StandaloneMode.CREATE.value, StandaloneMode.REUSE.value]:
-
-            # Create the Virtual Netowrk if not exists
-            self._create_vnet()
-
-            # Set the suffix used for the VNET resources
-            self.vnet_key = self.config['vnet_id'][-6:]
-
-            # Create the Subnet if not exists
-            self._create_subnet()
-            # Create the security group if not exists
-            self._create_security_group()
-            # Create the master VM floating IP address
-            self._create_master_floating_ip()
-            # Create the ssh key pair if not exists
-            self._create_ssh_key()
-            # Request instance types
-            self._get_all_instance_types()
-
-            # Create the master VM instance
-            self._create_master_instance()
-
-            self.azure_data = {
-                'mode': self.mode,
-                'vnet_data_type': self.vnet_data_type,
-                'ssh_data_type': self.ssh_data_type,
-                'master_name': self.master.name,
-                'master_id': self.vnet_key,
-                'vnet_name': self.config['vnet_name'],
-                'vnet_id': self.config['vnet_id'],
-                'subnet_name': self.config['subnet_name'],
-                'subnet_id': self.config['subnet_id'],
-                'ssh_key_filename': self.config['ssh_key_filename'],
-                'security_group_id': self.config['security_group_id'],
-                'security_group_name': self.config['security_group_name'],
-                'floating_ip_id': self.config['floating_ip_id'],
-                'floating_ip_name': self.config['floating_ip_name'],
-                'instance_types': self.instance_types
-            }
-
-        self._dump_azure_vms_data()
+                self._dump_azure_vms_data()
+            except Exception:
+                self._rollback_init_resources()
+                raise
+            finally:
+                self._init_created = None
 
     def build_image(self, image_name, script_file, overwrite, include, extra_args=[]):
         """
@@ -491,19 +618,26 @@ class AzureVMSBackend:
 
     def _delete_vm_instances(self, all=False):
         """
-        Deletes all worker VM instances
+        Deletes Lithops VM instances in the resource group.
+        When all=True, every lithops master/worker is removed (any VNet).
         """
-        msg = (f"Deleting Lithops VMs from {self.azure_data['vnet_name']}")
-        logger.info(msg)
+        if all:
+            logger.info(f'Deleting all Lithops VMs in {self.config["resource_group"]}')
+        else:
+            logger.info(f'Deleting Lithops worker VMs from {self.azure_data["vnet_name"]}')
 
         vms_prefixes = ('lithops-worker', 'lithops-master') if all else ('lithops-worker',)
 
         instances_to_delete = []
         vms_info = self.compute_client.virtual_machines.list(self.config['resource_group'])
         for vm in vms_info:
-            if 'type' in vm.tags and vm.tags['type'] == 'lithops-runtime' \
-               and vm.name.startswith(vms_prefixes) and vm.tags['lithops_vnet'] == self.vnet_name:
-                instances_to_delete.append(vm)
+            if 'type' not in vm.tags or vm.tags['type'] != 'lithops-runtime':
+                continue
+            if not vm.name.startswith(vms_prefixes):
+                continue
+            if not all and vm.tags.get('lithops_vnet') != self.vnet_name:
+                continue
+            instances_to_delete.append(vm)
 
         def delete_instance(instance):
             logger.debug(f"Deleting VM instance {instance.name}")
@@ -530,14 +664,58 @@ class AzureVMSBackend:
                 futures = [executor.submit(delete_instance, i) for i in instances_to_delete]
                 [fut.result() for fut in futures]
 
-        master_pk = os.path.join(self.cache_dir, f"{self.azure_data['master_name']}-id_rsa.pub")
-        if all and os.path.isfile(master_pk):
-            os.remove(master_pk)
+        if all and self.azure_data:
+            master_pk = os.path.join(
+                self.cache_dir, f"{self.azure_data['master_name']}-id_rsa.pub"
+            )
+            if os.path.isfile(master_pk):
+                os.remove(master_pk)
 
-        if self.azure_data['vnet_data_type'] == 'provided':
+        if self.azure_data and self.azure_data.get('vnet_data_type') == 'provided':
             return
 
-    def _delete_vnet_and_subnet(self):
+    def _delete_orphan_lithops_nics(self):
+        """
+        Delete Lithops NICs left behind after VM deletion.
+        """
+        nic_prefixes = ('lithops-worker', 'lithops-master')
+        for nic in self.network_client.network_interfaces.list(self.config['resource_group']):
+            if nic.name.startswith(nic_prefixes):
+                logger.debug(f'Deleting network interface {nic.name}')
+                try:
+                    self.network_client.network_interfaces.begin_delete(
+                        self.config['resource_group'], nic.name
+                    ).result()
+                except ResourceNotFoundError:
+                    pass
+                except HttpResponseError as err:
+                    logger.warning(f'Could not delete NIC {nic.name}: {err}')
+
+    def _try_delete_security_group(self, security_group_name):
+        """
+        Delete the Lithops NSG if it is no longer attached to any NIC.
+        """
+        if not security_group_name:
+            return
+
+        try:
+            logger.debug(f'Deleting network security group {security_group_name}')
+            self.network_client.network_security_groups.begin_delete(
+                self.config['resource_group'],
+                security_group_name,
+            ).result()
+        except ResourceNotFoundError:
+            pass
+        except HttpResponseError as err:
+            if 'InUseNetworkSecurityGroupCannotBeDeleted' in str(err):
+                logger.warning(
+                    f'Network security group {security_group_name} is still in use; '
+                    'delete remaining Lithops VMs/NICs and run clean again'
+                )
+            else:
+                logger.warning(f'Could not delete network security group {security_group_name}: {err}')
+
+    def _delete_vnet_and_subnet(self, delete_security_group=False):
         """
         Deletes all the Azure VMs resources
         """
@@ -575,6 +753,9 @@ class AzureVMSBackend:
         except ResourceNotFoundError:
             pass
 
+        if delete_security_group:
+            self._try_delete_security_group(self.azure_data.get('security_group_name'))
+
     def _delete_ssh_key(self):
         """
         Deletes the ssh key
@@ -589,22 +770,98 @@ class AzureVMSBackend:
             if os.path.isfile(f"{key_filename}.pub"):
                 os.remove(f"{key_filename}.pub")
 
+    def _clean_loaded_stack(self, all=False, skip_vms=False, delete_security_group=False):
+        """
+        Delete cloud resources described by the currently loaded azure_data cache.
+        """
+        if self.azure_data.get('mode') == StandaloneMode.CONSUME.value:
+            if os.path.isfile(self.cache_file):
+                os.remove(self.cache_file)
+            return
+
+        if not skip_vms:
+            self._delete_vm_instances(all=all)
+        if all:
+            self._delete_vnet_and_subnet(delete_security_group=delete_security_group)
+            self._delete_ssh_key()
+            self._delete_vpc_data()
+
+    def _clean_from_cache_file(self, cache_file, all=False, skip_vms=False, delete_security_group=False):
+        """
+        Load a regional cache file and delete the resources it describes.
+        """
+        azure_data = load_yaml_config(cache_file)
+        if not azure_data:
+            if os.path.isfile(cache_file):
+                os.remove(cache_file)
+            return
+
+        saved = {
+            'azure_data': self.azure_data,
+            'vnet_name': self.vnet_name,
+            'vnet_key': self.vnet_key,
+            'cache_file': self.cache_file,
+        }
+        try:
+            self.cache_file = cache_file
+            self.azure_data = azure_data
+            if self.azure_data.get('vnet_name'):
+                self.vnet_key = self.azure_data['vnet_id'][-6:]
+                self.vnet_name = self.azure_data['vnet_name']
+            logger.info(f'Cleaning Azure VMs stack from {cache_file}')
+            self._clean_loaded_stack(
+                all=all,
+                skip_vms=skip_vms,
+                delete_security_group=delete_security_group,
+            )
+        finally:
+            self.azure_data = saved['azure_data']
+            self.vnet_name = saved['vnet_name']
+            self.vnet_key = saved['vnet_key']
+            self.cache_file = saved['cache_file']
+
     def clean(self, all=False):
         """
         Clean all the VPC resources
         """
         logger.info('Cleaning Azure Virtual Machines resources')
 
-        if not self.azure_data:
+        if self.mode == StandaloneMode.CONSUME.value:
+            if os.path.isfile(self.cache_file):
+                os.remove(self.cache_file)
             return
 
-        if self.azure_data['mode'] == StandaloneMode.CONSUME.value:
-            self._delete_vpc_data()
-        else:
-            self._delete_vm_instances(all=all)
-            self._delete_vnet_and_subnet() if all else None
-            self._delete_ssh_key() if all else None
-            self._delete_vpc_data() if all else None
+        if all:
+            cache_files = sorted(glob.glob(os.path.join(self.cache_dir, '*_vpc_data')))
+            if cache_files:
+                if not self.azure_data:
+                    self._load_azure_vms_data()
+                if not self.azure_data:
+                    self.azure_data = load_yaml_config(cache_files[0])
+                self._delete_vm_instances(all=True)
+                self._delete_orphan_lithops_nics()
+                for i, cache_file in enumerate(cache_files):
+                    last_stack = i == len(cache_files) - 1
+                    self._clean_from_cache_file(
+                        cache_file,
+                        all=True,
+                        skip_vms=True,
+                        delete_security_group=last_stack,
+                    )
+                self._try_delete_security_group('lithops-security-group')
+                return
+
+        if not self.azure_data:
+            self._load_azure_vms_data()
+
+        if not self.azure_data:
+            logger.debug(
+                f'No Azure VMs cache at {self.cache_file}; '
+                'nothing to clean for the configured region'
+            )
+            return
+
+        self._clean_loaded_stack(all=all, delete_security_group=all)
 
     def clear(self, job_keys=None):
         """
@@ -667,7 +924,11 @@ class AzureVMSBackend:
         Creates the runtime key
         """
         name = runtime_name.replace('/', '-').replace(':', '-')
-        runtime_key = os.path.join(self.name, version, self.azure_data['master_id'], name)
+        if self.mode == StandaloneMode.CONSUME.value:
+            master_id = self.master.instance_id
+        else:
+            master_id = self.azure_data['master_id']
+        runtime_key = os.path.join(self.name, version, master_id, name)
         return runtime_key
 
 
@@ -782,11 +1043,46 @@ class VMInstance:
 
         raise TimeoutError(f'Readiness probe expired on {self}')
 
+    def _rollback_instance_resources(self, vm_created=False, nic_created=False, public_ip_created=False):
+        """
+        Deletes VM instance resources provisioned during a failed create().
+        """
+        rg = self.config['resource_group']
+        logger.info(f'Rolling back resources provisioned for {self.name}')
+
+        if vm_created:
+            try:
+                self._delete_instance()
+            except Exception as err:
+                logger.warning(f'Rollback: could not delete VM {self.name}: {err}')
+
+        if nic_created and not vm_created:
+            nic_name = self.name + '-nic'
+            try:
+                self.network_client.network_interfaces.begin_delete(rg, nic_name).result()
+            except ResourceNotFoundError:
+                pass
+            except Exception as err:
+                logger.warning(f'Rollback: could not delete NIC {nic_name}: {err}')
+
+        if public_ip_created:
+            ip_name = self.name + '-ip'
+            try:
+                self.network_client.public_ip_addresses.begin_delete(rg, ip_name).result()
+            except ResourceNotFoundError:
+                pass
+            except Exception as err:
+                logger.warning(f'Rollback: could not delete public IP {ip_name}: {err}')
+
     def _create_instance(self, user_data=None):
         """
         Creates a new VM instance
         """
         logger.debug(f"Creating new VM instance {self.name}")
+
+        nic_created = False
+        public_ip_created = False
+        vm_created = False
 
         # Create NIC
         nic_params = {
@@ -798,101 +1094,110 @@ class VMInstance:
             "network_security_group": {"id": self.config['security_group_id']}
         }
 
-        if self.public and not self.public_ip:
-            poller = self.network_client.public_ip_addresses.begin_create_or_update(
+        try:
+            if self.public and not self.public_ip:
+                poller = self.network_client.public_ip_addresses.begin_create_or_update(
+                    self.config['resource_group'],
+                    self.name + '-ip',
+                    {
+                        "location": self.location,
+                        "sku": {"name": "Standard"},
+                        "public_ip_allocation_method": "Static",
+                        "public_ip_address_version": "IPV4",
+                    },
+                )
+                ip_address_result = poller.result()
+                public_ip_created = True
+                self.public_ip = ip_address_result.ip_address
+                nic_params['ip_configurations'][0]['public_ip_address'] = {"id": ip_address_result.id}
+
+            elif self.public:
+                nic_params['ip_configurations'][0]['public_ip_address'] = {"id": self.config['floating_ip_id']}
+
+            poller = self.network_client.network_interfaces.begin_create_or_update(
                 self.config['resource_group'],
-                self.name + '-ip',
-                {
-                    "location": self.location,
-                    "sku": {"name": "Standard"},
-                    "public_ip_allocation_method": "Static",
-                    "public_ip_address_version": "IPV4",
-                },
+                self.name + '-nic',
+                nic_params
             )
-            ip_address_result = poller.result()
-            self.public_ip = ip_address_result.ip_address
-            logger.debug(f"Provisioned public IP address {self.public_ip}")
-            nic_params['ip_configurations'][0]['public_ip_address'] = {"id": ip_address_result.id}
+            nic_data = poller.result()
+            nic_created = True
+            self.private_ip = nic_data.ip_configurations[0].private_ip_address
 
-        elif self.public:
-            nic_params['ip_configurations'][0]['public_ip_address'] = {"id": self.config['floating_ip_id']}
+            # Create VM
+            vm_username = self.ssh_credentials['username']
+            with open(self.ssh_credentials['key_filename'] + '.pub', 'r') as pk:
+                vm_pk_data = pk.read().strip()
 
-        poller = self.network_client.network_interfaces.begin_create_or_update(
-            self.config['resource_group'],
-            self.name + '-nic',
-            nic_params
-        )
-        nic_data = poller.result()
-        self.private_ip = nic_data.ip_configurations[0].private_ip_address
+            image_publisher, image_offer, image_sku, image_version = DEFAULT_UBUNTU_IMAGE.split(':')
+            image_reference = (
+                ImageReference(id=self.config['image_id'])
+                if 'image_id' in self.config
+                else ImageReference(
+                    publisher=image_publisher,
+                    offer=image_offer,
+                    sku=image_sku,
+                    version=image_version,
+                )
+            )
 
-        # Create VM
-        vm_username = self.ssh_credentials['username']
-        with open(self.ssh_credentials['key_filename'] + '.pub', 'r') as pk:
-            vm_pk_data = pk.read().strip()
-
-        vm_parameters = {
-            'location': self.location,
-            'tags': {
-                'type': 'lithops-runtime',
-                'lithops_version': str(__version__),
-                'lithops_vnet': self.config['vnet_name']
-            },
-            'os_profile': {
-                'computer_name': self.name,
-                'admin_username': vm_username,
-                'linux_configuration': {
-                    'disable_password_authentication': True,
-                    "ssh": {
-                        "public_keys": [
-                            {
-                                "path": f"/home/{vm_username}/.ssh/authorized_keys",
-                                "key_data": vm_pk_data
-                            }
-                        ]
-                    }
+            vm = VirtualMachine(
+                location=self.location,
+                tags={
+                    'type': 'lithops-runtime',
+                    'lithops_version': str(__version__),
+                    'lithops_vnet': self.config['vnet_name'],
                 },
-            },
-            'hardware_profile': {
-                'vm_size': self.instance_type
-            },
-            'storage_profile': {
-                'image_reference': {
-                    'publisher': DEFAULT_UBUNTU_IMAGE.split(':')[0],
-                    'offer': DEFAULT_UBUNTU_IMAGE.split(':')[1],
-                    'sku': DEFAULT_UBUNTU_IMAGE.split(':')[2],
-                    'version': DEFAULT_UBUNTU_IMAGE.split(':')[3]
-                },
-                'osDisk': {
-                    'name': self.name + '-osdisk',
-                    'createOption': 'fromImage',
-                    'managedDisk': {
-                        'storageAccountType': 'Standard_LRS'
-                    }
-                }
-            },
-            'network_profile': {
-                'network_interfaces': [{
-                    'id': nic_data.id,
-                    'properties': {
-                        'primary': True
-                    }
-                }]
-            }
-        }
+                os_profile=OSProfile(
+                    computer_name=self.name,
+                    admin_username=vm_username,
+                    linux_configuration=LinuxConfiguration(
+                        disable_password_authentication=True,
+                        ssh=SshConfiguration(
+                            public_keys=[
+                                SshPublicKey(
+                                    path=f'/home/{vm_username}/.ssh/authorized_keys',
+                                    key_data=vm_pk_data,
+                                )
+                            ]
+                        ),
+                    ),
+                ),
+                hardware_profile=HardwareProfile(vm_size=self.instance_type),
+                storage_profile=StorageProfile(
+                    image_reference=image_reference,
+                    os_disk=OSDisk(
+                        name=self.name + '-osdisk',
+                        create_option='FromImage',
+                        managed_disk=ManagedDiskParameters(
+                            storage_account_type='Standard_LRS',
+                        ),
+                    ),
+                ),
+                network_profile=NetworkProfile(
+                    network_interfaces=[
+                        NetworkInterfaceReference(id=nic_data.id, primary=True)
+                    ]
+                ),
+            )
 
-        if 'image_id' in self.config:
-            vm_parameters['storage_profile']['image_reference'] = {"id": self.config['image_id']}
+            poller = self.compute_client.virtual_machines.begin_create_or_update(
+                self.config['resource_group'],
+                self.name,
+                vm
+            )
 
-        poller = self.compute_client.virtual_machines.begin_create_or_update(
-            self.config['resource_group'],
-            self.name,
-            vm_parameters
-        )
+            self.instance_data = poller.result()
+            vm_created = True
+            self.instance_id = self.instance_data.vm_id
 
-        self.instance_data = poller.result()
-        self.instance_id = self.instance_data.vm_id
-
-        return self.instance_data
+            return self.instance_data
+        except Exception:
+            self._rollback_instance_resources(
+                vm_created=vm_created,
+                nic_created=nic_created,
+                public_ip_created=public_ip_created,
+            )
+            raise
 
     def get_instance_data(self):
         """

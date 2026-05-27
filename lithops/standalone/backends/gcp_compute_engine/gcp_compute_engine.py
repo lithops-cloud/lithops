@@ -86,6 +86,7 @@ class GCPComputeEngineBackend:
         self.master = None
         self.workers = []
         self.instance_types = {}
+        self._init_created = None
 
         msg = COMPUTE_CLI_MSG.format('GCP Compute Engine')
         logger.info(f"{msg} - Zone: {self.zone} - Project: {self.project_name}")
@@ -165,6 +166,104 @@ class GCPComputeEngineBackend:
         if os.path.exists(self.cache_file):
             os.remove(self.cache_file)
 
+    def _reset_init_created(self):
+        self._init_created = {
+            'network': False,
+            'subnet': False,
+            'firewall': False,
+            'internal_firewall': False,
+            'router': False,
+            'ssh_key': False,
+        }
+
+    def _safe_rollback_delete(self, delete_fn, resource_desc):
+        try:
+            delete_fn()
+        except HttpError as err:
+            if getattr(err.resp, 'status', None) != 404:
+                logger.warning(f'Rollback: could not delete {resource_desc}: {err}')
+        except Exception as err:
+            logger.warning(f'Rollback: could not delete {resource_desc}: {err}')
+
+    def _rollback_init_resources(self):
+        """
+        Deletes GCE resources created during a failed init().
+        """
+        if not self._init_created:
+            return
+
+        logger.info('Rolling back GCP Compute Engine resources provisioned during failed init')
+        created = self._init_created
+
+        fw_names = []
+        if created.get('firewall') and self.config.get('firewall_name'):
+            fw_names.append(self.config['firewall_name'])
+        if created.get('internal_firewall') and self.config.get('internal_firewall_name'):
+            fw_names.append(self.config['internal_firewall_name'])
+
+        for fw_name in fw_names:
+            self._safe_rollback_delete(
+                lambda name=fw_name: self._wait_operation(
+                    self.compute_client.firewalls().delete(
+                        project=self.project_name, firewall=name
+                    ).execute()['name'],
+                    scope='global',
+                ),
+                f'firewall {fw_name}',
+            )
+
+        if created.get('router') and self.config.get('router_name'):
+            router_name = self.config['router_name']
+            self._safe_rollback_delete(
+                lambda: self._wait_operation(
+                    self.compute_client.routers().delete(
+                        project=self.project_name,
+                        region=self.region,
+                        router=router_name,
+                    ).execute()['name'],
+                    scope='region',
+                ),
+                f'Cloud Router {router_name}',
+            )
+
+        if created.get('subnet') and self.config.get('subnet_name'):
+            subnet_name = self.config['subnet_name']
+            self._safe_rollback_delete(
+                lambda: self._wait_operation(
+                    self.compute_client.subnetworks().delete(
+                        project=self.project_name,
+                        region=self.region,
+                        subnetwork=subnet_name,
+                    ).execute()['name'],
+                    scope='region',
+                ),
+                f'subnet {subnet_name}',
+            )
+
+        if created.get('network') and self.config.get('network_name'):
+            network_name = self.config['network_name']
+            self._safe_rollback_delete(
+                lambda: self._wait_operation(
+                    self.compute_client.networks().delete(
+                        project=self.project_name, network=network_name
+                    ).execute()['name'],
+                    scope='global',
+                ),
+                f'network {network_name}',
+            )
+
+        if created.get('ssh_key'):
+            key_filename = self.config.get('ssh_key_filename')
+            if key_filename and 'lithops-key-' in key_filename:
+                for path in (key_filename, f'{key_filename}.pub'):
+                    if os.path.isfile(path):
+                        os.remove(path)
+
+        if self.vpc_data_type == 'created':
+            self._delete_vpc_data()
+
+        self._init_created = None
+
     def _resource_exists(self, getter):
         try:
             getter()
@@ -228,6 +327,8 @@ class GCPComputeEngineBackend:
         }
         op = self.compute_client.networks().insert(project=self.project_name, body=body).execute()
         self._wait_operation(op['name'], scope='global')
+        if self._init_created is not None:
+            self._init_created['network'] = True
 
         logger.debug(
             f'Creating subnet {subnet_name} in {self.region} '
@@ -244,6 +345,8 @@ class GCPComputeEngineBackend:
             project=self.project_name, region=self.region, body=body
         ).execute()
         self._wait_operation(op['name'], scope='region')
+        if self._init_created is not None:
+            self._init_created['subnet'] = True
 
         logger.debug(f'Creating firewall {firewall_name} (SSH tcp/22 from internet)')
         body = {
@@ -254,6 +357,8 @@ class GCPComputeEngineBackend:
         }
         op = self.compute_client.firewalls().insert(project=self.project_name, body=body).execute()
         self._wait_operation(op['name'], scope='global')
+        if self._init_created is not None:
+            self._init_created['firewall'] = True
 
         internal_fw_name = f'{self.network_name}-internal-fw'
         logger.debug(
@@ -268,6 +373,8 @@ class GCPComputeEngineBackend:
         }
         op = self.compute_client.firewalls().insert(project=self.project_name, body=body).execute()
         self._wait_operation(op['name'], scope='global')
+        if self._init_created is not None:
+            self._init_created['internal_firewall'] = True
 
         self.config['network_name'] = self.network_name
         self.config['subnet_name'] = subnet_name
@@ -348,6 +455,8 @@ class GCPComputeEngineBackend:
 
         self.config['router_name'] = router_name
         self.config['nat_name'] = nat_name
+        if self._init_created is not None:
+            self._init_created['router'] = True
 
     def _create_ssh_key(self):
         """
@@ -370,6 +479,8 @@ class GCPComputeEngineBackend:
             logger.debug("Generating new ssh key pair")
             os.system(f'ssh-keygen -b 2048 -t rsa -f {key_filename} -q -N ""')
             logger.debug(f"SSH key pair generated: {key_filename}")
+            if self._init_created is not None:
+                self._init_created['ssh_key'] = True
 
         self.config['ssh_key_filename'] = key_filename
 
@@ -449,31 +560,38 @@ class GCPComputeEngineBackend:
             return
 
         elif self.mode in [StandaloneMode.CREATE.value, StandaloneMode.REUSE.value]:
-            self._create_network()
-            self._create_ssh_key()
-            self._request_source_image()
-            if 'instance_name' not in self.config:
-                self.config['instance_name'] = f'lithops-master-{self.network_key}'
-            self._create_master_instance()
-            self._load_instance_types()
-            self.gce_data = {
-                'mode': self.mode,
-                'vpc_data_type': self.vpc_data_type,
-                'ssh_data_type': self.ssh_data_type,
-                'master_name': self.master.name,
-                'master_id': self.network_key,
-                'network_name': self.config['network_name'],
-                'network_key': self.network_key,
-                'subnet_name': self.config['subnet_name'],
-                'firewall_name': self.config['firewall_name'],
-                'internal_firewall_name': self.config['internal_firewall_name'],
-                'router_name': self.config.get('router_name'),
-                'nat_name': self.config.get('nat_name'),
-                'ssh_key_filename': self.config['ssh_key_filename'],
-                'source_image': self.config['source_image'],
-                'instance_types': self.instance_types,
-            }
-            self._dump_gce_data()
+            self._reset_init_created()
+            try:
+                self._create_network()
+                self._create_ssh_key()
+                self._request_source_image()
+                if 'instance_name' not in self.config:
+                    self.config['instance_name'] = f'lithops-master-{self.network_key}'
+                self._create_master_instance()
+                self._load_instance_types()
+                self.gce_data = {
+                    'mode': self.mode,
+                    'vpc_data_type': self.vpc_data_type,
+                    'ssh_data_type': self.ssh_data_type,
+                    'master_name': self.master.name,
+                    'master_id': self.network_key,
+                    'network_name': self.config['network_name'],
+                    'network_key': self.network_key,
+                    'subnet_name': self.config['subnet_name'],
+                    'firewall_name': self.config['firewall_name'],
+                    'internal_firewall_name': self.config['internal_firewall_name'],
+                    'router_name': self.config.get('router_name'),
+                    'nat_name': self.config.get('nat_name'),
+                    'ssh_key_filename': self.config['ssh_key_filename'],
+                    'source_image': self.config['source_image'],
+                    'instance_types': self.instance_types,
+                }
+                self._dump_gce_data()
+            except Exception:
+                self._rollback_init_resources()
+                raise
+            finally:
+                self._init_created = None
 
     @staticmethod
     def _is_default_ubuntu_source_image(source_image):
@@ -925,7 +1043,10 @@ class GCPComputeEngineBackend:
 
     def get_runtime_key(self, runtime_name, version=__version__):
         runtime = runtime_name.replace('/', '-').replace(':', '-')
-        master_id = self.gce_data.get('master_id', self.config.get('instance_name', self.master.name))
+        if self.mode == StandaloneMode.CONSUME.value:
+            master_id = self.config['instance_name']
+        else:
+            master_id = self.gce_data['master_id']
         return os.path.join(self.name, version, master_id, runtime)
 
 
@@ -1178,13 +1299,35 @@ class GCPComputeEngineInstance:
                 'provisioningModel': 'SPOT',
                 'instanceTerminationAction': 'STOP'
             }
-        op = self.compute_client.instances().insert(
-            project=self.project_name,
-            zone=self.zone,
-            body=body
-        ).execute()
-        self._wait_zone_operation(op['name'])
-        self.get_instance_data()
+        try:
+            op = self.compute_client.instances().insert(
+                project=self.project_name,
+                zone=self.zone,
+                body=body
+            ).execute()
+            self._wait_zone_operation(op['name'])
+            self.get_instance_data()
+        except Exception:
+            self._rollback_instance_resources()
+            raise
+
+    def _rollback_instance_resources(self):
+        """
+        Deletes a GCE VM provisioned during a failed create().
+        """
+        logger.info(f'Rolling back resources provisioned for {self.name}')
+        if self._exists():
+            try:
+                op = self.compute_client.instances().delete(
+                    project=self.project_name, zone=self.zone, instance=self.name
+                ).execute()
+                self._wait_zone_operation(op['name'])
+            except HttpError as err:
+                if getattr(err.resp, 'status', None) != 404:
+                    logger.warning(f'Rollback: could not delete {self.name}: {err}')
+            except Exception as err:
+                logger.warning(f'Rollback: could not delete {self.name}: {err}')
+        self.instance_data = None
 
     def _wait_until_status(self, target_status, timeout=INSTANCE_START_TIMEOUT):
         start = time.time()
