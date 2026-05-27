@@ -150,7 +150,14 @@ class GCPComputeEngineBackend:
             time.sleep(2)
 
     def _load_gce_data(self):
+        """
+        Loads GCE data from local cache
+        """
         self.gce_data = load_yaml_config(self.cache_file)
+
+        if self.gce_data:
+            logger.debug(f'GCE data loaded from {self.cache_file}')
+
         if self.gce_data and 'network_name' in self.gce_data:
             self.network_name = self.gce_data['network_name']
             self.network_key = self.gce_data.get('network_key')

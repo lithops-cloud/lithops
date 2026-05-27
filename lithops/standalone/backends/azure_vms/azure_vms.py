@@ -114,10 +114,6 @@ class AzureVMSBackend:
 
         if self.azure_data:
             logger.debug(f'Azure VMs data loaded from {self.cache_file}')
-            if self.azure_data.get('vnet_name'):
-                logger.debug(
-                    f'Reusing Lithops Azure stack for virtual network {self.azure_data["vnet_name"]}'
-                )
 
         if self.azure_data and 'vnet_name' in self.azure_data:
             self.vnet_key = self.azure_data['vnet_id'][-6:]
