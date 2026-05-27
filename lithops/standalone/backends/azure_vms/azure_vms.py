@@ -14,7 +14,6 @@
 # limitations under the License.
 #
 
-import glob
 import os
 import re
 import time
@@ -45,7 +44,11 @@ from lithops.version import __version__
 from lithops.util.ssh_client import SSHClient, ssh_boot_status_message
 from lithops.constants import COMPUTE_CLI_MSG, CACHE_DIR, SA_CONFIG_FILE
 from lithops.config import load_yaml_config, dump_yaml_config
-from lithops.standalone.utils import StandaloneMode
+from lithops.standalone.utils import (
+    StandaloneMode,
+    prepare_standalone_clean,
+    standalone_clean_stop_early,
+)
 from lithops.standalone import LithopsValidationError
 
 
@@ -674,23 +677,6 @@ class AzureVMSBackend:
         if self.azure_data and self.azure_data.get('vnet_data_type') == 'provided':
             return
 
-    def _delete_orphan_lithops_nics(self):
-        """
-        Delete Lithops NICs left behind after VM deletion.
-        """
-        nic_prefixes = ('lithops-worker', 'lithops-master')
-        for nic in self.network_client.network_interfaces.list(self.config['resource_group']):
-            if nic.name.startswith(nic_prefixes):
-                logger.debug(f'Deleting network interface {nic.name}')
-                try:
-                    self.network_client.network_interfaces.begin_delete(
-                        self.config['resource_group'], nic.name
-                    ).result()
-                except ResourceNotFoundError:
-                    pass
-                except HttpResponseError as err:
-                    logger.warning(f'Could not delete NIC {nic.name}: {err}')
-
     def _try_delete_security_group(self, security_group_name):
         """
         Delete the Lithops NSG if it is no longer attached to any NIC.
@@ -770,98 +756,23 @@ class AzureVMSBackend:
             if os.path.isfile(f"{key_filename}.pub"):
                 os.remove(f"{key_filename}.pub")
 
-    def _clean_loaded_stack(self, all=False, skip_vms=False, delete_security_group=False):
-        """
-        Delete cloud resources described by the currently loaded azure_data cache.
-        """
-        if self.azure_data.get('mode') == StandaloneMode.CONSUME.value:
-            if os.path.isfile(self.cache_file):
-                os.remove(self.cache_file)
-            return
-
-        if not skip_vms:
-            self._delete_vm_instances(all=all)
-        if all:
-            self._delete_vnet_and_subnet(delete_security_group=delete_security_group)
-            self._delete_ssh_key()
-            self._delete_vpc_data()
-
-    def _clean_from_cache_file(self, cache_file, all=False, skip_vms=False, delete_security_group=False):
-        """
-        Load a regional cache file and delete the resources it describes.
-        """
-        azure_data = load_yaml_config(cache_file)
-        if not azure_data:
-            if os.path.isfile(cache_file):
-                os.remove(cache_file)
-            return
-
-        saved = {
-            'azure_data': self.azure_data,
-            'vnet_name': self.vnet_name,
-            'vnet_key': self.vnet_key,
-            'cache_file': self.cache_file,
-        }
-        try:
-            self.cache_file = cache_file
-            self.azure_data = azure_data
-            if self.azure_data.get('vnet_name'):
-                self.vnet_key = self.azure_data['vnet_id'][-6:]
-                self.vnet_name = self.azure_data['vnet_name']
-            logger.info(f'Cleaning Azure VMs stack from {cache_file}')
-            self._clean_loaded_stack(
-                all=all,
-                skip_vms=skip_vms,
-                delete_security_group=delete_security_group,
-            )
-        finally:
-            self.azure_data = saved['azure_data']
-            self.vnet_name = saved['vnet_name']
-            self.vnet_key = saved['vnet_key']
-            self.cache_file = saved['cache_file']
-
     def clean(self, all=False):
         """
-        Clean all the VPC resources
+        Clean Lithops resources for the configured region (cache file for
+        ``location`` in config). Same flow as the other standalone cloud backends.
         """
         logger.info('Cleaning Azure Virtual Machines resources')
 
-        if self.mode == StandaloneMode.CONSUME.value:
-            if os.path.isfile(self.cache_file):
-                os.remove(self.cache_file)
-            return
+        prepare_standalone_clean(self, self._load_azure_vms_data)
+        if standalone_clean_stop_early(
+                self, self.azure_data, self._delete_vpc_data, all):
+            return True
 
+        self._delete_vm_instances(all=all)
         if all:
-            cache_files = sorted(glob.glob(os.path.join(self.cache_dir, '*_vpc_data')))
-            if cache_files:
-                if not self.azure_data:
-                    self._load_azure_vms_data()
-                if not self.azure_data:
-                    self.azure_data = load_yaml_config(cache_files[0])
-                self._delete_vm_instances(all=True)
-                self._delete_orphan_lithops_nics()
-                for i, cache_file in enumerate(cache_files):
-                    last_stack = i == len(cache_files) - 1
-                    self._clean_from_cache_file(
-                        cache_file,
-                        all=True,
-                        skip_vms=True,
-                        delete_security_group=last_stack,
-                    )
-                self._try_delete_security_group('lithops-security-group')
-                return
-
-        if not self.azure_data:
-            self._load_azure_vms_data()
-
-        if not self.azure_data:
-            logger.debug(
-                f'No Azure VMs cache at {self.cache_file}; '
-                'nothing to clean for the configured region'
-            )
-            return
-
-        self._clean_loaded_stack(all=all, delete_security_group=all)
+            self._delete_vnet_and_subnet(delete_security_group=True)
+            self._delete_ssh_key()
+            self._delete_vpc_data()
 
     def clear(self, job_keys=None):
         """

@@ -37,7 +37,9 @@ from lithops.standalone.utils import (
     CLOUD_CONFIG_WORKER_PK,
     StandaloneMode,
     get_host_setup_script,
-    LithopsValidationError
+    LithopsValidationError,
+    prepare_standalone_clean,
+    standalone_clean_stop_early,
 )
 
 logger = logging.getLogger(__name__)
@@ -897,16 +899,15 @@ class IBMVPCBackend:
         """
         logger.info('Cleaning IBM VPC resources')
 
-        if not self.vpc_data:
+        prepare_standalone_clean(self, self._load_vpc_data)
+        if standalone_clean_stop_early(self, self.vpc_data, self._delete_vpc_data, all):
             return
 
-        if self.mode == StandaloneMode.CONSUME.value:
+        self._delete_vm_instances(all=all)
+        if all:
+            self._delete_vpc()
+            self._delete_ssh_key()
             self._delete_vpc_data()
-        else:
-            self._delete_vm_instances(all=all)
-            self._delete_vpc() if all else None
-            self._delete_ssh_key() if all else None
-            self._delete_vpc_data() if all else None
 
     def clear(self, job_keys=None):
         """

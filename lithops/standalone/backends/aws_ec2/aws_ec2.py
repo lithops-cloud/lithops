@@ -30,7 +30,14 @@ from lithops.version import __version__
 from lithops.util.ssh_client import SSHClient, ssh_boot_status_message
 from lithops.constants import COMPUTE_CLI_MSG, CACHE_DIR
 from lithops.config import load_yaml_config, dump_yaml_config
-from lithops.standalone.utils import CLOUD_CONFIG_WORKER, CLOUD_CONFIG_WORKER_PK, StandaloneMode, get_host_setup_script
+from lithops.standalone.utils import (
+    CLOUD_CONFIG_WORKER,
+    CLOUD_CONFIG_WORKER_PK,
+    StandaloneMode,
+    get_host_setup_script,
+    prepare_standalone_clean,
+    standalone_clean_stop_early,
+)
 from lithops.standalone import LithopsValidationError
 
 
@@ -38,11 +45,11 @@ logger = logging.getLogger(__name__)
 
 INSTANCE_STX_TIMEOUT = 180
 
-DEFAULT_UBUNTU_IMAGE = 'ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*'
-DEFAULT_UBUNTU_IMAGE_VERSION = DEFAULT_UBUNTU_IMAGE.replace('*', '202306*')
+DEFAULT_UBUNTU_IMAGE = 'ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*'
+DEFAULT_UBUNTU_IMAGE_VERSION = DEFAULT_UBUNTU_IMAGE.replace('*', '202*')
 DEFAULT_UBUNTU_ACCOUNT_ID = '099720109477'
 
-DEFAULT_LITHOPS_IMAGE_NAME = 'lithops-ubuntu-jammy-22.04-amd64-server'
+DEFAULT_LITHOPS_IMAGE_NAME = 'lithops-ubuntu-noble-24.04-amd64-server'
 
 
 def b64s(string):
@@ -563,7 +570,13 @@ class AWSEC2Backend:
                     'Values': [DEFAULT_UBUNTU_IMAGE_VERSION]
                 }], Owners=[DEFAULT_UBUNTU_ACCOUNT_ID])
 
-            self.config['target_ami'] = response['Images'][0]['ImageId']
+            images = response['Images']
+            if not images:
+                raise Exception(
+                    f'No Ubuntu image found matching {DEFAULT_UBUNTU_IMAGE_VERSION}'
+                )
+            images = sorted(images, key=lambda i: i['CreationDate'], reverse=True)
+            self.config['target_ami'] = images[0]['ImageId']
 
     def _create_master_instance(self):
         """
@@ -828,28 +841,66 @@ class AWSEC2Backend:
                 time.sleep(2)
             logger.debug(f"VM Image '{image_name}' successfully deleted")
 
+    @staticmethod
+    def _ubuntu_lts_major_version(name):
+        match = re.search(r'(\d{2})\.04', name)
+        if match:
+            return int(match.group(1))
+        return None
+
+    @staticmethod
+    def _include_ubuntu_lts_image(image, min_major=22):
+        if image.get('State') != 'available':
+            return False
+        name = image.get('Name', '')
+        if 'minimal' in name or 'pro-server' in name:
+            return False
+        if '/ubuntu-' not in name or '-amd64-server-' not in name:
+            return False
+        major = AWSEC2Backend._ubuntu_lts_major_version(name)
+        return major is not None and major >= min_major
+
+    def _iter_canonical_ubuntu_images(self):
+        paginator = self.ec2_client.get_paginator('describe_images')
+        for page in paginator.paginate(
+                Owners=[DEFAULT_UBUNTU_ACCOUNT_ID],
+                Filters=[
+                    {'Name': 'name', 'Values': [
+                        'ubuntu/images/hvm-ssd/ubuntu-*-amd64-server-*',
+                        'ubuntu/images/hvm-ssd-gp3/ubuntu-*-amd64-server-*',
+                    ]},
+                    {'Name': 'state', 'Values': ['available']},
+                    {'Name': 'architecture', 'Values': ['x86_64']},
+                ]):
+            yield from page['Images']
+
     def list_images(self):
         """
-        List VM Images
+        List Ubuntu LTS images (22.04+) from Canonical and Lithops images in the
+        account. Returns tuples of (name, image_id, creation_date).
         """
-        images_def = self.ec2_client.describe_images(Filters=[
-            {
-                'Name': 'name',
-                'Values': [DEFAULT_UBUNTU_IMAGE]
-            }], Owners=[DEFAULT_UBUNTU_ACCOUNT_ID])['Images']
-        images_user = self.ec2_client.describe_images(Filters=[
-            {
-                'Name': 'name',
-                'Values': ['*lithops*']
-            }])['Images']
-        images_def.extend(images_user)
-
         result = set()
 
-        for image in images_def:
-            created_at = datetime.strptime(image['CreationDate'], "%Y-%m-%dT%H:%M:%S.%fZ")
-            created_at = created_at.strftime("%Y-%m-%d %H:%M:%S")
+        for image in self._iter_canonical_ubuntu_images():
+            if not self._include_ubuntu_lts_image(image):
+                continue
+            created_at = datetime.strptime(
+                image['CreationDate'], "%Y-%m-%dT%H:%M:%S.%fZ"
+            ).strftime("%Y-%m-%d %H:%M:%S")
             result.add((image['Name'], image['ImageId'], created_at))
+
+        paginator = self.ec2_client.get_paginator('describe_images')
+        for page in paginator.paginate(Filters=[
+                {'Name': 'name', 'Values': ['*lithops*']},
+                {'Name': 'state', 'Values': ['available']},
+        ]):
+            for image in page['Images']:
+                if 'lithops' not in image.get('Name', '').lower():
+                    continue
+                created_at = datetime.strptime(
+                    image['CreationDate'], "%Y-%m-%dT%H:%M:%S.%fZ"
+                ).strftime("%Y-%m-%d %H:%M:%S")
+                result.add((image['Name'], image['ImageId'], created_at))
 
         return sorted(result, key=lambda x: x[2], reverse=True)
 
@@ -1027,21 +1078,17 @@ class AWSEC2Backend:
         """
         logger.info('Cleaning AWS EC2 resources')
 
-        if not self.ec2_data:
+        prepare_standalone_clean(self, self._load_ec2_data)
+        if standalone_clean_stop_early(self, self.ec2_data, self._delete_vpc_data, all):
             return True
 
-        if self.mode == StandaloneMode.CONSUME.value:
-            self._delete_vpc_data()
-            return True
-        else:
-            self._delete_vm_instances(all=all)
-            if all:
-                if self._delete_vpc():
-                    self._delete_ssh_key()
-                    self._delete_vpc_data()
-                    return True
-                else:
-                    return False
+        self._delete_vm_instances(all=all)
+        if all:
+            if self._delete_vpc():
+                self._delete_ssh_key()
+                self._delete_vpc_data()
+                return True
+            return False
 
     def clear(self, job_keys=None):
         """
@@ -1231,9 +1278,18 @@ class EC2Instance:
 
         start = time.time()
 
-        self.get_public_ip() if self.public else self.get_private_ip()
-
         while (time.time() - start < timeout):
+            self.get_instance_data()
+            if self.instance_data:
+                if self.public:
+                    ip = self.instance_data.get('PublicIpAddress')
+                    if ip:
+                        self.public_ip = ip
+                else:
+                    ip = self.instance_data.get('PrivateIpAddress')
+                    if ip:
+                        self.private_ip = ip
+
             if self.is_ready():
                 start_time = round(time.time() - start, 2)
                 logger.debug(f'{self} ready in {start_time} seconds')
@@ -1335,7 +1391,7 @@ class EC2Instance:
             'Groups': [self.config['security_group_id']]
         }]
 
-        if BlockDeviceMappings is not None:
+        if BlockDeviceMappings:
             LaunchSpecification['BlockDeviceMappings'] = BlockDeviceMappings
 
         try:
@@ -1405,21 +1461,72 @@ class EC2Instance:
             )
             raise
 
+    def _describe_instance_by_id(self):
+        """
+        Describe this instance by ID, retrying on EC2 eventual consistency.
+        """
+        last_error = None
+        for attempt in range(12):
+            try:
+                res = self.ec2_client.describe_instances(
+                    InstanceIds=[self.instance_id]
+                )
+                return res['Reservations']
+            except ClientError as err:
+                code = err.response.get('Error', {}).get('Code', '')
+                if code != 'InvalidInstanceID.NotFound':
+                    raise
+                last_error = err
+                if attempt < 11:
+                    logger.debug(
+                        f'Instance {self.instance_id} not visible yet '
+                        f'(attempt {attempt + 1}/12), retrying...'
+                    )
+                    time.sleep(2)
+                    continue
+                logger.debug(
+                    f'Instance {self.instance_id} not found by ID, '
+                    f'looking up {self.name} by tag'
+                )
+                self.instance_id = None
+                self.instance_data = None
+                return []
+        if last_error:
+            raise last_error
+        return []
+
+    def _describe_instances_by_name(self):
+        filters = [
+            {'Name': 'tag:Name', 'Values': [self.name]},
+            {'Name': 'instance-state-name',
+             'Values': ['pending', 'running', 'stopping', 'stopped']},
+        ]
+        res = self.ec2_client.describe_instances(Filters=filters)
+        instances = [
+            inst for reservation in res['Reservations']
+            for inst in reservation.get('Instances', [])
+            if inst.get('State', {}).get('Name') != 'terminated'
+        ]
+        if not instances:
+            return []
+        instances.sort(key=lambda inst: inst.get('LaunchTime', ''), reverse=True)
+        return [{'Instances': [instances[0]]}]
+
     def get_instance_data(self):
         """
         Returns the instance information
         """
         if self.instance_id:
-            res = self.ec2_client.describe_instances(InstanceIds=[self.instance_id])
-            reserv = res['Reservations']
+            reserv = self._describe_instance_by_id()
         else:
-            filters = [{'Name': 'tag:Name', 'Values': [self.name]}]
-            res = self.ec2_client.describe_instances(Filters=filters)
-            reserv = res['Reservations']
+            reserv = []
 
-        instance_data = reserv[0]['Instances'][0] if len(reserv) > 0 else None
+        if not reserv:
+            reserv = self._describe_instances_by_name()
 
-        if instance_data and instance_data['State']['Name'] != 'terminated':
+        instance_data = reserv[0]['Instances'][0] if reserv else None
+
+        if instance_data:
             self.instance_data = instance_data
             self.instance_id = instance_data['InstanceId']
             self.private_ip = self.instance_data.get('PrivateIpAddress')

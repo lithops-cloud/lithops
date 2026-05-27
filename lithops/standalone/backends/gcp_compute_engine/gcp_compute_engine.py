@@ -36,6 +36,8 @@ from lithops.standalone.utils import (
     CLOUD_CONFIG_WORKER,
     CLOUD_CONFIG_WORKER_PK,
     get_host_setup_script,
+    prepare_standalone_clean,
+    standalone_clean_stop_early,
 )
 from lithops.standalone import LithopsValidationError
 
@@ -849,11 +851,9 @@ class GCPComputeEngineBackend:
         all_clean = kwargs.get('all', False)
         logger.info('Cleaning GCP Compute Engine resources')
 
-        if not self.gce_data:
-            self._load_gce_data()
-
-        if self.mode == StandaloneMode.CONSUME.value:
-            self._delete_vpc_data()
+        prepare_standalone_clean(self, self._load_gce_data)
+        if standalone_clean_stop_early(
+                self, self.gce_data, self._delete_vpc_data, all_clean):
             return True
 
         try:
