@@ -44,10 +44,6 @@ logger = logging.getLogger(__name__)
 
 INSTANCE_START_TIMEOUT = 180
 UBUNTU_OS_PROJECT = 'ubuntu-os-cloud'
-UBUNTU_LTS_FAMILIES = (
-    'ubuntu-2404-lts-amd64',
-    'ubuntu-2204-lts',
-)
 DEFAULT_UBUNTU_SOURCE_IMAGE = (
     'projects/ubuntu-os-cloud/global/images/family/ubuntu-2404-lts-amd64'
 )
@@ -595,11 +591,13 @@ class GCPComputeEngineBackend:
     def _is_default_ubuntu_source_image(source_image):
         if not source_image:
             return True
-        return (
-            source_image == DEFAULT_UBUNTU_SOURCE_IMAGE
-            or source_image.endswith('/family/ubuntu-2404-lts-amd64')
-            or source_image.endswith('/family/ubuntu-2204-lts')
-        )
+        if source_image == DEFAULT_UBUNTU_SOURCE_IMAGE:
+            return True
+        ubuntu_prefix = f'projects/{UBUNTU_OS_PROJECT}/global/images/'
+        if not source_image.startswith(ubuntu_prefix):
+            return False
+        path = source_image[len(ubuntu_prefix):]
+        return path.startswith('family/ubuntu-') or path.startswith('ubuntu-')
 
     def _project_image_ref(self, image_name):
         return f'projects/{self.project_name}/global/images/{image_name}'
@@ -795,26 +793,43 @@ class GCPComputeEngineBackend:
                 previous_request=request, previous_response=response
             )
 
+    @staticmethod
+    def _ubuntu_lts_major_version(name, family=''):
+        for text in (family, name):
+            match = re.search(r'(\d{2})\d{2}', text)
+            if match:
+                return int(match.group(1))
+        return None
+
+    @staticmethod
+    def _include_ubuntu_lts_image(image, min_major=22):
+        if image.get('deprecated') or image.get('status') != 'READY':
+            return False
+        name = image.get('name', '')
+        family = image.get('family', '')
+        if '-lts' not in name and '-lts' not in family:
+            return False
+        major = GCPComputeEngineBackend._ubuntu_lts_major_version(name, family)
+        return major is not None and major >= min_major
+
     def list_images(self, **kwargs):
         """
-        List Ubuntu LTS image families (latest) and custom Lithops images in the project.
-        Returns tuples of (name, image_id, creation_date) like other standalone backends.
+        List Ubuntu LTS images (22.04+) from ubuntu-os-cloud and Lithops images
+        in the project. Returns tuples of (name, image_id, creation_date).
         """
         result = set()
 
-        for family in UBUNTU_LTS_FAMILIES:
-            try:
-                image = self.compute_client.images().getFromFamily(
-                    project=UBUNTU_OS_PROJECT, family=family
-                ).execute()
-            except HttpError as err:
-                if getattr(err.resp, 'status', None) == 404:
-                    continue
-                raise
-
+        for image in self._iter_project_images(UBUNTU_OS_PROJECT):
+            if not self._include_ubuntu_lts_image(image):
+                continue
+            name = image['name']
             created_at = self._format_image_timestamp(image.get('creationTimestamp'))
-            family_ref = f'projects/{UBUNTU_OS_PROJECT}/global/images/family/{family}'
-            result.add((image['name'], family_ref, created_at))
+            family = image.get('family')
+            if family:
+                image_id = f'projects/{UBUNTU_OS_PROJECT}/global/images/family/{family}'
+            else:
+                image_id = f'projects/{UBUNTU_OS_PROJECT}/global/images/{name}'
+            result.add((name, image_id, created_at))
 
         for image in self._iter_project_images(self.project_name):
             name = image.get('name', '')
