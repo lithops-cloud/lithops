@@ -31,7 +31,6 @@ DEFAULT_CONFIG_KEYS = {
     'source_image': 'projects/ubuntu-os-cloud/global/images/family/ubuntu-2404-lts-amd64',
     'ssh_username': 'ubuntu',
     'ssh_password': str(uuid.uuid4()),
-    'ssh_key_filename': '~/.ssh/id_rsa',
     'delete_on_dismantle': True,
     'max_workers': 100,
     'request_spot_instances': False,

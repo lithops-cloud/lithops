@@ -351,26 +351,26 @@ class GCPComputeEngineBackend:
 
     def _create_ssh_key(self):
         """
-        Creates a new SSH key pair on the client (same pattern as AWS EC2 / IBM VPC).
-        Used for Lithops client -> master SSH; workers use the master lithops_id_rsa key.
+        Creates a new ssh key pair (same pattern as AWS EC2 / Azure VMs / IBM VPC).
         """
-        if 'ssh_key_filename' in self.gce_data and os.path.isfile(self.gce_data['ssh_key_filename']):
-            self.config['ssh_key_filename'] = self.gce_data['ssh_key_filename']
+        if 'ssh_key_filename' in self.config:
             return
 
-        user_key = os.path.expanduser(self.config.get('ssh_key_filename', '~/.ssh/id_rsa'))
-        if os.path.isfile(user_key) and 'lithops-key-' not in os.path.basename(user_key):
-            logger.debug(f'Using user-provided SSH key {user_key}')
-            self.config['ssh_key_filename'] = user_key
-            return
+        if 'ssh_key_filename' in self.gce_data:
+            key_filename = os.path.expanduser(self.gce_data['ssh_key_filename'])
+            if os.path.isfile(key_filename):
+                self.config['ssh_key_filename'] = key_filename
+                return
 
         keyname = f'lithops-key-{str(uuid.uuid4())[-8:]}'
         filename = os.path.join("~", ".ssh", f"{keyname}.{self.name}.id_rsa")
         key_filename = os.path.expanduser(filename)
+
         if not os.path.isfile(key_filename):
             logger.debug("Generating new ssh key pair")
             os.system(f'ssh-keygen -b 2048 -t rsa -f {key_filename} -q -N ""')
             logger.debug(f"SSH key pair generated: {key_filename}")
+
         self.config['ssh_key_filename'] = key_filename
 
     def _load_instance_types(self):
