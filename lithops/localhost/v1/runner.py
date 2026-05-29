@@ -40,9 +40,12 @@ logging.basicConfig(stream=log_file_stream,
 logger = logging.getLogger('lithops.localhost.runner')
 
 
-# Change spawn method for MacOS
-if platform.system() == 'Darwin':
-    mp.set_start_method("fork")
+# Python 3.14 defaults to forkserver on Linux; Lithops requires fork.
+if platform.system() != 'Windows':
+    try:
+        mp.set_start_method('fork')
+    except RuntimeError:
+        pass
 
 
 def run_job():

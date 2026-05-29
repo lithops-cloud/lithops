@@ -28,7 +28,6 @@ import traceback
 import multiprocessing as mp
 from queue import Queue, Empty
 from threading import Thread
-from multiprocessing import Process, Pipe
 from tblib import pickling_support
 from types import SimpleNamespace
 from multiprocessing.managers import SyncManager
@@ -47,6 +46,10 @@ from lithops.worker.utils import SystemMonitor
 pickling_support.install()
 
 logger = logging.getLogger(__name__)
+
+# Python 3.14 defaults to forkserver on Linux, which requires pickling Process
+# arguments. Lithops relies on fork semantics for JobRunner subprocesses.
+_MP_CTX = mp.get_context('fork') if is_unix_system() else None
 
 
 class ShutdownSentinel:
@@ -82,7 +85,7 @@ def function_handler(payload):
         work_queue.put(ShutdownSentinel())
         python_queue_consumer(0, work_queue, )
     else:
-        manager = SyncManager()
+        manager = _MP_CTX.Manager() if _MP_CTX else SyncManager()
         manager.start()
         work_queue = manager.Queue()
         job_runners = []
@@ -93,7 +96,7 @@ def function_handler(payload):
 
         for pid in range(worker_processes):
             work_queue.put(ShutdownSentinel())
-            p = mp.Process(target=python_queue_consumer, args=(pid, work_queue,))
+            p = _MP_CTX.Process(target=python_queue_consumer, args=(pid, work_queue,))
             job_runners.append(p)
             p.start()
 
@@ -158,23 +161,16 @@ def prepare_and_run_task(task):
     os.makedirs(task.task_dir, exist_ok=True)
 
     with open(task.log_file, 'a') as log_strem:
-        log_stream = LogStream(log_strem)
-        task.log_stream = log_stream
-        with custom_redirection(log_stream):
-            run_task(task, log_stream)
+        task.log_stream = LogStream(log_strem)
+        with custom_redirection(task.log_stream):
+            run_task(task)
 
     # Unset specific job env vars
     for key in task.extra_env:
         os.environ.pop(key, None)
 
 
-def _run_jobrunner(job, jobrunner_conn, storage_config):
-    internal_storage = InternalStorage(storage_config)
-    runner = JobRunner(job, jobrunner_conn, internal_storage)
-    runner.run()
-
-
-def run_task(task, log_stream):
+def run_task(task):
     """
     Runs a single job within a separate process
     """
@@ -208,16 +204,10 @@ def run_task(task, log_stream):
         # send init status event
         call_status.send_init_event()
 
-        handler_conn, jobrunner_conn = Pipe()
+        handler_conn, jobrunner_conn = _MP_CTX.Pipe()
+        jobrunner = JobRunner(task, jobrunner_conn, internal_storage)
         logger.debug('Starting JobRunner process')
-        if is_unix_system():
-            jrp = Process(
-                target=_run_jobrunner,
-                args=(task, jobrunner_conn, storage_config),
-            )
-        else:
-            jobrunner = JobRunner(task, jobrunner_conn, internal_storage)
-            jrp = Thread(target=jobrunner.run)
+        jrp = _MP_CTX.Process(target=jobrunner.run) if is_unix_system() else Thread(target=jobrunner.run)
 
         process_id = os.getpid() if is_unix_system() else mp.current_process().pid
         sys_monitor = SystemMonitor(process_id)
@@ -294,7 +284,7 @@ def run_task(task, log_stream):
             call_status.add('worker_end_tstamp', time.time())
 
             # Flush log stream and save it to the call status
-            log_stream.flush()
+            task.log_stream.flush()
             if os.path.isfile(task.log_file):
                 with open(task.log_file, 'rb') as lf:
                     log_str = base64.b64encode(zlib.compress(lf.read())).decode()
