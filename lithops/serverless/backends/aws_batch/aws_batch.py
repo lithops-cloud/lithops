@@ -19,7 +19,6 @@ import json
 import os
 import re
 import logging
-import subprocess
 import sys
 import botocore
 import time
@@ -400,8 +399,7 @@ class AWSBatchBackend:
         finally:
             os.remove(batch_config.RUNTIME_ZIP)
 
-        cmd = f'{docker_path} login --username AWS --password-stdin {registry}'
-        subprocess.check_output(cmd.split(), input=ecr_token)
+        utils.docker_login('AWS', ecr_token.decode('utf-8'), registry)
 
         try:
             self.ecr_client.create_repository(repositoryName=repo_name,

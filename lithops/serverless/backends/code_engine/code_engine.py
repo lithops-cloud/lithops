@@ -266,8 +266,7 @@ class CodeEngineBackend:
 
         if docker_user and docker_password:
             logger.debug('Container registry credentials found in config. Logging in into the registry')
-            cmd = f'{docker_path} login -u {docker_user} --password-stdin {docker_server}'
-            utils.run_command(cmd, input=docker_password)
+            utils.docker_login(docker_user, docker_password, docker_server)
 
         if utils.is_podman(docker_path):
             cmd = f'{docker_path} push {docker_image_name} --format docker --remove-signatures'
@@ -496,7 +495,7 @@ class CodeEngineBackend:
         config_map = self._create_config_map(activation_id, job_payload)
         container['env'][1]['valueFrom']['configMapKeyRef']['name'] = config_map
 
-        container['resources']['requests']['memory'] = f'{runtime_memory/1024}G'
+        container['resources']['requests']['memory'] = f'{runtime_memory / 1024}G'
         container['resources']['requests']['cpu'] = str(self.config['runtime_cpu'])
 
         logger.debug('ExecutorID {} | JobID {} - Going to run {} activations '
@@ -585,7 +584,7 @@ class CodeEngineBackend:
         container['image'] = docker_image_name
         container['name'] = jobdef_name
         container['env'][0]['value'] = 'run'
-        container['resources']['requests']['memory'] = f'{runtime_memory/1024}G'
+        container['resources']['requests']['memory'] = f'{runtime_memory / 1024}G'
         container['resources']['requests']['cpu'] = str(self.config['runtime_cpu'])
 
         if not all(key in self.config for key in ["docker_user", "docker_password"]):

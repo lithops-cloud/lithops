@@ -12,11 +12,18 @@
 - [K8s] Added configuration for pod and container `securityContext`.
 - [Docs] Corrected MinIO/Ceph config template keys and removed obsolete Kubernetes image references.
 - [GCP Functions] Updated `gcp_functions` backend to Google Cloud Run functions (Cloud Functions v2 API).
+- [Python] Updated all backend python versions (deprecated Python 3.9, added Python 3.14)
+- [Azure Funcions] Updated default funcions plan to Flex Consumption
+- [AWS EC2] Updated default Ubuntu Image to Ubuntu 24
+- [Azure VMS] Updated default Ubuntu Image to Ubuntu 24
 
 ### Fixed
 - [K8s] Fixed default runtime builds impacted by Debian Buster end-of-life.
 - [GCP Cloud Run] Added Artifact Registry (`pkg.dev`) runtime deployment support
 - [K8s] Run default runtime image as non-root user (uid 1000) (#1469)
+- [AWS] Fixed AWS backends execution
+- [GCP] Fixed GCP backends execution
+- [Azure] Fixed Azure backends execution
 
 
 ## [v3.6.4]

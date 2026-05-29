@@ -97,7 +97,7 @@ Lithops attaches the service account from `credentials_path` to master and worke
 |gcp_compute_engine | worker_instance_type | e2-standard-2 |no | Worker VM machine type |
 |gcp_compute_engine | ssh_username | ubuntu |no | Username to access the VM |
 |gcp_compute_engine | ssh_password | |no | Password for worker VMs. If not provided, it is created randomly |
-|gcp_compute_engine | ssh_key_filename | ~/.ssh/id_rsa |no | SSH private key for the master VM. If not provided, Lithops creates one |
+|gcp_compute_engine | ssh_key_filename | |no | SSH private key for the master VM. If not provided, Lithops creates `~/.ssh/lithops-key-<id>.gcp_ce.id_rsa` |
 |gcp_compute_engine | request_spot_instances | False |no | Use Spot VMs for workers |
 |gcp_compute_engine | delete_on_dismantle | True |no | Delete worker VMs when stopped. Master VM is never deleted when stopped |
 |gcp_compute_engine | max_workers | 100 |no | Max number of workers per `FunctionExecutor()` |
@@ -138,7 +138,7 @@ gcp_compute_engine:
 |gcp_compute_engine | project_name | |yes | GCP project ID |
 |gcp_compute_engine | zone | |yes | Compute Engine zone |
 |gcp_compute_engine | ssh_username | ubuntu |no | Username to access the VM |
-|gcp_compute_engine | ssh_key_filename | ~/.ssh/id_rsa |no | Path to the SSH private key |
+|gcp_compute_engine | ssh_key_filename | |no | Path to the SSH private key. If not provided, Lithops creates `~/.ssh/lithops-key-<id>.gcp_ce.id_rsa` |
 |gcp_compute_engine | worker_processes | AUTO |no | Parallel Lithops processes per worker |
 
 ## Test Lithops

@@ -32,6 +32,7 @@ from google.cloud import pubsub_v1
 from google.oauth2 import service_account
 from google_auth_httplib2 import AuthorizedHttp
 from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 from google.auth import jwt
 
 from lithops import utils
@@ -354,18 +355,26 @@ class GCPFunctionsBackend:
 
         return runtime_meta
 
-    def delete_runtime(self, runtime_name, runtime_memory, version=__version__):
-        function_name = self._format_function_name(runtime_name, runtime_memory, version)
+    def delete_runtime(self, runtime_name, runtime_memory, version=__version__,
+                       function_name=None):
+        if function_name is None:
+            function_name = self._format_function_name(
+                runtime_name, runtime_memory, version)
         function_location = self._get_function_location(function_name)
         logger.info(f'Deleting runtime: {runtime_name} - {runtime_memory}MB')
 
         # Delete function
-        self._api_resource.projects().locations().functions().delete(
-            name=function_location,
-        ).execute(num_retries=self.num_retries)
-        logger.debug('Request Ok - Waiting until the function is completely deleted')
-
-        self._wait_function_deleted(function_location)
+        try:
+            self._api_resource.projects().locations().functions().delete(
+                name=function_location,
+            ).execute(num_retries=self.num_retries)
+            logger.debug('Request Ok - Waiting until the function is completely deleted')
+            self._wait_function_deleted(function_location)
+        except HttpError as e:
+            if e.resp.status == 404:
+                logger.debug(f'Function {function_name} not found, skipping delete')
+            else:
+                raise
 
         if self.trigger == 'pub/sub':
             # Delete Pub/Sub topic attached as trigger for the cloud function
@@ -392,7 +401,8 @@ class GCPFunctionsBackend:
         logger.debug('Going to delete all deployed runtimes')
         runtimes = self.list_runtimes()
         for runtime_name, runtime_memory, version, wk_name in runtimes:
-            self.delete_runtime(runtime_name, runtime_memory, version)
+            self.delete_runtime(
+                runtime_name, runtime_memory, version, function_name=wk_name)
 
     def list_runtimes(self, runtime_name='all'):
         logger.debug('Listing deployed runtimes')

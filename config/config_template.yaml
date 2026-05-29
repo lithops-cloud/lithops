@@ -112,7 +112,7 @@
     #ssh_password: <RANDOM_IF_NOT_PROVIDED>
     #ssh_key_filename: ~/.ssh/id_rsa
     #request_spot_instances: True
-    #target_ami: <AMI_ID>                 # Default: Ubuntu Server 22.04
+    #target_ami: <AMI_ID>                 # Default: Ubuntu Server 24.04
     #master_instance_type: t3.micro
     #worker_instance_type: t3.medium
     #delete_on_dismantle: True
@@ -220,6 +220,7 @@
     #resource_group: <RESOURCE_GROUP_NAME># Falls back to azure.resource_group
     #region: <LOCATION>                   # Falls back to azure.region
     #environment: lithops                 # Container Apps environment name
+    #environment_id: <ENVIRONMENT_ID>     # Optional. Full resource ID of the Container Apps environment
     #docker_server: index.docker.io
     #docker_user: <REGISTRY_USERNAME>
     #docker_password: <REGISTRY_TOKEN>
@@ -236,7 +237,7 @@
 #azure_vms:
     #region: <LOCATION>                   # Falls back to azure.region
     #instance_name: <VM_NAME>             # Mandatory in consume mode
-    #image_id: Canonical:0001-com-ubuntu-server-jammy:22_04-lts-gen2:latest
+    #image_id: Canonical:ubuntu-24_04-lts:server:latest
     #master_instance_type: Standard_B1s
     #worker_instance_type: Standard_B2s
     #ssh_username: ubuntu

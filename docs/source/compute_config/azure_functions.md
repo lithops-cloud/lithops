@@ -12,15 +12,13 @@ python3 -m pip install lithops[azure]
 
 2. Install [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli?view=azure-cli-latest)
 
-3. Install the [Azure Functions core tools](https://github.com/Azure/azure-functions-core-tools)
-
-4. Sign in with the Azure CLI:
+3. Sign in with the Azure CLI:
 
 ```bash
 az login
 ```
 
-5. Create a Resource Group and a Storage Account:
+4. Create a Resource Group and a Storage Account:
 
    Option 1:
 
@@ -80,7 +78,7 @@ az login
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|azure_storage| storage_account_name | |yes |  Storage account name. The name generated in step 5 of the installation if you followed these instructions |
+|azure_storage| storage_account_name | |yes |  Storage account name. The name generated in step 4 of the installation if you followed these instructions |
 |azure_storage| storage_account_key |  | yes |  An Account Key, found in *Storage Accounts* > `account_name` > *Security + networking* > *Access Keys*|
 
 ### Azure Functions
@@ -88,9 +86,10 @@ az login
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |azure_functions| resource_group | |no | Name of a resource group, for example: `LithopsResourceGroup`. Lithops will use the `resource_group` set under the `azure` section if it is not set here |
-|azure_functions| region |  |no | The location of the consumption plan for the runtime. Use `az functionapp list-consumption-locations` to view the available locations. For example: `westeurope`, `westus2`, etc. Lithops will use the `region` set under the `azure` section if it is not set here|
+|azure_functions| region |  |no | The Flex Consumption plan location for the runtime. Use `az functionapp list-flexconsumption-locations` to view the available locations. For example: `westeurope`, `westus2`, etc. Lithops will use the `region` set under the `azure` section if it is not set here|
+|azure_functions | runtime_memory | 2048 | no | Flex Consumption instance memory in MB. Supported values: `512`, `2048`, `4096`. Other values are mapped to the nearest supported size |
 |azure_functions | max_workers | 1000 | no | Max number of parallel workers. Although Azure limits the number of workers to 200, it is convenient to keep this value high|
-|azure_functions | worker_processes | 1 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker |
+|azure_functions | worker_processes | 1 | no | Lithops-side parallelism setting. Not applied as an Azure Functions app setting on Flex Consumption |
 |azure_functions| runtime |  |no | Runtime name already deployed in the service|
 |azure_functions | runtime_timeout | 300 |no | Runtime timeout in seconds. Default 5 minutes |
 |azure_functions| trigger | pub/sub  | no | One of 'https' or 'pub/sub'|

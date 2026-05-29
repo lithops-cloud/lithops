@@ -1,11 +1,11 @@
 from _imp import is_builtin, is_frozen
 
-from importlib._bootstrap import _ERR_MSG
 from importlib import machinery
 import os
 import sys
 import tokenize
 
+_ERR_MSG = 'No module named {!r}'
 
 SEARCH_ERROR = 0
 PY_SOURCE = 1

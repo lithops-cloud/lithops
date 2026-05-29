@@ -22,6 +22,33 @@ class StandaloneMode(Enum):
     REUSE = "reuse"
 
 
+def prepare_standalone_clean(backend, load_cache_fn):
+    """
+    Load persisted stack metadata from disk when the backend has a cache file.
+
+    Standalone cloud backends call this at the start of clean() so cleanup works
+    even when clean() is invoked without a prior init() in the same process.
+    """
+    if backend.is_initialized():
+        load_cache_fn()
+
+
+def standalone_clean_stop_early(backend, stack_data, delete_cache_fn, all_flag):
+    """
+    Common clean() early exits for consume mode and missing stack metadata.
+
+    Returns True when no further cloud resource cleanup is required.
+    """
+    if backend.mode == StandaloneMode.CONSUME.value:
+        delete_cache_fn()
+        return True
+    if not stack_data:
+        if all_flag:
+            delete_cache_fn()
+        return True
+    return False
+
+
 class WorkerStatus(Enum):
     STARTING = "starting"
     STARTED = "started"

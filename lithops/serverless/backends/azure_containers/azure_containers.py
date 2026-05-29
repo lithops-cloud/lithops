@@ -17,8 +17,11 @@
 import os
 import json
 import time
+import copy
 import logging
 import hashlib
+import shutil
+import subprocess as sp
 from azure.storage.queue import QueueServiceClient
 
 from lithops import utils
@@ -58,6 +61,46 @@ class AzureContainerAppBackend:
         msg = COMPUTE_CLI_MSG.format('Azure Container Apps')
         logger.info(f"{msg} - Region: {self.location}")
 
+    def _check_az_cli(self):
+        if not shutil.which('az'):
+            raise Exception(
+                'Azure CLI (az) command not found. '
+                'Install it from https://docs.microsoft.com/en-us/cli/azure/install-azure-cli'
+            )
+
+    def _run_az_command(self, cmd, return_json=False, return_result=False):
+        """
+        Run an Azure CLI command using shell=True.
+        """
+        self._check_az_cli()
+        quiet = logger.getEffectiveLevel() != logging.DEBUG
+        kwargs = {'shell': True, 'encoding': 'UTF-8', 'stderr': sp.PIPE}
+        if quiet and not (return_json or return_result):
+            kwargs['stdout'] = sp.DEVNULL
+        try:
+            if return_json or return_result:
+                result = sp.check_output(cmd, **kwargs)
+            else:
+                sp.check_call(cmd, **kwargs)
+                return None
+        except sp.CalledProcessError as e:
+            err_msg = f'Azure CLI command failed: {cmd}'
+            if e.stderr:
+                err_msg += f'\n{e.stderr.strip()}'
+            raise Exception(err_msg) from e
+
+        result = result.strip()
+        if return_json:
+            try:
+                return json.loads(result)
+            except json.JSONDecodeError as e:
+                raise Exception(
+                    f'Failed to parse Azure CLI output as JSON: {result}'
+                ) from e
+        if return_result:
+            return result.replace('"', '')
+        return result
+
     def _format_containerapp_name(self, runtime_name, runtime_memory, version=__version__):
         """
         Formates the conatiner app name
@@ -67,6 +110,29 @@ class AzureContainerAppBackend:
         name_hash = hashlib.sha1(name.encode("utf-8")).hexdigest()[:10]
 
         return f'lithops-worker-{version.replace(".", "")}-{name_hash}'[:31]
+
+    def _get_managed_environment_id(self):
+        environment_id = self.ac_config.get('environment_id')
+        if environment_id:
+            return environment_id
+
+        cmd = (f'az containerapp env show -g {self.resource_group} -n {self.environment} '
+               f'--query id --only-show-errors')
+        return self._run_az_command(cmd, return_result=True)
+
+    def _containerapp_exists(self, containerapp_name):
+        cmd = (f'az containerapp show --name {containerapp_name} '
+               f'--resource-group {self.resource_group} --only-show-errors')
+        kwargs = {'shell': True}
+        if logger.getEffectiveLevel() != logging.DEBUG:
+            kwargs['stderr'] = sp.DEVNULL
+            kwargs['stdout'] = sp.DEVNULL
+        try:
+            sp.check_call(cmd, **kwargs)
+            return True
+        except sp.CalledProcessError:
+            logger.debug(f'Container app {containerapp_name} not found, will create it')
+            return False
 
     def _get_default_runtime_image_name(self):
         """
@@ -78,8 +144,8 @@ class AzureContainerAppBackend:
 
     def deploy_runtime(self, runtime_name, memory, timeout):
         """
-        Deploys a new runtime into Azure Function Apps
-        from the provided Linux image for consumption plan
+        Deploys a new runtime into Azure Container Apps
+        from the provided container image
         """
         if runtime_name == self._get_default_runtime_image_name():
             self._build_default_runtime(runtime_name)
@@ -127,16 +193,13 @@ class AzureContainerAppBackend:
         finally:
             os.remove(config.FH_ZIP_LOCATION)
 
-        docker_user = self.ac_config.get("docker_user")
-        docker_password = self.ac_config.get("docker_password")
-        docker_server = self.ac_config.get("docker_server")
-
         logger.debug(f'Pushing runtime {runtime_name} to container registry')
-
+        docker_user = self.ac_config.get('docker_user')
+        docker_password = self.ac_config.get('docker_password')
+        docker_server = self.ac_config.get('docker_server')
         if docker_user and docker_password:
             logger.debug('Container registry credentials found in config. Logging in into the registry')
-            cmd = f'{docker_path} login -u {docker_user} --password-stdin {docker_server}'
-            utils.run_command(cmd, input=docker_password)
+            utils.docker_login(docker_user, docker_password, docker_server)
 
         if utils.is_podman(docker_path):
             cmd = f'{docker_path} push {runtime_name} --format docker --remove-signatures'
@@ -161,66 +224,80 @@ class AzureContainerAppBackend:
                 in_queue = self.queue_service.get_queue_client(containerapp_name)
                 in_queue.clear_messages()
 
-        ca_temaplate = config.CONTAINERAPP_JSON
-        ca_temaplate['name'] = containerapp_name
-        ca_temaplate['location'] = self.location
-        ca_temaplate['tags']['type'] = 'lithops-runtime'
-        ca_temaplate['tags']['lithops_version'] = str(__version__)
-        ca_temaplate['tags']['runtime_name'] = runtime_name
-        ca_temaplate['tags']['runtime_memory'] = str(memory)
+        ca_template = copy.deepcopy(config.CONTAINERAPP_JSON)
+        ca_template['name'] = containerapp_name
+        ca_template['location'] = self.location
+        ca_template['tags']['type'] = 'lithops-runtime'
+        ca_template['tags']['lithops_version'] = str(__version__)
+        ca_template['tags']['runtime_name'] = runtime_name
+        ca_template['tags']['runtime_memory'] = str(memory)
 
         try:
             runtime_memory, runtime_cpu = config.ALLOWED_MEM[memory]
-            ca_temaplate['properties']['template']['containers'][0]['resources']['cpu'] = runtime_cpu
-            ca_temaplate['properties']['template']['containers'][0]['resources']['memory'] = runtime_memory
+            ca_template['properties']['template']['containers'][0]['resources']['cpu'] = runtime_cpu
+            ca_template['properties']['template']['containers'][0]['resources']['memory'] = runtime_memory
         except Exception:
             raise Exception(f'The memory {memory} is not allowed, you must choose '
                             f'one of thses memory values: {config.ALLOWED_MEM.keys()}')
 
-        ca_temaplate['properties']['template']['containers'][0]['image'] = runtime_name
-        ca_temaplate['properties']['template']['containers'][0]['env'][0]['value'] = containerapp_name
-        ca_temaplate['properties']['template']['scale']['rules'][0]['azureQueue']['queueName'] = containerapp_name
-        ca_temaplate['properties']['template']['scale']['maxReplicas'] = min(self.ac_config['max_workers'], 30)
+        ca_template['properties']['template']['containers'][0]['image'] = runtime_name
+        ca_template['properties']['template']['containers'][0]['env'][0]['value'] = containerapp_name
+        ca_template['properties']['template']['scale']['rules'][0]['azureQueue']['queueName'] = containerapp_name
+        ca_template['properties']['template']['scale']['maxReplicas'] = min(self.ac_config['max_workers'], 30)
 
-        cmd = f"az containerapp env show -g {self.resource_group} -n {self.environment} --query id --only-show-errors"
-        envorinemnt_id = utils.run_command(cmd, return_result=True)
-        ca_temaplate['properties']['managedEnvironmentId'] = envorinemnt_id
+        grace_period = min(int(timeout), 600)
+        if int(timeout) > 600:
+            logger.debug(
+                f'Container Apps terminationGracePeriodSeconds is capped at 600 seconds '
+                f'(requested {timeout} seconds)'
+            )
+        ca_template['properties']['template']['terminationGracePeriodSeconds'] = grace_period
+
+        ca_template['properties']['environmentId'] = self._get_managed_environment_id()
 
         cmd = f"az storage account show-connection-string -g {self.resource_group} --name {self.storage_account_name} --query connectionString --out json"
-        queueconnection = utils.run_command(cmd, return_result=True)
-        ca_temaplate['properties']['configuration']['secrets'][0]['value'] = queueconnection
+        queueconnection = self._run_az_command(cmd, return_result=True)
+        ca_template['properties']['configuration']['secrets'][0]['value'] = queueconnection
 
         if self.ac_config.get('docker_password'):
-            ca_temaplate['properties']['configuration']['secrets'][1]['value'] = self.ac_config['docker_password']
-            ca_temaplate['properties']['configuration']['registries'][0]['server'] = self.ac_config['docker_server']
-            ca_temaplate['properties']['configuration']['registries'][0]['username'] = self.ac_config['docker_user']
+            ca_template['properties']['configuration']['secrets'][1]['value'] = self.ac_config['docker_password']
+            ca_template['properties']['configuration']['registries'][0]['server'] = self.ac_config['docker_server']
+            ca_template['properties']['configuration']['registries'][0]['username'] = self.ac_config['docker_user']
         else:
-            del ca_temaplate['properties']['configuration']['secrets'][1]
-            del ca_temaplate['properties']['configuration']['registries']
+            del ca_template['properties']['configuration']['secrets'][1]
+            del ca_template['properties']['configuration']['registries']
 
         with open(config.CA_JSON_LOCATION, 'w') as f:
-            f.write(json.dumps(ca_temaplate))
+            f.write(json.dumps(ca_template))
 
-        cmd = (f'az containerapp create --name {containerapp_name} '
-               f'--resource-group {self.resource_group} '
-               f'--yaml {config.CA_JSON_LOCATION} --only-show-errors')
-
-        logger.debug('Deploying Azure Container App')
+        logger.info('Deploying Azure Container App (this may take several minutes)')
         deployed = False
         retries = 0
+        last_error = None
 
         while retries < 10:
             try:
-                utils.run_command(cmd)
+                if self._containerapp_exists(containerapp_name):
+                    logger.debug(f'Container app {containerapp_name} already exists, updating')
+                    cmd = (f'az containerapp update --name {containerapp_name} '
+                           f'--resource-group {self.resource_group} '
+                           f'--yaml {config.CA_JSON_LOCATION} --only-show-errors')
+                else:
+                    cmd = (f'az containerapp create --name {containerapp_name} '
+                           f'--resource-group {self.resource_group} '
+                           f'--yaml {config.CA_JSON_LOCATION} --only-show-errors')
+                self._run_az_command(cmd)
                 os.remove(config.CA_JSON_LOCATION)
                 deployed = True
                 break
-            except Exception:
+            except Exception as e:
+                last_error = e
+                logger.warning(f'Container app deploy attempt {retries + 1} failed: {e}')
                 time.sleep(10)
                 retries += 1
 
         if not deployed:
-            raise Exception(f"The Azure Container App cannot be deployed: {cmd}")
+            raise Exception(f"The Azure Container App cannot be deployed: {cmd}") from last_error
 
     def delete_runtime(self, runtime_name, memory, version=__version__):
         """
@@ -229,7 +306,7 @@ class AzureContainerAppBackend:
         logger.info(f'Deleting runtime: {runtime_name} - {memory}MB')
         containerapp_name = self._format_containerapp_name(runtime_name, memory, version)
         cmd = f'az containerapp delete --name {containerapp_name} --resource-group {self.resource_group} -y --only-show-errors'
-        utils.run_command(cmd)
+        self._run_az_command(cmd)
 
         try:
             self.queue_service.delete_queue(containerapp_name)
@@ -299,7 +376,7 @@ class AzureContainerAppBackend:
                 logger.debug("Metadata extracted succesfully")
                 return runtime_meta
             except StorageNoSuchKeyError:
-                logger.debug(f'Get runtime metadata retry {i+1}')
+                logger.debug(f'Get runtime metadata retry {i + 1}')
 
         raise Exception('Could not get metadata. Review container logs in the Azure Portal')
 
@@ -310,8 +387,8 @@ class AzureContainerAppBackend:
         logger.debug('Listing all deployed runtimes')
 
         runtimes = []
-        response = os.popen('az containerapp list --query "[].{Name:name, Tags:tags}\" --only-show-errors').read()
-        response = json.loads(response)
+        cmd = 'az containerapp list --query "[].{Name:name, Tags:tags}" --only-show-errors'
+        response = self._run_az_command(cmd, return_json=True)
 
         for containerapp in response:
             if containerapp['Tags'] and 'type' in containerapp['Tags'] \
