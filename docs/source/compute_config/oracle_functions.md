@@ -12,7 +12,7 @@ Lithops with *Oracle Functions* as serverless compute backend.
 python3 -m pip install lithops[oracle]
 ```
 
-2. Access to your [Oracle Cloud Console](https://cloud.oracle.com/) and activate your Functions service instance.
+2. Access your [Oracle Cloud Console](https://cloud.oracle.com/) and activate your Functions service instance.
 
 ## Configuration
 
@@ -46,7 +46,7 @@ Now that the dynamic group is set up, you'll need to create a policy that allows
 
 1. **Open the navigation menu again.** Under Governance and Administration, go to Identity, and then click [**Policies**](https://cloud.oracle.com/identity/domains/policies).
 
-2. Choose your **compartment** and Click on the **Create Policy** button.
+2. Choose your **compartment** and click on the **Create Policy** button.
 
 3. **In the Create Policy dialog box:**
 
@@ -61,7 +61,7 @@ Now that the dynamic group is set up, you'll need to create a policy that allows
 4. **Click Create** to create the policy.
 
 
-### Configure lithops
+### Configure Lithops
 Now, your Oracle Functions have the necessary permissions to manage resources in your Oracle Cloud Infrastructure tenancy.
 
 1. Navigate to the [VCNs page](https://cloud.oracle.com/networking/vcns) and create a new VCN using the **VCN Wizard**. Then choose *create VCN with Internet Connectivity*. In the next page, you can uncheck `Use DNS hostnames in this VCN` and leave the rest of the parameters as provided by default.
@@ -85,12 +85,12 @@ oracle:
 
 oracle_f:
     subnet_id: <SUBNET_OCID>
+    docker_user: <TENANCY_NAMESPACE>/<USERNAME>
+    docker_password: <AUTH_TOKEN>
 ```
 
 
-Also, remember to log in to your Oracle container registry before you build your runtime, since runtimes are uploaded to the Oracle container registry. `<username>` is most likely your email address. You can create a new auth token [here](https://cloud.oracle.com/identity/domains/my-profile/auth-tokens).
-
-```
+```bash
 docker login <region>.ocir.io -u <tenancy-namespace>/<username> -p <authentication_token>
 ```
 
@@ -113,9 +113,12 @@ docker login <region>.ocir.io -u <tenancy-namespace>/<username> -p <authenticati
 |---|---|---|---|---|
 |oracle_f | subnet_id |  |yes | Private subnet OCID |
 |oracle_f | region | |no | Region name. For example: `eu-madrid-1`. Lithops will use the region set under the `oracle` section if it is not set here |
+|oracle_f | docker_server | `<region>.ocir.io` |no | Oracle Container Registry URL. Auto-set to `{region}.ocir.io` from `oracle.region` if not provided |
+|oracle_f | docker_user | |no | OCIR username in the form `<tenancy-namespace>/<username>`. Required when building or pushing runtime images. `<username>` is most likely your email address |
+|oracle_f | docker_password | |no | OCIR auth token. Required when building or pushing runtime images. Create one [here](https://cloud.oracle.com/identity/domains/my-profile/auth-tokens). Lithops logs in automatically before pushing runtime images |
 |oracle_f | max_workers | 300 | no | Max number of workers. Oracle limits the total to 60 GB RAM across any number of workers  |
 |oracle_f | worker_processes | 1 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker |
-|oracle_f | runtime |  |no | Runtime name you built and deployed using the lithops client|
+|oracle_f | runtime |  |no | Runtime name you built and deployed using the Lithops client|
 |oracle_f | runtime_memory | 256 |no | Memory limit in MB. Default 256MB |
 |oracle_f | runtime_timeout | 300 |no | Runtime timeout in seconds. Default 5 minutes |
 |oracle_f | runtime_include_function | False | no | If set to true, Lithops will automatically build a new runtime, including the function's code, instead of transferring it through the storage backend at invocation time. This is useful when the function's code size is large (in the order of 10s of MB) and the code does not change frequently |
@@ -130,7 +133,7 @@ lithops hello -b oracle_f -s oracle_oss
 
 ## Viewing the execution logs
 
-You can view the function executions logs in your local machine using the *lithops client*:
+You can view the function execution logs on your local machine using the *Lithops client*:
 
 ```bash
 lithops logs poll

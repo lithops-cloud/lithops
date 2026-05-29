@@ -94,6 +94,10 @@ def load_config(config_data=None):
             msg = f'"{param}" is mandatory in the "oracle" section of the configuration'
             raise Exception(msg)
 
+    config_data['oracle']['key_file'] = os.path.abspath(
+        os.path.expanduser(config_data['oracle']['key_file'])
+    )
+
     for param in REQ_PARAMS_2:
         if param not in config_data['oracle_f']:
             msg = f'"{param}" is mandatory in the "oracle_f" section of the configuration'
@@ -106,3 +110,8 @@ def load_config(config_data=None):
     temp = copy.deepcopy(config_data['oracle_f'])
     config_data['oracle_f'].update(config_data['oracle'])
     config_data['oracle_f'].update(temp)
+
+    if 'docker_server' not in config_data['oracle_f']:
+        config_data['oracle_f']['docker_server'] = (
+            f"{config_data['oracle_f']['region']}.ocir.io"
+        )

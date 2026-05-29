@@ -390,6 +390,9 @@
     #worker_processes: 1
     #invoke_pool_threads: 64
     #runtime_include_function: False
+    #docker_server: <REGION>.ocir.io       # Auto-set to {region}.ocir.io if not provided
+    #docker_user: <TENANCY_NAMESPACE>/<USERNAME>
+    #docker_password: <AUTH_TOKEN>          # From Oracle Cloud auth tokens page
 
 # Oracle Object Storage – object storage (beta)
 #oracle_oss:

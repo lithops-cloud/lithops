@@ -14,6 +14,7 @@
 #
 
 import copy
+import os
 
 
 CONNECTION_POOL_SIZE = 300
@@ -33,6 +34,10 @@ def load_config(config_data=None):
         if param not in config_data['oracle']:
             msg = f'"{param}" is mandatory under "oracle" section of the configuration'
             raise Exception(msg)
+
+    config_data['oracle']['key_file'] = os.path.abspath(
+        os.path.expanduser(config_data['oracle']['key_file'])
+    )
 
     temp = copy.deepcopy(config_data['oracle_oss'])
     config_data['oracle_oss'].update(config_data['oracle'])
