@@ -213,7 +213,12 @@ class OracleCloudFunctionsBackend:
             os.remove(config.FH_ZIP_LOCATION)
 
         logger.debug(f'Pushing runtime {image_name} to Oracle Cloud Container Registry')
-        utils.login_docker(self.config, docker_path)
+        docker_user = self.config.get('docker_user')
+        docker_password = self.config.get('docker_password')
+        docker_server = self.config.get('docker_server')
+        if docker_user and docker_password:
+            logger.debug('Container registry credentials found in config. Logging in into the registry')
+            utils.docker_login(docker_user, docker_password, docker_server)
         if utils.is_podman(docker_path):
             cmd = f'{docker_path} push {image_name} --format docker --remove-signatures'
         else:
