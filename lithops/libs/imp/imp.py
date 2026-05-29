@@ -1,6 +1,13 @@
 from _imp import is_builtin, is_frozen
 
-from importlib._bootstrap import _ERR_MSG
+try:
+    from importlib._bootstrap import _ERR_MSG
+except ImportError:
+    try:
+        from importlib._bootstrap import _ERR_MSG_PREFIX
+        _ERR_MSG = _ERR_MSG_PREFIX + '{!r}'
+    except ImportError:
+        _ERR_MSG = 'No module named {!r}'
 from importlib import machinery
 import os
 import sys
