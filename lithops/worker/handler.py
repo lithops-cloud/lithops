@@ -158,16 +158,23 @@ def prepare_and_run_task(task):
     os.makedirs(task.task_dir, exist_ok=True)
 
     with open(task.log_file, 'a') as log_strem:
-        task.log_stream = LogStream(log_strem)
-        with custom_redirection(task.log_stream):
-            run_task(task)
+        log_stream = LogStream(log_strem)
+        task.log_stream = log_stream
+        with custom_redirection(log_stream):
+            run_task(task, log_stream)
 
     # Unset specific job env vars
     for key in task.extra_env:
         os.environ.pop(key, None)
 
 
-def run_task(task):
+def _run_jobrunner(job, jobrunner_conn, storage_config):
+    internal_storage = InternalStorage(storage_config)
+    runner = JobRunner(job, jobrunner_conn, internal_storage)
+    runner.run()
+
+
+def run_task(task, log_stream):
     """
     Runs a single job within a separate process
     """
@@ -202,9 +209,15 @@ def run_task(task):
         call_status.send_init_event()
 
         handler_conn, jobrunner_conn = Pipe()
-        jobrunner = JobRunner(task, jobrunner_conn, internal_storage)
         logger.debug('Starting JobRunner process')
-        jrp = Process(target=jobrunner.run) if is_unix_system() else Thread(target=jobrunner.run)
+        if is_unix_system():
+            jrp = Process(
+                target=_run_jobrunner,
+                args=(task, jobrunner_conn, storage_config),
+            )
+        else:
+            jobrunner = JobRunner(task, jobrunner_conn, internal_storage)
+            jrp = Thread(target=jobrunner.run)
 
         process_id = os.getpid() if is_unix_system() else mp.current_process().pid
         sys_monitor = SystemMonitor(process_id)
@@ -281,7 +294,7 @@ def run_task(task):
             call_status.add('worker_end_tstamp', time.time())
 
             # Flush log stream and save it to the call status
-            task.log_stream.flush()
+            log_stream.flush()
             if os.path.isfile(task.log_file):
                 with open(task.log_file, 'rb') as lf:
                     log_str = base64.b64encode(zlib.compress(lf.read())).decode()
