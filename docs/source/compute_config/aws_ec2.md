@@ -9,7 +9,7 @@ This guide assumes that you are already familiar with AWS, and that you have aut
 ### Choose an operating system image for the VM
 Any Virtual Machine (VM) needs to define the instance's operating system and version. Lithops supports both standard operating system choices provided by AWS and pre-defined custom images that already contain all dependencies required by Lithops.
 
-- Option 1: By default, Lithops uses an Ubuntu 22.04 image. In this case, no further action is required and you can continue to the next step. Lithops will install all required dependencies in the VM by itself. Note that this can take about 3 minutes to complete all installations.
+- Option 1: By default, Lithops uses an Ubuntu 24.04 image. In this case, no further action is required and you can continue to the next step. Lithops will install all required dependencies in the VM by itself. Note that this can take about 3 minutes to complete all installations.
 
 - Option 2: Alternatively, you can use a pre-built custom image that will greatly improve VM creation time for Lithops jobs. To benefit from this approach, navigate to [runtime/aws_ec2](https://github.com/lithops-cloud/lithops/tree/master/runtime/aws_ec2), and follow the instructions.
 
@@ -119,7 +119,7 @@ In summary, you can use one of the following settings:
 |aws_ec2 | ssh_password |  |no | Password for accessing the worker VMs. If not provided, it is created randomly|
 |aws_ec2 | ssh_key_filename | ~/.ssh/id_rsa | no | Path to the ssh key file provided to access the VPC. If not provided, Lithops will use the default path and create a new ssh key for the VPC |
 |aws_ec2 | request_spot_instances | True | no | Request spot instance for worker VMs|
-|aws_ec2 | target_ami | | no | Virtual machine image id. Default is Ubuntu Server 22.04 |
+|aws_ec2 | target_ami | | no | Virtual machine image id. Default is Ubuntu Server 24.04 |
 |aws_ec2 | master_instance_type | t2.micro | no | Profile name for the master VM |
 |aws_ec2 | worker_instance_type | t2.medium | no | Profile name for the worker VMs |
 |aws_ec2 | delete_on_dismantle | True | no | Delete the worker VMs when they are stopped. Master VM is never deleted when stopped |

@@ -726,6 +726,31 @@ class WrappedStreamingBodyPartition(WrappedStreamingBody):
         return retval
 
 
+def docker_login(docker_user, docker_password, docker_server):
+    """
+    Log in to a container registry using docker/podman.
+
+    Docker Hub must be logged in without an explicit server host, matching
+    `docker login -u USER --password-stdin`.
+    """
+    if not docker_user or not docker_password:
+        raise Exception('docker_user and docker_password are required')
+    if not docker_server:
+        raise Exception('docker_server is required')
+
+    docker_path = get_docker_path()
+    docker_password = docker_password.strip()
+
+    if 'docker.io' in docker_server:
+        cmd = f'{docker_path} login -u {docker_user} --password-stdin'
+    else:
+        cmd = (f'{docker_path} login -u {docker_user} --password-stdin '
+               f'{docker_server}')
+
+    logger.debug('Logging in to container registry')
+    run_command(cmd, input=docker_password)
+
+
 def run_command(cmd, return_result=False, input=None):
     kwargs = {}
 

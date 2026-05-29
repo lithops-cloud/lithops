@@ -28,7 +28,6 @@ import traceback
 import multiprocessing as mp
 from queue import Queue, Empty
 from threading import Thread
-from multiprocessing import Process, Pipe
 from tblib import pickling_support
 from types import SimpleNamespace
 from multiprocessing.managers import SyncManager
@@ -47,6 +46,10 @@ from lithops.worker.utils import SystemMonitor
 pickling_support.install()
 
 logger = logging.getLogger(__name__)
+
+# Python 3.14 defaults to forkserver on Linux, which requires pickling Process
+# arguments. Lithops relies on fork semantics for JobRunner subprocesses.
+_MP_CTX = mp.get_context('fork') if is_unix_system() else None
 
 
 class ShutdownSentinel:
@@ -82,7 +85,7 @@ def function_handler(payload):
         work_queue.put(ShutdownSentinel())
         python_queue_consumer(0, work_queue, )
     else:
-        manager = SyncManager()
+        manager = _MP_CTX.Manager() if _MP_CTX else SyncManager()
         manager.start()
         work_queue = manager.Queue()
         job_runners = []
@@ -93,7 +96,7 @@ def function_handler(payload):
 
         for pid in range(worker_processes):
             work_queue.put(ShutdownSentinel())
-            p = mp.Process(target=python_queue_consumer, args=(pid, work_queue,))
+            p = _MP_CTX.Process(target=python_queue_consumer, args=(pid, work_queue,))
             job_runners.append(p)
             p.start()
 
@@ -201,10 +204,10 @@ def run_task(task):
         # send init status event
         call_status.send_init_event()
 
-        handler_conn, jobrunner_conn = Pipe()
+        handler_conn, jobrunner_conn = _MP_CTX.Pipe()
         jobrunner = JobRunner(task, jobrunner_conn, internal_storage)
         logger.debug('Starting JobRunner process')
-        jrp = Process(target=jobrunner.run) if is_unix_system() else Thread(target=jobrunner.run)
+        jrp = _MP_CTX.Process(target=jobrunner.run) if is_unix_system() else Thread(target=jobrunner.run)
 
         process_id = os.getpid() if is_unix_system() else mp.current_process().pid
         sys_monitor = SystemMonitor(process_id)

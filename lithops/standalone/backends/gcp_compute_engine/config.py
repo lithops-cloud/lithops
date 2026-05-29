@@ -1,6 +1,4 @@
 #
-# Copyright Cloudlab URV 2021
-#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -31,7 +29,6 @@ DEFAULT_CONFIG_KEYS = {
     'source_image': 'projects/ubuntu-os-cloud/global/images/family/ubuntu-2404-lts-amd64',
     'ssh_username': 'ubuntu',
     'ssh_password': str(uuid.uuid4()),
-    'ssh_key_filename': '~/.ssh/id_rsa',
     'delete_on_dismantle': True,
     'max_workers': 100,
     'request_spot_instances': False,

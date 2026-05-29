@@ -10,7 +10,7 @@ For building the default VM image that contains all dependencies required by Lit
 lithops image build -b aws_ec2
 ```
 
-This command will create an image called "lithops-ubuntu-jammy-22.04-amd64-server" in the target region.
+This command will create an image called "lithops-ubuntu-noble-24.04-amd64-server" in the target region.
 If the image already exists, and you want to update it, use the `--overwrite` or `-o` parameter:
 
 ```
@@ -52,4 +52,4 @@ aws_ec2:
     ...
 ```
 
-Note that if you name your VM Image (AMI) as "lithops-ubuntu-jammy-22.04-amd64-server", there is no need to provide the `target_ami` in the config, since lithops automatically looks for this AMI name.
+Note that if you name your VM Image (AMI) as "lithops-ubuntu-noble-24.04-amd64-server", there is no need to provide the `target_ami` in the config, since lithops automatically looks for this AMI name.
