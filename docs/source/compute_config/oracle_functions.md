@@ -85,13 +85,7 @@ oracle:
 
 oracle_f:
     subnet_id: <SUBNET_OCID>
-    docker_user: <TENANCY_NAMESPACE>/<USERNAME>
     docker_password: <AUTH_TOKEN>
-```
-
-
-```bash
-docker login <region>.ocir.io -u <tenancy-namespace>/<username> -p <authentication_token>
 ```
 
 ## Summary of configuration keys for Oracle:
@@ -114,8 +108,8 @@ docker login <region>.ocir.io -u <tenancy-namespace>/<username> -p <authenticati
 |oracle_f | subnet_id |  |yes | Private subnet OCID |
 |oracle_f | region | |no | Region name. For example: `eu-madrid-1`. Lithops will use the region set under the `oracle` section if it is not set here |
 |oracle_f | docker_server | `<region>.ocir.io` |no | Oracle Container Registry URL. Auto-set to `{region}.ocir.io` from `oracle.region` if not provided |
-|oracle_f | docker_user | |no | OCIR username in the form `<tenancy-namespace>/<username>`. Required when building or pushing runtime images. `<username>` is most likely your email address |
-|oracle_f | docker_password | |no | OCIR auth token. Required when building or pushing runtime images. Create one [here](https://cloud.oracle.com/identity/domains/my-profile/auth-tokens). Lithops logs in automatically before pushing runtime images |
+|oracle_f | docker_user | |no | OCIR login username. Auto-set to `{tenancy_namespace}/{email}` from your OCI user profile when omitted. Format: `<tenancy-namespace>/<username>`. `<username>` is most likely your email address. Set manually for federated accounts |
+|oracle_f | docker_password | |yes | OCIR auth token. Required to build and push runtime images. Create one [here](https://cloud.oracle.com/identity/domains/my-profile/auth-tokens). Lithops logs in automatically before pushing runtime images |
 |oracle_f | max_workers | 300 | no | Max number of workers. Oracle limits the total to 60 GB RAM across any number of workers  |
 |oracle_f | worker_processes | 1 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker |
 |oracle_f | runtime |  |no | Runtime name you built and deployed using the Lithops client|

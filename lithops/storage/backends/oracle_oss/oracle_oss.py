@@ -48,10 +48,17 @@ class OCIObjectStorageBackend:
 
     def _init_storage_client(self):
         if os.path.isfile(self.key_file):
+            logger.debug(f"Using key file {self.key_file} for authentication")
             return ObjectStorageClient(self.config)
-        else:
+        if os.environ.get('OCI_RESOURCE_PRINCIPAL_VERSION'):
+            logger.debug(f"Key file {self.key_file} not found. Using resource principals")
             self.signer = oci.auth.signers.get_resource_principals_signer()
             return ObjectStorageClient(config={}, signer=self.signer)
+        raise Exception(
+            f"Oracle API key file '{self.key_file}' does not exist. "
+            "Configure a valid 'key_file' under the 'oracle' section, "
+            "or run inside OCI with resource principals enabled."
+        )
 
     def get_client(self):
         return self
@@ -61,7 +68,7 @@ class OCIObjectStorageBackend:
         Generates a unique bucket name
         """
         user = self.config['user']
-        self.config['storage_bucket'] = f'lithops-{self.region}-{user[-8:-1].lower()}'
+        self.config['storage_bucket'] = f'lithops-{self.region_name}-{user[-8:-1].lower()}'
 
         return self.config['storage_bucket']
 

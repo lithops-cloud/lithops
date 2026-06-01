@@ -39,7 +39,6 @@ RUN apt-get update \
 # Update pip
 RUN pip install --upgrade --ignore-installed setuptools six pip \
     && pip install --upgrade --no-cache-dir --ignore-installed \
-    fn \
     fdk \
     redis \
     httplib2 \
@@ -72,7 +71,7 @@ RUN unzip lithops_oracle.zip \
     && mv entry_point.py handler/
 
 
-ENV PYTHONPATH "${PYTHONPATH}:${FUNCTION_DIR}"
+ENV PYTHONPATH="${FUNCTION_DIR}"
 ENTRYPOINT ["/usr/local/bin/fdk", "handler/entry_point.py", "handler"]
 """
 
