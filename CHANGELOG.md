@@ -26,7 +26,8 @@
 - [AWS] Fixed EC2 standalone initialization in consume mode and ECR authentication when building runtimes
 - [GCP] Fixed Cloud Functions runtime deletion and gRPC fork warnings during multiprocess execution on macOS
 - [Azure] Fixed Azure Functions deployment on Flex Consumption and consolidated container registry login across Azure backends
-- [Oracle] Fixed API key path resolution with `~` expansion and added configurable OCIR registry login
+- [Oracle Object Storage] Fixed authentication with `~` in `key_file`, resource principal fallback, and bucket name generation
+- [Oracle Functions] Fixed Python 3.12 runtime build, added OCIR registry login with auto-derived `docker_user`, and default `docker_server` from region
 
 
 ## [v3.6.4]
