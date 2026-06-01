@@ -127,17 +127,23 @@ class OracleCloudFunctionsBackend:
 
     def _format_image_name(self, runtime_name):
         """
-        Formats OC image name from runtime name
+        Formats container image name from runtime name using docker_server.
         """
-        if 'ocir.io' not in runtime_name:
-            image_name = f'{self.region}.ocir.io/{self.namespace}/{runtime_name}'
-        else:
+        if 'ocir.io' in runtime_name or 'docker.io' in runtime_name:
             image_name = runtime_name
+        else:
+            docker_server = self.config.get('docker_server', f'{self.region}.ocir.io')
+            if 'docker.io' in docker_server:
+                prefix = self.config.get('docker_user')
+                if not prefix:
+                    raise Exception(
+                        'docker_user is required under oracle_f when docker_server is Docker Hub'
+                    )
+            else:
+                prefix = self.namespace
+            image_name = f'{docker_server}/{prefix}/{runtime_name}'
 
-        if ':' not in image_name:
-            image_name = f'{image_name}:latest'
-
-        return image_name
+        return image_name if ':' in image_name else f'{image_name}:latest'
 
     def get_runtime_key(self, runtime_name, runtime_memory, version=__version__):
         """
@@ -159,7 +165,7 @@ class OracleCloudFunctionsBackend:
 
     def _get_default_runtime_image_name(self):
         py_version = utils.CURRENT_PY_VERSION.replace('.', '')
-        return self._format_image_name(f'lithops-default-runtime-v{py_version}')
+        return self._format_image_name(f'lithops-oracle-default-runtime-v{py_version}')
 
     def clean(self, all=False):
         """
