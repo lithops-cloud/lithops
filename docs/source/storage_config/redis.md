@@ -18,7 +18,7 @@ python3 -m pip install lithops[redis]
 
 ## Configuration
 
-Edit your lithops config file and add the following keys:
+Edit your Lithops config file and add the following keys:
 
 ```yaml
     lithops:

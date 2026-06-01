@@ -1,16 +1,16 @@
 # Lithops configuration
 
-By default Lithops works on Localhost if no configuration is provided. To run workloads on the Cloud, you must configure both a compute and a storage backend. Failing to configure them properly will prevent Lithops to submit workloads. Lithops configuration can be provided either in a configuration file or in runtime via a Python dictionary. 
+By default Lithops works on Localhost if no configuration is provided. To run workloads on the Cloud, you must configure both a compute and a storage backend. Failing to configure them properly will prevent Lithops from submitting workloads. Lithops configuration can be provided either in a configuration file or at runtime via a Python dictionary. 
 
 ### Configuration file
 
 To configure Lithops through a [configuration file](config_template.yaml) you have multiple options:
 
-1. Create a new file called `config` in the `~/.lithops` folder (i.e: `~/.lithops/config`).
+1. Create a new file called `config` in the `~/.lithops` folder (i.e., `~/.lithops/config`).
 
 2. Create a new file called `.lithops_config` in the root directory of your project from where you will execute your Lithops scripts.
 
-3. Create a new file called `config` in the `/etc/lithops/` folder (i.e: `/etc/lithops/config`). Useful for sharing the config file on multi-user machines.
+3. Create a new file called `config` in the `/etc/lithops/` folder (i.e., `/etc/lithops/config`). Useful for sharing the config file on multi-user machines.
 
 4. Create the config file in any other location and configure the `LITHOPS_CONFIG_FILE` system environment variable:
 
@@ -18,10 +18,10 @@ To configure Lithops through a [configuration file](config_template.yaml) you ha
     
 ### Configuration keys in runtime
 
-An alternative mode of configuration is to use a python dictionary. This option allows to pass all the configuration details as part of the Lithops invocation in runtime. An entire list of sections and keys is [here](config_template.yaml)
+An alternative mode of configuration is to use a Python dictionary. This option allows you to pass all the configuration details as part of the Lithops invocation at runtime. The full list of sections and keys is [here](config_template.yaml)
 
 ## Compute and Storage backends
-Choose your compute and storage engines from the table below
+Choose your compute and storage backends from the table below
 
 <table>
 <tr>
@@ -49,7 +49,7 @@ Storage Backends
 
 <b>Serverless (FaaS) Backends:</b>
 - [AWS Lambda](../docs/source/compute_config/aws_lambda.md)
-- [Google Cloud Functions](../docs/source/compute_config/gcp_functions.md)
+- [Google Cloud Run functions](../docs/source/compute_config/gcp_functions.md)
 - [Azure Functions](../docs/source/compute_config/azure_functions.md)
 - [Aliyun Functions](../docs/source/compute_config/aliyun_functions.md)
 - [Oracle Cloud Functions](../docs/source/compute_config/oracle_functions.md)
@@ -59,7 +59,7 @@ Storage Backends
 - [IBM Code Engine](../docs/source/compute_config/code_engine.md)
 - [AWS Batch](../docs/source/compute_config/aws_batch.md)
 - [Google Cloud Run](../docs/source/compute_config/gcp_cloudrun.md)
-- [Azure Container APPs](../docs/source/compute_config/azure_containers.md)
+- [Azure Container Apps](../docs/source/compute_config/azure_containers.md)
 - [Kubernetes](../docs/source/compute_config/kubernetes.md)
 - [Knative](../docs/source/compute_config/knative.md)
 - [Singularity](../docs/source/compute_config/singularity.md)

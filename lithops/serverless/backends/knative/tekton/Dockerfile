@@ -1,4 +1,4 @@
-FROM python:3.8.2-slim-bookworm
+FROM python:3.10-slim-bookworm
 
 RUN apt-get update && apt-get install -y \
         zip \
@@ -18,7 +18,7 @@ RUN pip install --upgrade setuptools six pip \
         numpy
 
 # Copy Lithops proxy and lib to the container image.
-ENV APP_HOME /lithops
+ENV APP_HOME=/lithops
 WORKDIR $APP_HOME
 
 COPY lithops ./lithops

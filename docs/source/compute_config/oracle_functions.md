@@ -2,7 +2,7 @@
 
 Lithops with *Oracle Functions* as serverless compute backend.
 
-**Note**: This is a beta backend. Please open an issue if you encounter any error/bug
+**Note**: This is a beta backend. Please open an issue if you encounter any errors or bugs.
 
 ## Installation
 
@@ -62,11 +62,12 @@ Now that the dynamic group is set up, you'll need to create a policy that allows
 
 
 ### Configure Lithops
-Now, your Oracle Functions have the necessary permissions to manage resources in your Oracle Cloud Infrastructure tenancy.
 
-1. Navigate to the [VCNs page](https://cloud.oracle.com/networking/vcns) and create a new VCN using the **VCN Wizard**. Then choose *create VCN with Internet Connectivity*. In the next page, you can uncheck `Use DNS hostnames in this VCN` and leave the rest of the parameters as provided by default.
+Your Oracle Functions application now has the necessary permissions to manage resources in your Oracle Cloud Infrastructure tenancy.
 
-2. The **VCN Wizard** will create all the necessary VCN resources, including the subnets. Now access the private subnet and copy the OCID to the `subnet_id` parameter under the `oracle_f` section of the configuration.
+1. Navigate to the [VCNs page](https://cloud.oracle.com/networking/vcns) and create a new VCN using the **VCN Wizard**. Choose **Create VCN with Internet Connectivity**. On the next page, you can uncheck `Use DNS hostnames in this VCN` and leave the rest of the parameters at their defaults.
+
+2. The **VCN Wizard** creates all the necessary VCN resources, including the subnets. Open the private subnet and copy its OCID to the `subnet_id` parameter under the `oracle_f` section of the configuration.
 
 3. Navigate to the [API keys page](https://cloud.oracle.com/identity/domains/my-profile/api-keys) and generate and download a new API signing key. Omit this step if you have already generated and downloaded a key. When you generate a new key, Oracle provides a sample config file with most of the parameters required by Lithops. Copy all the `key:value` pairs and configure Lithops as follows:
 
@@ -88,7 +89,7 @@ oracle_f:
     docker_password: <AUTH_TOKEN>
 ```
 
-## Summary of configuration keys for Oracle:
+## Summary of configuration keys for Oracle
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
@@ -101,7 +102,7 @@ oracle_f:
 |oracle | tenancy_namespace | |no | Auto-generated Object Storage namespace string of the tenancy. You can find it [here](https://cloud.oracle.com/tenancy), under *Object storage namespace*|
 
 
-## Summary of configuration keys for Oracle Functions :
+## Summary of configuration keys for Oracle Functions
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
@@ -115,11 +116,12 @@ oracle_f:
 |oracle_f | runtime |  |no | Runtime name you built and deployed using the Lithops client|
 |oracle_f | runtime_memory | 256 |no | Memory limit in MB. Default 256MB |
 |oracle_f | runtime_timeout | 300 |no | Runtime timeout in seconds. Default 5 minutes |
-|oracle_f | runtime_include_function | False | no | If set to true, Lithops will automatically build a new runtime, including the function's code, instead of transferring it through the storage backend at invocation time. This is useful when the function's code size is large (in the order of 10s of MB) and the code does not change frequently |
+|oracle_f | runtime_include_function | False | no | If set to true, Lithops will automatically build a new runtime, including the function's code, instead of transferring it through the storage backend at invocation time. This is useful when the function's code size is large (on the order of tens of MB) and the code does not change frequently |
 
 
 ## Test Lithops
-Once you have your compute and storage backends configured, you can run a hello world function with:
+
+Once you have your compute and storage backends configured, you can run a Hello World function with:
 
 ```bash
 lithops hello -b oracle_f -s oracle_oss

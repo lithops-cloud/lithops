@@ -13,7 +13,7 @@ Lithops with OpenStack Swift as storage backend.
 
 ## Configuration
 
-1. Edit your lithops config file and add the following keys:
+1. Edit your Lithops config file and add the following keys:
 
 ```yaml
     lithops:

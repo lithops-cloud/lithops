@@ -65,13 +65,13 @@ RUN pip install --upgrade --ignore-installed setuptools six pip \
         tblib \
         psutil
 
-ENV PORT 8080
-ENV CONCURRENCY 1
-ENV TIMEOUT 600
-ENV PYTHONUNBUFFERED TRUE
+ENV PORT=8080
+ENV CONCURRENCY=1
+ENV TIMEOUT=600
+ENV PYTHONUNBUFFERED=TRUE
 
 # Copy Lithops proxy and lib to the container image.
-ENV APP_HOME /lithops
+ENV APP_HOME=/lithops
 WORKDIR $APP_HOME
 
 COPY lithops_codeengine.zip .

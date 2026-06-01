@@ -12,17 +12,17 @@ Reserved parameters are only accessible when using the [Futures API](./api_futur
 
 - **obj**: This parameter is used to activate the internal logic that allows you to process data objects stored in object storage or at public URLs in a transparent way. See the [data processing](data_processing.rst) documentation for more details and instructions on how to use this built-in data-processing logic.
 
-- **storage**: To get a ready-to use lithops.storage.Storage() instance. This allows you to access your storage backend defined in configuration from any function in an easy way, for example: [storage_arg.py](https://github.com/lithops-cloud/lithops/blob/master/examples/storage_arg.py)
+- **storage**: To get a ready-to-use `lithops.storage.Storage()` instance. This allows you to access your storage backend defined in configuration from any function in an easy way, for example: [storage_arg.py](https://github.com/lithops-cloud/lithops/blob/master/examples/storage_arg.py)
 
-- **rabbitmq**: To get a ready-to use [pika.BlockingConnection()](https://pika.readthedocs.io/en/latest/modules/adapters/blocking.html) instance (AMQP URL must be set in the configuration to make it working). This allows you to access the RabbitMQ service from any function in an easy way, for example: [rabbitmq_arg.py](https://github.com/lithops-cloud/lithops/blob/master/examples/rabbitmq_arg.py)
+- **rabbitmq**: To get a ready-to-use [pika.BlockingConnection()](https://pika.readthedocs.io/en/latest/modules/adapters/blocking.html) instance (AMQP URL must be set in the configuration to make it work). This allows you to access the RabbitMQ service from any function in an easy way, for example: [rabbitmq_arg.py](https://github.com/lithops-cloud/lithops/blob/master/examples/rabbitmq_arg.py)
 
 
 
 Parameters in the call_async() method 
 -------------------------------------
 
-You can send multiple parameters to a single call function writing them into a list. The parameters will be mapped in
-the order you wrote them. In the following example the x  parameter will take the value 3 and the y parameter will 
+You can send multiple parameters to a single-call function by writing them into a list. The parameters will be mapped in
+the order you wrote them. In the following example, the `x` parameter will take the value 3 and the `y` parameter will
 take the value 6.
 
 ```python
@@ -109,7 +109,7 @@ To test all of the previous examples run the [multiple_args_call_async.py](https
 Parameters in the map() and map_reduce() methods 
 ------------------------------------------------
 
-The 'iterdata' variable must be always a list []. In this case to send multiple parameters to the function, the parameters of
+The 'iterdata' variable must always be a list []. In this case to send multiple parameters to the function, the parameters of
 each function must be enclosed within a tuple () as in the next example. The parameters will be mapped in the order you wrote
 them.
 
@@ -212,7 +212,7 @@ print(fexec.get_result())
 ```
 
 
-Common parameters across functions invocations
+Common parameters across function invocations
 ----------------------------------------------
 
 Sometimes, functions have common parameters for all the invocations. In this case you have two options to proceed:

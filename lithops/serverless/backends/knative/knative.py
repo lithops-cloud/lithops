@@ -288,9 +288,8 @@ class KnativeServingBackend:
 
         task_run = yaml.safe_load(config.task_run)
         task_run['spec']['inputs']['params'] = []
-        python_version = utils.CURRENT_PY_VERSION.replace('.', '')
         path_to_dockerfile = {'name': 'pathToDockerFile',
-                              'value': 'lithops/compute/backends/knative/tekton/Dockerfile.python{}'.format(python_version)}
+                              'value': 'lithops/compute/backends/knative/tekton/Dockerfile'}
         task_run['spec']['inputs']['params'].append(path_to_dockerfile)
         image_url = {'name': 'imageUrl',
                      'value': '/'.join([cr, image_name])}

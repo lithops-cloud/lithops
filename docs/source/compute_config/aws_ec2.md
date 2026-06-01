@@ -68,7 +68,7 @@ In summary, you can use one of the following settings:
 
 1. Provide the credentials via the `~/.aws/config` file, or set the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` environment variables.
 
-    You can run `aws configure` command if the AWS CLI is installed to setup the credentials. Then set in the Lithops config file:
+    If the AWS CLI is installed, you can run the `aws configure` command to set up the credentials. Then set them in the Lithops config file:
     ```yaml
     lithops:
         backend: aws_ec2
@@ -187,7 +187,7 @@ In summary, you can use one of the following settings:
 
 1. Provide the credentials via the `~/.aws/config` file, or set the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` environment variables.
 
-    You can run `aws configure` command if the AWS CLI is installed to setup the credentials. Then set in the Lithops config file:
+    If the AWS CLI is installed, you can run the `aws configure` command to set up the credentials. Then set them in the Lithops config file:
     ```yaml
     lithops:
         backend: aws_ec2
@@ -240,7 +240,7 @@ In summary, you can use one of the following settings:
 
 
 ## Test Lithops
-Once you have your compute and storage backends configured, you can run a hello world function with:
+Once you have your compute and storage backends configured, you can run a Hello World function with:
 
 ```bash
 lithops hello -b aws_ec2 -s aws_s3

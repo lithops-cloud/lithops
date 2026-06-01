@@ -18,7 +18,7 @@ python3 -m pip install lithops[aliyun]
 
 2. [Access to your Function Compute dashboard](https://fc.console.aliyun.com/fc/overview), and choose your preferred region.
 
-3. Access to the [Resource Access Management (RAM) Roles dashboard](https://ram.console.aliyun.com/roles/), and create a new Role that contains the `AliyunOSSFullAccess` permission. Alternatively you can use an already created Role that contains the `AliyunOSSFullAccess` permission.
+3. Access the [Resource Access Management (RAM) Roles dashboard](https://ram.console.aliyun.com/roles/), and create a new Role that contains the `AliyunOSSFullAccess` permission. Alternatively you can use an already created Role that contains the `AliyunOSSFullAccess` permission.
 
 4. Edit your Lithops config and add the following keys:
 
@@ -65,7 +65,7 @@ aliyun_fc:
 
 
 ## Test Lithops
-Once you have your compute and storage backends configured, you can run a hello world function with:
+Once you have your compute and storage backends configured, you can run a Hello World function with:
 
 ```bash
 lithops hello -b aliyun_fc -s aliyun_oss

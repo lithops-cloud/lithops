@@ -2,7 +2,7 @@
 
 The runtime is the place where the functions are executed. In Azure Container Apps, runtimes are based on Docker images, so you can run functions with modern Python versions supported by your base image.
 
-For running lithops on Azure Container Apps, you need a runtime built on Docker Hub (or any other container registry), or you need a Docker Hub account for placing the runtimes created by lithops.
+For running Lithops on Azure Container Apps, you need a runtime built on Docker Hub (or any other container registry), or you need a Docker Hub account for placing the runtimes created by Lithops.
 
 If you don't have an already built runtime, the default runtime is built the first time you execute a function. Lithops automatically detects the Python version of your environment and deploys the default runtime based on it.
 
@@ -39,14 +39,14 @@ azure_containers:
 
     If you need some Python modules (or other system libraries) which are not included in the default docker images (see table above), it is possible to build your own Lithops runtime with all of them.
 
-    This option is based on building a local Docker image, deploy it to the docker hub (you need a [Docker Hub account](https://hub.docker.com)) and use it as a Lithops base runtime.
+    This option is based on building a local Docker image, deploy it to Docker Hub (you need a [Docker Hub account](https://hub.docker.com)) and use it as a Lithops base runtime.
     Project provides some skeletons of Docker images, for example:
 
     * [Dockerfile](Dockerfile) 
 
     To build your own runtime, first install the Docker CE version in your client machine. You can find the instructions [here](https://docs.docker.com/get-docker/). If you already have Docker installed omit this step.
 
-    Login to your Docker hub account by running in a terminal the next command.
+    Log in to your Docker Hub account by running in a terminal the next command.
 
         $ docker login
 
@@ -55,7 +55,7 @@ azure_containers:
 
         $ lithops runtime build -b azure_containers docker_username/runtimename:tag 
 
-    Note that Docker hub image names look like *"docker_username/runtimename:tag"* and must be all lower case, for example:
+    Note that Docker Hub image names look like *"docker_username/runtimename:tag"* and must be all lower case, for example:
 
         $ lithops runtime build -b azure_containers myaccount/lithops-ca-custom-v312:01
 
@@ -64,7 +64,7 @@ azure_containers:
         $ lithops runtime build -b azure_containers -f azure_containers/Dockerfile myaccount/lithops-ca-custom-v312:01
 
     Once you have built your runtime with all of your necessary packages, you can already use it with Lithops.
-    To do so, you have to specify the full docker image name in the configuration or when you create the **FunctionExecutor** instance, or directly in the config file, for example:
+    To do so, you have to specify the full Docker image name in the configuration or when you create the **FunctionExecutor** instance, or directly in the config file, for example:
 
     ```python
     import lithops
@@ -83,7 +83,7 @@ azure_containers:
     fexec = lithops.FunctionExecutor(runtime='lithopscloud/ca-conda-v312:01')
     ```
 
-    Alternatively, you can create a Lithops runtime based on already built Docker image by executing the following command, which will deploy all the necessary information to use the runtime with your Lithops.
+    Alternatively, you can create a Lithops runtime based on an already built Docker image by executing the following command, which will deploy all the necessary information to use the runtime with your Lithops.
 
         $ lithops runtime deploy -b azure_containers -s azure_storage docker_username/runtimename:tag
 
@@ -108,7 +108,7 @@ azure_containers:
 
         $ lithops runtime update default -b azure_containers -s azure_storage
 
-    You can update any other runtime deployed in your namespace by specifying the docker image that the runtime depends on:
+    You can update any other runtime deployed in your namespace by specifying the Docker image that the runtime depends on:
 
         $ lithops runtime update docker_username/runtimename:tag -b azure_containers -s azure_storage
 
@@ -128,11 +128,11 @@ azure_containers:
 
         $ lithops runtime delete default -b azure_containers -s azure_storage
 
-    You can delete any other runtime deployed in your namespace by specifying the docker image that the runtime depends on:
+    You can delete any other runtime deployed in your namespace by specifying the Docker image that the runtime depends on:
 
         $ lithops runtime delete docker_username/runtimename:tag -b azure_containers -s azure_storage
 
-    For example, you can delete runtime based on the Docker image `lithopscloud/ca-conda-v312:01` by:
+    For example, you can delete a runtime based on the Docker image `lithopscloud/ca-conda-v312:01` by:
 
         $ lithops runtime delete lithopscloud/ca-conda-v312:01 -b azure_containers -s azure_storage
 

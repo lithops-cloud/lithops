@@ -30,7 +30,7 @@ Alternatively, you can set the `reuse` mode to keep the started worker VMs runni
 
 ### Lithops configuration for the *create* and *reuse* mode
 
-Edit your lithops config and add the relevant keys:
+Edit your Lithops config and add the relevant keys:
 
 ```yaml
 lithops:
@@ -118,7 +118,7 @@ In this mode, Lithops can start and stop an existing VM, and deploy an entire jo
 
 ### Lithops configuration for the consume mode
 
-Edit your lithops config and add the relevant keys:
+Edit your Lithops config and add the relevant keys:
 
 ```yaml
 lithops:
@@ -169,7 +169,7 @@ If you need to create a new VM, follow the steps below to create the VM and upda
 
 ## Test Lithops
 
-Once you have your compute and storage backends configured, you can run a hello world function with:
+Once you have your compute and storage backends configured, you can run a Hello World function with:
 
 ```bash
 lithops hello -b ibm_vpc -s ibm_cos

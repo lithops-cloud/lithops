@@ -28,7 +28,7 @@ python3 -m pip install lithops[ibm]
 
 5. Click `View credentials` and copy the *apikey* value.
 
-6. Edit your lithops config file and add the following keys:
+6. Edit your Lithops config file and add the following keys:
 
     ```yaml
     lithops:
@@ -54,7 +54,7 @@ python3 -m pip install lithops[ibm]
 
 7. When using HMAC credentials, you can omit providing a storage bucket, since Lithops will be able to create it automatically.
 
-8. Edit your lithops config file and add the following keys:
+8. Edit your Lithops config file and add the following keys:
 
     ```yaml
     lithops:
@@ -75,7 +75,7 @@ python3 -m pip install lithops[ibm]
 
 4. Copy the generated IAM API key (You can only see the key the first time you create it, so make sure to copy it).
 
-5. Edit your lithops config file and add the following keys:
+5. Edit your Lithops config file and add the following keys:
 
     ```yaml
     lithops:
