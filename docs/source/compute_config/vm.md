@@ -62,7 +62,7 @@ In this backend, you can use any Docker image that contains all the required dep
 Once you have your compute and storage backends configured, you can run a Hello World function with:
 
 ```bash
-lithops hello -b vm -s ibm_cos
+lithops hello -b vm -s aws_s3
 ```
 
 ## Viewing the execution logs

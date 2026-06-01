@@ -28,7 +28,7 @@ Runs a *hello-world* function.
 | --debug, -d     | Activate debug logs (Flag)   |
 +-----------------+------------------------------+
 
--  **Usage example**: ``lithops hello -b ibm_cf -s ibm_cos``
+-  **Usage example**: ``lithops hello -b aws_lambda -s aws_s3``
 
 ``lithops test``
 ~~~~~~~~~~~~~~~~
@@ -58,7 +58,7 @@ Runs the unit testing suite. For more instructions about testing, see the
 | --keep\_datasets, -k   | Keeps datasets in storage after the test run (Flag)            |
 +------------------------+----------------------------------------------------------------+
 
--  **Usage example**: ``lithops test -b ibm_cf -s ibm_cos``
+-  **Usage example**: ``lithops test -b aws_lambda -s aws_s3``
 
 ``lithops clean``
 ~~~~~~~~~~~~~~~~~
@@ -85,7 +85,7 @@ machine and the cloud, it is convenient to run this command.
 | --all, -a       | Delete all (Flag)            |
 +-----------------+------------------------------+
 
--  **Usage example**: ``lithops clean -b ibm_cf -s ibm_cos``
+-  **Usage example**: ``lithops clean -b aws_lambda -s aws_s3``
 
 ``lithops attach``
 ~~~~~~~~~~~~~~~~~~
@@ -210,7 +210,7 @@ cases you can avoid using this command.
 +-----------------+------------------------------------------------+
 
 -  **Usage example**:
-   ``lithops runtime deploy -b ibm_cf lithopscloud/my-runtime-name-v312:01 -m 1024 -t 300``
+   ``lithops runtime deploy -b aws_lambda lithopscloud/my-runtime-name-v312:01 -m 1024 -t 300``
 
 ``lithops runtime update <runtime-name>``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -236,7 +236,7 @@ let Lithops create the runtime automatically with the new Lithops code.
 +-----------------+------------------------------+
 
 -  **Usage example**:
-   ``lithops runtime update -b ibm_cf lithopscloud/my-runtime-name-v312:01``
+   ``lithops runtime update -b aws_lambda lithopscloud/my-runtime-name-v312:01``
 
 ``lithops runtime list``
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -253,7 +253,7 @@ Lists all created/deployed runtimes of a specific compute backend.
 | --debug, -d     | Activate debug logs (Flag)   |
 +-----------------+------------------------------+
 
--  **Usage example**: ``lithops runtime list -b ibm_cf``
+-  **Usage example**: ``lithops runtime list -b aws_lambda``
 
 ``lithops runtime delete <runtime-name>``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -282,7 +282,7 @@ match the provided runtime-name, but all of them.
 +-----------------+----------------------------------------------+
 
 -  **Usage example**:
-   ``lithops runtime delete -b ibm_cf -s ibm_cos lithopscloud/my-runtime-name-v312:01``
+   ``lithops runtime delete -b aws_lambda -s aws_s3 lithopscloud/my-runtime-name-v312:01``
 
 
 VM Images management
@@ -387,7 +387,7 @@ Uploads a local file to a bucket.
 +-----------------+--------------------------------------+
 
 -  **Usage example**:
-   ``lithops storage put -b ibm_cos test.txt cloudbucket``
+   ``lithops storage put -b aws_s3 test.txt cloudbucket``
 
 ``lithops storage get <bucket> <key>``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -411,7 +411,7 @@ Downloads a remote object storaged in a bucket to a local file.
 +-----------------+------------------------------------+
 
 -  **Usage example**:
-   ``lithops storage get -b ibm_cos cloudbucket test.txt``
+   ``lithops storage get -b aws_s3 cloudbucket test.txt``
 
 ``lithops storage delete <bucket> <key>``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -437,13 +437,13 @@ Deletes objects from a given bucket.
 -  **Usage examples**:
 
    - To delete a given object:
-     ``lithops storage delete -b ibm_cos cloudbucket test.txt``
+     ``lithops storage delete -b aws_s3 cloudbucket test.txt``
 
    - To delete all objects that start with a given prefix:
-     ``lithops storage delete -b ibm_cos cloudbucket -p test/``
+     ``lithops storage delete -b aws_s3 cloudbucket -p test/``
 
    - To delete all objects (empty the bucket):
-     ``lithops storage delete -b ibm_cos cloudbucket``
+     ``lithops storage delete -b aws_s3 cloudbucket``
 
 ``lithops storage list <bucket>``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -467,7 +467,7 @@ Lists objects from a given bucket.
 -  **Usage examples**:
 
    - To list all objects in a bucket:
-     ``lithops storage list -b ibm_cos cloudbucket``
+     ``lithops storage list -b aws_s3 cloudbucket``
 
    - To list all objects that start with a given prefix:
-     ``lithops storage list -b ibm_cos cloudbucket -p test/``
+     ``lithops storage list -b aws_s3 cloudbucket -p test/``

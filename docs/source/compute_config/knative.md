@@ -138,7 +138,7 @@ knative:
 Once you have your compute and storage backends configured, you can run a Hello World function with:
 
 ```bash
-lithops hello -b knative -s ibm_cos
+lithops hello -b knative -s aws_s3
 ```
 
 ## Viewing the execution logs

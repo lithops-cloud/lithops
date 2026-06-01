@@ -109,7 +109,7 @@ Providing `container_security_context` fully replaces the defaults — copy the 
 Once you have your compute and storage backends configured, you can run a Hello World function with:
 
 ```bash
-lithops hello -b k8s -s ibm_cos
+lithops hello -b k8s -s aws_s3
 ```
 
 ## Viewing the execution logs
