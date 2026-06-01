@@ -16,7 +16,7 @@ All of these changes are **ideal** for pipelines where launching **hundreds of p
 
 ## Installation
 
-1. Install kubernetes backend dependencies:
+1. Install Kubernetes backend dependencies:
 
 ```bash
 python3 -m pip install lithops[kubernetes]
@@ -33,8 +33,8 @@ python3 -m pip install lithops[kubernetes]
   k8s:
     ....
     docker_server       : docker.io
-    docker_user         : <Docker hub Username>
-    docker_password     : <Docker hub access TOKEN>
+    docker_user         : <Docker Hub username>
+    docker_password     : <Docker Hub access token>
     ....
     rabbitmq_executor : True
 ```
@@ -107,7 +107,7 @@ In this scenario, it is evident that the invocation time is consistently reduced
 |k8s | namespace | default |no | Kubernetes namespace to use for lithops execution |
 |k8s | docker_server | docker.io |no | Container registry URL |
 |k8s | docker_user | |no | Container registry user name |
-|k8s | docker_password | |no | Container registry password/token. In case of Docker hub, login to your docker hub account and generate a new access token [here](https://hub.docker.com/settings/security)|
+|k8s | docker_password | |no | Container registry password/token. For Docker Hub, log in to your Docker Hub account and generate a new access token [here](https://hub.docker.com/settings/security)|
 |k8s | rabbitmq_executor | False | yes | Alternative K8s backend accelerating parallel function execution (map) thanks to rabbitmq group calls and warm-state pods of higher granularity.|
 |k8s | worker_processes |  |no | CPUs per pod. This enables pod granularity. Default gets all CPUs of the nodes. |
 |k8s | runtime |  |no | Docker image name.|
@@ -116,7 +116,7 @@ In this scenario, it is evident that the invocation time is consistently reduced
 
 ## Test Lithops
 
-Once you have your compute and storage backends configured, you can run a hello world function with:
+Once you have your compute and storage backends configured, you can run a Hello World function with:
 
 ```bash
 lithops hello -b k8s -s ibm_cos

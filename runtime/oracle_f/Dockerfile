@@ -44,6 +44,5 @@ RUN unzip lithops_oracle.zip \
     && touch handler/__init__.py \
     && mv entry_point.py handler/
 
-
 ENV PYTHONPATH="${FUNCTION_DIR}"
 ENTRYPOINT ["/usr/local/bin/fdk", "handler/entry_point.py", "handler"]

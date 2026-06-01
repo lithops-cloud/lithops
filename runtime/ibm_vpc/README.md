@@ -67,14 +67,14 @@ and make it executable with
 If you plan to run your function within a **docker runtime** in the VM, it is preferable to include the docker image into the VM image. In this way, you will avoid the initial `docker pull <image/name>` command, thus reducing the overall execution time. To do so, add the `-d` flag followed by the docker image name you plan to use, for example:
 
  ```
- $ ./build_lithops_vm_image.sh -d lithopscloud/ibmcf-python-v38 lithops-ubuntu-20.04.qcow2
+ $ ./build_lithops_vm_image.sh -d lithopscloud/ibmcf-python-v312 lithops-ubuntu-20.04.qcow2
  ```
 **Important**
 
 Lithops will include all the local Docker images together with the Lithops runtime. To avoid this and include only Lithops runtime, it's advised to delete all local Docker images or run the script in a vanilla Ubuntu 20.04 VM. To delete all local images and include only Lithops runtime you need to execute
 
 ```
- $ ./build_lithops_vm_image.sh -p prune -d lithopscloud/ibmcf-python-v38  lithops-ubuntu-20.04.qcow2
+ $ ./build_lithops_vm_image.sh -p prune -d lithopscloud/ibmcf-python-v312 lithops-ubuntu-20.04.qcow2
 ```
 
 In this example the script generates a VM image named `lithops-ubuntu-20.04.qcow2` that contains all dependencies required by Lithops.

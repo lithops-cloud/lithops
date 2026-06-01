@@ -1,9 +1,9 @@
-# Python 3.8
-FROM continuumio/miniconda3:4.9.2
+# Python 3.10
+FROM continuumio/miniconda3:23.3.1-0
 
 # YOU MUST PIN THE PYTHON VERSION TO PREVENT IT TO BE UPDATED
-# For python 3.8 use "python==3.8.5"
-RUN echo "python==3.8.5" >> /opt/conda/conda-meta/pinned
+# For python 3.10 use "python==3.10.10"
+RUN echo "python==3.10.10" >> /opt/conda/conda-meta/pinned
 
 
 RUN apt-get update && apt-get install -y \

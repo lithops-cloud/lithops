@@ -105,7 +105,7 @@ class AWSBatchBackend:
         return f'{package}--{self.env_type}--{fmt_runtime_name}--{runtime_memory}mb'
 
     def _unformat_jobdef_name(self, jobdef_name):
-        # Default jobdef name is "lithops_v2-7-2_WU5O--FARGATE_SPOT--batch-default-runtime-v39--latest--1024mb"
+        # Default jobdef name is "lithops_v2-7-2_WU5O--FARGATE_SPOT--batch-default-runtime-v310--latest--1024mb"
         prefix, env_type, runtime = jobdef_name.split('--', 2)
         version = prefix.replace('lithops_v', '').split('_')[0].replace('-', '.')
         runtime_name, memory = runtime.rsplit("--", 1)

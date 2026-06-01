@@ -11,7 +11,7 @@ Lithops with Infinispan as storage backend. Infinispan provides two different en
 
 ## Configuration
 
-Edit your lithops config file and add the following keys:
+Edit your Lithops config file and add the following keys:
 
 ### REST endpoint
 ```yaml

@@ -6,7 +6,7 @@ Reporting bugs and asking questions
 
 You can post questions or issues or feedback through the following channels:
 
-1. [Github Discussions](https://github.com/lithops-cloud/lithops/discussions): For discussions about development, questions about usage, and feature requests.
+1. [GitHub Discussions](https://github.com/lithops-cloud/lithops/discussions): For discussions about development, questions about usage, and feature requests.
 2. [GitHub Issues](https://github.com/lithops-cloud/lithops/issues): For bug reports and feature requests.
 
 
@@ -17,7 +17,7 @@ To contribute a patch:
    harder to merge in a large change with a lot of disjoint features.
 2. Submit the patch as a GitHub pull request against the master branch.
 3. Make sure that your code passes the tests.
-4. Make sure that your code passes the linter. Install `flake8` with `pip3 install flake8` and run the following command until you don't see any linting error:
+4. Make sure that your code passes the linter. Install `flake8` with `pip3 install flake8` and run the following command until you see no linting errors:
    ```bash
    flake8 lithops --count --max-line-length=180 --statistics --ignore W605,W503
    ``` 
@@ -27,7 +27,7 @@ To contribute a patch:
 Testing
 -------
 
-To test that all is working as expected, you must install `pytest`, navigate to the tests folder `lithops/tests/`, and execute:
+To test that everything is working as expected, you must install `pytest`, navigate to the tests folder `lithops/tests/`, and execute:
 ```bash
 pytest -v
 ```

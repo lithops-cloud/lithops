@@ -22,9 +22,9 @@ az login
 
    Option 1:
 
-     1. Access to the [Azure portal Resource Groups](https://portal.azure.com/#view/HubsExtension/BrowseResourceGroups) and create a new Resource group named **LithopsResourceGroup** (or similar) in your preferred region. If you already have a resource group, omit this step.
+     1. Access the [Azure portal Resource Groups](https://portal.azure.com/#view/HubsExtension/BrowseResourceGroups) and create a new Resource group named **LithopsResourceGroup** (or similar) in your preferred region. If you already have a resource group, omit this step.
      
-     2. Access to the [Azure portal Storage Accounts](https://portal.azure.com/#view/HubsExtension/BrowseResource/resourceType/Microsoft.Storage%2FStorageAccounts) and create a new Storage Account with a unique name, for example: **lithops0sa25s1**. If you already have a storage account, omit this step.
+     2. Access the [Azure portal Storage Accounts](https://portal.azure.com/#view/HubsExtension/BrowseResource/resourceType/Microsoft.Storage%2FStorageAccounts) and create a new Storage Account with a unique name, for example: **lithops0sa25s1**. If you already have a storage account, omit this step.
 
    Option 2:
 
@@ -44,7 +44,7 @@ az login
     ```
 
 ## Choose an operating system image for the VM
-- Option 1: By default, Lithops uses an Ubuntu 22.04 image. In this case, no further action is required and you can continue to the next step. Lithops will install all required dependencies in the VM by itself. Note that this can take about 3 minutes to complete all installations.
+- Option 1: By default, Lithops uses an Ubuntu 24.04 image. In this case, no further action is required and you can continue to the next step. Lithops will install all required dependencies in the VM by itself. Note that this can take about 3 minutes to complete all installations.
 
 - Option 2: Alternatively, you can use a pre-built custom image that will greatly improve VM creation time for Lithops jobs. To benefit from this approach, navigate to [runtime/azure_vms](https://github.com/lithops-cloud/lithops/tree/master/runtime/azure_vms), and follow the instructions.
 
@@ -54,7 +54,7 @@ Alternatively, you can set the `reuse` mode to keep the started worker VMs runni
 
 ### Lithops configuration for the create or reuse modes
 
-Edit your lithops config and add the relevant keys:
+Edit your Lithops config and add the relevant keys:
 
 ```yaml
     lithops:
@@ -107,7 +107,7 @@ In this mode, Lithops can start and stop an existing VM, and deploy an entire jo
 
 ### Lithops configuration for the consume mode
 
-Edit your lithops config and add the relevant keys:
+Edit your Lithops config and add the relevant keys:
 
 ```yaml
     lithops:
@@ -150,7 +150,7 @@ Edit your lithops config and add the relevant keys:
 
 
 ## Test Lithops
-Once you have your compute and storage backends configured, you can run a hello world function with:
+Once you have your compute and storage backends configured, you can run a Hello World function with:
 
 ```bash
 lithops hello -b azure_vms -s azure_storage

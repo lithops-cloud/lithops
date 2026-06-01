@@ -54,7 +54,7 @@ gcloud services enable \
 
 ## Configuration
 
-1. Edit your lithops config and add the following keys:
+1. Edit your Lithops config and add the following keys:
 
 ```yaml
     lithops:
@@ -88,7 +88,7 @@ gcloud services enable \
 
 
 ## Test Lithops
-Once you have your compute and storage backends configured, you can run a hello world function with:
+Once you have your compute and storage backends configured, you can run a Hello World function with:
 
 ```bash
 lithops hello -b gcp_functions -s gcp_storage

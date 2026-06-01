@@ -1,10 +1,10 @@
 # Knative
 
-Lithops with *Knative* as serverless compute backend. Lithops also supports vanilla Knative for running applications. The easiest way to make it working is to create an IBM Kubernetes (IKS) cluster through the [IBM dashboard](https://cloud.ibm.com/kubernetes/landing). Alternatively you can use your own kubernetes cluster or a kind/minikube installation.
+Lithops with *Knative* as serverless compute backend. Lithops also supports vanilla Knative for running applications. The easiest way to make it work is to create an IBM Kubernetes (IKS) cluster through the [IBM dashboard](https://cloud.ibm.com/kubernetes/landing). Alternatively, you can use your own Kubernetes cluster or a kind/minikube installation.
 
 ## Installation
 
-Note that Lithops automatically builds the default runtime the first time you run a script. For this task it uses the **docker** command installed locally in your machine.
+Note that Lithops automatically builds the default runtime the first time you run a script. For this task it uses the **Docker** command installed locally on your machine.
 
 1. Install Knative backend dependencies:
 
@@ -32,7 +32,7 @@ python3 -m pip install lithops[knative]
 
 7. Install a networking layer. Currently Lithops supports **Kourier**. [Follow these instructions to install Kourier.](https://knative.dev/docs/install/yaml-install/serving/install-serving-with-yaml/#install-a-networking-layer)
 
-8. Edit your lithops config and add:
+8. Edit your Lithops config and add:
     ```yaml
     knative:
         ingress_endpoint : http://127.0.0.1:80
@@ -45,7 +45,7 @@ python3 -m pip install lithops[knative]
 
 ### Option 2 - IBM IKS:
 
-5. Access to the [IBM dashboard](https://cloud.ibm.com/kubernetes/landing) and create a new Kubernetes cluster.
+5. Access the [IBM dashboard](https://cloud.ibm.com/kubernetes/landing) and create a new Kubernetes cluster.
 
 6. Once the cluster is running, follow the instructions of the "Actions"--> "Connect via CLI" option of the dashboard to configure the *kubectl* client in your local machine. 
 
@@ -70,7 +70,7 @@ python3 -m pip install lithops[knative]
    export KUBECONFIG=<path-to-kube-config-file>
    ```
 
-9. Edit your lithops config and add the following keys:
+9. Edit your Lithops config and add the following keys:
     ```yaml
     lithops:
         backend: knative
@@ -78,15 +78,15 @@ python3 -m pip install lithops[knative]
 
 ### Configure a private container registry for your runtime
 
-#### Configure Docker hub
-To configure Lithops to access a private repository in your docker hub account, you need to extend the Knative config and add the following keys:
+#### Configure Docker Hub
+To configure Lithops to access a private repository in your Docker Hub account, you need to extend the Knative config and add the following keys:
 
 ```yaml
 knative:
     ....
     docker_server    : docker.io
-    docker_user      : <Docker hub Username>
-    docker_password  : <Docker hub access TOKEN>
+    docker_user      : <Docker Hub username>
+    docker_password  : <Docker Hub access token>
 ```
 
 #### Configure IBM Container Registry
@@ -110,7 +110,7 @@ knative:
 |knative | ingress_endpoint | |no | Ingress endpoint. Make sure to use http:// prefix |
 |knative | docker_server | docker.io |no | Container registry URL |
 |knative | docker_user | |no | Container registry user name |
-|knative | docker_password | |no | Container registry password/token. In case of Docker hub, login to your docker hub account and generate a new access token [here](https://hub.docker.com/settings/security)|
+|knative | docker_password | |no | Container registry password/token. For Docker Hub, log in to your Docker Hub account and generate a new access token [here](https://hub.docker.com/settings/security)|
 |knative | git_url | |no | Git repository to build the image |
 |knative | git_rev | |no | Git revision to build the image |
 |knative | max_workers | 100 | no | Max number of workers per `FunctionExecutor()`|
@@ -135,7 +135,7 @@ knative:
 
 ## Test Lithops
 
-Once you have your compute and storage backends configured, you can run a hello world function with:
+Once you have your compute and storage backends configured, you can run a Hello World function with:
 
 ```bash
 lithops hello -b knative -s ibm_cos

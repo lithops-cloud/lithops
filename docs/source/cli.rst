@@ -65,7 +65,7 @@ Runs the unit testing suite. For more instructions about testing, see the
 
 Deletes all the information related to Lithops except the config file.
 It includes deployed runtimes and temporary data stored in the storage
-backend. Run this command is like *start from scratch* with Lithops. In
+backend. Running this command is like *starting from scratch* with Lithops. In
 some circumstances, when there is some inconsistency between the local
 machine and the cloud, it is convenient to run this command.
 
@@ -177,7 +177,7 @@ the runtime to the compute backend.
 +-----------------+-----------------------------------+
 
 -  **Usage example**:
-   ``lithops runtime build -f Dockefile.pythonv39 -b ibm_cf lithopscloud/my-runtime-name-v39:01``
+   ``lithops runtime build -f Dockerfile -b aws_lambda lithopscloud/my-runtime-name-v312:01``
 
 ``lithops runtime deploy <runtime-name>``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -210,7 +210,7 @@ cases you can avoid using this command.
 +-----------------+------------------------------------------------+
 
 -  **Usage example**:
-   ``lithops runtime deploy -b ibm_cf lithopscloud/my-runtime-name-v39:01 -m 1024 -t 300``
+   ``lithops runtime deploy -b ibm_cf lithopscloud/my-runtime-name-v312:01 -m 1024 -t 300``
 
 ``lithops runtime update <runtime-name>``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -236,7 +236,7 @@ let Lithops create the runtime automatically with the new Lithops code.
 +-----------------+------------------------------+
 
 -  **Usage example**:
-   ``lithops runtime update -b ibm_cf lithopscloud/my-runtime-name-v39:01``
+   ``lithops runtime update -b ibm_cf lithopscloud/my-runtime-name-v312:01``
 
 ``lithops runtime list``
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -282,7 +282,7 @@ match the provided runtime-name, but all of them.
 +-----------------+----------------------------------------------+
 
 -  **Usage example**:
-   ``lithops runtime delete -b ibm_cf -s ibm_cos lithopscloud/my-runtime-name-v39:01``
+   ``lithops runtime delete -b ibm_cf -s ibm_cos lithopscloud/my-runtime-name-v312:01``
 
 
 VM Images management
@@ -306,7 +306,7 @@ Build a new VM image.
 +-----------------+-----------------------------------+
 | --region, -r    | Compute backend region            |
 +-----------------+-----------------------------------+
-| --overwrite, -o | Overwrite the VM image if exists  |
+| --overwrite, -o | Overwrite the VM image if it exists  |
 +-----------------+-----------------------------------+
 | --debug, -d     | Activate debug logs (Flag)        |
 +-----------------+-----------------------------------+
@@ -392,7 +392,7 @@ Uploads a local file to a bucket.
 ``lithops storage get <bucket> <key>``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Downloads a remote object stored in a bucket to a local file.
+Downloads a remote object storaged in a bucket to a local file.
 
 +-----------------+------------------------------------+
 | Parameter       | Description                        |

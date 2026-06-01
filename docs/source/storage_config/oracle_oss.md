@@ -2,7 +2,7 @@
 
 Lithops with Oracle Object Storage as storage backend.
 
-**Note**: This is a beta backend. Please open an issue if you encounter any error/bug
+**Note**: This is a beta backend. Please open an issue if you encounter any errors or bugs.
 
 ## Installation
 

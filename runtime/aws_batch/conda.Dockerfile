@@ -1,13 +1,13 @@
-# Python 3.8
-#FROM continuumio/miniconda3:4.9.2
+# Python 3.10
+#FROM continuumio/miniconda3:23.3.1-0
 
-# Python 3.9
-FROM continuumio/miniconda3:4.10.3
+# Python 3.11
+FROM continuumio/miniconda3:23.10.0-1
 
 # YOU MUST PIN THE PYTHON VERSION TO PREVENT IT TO BE UPDATED
-# For python 3.8 use "python==3.8.5"
-# For python 3.9 use "python==3.9.5"
-RUN echo "python==3.9.13" >> /opt/conda/conda-meta/pinned
+# For python 3.10 use "python==3.10.10"
+# For python 3.11 use "python==3.11.7"
+RUN echo "python==3.10.10" >> /opt/conda/conda-meta/pinned
 
 RUN apt-get --allow-releaseinfo-change update \
         # Upgrade installed packages to get latest security fixes if the base image does not contain them already.

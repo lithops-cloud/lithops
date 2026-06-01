@@ -6,7 +6,7 @@ Choose your compute backend:
 2. [IBM VPC](ibm_vpc/)
 3. [AWS Lambda](aws_lambda/)
 4. [AWS EC2](aws_ec2/)
-5. [Google Cloud Functions](gcp_functions/)
+5. [Google Cloud Run functions](gcp_functions/)
 6. [Google Cloud Run](gcp_cloudrun/)
 7. [Google Compute Engine](gcp_compute_engine/)
 8. [Azure Functions](azure_functions/)

@@ -143,7 +143,7 @@ gcp_compute_engine:
 
 ## Test Lithops
 
-Once you have your compute and storage backends configured, you can run a hello world function with:
+Once you have your compute and storage backends configured, you can run a Hello World function with:
 
 ```bash
 lithops hello -b gcp_compute_engine -s gcp_storage

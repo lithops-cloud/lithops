@@ -43,7 +43,7 @@ Cloud Proxy Storage API
 
 Similar to Python's built-in function `open() <https://docs.python.org/3/library/functions.html#open>`__.
 
-Manipulate an object stored in Cloud Object Storage.
+Manipulate an object storaged in Cloud Object Storage.
 
 +-------------+-------------------------------------------------------------------------------------------------------------------+
 | Parameter   | Description                                                                                                       |

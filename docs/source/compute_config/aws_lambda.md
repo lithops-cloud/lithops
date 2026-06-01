@@ -53,7 +53,7 @@ In summary, you can use one of the following settings:
 
 1. Provide the credentials via the `~/.aws/config` file, or set the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` environment variables.
 
-    You can run `aws configure` command if the AWS CLI is installed to setup the credentials. Then set in the Lithops config file:
+    If the AWS CLI is installed, you can run the `aws configure` command to set up the credentials. Then set them in the Lithops config file:
     ```yaml
     lithops:
         backend: aws_lambda
@@ -107,7 +107,7 @@ In summary, you can use one of the following settings:
 | aws_lambda | user_tags | {} | no | List of {name: ..., value: ...} pairs for Lambda instance user tags |
 | aws_lambda | env_vars | {} | no | List of {name: ..., value: ...} pairs for Lambda instance environment variables |
 | aws_lambda | namespace |  | no | Virtual namespace. This can be useful to virtually group Lithops function workers. The functions deployed by lithops will be prefixed by this namespace. For example you can set it to differentiate between `prod`, `dev` and `stage` environments.  |
-| aws_lambda | runtime_include_function | False | no | If set to true, Lithops will automatically build a new runtime, including the function's code, instead of transferring it through the storage backend at invocation time. This is useful when the function's code size is large (in the order of 10s of MB) and the code does not change frequently |
+| aws_lambda | runtime_include_function | False | no | If set to true, Lithops will automatically build a new runtime, including the function's code, instead of transferring it through the storage backend at invocation time. This is useful when the function's code size is large (on the order of tens of MB) and the code does not change frequently |
 
 
 ## Additional configuration
@@ -163,7 +163,7 @@ For more information, check out [AWS documentation on attaching EFS volumes to L
 
 
 ## Test Lithops
-Once you have your compute and storage backends configured, you can run a hello world function with:
+Once you have your compute and storage backends configured, you can run a Hello World function with:
 
 ```bash
 lithops hello -b aws_lambda -s aws_s3

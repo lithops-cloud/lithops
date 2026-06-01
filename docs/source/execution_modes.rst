@@ -21,7 +21,7 @@ as it eliminates the need to deploy code to a cloud environment during the
 development phase.
 
 
-.. note:: This is the preferable option for starting with Lithops, and for testing (debugging) your applications.
+.. note:: This is the preferred option for starting with Lithops, and for testing (debugging) your applications.
 
 .. code:: python
 
@@ -34,8 +34,8 @@ development phase.
 Serverless mode
 ---------------
 The "serverless mode" in Lithops is designed to execute functions using publicly 
-accessible serverless compute services, including IBM Cloud Functions, Amazon Lambda, 
-Google Cloud Functions, and more, enabling parallel task execution in isolated cloud 
+accessible serverless compute services, including IBM Cloud Functions, AWS Lambda, 
+Google Cloud Run functions, and more, enabling parallel task execution in isolated cloud 
 environments.
 
 In serverless mode, Lithops leverages the power of these serverless platforms to execute 
@@ -77,7 +77,7 @@ By leveraging the automatic creation and configuration of VMs provided by Lithop
 developers can focus on writing their functions while Lithops takes care of the 
 underlying infrastructure.
 
-.. note:: This is the preferable option if your application (or a part) requires a more powerful environment than the ones provided by the Serverless backends (in terms of CPU and Memory).
+.. note:: This is the preferred option if your application (or a part) requires a more powerful environment than the ones provided by the Serverless backends (in terms of CPU and Memory).
 
 .. code:: python
 

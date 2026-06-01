@@ -1,16 +1,10 @@
 
 
-# Python 3.8
-#FROM python:3.8-slim-bookworm
-
-# Python 3.9
-#FROM python:3.9-slim-bookworm
-
 # Python 3.10
 FROM python:3.10-slim-bookworm
 
 # Python 3.11
-# FROM python:3.11-slim-bookworm
+#FROM python:3.11-slim-bookworm
 
 RUN apt-get update \
     # add the required packages

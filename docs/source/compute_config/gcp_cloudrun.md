@@ -56,7 +56,7 @@ Replace `gcf-artifacts`, `us-east1`, `lithops-dev`, and the service account emai
 
 ## Configuration
 
-1. Edit your lithops config and add the following keys:
+1. Edit your Lithops config and add the following keys:
 
 ```yaml
     lithops:
@@ -89,12 +89,12 @@ Replace `gcf-artifacts`, `us-east1`, `lithops-dev`, and the service account emai
 |gcp_cloudrun | runtime_timeout | 300 |no | Runtime timeout in seconds. Default 5 minutes |
 |gcp_cloudrun | trigger | https  | no | Currently it supports 'https' trigger|
 |gcp_cloudrun | invoke_pool_threads | 100 |no | Number of concurrent threads used for invocation |
-|gcp_cloudrun | runtime_include_function | False | no | If set to true, Lithops will automatically build a new runtime, including the function's code, instead of transferring it through the storage backend at invocation time. This is useful when the function's code size is large (in the order of 10s of MB) and the code does not change frequently |
+|gcp_cloudrun | runtime_include_function | False | no | If set to true, Lithops will automatically build a new runtime, including the function's code, instead of transferring it through the storage backend at invocation time. This is useful when the function's code size is large (on the order of tens of MB) and the code does not change frequently |
 |gcp_cloudrun | docker_server | pkg.dev | no | Marker for [Artifact Registry](https://cloud.google.com/artifact-registry/docs/docker/names) default image names (`REGION-docker.pkg.dev/PROJECT/REPOSITORY/IMAGE`). |
 |gcp_cloudrun | artifact_registry_repository | lithops | no | Docker repository name in Artifact Registry (must exist under your project in the configured region). |
 
 ## Test Lithops
-Once you have your compute and storage backends configured, you can run a hello world function with:
+Once you have your compute and storage backends configured, you can run a Hello World function with:
 
 ```bash
 lithops hello -b gcp_cloudrun -s gcp_storage

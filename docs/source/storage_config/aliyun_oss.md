@@ -15,7 +15,7 @@ python3 -m pip install lithops[aliyun]
 
 1. [Navigate to the Cloud Console](https://ram.console.aliyun.com/manage/ak) and create a new AccessKey (If you don't have one)
 
-2. Edit your lithops config and add the following keys:
+2. Edit your Lithops config and add the following keys:
 
 ```yaml
 lithops:

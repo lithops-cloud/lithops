@@ -28,7 +28,7 @@ python3 -m pip install lithops[gcp]
 
 6. Click on *Continue*. Then, click on *Create key*. Select *JSON* and then *Create*. Download the JSON file to a secure location on your computer. Click *Done*.
 
-7. Edit your lithops config file and add the following keys:
+7. Edit your Lithops config file and add the following keys:
 
 ```yaml
     lithops:
