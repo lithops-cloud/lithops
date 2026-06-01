@@ -48,7 +48,7 @@ RUN pip install --upgrade --no-cache-dir --ignore-installed \
         psutil
         # Put here your pip dependencies...
 
-ENV APP_HOME /lithops
+ENV APP_HOME=/lithops
 WORKDIR $APP_HOME
 
 COPY lithops_aws_batch.zip .

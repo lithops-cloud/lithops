@@ -40,7 +40,7 @@ RUN /opt/conda-env/bin/pip install --upgrade --no-cache-dir --ignore-installed \
 RUN mv /var/lang/bin/python3.9 /var/lang/bin/python3.9-clean && \
     ln -sf /opt/conda-env/bin/python /var/lang/bin/python3.9
 
-ENV PYTHONPATH "/var/lang/lib/python3.9/site-packages:${FUNCTION_DIR}"
+ENV PYTHONPATH="/var/lang/lib/python3.9/site-packages:${FUNCTION_DIR}"
 
 ENV PATH="${PATH}:/opt/conda-env/bin/"
 

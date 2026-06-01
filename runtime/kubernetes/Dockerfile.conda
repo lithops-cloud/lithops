@@ -37,10 +37,10 @@ RUN pip install --upgrade setuptools six pip \
 # ones in terms of image size. For example:
 #RUN conda install -c conda-forge opencv && conda install sortedcontainers gevent-websocket && conda clean --all
 
-ENV PYTHONUNBUFFERED TRUE
+ENV PYTHONUNBUFFERED=TRUE
 
 # Copy Lithops proxy and lib to the container image.
-ENV APP_HOME /lithops
+ENV APP_HOME=/lithops
 WORKDIR $APP_HOME
 
 COPY lithops_k8s.zip .

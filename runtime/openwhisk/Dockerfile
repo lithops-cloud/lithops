@@ -3,7 +3,7 @@
 #FROM python:3.10-slim-bookworm
 FROM python:3.11-slim-bookworm
 
-ENV FLASK_PROXY_PORT 8080
+ENV FLASK_PROXY_PORT=8080
 
 RUN apt-get update \
     # add some packages required for the pip install

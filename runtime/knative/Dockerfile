@@ -34,12 +34,12 @@ RUN pip install --upgrade setuptools six pip \
         tblib \
         psutil
 
-ENV CONCURRENCY 4
-ENV TIMEOUT 600
-ENV PYTHONUNBUFFERED TRUE
+ENV CONCURRENCY=4
+ENV TIMEOUT=600
+ENV PYTHONUNBUFFERED=TRUE
 
 # Copy Lithops proxy and lib to the container image.
-ENV APP_HOME /lithops
+ENV APP_HOME=/lithops
 WORKDIR $APP_HOME
 
 COPY lithops_knative.zip .

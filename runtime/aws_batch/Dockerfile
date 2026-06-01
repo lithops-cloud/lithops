@@ -30,7 +30,7 @@ RUN pip install --upgrade --ignore-installed setuptools six pip \
         psutil
 
 # Copy Lithops proxy and lib to the container image.
-ENV APP_HOME /lithops
+ENV APP_HOME=/lithops
 WORKDIR $APP_HOME
 
 COPY lithops_aws_batch.zip .
