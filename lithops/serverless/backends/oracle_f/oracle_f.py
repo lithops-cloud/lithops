@@ -23,6 +23,7 @@ import time
 import oci
 from oci.functions import FunctionsManagementClient
 from oci.functions import FunctionsInvokeClient
+from oci.identity import IdentityClient
 from oci.object_storage import ObjectStorageClient
 
 from lithops import utils
@@ -50,6 +51,7 @@ class OracleCloudFunctionsBackend:
         self.app_name = oci_config.get(
             'application_name', f'{config.APP_NAME}_{self.user[-8:-1].lower()}')
 
+        self.signer = None
         self.cf_client = self._init_functions_mgmt_client()
 
         self.app_id = self._get_application_id(self.app_name)
@@ -58,18 +60,54 @@ class OracleCloudFunctionsBackend:
         msg = COMPUTE_CLI_MSG.format('Oracle Functions')
         logger.info(f"{msg} - Region: {self.region}")
 
+    def _get_docker_user(self):
+        """
+        Return the OCIR docker login username.
+
+        If docker_user is not in config, derive it as
+        `<tenancy-namespace>/<email>` using the OCI user profile.
+        docker_password must still be provided manually (Oracle auth token).
+        """
+        if os.path.isfile(self.key_file):
+            identity_client = IdentityClient(self.config)
+        else:
+            identity_client = IdentityClient(config={}, signer=self.signer)
+
+        user = identity_client.get_user(self.user).data
+        username = user.email
+        if not username:
+            raise Exception(
+                'Could not determine OCIR docker_user automatically. '
+                'Set docker_user under oracle_f in the configuration.'
+            )
+
+        docker_user = f'{self.namespace}/{username}'
+        logger.debug(f'Using OCIR docker login user {docker_user}')
+        self.config['docker_user'] = docker_user
+        return docker_user
+
     def _init_functions_mgmt_client(self):
         if os.path.isfile(self.key_file):
             return FunctionsManagementClient(config=self.config)
-        else:
+        if os.environ.get('OCI_RESOURCE_PRINCIPAL_VERSION'):
             self.signer = oci.auth.signers.get_resource_principals_signer()
             return FunctionsManagementClient(config={}, signer=self.signer)
+        raise Exception(
+            f"Oracle API key file '{self.key_file}' does not exist. "
+            "Configure a valid 'key_file' under the 'oracle' section, "
+            "or run inside OCI with resource principals enabled."
+        )
 
     def _init_functions_invk_client(self, endpoint):
         if os.path.isfile(self.key_file):
             return FunctionsInvokeClient(config=self.config, service_endpoint=endpoint)
-        else:
+        if self.signer:
             return FunctionsInvokeClient(config={}, service_endpoint=endpoint, signer=self.signer)
+        raise Exception(
+            f"Oracle API key file '{self.key_file}' does not exist. "
+            "Configure a valid 'key_file' under the 'oracle' section, "
+            "or run inside OCI with resource principals enabled."
+        )
 
     def _get_namespace(self):
         """
@@ -89,17 +127,23 @@ class OracleCloudFunctionsBackend:
 
     def _format_image_name(self, runtime_name):
         """
-        Formats OC image name from runtime name
+        Formats container image name from runtime name using docker_server.
         """
-        if 'ocir.io' not in runtime_name:
-            image_name = f'{self.region}.ocir.io/{self.namespace}/{runtime_name}'
-        else:
+        if 'ocir.io' in runtime_name or 'docker.io' in runtime_name:
             image_name = runtime_name
+        else:
+            docker_server = self.config.get('docker_server', f'{self.region}.ocir.io')
+            if 'docker.io' in docker_server:
+                prefix = self.config.get('docker_user')
+                if not prefix:
+                    raise Exception(
+                        'docker_user is required under oracle_f when docker_server is Docker Hub'
+                    )
+            else:
+                prefix = self.namespace
+            image_name = f'{docker_server}/{prefix}/{runtime_name}'
 
-        if ':' not in image_name:
-            image_name = f'{image_name}:latest'
-
-        return image_name
+        return image_name if ':' in image_name else f'{image_name}:latest'
 
     def get_runtime_key(self, runtime_name, runtime_memory, version=__version__):
         """
@@ -121,7 +165,7 @@ class OracleCloudFunctionsBackend:
 
     def _get_default_runtime_image_name(self):
         py_version = utils.CURRENT_PY_VERSION.replace('.', '')
-        return self._format_image_name(f'lithops-default-runtime-v{py_version}')
+        return self._format_image_name(f'lithops-oracle-default-runtime-v{py_version}')
 
     def clean(self, all=False):
         """
@@ -213,6 +257,12 @@ class OracleCloudFunctionsBackend:
             os.remove(config.FH_ZIP_LOCATION)
 
         logger.debug(f'Pushing runtime {image_name} to Oracle Cloud Container Registry')
+        docker_password = self.config.get('docker_password')
+        docker_server = self.config.get('docker_server')
+        if docker_password:
+            docker_user = self.config.get('docker_user') or self._get_docker_user()
+            logger.debug('Container registry credentials found in config. Logging in into the registry')
+            utils.docker_login(docker_user, docker_password, docker_server)
         if utils.is_podman(docker_path):
             cmd = f'{docker_path} push {image_name} --format docker --remove-signatures'
         else:
