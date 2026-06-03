@@ -18,6 +18,7 @@
 - [Azure Funcions] Updated default funcions plan to Flex Consumption
 - [AWS EC2] Updated default Ubuntu Image to Ubuntu 24
 - [Azure VMS] Updated default Ubuntu Image to Ubuntu 24
+- [Aliyun FC] Updated backend to Function Compute 3.0 (FC3 API) and added custom-container deploy mode support
 
 ### Fixed
 - [K8s] Fixed default runtime builds impacted by Debian Buster end-of-life.
