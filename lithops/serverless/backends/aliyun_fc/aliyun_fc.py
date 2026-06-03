@@ -41,6 +41,14 @@ from . import config
 
 logger = logging.getLogger(__name__)
 
+# Managed-Python (zip) deploy: GetFunction often omits state/lastUpdateStatus.
+ZIP_METADATA_MAX_ATTEMPTS = 24
+ZIP_METADATA_RETRY_SLEEP = 5
+CONTAINER_MAX_WAIT = 900
+CONTAINER_METADATA_MAX_ATTEMPTS = 60
+CONTAINER_METADATA_RETRY_SLEEP = 10
+FC_INVOKE_RUNTIME = RuntimeOptions(read_timeout=120000, connect_timeout=30000)
+
 
 def _init_fc3_client(access_key_id, access_key_secret, region, endpoint):
     cfg = open_api_models.Config(
@@ -181,39 +189,47 @@ class AliyunFunctionComputeBackend:
                 return False
             raise
 
+    def _check_function_failed(self, fn):
+        state = (fn.state or '').strip().lower()
+        update_status = (fn.last_update_status or '').strip().lower()
+
+        if state in ('failed', 'inactive'):
+            raise Exception(
+                f'Function {fn.function_name} is {fn.state}: '
+                f'{fn.state_reason or ""} ({fn.state_reason_code or ""})'
+            )
+        if update_status == 'failed':
+            raise Exception(
+                f'Function {fn.function_name} update failed: '
+                f'{fn.last_update_status_reason or ""} '
+                f'({fn.last_update_status_reason_code or ""})'
+            )
+
     def _wait_for_function_active(self, function_name):
         """
-        FC3 returns 412 if invoke runs while the function is still Pending
-        (common for custom-container image pull).
+        Wait until a custom-container function state is Active (image pull).
         """
-        max_wait = 900 if self._use_custom_container() else 300
         poll_interval = 5
         elapsed = 0
 
-        while elapsed < max_wait:
+        while elapsed < CONTAINER_MAX_WAIT:
             fn = self._get_function(function_name)
-            state = (fn.state or '').strip()
-            state_lower = state.lower()
+            self._check_function_failed(fn)
+            state = (fn.state or '').strip().lower()
 
-            if state_lower in ('active', 'ready'):
-                logger.debug('Function %s is ready (state=%s)', function_name, state)
+            if state in ('active', 'ready'):
+                logger.debug('Function %s is ready (state=%s)', function_name, fn.state)
                 return
-
-            if state_lower in ('failed', 'inactive'):
-                raise Exception(
-                    f'Function {function_name} is {state}: '
-                    f'{fn.state_reason or ""} ({fn.state_reason_code or ""})'
-                )
 
             logger.info(
                 'Waiting for function %s to become active (state=%s, elapsed=%ss)...',
-                function_name, state or 'pending', elapsed
+                function_name, fn.state or 'pending', elapsed,
             )
             time.sleep(poll_interval)
             elapsed += poll_interval
 
         raise Exception(
-            f'Timed out after {max_wait}s waiting for function {function_name} '
+            f'Timed out after {CONTAINER_MAX_WAIT}s waiting for function {function_name} '
             'to become active. Check the FC console (FC 3.0 functions list).'
         )
 
@@ -341,18 +357,23 @@ class AliyunFunctionComputeBackend:
             cmd = f'{sys.executable} -m pip install -t {build_dir} -r {req_file} --no-deps'
             utils.run_command(cmd)
 
-        if utils.is_linux_system():
+        docker_path = utils.get_docker_path()
+        if docker_path and not utils.is_linux_system():
+            cmd = 'python3 -m pip install -U -t . -r requirements.txt'
+            cmd = (
+                f'{docker_path} run --platform linux/amd64 -w /tmp '
+                f'-v {build_dir}:/tmp '
+                f'python:{utils.CURRENT_PY_VERSION}-slim-bookworm {cmd}'
+            )
+            utils.run_command(cmd)
+        elif utils.is_linux_system():
             download_requirements()
         else:
-            docker_path = utils.get_docker_path()
-            if docker_path:
-                cmd = 'python3 -m pip install -U -t . -r requirements.txt'
-                cmd = f'docker run -w /tmp -v {build_dir}:/tmp python:{utils.CURRENT_PY_VERSION}-slim-bookworm {cmd}'
-                utils.run_command(cmd)
-            else:
-                logger.warning('Aliyun Functions use a Linux environment. Building'
-                               ' a runtime from a non-Linux environment might cause issues')
-                download_requirements()
+            logger.warning(
+                'Docker is not available. Building a zip runtime on a non-Linux '
+                'host may produce incompatible binaries for Aliyun FC.'
+            )
+            download_requirements()
 
         current_location = os.path.dirname(os.path.abspath(__file__))
         handler_file = os.path.join(current_location, 'entry_point.py')
@@ -425,6 +446,7 @@ class AliyunFunctionComputeBackend:
                 memory_size=memory,
                 timeout=timeout,
                 role=self.role_arn,
+                internet_access=True,
             )
 
         res = self.fc_client.create_function(
@@ -450,13 +472,18 @@ class AliyunFunctionComputeBackend:
 
         logger.debug('Creating function %s', function_name)
         self._create_function(function_name, memory, timeout, runtime_name)
-        self._wait_for_function_active(function_name)
         if self._use_custom_container():
+            self._wait_for_function_active(function_name)
             time.sleep(10)
+            max_attempts = CONTAINER_METADATA_MAX_ATTEMPTS
+            retry_sleep = CONTAINER_METADATA_RETRY_SLEEP
+        else:
+            max_attempts = ZIP_METADATA_MAX_ATTEMPTS
+            retry_sleep = ZIP_METADATA_RETRY_SLEEP
 
-        metadata = self._generate_runtime_meta(function_name)
-
-        return metadata
+        return self._generate_runtime_meta(
+            function_name, max_attempts=max_attempts, retry_sleep=retry_sleep
+        )
 
     def delete_runtime(self, runtime_name, memory, version=__version__):
         logger.info(f'Deleting runtime: {runtime_name} - {memory}MB')
@@ -494,7 +521,7 @@ class AliyunFunctionComputeBackend:
         request = fc_models.InvokeFunctionRequest(body=io.BytesIO(payload_bytes))
 
         res = self.fc_client.invoke_function_with_options(
-            function_name, request, headers, RuntimeOptions()
+            function_name, request, headers, FC_INVOKE_RUNTIME
         )
 
         request_id = _get_response_header(res, 'x-fc-request-id')
@@ -502,7 +529,7 @@ class AliyunFunctionComputeBackend:
             raise Exception(f'Aliyun FC invoke did not return a request ID: {res.headers}')
         return request_id
 
-    def _generate_runtime_meta(self, function_name):
+    def _generate_runtime_meta(self, function_name, max_attempts, retry_sleep):
         logger.info(f'Extracting runtime metadata from: {function_name}')
         payload = {'log_level': logger.getEffectiveLevel(), 'get_metadata': True}
         payload_bytes = json.dumps(payload, default=str).encode('utf-8')
@@ -513,34 +540,43 @@ class AliyunFunctionComputeBackend:
         request = fc_models.InvokeFunctionRequest(body=io.BytesIO(payload_bytes))
 
         last_error = None
-        for attempt in range(60):
+        runtime_meta = None
+        max_wait = max_attempts * retry_sleep
+        for attempt in range(max_attempts):
+            if self._use_custom_container():
+                try:
+                    self._check_function_failed(self._get_function(function_name))
+                except FCClientException:
+                    pass
+
             try:
                 res = self.fc_client.invoke_function_with_options(
-                    function_name, request, headers, RuntimeOptions()
+                    function_name, request, headers, FC_INVOKE_RUNTIME
                 )
                 runtime_meta = json.loads(_read_invoke_body(res))
                 if isinstance(runtime_meta, dict) and runtime_meta.get('errorMessage'):
                     last_error = runtime_meta['errorMessage']
                     logger.warning(
-                        'Metadata invoke failed (attempt %s): %s',
-                        attempt + 1, last_error,
+                        'Metadata invoke failed (attempt %s/%s): %s',
+                        attempt + 1, max_attempts, last_error,
                     )
-                    time.sleep(10)
+                    time.sleep(retry_sleep)
                     continue
                 break
             except FCClientException as e:
                 last_error = e
                 if _is_pending_error(e):
                     logger.debug(
-                        'Function %s not ready for invoke (attempt %s), retrying...',
-                        function_name, attempt + 1,
+                        'Function %s not ready for invoke (attempt %s/%s), retrying...',
+                        function_name, attempt + 1, max_attempts,
                     )
-                    time.sleep(5)
+                    time.sleep(retry_sleep)
                     continue
                 raise Exception(f'Unable to extract runtime metadata: {e}') from e
         else:
             raise Exception(
-                f'Unable to extract runtime metadata from {function_name}: {last_error}'
+                f'Unable to extract runtime metadata from {function_name} after '
+                f'{max_wait}s: {last_error}'
             )
 
         if not runtime_meta or 'preinstalls' not in runtime_meta:
