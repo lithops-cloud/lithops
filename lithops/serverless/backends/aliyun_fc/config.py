@@ -25,19 +25,42 @@ DEFAULT_CONFIG_KEYS = {
     'max_workers': 300,
     'worker_processes': 1,
     'invoke_pool_threads': 64,
+    'deploy_mode': 'runtime',  # 'runtime' or 'custom-container'
+    'docker_server': 'docker.io',
 }
 
-CONNECTION_POOL_SIZE = 300
+# FC custom-container HTTP port (fixed by Alibaba Cloud; do not change).
+CA_PORT = 9000
 
-SERVICE_NAME = 'lithops'
 BUILD_DIR = os.path.join(TEMP_DIR, 'AliyunRuntimeBuild')
+FH_ZIP_LOCATION = os.path.join(TEMP_DIR, 'lithops_aliyun_fc.zip')
+
+DEFAULT_DOCKERFILE = """
+RUN apt-get update && apt-get install -y zip && rm -rf /var/lib/apt/lists/*
+
+RUN pip install --upgrade pip setuptools \
+    && pip install --no-cache-dir \
+        gunicorn flask gevent six pika redis requests PyYAML oss2 \
+        cloudpickle ps-mem tblib psutil
+
+ENV APP_HOME=/function
+WORKDIR ${APP_HOME}
+
+COPY lithops_aliyun_fc.zip .
+RUN unzip lithops_aliyun_fc.zip && rm lithops_aliyun_fc.zip
+
+ENV CAPort=9000
+CMD exec gunicorn --bind 0.0.0.0:${CAPort} --workers 1 --timeout 600 --keep-alive 95 container_entry_point:app
+"""
 
 AVAILABLE_PY_RUNTIMES = {
+    '3.9': 'python3.9',
     '3.10': 'python3.10',
     '3.12': 'python3.12',
 }
 
 REQUIREMENTS_FILE = """
+six
 pika
 tblib
 cloudpickle
@@ -85,3 +108,16 @@ def load_config(config_data=None):
     account_id = config_data['aliyun_fc']['account_id']
     region = config_data['aliyun_fc']['region']
     config_data['aliyun_fc']['public_endpoint'] = ENDPOINT.format(account_id, region)
+
+    deploy_mode = config_data['aliyun_fc'].get('deploy_mode', 'runtime')
+    if deploy_mode not in ('runtime', 'custom-container'):
+        raise Exception(
+            "aliyun_fc.deploy_mode must be 'runtime' or 'custom-container'"
+        )
+    config_data['aliyun_fc']['deploy_mode'] = deploy_mode
+
+    if deploy_mode == 'custom-container' and not config_data['aliyun_fc'].get('docker_user'):
+        raise Exception(
+            "aliyun_fc.docker_user is required when deploy_mode is 'custom-container' "
+            '(Docker Hub namespace for pushing images to docker.io)'
+        )

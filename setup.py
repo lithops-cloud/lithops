@@ -45,8 +45,8 @@ extras_require = {
         'azure-storage-queue'
     ],
     'aliyun': [
-        'aliyun-fc2',
-        'oss2'
+        'alibabacloud-fc20230330>=4.7.0',
+        'oss2',
     ],
     'ceph': [
         'boto3'

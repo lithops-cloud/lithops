@@ -1,8 +1,36 @@
-# Lithops runtime for Aliyun Functions Compute
+# Lithops runtime for Aliyun Functions Compute 3.0
 
 The runtime is the place where your functions are executed. The default runtime is automatically created the first time you execute a function. Lithops automatically detects the Python version of your environment and deploys the default runtime based on it.
 
-Currently, Aliyun Function Compute supports Python 3.10 and 3.12 (3.12 is in public preview). You can find the list of pre-installed modules [here](https://www.alibabacloud.com/help/en/function-compute/latest/python-event-functions). In addition, the Lithops default runtimes are built with the packages included in this [requirements.txt](requirements.txt) file:
+Aliyun FC supports two Lithops deploy modes (set `deploy_mode` under `aliyun_fc` in config):
+
+- **`runtime`** (default): zip package + managed Python runtime (`python3.10`, `python3.12`, region-dependent).
+- **`custom-container`**: Docker image; see [Custom container mode](#custom-container-mode) below.
+
+For managed runtimes, see pre-installed modules [here](https://www.alibabacloud.com/help/en/functioncompute/fc/user-guide/python/). Lithops default zip runtimes use [requirements.txt](requirements.txt):
+
+## Custom container mode
+
+Use this mode to run any Python version (e.g. 3.12) without relying on managed FC runtimes:
+
+```yaml
+aliyun_fc:
+    role_arn: <ROLE_ARN>
+    deploy_mode: custom-container
+    docker_user: <your_dockerhub_username>
+    docker_password: <your_dockerhub_token>
+    docker_server: docker.io
+```
+
+Lithops builds a Linux/amd64 image, pushes it to **Docker Hub** (`docker.io`) by default, and creates an FC function with `runtime: custom-container`. The container must expose an HTTP server on `0.0.0.0:9000` (see [FC custom container docs](https://www.alibabacloud.com/help/en/functioncompute/fc/user-guide/custom-container/)). The service role must be able to pull the image.
+
+Reference Dockerfile: [Dockerfile](Dockerfile). Example template: [start-fc custom-container/python](https://github.com/devsapp/start-fc/tree/V3/custom-container/python).
+
+Build a custom container runtime from `requirements.txt`:
+
+```
+$ lithops runtime build -b aliyun_fc -f requirements.txt my_container_runtime
+```
 
 To run a function with the default runtime you don't need to specify anything in the code, since everything is handled internally by Lithops:
 

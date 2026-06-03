@@ -36,7 +36,7 @@ aliyun_fc:
     role_arn: <ROLE_ARN>
 ```
 
-5. **(optional)** By default Lithops will automatically create a new **service** in your *Function Compute* account. For this purpose your user must have **List** and **Create** permissions for *Function Compute*. Alternatively, you can create a new service through the dashboard (or use one already created), assign the Role created in the previous step (under *Service Configuration* --> *Modify Configuration* --> *Role Config*), and configure the *service* entry in the *aliyun_fc* config section.
+5. Your RAM user needs permissions to create, list, invoke, and delete **FC 3.0 functions** (for example `AliyunFCFullAccess`). The `role_arn` is attached to each Lithops worker function so it can access OSS and other services.
 
 
 ## Summary of configuration keys for Aliyun
@@ -54,14 +54,17 @@ aliyun_fc:
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |aliyun_fc | role_arn | |yes | Role ARN. For example: `acs:ram::5244532493961771:role/aliyunfclogexecutionrole` |
-|aliyun_fc | region | |no | Region name. For example: `eu-west-1`. Lithops will use the region set under the `aliyun` section if it is not set here |
-|aliyun_fc | service | |no | Service name |
+|aliyun_fc | region | |no | Region name. For example: `us-east-1`. Lithops will use the region set under the `aliyun` section if it is not set here |
 |aliyun_fc | max_workers | 300 | no | Max number of workers. Alibaba limits the number of parallel workers to 300|
 |aliyun_fc | worker_processes | 1 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker |
 |aliyun_fc | runtime |  |no | Runtime name you built and deployed using the lithops client|
 |aliyun_fc | runtime_memory | 256 |no | Memory limit in MB. Default 256MB |
 |aliyun_fc | runtime_timeout | 300 |no | Runtime timeout in seconds. Default 5 minutes |
 |aliyun_fc | invoke_pool_threads | 300 |no | Number of concurrent threads used for invocation |
+|aliyun_fc | deploy_mode | runtime | no | `runtime` (zip + managed Python) or `custom-container` (Docker image) |
+|aliyun_fc | docker_server | docker.io | no | Container registry host (Docker Hub by default) |
+|aliyun_fc | docker_user | | no | Docker Hub user/namespace; **required** for `custom-container` |
+|aliyun_fc | docker_password | | no | Registry password or token used when pushing images |
 
 
 ## Test Lithops

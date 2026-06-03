@@ -354,7 +354,10 @@
 #aliyun_fc:
     #role_arn: <ROLE_ARN>                 # Mandatory
     #region: <REGION_NAME>                # Falls back to aliyun.region
-    #service: <SERVICE_NAME>
+    #deploy_mode: runtime                 # runtime | custom-container
+    #docker_server: docker.io              # Default registry for custom-container
+    #docker_user: <DOCKERHUB_USER>        # Required for custom-container
+    #docker_password: <DOCKERHUB_TOKEN>
     #runtime: <RUNTIME_NAME>
     #runtime_memory: 256                  # MB
     #runtime_timeout: 300                 # Seconds
