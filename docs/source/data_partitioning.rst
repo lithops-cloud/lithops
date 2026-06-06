@@ -28,13 +28,13 @@ stored in COS, split into chunks of a pre-determined size:
         size = int(6.7 * pow(2,20))  # ~6.7MiB - arbitrarily chosen chunk size in bytes 
 
         fexec = lithops.FunctionExecutor()
-        fexec.map(line_counter_in_chunk, data_location,obj_chunk_size=size)
+        fexec.map(line_counter_in_chunk, data_location, obj_chunk_size=size)
         res = fexec.get_result()
 
         with open('logs/map_output', 'w') as f:
             f.write(str(res).replace('{','\n{'))
 
--  To take full advantage of the test above (for the next topic), use a
+-  To take full advantage of the example above (for the next topic), use a
    file with a fixed number of rows repeated as a routine. You can
    create an example CSV file using the following function:
 
@@ -129,8 +129,8 @@ implemented as follows:
 
 #. Since the first byte is, as a matter of fact, the last byte of the
    previous chunk, we inspect whether it is a newline (``\n``) or not. If
-   not, it means that the current chunk starts in the middle of a line
-   belonging in its entirety to the former chunk. In such a case,
+   not,    it means that the current chunk starts in the middle of a line
+   belonging entirely to the former chunk. In such a case,
    position ``first_row_start_pos`` at the beginning of the next line.
 
 #. Because each chunk received an extra amount of bytes (the

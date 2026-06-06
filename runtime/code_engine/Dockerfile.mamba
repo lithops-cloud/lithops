@@ -1,16 +1,10 @@
 
 
-# Python 3.8
-#FROM python:3.8-slim-bookworm
-
-# Python 3.9
-#FROM python:3.9-slim-bookworm
-
 # Python 3.10
 FROM python:3.10-slim-bookworm
 
 # Python 3.11
-# FROM python:3.11-slim-bookworm
+#FROM python:3.11-slim-bookworm
 
 RUN apt-get update \
     # add the required packages
@@ -61,13 +55,13 @@ RUN ln -sf /opt/conda-env/bin/python /usr/local/bin/python
 
 ENV PATH="/opt/conda-env/bin/:${PATH}"
 
-ENV PORT 8080
-ENV CONCURRENCY 1
-ENV TIMEOUT 600
-ENV PYTHONUNBUFFERED TRUE
+ENV PORT=8080
+ENV CONCURRENCY=1
+ENV TIMEOUT=600
+ENV PYTHONUNBUFFERED=TRUE
 
 # Copy Lithops proxy and lib to the container image.
-ENV APP_HOME /lithops
+ENV APP_HOME=/lithops
 WORKDIR $APP_HOME
 
 COPY lithops_codeengine.zip .

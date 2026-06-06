@@ -25,7 +25,7 @@ result = lithops.get_result()
 
 If you require additional Python modules not included in the default runtime, you can create your own custom Lithops runtime incorporating them. To create a custom runtime, compile all the necessary modules into a `requirements.txt` file.
 
-For instance, if you wish to integrate the `matplotlib` module into your runtime, which isn't part of the default setup, you need to append it to the existing [requirements.txt](requirements.txt) file. Note that this `requirements.txt` contains the mandatory packages required by lithops, so you don't have to remove any of them from the list, but just add your packages at the end.
+For instance, if you wish to integrate the `matplotlib` module into your runtime, which isn't part of the default setup, you need to append it to the existing [requirements.txt](requirements.txt) file. Note that this `requirements.txt` contains the mandatory packages required by Lithops, so you don't have to remove any of them from the list, but just add your packages at the end.
 
 **IMPORTANT**: Note that the runtime is built using your local machine, and some libraries, like Numpy, compile some *C* code based on the Operating System you are using. Azure functions run on a Linux machine, this means that if you use **macOS** or **Windows** for building the runtime, libraries that compile *C* code may not run correctly inside the function. In this case, you must use a Linux machine for building the runtime.
 

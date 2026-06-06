@@ -1,13 +1,10 @@
 
 
-# Python 3.8
-#FROM python:3.8-slim-bookworm
-
-# Python 3.9
-#FROM python:3.9-slim-bookworm
-
 # Python 3.10
 FROM python:3.10-slim-bookworm
+
+# Python 3.11
+#FROM python:3.11-slim-bookworm
 
 RUN apt-get update && apt-get install -y \
         zip \
@@ -30,7 +27,7 @@ RUN pip install --upgrade --ignore-installed setuptools six pip \
         psutil
 
 # Copy Lithops proxy and lib to the container image.
-ENV APP_HOME /lithops
+ENV APP_HOME=/lithops
 WORKDIR $APP_HOME
 
 COPY lithops_aws_batch.zip .

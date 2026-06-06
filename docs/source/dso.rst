@@ -13,7 +13,7 @@ Usage
    .. code::
 
       lithops runtime build -f runtime/ibm_cf/Docker.dso id/runtime:tag
-      lithops runtime create id/runtime:tag
+      lithops runtime deploy id/runtime:tag
 
 2. Create a DSO server in the cloud following the instructions available here: https://github.com/crucial-project/dso/tree/2.0
 

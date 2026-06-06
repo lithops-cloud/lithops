@@ -1,6 +1,6 @@
 # Lithops runtime for OpenWhisk
 
-The runtime is the place where your functions are executed. In Lithops, runtimes are based on docker images, and it includes default runtimes that allow you to run functions with Python >= 3.10 environments. Lithops main runtime is responsible to execute Python functions within OpenWhisk. The strong requirement here is to match Python versions between the client and the runtime. The runtime may also contain additional packages which your code depends on.
+The runtime is the place where your functions are executed. In Lithops, runtimes are based on Docker images, and it includes default runtimes that allow you to run functions with Python >= 3.10 environments. Lithops main runtime is responsible to execute Python functions within OpenWhisk. The strong requirement here is to match Python versions between the client and the runtime. The runtime may also contain additional packages which your code depends on.
 
 
 The default runtime is created the first time you execute a function. Lithops automatically detects the Python version of your environment and deploys the default runtime based on it.
@@ -37,11 +37,11 @@ fexec = lithops.FunctionExecutor(runtime_memory=512)
 
     If you need some Python modules (or other system libraries) which are not included in the default docker images (see table above), it is possible to build your own Lithops runtime with all of them.
 
-    This alternative usage is based on to build a local Docker image, deploy it to the docker hub (you need a [Docker Hub account](https://hub.docker.com)) (or another registry) and use it as a Lithops base runtime. 
+    This alternative usage is based on building a local Docker image, deploy it to Docker Hub (you need a [Docker Hub account](https://hub.docker.com)) (or another registry) and use it as a Lithops base runtime. 
     
     In this folder you will find some Dockerfile skeletons that you can use to build your runtimes. To build your own runtime, first install the Docker CE version in your client machine. You can find the instructions [here](https://docs.docker.com/get-docker/). If you already have Docker installed omit this step.
 
-    Login to your Docker hub account by running in a terminal the next command.
+    Log in to your Docker Hub account by running in a terminal the next command.
 
         $ docker login
 
@@ -51,7 +51,7 @@ fexec = lithops.FunctionExecutor(runtime_memory=512)
 
         $ lithops runtime build -b openwhisk docker_username/runtimename:tag
 
-    Note that Docker hub image names look like *"docker_username/runtimename:tag"* and must be all lower case, for example:
+    Note that Docker Hub image names look like *"docker_username/runtimename:tag"* and must be all lower case, for example:
 
         $ lithops runtime build -b openwhisk jsampe/lithops-custom-runtime-v312:0.1
 
@@ -79,7 +79,7 @@ fexec = lithops.FunctionExecutor(runtime_memory=512)
     fexec = lithops.FunctionExecutor(runtime='jsampe/lithops-conda-v312:0.1')
     ```
 
-    Alternatively, you can create a Lithops runtime based on already built Docker image by executing the following command, which will deploy all the necessary information to use the runtime with your Lithops.
+    Alternatively, you can create a Lithops runtime based on an already built Docker image by executing the following command, which will deploy all the necessary information to use the runtime with your Lithops.
 
         $ lithops runtime deploy docker_username/runtimename:tag -b openwhisk -s minio
 
@@ -104,7 +104,7 @@ fexec = lithops.FunctionExecutor(runtime_memory=512)
 
         $ lithops runtime update default -b openwhisk -s minio
 
-    You can update any other runtime deployed in your namespace by specifying the docker image that the runtime depends on:
+    You can update any other runtime deployed in your namespace by specifying the Docker image that the runtime depends on:
 
         $ lithops runtime update docker_username/runtimename:tag -b openwhisk -s minio
 
@@ -124,11 +124,11 @@ fexec = lithops.FunctionExecutor(runtime_memory=512)
 
         $ lithops runtime delete default -b openwhisk -s minio
 
-    You can delete any other runtime deployed in your namespace by specifying the docker image that the runtime depends on:
+    You can delete any other runtime deployed in your namespace by specifying the Docker image that the runtime depends on:
 
         $ lithops runtime delete docker_username/runtimename:tag -b openwhisk -s minio
 
-    For example, you can delete runtime based on the Docker image `jsampe/lithops-conda-v312:0.1` by:
+    For example, you can delete a runtime based on the Docker image `jsampe/lithops-conda-v312:0.1` by:
 
         $ lithops runtime delete jsampe/lithops-conda-v312:0.1 -b openwhisk -s minio
 

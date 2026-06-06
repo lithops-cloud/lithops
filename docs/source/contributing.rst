@@ -8,7 +8,7 @@ Reporting bugs and asking questions
 
 You can post questions or issues or feedback through the following channels:
 
-1. `Github Discussions <https://github.com/lithops-cloud/lithops/discussions>`_: For discussions about development, questions about usage, and feature requests.
+1. `GitHub Discussions <https://github.com/lithops-cloud/lithops/discussions>`_: For discussions about development, questions about usage, and feature requests.
 2. `GitHub Issues <https://github.com/lithops-cloud/lithops/issues>`_: For bug reports and feature requests.
 
 

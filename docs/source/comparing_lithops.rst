@@ -14,7 +14,7 @@ In 2018, the Lithops team forked PyWren to adapt it for **IBM Cloud Functions**,
 
 By September 2020, the IBM PyWren fork had diverged significantly. The maintainers rebranded the project as **Lithops**, reflecting its broader goals — including multi-cloud compatibility, improved developer experience, and support for modern Python environments and distributed computing patterns.
 
-For more details, refer to the Middleware'18 industry paper:
+For more details, refer to the Middleware 2018 industry paper:
 `Serverless Data Analytics in the IBM Cloud <https://dl.acm.org/doi/10.1145/3284028.3284029>`_.
 
 Ray and Dask

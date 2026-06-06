@@ -35,15 +35,15 @@ python3 -m pip install lithops[kubernetes]
 
 ## Configure a private container registry for your runtime
 
-### Configure Docker hub
-To configure Lithops to access a private repository in your docker hub account, you need to extend the kubernetes config and add the following keys:
+### Configure Docker Hub
+To configure Lithops to access a private repository in your Docker Hub account, you need to extend the kubernetes config and add the following keys:
 
 ```yaml
 k8s:
     ....
     docker_server    : docker.io
-    docker_user      : <Docker hub Username>
-    docker_password  : <Docker hub access TOKEN>
+    docker_user      : <Docker Hub username>
+    docker_password  : <Docker Hub access token>
 ```
 
 ### Configure IBM Container Registry
@@ -67,7 +67,7 @@ k8s:
 |k8s | namespace | default |no | Kubernetes namespace to use for Lithops execution |
 |k8s | docker_server | docker.io |no | Container registry URL |
 |k8s | docker_user | |no | Container registry user name |
-|k8s | docker_password | |no | Container registry password/token. In case of Docker hub, login to your docker hub account and generate a new access token [here](https://hub.docker.com/settings/security)|
+|k8s | docker_password | |no | Container registry password/token. For Docker Hub, log in to your Docker Hub account and generate a new access token [here](https://hub.docker.com/settings/security)|
 |k8s | rabbitmq_executor | False | no | Alternative K8s backend that accelerates parallel function execution (map) by using RabbitMQ group calls and warm-state pods with higher granularity. For more information, see [here](./kubernetes_rabbitmq.md). |
 |k8s | max_workers | 100 | no | Max number of workers per `FunctionExecutor()`|
 |k8s | worker_processes | 1 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker. It is recommended to set this value to the same number of CPUs as the container. |
@@ -106,10 +106,10 @@ Providing `container_security_context` fully replaces the defaults — copy the 
 
 ## Test Lithops
 
-Once you have your compute and storage backends configured, you can run a hello world function with:
+Once you have your compute and storage backends configured, you can run a Hello World function with:
 
 ```bash
-lithops hello -b k8s -s ibm_cos
+lithops hello -b k8s -s aws_s3
 ```
 
 ## Viewing the execution logs

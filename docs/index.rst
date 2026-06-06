@@ -56,7 +56,7 @@ Object Storage Made Easy
 Lithops simplifies working with data lakes and object storage by providing:
 
 - 🔍 **Automatic data discovery**: Detects and lists files across nested directories.
-- 📂 **Transparent data partitioning**: Splits large files (e.g., CSV, Parquet, JSON) into chunks for efficient parallel processing.
+- 📂 **Transparent data partitioning**: Splits large text-based files (for example, CSV) into chunks for efficient parallel processing.
 - 🧰 **Unified, Pythonic API**: Interact with your data using a single interface, regardless of where it's stored.
 
 You write simple Python code — Lithops handles the complexity of parallel I/O, data distribution, and storage backends under the hood.

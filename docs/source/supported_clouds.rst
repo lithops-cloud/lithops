@@ -34,7 +34,7 @@ Currently, Lithops for AWS supports these backends:
      - `AWS S3 <https://docs.aws.amazon.com/s3/>`_
    * - `AWS Batch <https://docs.aws.amazon.com/batch/>`_
      -
-   * - `AWS Elastic Cloud Compute (EC2) <https://docs.aws.amazon.com/ec2/>`_
+   * - `AWS Elastic Compute Cloud (EC2) <https://docs.aws.amazon.com/ec2/>`_
      -
 
 Google Cloud
@@ -68,7 +68,7 @@ Currently, Lithops for Microsoft Azure supports these backends:
      - Storage
    * - `Azure Functions <https://learn.microsoft.com/en-us/azure/azure-functions/>`_
      - `Azure Blob Storage <https://learn.microsoft.com/en-us/azure/storage/blobs/>`_
-   * - `Azure Container APPs <https://learn.microsoft.com/en-us/azure/container-apps/>`_
+   * - `Azure Container Apps <https://learn.microsoft.com/en-us/azure/container-apps/>`_
      -
    * - `Azure Virtual Machines <https://learn.microsoft.com/en-us/azure/virtual-machines/>`_
      -

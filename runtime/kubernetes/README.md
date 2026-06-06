@@ -1,13 +1,13 @@
 # Lithops runtime for Kubernetes
 
-The runtime is the place where the functions are executed. In Kubernetes, runtimes are based on docker images. 
+The runtime is the place where the functions are executed. In Kubernetes, runtimes are based on Docker images. 
 
-For running lithops on kubernetes, you need a runtime built on Docker Hub (or any other container registry), or you need a Docker Hub account for placing the runtimes created by lithops.
+For running Lithops on Kubernetes, you need a runtime built on Docker Hub (or any other container registry), or you need a Docker Hub account for placing the runtimes created by Lithops.
 
 If you don't have an already built runtime, the default runtime is built the first time you execute a function. Lithops automatically detects the Python version of your environment and deploys the default runtime based on it.
 
 
-By default, Lithops uses 256MB as runtime memory size and 0.5vCPU for the kubernetes runtimes. However, you can change it in the `config` by setting the appropriate vCPU size:
+By default, Lithops uses 256MB as runtime memory size and 0.5vCPU for the Kubernetes runtimes. However, you can change it in the `config` by setting the appropriate vCPU size:
 
 ```yaml
 k8s:
@@ -21,14 +21,14 @@ k8s:
 
     If you need some Python modules (or other system libraries) which are not included in the default docker images (see table above), it is possible to build your own Lithops runtime with all of them.
 
-    This option is based on building a local Docker image, deploy it to the docker hub (you need a [Docker Hub account](https://hub.docker.com)) and use it as a Lithops base runtime.
+    This option is based on building a local Docker image, deploy it to Docker Hub (you need a [Docker Hub account](https://hub.docker.com)) and use it as a Lithops base runtime.
     Project provides some skeletons of Docker images, for example:
 
     * [Dockerfile](Dockerfile) 
 
     To build your own runtime, first install the Docker CE version in your client machine. You can find the instructions [here](https://docs.docker.com/get-docker/). If you already have Docker installed omit this step.
 
-    Login to your Docker hub account by running in a terminal the next command.
+    Log in to your Docker Hub account by running in a terminal the next command.
 
         $ docker login
 
@@ -37,7 +37,7 @@ k8s:
 
         $ lithops runtime build -b k8s docker_username/runtimename:tag
 
-    Note that Docker hub image names look like *"docker_username/runtimename:tag"* and must be all lower case, for example:
+    Note that Docker Hub image names look like *"docker_username/runtimename:tag"* and must be all lower case, for example:
 
         $ lithops runtime build -b k8s myaccount/lithops-k8s-custom-v312:01
 
@@ -46,7 +46,7 @@ k8s:
         $ lithops runtime build -b k8s -f kubernetes/Dockerfile.conda myaccount/lithops-k8s-custom-v312:01
 
     Once you have built your runtime with all of your necessary packages, you can already use it with Lithops.
-    To do so, you have to specify the full docker image name in the configuration or when you create the **FunctionExecutor** instance, or directly in the config file, for example:
+    To do so, you have to specify the full Docker image name in the configuration or when you create the **FunctionExecutor** instance, or directly in the config file, for example:
 
     ```python
     import lithops

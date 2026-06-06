@@ -86,10 +86,10 @@ gcp_cloudrun:
             google-api-python-client \
             google-auth
     
-    ENV PYTHONUNBUFFERED TRUE
+    ENV PYTHONUNBUFFERED=TRUE
     
     # Copy Lithops proxy and lib to the container image.
-    ENV APP_HOME /lithops
+    ENV APP_HOME=/lithops
     WORKDIR $APP_HOME
     
     COPY lithops_cloudrun.zip .

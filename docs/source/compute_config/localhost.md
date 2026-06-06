@@ -40,7 +40,7 @@ fexec = lithops.LocalhostExecutor()
 
 ### Container Environment
 
-The Container environment runs the functions within a ``docker container``. In this case you must [install the Docker CE version](https://docs.docker.com/get-docker/) on your machine. This environment is automatically activated when you provide a Docker image as a runtime. For example, by adding the following keys in the config:
+The Container environment runs the functions within a ``Docker container``. In this case you must [install the Docker CE version](https://docs.docker.com/get-docker/) on your machine. This environment is automatically activated when you provide a Docker image as a runtime. For example, by adding the following keys in the config:
 
 ```yaml
 localhost:
@@ -71,7 +71,7 @@ In this mode of execution, you can use any Docker image that contains all the re
 
 ## Test Lithops
 
-Once you have your compute and storage backends configured, you can run a hello world function with:
+Once you have your compute and storage backends configured, you can run a Hello World function with:
 
 ```bash
 lithops hello -b localhost -s localhost

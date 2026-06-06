@@ -58,7 +58,7 @@ pw = lithops.FunctionExecutor(runtime_memory=512)
 
 If you require additional Python modules not included in the default runtime, you can create your own custom Lithops runtime incorporating them. To create a custom runtime, compile all the necessary modules into a `requirements.txt` file.
 
-For instance, if you wish to integrate the `matplotlib` module into your runtime, which isn't part of the default setup, you need to append it to the existing [requirements.txt](requirements.txt) file. Note that this `requirements.txt` contains the mandatory packages required by lithops, so you don't have to remove any of them from the list, but just add your packages at the end.
+For instance, if you wish to integrate the `matplotlib` module into your runtime, which isn't part of the default setup, you need to append it to the existing [requirements.txt](requirements.txt) file. Note that this `requirements.txt` contains the mandatory packages required by Lithops, so you don't have to remove any of them from the list, but just add your packages at the end.
 
 After updating the file accordingly, you can proceed to build the custom runtime by specifying the modified `requirements.txt` file along with a chosen runtime name:
 

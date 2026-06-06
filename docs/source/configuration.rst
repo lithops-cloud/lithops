@@ -7,13 +7,13 @@ To work with Lithops on the Cloud, you must configure at least one compute backe
 Lithops can work both with the leading cloud providers, and using on-premise or Kubernetes platforms.
 You have multiple options to choose compute and storage backends based on your needs.
 
-Lithops configuration can be provided either using a **configuration file**, or in runtime via a **python dictionary.**
+Lithops configuration can be provided either using a **configuration file**, or in runtime via a **Python dictionary.**
 
 
 Compute and Storage backends
 ----------------------------
 
-Choose your compute and storage engines from the table below:
+Choose your compute and storage backends from the table below:
 
 +--------------------------------------------------------------------+--------------------------------------------------------------------+
 | Compute backends                                                   | Storage Backends                                                   |
@@ -23,7 +23,7 @@ Choose your compute and storage engines from the table below:
 || `IBM Code Engine <compute_config/code_engine.html>`_              || `Google Cloud Storage <storage_config/gcp_storage.html>`_         |
 || `AWS Lambda <compute_config/aws_lambda.html>`_                    || `Azure Blob Storage <storage_config/azure_blob.html>`_            |
 || `AWS Batch <compute_config/aws_batch.html>`_                      || `Aliyun Object Storage Service <storage_config/aliyun_oss.html>`_ |
-|| `Google Cloud Functions <compute_config/gcp_functions.html>`_     || `Infinispan <storage_config/infinispan.html>`_                    |
+|| `Google Cloud Run functions <compute_config/gcp_functions.html>`_     || `Infinispan <storage_config/infinispan.html>`_                    |
 || `Google Cloud Run <compute_config/gcp_cloudrun.html>`_            || `Ceph <storage_config/ceph.html>`_                                |
 || `Azure Functions <compute_config/azure_functions.html>`_          || `MinIO <storage_config/minio.html>`_                              |
 || `Azure Container Apps <compute_config/azure_containers.html>`_    || `Redis <storage_config/redis.html>`_                              |

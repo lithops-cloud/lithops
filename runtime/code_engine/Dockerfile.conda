@@ -1,9 +1,3 @@
-# Python 3.8
-#FROM docker.io/continuumio/miniconda3:4.9.2
-
-# Python 3.9
-#FROM docker.io/continuumio/miniconda3:4.10.3
-
 # Python 3.10
 FROM docker.io/continuumio/miniconda3:23.3.1-0
 
@@ -11,13 +5,11 @@ FROM docker.io/continuumio/miniconda3:23.3.1-0
 #FROM docker.io/continuumio/miniconda3:23.10.0-1
 
 # YOU MUST PIN THE PYTHON VERSION TO PREVENT IT TO BE UPDATED
-# For python 3.8 use "python==3.8.5"
-# For python 3.9 use "python==3.9.5"
 # For python 3.10 use "python==3.10.10"
 # For python 3.11 use "python==3.11.7"
 RUN echo "python==3.10.10" >> /opt/conda/conda-meta/pinned
 
-ENV FLASK_PROXY_PORT 8080
+ENV FLASK_PROXY_PORT=8080
 
 RUN apt-get --allow-releaseinfo-change update \
         # Upgrade installed packages to get latest security fixes if the base image does not contain them already.
@@ -47,13 +39,13 @@ RUN pip install --upgrade pip setuptools six gevent \
 # Replace python intepreter with conda's
 RUN ln -sf /opt/conda/bin/python /usr/local/bin/python
 
-ENV PORT 8080
-ENV CONCURRENCY 1
-ENV TIMEOUT 600
-ENV PYTHONUNBUFFERED TRUE
+ENV PORT=8080
+ENV CONCURRENCY=1
+ENV TIMEOUT=600
+ENV PYTHONUNBUFFERED=TRUE
 
 # Copy Lithops proxy and lib to the container image.
-ENV APP_HOME /lithops
+ENV APP_HOME=/lithops
 WORKDIR $APP_HOME
 
 COPY lithops_codeengine.zip .
