@@ -19,6 +19,7 @@
 - [AWS EC2] Updated default Ubuntu Image to Ubuntu 24
 - [Azure VMS] Updated default Ubuntu Image to Ubuntu 24
 - [Aliyun FC] Updated backend to Function Compute 3.0 (FC3 API) and added custom-container deploy mode support
+- [Code Engine] Rewrote backend to use the IBM Code Engine SDK v2 (`CodeEngineV2`) instead of the Kubernetes API
 
 ### Fixed
 - [K8s] Fixed default runtime builds impacted by Debian Buster end-of-life.

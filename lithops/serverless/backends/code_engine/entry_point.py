@@ -136,6 +136,8 @@ def run_ce_job(action, encoded_payload):
 
 if __name__ == '__main__':
     if 'JOB_INDEX' in os.environ:
-        run_ce_job(sys.argv[1:][0], sys.argv[1:][1])
+        action = os.environ['ACTION']
+        payload = os.environ['PAYLOAD']
+        run_ce_job(action, payload)
     else:
         run_knative_server()

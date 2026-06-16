@@ -188,7 +188,9 @@ def test(test, config, backend, storage, debug, region, exitfirst):
 @click.option('--storage', '-s', default=None, help='storage backend')
 @click.option('--debug', '-d', is_flag=True, help='debug mode')
 @click.option('--region', '-r', default=None, help='compute backend region')
-def hello(config, backend, storage, debug, region):
+@click.option('--map', 'map_count', '-m', default=None, type=click.IntRange(min=1),
+              help='number of map invocations to run instead of a single call_async')
+def hello(config, backend, storage, debug, region, map_count):
     config = load_yaml_config(config) if config else None
 
     log_level = logging.INFO if not debug else logging.DEBUG
@@ -207,13 +209,25 @@ def hello(config, backend, storage, debug, region):
         config=config, backend=backend,
         storage=storage, region=region
     )
-    fexec.call_async(hello, username)
-    result = fexec.get_result()
-    print()
-    if result == f'Hello {username}!':
-        print(result, 'Lithops is working as expected :)')
+    expected = f'Hello {username}!'
+
+    if map_count:
+        fexec.map(hello, [username] * map_count)
+        results = fexec.get_result()
+        print()
+        if all(result == expected for result in results):
+            print(f'All {map_count} map activations returned: {expected}')
+            print('Lithops is working as expected :)')
+        else:
+            print(results, 'Something went wrong :(')
     else:
-        print(result, 'Something went wrong :(')
+        fexec.call_async(hello, username)
+        result = fexec.get_result()
+        print()
+        if result == expected:
+            print(result, 'Lithops is working as expected :)')
+        else:
+            print(result, 'Something went wrong :(')
     print()
 
 

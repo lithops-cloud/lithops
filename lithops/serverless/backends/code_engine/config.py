@@ -26,17 +26,12 @@ DEFAULT_CONFIG_KEYS = {
     'docker_server': 'docker.io'
 }
 
-DEFAULT_GROUP = "codeengine.cloud.ibm.com"
-DEFAULT_VERSION = "v1beta1"
-
 FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_codeengine.zip')
 
 VALID_CPU_VALUES = [0.125, 0.25, 0.5, 1, 2, 4, 6, 8]
 VALID_MEMORY_VALUES = [256, 512, 1024, 2048, 4096, 8192, 12288, 16384, 24576, 32768]
 VALID_REGIONS = ['us-south', 'us-east', 'ca-tor', 'eu-de', 'eu-gb', 'jp-osa', 'jp-tok', 'br-sao', 'au-syd']
 
-CLUSTER_URL = 'https://proxy.{}.codeengine.cloud.ibm.com'
-BASE_URL_V1 = 'https://api.{}.codeengine.cloud.ibm.com/api/v1'
 BASE_URL_V2 = 'https://api.{}.codeengine.cloud.ibm.com/v2'
 
 REQ_PARAMS = ('iam_api_key',)
@@ -53,12 +48,9 @@ RUN pip install --upgrade --ignore-installed setuptools six pip \
         flask \
         gevent \
         ibm-cos-sdk \
-        ibm-vpc \
-        ibm-code-engine-sdk \
         redis \
         requests \
         PyYAML \
-        kubernetes \
         numpy \
         cloudpickle \
         ps-mem \
@@ -77,74 +69,7 @@ WORKDIR $APP_HOME
 COPY lithops_codeengine.zip .
 RUN unzip lithops_codeengine.zip && rm lithops_codeengine.zip
 
-CMD exec gunicorn --bind :$PORT --workers $CONCURRENCY --timeout $TIMEOUT lithopsentry:proxy
-"""
-
-JOBDEF_DEFAULT = """
-apiVersion: codeengine.cloud.ibm.com/v1beta1
-kind: JobDefinition
-metadata:
-  name: lithops-runtime-name
-  labels:
-    type: lithops-runtime
-    version: lithops_vX.X.X
-spec:
-  arraySpec: '0'
-  maxExecutionTime: 600
-  retryLimit: 3
-  template:
-    containers:
-    - image: "<INPUT>"
-      name: "<INPUT>"
-      command:
-      - "/usr/local/bin/python"
-      args:
-      - "/lithops/lithopsentry.py"
-      - "$(ACTION)"
-      - "$(PAYLOAD)"
-      env:
-      - name: ACTION
-        value: ''
-      - name: PAYLOAD
-        valueFrom:
-          configMapKeyRef:
-             key: 'lithops.payload'
-             name : NAME
-      resources:
-        requests:
-          cpu: '1'
-          memory: 128Mi
-    imagePullSecrets:
-      - name: lithops-regcred
-"""
-
-
-JOBRUN_DEFAULT = """
-apiVersion: codeengine.cloud.ibm.com/v1beta1
-kind: JobRun
-metadata:
-  name: "<INPUT>"
-spec:
-  jobDefinitionRef: "<REF>"
-  jobDefinitionSpec:
-    arraySpec: '1'
-    maxExecutionTime: 600
-    retryLimit: 2
-    template:
-      containers:
-      - name: "<INPUT>"
-        env:
-        - name: ACTION
-          value: ''
-        - name: PAYLOAD
-          valueFrom:
-            configMapKeyRef:
-              key: 'lithops.payload'
-              name : ''
-        resources:
-          requests:
-            cpu: '1'
-            memory: 128Mi
+CMD ["sh", "-c", "exec gunicorn --bind :$PORT --workers $CONCURRENCY --timeout $TIMEOUT lithopsentry:proxy"]
 """
 
 
