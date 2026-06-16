@@ -634,12 +634,19 @@ class CodeEngineBackend:
 
                 if status == 'completed' or succeeded >= requested:
                     done = True
-                elif status == 'failed' or failed_count > 0:
+                elif status == 'failed' or (
+                    failed_count > 0 and status not in ('pending', 'running')
+                ):
                     failed = True
                     indices_details = status_details.get('indices_details') or {}
                     for details in indices_details.values():
                         if isinstance(details, dict):
-                            failed_message = details.get('message') or details.get('reason') or failed_message
+                            failed_message = (
+                                details.get('last_failure_reason')
+                                or details.get('message')
+                                or details.get('reason')
+                                or failed_message
+                            )
                 else:
                     time.sleep(2)
             except Exception:
