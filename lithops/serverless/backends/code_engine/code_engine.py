@@ -43,6 +43,8 @@ REGISTRY_SECRET_NAME = 'lithops-regcred'
 LITHOPS_RUNTIME_TYPE = 'lithops-runtime'
 ENTRYPOINT_SCRIPT = '/lithops/lithopsentry.py'
 PYTHON_BIN = '/usr/local/bin/python'
+METADATA_JOBRUN_NAME = 'lithops-runtime-metadata'
+JOB_RUN_POLL_INTERVAL = 2
 
 
 def retry_on_except(func):
@@ -105,6 +107,10 @@ class CodeEngineBackend:
         msg = COMPUTE_CLI_MSG.format('IBM Code Engine')
         logger.info(f"{msg} - Project: {self.project_name} - Region: {self.region}")
 
+    # ------------------------------------------------------------------ #
+    # Project / client
+    # ------------------------------------------------------------------ #
+
     def _create_code_engine_client(self):
         if self.ce_client:
             return
@@ -163,6 +169,10 @@ class CodeEngineBackend:
         self.config['project_id'] = self.project_id
         self.config['namespace'] = self.namespace
         self._create_code_engine_client()
+
+    # ------------------------------------------------------------------ #
+    # Formatting helpers
+    # ------------------------------------------------------------------ #
 
     @staticmethod
     def _format_memory(memory_mb):
@@ -227,6 +237,179 @@ class CodeEngineBackend:
             )
         return env_variables
 
+    # ------------------------------------------------------------------ #
+    # CE resource helpers
+    # ------------------------------------------------------------------ #
+
+    def _list_jobs(self):
+        try:
+            return self.ce_client.list_jobs(self.project_id).get_result().get('jobs', [])
+        except ApiException as e:
+            logger.debug(f"List all jobs failed with {e.status_code} {e.message}")
+            return []
+
+    def _is_lithops_job(self, job):
+        fn_name = job.get('name') or ''
+        return fn_name.startswith(f'lithops-worker-{self.user_key}')
+
+    @staticmethod
+    def _read_job_env(job):
+        runtime_type = None
+        version = __version__
+        for env_var in job.get('run_env_variables', []):
+            if env_var.get('name') == 'LITHOPS_RUNTIME_TYPE':
+                runtime_type = env_var.get('value')
+            elif env_var.get('name') == 'LITHOPS_VERSION':
+                version = env_var.get('value', version)
+        return runtime_type, version
+
+    def _iter_lithops_runtimes(self, docker_image_name='all'):
+        for job in self._list_jobs():
+            if not self._is_lithops_job(job):
+                continue
+
+            runtime_type, version = self._read_job_env(job)
+            if runtime_type != LITHOPS_RUNTIME_TYPE:
+                continue
+
+            image_name = job.get('image_reference') or ''
+            if docker_image_name != 'all' and docker_image_name not in image_name:
+                continue
+
+            memory = self._parse_memory(job.get('scale_memory_limit'))
+            yield image_name, memory, version, job['name']
+
+    def _delete_job_run(self, jobrun_name):
+        try:
+            self.ce_client.delete_job_run(self.project_id, jobrun_name)
+        except ApiException as e:
+            if e.status_code != 404:
+                logger.debug(f"Deleting job run {jobrun_name} failed with {e.status_code} {e.message}")
+
+    def _delete_job_definition(self, jobdef_name):
+        try:
+            self.ce_client.delete_job(self.project_id, jobdef_name)
+        except ApiException as e:
+            if e.status_code != 404:
+                logger.debug(f"Deleting job {jobdef_name} failed with {e.status_code} {e.message}")
+
+    def _delete_config_map(self, config_map_name):
+        try:
+            logger.debug(f"Deleting ConfigMap {config_map_name}")
+            self.ce_client.delete_config_map(self.project_id, config_map_name)
+        except ApiException as e:
+            logger.debug(f"Deleting config map {config_map_name} failed with {e.status_code} {e.message}")
+
+    def _delete_lithops_config_maps(self):
+        try:
+            configmaps = self.ce_client.list_config_maps(self.project_id).get_result()
+        except ApiException as e:
+            logger.debug(f"Listing config maps failed with {e.status_code} {e.message}")
+            return
+
+        lithops_configmaps = [
+            configmap['name']
+            for configmap in configmaps.get('config_maps', [])
+            if configmap.get('name', '').startswith('lithops')
+        ]
+        if not lithops_configmaps:
+            return
+
+        logger.debug(f'Deleting {len(lithops_configmaps)} leftover lithops config map(s)')
+        for config_name in lithops_configmaps:
+            self._delete_config_map(config_name)
+
+    @staticmethod
+    def _job_run_failure_message(status_details):
+        for details in (status_details.get('indices_details') or {}).values():
+            if not isinstance(details, dict):
+                continue
+            message = (
+                details.get('last_failure_reason')
+                or details.get('message')
+                or details.get('reason')
+            )
+            if message:
+                return message
+        return ''
+
+    @staticmethod
+    def _job_run_finished(job_run):
+        status = job_run.get('status')
+        status_details = job_run.get('status_details') or {}
+        succeeded = status_details.get('succeeded') or 0
+        failed_count = status_details.get('failed') or 0
+        requested = status_details.get('requested') or 1
+
+        if status == 'completed' or succeeded >= requested:
+            return 'completed', status_details
+        if status == 'failed' or (failed_count > 0 and status not in ('pending', 'running')):
+            return 'failed', status_details
+        return 'running', status_details
+
+    def _wait_for_job_run(self, jobrun_name):
+        logger.debug(f"Waiting for job run {jobrun_name}")
+        while True:
+            try:
+                job_run = self.ce_client.get_job_run(self.project_id, jobrun_name).get_result()
+            except ApiException as e:
+                logger.debug(f"Polling job run {jobrun_name} failed with {e.status_code} {e.message}")
+                time.sleep(JOB_RUN_POLL_INTERVAL)
+                continue
+
+            state, status_details = self._job_run_finished(job_run)
+            if state == 'completed':
+                logger.debug(f"Job run {jobrun_name} completed")
+                return
+            if state == 'failed':
+                reason = self._job_run_failure_message(status_details)
+                raise Exception(
+                    f"Job run {jobrun_name} failed"
+                    + (f": {reason}" if reason else '')
+                )
+            time.sleep(JOB_RUN_POLL_INTERVAL)
+
+    @retry_on_except
+    def _create_config_map(self, config_map_name, payload):
+        data = {'lithops.payload': utils.dict_to_b64str(payload)}
+        logger.debug(f"Creating ConfigMap {config_map_name}")
+
+        try:
+            self.ce_client.create_config_map(
+                self.project_id,
+                config_map_name,
+                data=data,
+            )
+        except ApiException as e:
+            if e.status_code == 409:
+                self.ce_client.replace_config_map(
+                    self.project_id,
+                    config_map_name,
+                    data=data,
+                )
+            else:
+                raise e
+
+        return config_map_name
+
+    @retry_on_except
+    def _job_def_exists(self, jobdef_name):
+        logger.debug(f"Checking if job definition {jobdef_name} already exists")
+        try:
+            self.ce_client.get_job(self.project_id, jobdef_name)
+        except ApiException as e:
+            if e.status_code == 404:
+                logger.debug(f"Job definition {jobdef_name} not found (404)")
+                return False
+            raise e
+
+        logger.debug(f"Job definition {jobdef_name} found")
+        return True
+
+    # ------------------------------------------------------------------ #
+    # Runtime build / deploy
+    # ------------------------------------------------------------------ #
+
     def build_runtime(self, docker_image_name, dockerfile, extra_args=[]):
         logger.info(f'Building runtime {docker_image_name} from {dockerfile}')
 
@@ -289,216 +472,52 @@ class CodeEngineBackend:
 
         logger.debug(f"Deploying runtime: {docker_image_name} - Memory: {memory} Timeout: {timeout}")
         self._create_job_definition(docker_image_name, memory, timeout)
-        runtime_meta = self._generate_runtime_meta(docker_image_name, memory)
+        return self._generate_runtime_meta(docker_image_name, memory)
 
+    def _generate_runtime_meta(self, docker_image_name, memory):
+        logger.info(f"Extracting metadata from: {docker_image_name}")
+        jobdef_name = self._format_jobdef_name(docker_image_name, memory)
+
+        job_payload = copy.deepcopy(self.internal_storage.storage.config)
+        job_payload['log_level'] = logger.getEffectiveLevel()
+        job_payload['runtime_name'] = jobdef_name
+
+        config_map_name = self._create_config_map(f'lithops-{jobdef_name}-metadata', job_payload)
+
+        try:
+            self._delete_job_run(METADATA_JOBRUN_NAME)
+            self._run_job(
+                jobdef_name=jobdef_name,
+                jobrun_name=METADATA_JOBRUN_NAME,
+                total_workers=1,
+                runtime_memory=memory,
+                action='metadata',
+                payload_config_map_name=config_map_name,
+            )
+            self._wait_for_job_run(METADATA_JOBRUN_NAME)
+        except Exception as e:
+            raise Exception(
+                f"Unable to extract Python preinstalled modules from the runtime: {e}"
+            ) from e
+        finally:
+            self._delete_job_run(METADATA_JOBRUN_NAME)
+            self._delete_config_map(config_map_name)
+
+        data_key = '/'.join([JOBS_PREFIX, jobdef_name + '.meta'])
+        json_str = self.internal_storage.get_data(key=data_key)
+        runtime_meta = json.loads(json_str.decode("ascii"))
+        self.internal_storage.del_data(key=data_key)
         return runtime_meta
-
-    def _resolve_jobdef_name(self, runtime_name, memory, version=__version__):
-        jobdef_name = self._format_jobdef_name(runtime_name, memory, version)
-        if self._job_def_exists(jobdef_name):
-            return jobdef_name
-
-        logger.debug(
-            f"Job definition {jobdef_name} not found, searching by image {runtime_name}"
-        )
-        try:
-            jobs = self.ce_client.list_jobs(self.project_id).get_result()
-        except ApiException as e:
-            logger.debug(f"List all jobs failed with {e.status_code} {e.message}")
-            return jobdef_name
-
-        for job in jobs.get('jobs', []):
-            fn_name = job.get('name')
-            if not fn_name or not fn_name.startswith(f'lithops-worker-{self.user_key}'):
-                continue
-
-            image_name = job.get('image_reference') or ''
-            if runtime_name not in image_name and image_name not in runtime_name:
-                continue
-
-            job_version = __version__
-            for env_var in job.get('run_env_variables', []):
-                if env_var.get('name') == 'LITHOPS_VERSION':
-                    job_version = env_var.get('value', job_version)
-
-            if job_version != version:
-                continue
-
-            logger.debug(f"Resolved job definition {fn_name} for runtime {runtime_name}")
-            return fn_name
-
-        return jobdef_name
-
-    def delete_runtime(self, runtime_name, memory, version=__version__, jobdef_name=None):
-        if not self._get_or_create_namespace(create=False):
-            logger.info(f"Project {self.project_name} does not exist")
-            return
-
-        if not jobdef_name:
-            jobdef_name = self._resolve_jobdef_name(runtime_name, memory, version)
-
-        logger.info(f'Deleting runtime: {runtime_name} - {memory}MB')
-        try:
-            self.ce_client.delete_job(self.project_id, jobdef_name)
-        except ApiException as e:
-            logger.debug(f"Deleting a job failed with {e.status_code} {e.message}")
-
-    def clean(self, all=False):
-        logger.info(f'Cleaning project {self.project_name}')
-        if not self._get_or_create_namespace(create=False):
-            logger.info(f"Project {self.project_name} does not exist")
-            if os.path.exists(self.cache_file):
-                os.remove(self.cache_file)
-            return
-
-        self.clear()
-        runtimes = self.list_runtimes()
-        for image_name, memory, version, jobdef_name in runtimes:
-            self.delete_runtime(image_name, memory, version, jobdef_name=jobdef_name)
-
-        logger.debug('Deleting all lithops config maps')
-        try:
-            configmaps = self.ce_client.list_config_maps(self.project_id).get_result()
-            for configmap in configmaps.get('config_maps', []):
-                config_name = configmap.get('name')
-                if config_name and config_name.startswith('lithops'):
-                    logger.debug(f'Deleting config map {config_name}')
-                    try:
-                        self.ce_client.delete_config_map(self.project_id, config_name)
-                    except ApiException as e:
-                        logger.debug(f"Deleting config map failed with {e.status_code} {e.message}")
-        except ApiException as e:
-            logger.debug(f"Listing config maps failed with {e.status_code} {e.message}")
-
-        if all and os.path.exists(self.cache_file):
-            logger.info(f"Deleting Code Engine project: {self.project_name}")
-            self.ce_client.delete_project(id=self.project_id)
-            os.remove(self.cache_file)
-
-    def list_runtimes(self, docker_image_name='all'):
-        runtimes = []
-
-        if not self._get_or_create_namespace(create=False):
-            logger.info(f"Project {self.project_name} does not exist")
-            return runtimes
-
-        try:
-            jobs = self.ce_client.list_jobs(self.project_id).get_result()
-        except ApiException as e:
-            logger.debug(f"List all jobs failed with {e.status_code} {e.message}")
-            return runtimes
-
-        for job in jobs.get('jobs', []):
-            try:
-                fn_name = job.get('name')
-                if not fn_name or not fn_name.startswith(f'lithops-worker-{self.user_key}'):
-                    continue
-
-                runtime_type = None
-                version = __version__
-                for env_var in job.get('run_env_variables', []):
-                    if env_var.get('name') == 'LITHOPS_RUNTIME_TYPE':
-                        runtime_type = env_var.get('value')
-                    elif env_var.get('name') == 'LITHOPS_VERSION':
-                        version = env_var.get('value', version)
-
-                if runtime_type != LITHOPS_RUNTIME_TYPE:
-                    continue
-
-                image_name = job.get('image_reference')
-                memory = self._parse_memory(job.get('scale_memory_limit'))
-                if docker_image_name in image_name or docker_image_name == 'all':
-                    runtimes.append((image_name, memory, version, fn_name))
-            except Exception:
-                pass
-
-        return runtimes
-
-    def clear(self, job_keys=None):
-        if not self._get_or_create_namespace(create=False):
-            logger.info(f"Project {self.project_name} does not exist")
-            return
-
-        jobs_to_delete = job_keys or self.jobs
-        for job_key in jobs_to_delete:
-            jobrun_name = f'lithops-{job_key.lower()}'
-            try:
-                self.ce_client.delete_job_run(self.project_id, jobrun_name)
-                self._delete_config_map(jobrun_name)
-            except ApiException as e:
-                logger.debug(f"Deleting a job run failed with {e.status_code} {e.message}")
-            try:
-                self.jobs.remove(job_key)
-            except ValueError:
-                pass
-
-    def invoke(self, docker_image_name, runtime_memory, job_payload):
-        self._get_or_create_namespace()
-
-        executor_id = job_payload['executor_id']
-        job_id = job_payload['job_id']
-        job_key = job_payload['job_key']
-        self.jobs.append(job_key)
-
-        total_calls = job_payload['total_calls']
-        chunksize = job_payload['chunksize']
-        max_workers = job_payload['max_workers']
-
-        total_workers = total_calls // chunksize + (total_calls % chunksize > 0)
-        if max_workers < total_workers:
-            chunksize = total_calls // max_workers + (total_calls % max_workers > 0)
-            total_workers = total_calls // chunksize + (total_calls % chunksize > 0)
-            job_payload['chunksize'] = chunksize
-
-        logger.debug(
-            f'ExecutorID {executor_id} | JobID {job_id} - Required Workers: {total_workers}'
-        )
-
-        jobdef_name = self._format_jobdef_name(docker_image_name, runtime_memory)
-        if not self._job_def_exists(jobdef_name):
-            self._create_job_definition(docker_image_name, runtime_memory)
-
-        activation_id = f'lithops-{job_key.lower()}'
-        config_map_name = self._create_config_map(activation_id, job_payload)
-
-        self._run_job(
-            jobdef_name=jobdef_name,
-            jobrun_name=activation_id,
-            total_workers=total_workers,
-            runtime_memory=runtime_memory,
-            action='run',
-            payload_config_map_name=config_map_name,
-        )
-
-        return activation_id
-
-    @retry_on_except
-    def _run_job(self, jobdef_name, jobrun_name, total_workers, runtime_memory,
-                 action, payload_config_map_name):
-        self.ce_client.create_job_run(
-            self.project_id,
-            job_name=jobdef_name,
-            name=jobrun_name,
-            scale_array_spec=f'0-{total_workers - 1}',
-            scale_max_execution_time=self.config['runtime_timeout'],
-            scale_memory_limit=self._format_memory(runtime_memory),
-            scale_cpu_limit=self._format_cpu(self.config['runtime_cpu']),
-            run_env_variables=self._build_job_env_variables(action, payload_config_map_name),
-        )
 
     def _create_container_registry_secret(self):
         if not self._has_registry_credentials():
             return
 
         logger.debug('Creating container registry secret')
-        docker_server = self.config['docker_server']
-        docker_user = self.config['docker_user']
-        docker_password = self.config['docker_password']
-
         secret_data = SecretDataRegistrySecretData(
-            server=docker_server,
-            username=docker_user,
-            password=docker_password,
+            server=self.config['docker_server'],
+            username=self.config['docker_user'],
+            password=self.config['docker_password'],
         )
 
         try:
@@ -558,6 +577,132 @@ class CodeEngineBackend:
         logger.debug(f'Job Definition {jobdef_name} created')
         return jobdef_name
 
+    # ------------------------------------------------------------------ #
+    # Lifecycle
+    # ------------------------------------------------------------------ #
+
+    def _resolve_jobdef_name(self, runtime_name, memory, version=__version__):
+        jobdef_name = self._format_jobdef_name(runtime_name, memory, version)
+        if self._job_def_exists(jobdef_name):
+            return jobdef_name
+
+        logger.debug(
+            f"Job definition {jobdef_name} not found, searching by image {runtime_name}"
+        )
+        for image_name, _, job_version, fn_name in self._iter_lithops_runtimes('all'):
+            if job_version != version:
+                continue
+            if runtime_name in image_name or image_name in runtime_name:
+                logger.debug(f"Resolved job definition {fn_name} for runtime {runtime_name}")
+                return fn_name
+
+        return jobdef_name
+
+    def delete_runtime(self, runtime_name, memory, version=__version__, jobdef_name=None):
+        if not self._get_or_create_namespace(create=False):
+            logger.info(f"Project {self.project_name} does not exist")
+            return
+
+        if not jobdef_name:
+            jobdef_name = self._resolve_jobdef_name(runtime_name, memory, version)
+
+        logger.info(f'Deleting runtime: {runtime_name} - {memory}MB')
+        self._delete_job_definition(jobdef_name)
+
+    def clean(self, all=False):
+        logger.info(f'Cleaning project {self.project_name}')
+        if not self._get_or_create_namespace(create=False):
+            logger.info(f"Project {self.project_name} does not exist")
+            if os.path.exists(self.cache_file):
+                os.remove(self.cache_file)
+            return
+
+        self.clear()
+        for image_name, memory, version, jobdef_name in self.list_runtimes():
+            self.delete_runtime(image_name, memory, version, jobdef_name=jobdef_name)
+
+        self._delete_lithops_config_maps()
+
+        if all and os.path.exists(self.cache_file):
+            logger.info(f"Deleting Code Engine project: {self.project_name}")
+            self.ce_client.delete_project(id=self.project_id)
+            os.remove(self.cache_file)
+
+    def list_runtimes(self, docker_image_name='all'):
+        if not self._get_or_create_namespace(create=False):
+            logger.info(f"Project {self.project_name} does not exist")
+            return []
+
+        return list(self._iter_lithops_runtimes(docker_image_name))
+
+    def clear(self, job_keys=None):
+        if not self._get_or_create_namespace(create=False):
+            logger.info(f"Project {self.project_name} does not exist")
+            return
+
+        for job_key in job_keys or self.jobs:
+            jobrun_name = f'lithops-{job_key.lower()}'
+            self._delete_job_run(jobrun_name)
+            self._delete_config_map(jobrun_name)
+            try:
+                self.jobs.remove(job_key)
+            except ValueError:
+                pass
+
+    def invoke(self, docker_image_name, runtime_memory, job_payload):
+        self._get_or_create_namespace()
+
+        executor_id = job_payload['executor_id']
+        job_id = job_payload['job_id']
+        job_key = job_payload['job_key']
+        self.jobs.append(job_key)
+
+        total_calls = job_payload['total_calls']
+        chunksize = job_payload['chunksize']
+        max_workers = job_payload['max_workers']
+
+        total_workers = total_calls // chunksize + (total_calls % chunksize > 0)
+        if max_workers < total_workers:
+            chunksize = total_calls // max_workers + (total_calls % max_workers > 0)
+            total_workers = total_calls // chunksize + (total_calls % chunksize > 0)
+            job_payload['chunksize'] = chunksize
+
+        logger.debug(
+            f'ExecutorID {executor_id} | JobID {job_id} - Required Workers: {total_workers}'
+        )
+
+        jobdef_name = self._format_jobdef_name(docker_image_name, runtime_memory)
+        if not self._job_def_exists(jobdef_name):
+            self._create_job_definition(docker_image_name, runtime_memory)
+
+        activation_id = f'lithops-{job_key.lower()}'
+        config_map_name = self._create_config_map(activation_id, job_payload)
+
+        self._run_job(
+            jobdef_name=jobdef_name,
+            jobrun_name=activation_id,
+            total_workers=total_workers,
+            runtime_memory=runtime_memory,
+            action='run',
+            payload_config_map_name=config_map_name,
+        )
+
+        return activation_id
+
+    @retry_on_except
+    def _run_job(self, jobdef_name, jobrun_name, total_workers, runtime_memory,
+                 action, payload_config_map_name):
+        self.ce_client.create_job_run(
+            self.project_id,
+            job_name=jobdef_name,
+            name=jobrun_name,
+            scale_array_spec=f'0-{total_workers - 1}',
+            scale_max_execution_time=self.config['runtime_timeout'],
+            scale_memory_limit=self._format_memory(runtime_memory),
+            scale_cpu_limit=self._format_cpu(self.config['runtime_cpu']),
+            run_env_variables=self._build_job_env_variables(action, payload_config_map_name),
+        )
+
     def get_runtime_key(self, docker_image_name, runtime_memory, version=__version__):
         self._get_or_create_namespace()
         jobdef_name = self._format_jobdef_name(docker_image_name, 256, version)
@@ -577,129 +722,3 @@ class CodeEngineBackend:
             'runtime_timeout': self.config['runtime_timeout'],
             'max_workers': self.config['max_workers'],
         }
-
-    @retry_on_except
-    def _job_def_exists(self, jobdef_name):
-        logger.debug(f"Checking if job definition {jobdef_name} already exists")
-        try:
-            self.ce_client.get_job(self.project_id, jobdef_name)
-        except ApiException as e:
-            if e.status_code == 404:
-                logger.debug(f"Job definition {jobdef_name} not found (404)")
-                return False
-            raise e
-
-        logger.debug(f"Job definition {jobdef_name} found")
-        return True
-
-    def _generate_runtime_meta(self, docker_image_name, memory):
-        logger.info(f"Extracting metadata from: {docker_image_name}")
-        jobdef_name = self._format_jobdef_name(docker_image_name, memory)
-        jobrun_name = 'lithops-runtime-metadata'
-
-        job_payload = copy.deepcopy(self.internal_storage.storage.config)
-        job_payload['log_level'] = logger.getEffectiveLevel()
-        job_payload['runtime_name'] = jobdef_name
-
-        config_map_name = f'lithops-{jobdef_name}-metadata'
-        config_map_name = self._create_config_map(config_map_name, job_payload)
-
-        try:
-            self.ce_client.delete_job_run(self.project_id, jobrun_name)
-        except ApiException:
-            pass
-
-        self._run_job(
-            jobdef_name=jobdef_name,
-            jobrun_name=jobrun_name,
-            total_workers=1,
-            runtime_memory=memory,
-            action='metadata',
-            payload_config_map_name=config_map_name,
-        )
-
-        logger.debug("Waiting for runtime metadata")
-        done = False
-        failed = False
-        failed_message = ""
-
-        while not done and not failed:
-            try:
-                job_run = self.ce_client.get_job_run(self.project_id, jobrun_name).get_result()
-                status = job_run.get('status')
-                status_details = job_run.get('status_details') or {}
-                succeeded = status_details.get('succeeded') or 0
-                failed_count = status_details.get('failed') or 0
-                requested = status_details.get('requested') or 1
-
-                if status == 'completed' or succeeded >= requested:
-                    done = True
-                elif status == 'failed' or (
-                    failed_count > 0 and status not in ('pending', 'running')
-                ):
-                    failed = True
-                    indices_details = status_details.get('indices_details') or {}
-                    for details in indices_details.values():
-                        if isinstance(details, dict):
-                            failed_message = (
-                                details.get('last_failure_reason')
-                                or details.get('message')
-                                or details.get('reason')
-                                or failed_message
-                            )
-                else:
-                    time.sleep(2)
-            except Exception:
-                time.sleep(2)
-
-        if done:
-            logger.debug("Runtime metadata generated successfully")
-
-        try:
-            self.ce_client.delete_job_run(self.project_id, jobrun_name)
-        except ApiException:
-            pass
-
-        self._delete_config_map(config_map_name)
-
-        if failed:
-            raise Exception(
-                f"Unable to extract Python preinstalled modules from the runtime: {failed_message}"
-            )
-
-        data_key = '/'.join([JOBS_PREFIX, jobdef_name + '.meta'])
-        json_str = self.internal_storage.get_data(key=data_key)
-        runtime_meta = json.loads(json_str.decode("ascii"))
-        self.internal_storage.del_data(key=data_key)
-
-        return runtime_meta
-
-    @retry_on_except
-    def _create_config_map(self, config_map_name, payload):
-        data = {'lithops.payload': utils.dict_to_b64str(payload)}
-        logger.debug(f"Creating ConfigMap {config_map_name}")
-
-        try:
-            self.ce_client.create_config_map(
-                self.project_id,
-                config_map_name,
-                data=data,
-            )
-        except ApiException as e:
-            if e.status_code == 409:
-                self.ce_client.replace_config_map(
-                    self.project_id,
-                    config_map_name,
-                    data=data,
-                )
-            else:
-                raise e
-
-        return config_map_name
-
-    def _delete_config_map(self, config_map_name):
-        try:
-            logger.debug(f"Deleting ConfigMap {config_map_name}")
-            self.ce_client.delete_config_map(self.project_id, config_map_name)
-        except ApiException as e:
-            logger.debug(f"Deleting a configmap failed with {e.status_code} {e.message}")
