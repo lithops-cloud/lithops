@@ -259,9 +259,9 @@
 # IBM Cloud – credentials shared by all ibm_* / code_engine sections
 # =============================================================================
 #ibm:
-    #iam_api_key: <IAM_API_KEY>
-    #region: <REGION>                     # One of: eu-gb, eu-de, us-south, us-east, br-sao, ca-tor, jp-tok, jp-osa, au-syd
-    #resource_group_id: <RESOURCE_GROUP_ID>
+    #iam_api_key: <IAM_API_KEY>           # Mandatory for code_engine
+    #region: <REGION>                     # One of: eu-gb, eu-de, eu-es, us-south, us-east, br-sao, ca-tor, jp-tok, jp-osa, au-syd
+    #resource_group_id: <RESOURCE_GROUP_ID>  # Mandatory for code_engine (auto-create project)
 
 # IBM Cloud Functions – DEPRECATED serverless compute
 #ibm_cf:
@@ -283,20 +283,17 @@
 #code_engine:
     #region: <REGION>                     # Falls back to ibm.region
     #project_name: <PROJECT_NAME>         # Existing Code Engine project (auto-created otherwise)
-    #namespace: <NAMESPACE>               # Alternative to project_name
-    #kubecfg_path: <PATH_TO_KUBECONFIG>
     #docker_server: docker.io
-    #docker_user: <REGISTRY_USERNAME>
+    #docker_user: <REGISTRY_USERNAME>      # Required for private container registries
     #docker_password: <REGISTRY_TOKEN>
-    #docker_namespace: <REGISTRY_NAMESPACE>
-    #runtime: <RUNTIME_NAME>
-    #runtime_cpu: 0.125                   # See valid combinations in the IBM docs
-    #runtime_memory: 256                  # MB
+    #docker_namespace: <REGISTRY_NAMESPACE>  # Required for IBM Container Registry (icr.io)
+    #runtime: <RUNTIME_NAME>              # Docker image name. Default: auto-built image
+    #runtime_cpu: 0.125                   # vCPU. See valid combinations in the IBM docs
+    #runtime_memory: 256                  # MB. See valid combinations in the IBM docs
     #runtime_timeout: 600                 # Seconds
     #max_workers: 1000
     #worker_processes: 1
-    #connection_retries: <RETRIES>
-    #runtime_include_function: False
+    #connection_retries: <RETRIES>        # API retries on HTTP 500 errors
 
 # IBM VPC – standalone compute
 #ibm_vpc:
@@ -331,12 +328,13 @@
 
 # IBM Cloud Object Storage
 #ibm_cos:
-    #region: <REGION>                     # Or set `endpoint` directly
+    #region: <REGION>                     # Recommended. Auto-sets endpoint and worker endpoint
     #endpoint: <PUBLIC_ENDPOINT>          # https://s3.<region>.cloud-object-storage.appdomain.cloud
-    #private_endpoint: <PRIVATE_ENDPOINT> # Required for ibm_cf, code_engine, ibm_vpc compute backends
-    #api_key: <API_KEY>                   # COS service API key
-    #service_instance_id: <SERVICE_INSTANCE_ID>
-    #access_key_id: <ACCESS_KEY_ID>       # HMAC credentials (alternative to api_key)
+    #private_endpoint: <WORKER_ENDPOINT>  # Auto-set from region when backend is code_engine or ibm_vpc
+    #                                     # https://s3.direct.<region>.cloud-object-storage.appdomain.cloud
+    #api_key: <API_KEY>                   # COS service API key (Option 1)
+    #service_instance_id: <SERVICE_INSTANCE_ID>  # Required if not using HMAC credentials or api_key
+    #access_key_id: <ACCESS_KEY_ID>       # HMAC credentials (Option 2). Bucket can be auto-created
     #secret_access_key: <SECRET_ACCESS_KEY>
     #storage_bucket: <BUCKET_NAME>        # Mandatory unless HMAC credentials allow auto-creation
 

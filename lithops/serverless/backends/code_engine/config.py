@@ -26,21 +26,42 @@ DEFAULT_CONFIG_KEYS = {
     'docker_server': 'docker.io'
 }
 
-DEFAULT_GROUP = "codeengine.cloud.ibm.com"
-DEFAULT_VERSION = "v1beta1"
-
 FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_codeengine.zip')
 
+REGISTRY_SECRET_NAME = 'lithops-regcred'
+LITHOPS_RUNTIME_TYPE = 'lithops-runtime'
+ENTRYPOINT_SCRIPT = '/lithops/lithopsentry.py'
+PYTHON_BIN = '/usr/local/bin/python'
+METADATA_JOBRUN_NAME = 'lithops-runtime-metadata'
+JOB_RUN_POLL_INTERVAL = 2
+
+# https://cloud.ibm.com/docs/codeengine?topic=codeengine-mem-cpu-combo
 VALID_CPU_VALUES = [0.125, 0.25, 0.5, 1, 2, 4, 6, 8]
 VALID_MEMORY_VALUES = [256, 512, 1024, 2048, 4096, 8192, 12288, 16384, 24576, 32768]
-VALID_REGIONS = ['us-south', 'us-east', 'ca-tor', 'eu-de', 'eu-gb', 'jp-osa', 'jp-tok', 'br-sao', 'au-syd']
+VALID_CPU_MEMORY = {
+    0.125: (256, 8192),
+    0.25: (512, 16384),
+    0.5: (1024, 32768),
+    1: (4096, 32768),
+    2: (4096, 32768),
+    4: (4096, 32768),
+    6: (4096, 32768),
+    8: (4096, 32768),
+}
 
-CLUSTER_URL = 'https://proxy.{}.codeengine.cloud.ibm.com'
-BASE_URL_V1 = 'https://api.{}.codeengine.cloud.ibm.com/api/v1'
+# https://cloud.ibm.com/docs/codeengine?topic=codeengine-regions
+VALID_REGIONS = [
+    'us-south', 'us-east', 'ca-tor', 'eu-de', 'eu-gb', 'eu-es',
+    'jp-osa', 'jp-tok', 'br-sao', 'au-syd',
+]
+
 BASE_URL_V2 = 'https://api.{}.codeengine.cloud.ibm.com/v2'
 
-REQ_PARAMS = ('iam_api_key',)
+REQ_PARAMS = ('iam_api_key', 'resource_group_id')
 
+# Default runtime image for auto-built runtimes.
+# CE jobs override the container command; the gunicorn CMD is kept for custom
+# runtimes that start the container without JOB_INDEX (legacy Knative path).
 DOCKERFILE_DEFAULT = """
 RUN apt-get update && apt-get install -y \
         zip \
@@ -53,12 +74,13 @@ RUN pip install --upgrade --ignore-installed setuptools six pip \
         flask \
         gevent \
         ibm-cos-sdk \
+        ibm-cloud-sdk-core \
         ibm-vpc \
         ibm-code-engine-sdk \
+        kubernetes \
         redis \
         requests \
         PyYAML \
-        kubernetes \
         numpy \
         cloudpickle \
         ps-mem \
@@ -70,85 +92,33 @@ ENV CONCURRENCY=1
 ENV TIMEOUT=600
 ENV PYTHONUNBUFFERED=TRUE
 
-# Copy Lithops proxy and lib to the container image.
 ENV APP_HOME=/lithops
 WORKDIR $APP_HOME
 
 COPY lithops_codeengine.zip .
 RUN unzip lithops_codeengine.zip && rm lithops_codeengine.zip
 
-CMD exec gunicorn --bind :$PORT --workers $CONCURRENCY --timeout $TIMEOUT lithopsentry:proxy
-"""
-
-JOBDEF_DEFAULT = """
-apiVersion: codeengine.cloud.ibm.com/v1beta1
-kind: JobDefinition
-metadata:
-  name: lithops-runtime-name
-  labels:
-    type: lithops-runtime
-    version: lithops_vX.X.X
-spec:
-  arraySpec: '0'
-  maxExecutionTime: 600
-  retryLimit: 3
-  template:
-    containers:
-    - image: "<INPUT>"
-      name: "<INPUT>"
-      command:
-      - "/usr/local/bin/python"
-      args:
-      - "/lithops/lithopsentry.py"
-      - "$(ACTION)"
-      - "$(PAYLOAD)"
-      env:
-      - name: ACTION
-        value: ''
-      - name: PAYLOAD
-        valueFrom:
-          configMapKeyRef:
-             key: 'lithops.payload'
-             name : NAME
-      resources:
-        requests:
-          cpu: '1'
-          memory: 128Mi
-    imagePullSecrets:
-      - name: lithops-regcred
+CMD ["sh", "-c", "exec gunicorn --bind :$PORT --workers $CONCURRENCY --timeout $TIMEOUT lithopsentry:proxy"]
 """
 
 
-JOBRUN_DEFAULT = """
-apiVersion: codeengine.cloud.ibm.com/v1beta1
-kind: JobRun
-metadata:
-  name: "<INPUT>"
-spec:
-  jobDefinitionRef: "<REF>"
-  jobDefinitionSpec:
-    arraySpec: '1'
-    maxExecutionTime: 600
-    retryLimit: 2
-    template:
-      containers:
-      - name: "<INPUT>"
-        env:
-        - name: ACTION
-          value: ''
-        - name: PAYLOAD
-          valueFrom:
-            configMapKeyRef:
-              key: 'lithops.payload'
-              name : ''
-        resources:
-          requests:
-            cpu: '1'
-            memory: 128Mi
-"""
+def _validate_cpu_memory(runtime_cpu, runtime_memory):
+    """
+    Validates that the CPU and memory pair is supported by Code Engine
+    """
+    min_memory, max_memory = VALID_CPU_MEMORY[runtime_cpu]
+    if not min_memory <= runtime_memory <= max_memory:
+        raise Exception(
+            f'{runtime_memory} MB is not a valid memory value for {runtime_cpu} vCPU. '
+            f'Use a value between {min_memory} and {max_memory} MB. '
+            'See https://cloud.ibm.com/docs/codeengine?topic=codeengine-mem-cpu-combo'
+        )
 
 
 def load_config(config_data):
+    """
+    Loads and validates the Code Engine backend configuration
+    """
 
     if 'ibm' not in config_data or config_data['ibm'] is None:
         raise Exception("'ibm' section is mandatory in the configuration")
@@ -158,7 +128,7 @@ def load_config(config_data):
             msg = f'"{param}" is mandatory in the "ibm" section of the configuration'
             raise Exception(msg)
 
-    if not config_data['code_engine']:
+    if not config_data.get('code_engine'):
         config_data['code_engine'] = {}
 
     temp = copy.deepcopy(config_data['code_engine'])
@@ -166,13 +136,17 @@ def load_config(config_data):
     config_data['code_engine'].update(temp)
 
     if 'region' not in config_data['code_engine']:
-        msg = "'region' parameter is mandatory under the 'ibm' or 'code_engine' section of the configuration"
+        msg = (
+            "'region' parameter is mandatory under the 'ibm' or "
+            "'code_engine' section of the configuration"
+        )
         raise Exception(msg)
 
     region = config_data['code_engine']['region']
     if region not in VALID_REGIONS:
-        raise Exception('{} is an invalid region name. Set one of: '
-                        '{}'.format(region, VALID_REGIONS))
+        raise Exception(
+            f'{region} is an invalid region name. Set one of: {VALID_REGIONS}'
+        )
 
     for key in DEFAULT_CONFIG_KEYS:
         if key not in config_data['code_engine']:
@@ -180,13 +154,18 @@ def load_config(config_data):
 
     runtime_cpu = config_data['code_engine']['runtime_cpu']
     if runtime_cpu not in VALID_CPU_VALUES:
-        raise Exception('{} is an invalid runtime cpu value. Set one of: '
-                        '{}'.format(runtime_cpu, VALID_CPU_VALUES))
+        raise Exception(
+            f'{runtime_cpu} is an invalid runtime cpu value. Set one of: {VALID_CPU_VALUES}'
+        )
 
     runtime_memory = config_data['code_engine']['runtime_memory']
     if runtime_memory not in VALID_MEMORY_VALUES:
-        raise Exception('{} is an invalid runtime memory value in MB. Set one of: '
-                        '{}'.format(runtime_memory, VALID_MEMORY_VALUES))
+        raise Exception(
+            f'{runtime_memory} is an invalid runtime memory value in MB. '
+            f'Set one of: {VALID_MEMORY_VALUES}'
+        )
+
+    _validate_cpu_memory(runtime_cpu, runtime_memory)
 
     if 'runtime' in config_data['code_engine']:
         runtime = config_data['code_engine']['runtime']

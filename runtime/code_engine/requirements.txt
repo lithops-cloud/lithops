@@ -4,12 +4,11 @@
 gunicorn
 flask
 pika
-boto3
 ibm-cloud-sdk-core
 ibm-cos-sdk
+ibm-vpc
 ibm-code-engine-sdk
-scikit-learn
-diskcache
+kubernetes
 redis
 gevent
 requests
@@ -19,8 +18,8 @@ cloudpickle
 ps-mem
 tblib
 psutil
-kubernetes
 
-# Optional packages (Add your packages below)
-ibm-vpc
+# Optional packages (add your packages below)
+#scikit-learn
+#diskcache
 #pandas
