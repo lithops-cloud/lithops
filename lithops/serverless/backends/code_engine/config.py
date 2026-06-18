@@ -28,6 +28,13 @@ DEFAULT_CONFIG_KEYS = {
 
 FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_codeengine.zip')
 
+REGISTRY_SECRET_NAME = 'lithops-regcred'
+LITHOPS_RUNTIME_TYPE = 'lithops-runtime'
+ENTRYPOINT_SCRIPT = '/lithops/lithopsentry.py'
+PYTHON_BIN = '/usr/local/bin/python'
+METADATA_JOBRUN_NAME = 'lithops-runtime-metadata'
+JOB_RUN_POLL_INTERVAL = 2
+
 # https://cloud.ibm.com/docs/codeengine?topic=codeengine-mem-cpu-combo
 VALID_CPU_VALUES = [0.125, 0.25, 0.5, 1, 2, 4, 6, 8]
 VALID_MEMORY_VALUES = [256, 512, 1024, 2048, 4096, 8192, 12288, 16384, 24576, 32768]
@@ -63,10 +70,14 @@ RUN apt-get update && apt-get install -y \
 RUN pip install --upgrade --ignore-installed setuptools six pip \
     && pip install --upgrade --no-cache-dir --ignore-installed \
         gunicorn \
+        pika \
         flask \
         gevent \
         ibm-cos-sdk \
         ibm-cloud-sdk-core \
+        ibm-vpc \
+        ibm-code-engine-sdk \
+        kubernetes \
         redis \
         requests \
         PyYAML \
@@ -92,6 +103,9 @@ CMD ["sh", "-c", "exec gunicorn --bind :$PORT --workers $CONCURRENCY --timeout $
 
 
 def _validate_cpu_memory(runtime_cpu, runtime_memory):
+    """
+    Validates that the CPU and memory pair is supported by Code Engine
+    """
     min_memory, max_memory = VALID_CPU_MEMORY[runtime_cpu]
     if not min_memory <= runtime_memory <= max_memory:
         raise Exception(
@@ -102,6 +116,9 @@ def _validate_cpu_memory(runtime_cpu, runtime_memory):
 
 
 def load_config(config_data):
+    """
+    Loads and validates the Code Engine backend configuration
+    """
 
     if 'ibm' not in config_data or config_data['ibm'] is None:
         raise Exception("'ibm' section is mandatory in the configuration")
