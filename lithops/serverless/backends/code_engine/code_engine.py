@@ -114,7 +114,48 @@ class CodeEngineBackend:
         self.ce_client = CodeEngineV2(authenticator=authenticator)
         self.ce_client.set_service_url(config.BASE_URL_V2.format(self.region))
 
-    def _get_or_create_namespace(self, create=True):
+    def _wait_for_project_active(self, project_id=None):
+        """
+        Waits until a Code Engine project becomes active
+        """
+        project_id = project_id or self.project_id
+        if not project_id:
+            return
+
+        self._create_code_engine_client()
+        logger.debug(f"Waiting for Code Engine project {self.project_name} to become active")
+        deadline = time.time() + config.PROJECT_READY_TIMEOUT
+        while time.time() < deadline:
+            try:
+                project = self.ce_client.get_project(id=project_id).get_result()
+            except ApiException as e:
+                not_ready = (
+                    e.status_code in (403, 404, 503)
+                    or 'not yet active' in (e.message or '').lower()
+                )
+                if not_ready:
+                    logger.debug(
+                        f"Code Engine project {self.project_name} status: creating"
+                    )
+                    time.sleep(config.PROJECT_POLL_INTERVAL)
+                    continue
+                raise e
+
+            status = project.get('status')
+            if status == 'active':
+                logger.debug(f"Code Engine project {self.project_name} is active")
+                return
+            if status == 'creation_failed':
+                raise Exception(f"Code Engine project {self.project_name} creation failed")
+
+            logger.debug(f"Code Engine project {self.project_name} status: {status}")
+            time.sleep(config.PROJECT_POLL_INTERVAL)
+
+        raise Exception(
+            f"Timed out waiting for Code Engine project {self.project_name} to become active"
+        )
+
+    def _get_or_create_namespace(self, create=True, wait_for_active=True):
         """
         Gets or creates the Code Engine project.
         Namespace is kept for runtime key compatibility.
@@ -126,8 +167,26 @@ class CodeEngineBackend:
             self.namespace = ce_data.get('namespace')
 
         if self.project_id:
-            self._sync_project_config()
-            return self.namespace
+            self._create_code_engine_client()
+            try:
+                project = self.ce_client.get_project(id=self.project_id).get_result()
+                status = project.get('status')
+                if status == 'active':
+                    self._sync_project_config()
+                    return self.namespace
+                if status in ('creating', 'preparing') and wait_for_active:
+                    self._wait_for_project_active()
+                    self._sync_project_config()
+                    return self.namespace
+                if status in ('creating', 'preparing'):
+                    self._sync_project_config()
+                    return self.namespace
+            except ApiException as e:
+                if e.status_code not in (403, 404):
+                    raise e
+            logger.debug(f"Cached project {self.project_id} is unavailable, refreshing")
+            self.project_id = None
+            self.namespace = None
 
         self._create_code_engine_client()
 
@@ -136,15 +195,28 @@ class CodeEngineBackend:
             if project['name'] == self.project_name:
                 logger.debug(f"Found Code Engine project: {self.project_name}")
                 self.project_id = project['id']
+                if project.get('status') != 'active' and wait_for_active:
+                    self._wait_for_project_active()
                 break
 
         if not self.project_id and create:
             logger.debug(f"Creating new Code Engine project: {self.project_name}")
-            response = self.ce_client.create_project(
-                name=self.project_name,
-                resource_group_id=self.config['resource_group_id']
-            ).get_result()
+            try:
+                response = self.ce_client.create_project(
+                    name=self.project_name,
+                    resource_group_id=self.config['resource_group_id']
+                ).get_result()
+            except ApiException as e:
+                if e.status_code == 409 and 'soft-deleted' in (e.message or '').lower():
+                    raise Exception(
+                        f"The Code Engine project '{self.project_name}' is soft-deleted "
+                        f"and kept for up to 7 days before it is permanently removed. "
+                        f"To delete it completely and reuse the name now, run:\n"
+                        f"ibmcloud ce project delete --name {self.project_name} --hard -f"
+                    ) from e
+                raise e
             self.project_id = response['id']
+            self._wait_for_project_active()
 
         if not self.project_id:
             return None
@@ -667,7 +739,7 @@ class CodeEngineBackend:
         Deletes a runtime.
         We need to delete the job definition.
         """
-        if not self._get_or_create_namespace(create=False):
+        if not self._get_or_create_namespace(create=False, wait_for_active=False):
             logger.info(f"Project {self.project_name} does not exist")
             return
 
@@ -682,7 +754,7 @@ class CodeEngineBackend:
         Deletes all runtimes from all packages
         """
         logger.info(f'Cleaning project {self.project_name}')
-        if not self._get_or_create_namespace(create=False):
+        if not self._get_or_create_namespace(create=False, wait_for_active=False):
             logger.info(f"Project {self.project_name} does not exist")
             if os.path.exists(self.cache_file):
                 os.remove(self.cache_file)
@@ -694,17 +766,18 @@ class CodeEngineBackend:
 
         self._delete_lithops_config_maps()
 
-        if all and os.path.exists(self.cache_file):
+        if all and self.project_id:
             logger.info(f"Deleting Code Engine project: {self.project_name}")
             self.ce_client.delete_project(id=self.project_id)
-            os.remove(self.cache_file)
+            if os.path.exists(self.cache_file):
+                os.remove(self.cache_file)
 
     def list_runtimes(self, docker_image_name='all'):
         """
         List all the runtimes
         return: list of tuples (docker_image_name, memory, version, jobdef_name)
         """
-        if not self._get_or_create_namespace(create=False):
+        if not self._get_or_create_namespace(create=False, wait_for_active=False):
             logger.info(f"Project {self.project_name} does not exist")
             return []
 
@@ -714,7 +787,7 @@ class CodeEngineBackend:
         """
         Clean all completed jobruns in the current executor
         """
-        if not self._get_or_create_namespace(create=False):
+        if not self._get_or_create_namespace(create=False, wait_for_active=False):
             logger.info(f"Project {self.project_name} does not exist")
             return
 
