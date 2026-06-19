@@ -31,7 +31,7 @@ DEFAULT_CONFIG_KEYS = {
     'master_profile_name': 'cx2-2x4',
     'worker_profile_name': 'cx2-2x4',
     'boot_volume_profile': 'general-purpose',
-    'ssh_username': 'root',
+    'ssh_username': 'ubuntu',
     'ssh_password': str(uuid.uuid4()),
     'ssh_key_filename': '~/.ssh/id_rsa',
     'delete_on_dismantle': True,
@@ -44,6 +44,15 @@ DEFAULT_CONFIG_KEYS = {
 VPC_ENDPOINT = "https://{}.iaas.cloud.ibm.com"
 
 REGIONS = ["jp-tok", "jp-osa", "au-syd", "eu-gb", "eu-de", "eu-es", "us-south", "us-east", "br-sao", "ca-tor"]
+
+INSTANCE_START_TIMEOUT = 180
+VPC_API_VERSION = '2021-09-21'
+
+DEFAULT_LITHOPS_IMAGE_NAME = 'lithops-ubuntu-24-04-4-minimal-amd64-1'
+DEFAULT_UBUNTU_LTS_MAJOR = 24
+DEFAULT_STOCK_UBUNTU_IMAGE_PREFIX = f'ibm-ubuntu-{DEFAULT_UBUNTU_LTS_MAJOR}'
+# Ubuntu LTS major versions shown by `lithops image list` (inclusive range).
+LIST_UBUNTU_LTS_RANGE = (22, DEFAULT_UBUNTU_LTS_MAJOR)
 
 
 def load_config(config_data):

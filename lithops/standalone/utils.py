@@ -299,6 +299,10 @@ def get_host_setup_script(
     # --ignore-installed: do not uninstall Debian python packages (avoids RECORD errors)
     pip3 install --ignore-installed -U pip
     pip3 install --ignore-installed flask gevent {lithops_pip_spec}
+    if echo "{lithops_pip_spec}" | grep -q ibm; then
+    echo "--> Upgrading pyOpenSSL/cryptography (required for ibm_cos on Ubuntu 24.04)"
+    pip3 install --ignore-installed --upgrade 'pyopenssl>=24.0.0' 'cryptography>=42.0.0'
+    fi;
     fi;
 
     EXTRA_PY="{extra_python_packages}"
@@ -350,11 +354,18 @@ def get_master_setup_script(config, vm_data):
     generate_ssh_key(){{
     echo '    StrictHostKeyChecking no
     UserKnownHostsFile=/dev/null' >> /etc/ssh/ssh_config;
+    mkdir -p $USER_HOME/.ssh;
+    chmod 700 $USER_HOME/.ssh;
+    chown ${{SUDO_USER}}:${{SUDO_USER}} $USER_HOME/.ssh;
     ssh-keygen -f $USER_HOME/.ssh/lithops_id_rsa -t rsa -N '';
-    chown ${{SUDO_USER}}:${{SUDO_USER}} $USER_HOME/.ssh/lithops_id_rsa*;
     cp $USER_HOME/.ssh/lithops_id_rsa $USER_HOME/.ssh/id_rsa
     cp $USER_HOME/.ssh/lithops_id_rsa.pub $USER_HOME/.ssh/id_rsa.pub
-    cp $USER_HOME/.ssh/* /root/.ssh;
+    chown ${{SUDO_USER}}:${{SUDO_USER}} $USER_HOME/.ssh/lithops_id_rsa* $USER_HOME/.ssh/id_rsa $USER_HOME/.ssh/id_rsa.pub
+    chmod 600 $USER_HOME/.ssh/lithops_id_rsa $USER_HOME/.ssh/id_rsa
+    chmod 644 $USER_HOME/.ssh/lithops_id_rsa.pub $USER_HOME/.ssh/id_rsa.pub
+    cp $USER_HOME/.ssh/lithops_id_rsa /root/.ssh/lithops_id_rsa
+    cp $USER_HOME/.ssh/lithops_id_rsa.pub /root/.ssh/lithops_id_rsa.pub
+    chmod 600 /root/.ssh/lithops_id_rsa
     echo '127.0.0.1 lithops-master' >> /etc/hosts;
     cat $USER_HOME/.ssh/id_rsa.pub >> $USER_HOME/.ssh/authorized_keys;
     }}

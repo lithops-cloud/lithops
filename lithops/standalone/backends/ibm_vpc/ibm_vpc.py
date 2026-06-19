@@ -41,13 +41,16 @@ from lithops.standalone.utils import (
     prepare_standalone_clean,
     standalone_clean_stop_early,
 )
+from .config import (
+    DEFAULT_LITHOPS_IMAGE_NAME,
+    DEFAULT_STOCK_UBUNTU_IMAGE_PREFIX,
+    DEFAULT_UBUNTU_LTS_MAJOR,
+    INSTANCE_START_TIMEOUT,
+    LIST_UBUNTU_LTS_RANGE,
+    VPC_API_VERSION,
+)
 
 logger = logging.getLogger(__name__)
-
-INSTANCE_START_TIMEOUT = 180
-VPC_API_VERSION = '2021-09-21'
-
-DEFAULT_LITHOPS_IMAGE_NAME = 'lithops-ubuntu-22-04-3-minimal-amd64-1'
 
 
 class IBMVPCBackend:
@@ -504,8 +507,8 @@ class IBMVPCBackend:
 
         if 'image_id' in self.vpc_data:
             for image in images_def:
-                if image['id'] == self.vpc_data['image_id'] and \
-                   not image['name'].startswith('ibm-ubuntu-22'):
+                if image['id'] == self.vpc_data['image_id'] \
+                   and self._is_deploy_ubuntu_image(image):
                     self.config['image_id'] = self.vpc_data['image_id']
                     break
 
@@ -517,11 +520,15 @@ class IBMVPCBackend:
                     break
 
         if 'image_id' not in self.config:
-            for image in images_def:
-                if image['name'].startswith('ibm-ubuntu-22') \
-                   and "amd64" in image['name']:
-                    self.config['image_id'] = image['id']
-                    break
+            stock_images = [
+                image for image in images_def
+                if image['name'].startswith(DEFAULT_STOCK_UBUNTU_IMAGE_PREFIX)
+                and 'amd64' in image['name']
+            ]
+            if stock_images:
+                stock_images.sort(key=lambda image: image['name'], reverse=True)
+                self.config['image_id'] = stock_images[0]['id']
+                logger.debug(f"Using stock VM image: {stock_images[0]['name']}")
 
     def _create_master_instance(self):
         """
@@ -728,9 +735,56 @@ class IBMVPCBackend:
                 time.sleep(2)
             logger.debug(f"VM Image '{image_name}' successfully deleted")
 
+    @staticmethod
+    def _ubuntu_lts_major_version(image_name, display_name=None):
+        for text in (display_name or '', image_name):
+            match = re.search(r'ubuntu[- ](\d{2})', text.lower())
+            if match:
+                return int(match.group(1))
+            match = re.search(r'(\d{2})\.\d{2}', text)
+            if match:
+                return int(match.group(1))
+        return None
+
+    @classmethod
+    def _is_ubuntu_amd64_image(cls, image):
+        return (
+            image['operating_system']['family'] == 'Ubuntu Linux'
+            and 'amd64' in image['name']
+        )
+
+    @classmethod
+    def _is_supported_ubuntu_image(cls, image, lts_range=None):
+        if not cls._is_ubuntu_amd64_image(image):
+            return False
+        if 'lithops' in image['name'].lower():
+            return True
+        major = cls._ubuntu_lts_major_version(
+            image['name'],
+            image['operating_system'].get('display_name'),
+        )
+        if major is None:
+            return False
+        if lts_range is None:
+            return major == DEFAULT_UBUNTU_LTS_MAJOR
+        min_major, max_major = lts_range
+        return min_major <= major <= max_major
+
+    @classmethod
+    def _is_deploy_ubuntu_image(cls, image):
+        """
+        Images valid for provisioning master/worker VSIs (Ubuntu 24 stock or Lithops custom).
+        """
+        if not cls._is_ubuntu_amd64_image(image):
+            return False
+        if 'lithops' in image['name'].lower():
+            return cls._is_supported_ubuntu_image(image)
+        return image['name'].startswith(DEFAULT_STOCK_UBUNTU_IMAGE_PREFIX)
+
     def list_images(self):
         """
-        List VM Images
+        List Ubuntu LTS images (22.04–24.04) and Lithops custom images.
+        Returns tuples of (name, image_id, creation_date).
         """
         images_def = self.vpc_cli.list_images().result['images']
         images_user = self.vpc_cli.list_images(resource_group_id=self.config['resource_group_id']).result['images']
@@ -739,14 +793,14 @@ class IBMVPCBackend:
         result = set()
 
         for img in images_def:
-            if img['operating_system']['family'] == 'Ubuntu Linux':
-                opsys = img['operating_system']['display_name']
-                image_name = img['name']
-                image_id = img['id']
-                created_at = datetime.strptime(img['created_at'], "%Y-%m-%dT%H:%M:%SZ")
-                created_at = created_at.strftime("%Y-%m-%d %H:%M:%S")
-                if '22' in opsys:
-                    result.add((image_name, image_id, created_at))
+            if not self._is_supported_ubuntu_image(img, lts_range=LIST_UBUNTU_LTS_RANGE):
+                continue
+
+            image_name = img['name']
+            image_id = img['id']
+            created_at = datetime.strptime(img['created_at'], "%Y-%m-%dT%H:%M:%SZ")
+            created_at = created_at.strftime("%Y-%m-%d %H:%M:%S")
+            result.add((image_name, image_id, created_at))
 
         return sorted(result, key=lambda x: x[2], reverse=True)
 
@@ -1011,7 +1065,8 @@ class IBMVPCInstance:
         self.instance_data = None
         self.private_ip = None
         self.public_ip = None
-        self.home_dir = '/root'
+        ssh_user = self.config['ssh_username']
+        self.home_dir = '/root' if ssh_user == 'root' else f'/home/{ssh_user}'
 
         self.ssh_credentials = {
             'username': self.config['ssh_username'],
