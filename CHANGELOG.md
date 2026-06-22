@@ -18,6 +18,7 @@
 - [Azure Funcions] Updated default funcions plan to Flex Consumption
 - [AWS EC2] Updated default Ubuntu Image to Ubuntu 24
 - [Azure VMS] Updated default Ubuntu Image to Ubuntu 24
+- [IBM VPC] Updated default Ubuntu image to 24.04 (`ibm-ubuntu-24-*` stock and `lithops-ubuntu-24-04-4-minimal-amd64-1` custom), default SSH user to `ubuntu`, and `lithops image list` to show Ubuntu 22/24 images
 - [Aliyun FC] Updated backend to Function Compute 3.0 (FC3 API) and added custom-container deploy mode support
 - [Code Engine] Rewrote backend to use the IBM Code Engine SDK v2 (`CodeEngineV2`) instead of the Kubernetes API
 
@@ -30,6 +31,8 @@
 - [Azure] Fixed Azure Functions deployment on Flex Consumption and consolidated container registry login across Azure backends
 - [Oracle Object Storage] Fixed authentication with `~` in `key_file`, resource principal fallback, and bucket name generation
 - [Oracle Functions] Fixed Python 3.12 runtime build, added OCIR registry login with auto-derived `docker_user`, and default `docker_server` from region
+- [Standalone] Fixed master SSH key ownership for the `ubuntu` user and upgraded pyOpenSSL/cryptography on Ubuntu 24.04 VMs when using IBM backends
+- [IBM VPC] Fixed `home_dir` for non-root SSH users and image selection to prefer Lithops custom images over stock Ubuntu 26
 
 
 ## [v3.6.4]
