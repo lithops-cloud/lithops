@@ -34,6 +34,8 @@ ENTRYPOINT_SCRIPT = '/lithops/lithopsentry.py'
 PYTHON_BIN = '/usr/local/bin/python'
 METADATA_JOBRUN_NAME = 'lithops-runtime-metadata'
 JOB_RUN_POLL_INTERVAL = 2
+PROJECT_POLL_INTERVAL = 10
+PROJECT_READY_TIMEOUT = 600
 
 # https://cloud.ibm.com/docs/codeengine?topic=codeengine-mem-cpu-combo
 VALID_CPU_VALUES = [0.125, 0.25, 0.5, 1, 2, 4, 6, 8]
