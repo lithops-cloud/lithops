@@ -32,9 +32,118 @@ Lithops provides an extensible backend architecture (compute, storage) designed 
 [Follow these instructions to configure your compute and storage backends](config/)
 
 <p align="center">
-<a href="config/README.md#compute-and-storage-backends">
-<img src="docs/source/images/multicloud.jpg" alt="Multicloud Lithops" title="Multicloud Lithops"/>
-</a>
+<table>
+<tr>
+  <th align="center">Platform</th>
+  <th align="center">Compute</th>
+  <th align="center">Storage</th>
+</tr>
+<tr>
+  <td align="center" valign="top"><strong>Localhost</strong></td>
+  <td align="left" valign="top"><a href="docs/source/compute_config/localhost.md">Localhost</a></td>
+  <td align="left" valign="top"><a href="docs/source/compute_config/localhost.md">Localhost</a></td>
+</tr>
+<tr>
+  <td align="center" valign="top">
+    <img src="docs/source/images/clouds/ibm_cloud.png" alt="IBM Cloud" width="100"/><br/>
+    <strong>IBM Cloud</strong>
+  </td>
+  <td align="left" valign="top">
+    <a href="docs/source/compute_config/code_engine.md">IBM Code Engine</a><br/>
+    <a href="docs/source/compute_config/ibm_vpc.md">IBM Virtual Private Cloud</a>
+  </td>
+  <td align="left" valign="top">
+    <a href="docs/source/storage_config/ibm_cos.md">IBM Cloud Object Storage</a>
+  </td>
+</tr>
+<tr>
+  <td align="center" valign="top">
+    <img src="docs/source/images/clouds/aws.png" alt="AWS" width="100"/><br/>
+    <strong>Amazon Web Services</strong>
+  </td>
+  <td align="left" valign="top">
+    <a href="docs/source/compute_config/aws_lambda.md">AWS Lambda</a><br/>
+    <a href="docs/source/compute_config/aws_batch.md">AWS Batch</a><br/>
+    <a href="docs/source/compute_config/aws_ec2.md">AWS Elastic Compute Cloud (EC2)</a>
+  </td>
+  <td align="left" valign="top">
+    <a href="docs/source/storage_config/aws_s3.md">AWS S3</a>
+  </td>
+</tr>
+<tr>
+  <td align="center" valign="top">
+    <img src="docs/source/images/clouds/google_cloud.png" alt="Google Cloud" width="100"/><br/>
+    <strong>Google Cloud</strong>
+  </td>
+  <td align="left" valign="top">
+    <a href="docs/source/compute_config/gcp_functions.md">Google Cloud Run functions</a><br/>
+    <a href="docs/source/compute_config/gcp_cloudrun.md">Google Cloud Run</a><br/>
+    <a href="docs/source/compute_config/gcp_compute_engine.md">Google Compute Engine</a>
+  </td>
+  <td align="left" valign="top">
+    <a href="docs/source/storage_config/gcp_storage.md">Google Cloud Storage</a>
+  </td>
+</tr>
+<tr>
+  <td align="center" valign="top">
+    <img src="docs/source/images/clouds/azure.png" alt="Microsoft Azure" width="100"/><br/>
+    <strong>Microsoft Azure</strong>
+  </td>
+  <td align="left" valign="top">
+    <a href="docs/source/compute_config/azure_functions.md">Azure Functions</a><br/>
+    <a href="docs/source/compute_config/azure_containers.md">Azure Container Apps</a><br/>
+    <a href="docs/source/compute_config/azure_vms.md">Azure Virtual Machines</a>
+  </td>
+  <td align="left" valign="top">
+    <a href="docs/source/storage_config/azure_blob.md">Azure Blob Storage</a>
+  </td>
+</tr>
+<tr>
+  <td align="center" valign="top">
+    <img src="docs/source/images/clouds/aliyun.png" alt="Alibaba Cloud" width="100"/><br/>
+    <strong>Alibaba Cloud</strong>
+  </td>
+  <td align="left" valign="top">
+    <a href="docs/source/compute_config/aliyun_functions.md">Aliyun Functions Compute</a>
+  </td>
+  <td align="left" valign="top">
+    <a href="docs/source/storage_config/aliyun_oss.md">Aliyun Object Storage Service</a>
+  </td>
+</tr>
+<tr>
+  <td align="center" valign="top">
+    <img src="docs/source/images/clouds/oracle.png" alt="Oracle Cloud" width="100"/><br/>
+    <strong>Oracle Cloud</strong>
+  </td>
+  <td align="left" valign="top">
+    <a href="docs/source/compute_config/oracle_functions.md">Oracle Functions</a>
+  </td>
+  <td align="left" valign="top">
+    <a href="docs/source/storage_config/oracle_oss.md">Oracle Object Storage</a>
+  </td>
+</tr>
+<tr>
+  <td align="center" valign="top">
+    <img src="docs/source/images/clouds/k8s.png" alt="Kubernetes" width="70"/>
+    <img src="docs/source/images/clouds/openshift.png" alt="OpenShift" width="70"/><br/>
+    <strong>Kubernetes &amp; On-premise</strong>
+  </td>
+  <td align="left" valign="top">
+    <a href="docs/source/compute_config/kubernetes.md">Kubernetes Jobs</a><br/>
+    <a href="docs/source/compute_config/knative.md">Knative</a><br/>
+    <a href="docs/source/compute_config/singularity.md">Singularity</a><br/>
+    <a href="docs/source/compute_config/openwhisk.md">OpenWhisk</a><br/>
+    <a href="docs/source/compute_config/vm.md">Virtual Machine</a>
+  </td>
+  <td align="left" valign="top">
+    <a href="docs/source/storage_config/swift.md">OpenStack Swift</a><br/>
+    <a href="docs/source/storage_config/redis.md">Redis</a><br/>
+    <a href="docs/source/storage_config/ceph.md">Ceph</a><br/>
+    <a href="docs/source/storage_config/minio.md">MinIO</a><br/>
+    <a href="docs/source/storage_config/infinispan.md">Infinispan</a>
+  </td>
+</tr>
+</table>
 </p>
 
 
@@ -42,21 +151,7 @@ Lithops provides an extensible backend architecture (compute, storage) designed 
 
 Lithops ships with 2 different high-level Compute APIs, and 2 high-level Storage APIs.
 
-<div align="center">
-<table>
-<tr>
-  <th>
-    <img width="50%" height="1px">
-    <p><small><a href="docs/source/api_futures.rst">Futures API</a></small></p>
-  </th>
-  <th>
-    <img width="50%" height="1px">
-    <p><small><a href="docs/source/api_multiprocessing.rst">Multiprocessing API</a></small></p>
-  </th>
-</tr>
-
-<tr>
-<td>
+### [Futures API](docs/source/api_futures.rst)
 
 ```python
 from lithops import FunctionExecutor
@@ -68,8 +163,8 @@ with FunctionExecutor() as fexec:
     f = fexec.map(double, [1, 2, 3, 4])
     print(f.result())
 ```
-</td>
-<td>
+
+### [Multiprocessing API](docs/source/api_multiprocessing.rst)
 
 ```python
 from lithops.multiprocessing import Pool
@@ -81,25 +176,8 @@ with Pool() as pool:
     result = pool.map(double, [1, 2, 3, 4])
     print(result)
 ```
-</td>
-</tr>
 
-</table>
-
-<table>
-<tr>
-  <th>
-    <img width="50%" height="1px">
-    <p><small><a href="docs/source/api_storage.rst">Storage API</a></small></p>
-  </th>
-  <th>
-    <img width="50%" height="1px">
-    <p><small><a href="docs/source/api_storage_os.rst">Storage OS API</a></small></p>
-  </th>
-</tr>
-
-<tr>
-<td>
+### [Storage API](docs/source/api_storage.rst)
 
 ```python
 from lithops import Storage
@@ -113,8 +191,8 @@ if __name__ == "__main__":
     print(st.get_object(bucket='lithops',
                         key='test.txt'))
 ```
-</td>
-<td>
+
+### [Storage OS API](docs/source/api_storage_os.rst)
 
 ```python
 from lithops.storage.cloud_proxy import os
@@ -128,11 +206,6 @@ if __name__ == "__main__":
     print(os.listdir(dirname))
     os.remove(filepath)
 ```
-</td>
-</tr>
-
-</table>
-</div>
 
 You can find more usage examples in the [examples](/examples) folder.
 
