@@ -40,7 +40,7 @@ Lithops provides an extensible backend architecture (compute, storage) designed 
 </tr>
 <tr>
   <td align="center" valign="top">
-    <img src="docs/source/images/clouds/localhost.png" alt="Localhost" width="100"/><br/>
+    <img src="docs/source/images/clouds/localhost.png" alt="Localhost" width="65"/><br/>
     <strong>Localhost</strong>
   </td>
   <td align="left" valign="top"><a href="docs/source/compute_config/localhost.md">Localhost</a></td>

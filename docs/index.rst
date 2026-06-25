@@ -56,7 +56,7 @@ No matter where your data lives, Lithops can execute your code right next to it.
    <tbody>
    <tr>
      <td align="center" valign="top">
-       <img src="_static/clouds/localhost.png" alt="Localhost" width="100"/><br/>
+       <img src="_static/clouds/localhost.png" alt="Localhost" width="65"/><br/>
        <strong>Localhost</strong>
      </td>
      <td align="left" valign="top"><a href="source/compute_config/localhost.html">Localhost</a></td>
