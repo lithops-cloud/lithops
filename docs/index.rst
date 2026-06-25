@@ -138,7 +138,7 @@ No matter where your data lives, Lithops can execute your code right next to it.
    </tr>
    <tr>
      <td align="center" valign="top">
-       <img src="_static/clouds/k8s.png" alt="Kubernetes" width="70"/>
+       <img src="_static/clouds/k8s.png" alt="Kubernetes" width="70"/><br/>
        <img src="_static/clouds/openshift.png" alt="OpenShift" width="70"/>
      </td>
      <td align="left" valign="top">

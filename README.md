@@ -121,7 +121,7 @@ Lithops provides an extensible backend architecture (compute, storage) designed 
 </tr>
 <tr>
   <td align="center" valign="top">
-    <img src="docs/source/images/clouds/k8s.png" alt="Kubernetes" width="70"/>
+    <img src="docs/source/images/clouds/k8s.png" alt="Kubernetes" width="70"/><br/>
     <img src="docs/source/images/clouds/openshift.png" alt="OpenShift" width="70"/>
   </td>
   <td align="left" valign="top">
