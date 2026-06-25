@@ -12,10 +12,8 @@ Currently, Lithops for IBM Cloud supports these backends:
 
    * - Compute
      - Storage
-   * - `IBM Cloud Functions <https://cloud.ibm.com/docs/openwhisk>`_
-     - `IBM Cloud Object Storage <https://cloud.ibm.com/docs/cloud-object-storage>`_
    * - `IBM Code Engine <https://cloud.ibm.com/docs/codeengine>`_
-     -
+     - `IBM Cloud Object Storage <https://cloud.ibm.com/docs/cloud-object-storage>`_
    * - `IBM Virtual Private Cloud (VPC) <https://cloud.ibm.com/docs/vpc>`_
      -
 

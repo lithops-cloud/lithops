@@ -1,10 +1,10 @@
 # Lithops configuration
 
-By default Lithops works on Localhost if no configuration is provided. To run workloads on the Cloud, you must configure both a compute and a storage backend. Failing to configure them properly will prevent Lithops from submitting workloads. Lithops configuration can be provided either in a configuration file or at runtime via a Python dictionary. 
+By default, Lithops uses the localhost backend when no configuration is provided. To run workloads in the cloud, you must configure both a compute and a storage backend. If either backend is misconfigured, Lithops will not be able to submit workloads. Configuration can be provided in a configuration file or at runtime via a Python dictionary.
 
 ### Configuration file
 
-To configure Lithops through a [configuration file](config_template.yaml) you have multiple options:
+To configure Lithops through a [configuration file](config_template.yaml), you have multiple options:
 
 1. Create a new file called `config` in the `~/.lithops` folder (i.e., `~/.lithops/config`).
 
@@ -12,16 +12,19 @@ To configure Lithops through a [configuration file](config_template.yaml) you ha
 
 3. Create a new file called `config` in the `/etc/lithops/` folder (i.e., `/etc/lithops/config`). Useful for sharing the config file on multi-user machines.
 
-4. Create the config file in any other location and configure the `LITHOPS_CONFIG_FILE` system environment variable:
+4. Create the config file in any other location and set the `LITHOPS_CONFIG_FILE` environment variable:
 
-	 	LITHOPS_CONFIG_FILE=<CONFIG_FILE_LOCATION>
-    
-### Configuration keys in runtime
+    ```bash
+    LITHOPS_CONFIG_FILE=<CONFIG_FILE_LOCATION>
+    ```
 
-An alternative mode of configuration is to use a Python dictionary. This option allows you to pass all the configuration details as part of the Lithops invocation at runtime. The full list of sections and keys is [here](config_template.yaml)
+### Configuration at runtime
+
+An alternative way to configure Lithops is to use a Python dictionary. This lets you pass configuration details as part of the Lithops invocation at runtime. The full list of sections and keys is [here](config_template.yaml).
 
 ## Compute and Storage backends
-Choose your compute and storage backends from the table below
+
+Choose your compute and storage backends from the table below.
 
 <table>
 <tr>
@@ -75,7 +78,7 @@ Storage Backends
 <td valign="top">
 
 - [Localhost](../docs/source/compute_config/localhost.md)
-	</p>
+
 <b>Object Storage:</b>
 - [IBM Cloud Object Storage](../docs/source/storage_config/ibm_cos.md)
 - [AWS S3](../docs/source/storage_config/aws_s3.md)
@@ -86,7 +89,7 @@ Storage Backends
 - [Ceph](../docs/source/storage_config/ceph.md)
 - [MinIO](../docs/source/storage_config/minio.md)
 - [OpenStack Swift](../docs/source/storage_config/swift.md)
-	</p>
+
 <b>In-Memory Storage:</b>
 - [Redis](../docs/source/storage_config/redis.md)
 - [Infinispan](../docs/source/storage_config/infinispan.md)
@@ -113,8 +116,9 @@ if __name__ == '__main__':
     print(fexec.get_result())
 ```
 
-### Providing configuration in runtime
-Example of providing configuration keys for IBM Code Engine and IBM Cloud Object Storage
+### Providing configuration at runtime
+
+Example of providing configuration keys for IBM Code Engine and IBM Cloud Object Storage:
 
 ```python
 import lithops

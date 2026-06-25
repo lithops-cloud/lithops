@@ -1,7 +1,7 @@
 Welcome to Lithops!
 ********************
 
-**Lithops is a Python multi-cloud serverless computing framework** that empowers you to **run unmodified Python code at massive scale** on leading serverless platforms and beyond.
+**Lithops is a Python multi-cloud distributed computing framework** that empowers you to **run unmodified Python code at massive scale** across cloud, HPC, on-premise, and serverless platforms.
 
 Whether you're processing terabytes of data or launching thousands of parallel tasks, Lithops lets you **focus on your code, not infrastructure**. It brings simplicity, performance, and flexibility to cloud-native computing.
 
@@ -12,7 +12,7 @@ Why Lithops?
 Serverless computing makes it easy to run code in the cloud — but scaling data-intensive workloads across clouds is hard. Lithops solves this by providing:
 
 - ✅ **Zero-configuration scale-out**: Run your Python functions on thousands of cloud workers with no infrastructure management.
-- 🌍 **True multi-cloud portability**: Move seamlessly between AWS, GCP, Azure, IBM Cloud, etc...
+- 🌍 **True multi-cloud portability**: Move seamlessly between AWS, GCP, Azure, IBM Cloud, and more.
 - 💡 **Developer-first experience**: Write standard Python code, including NumPy, pandas, and scikit-learn — no cloud-specific boilerplate required.
 - 🧠 **Optimized for big data and AI**: Efficiently process massive datasets stored in object storage services with automatic partitioning.
 
@@ -43,9 +43,122 @@ Compute Anywhere
 
 No matter where your data lives, Lithops can execute your code right next to it.
 
-.. image:: source/images/multicloud.jpg
-   :alt: Available backends
-   :align: center
+Supported backends by platform:
+
+.. raw:: html
+
+   <table class="backends-table" style="margin: 0 auto;">
+   <thead>
+   <tr>
+     <th align="center">Platform</th>
+     <th align="center">Compute</th>
+     <th align="center">Storage</th>
+   </tr>
+   </thead>
+   <tbody>
+   <tr>
+     <td align="center" valign="top">
+       <img src="_static/clouds/localhost.png" alt="Localhost" width="65"/><br/>
+       <strong>Localhost</strong>
+     </td>
+     <td align="left" valign="top"><a href="source/compute_config/localhost.html">Localhost</a></td>
+     <td align="left" valign="top"><a href="source/compute_config/localhost.html">Localhost</a></td>
+   </tr>
+   <tr>
+     <td align="center" valign="top">
+       <img src="_static/clouds/ibm_cloud.png" alt="IBM Cloud" width="100"/>
+     </td>
+     <td align="left" valign="top">
+       <a href="source/compute_config/code_engine.html">IBM Code Engine</a><br/>
+       <a href="source/compute_config/ibm_vpc.html">IBM Virtual Private Cloud</a>
+     </td>
+     <td align="left" valign="top">
+       <a href="source/storage_config/ibm_cos.html">IBM Cloud Object Storage</a>
+     </td>
+   </tr>
+   <tr>
+     <td align="center" valign="top">
+       <img src="_static/clouds/aws.png" alt="AWS" width="100"/>
+     </td>
+     <td align="left" valign="top">
+       <a href="source/compute_config/aws_lambda.html">AWS Lambda</a><br/>
+       <a href="source/compute_config/aws_batch.html">AWS Batch</a><br/>
+       <a href="source/compute_config/aws_ec2.html">AWS Elastic Compute Cloud (EC2)</a>
+     </td>
+     <td align="left" valign="top">
+       <a href="source/storage_config/aws_s3.html">AWS S3</a>
+     </td>
+   </tr>
+   <tr>
+     <td align="center" valign="top">
+       <img src="_static/clouds/google_cloud.png" alt="Google Cloud" width="100"/>
+     </td>
+     <td align="left" valign="top">
+       <a href="source/compute_config/gcp_functions.html">Google Cloud Run functions</a><br/>
+       <a href="source/compute_config/gcp_cloudrun.html">Google Cloud Run</a><br/>
+       <a href="source/compute_config/gcp_compute_engine.html">Google Compute Engine</a>
+     </td>
+     <td align="left" valign="top">
+       <a href="source/storage_config/gcp_storage.html">Google Cloud Storage</a>
+     </td>
+   </tr>
+   <tr>
+     <td align="center" valign="top">
+       <img src="_static/clouds/azure.png" alt="Microsoft Azure" width="100"/>
+     </td>
+     <td align="left" valign="top">
+       <a href="source/compute_config/azure_functions.html">Azure Functions</a><br/>
+       <a href="source/compute_config/azure_containers.html">Azure Container Apps</a><br/>
+       <a href="source/compute_config/azure_vms.html">Azure Virtual Machines</a>
+     </td>
+     <td align="left" valign="top">
+       <a href="source/storage_config/azure_blob.html">Azure Blob Storage</a>
+     </td>
+   </tr>
+   <tr>
+     <td align="center" valign="top">
+       <img src="_static/clouds/aliyun.png" alt="Alibaba Cloud" width="100"/>
+     </td>
+     <td align="left" valign="top">
+       <a href="source/compute_config/aliyun_functions.html">Aliyun Functions Compute</a>
+     </td>
+     <td align="left" valign="top">
+       <a href="source/storage_config/aliyun_oss.html">Aliyun Object Storage Service</a>
+     </td>
+   </tr>
+   <tr>
+     <td align="center" valign="top">
+       <img src="_static/clouds/oracle.png" alt="Oracle Cloud" width="100"/>
+     </td>
+     <td align="left" valign="top">
+       <a href="source/compute_config/oracle_functions.html">Oracle Functions</a>
+     </td>
+     <td align="left" valign="top">
+       <a href="source/storage_config/oracle_oss.html">Oracle Object Storage</a>
+     </td>
+   </tr>
+   <tr>
+     <td align="center" valign="top">
+       <img src="_static/clouds/k8s.png" alt="Kubernetes" width="95"/><br/>
+       <img src="_static/clouds/openshift.png" alt="OpenShift" width="95"/>
+     </td>
+     <td align="left" valign="top">
+       <a href="source/compute_config/kubernetes.html">Kubernetes Jobs</a><br/>
+       <a href="source/compute_config/knative.html">Knative</a><br/>
+       <a href="source/compute_config/singularity.html">Singularity</a><br/>
+       <a href="source/compute_config/openwhisk.html">OpenWhisk</a><br/>
+       <a href="source/compute_config/vm.html">Virtual Machine</a>
+     </td>
+     <td align="left" valign="top">
+       <a href="source/storage_config/swift.html">OpenStack Swift</a><br/>
+       <a href="source/storage_config/redis.html">Redis</a><br/>
+       <a href="source/storage_config/ceph.html">Ceph</a><br/>
+       <a href="source/storage_config/minio.html">MinIO</a><br/>
+       <a href="source/storage_config/infinispan.html">Infinispan</a>
+     </td>
+   </tr>
+   </tbody>
+   </table>
 
 
 Object Storage Made Easy

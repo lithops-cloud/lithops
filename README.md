@@ -27,36 +27,130 @@ Lithops is ideal for highly parallel workloads—such as Monte Carlo simulations
    ```
 
 ## Configuration
-Lithops provides an extensible backend architecture (compute, storage) designed to work with various cloud providers and on-premise platforms. You can write your code in Python and run it unmodified across major cloud providers and Kubernetes environments.
 
-[Follow these instructions to configure your compute and storage backends](config/)
+Lithops provides an extensible backend architecture for compute and storage, designed to work with various cloud providers and on-premise platforms. You can write your code in Python and run it unmodified across major cloud providers and Kubernetes environments.
+
+📁 [Follow these instructions to configure your compute and storage backends](config/)
+
+Supported backends by platform:
 
 <p align="center">
-<a href="config/README.md#compute-and-storage-backends">
-<img src="docs/source/images/multicloud.jpg" alt="Multicloud Lithops" title="Multicloud Lithops"/>
-</a>
+<table>
+<tr>
+  <th align="center">Platform</th>
+  <th align="center">Compute</th>
+  <th align="center">Storage</th>
+</tr>
+<tr>
+  <td align="center" valign="top">
+    <img src="docs/source/images/clouds/localhost.png" alt="Localhost" width="65"/><br/>
+    <strong>Localhost</strong>
+  </td>
+  <td align="left" valign="top"><a href="docs/source/compute_config/localhost.md">Localhost</a></td>
+  <td align="left" valign="top"><a href="docs/source/compute_config/localhost.md">Localhost</a></td>
+</tr>
+<tr>
+  <td align="center" valign="top">
+    <img src="docs/source/images/clouds/ibm_cloud.png" alt="IBM Cloud" width="100"/>
+  </td>
+  <td align="left" valign="top">
+    <a href="docs/source/compute_config/code_engine.md">IBM Code Engine</a><br/>
+    <a href="docs/source/compute_config/ibm_vpc.md">IBM Virtual Private Cloud</a>
+  </td>
+  <td align="left" valign="top">
+    <a href="docs/source/storage_config/ibm_cos.md">IBM Cloud Object Storage</a>
+  </td>
+</tr>
+<tr>
+  <td align="center" valign="top">
+    <img src="docs/source/images/clouds/aws.png" alt="AWS" width="100"/>
+  </td>
+  <td align="left" valign="top">
+    <a href="docs/source/compute_config/aws_lambda.md">AWS Lambda</a><br/>
+    <a href="docs/source/compute_config/aws_batch.md">AWS Batch</a><br/>
+    <a href="docs/source/compute_config/aws_ec2.md">AWS Elastic Compute Cloud (EC2)</a>
+  </td>
+  <td align="left" valign="top">
+    <a href="docs/source/storage_config/aws_s3.md">AWS S3</a>
+  </td>
+</tr>
+<tr>
+  <td align="center" valign="top">
+    <img src="docs/source/images/clouds/google_cloud.png" alt="Google Cloud" width="100"/>
+  </td>
+  <td align="left" valign="top">
+    <a href="docs/source/compute_config/gcp_functions.md">Google Cloud Run functions</a><br/>
+    <a href="docs/source/compute_config/gcp_cloudrun.md">Google Cloud Run</a><br/>
+    <a href="docs/source/compute_config/gcp_compute_engine.md">Google Compute Engine</a>
+  </td>
+  <td align="left" valign="top">
+    <a href="docs/source/storage_config/gcp_storage.md">Google Cloud Storage</a>
+  </td>
+</tr>
+<tr>
+  <td align="center" valign="top">
+    <img src="docs/source/images/clouds/azure.png" alt="Microsoft Azure" width="100"/>
+  </td>
+  <td align="left" valign="top">
+    <a href="docs/source/compute_config/azure_functions.md">Azure Functions</a><br/>
+    <a href="docs/source/compute_config/azure_containers.md">Azure Container Apps</a><br/>
+    <a href="docs/source/compute_config/azure_vms.md">Azure Virtual Machines</a>
+  </td>
+  <td align="left" valign="top">
+    <a href="docs/source/storage_config/azure_blob.md">Azure Blob Storage</a>
+  </td>
+</tr>
+<tr>
+  <td align="center" valign="top">
+    <img src="docs/source/images/clouds/aliyun.png" alt="Alibaba Cloud" width="100"/>
+  </td>
+  <td align="left" valign="top">
+    <a href="docs/source/compute_config/aliyun_functions.md">Aliyun Functions Compute</a>
+  </td>
+  <td align="left" valign="top">
+    <a href="docs/source/storage_config/aliyun_oss.md">Aliyun Object Storage Service</a>
+  </td>
+</tr>
+<tr>
+  <td align="center" valign="top">
+    <img src="docs/source/images/clouds/oracle.png" alt="Oracle Cloud" width="100"/>
+  </td>
+  <td align="left" valign="top">
+    <a href="docs/source/compute_config/oracle_functions.md">Oracle Functions</a>
+  </td>
+  <td align="left" valign="top">
+    <a href="docs/source/storage_config/oracle_oss.md">Oracle Object Storage</a>
+  </td>
+</tr>
+<tr>
+  <td align="center" valign="top">
+    <img src="docs/source/images/clouds/k8s.png" alt="Kubernetes" width="95"/><br/>
+    <img src="docs/source/images/clouds/openshift.png" alt="OpenShift" width="95"/>
+  </td>
+  <td align="left" valign="top">
+    <a href="docs/source/compute_config/kubernetes.md">Kubernetes Jobs</a><br/>
+    <a href="docs/source/compute_config/knative.md">Knative</a><br/>
+    <a href="docs/source/compute_config/singularity.md">Singularity</a><br/>
+    <a href="docs/source/compute_config/openwhisk.md">OpenWhisk</a><br/>
+    <a href="docs/source/compute_config/vm.md">Virtual Machine</a>
+  </td>
+  <td align="left" valign="top">
+    <a href="docs/source/storage_config/swift.md">OpenStack Swift</a><br/>
+    <a href="docs/source/storage_config/redis.md">Redis</a><br/>
+    <a href="docs/source/storage_config/ceph.md">Ceph</a><br/>
+    <a href="docs/source/storage_config/minio.md">MinIO</a><br/>
+    <a href="docs/source/storage_config/infinispan.md">Infinispan</a>
+  </td>
+</tr>
+</table>
 </p>
 
 
 ## High-level API
 
-Lithops ships with 2 different high-level Compute APIs, and 2 high-level Storage APIs.
+Lithops provides two high-level compute APIs and two high-level storage APIs.
 
-<div align="center">
-<table>
-<tr>
-  <th>
-    <img width="50%" height="1px">
-    <p><small><a href="docs/source/api_futures.rst">Futures API</a></small></p>
-  </th>
-  <th>
-    <img width="50%" height="1px">
-    <p><small><a href="docs/source/api_multiprocessing.rst">Multiprocessing API</a></small></p>
-  </th>
-</tr>
-
-<tr>
-<td>
+### [Futures API](docs/source/api_futures.rst)
 
 ```python
 from lithops import FunctionExecutor
@@ -68,8 +162,8 @@ with FunctionExecutor() as fexec:
     f = fexec.map(double, [1, 2, 3, 4])
     print(f.result())
 ```
-</td>
-<td>
+
+### [Multiprocessing API](docs/source/api_multiprocessing.rst)
 
 ```python
 from lithops.multiprocessing import Pool
@@ -81,40 +175,19 @@ with Pool() as pool:
     result = pool.map(double, [1, 2, 3, 4])
     print(result)
 ```
-</td>
-</tr>
 
-</table>
-
-<table>
-<tr>
-  <th>
-    <img width="50%" height="1px">
-    <p><small><a href="docs/source/api_storage.rst">Storage API</a></small></p>
-  </th>
-  <th>
-    <img width="50%" height="1px">
-    <p><small><a href="docs/source/api_storage_os.rst">Storage OS API</a></small></p>
-  </th>
-</tr>
-
-<tr>
-<td>
+### [Storage API](docs/source/api_storage.rst)
 
 ```python
 from lithops import Storage
 
 if __name__ == "__main__":
     st = Storage()
-    st.put_object(bucket='mybucket',
-                  key='test.txt',
-                  body='Hello World')
-
-    print(st.get_object(bucket='lithops',
-                        key='test.txt'))
+    st.put_object(bucket='mybucket', key='test.txt', body='Hello World')
+    print(st.get_object(bucket='mybucket', key='test.txt'))
 ```
-</td>
-<td>
+
+### [Storage OS API](docs/source/api_storage_os.rst)
 
 ```python
 from lithops.storage.cloud_proxy import os
@@ -128,17 +201,12 @@ if __name__ == "__main__":
     print(os.listdir(dirname))
     os.remove(filepath)
 ```
-</td>
-</tr>
-
-</table>
-</div>
 
 You can find more usage examples in the [examples](/examples) folder.
 
 ## Documentation
 
-For documentation on using Lithops, see [latest release documentation](https://lithops-cloud.github.io/docs/)
+For documentation on using Lithops, see the [latest release documentation](https://lithops-cloud.github.io/docs/).
 
 If you are interested in contributing, see [CONTRIBUTING.md](./CONTRIBUTING.md).
 
@@ -151,7 +219,7 @@ If you are interested in contributing, see [CONTRIBUTING.md](./CONTRIBUTING.md).
 * [Speed-up your Python applications using Lithops and Serverless Cloud resources](https://itnext.io/speed-up-your-python-applications-using-lithops-and-serverless-cloud-resources-a64beb008bb5)
 * [Lithops, a Multi-cloud Serverless Programming Framework](https://itnext.io/lithops-a-multi-cloud-serverless-programming-framework-fd97f0d5e9e4)
 * [CNCF Webinar - Toward Hybrid Cloud Serverless Transparency with Lithops Framework](https://www.youtube.com/watch?v=-uS-wi8CxBo)
-* [Your easy move to serverless computing and radically simplified data processing](https://www.slideshare.net/gvernik/your-easy-move-to-serverless-computing-and-radically-simplified-data-processing-238929020) Strata Data Conference, NY 2019. See video of Lithops usage [here](https://www.youtube.com/watch?v=EYa95KyYEtg&list=PLpR7f3Www9KCjYisaG7AMaR0C2GqLUh2G&index=3&t=0s) and the example of Monte Carlo [here](https://www.youtube.com/watch?v=vF5HI2q5VKw&list=PLpR7f3Www9KCjYisaG7AMaR0C2GqLUh2G&index=2&t=0s)
+* [Your easy move to serverless computing and radically simplified data processing](https://www.slideshare.net/gvernik/your-easy-move-to-serverless-computing-and-radically-simplified-data-processing-238929020) — Strata Data Conference, NY 2019. See a video of Lithops usage [here](https://www.youtube.com/watch?v=EYa95KyYEtg&list=PLpR7f3Www9KCjYisaG7AMaR0C2GqLUh2G&index=3&t=0s) and a Monte Carlo example [here](https://www.youtube.com/watch?v=vF5HI2q5VKw&list=PLpR7f3Www9KCjYisaG7AMaR0C2GqLUh2G&index=2&t=0s)
 
 <!---
 * [Serverless Without Constraints](https://www.ibm.com/cloud/blog/serverless-without-constraints)
@@ -164,7 +232,7 @@ If you are interested in contributing, see [CONTRIBUTING.md](./CONTRIBUTING.md).
 -->
 
 ### Papers
-* [Serverful Functions: Leveraging Servers in Complex Serverless Workflows](https://dl.acm.org/doi/10.1145/3700824.3701095)  - ACM Middleware Industrial Track 2024 
+* [Serverful Functions: Leveraging Servers in Complex Serverless Workflows](https://dl.acm.org/doi/10.1145/3700824.3701095) - ACM Middleware Industrial Track 2024
 * [Transparent serverless execution of Python multiprocessing applications](https://dl.acm.org/doi/10.1016/j.future.2022.10.038) - Elsevier Future Generation Computer Systems 2023
 * [Outsourcing Data Processing Jobs with Lithops](https://ieeexplore.ieee.org/document/9619947) - IEEE Transactions on Cloud Computing 2022
 * [Towards Multicloud Access Transparency in Serverless Computing](https://www.computer.org/csdl/magazine/so/5555/01/09218932/1nMMkpZ8Ko8) - IEEE Software 2021
@@ -174,4 +242,5 @@ If you are interested in contributing, see [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 
 # Acknowledgements
-This project has received funding from the European Union's Horizon 2020 research and innovation programme under grant agreement No 825184 (CloudButton).
+
+This project has received funding from the European Union's Horizon 2020 research and innovation programme under grant agreement No. 825184 (CloudButton).
