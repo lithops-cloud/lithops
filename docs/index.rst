@@ -1,7 +1,7 @@
 Welcome to Lithops!
 ********************
 
-**Lithops is a Python multi-cloud serverless computing framework** that empowers you to **run unmodified Python code at massive scale** on leading serverless platforms and beyond.
+**Lithops is a Python multi-cloud distributed computing framework** that empowers you to **run unmodified Python code at massive scale** across cloud, HPC, on-premise, and serverless platforms.
 
 Whether you're processing terabytes of data or launching thousands of parallel tasks, Lithops lets you **focus on your code, not infrastructure**. It brings simplicity, performance, and flexibility to cloud-native computing.
 
@@ -12,7 +12,7 @@ Why Lithops?
 Serverless computing makes it easy to run code in the cloud — but scaling data-intensive workloads across clouds is hard. Lithops solves this by providing:
 
 - ✅ **Zero-configuration scale-out**: Run your Python functions on thousands of cloud workers with no infrastructure management.
-- 🌍 **True multi-cloud portability**: Move seamlessly between AWS, GCP, Azure, IBM Cloud, etc...
+- 🌍 **True multi-cloud portability**: Move seamlessly between AWS, GCP, Azure, IBM Cloud, and more.
 - 💡 **Developer-first experience**: Write standard Python code, including NumPy, pandas, and scikit-learn — no cloud-specific boilerplate required.
 - 🧠 **Optimized for big data and AI**: Efficiently process massive datasets stored in object storage services with automatic partitioning.
 
@@ -43,6 +43,8 @@ Compute Anywhere
 
 No matter where your data lives, Lithops can execute your code right next to it.
 
+Supported backends by platform:
+
 .. raw:: html
 
    <table class="backends-table" style="margin: 0 auto;">
@@ -67,7 +69,6 @@ No matter where your data lives, Lithops can execute your code right next to it.
        <img src="_static/clouds/ibm_cloud.png" alt="IBM Cloud" width="100"/>
      </td>
      <td align="left" valign="top">
-       <a href="source/compute_config/ibm_cf.html">IBM Cloud Functions</a><br/>
        <a href="source/compute_config/code_engine.html">IBM Code Engine</a><br/>
        <a href="source/compute_config/ibm_vpc.html">IBM Virtual Private Cloud</a>
      </td>
@@ -138,8 +139,8 @@ No matter where your data lives, Lithops can execute your code right next to it.
    </tr>
    <tr>
      <td align="center" valign="top">
-       <img src="_static/clouds/k8s.png" alt="Kubernetes" width="70"/><br/>
-       <img src="_static/clouds/openshift.png" alt="OpenShift" width="70"/>
+       <img src="_static/clouds/k8s.png" alt="Kubernetes" width="85"/><br/>
+       <img src="_static/clouds/openshift.png" alt="OpenShift" width="85"/>
      </td>
      <td align="left" valign="top">
        <a href="source/compute_config/kubernetes.html">Kubernetes Jobs</a><br/>

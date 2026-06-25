@@ -34,8 +34,8 @@ development phase.
 Serverless mode
 ---------------
 The "serverless mode" in Lithops is designed to execute functions using publicly 
-accessible serverless compute services, including IBM Cloud Functions, AWS Lambda, 
-Google Cloud Run functions, and more, enabling parallel task execution in isolated cloud 
+accessible serverless compute services, including AWS Lambda,
+Google Cloud Run functions, and more, enabling parallel task execution in isolated cloud
 environments.
 
 In serverless mode, Lithops leverages the power of these serverless platforms to execute 
@@ -60,7 +60,7 @@ computing capabilities.
     fexec = lithops.ServerlessExecutor()
 
 
-- Available backends: `IBM Cloud Functions <compute_config/ibm_cf.html>`_, `IBM Code Engine <compute_config/code_engine.html>`_, `AWS Lambda <compute_config/aws_lambda.html>`_, `AWS Batch <compute_config/aws_batch.html>`_, `Google Cloud Run functions (v2) <compute_config/gcp_functions.html>`_, `Google Cloud Run <compute_config/gcp_cloudrun.html>`_, `Azure Functions <compute_config/azure_functions.html>`_, `Azure Container Apps <compute_config/azure_containers.html>`_, `Aliyun Function Compute <compute_config/aliyun_functions.html>`_, `Oracle Functions <compute_config/oracle_functions.html>`_, `Kubernetes Jobs <compute_config/kubernetes.html>`_, `Knative <compute_config/knative.html>`_, `Singularity <compute_config/singularity.html>`_, `OpenWhisk <compute_config/openwhisk.html>`_
+- Available backends: `IBM Code Engine <compute_config/code_engine.html>`_, `AWS Lambda <compute_config/aws_lambda.html>`_, `AWS Batch <compute_config/aws_batch.html>`_, `Google Cloud Run functions (v2) <compute_config/gcp_functions.html>`_, `Google Cloud Run <compute_config/gcp_cloudrun.html>`_, `Azure Functions <compute_config/azure_functions.html>`_, `Azure Container Apps <compute_config/azure_containers.html>`_, `Aliyun Function Compute <compute_config/aliyun_functions.html>`_, `Oracle Functions <compute_config/oracle_functions.html>`_, `Kubernetes Jobs <compute_config/kubernetes.html>`_, `Knative <compute_config/knative.html>`_, `Singularity <compute_config/singularity.html>`_, `OpenWhisk <compute_config/openwhisk.html>`_
 
 
 Standalone mode

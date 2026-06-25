@@ -27,9 +27,12 @@ Lithops is ideal for highly parallel workloads—such as Monte Carlo simulations
    ```
 
 ## Configuration
-Lithops provides an extensible backend architecture (compute, storage) designed to work with various cloud providers and on-premise platforms. You can write your code in Python and run it unmodified across major cloud providers and Kubernetes environments.
+
+Lithops provides an extensible backend architecture for compute and storage, designed to work with various cloud providers and on-premise platforms. You can write your code in Python and run it unmodified across major cloud providers and Kubernetes environments.
 
 [Follow these instructions to configure your compute and storage backends](config/)
+
+Supported backends by platform:
 
 <p align="center">
 <table>
@@ -121,8 +124,8 @@ Lithops provides an extensible backend architecture (compute, storage) designed 
 </tr>
 <tr>
   <td align="center" valign="top">
-    <img src="docs/source/images/clouds/k8s.png" alt="Kubernetes" width="70"/><br/>
-    <img src="docs/source/images/clouds/openshift.png" alt="OpenShift" width="70"/>
+    <img src="docs/source/images/clouds/k8s.png" alt="Kubernetes" width="85"/><br/>
+    <img src="docs/source/images/clouds/openshift.png" alt="OpenShift" width="85"/>
   </td>
   <td align="left" valign="top">
     <a href="docs/source/compute_config/kubernetes.md">Kubernetes Jobs</a><br/>
@@ -145,7 +148,7 @@ Lithops provides an extensible backend architecture (compute, storage) designed 
 
 ## High-level API
 
-Lithops ships with 2 different high-level Compute APIs, and 2 high-level Storage APIs.
+Lithops provides two high-level compute APIs and two high-level storage APIs.
 
 ### [Futures API](docs/source/api_futures.rst)
 
@@ -184,7 +187,7 @@ if __name__ == "__main__":
                   key='test.txt',
                   body='Hello World')
 
-    print(st.get_object(bucket='lithops',
+    print(st.get_object(bucket='mybucket',
                         key='test.txt'))
 ```
 
@@ -207,7 +210,7 @@ You can find more usage examples in the [examples](/examples) folder.
 
 ## Documentation
 
-For documentation on using Lithops, see [latest release documentation](https://lithops-cloud.github.io/docs/)
+For documentation on using Lithops, see the [latest release documentation](https://lithops-cloud.github.io/docs/).
 
 If you are interested in contributing, see [CONTRIBUTING.md](./CONTRIBUTING.md).
 
@@ -220,7 +223,7 @@ If you are interested in contributing, see [CONTRIBUTING.md](./CONTRIBUTING.md).
 * [Speed-up your Python applications using Lithops and Serverless Cloud resources](https://itnext.io/speed-up-your-python-applications-using-lithops-and-serverless-cloud-resources-a64beb008bb5)
 * [Lithops, a Multi-cloud Serverless Programming Framework](https://itnext.io/lithops-a-multi-cloud-serverless-programming-framework-fd97f0d5e9e4)
 * [CNCF Webinar - Toward Hybrid Cloud Serverless Transparency with Lithops Framework](https://www.youtube.com/watch?v=-uS-wi8CxBo)
-* [Your easy move to serverless computing and radically simplified data processing](https://www.slideshare.net/gvernik/your-easy-move-to-serverless-computing-and-radically-simplified-data-processing-238929020) Strata Data Conference, NY 2019. See video of Lithops usage [here](https://www.youtube.com/watch?v=EYa95KyYEtg&list=PLpR7f3Www9KCjYisaG7AMaR0C2GqLUh2G&index=3&t=0s) and the example of Monte Carlo [here](https://www.youtube.com/watch?v=vF5HI2q5VKw&list=PLpR7f3Www9KCjYisaG7AMaR0C2GqLUh2G&index=2&t=0s)
+* [Your easy move to serverless computing and radically simplified data processing](https://www.slideshare.net/gvernik/your-easy-move-to-serverless-computing-and-radically-simplified-data-processing-238929020) — Strata Data Conference, NY 2019. See a video of Lithops usage [here](https://www.youtube.com/watch?v=EYa95KyYEtg&list=PLpR7f3Www9KCjYisaG7AMaR0C2GqLUh2G&index=3&t=0s) and a Monte Carlo example [here](https://www.youtube.com/watch?v=vF5HI2q5VKw&list=PLpR7f3Www9KCjYisaG7AMaR0C2GqLUh2G&index=2&t=0s)
 
 <!---
 * [Serverless Without Constraints](https://www.ibm.com/cloud/blog/serverless-without-constraints)
@@ -233,7 +236,7 @@ If you are interested in contributing, see [CONTRIBUTING.md](./CONTRIBUTING.md).
 -->
 
 ### Papers
-* [Serverful Functions: Leveraging Servers in Complex Serverless Workflows](https://dl.acm.org/doi/10.1145/3700824.3701095)  - ACM Middleware Industrial Track 2024 
+* [Serverful Functions: Leveraging Servers in Complex Serverless Workflows](https://dl.acm.org/doi/10.1145/3700824.3701095) - ACM Middleware Industrial Track 2024
 * [Transparent serverless execution of Python multiprocessing applications](https://dl.acm.org/doi/10.1016/j.future.2022.10.038) - Elsevier Future Generation Computer Systems 2023
 * [Outsourcing Data Processing Jobs with Lithops](https://ieeexplore.ieee.org/document/9619947) - IEEE Transactions on Cloud Computing 2022
 * [Towards Multicloud Access Transparency in Serverless Computing](https://www.computer.org/csdl/magazine/so/5555/01/09218932/1nMMkpZ8Ko8) - IEEE Software 2021
@@ -243,4 +246,5 @@ If you are interested in contributing, see [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 
 # Acknowledgements
-This project has received funding from the European Union's Horizon 2020 research and innovation programme under grant agreement No 825184 (CloudButton).
+
+This project has received funding from the European Union's Horizon 2020 research and innovation programme under grant agreement No. 825184 (CloudButton).
