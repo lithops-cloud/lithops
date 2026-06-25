@@ -30,7 +30,7 @@ Lithops is ideal for highly parallel workloads—such as Monte Carlo simulations
 
 Lithops provides an extensible backend architecture for compute and storage, designed to work with various cloud providers and on-premise platforms. You can write your code in Python and run it unmodified across major cloud providers and Kubernetes environments.
 
-[Follow these instructions to configure your compute and storage backends](config/)
+📁 [Follow these instructions to configure your compute and storage backends](config/)
 
 Supported backends by platform:
 
