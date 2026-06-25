@@ -124,8 +124,8 @@ Supported backends by platform:
 </tr>
 <tr>
   <td align="center" valign="top">
-    <img src="docs/source/images/clouds/k8s.png" alt="Kubernetes" width="85"/><br/>
-    <img src="docs/source/images/clouds/openshift.png" alt="OpenShift" width="85"/>
+    <img src="docs/source/images/clouds/k8s.png" alt="Kubernetes" width="95"/><br/>
+    <img src="docs/source/images/clouds/openshift.png" alt="OpenShift" width="95"/>
   </td>
   <td align="left" valign="top">
     <a href="docs/source/compute_config/kubernetes.md">Kubernetes Jobs</a><br/>
