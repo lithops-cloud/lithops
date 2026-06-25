@@ -55,14 +55,16 @@ No matter where your data lives, Lithops can execute your code right next to it.
    </thead>
    <tbody>
    <tr>
-     <td align="center" valign="top"><strong>Localhost</strong></td>
+     <td align="center" valign="top">
+       <img src="_static/clouds/localhost.png" alt="Localhost" width="100"/><br/>
+       <strong>Localhost</strong>
+     </td>
      <td align="left" valign="top"><a href="source/compute_config/localhost.html">Localhost</a></td>
      <td align="left" valign="top"><a href="source/compute_config/localhost.html">Localhost</a></td>
    </tr>
    <tr>
      <td align="center" valign="top">
-       <img src="_static/clouds/ibm_cloud.png" alt="IBM Cloud" width="100"/><br/>
-       <strong>IBM Cloud</strong>
+       <img src="_static/clouds/ibm_cloud.png" alt="IBM Cloud" width="100"/>
      </td>
      <td align="left" valign="top">
        <a href="source/compute_config/ibm_cf.html">IBM Cloud Functions</a><br/>
@@ -75,8 +77,7 @@ No matter where your data lives, Lithops can execute your code right next to it.
    </tr>
    <tr>
      <td align="center" valign="top">
-       <img src="_static/clouds/aws.png" alt="AWS" width="100"/><br/>
-       <strong>Amazon Web Services</strong>
+       <img src="_static/clouds/aws.png" alt="AWS" width="100"/>
      </td>
      <td align="left" valign="top">
        <a href="source/compute_config/aws_lambda.html">AWS Lambda</a><br/>
@@ -89,8 +90,7 @@ No matter where your data lives, Lithops can execute your code right next to it.
    </tr>
    <tr>
      <td align="center" valign="top">
-       <img src="_static/clouds/google_cloud.png" alt="Google Cloud" width="100"/><br/>
-       <strong>Google Cloud</strong>
+       <img src="_static/clouds/google_cloud.png" alt="Google Cloud" width="100"/>
      </td>
      <td align="left" valign="top">
        <a href="source/compute_config/gcp_functions.html">Google Cloud Run functions</a><br/>
@@ -103,8 +103,7 @@ No matter where your data lives, Lithops can execute your code right next to it.
    </tr>
    <tr>
      <td align="center" valign="top">
-       <img src="_static/clouds/azure.png" alt="Microsoft Azure" width="100"/><br/>
-       <strong>Microsoft Azure</strong>
+       <img src="_static/clouds/azure.png" alt="Microsoft Azure" width="100"/>
      </td>
      <td align="left" valign="top">
        <a href="source/compute_config/azure_functions.html">Azure Functions</a><br/>
@@ -117,8 +116,7 @@ No matter where your data lives, Lithops can execute your code right next to it.
    </tr>
    <tr>
      <td align="center" valign="top">
-       <img src="_static/clouds/aliyun.png" alt="Alibaba Cloud" width="100"/><br/>
-       <strong>Alibaba Cloud</strong>
+       <img src="_static/clouds/aliyun.png" alt="Alibaba Cloud" width="100"/>
      </td>
      <td align="left" valign="top">
        <a href="source/compute_config/aliyun_functions.html">Aliyun Functions Compute</a>
@@ -129,8 +127,7 @@ No matter where your data lives, Lithops can execute your code right next to it.
    </tr>
    <tr>
      <td align="center" valign="top">
-       <img src="_static/clouds/oracle.png" alt="Oracle Cloud" width="100"/><br/>
-       <strong>Oracle Cloud</strong>
+       <img src="_static/clouds/oracle.png" alt="Oracle Cloud" width="100"/>
      </td>
      <td align="left" valign="top">
        <a href="source/compute_config/oracle_functions.html">Oracle Functions</a>
@@ -142,8 +139,7 @@ No matter where your data lives, Lithops can execute your code right next to it.
    <tr>
      <td align="center" valign="top">
        <img src="_static/clouds/k8s.png" alt="Kubernetes" width="70"/>
-       <img src="_static/clouds/openshift.png" alt="OpenShift" width="70"/><br/>
-       <strong>Kubernetes &amp; On-premise</strong>
+       <img src="_static/clouds/openshift.png" alt="OpenShift" width="70"/>
      </td>
      <td align="left" valign="top">
        <a href="source/compute_config/kubernetes.html">Kubernetes Jobs</a><br/>

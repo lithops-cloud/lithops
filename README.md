@@ -39,14 +39,16 @@ Lithops provides an extensible backend architecture (compute, storage) designed 
   <th align="center">Storage</th>
 </tr>
 <tr>
-  <td align="center" valign="top"><strong>Localhost</strong></td>
+  <td align="center" valign="top">
+    <img src="docs/source/images/clouds/localhost.png" alt="Localhost" width="100"/><br/>
+    <strong>Localhost</strong>
+  </td>
   <td align="left" valign="top"><a href="docs/source/compute_config/localhost.md">Localhost</a></td>
   <td align="left" valign="top"><a href="docs/source/compute_config/localhost.md">Localhost</a></td>
 </tr>
 <tr>
   <td align="center" valign="top">
-    <img src="docs/source/images/clouds/ibm_cloud.png" alt="IBM Cloud" width="100"/><br/>
-    <strong>IBM Cloud</strong>
+    <img src="docs/source/images/clouds/ibm_cloud.png" alt="IBM Cloud" width="100"/>
   </td>
   <td align="left" valign="top">
     <a href="docs/source/compute_config/code_engine.md">IBM Code Engine</a><br/>
@@ -58,8 +60,7 @@ Lithops provides an extensible backend architecture (compute, storage) designed 
 </tr>
 <tr>
   <td align="center" valign="top">
-    <img src="docs/source/images/clouds/aws.png" alt="AWS" width="100"/><br/>
-    <strong>Amazon Web Services</strong>
+    <img src="docs/source/images/clouds/aws.png" alt="AWS" width="100"/>
   </td>
   <td align="left" valign="top">
     <a href="docs/source/compute_config/aws_lambda.md">AWS Lambda</a><br/>
@@ -72,8 +73,7 @@ Lithops provides an extensible backend architecture (compute, storage) designed 
 </tr>
 <tr>
   <td align="center" valign="top">
-    <img src="docs/source/images/clouds/google_cloud.png" alt="Google Cloud" width="100"/><br/>
-    <strong>Google Cloud</strong>
+    <img src="docs/source/images/clouds/google_cloud.png" alt="Google Cloud" width="100"/>
   </td>
   <td align="left" valign="top">
     <a href="docs/source/compute_config/gcp_functions.md">Google Cloud Run functions</a><br/>
@@ -86,8 +86,7 @@ Lithops provides an extensible backend architecture (compute, storage) designed 
 </tr>
 <tr>
   <td align="center" valign="top">
-    <img src="docs/source/images/clouds/azure.png" alt="Microsoft Azure" width="100"/><br/>
-    <strong>Microsoft Azure</strong>
+    <img src="docs/source/images/clouds/azure.png" alt="Microsoft Azure" width="100"/>
   </td>
   <td align="left" valign="top">
     <a href="docs/source/compute_config/azure_functions.md">Azure Functions</a><br/>
@@ -100,8 +99,7 @@ Lithops provides an extensible backend architecture (compute, storage) designed 
 </tr>
 <tr>
   <td align="center" valign="top">
-    <img src="docs/source/images/clouds/aliyun.png" alt="Alibaba Cloud" width="100"/><br/>
-    <strong>Alibaba Cloud</strong>
+    <img src="docs/source/images/clouds/aliyun.png" alt="Alibaba Cloud" width="100"/>
   </td>
   <td align="left" valign="top">
     <a href="docs/source/compute_config/aliyun_functions.md">Aliyun Functions Compute</a>
@@ -112,8 +110,7 @@ Lithops provides an extensible backend architecture (compute, storage) designed 
 </tr>
 <tr>
   <td align="center" valign="top">
-    <img src="docs/source/images/clouds/oracle.png" alt="Oracle Cloud" width="100"/><br/>
-    <strong>Oracle Cloud</strong>
+    <img src="docs/source/images/clouds/oracle.png" alt="Oracle Cloud" width="100"/>
   </td>
   <td align="left" valign="top">
     <a href="docs/source/compute_config/oracle_functions.md">Oracle Functions</a>
@@ -125,8 +122,7 @@ Lithops provides an extensible backend architecture (compute, storage) designed 
 <tr>
   <td align="center" valign="top">
     <img src="docs/source/images/clouds/k8s.png" alt="Kubernetes" width="70"/>
-    <img src="docs/source/images/clouds/openshift.png" alt="OpenShift" width="70"/><br/>
-    <strong>Kubernetes &amp; On-premise</strong>
+    <img src="docs/source/images/clouds/openshift.png" alt="OpenShift" width="70"/>
   </td>
   <td align="left" valign="top">
     <a href="docs/source/compute_config/kubernetes.md">Kubernetes Jobs</a><br/>
