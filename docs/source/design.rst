@@ -105,8 +105,9 @@ changes. Lithops picks the matching executor and invoker automatically.
   and testing before moving to the cloud.
 
 * **Serverless** — deploys calls to managed **FaaS** platforms (AWS Lambda, Google Cloud
-  Functions, Azure Functions, IBM Code Engine, Aliyun, OpenWhisk) or to **container/batch**
-  platforms (AWS Batch, Google Cloud Run, Azure Container Apps, Kubernetes, Knative). This
+  Functions, Azure Functions, Aliyun, OpenWhisk) or to **container/batch**
+  platforms (AWS Batch, Google Cloud Run, Azure Container Apps, IBM Code Engine,
+  Kubernetes, Knative). This
   mode excels at highly parallel, short-lived tasks with elastic, on-demand scaling.
 
 * **Standalone** — a master–worker architecture over virtual machines (AWS EC2, IBM VPC,
