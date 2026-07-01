@@ -218,10 +218,58 @@ img { max-width: 100%; display: block; }
 .flow-arrow::after { content: ''; position: absolute; right: -1px; top: -3px; border-left: 7px solid var(--cyan); border-top: 4px solid transparent; border-bottom: 4px solid transparent; }
 
 .arch-card {
-  border: 1px solid var(--line); border-radius: 18px; padding: 26px;
-  background: var(--bg-2); text-align: center;
+  border: 1px solid var(--line); border-radius: 18px; padding: 30px 26px;
+  background:
+    radial-gradient(700px 260px at 20% 0%, rgba(46,197,255,0.06), transparent 70%),
+    radial-gradient(600px 260px at 85% 100%, rgba(255,140,26,0.06), transparent 70%),
+    var(--bg-2);
 }
-.arch-card img { margin: 0 auto; max-height: 560px; width: auto; border-radius: 8px; }
+.arch-svg { display: block; width: 100%; height: auto; font-family: var(--mono); }
+
+/* cards / boxes */
+.arch-svg .card { fill: var(--panel); stroke: var(--line); stroke-width: 1.4; }
+.arch-svg .card.accent { stroke: rgba(255,140,26,0.55); fill: #12101a; }
+.arch-svg .mini { fill: #04060b; stroke: var(--line); stroke-width: 1; }
+.arch-svg .subbox { fill: rgba(46,197,255,0.05); stroke: var(--line); stroke-width: 1; }
+.arch-svg .doc rect { fill: rgba(255,140,26,0.06); stroke: rgba(255,140,26,0.28); stroke-width: 1; }
+
+/* text */
+.arch-svg text { fill: var(--text); }
+.arch-svg .chip-t { font-size: 13px; font-weight: 700; letter-spacing: 0.06em; }
+.arch-svg .sub-t { font-size: 14px; font-weight: 600; }
+.arch-svg .sub-d { font-size: 11px; fill: var(--muted); }
+.arch-svg .code { font-size: 12px; fill: var(--text); }
+.arch-svg .code .kk, .arch-svg .kk { fill: #ff8ab3; }
+.arch-svg .nn { fill: var(--text); }
+.arch-svg .fnn { fill: var(--cyan); }
+.arch-svg .foot { font-size: 11px; fill: var(--muted-2); }
+.arch-svg .doc text { font-size: 12px; fill: var(--muted); }
+.arch-svg .lbl { font-size: 11.5px; font-weight: 600; letter-spacing: 0.03em; }
+.arch-svg .cyt { fill: var(--cyan); }
+.arch-svg .ort { fill: var(--orange); }
+.arch-svg .grt, .arch-svg .grtx { fill: var(--green); }
+.arch-svg .prov { font-size: 12px; fill: var(--muted); }
+.arch-svg .prov-lbl { font-size: 12px; }
+.arch-svg .divider { stroke: var(--line-soft); stroke-width: 1; }
+
+/* flow lines */
+.arch-svg .fl { fill: none; stroke-width: 2; stroke-dasharray: 6 6; stroke-linecap: round; }
+.arch-svg .fl.cy { stroke: var(--cyan); animation: archDash 0.9s linear infinite; }
+.arch-svg .fl.or { stroke: var(--orange); animation: archDash 1.1s linear infinite; }
+.arch-svg .fl.gr { stroke: var(--green); animation: archDashRev 1.3s linear infinite; }
+.arch-svg .fl.dim { opacity: 0.5; }
+@keyframes archDash { to { stroke-dashoffset: -24; } }
+@keyframes archDashRev { to { stroke-dashoffset: 24; } }
+
+/* worker cells */
+.arch-svg .aw { fill: rgba(120,140,170,0.16); }
+.arch-svg .aw.lit { fill: var(--orange); animation: archPulse 1.8s ease-in-out infinite; }
+@keyframes archPulse { 0%,100% { fill: rgba(255,140,26,0.35); } 50% { fill: rgba(255,140,26,1); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .arch-svg .fl, .arch-svg .aw.lit { animation: none !important; }
+  .arch-svg .aw.lit { fill: rgba(255,140,26,0.8); }
+}
 
 /* Features */
 .feature-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }

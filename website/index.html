@@ -148,7 +148,132 @@
     </div>
 
     <div class="arch-card">
-      <img src="assets/lithops-architecture.png" alt="Lithops architecture diagram" loading="lazy" />
+      <svg class="arch-svg" viewBox="0 0 1000 470" role="img" aria-label="Lithops high-level architecture: your Python client dispatches work through the Lithops runtime to thousands of parallel workers and object storage across any cloud">
+        <defs>
+          <marker id="arrCy" markerWidth="9" markerHeight="9" refX="6.5" refY="3.2" orient="auto"><path d="M0,0 L7,3.2 L0,6.4 Z" fill="#2ec5ff"/></marker>
+          <marker id="arrOr" markerWidth="9" markerHeight="9" refX="6.5" refY="3.2" orient="auto"><path d="M0,0 L7,3.2 L0,6.4 Z" fill="#ff8c1a"/></marker>
+          <marker id="arrGr" markerWidth="9" markerHeight="9" refX="6.5" refY="3.2" orient="auto"><path d="M0,0 L7,3.2 L0,6.4 Z" fill="#37d67a"/></marker>
+        </defs>
+
+        <!-- connectors -->
+        <path class="fl cy"  d="M222,235 L296,235" marker-end="url(#arrCy)"/>
+        <path class="fl cy"  d="M552,168 C590,168 596,150 620,150" fill="none" marker-end="url(#arrCy)"/>
+        <path class="fl or"  d="M552,300 C592,300 596,332 620,332" fill="none" marker-end="url(#arrOr)"/>
+        <path class="fl or dim" d="M800,246 L800,282" marker-end="url(#arrOr)"/>
+        <path class="fl gr rev" d="M628,212 C500,300 430,372 300,372 L250,372 C176,372 122,352 122,326" fill="none" marker-end="url(#arrGr)"/>
+
+        <text class="lbl cyt" x="259" y="225" text-anchor="middle">map()</text>
+        <text class="lbl cyt" x="590" y="139" text-anchor="middle">invoke</text>
+        <text class="lbl ort" x="590" y="356" text-anchor="middle">objects</text>
+        <text class="lbl grt" x="405" y="388" text-anchor="middle">results stream back</text>
+
+        <!-- CLIENT -->
+        <g>
+          <rect class="card" x="24" y="150" width="198" height="176" rx="14"/>
+          <text class="chip-t cyt" x="40" y="177">CLIENT</text>
+          <rect class="mini" x="40" y="188" width="166" height="98" rx="8"/>
+          <circle cx="52" cy="202" r="2.6" fill="#ff5f57"/><circle cx="61" cy="202" r="2.6" fill="#febc2e"/><circle cx="70" cy="202" r="2.6" fill="#28c840"/>
+          <text class="code kk" x="50" y="224">import <tspan class="nn">lithops</tspan></text>
+          <text class="code" x="50" y="244"><tspan class="fnn">fexec.map</tspan>(fn, data)</text>
+          <text class="code" x="50" y="264"><tspan class="fnn">fexec.get_result</tspan>()</text>
+          <text class="foot" x="123" y="312" text-anchor="middle">your laptop</text>
+        </g>
+
+        <!-- LITHOPS RUNTIME -->
+        <g>
+          <rect class="card accent" x="296" y="96" width="256" height="280" rx="14"/>
+          <text class="chip-t ort" x="316" y="126">LITHOPS RUNTIME</text>
+          <g class="sub">
+            <rect class="subbox" x="316" y="142" width="216" height="52" rx="9"/>
+            <text class="sub-t" x="330" y="166">Serializer</text>
+            <text class="sub-d" x="330" y="183">code + module analysis</text>
+          </g>
+          <g class="sub">
+            <rect class="subbox" x="316" y="206" width="216" height="52" rx="9"/>
+            <text class="sub-t" x="330" y="230">Executor</text>
+            <text class="sub-d" x="330" y="247">orchestrates the job</text>
+          </g>
+          <g class="sub">
+            <rect class="subbox" x="316" y="270" width="216" height="52" rx="9"/>
+            <text class="sub-t" x="330" y="294">Invoker</text>
+            <text class="sub-d" x="330" y="311">fans out to workers</text>
+          </g>
+          <text class="foot" x="424" y="352" text-anchor="middle">provisions &amp; scales, transparently</text>
+        </g>
+
+        <!-- COMPUTE BACKEND -->
+        <g>
+          <rect class="card" x="624" y="92" width="352" height="158" rx="14"/>
+          <text class="chip-t cyt" x="644" y="118">COMPUTE BACKEND</text>
+          <text class="foot rgt" x="956" y="118" text-anchor="end">1 … N functions</text>
+      <rect class="aw" x="648" y="126" width="16" height="16" rx="3" style="animation-delay:0.0s"/>
+      <rect class="aw lit" x="672" y="126" width="16" height="16" rx="3" style="animation-delay:0.7s"/>
+      <rect class="aw" x="696" y="126" width="16" height="16" rx="3" style="animation-delay:1.4s"/>
+      <rect class="aw" x="720" y="126" width="16" height="16" rx="3" style="animation-delay:0.1s"/>
+      <rect class="aw" x="744" y="126" width="16" height="16" rx="3" style="animation-delay:0.8s"/>
+      <rect class="aw lit" x="768" y="126" width="16" height="16" rx="3" style="animation-delay:1.5s"/>
+      <rect class="aw lit" x="792" y="126" width="16" height="16" rx="3" style="animation-delay:0.2s"/>
+      <rect class="aw" x="816" y="126" width="16" height="16" rx="3" style="animation-delay:0.9s"/>
+      <rect class="aw" x="840" y="126" width="16" height="16" rx="3" style="animation-delay:1.6s"/>
+      <rect class="aw lit" x="864" y="126" width="16" height="16" rx="3" style="animation-delay:0.3s"/>
+      <rect class="aw" x="888" y="126" width="16" height="16" rx="3" style="animation-delay:1.0s"/>
+      <rect class="aw" x="912" y="126" width="16" height="16" rx="3" style="animation-delay:1.7s"/>
+      <rect class="aw" x="936" y="126" width="16" height="16" rx="3" style="animation-delay:0.4s"/>
+      <rect class="aw" x="648" y="150" width="16" height="16" rx="3" style="animation-delay:1.3s"/>
+      <rect class="aw" x="672" y="150" width="16" height="16" rx="3" style="animation-delay:0.0s"/>
+      <rect class="aw lit" x="696" y="150" width="16" height="16" rx="3" style="animation-delay:0.7s"/>
+      <rect class="aw lit" x="720" y="150" width="16" height="16" rx="3" style="animation-delay:1.4s"/>
+      <rect class="aw" x="744" y="150" width="16" height="16" rx="3" style="animation-delay:0.1s"/>
+      <rect class="aw" x="768" y="150" width="16" height="16" rx="3" style="animation-delay:0.8s"/>
+      <rect class="aw" x="792" y="150" width="16" height="16" rx="3" style="animation-delay:1.5s"/>
+      <rect class="aw lit" x="816" y="150" width="16" height="16" rx="3" style="animation-delay:0.2s"/>
+      <rect class="aw" x="840" y="150" width="16" height="16" rx="3" style="animation-delay:0.9s"/>
+      <rect class="aw" x="864" y="150" width="16" height="16" rx="3" style="animation-delay:1.6s"/>
+      <rect class="aw" x="888" y="150" width="16" height="16" rx="3" style="animation-delay:0.3s"/>
+      <rect class="aw lit" x="912" y="150" width="16" height="16" rx="3" style="animation-delay:1.0s"/>
+      <rect class="aw" x="936" y="150" width="16" height="16" rx="3" style="animation-delay:1.7s"/>
+      <rect class="aw lit" x="648" y="174" width="16" height="16" rx="3" style="animation-delay:0.6s"/>
+      <rect class="aw" x="672" y="174" width="16" height="16" rx="3" style="animation-delay:1.3s"/>
+      <rect class="aw" x="696" y="174" width="16" height="16" rx="3" style="animation-delay:0.0s"/>
+      <rect class="aw" x="720" y="174" width="16" height="16" rx="3" style="animation-delay:0.7s"/>
+      <rect class="aw lit" x="744" y="174" width="16" height="16" rx="3" style="animation-delay:1.4s"/>
+      <rect class="aw" x="768" y="174" width="16" height="16" rx="3" style="animation-delay:0.1s"/>
+      <rect class="aw" x="792" y="174" width="16" height="16" rx="3" style="animation-delay:0.8s"/>
+      <rect class="aw" x="816" y="174" width="16" height="16" rx="3" style="animation-delay:1.5s"/>
+      <rect class="aw lit" x="840" y="174" width="16" height="16" rx="3" style="animation-delay:0.2s"/>
+      <rect class="aw lit" x="864" y="174" width="16" height="16" rx="3" style="animation-delay:0.9s"/>
+      <rect class="aw" x="888" y="174" width="16" height="16" rx="3" style="animation-delay:1.6s"/>
+      <rect class="aw" x="912" y="174" width="16" height="16" rx="3" style="animation-delay:0.3s"/>
+      <rect class="aw lit" x="936" y="174" width="16" height="16" rx="3" style="animation-delay:1.0s"/>
+      <rect class="aw" x="648" y="198" width="16" height="16" rx="3" style="animation-delay:1.9s"/>
+      <rect class="aw" x="672" y="198" width="16" height="16" rx="3" style="animation-delay:0.6s"/>
+      <rect class="aw lit" x="696" y="198" width="16" height="16" rx="3" style="animation-delay:1.3s"/>
+      <rect class="aw" x="720" y="198" width="16" height="16" rx="3" style="animation-delay:0.0s"/>
+      <rect class="aw" x="744" y="198" width="16" height="16" rx="3" style="animation-delay:0.7s"/>
+      <rect class="aw" x="768" y="198" width="16" height="16" rx="3" style="animation-delay:1.4s"/>
+      <rect class="aw lit" x="792" y="198" width="16" height="16" rx="3" style="animation-delay:0.1s"/>
+      <rect class="aw" x="816" y="198" width="16" height="16" rx="3" style="animation-delay:0.8s"/>
+      <rect class="aw" x="840" y="198" width="16" height="16" rx="3" style="animation-delay:1.5s"/>
+      <rect class="aw" x="864" y="198" width="16" height="16" rx="3" style="animation-delay:0.2s"/>
+      <rect class="aw lit" x="888" y="198" width="16" height="16" rx="3" style="animation-delay:0.9s"/>
+      <rect class="aw" x="912" y="198" width="16" height="16" rx="3" style="animation-delay:1.6s"/>
+      <rect class="aw" x="936" y="198" width="16" height="16" rx="3" style="animation-delay:0.3s"/>
+        </g>
+
+        <!-- OBJECT STORAGE -->
+        <g>
+          <rect class="card" x="624" y="286" width="352" height="104" rx="14"/>
+          <text class="chip-t ort" x="644" y="312">OBJECT STORAGE</text>
+          <g class="doc"><rect x="648" y="326" width="96" height="46" rx="8"/><text x="696" y="354" text-anchor="middle">code</text></g>
+          <g class="doc"><rect x="752" y="326" width="96" height="46" rx="8"/><text x="800" y="354" text-anchor="middle">data</text></g>
+          <g class="doc"><rect x="856" y="326" width="104" height="46" rx="8"/><text x="908" y="354" text-anchor="middle">results</text></g>
+        </g>
+
+        <!-- PROVIDERS -->
+        <line class="divider" x1="24" y1="424" x2="976" y2="424"/>
+        <text class="prov-lbl grtx" x="24" y="452">// any cloud, HPC or on-prem</text>
+        <text class="prov" x="976" y="452" text-anchor="end">AWS · Google Cloud · Azure · IBM · Oracle · Aliyun · Kubernetes</text>
+      </svg>
     </div>
   </section>
 
