@@ -165,6 +165,8 @@
   const OR = '#ff8c1a';
   const GRN = '#37d67a';
 
+  const INVOKED_TOTAL = 10000;
+
   let laptop = { x: 0, y: 0, w: 0, h: 0 };
   let grid = { x0: 0, y0: 0, cell: 0, gap: 0, cols: 0, rows: 0 };
   let cells = [];
@@ -173,6 +175,20 @@
   const hudActive = $('#hudActive');
   const hudDone = $('#hudDone');
   const hudState = $('#hudState');
+  const hudPct = $('#hudPct');
+  const hudProgress = $('#hudProgress');
+  const hudThroughput = $('#hudThroughput');
+  const hudWorkers = $('#hudWorkers');
+  const hudWorkerPool = $('#hudWorkerPool');
+  let donePrev = 0;
+  let throughput = 0;
+  let throughputAcc = 0;
+  let jobProgress = 0;
+  let jobPhase = 'running';
+  let jobStart = 0;
+  let completeHoldStart = 0;
+  const JOB_MS = 13000;
+  const HOLD_MS = 2800;
 
   function layout() {
     const r = canvas.getBoundingClientRect();
@@ -182,20 +198,28 @@
     canvas.height = Math.round(H * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    // laptop on the left
-    laptop.w = Math.max(72, W * 0.15);
-    laptop.h = laptop.w * 0.62;
-    laptop.x = W * 0.13;
-    laptop.y = H * 0.5;
+    const padBottom = 72;
+    const padTop = H * 0.06;
+    const sceneH = H - padTop - padBottom;
 
-    // worker grid on the right
-    const gx0 = W * 0.42, gx1 = W * 0.94;
-    const gy0 = H * 0.12, gy1 = H * 0.88;
-    const gw = gx1 - gx0, gh = gy1 - gy0;
-    grid.cols = W < 420 ? 9 : (W < 620 ? 12 : 16);
-    grid.gap = Math.max(3, gw / grid.cols * 0.22);
+    const laptopW = Math.max(68, W * 0.13);
+    const laptopH = laptopW * 0.62;
+
+    laptop.w = laptopW;
+    laptop.h = laptopH;
+    laptop.x = W * 0.18;
+    laptop.y = padTop + sceneH * 0.5;
+
+    const gx0 = W * 0.42;
+    const gx1 = W * 0.94;
+    const gy0 = padTop + sceneH * 0.04;
+    const gy1 = padTop + sceneH * 0.96;
+    const gw = gx1 - gx0;
+    const gh = gy1 - gy0;
+    grid.cols = W < 420 ? 10 : (W < 620 ? 13 : 17);
+    grid.gap = Math.max(3, gw / grid.cols * 0.2);
     grid.cell = (gw - grid.gap * (grid.cols - 1)) / grid.cols;
-    grid.rows = Math.max(6, Math.floor((gh + grid.gap) / (grid.cell + grid.gap)));
+    grid.rows = Math.max(8, Math.floor((gh + grid.gap) / (grid.cell + grid.gap)));
     grid.x0 = gx0;
     grid.y0 = gy0 + (gh - (grid.rows * grid.cell + (grid.rows - 1) * grid.gap)) / 2;
 
@@ -205,13 +229,16 @@
         cells.push({
           x: grid.x0 + col * (grid.cell + grid.gap),
           y: grid.y0 + row * (grid.cell + grid.gap),
-          state: 'idle',   // idle | running | done
-          t: 0,            // phase timer
+          state: 'idle',
+          t: 0,
           life: 0,
         });
       }
     }
     hud.total = cells.length;
+    hud.done = 0;
+    donePrev = 0;
+    if (hudWorkerPool) hudWorkerPool.textContent = fmt(cells.length);
   }
 
   function cloudPath(x, y, w, h) {
@@ -258,14 +285,34 @@
 
   function frame(now) {
     const dt = Math.min(50, now - last); last = now;
+    if (!jobStart) jobStart = now;
     ctx.clearRect(0, 0, W, H);
 
-    // spawn cadence — bursty like real invocation
-    spawnAcc += dt;
-    const interval = 26; // ms between invocations
-    while (spawnAcc > interval) {
-      spawnAcc -= interval;
-      for (let k = 0; k < 3; k++) spawnParticle();
+    if (jobPhase === 'running') {
+      jobProgress = Math.min(1, (now - jobStart) / JOB_MS);
+      if (jobProgress >= 1) {
+        jobPhase = 'complete';
+        completeHoldStart = now;
+      }
+    } else if (jobPhase === 'complete') {
+      jobProgress = 1;
+      if (now - completeHoldStart > HOLD_MS) {
+        jobPhase = 'running';
+        jobStart = now;
+        jobProgress = 0;
+        donePrev = hud.done;
+        throughputAcc = 0;
+      }
+    }
+
+    const spawning = jobPhase === 'running' && jobProgress < 0.98;
+    if (spawning) {
+      spawnAcc += dt;
+      const interval = 26;
+      while (spawnAcc > interval) {
+        spawnAcc -= interval;
+        for (let k = 0; k < 3; k++) spawnParticle();
+      }
     }
 
     // ---- cloud outline ----
@@ -345,13 +392,68 @@
     }
 
     drawLaptop();
+    drawInvokeArc();
 
     hud.active = active;
+    const pct = Math.round(jobProgress * 100);
+    const simDone = Math.round(jobProgress * INVOKED_TOTAL);
+
     hudActive.textContent = fmt(active);
-    hudDone.textContent = fmt(hud.done);
-    hudState.textContent = active > 0 ? 'scaling out…' : 'dispatching…';
+    hudDone.textContent = fmt(simDone);
+    if (jobPhase === 'complete') {
+      hudState.textContent = 'complete';
+    } else if (jobProgress > 0.75) {
+      hudState.textContent = 'collecting…';
+    } else if (active > 12) {
+      hudState.textContent = 'scaling out…';
+    } else if (active > 0) {
+      hudState.textContent = 'invoking…';
+    } else {
+      hudState.textContent = 'dispatching…';
+    }
+    if (hudPct) hudPct.textContent = pct + '%';
+    if (hudProgress) hudProgress.style.width = pct + '%';
+    if (hudWorkers) hudWorkers.textContent = fmt(INVOKED_TOTAL) + ' invoked';
+
+    throughputAcc += dt;
+    if (throughputAcc > 420) {
+      if (jobPhase === 'complete') {
+        throughput = 0;
+      } else {
+        const delta = hud.done - donePrev;
+        throughput = Math.round((delta / throughputAcc) * 1000);
+        donePrev = hud.done;
+      }
+      throughputAcc = 0;
+      if (hudThroughput) hudThroughput.textContent = fmt(throughput) + ' fn/s';
+    }
 
     rafId = requestAnimationFrame(frame);
+  }
+
+  function drawInvokeArc() {
+    const sx = laptop.x + laptop.w * 0.32;
+    const sy = laptop.y - laptop.h * 0.05;
+    const tx = grid.x0 - grid.cell * 0.4;
+    const ty = laptop.y;
+    const cx = (sx + tx) / 2;
+    const cy = sy - Math.max(24, H * 0.06);
+
+    ctx.save();
+    ctx.strokeStyle = 'rgba(46,197,255,0.22)';
+    ctx.lineWidth = 1.2;
+    ctx.setLineDash([4, 6]);
+    ctx.beginPath();
+    ctx.moveTo(sx, sy);
+    ctx.quadraticCurveTo(cx, cy, tx, ty);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = 'rgba(139,150,173,0.75)';
+    ctx.font = '10px "JetBrains Mono", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('invoke', cx, cy - 6);
+    ctx.restore();
   }
 
   function roundRect(x, y, w, h, r) {

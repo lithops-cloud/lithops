@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=8" />
+  <link rel="stylesheet" href="styles.css?v=9" />
 </head>
 <body>
   <!-- ===== Background grid / glow ===== -->
@@ -83,8 +83,22 @@
       <canvas id="scaleCanvas"></canvas>
       <div class="viz-hud">
         <div class="hud-row"><span class="hud-key">invoker</span><span class="hud-val" id="hudState">dispatching…</span></div>
-        <div class="hud-row"><span class="hud-key">active</span><span class="hud-val orange" id="hudActive">0</span></div>
+        <div class="hud-row"><span class="hud-key">active workers</span><span class="hud-val" id="hudWorkerPool">0</span></div>
+        <div class="hud-row"><span class="hud-key">running</span><span class="hud-val orange" id="hudActive">0</span></div>
         <div class="hud-row"><span class="hud-key">completed</span><span class="hud-val cyan" id="hudDone">0</span></div>
+      </div>
+      <div class="viz-progress" aria-hidden="true">
+        <div class="viz-progress-head">
+          <span class="viz-progress-label">map()</span>
+          <span class="viz-progress-pct" id="hudPct">0%</span>
+        </div>
+        <div class="viz-progress-track">
+          <div class="viz-progress-fill" id="hudProgress"></div>
+        </div>
+        <div class="viz-progress-meta">
+          <span id="hudThroughput">0 fn/s</span>
+          <span id="hudWorkers">10,000 invoked</span>
+        </div>
       </div>
     </div>
   </section>
@@ -547,6 +561,6 @@ data = st.<span class="fn">get_object</span>(bucket=<span class="s">'mybucket'</
       window.addEventListener('load', syncNav);
     })();
   </script>
-  <script src="main.js?v=3"></script>
+  <script src="main.js?v=7"></script>
 </body>
 </html>
