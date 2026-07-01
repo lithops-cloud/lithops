@@ -111,8 +111,10 @@ img { max-width: 100%; display: block; }
 .hero {
   max-width: var(--maxw); margin: 0 auto;
   padding: 64px 24px 40px;
-  display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 48px; align-items: center;
+  display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 48px;
+  align-items: start;
 }
+.hero-copy { align-self: start; }
 .hero-brand {
   display: flex;
   flex-direction: column;
@@ -176,6 +178,7 @@ img { max-width: 100%; display: block; }
 
 /* Hero viz */
 .hero-viz {
+  align-self: end;
   position: relative;
   aspect-ratio: 4 / 5;
   min-height: 460px;
@@ -223,7 +226,7 @@ img { max-width: 100%; display: block; }
   position: absolute;
   left: 16px;
   right: 16px;
-  bottom: 14px;
+  bottom: 6px;
   z-index: 2;
   padding: 10px 12px 11px;
   border-radius: 10px;
@@ -507,7 +510,7 @@ img { max-width: 100%; display: block; }
 @media (max-width: 940px) {
   .hero { grid-template-columns: 1fr; padding-top: 40px; }
   .hero-logo img { height: 64px; }
-  .hero-viz { order: -1; min-height: 380px; aspect-ratio: 1 / 1.05; }
+  .hero-viz { order: -1; align-self: stretch; min-height: 380px; aspect-ratio: 1 / 1.05; }
   .feature-grid, .uc-grid { grid-template-columns: repeat(2, 1fr); }
   .backend-grid { grid-template-columns: repeat(2, 1fr); }
   .code-wrap { grid-template-columns: 1fr; }

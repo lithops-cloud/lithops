@@ -188,7 +188,7 @@
   let jobStart = 0;
   let completeHoldStart = 0;
   const JOB_MS = 13000;
-  const HOLD_MS = 2800;
+  const HOLD_MS = 5000;
 
   function layout() {
     const r = canvas.getBoundingClientRect();
