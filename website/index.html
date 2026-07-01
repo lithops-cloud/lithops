@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=3" />
+  <link rel="stylesheet" href="styles.css?v=8" />
 </head>
 <body>
   <!-- ===== Background grid / glow ===== -->
@@ -56,7 +56,7 @@
       <p class="hero-sub">
         Lithops turns your laptop into a supercomputer. Fan a single Python
         function out to <strong>thousands of parallel cloud workers</strong> in seconds —
-        no servers, no YAML, no infrastructure to babysit.
+        no servers, no YAML, no infrastructure to manage.
       </p>
 
       <div class="hero-install">
@@ -536,9 +536,9 @@ data = st.<span class="fn">get_object</span>(bucket=<span class="s">'mybucket'</
           nav.classList.add('show-brand');
           return;
         }
-        var navH = nav.offsetHeight || 64;
         var rect = heroBrand.getBoundingClientRect();
-        var show = rect.bottom <= navH || y > 180;
+        /* Wait until hero logo + tagline are fully above the nav — avoids double-logo overlap */
+        var show = rect.bottom < 0;
         nav.classList.toggle('show-brand', show);
       }
       syncNav();
