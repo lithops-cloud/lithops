@@ -11,16 +11,12 @@
   /* ---------- year ---------- */
   $('#year').textContent = new Date().getFullYear();
 
-  /* ---------- nav ---------- */
-  const nav = $('#nav');
-  const onScroll = () => nav.classList.toggle('scrolled', window.scrollY > 8);
-  onScroll();
-  window.addEventListener('scroll', onScroll, { passive: true });
-
   const burger = $('#burger');
   const navLinks = $('.nav-links');
-  burger.addEventListener('click', () => navLinks.classList.toggle('open'));
-  $$('.nav-links a').forEach((a) => a.addEventListener('click', () => navLinks.classList.remove('open')));
+  if (burger && navLinks) {
+    burger.addEventListener('click', () => navLinks.classList.toggle('open'));
+    $$('.nav-links a').forEach((a) => a.addEventListener('click', () => navLinks.classList.remove('open')));
+  }
 
   /* ---------- copy buttons ---------- */
   $$('.copy-btn').forEach((btn) => {

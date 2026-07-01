@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles.css?v=3" />
 </head>
 <body>
   <!-- ===== Background grid / glow ===== -->
@@ -19,8 +19,8 @@
   <!-- ===== Nav ===== -->
   <header class="nav" id="nav">
     <div class="nav-inner">
-      <a class="brand" href="#top">
-        <img src="assets/lithops_logo_white.png" alt="Lithops logo" class="brand-mark" />
+      <a class="nav-logo" href="#top" id="navLogo">
+        <img src="assets/lithops_logo_white.png" alt="Lithops logo" class="nav-logo-img" />
       </a>
       <nav class="nav-links">
         <a href="#how">How it works</a>
@@ -43,8 +43,11 @@
   <!-- ===== Hero ===== -->
   <section class="hero" id="top">
     <div class="hero-copy">
-      <div class="badge">
-        <span class="dot"></span> Multi-cloud serverless for Python
+      <div class="hero-brand" id="heroBrand">
+        <a class="hero-logo" href="#top" aria-label="Lithops home">
+          <img src="assets/lithops_logo_white.png" alt="Lithops" />
+        </a>
+        <p class="hero-tagline">Multi-cloud serverless for Python</p>
       </div>
       <h1 class="hero-title">
         Run <span class="accent">Python code</span><br />
@@ -521,6 +524,29 @@ data = st.<span class="fn">get_object</span>(bucket=<span class="s">'mybucket'</
     </div>
   </footer>
 
-  <script src="main.js"></script>
+  <script>
+    (function () {
+      var nav = document.getElementById('nav');
+      var heroBrand = document.getElementById('heroBrand');
+      function syncNav() {
+        if (!nav) return;
+        var y = window.scrollY || document.documentElement.scrollTop || 0;
+        nav.classList.toggle('scrolled', y > 8);
+        if (!heroBrand) {
+          nav.classList.add('show-brand');
+          return;
+        }
+        var navH = nav.offsetHeight || 64;
+        var rect = heroBrand.getBoundingClientRect();
+        var show = rect.bottom <= navH || y > 180;
+        nav.classList.toggle('show-brand', show);
+      }
+      syncNav();
+      window.addEventListener('scroll', syncNav, { passive: true });
+      window.addEventListener('resize', syncNav, { passive: true });
+      window.addEventListener('load', syncNav);
+    })();
+  </script>
+  <script src="main.js?v=3"></script>
 </body>
 </html>

@@ -66,8 +66,16 @@ img { max-width: 100%; display: block; }
   max-width: var(--maxw); margin: 0 auto; padding: 14px 24px;
   display: flex; align-items: center; gap: 24px;
 }
-.brand { display: flex; align-items: center; gap: 10px; }
-.brand-mark { height: 30px; width: auto; }
+.nav-logo {
+  display: none;
+  align-items: center;
+  flex-shrink: 0;
+}
+.nav.show-brand .nav-logo {
+  display: flex;
+}
+.nav-logo-img { height: 34px; width: auto; }
+.nav:not(.show-brand) .nav-links { margin-left: 0; }
 .brand-name {
   font-family: var(--mono); font-weight: 800; font-size: 20px;
   letter-spacing: -0.03em;
@@ -99,8 +107,28 @@ img { max-width: 100%; display: block; }
 /* ===================== Hero ===================== */
 .hero {
   max-width: var(--maxw); margin: 0 auto;
-  padding: 72px 24px 40px;
+  padding: 56px 24px 40px;
   display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 48px; align-items: center;
+}
+.hero-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+.hero-logo { display: block; }
+.hero-logo img {
+  height: 72px;
+  width: auto;
+  display: block;
+}
+.hero-tagline {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 13.5px;
+  color: var(--muted);
+  letter-spacing: 0.01em;
 }
 .badge {
   display: inline-flex; align-items: center; gap: 9px;
@@ -112,7 +140,7 @@ img { max-width: 100%; display: block; }
 @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
 
 .hero-title {
-  font-size: clamp(38px, 5.4vw, 66px); font-weight: 700; margin: 22px 0 0;
+  font-size: clamp(30px, 4.1vw, 52px); font-weight: 700; margin: 22px 0 0;
 }
 .hero-title .accent { color: var(--cyan); }
 .hero-title .grad {
@@ -385,7 +413,8 @@ img { max-width: 100%; display: block; }
 
 /* ===================== Responsive ===================== */
 @media (max-width: 940px) {
-  .hero { grid-template-columns: 1fr; padding-top: 48px; }
+  .hero { grid-template-columns: 1fr; padding-top: 40px; }
+  .hero-logo img { height: 56px; }
   .hero-viz { order: -1; min-height: 320px; }
   .feature-grid, .uc-grid { grid-template-columns: repeat(2, 1fr); }
   .backend-grid { grid-template-columns: repeat(2, 1fr); }
