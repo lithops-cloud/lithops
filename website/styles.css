@@ -381,6 +381,7 @@ img { max-width: 100%; display: block; }
 .arch-svg .fl.cy { stroke: var(--cyan); animation: archDash 0.9s linear infinite; }
 .arch-svg .fl.or { stroke: var(--orange); animation: archDash 1.1s linear infinite; }
 .arch-svg .fl.gr { stroke: var(--green); animation: archDashRev 1.3s linear infinite; }
+.arch-svg .fl.gr.gr-fwd { animation: archDash 1.3s linear infinite; }
 .arch-svg .fl.dim { opacity: 0.5; }
 @keyframes archDash { to { stroke-dashoffset: -24; } }
 @keyframes archDashRev { to { stroke-dashoffset: 24; } }
