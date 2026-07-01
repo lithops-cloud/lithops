@@ -177,9 +177,11 @@ img { max-width: 100%; display: block; }
   column-gap: clamp(26px, 4vw, 56px); row-gap: 30px;
 }
 .trust-logos img {
-  height: 52px; width: auto; opacity: 1; filter: none;
+  height: 76px; width: auto; opacity: 1; filter: none;
   transition: transform .6s cubic-bezier(.2,.7,.2,1), filter .6s ease;
 }
+.trust-logos img[alt="Kubernetes"],
+.trust-logos img[alt="OpenShift"] { height: 60px; }
 .trust-logos img.lit {
   transform: translateY(-5px) scale(1.16);
   filter: drop-shadow(0 10px 24px rgba(46,197,255,0.4));
