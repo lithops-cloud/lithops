@@ -29,29 +29,7 @@
     });
   });
 
-  /* ---------- trust logos: sequential highlight ---------- */
-  const trustLogos = $$('#trustLogos img');
-  if (trustLogos.length && !reduced) {
-    let ti = 0, trustTimer = null;
-    const cycle = () => {
-      trustLogos.forEach((el) => el.classList.remove('lit'));
-      trustLogos[ti].classList.add('lit');
-      ti = (ti + 1) % trustLogos.length;
-    };
-    const tio = new IntersectionObserver((entries) => {
-      entries.forEach((e) => {
-        if (e.isIntersecting) {
-          if (!trustTimer) { cycle(); trustTimer = setInterval(cycle, 1100); }
-        } else if (trustTimer) {
-          clearInterval(trustTimer); trustTimer = null;
-          trustLogos.forEach((el) => el.classList.remove('lit'));
-        }
-      });
-    }, { threshold: 0.3 });
-    tio.observe($('#trustLogos'));
-  }
-
-  /* ---------- reveal on scroll ---------- */
+  /* ---------- copy buttons ---------- */
   $$('.section, .flow-node, .feature, .uc, .backend-col, .cta-card, .trustbar').forEach((el) => el.classList.add('reveal'));
   const io = new IntersectionObserver((entries) => {
     entries.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });

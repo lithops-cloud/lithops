@@ -288,7 +288,7 @@ img { max-width: 100%; display: block; }
 
 /* ===================== Trust bar ===================== */
 .trustbar {
-  max-width: var(--maxw); margin: 20px auto 0; padding: 40px 24px;
+  max-width: var(--maxw); margin: 12px auto 0; padding: 28px 24px;
   display: flex; flex-direction: row; align-items: center; gap: 40px;
   border-top: 1px solid var(--line-soft); border-bottom: 1px solid var(--line-soft);
   flex-wrap: wrap;
@@ -301,21 +301,18 @@ img { max-width: 100%; display: block; }
 }
 .trust-logos img {
   height: 76px; width: auto; opacity: 1; filter: none;
-  transition: transform .6s cubic-bezier(.2,.7,.2,1), filter .6s ease;
+  transition: transform .25s cubic-bezier(.2,.7,.2,1), filter .25s ease;
 }
 .trust-logos img[alt="Kubernetes"],
 .trust-logos img[alt="OpenShift"] { height: 60px; }
-.trust-logos img.lit {
+.trust-logos img:hover {
   transform: translateY(-5px) scale(1.16);
   filter: drop-shadow(0 10px 24px rgba(46,197,255,0.4));
 }
-.trust-logos img:hover {
-  transform: translateY(-5px) scale(1.16);
-}
 
 /* ===================== Sections ===================== */
-.section { max-width: var(--maxw); margin: 0 auto; padding: 92px 24px; }
-.section-head { max-width: 760px; margin-bottom: 48px; }
+.section { max-width: var(--maxw); margin: 0 auto; padding: 48px 24px 52px; }
+.section-head { max-width: 760px; margin-bottom: 36px; }
 .kicker { font-family: var(--mono); font-size: 13px; color: var(--cyan); letter-spacing: 0.02em; }
 .section-head h2 { font-size: clamp(28px, 3.6vw, 42px); margin-top: 12px; font-weight: 700; }
 .section-lead { color: var(--muted); font-size: 17px; margin-top: 16px; }
@@ -323,7 +320,7 @@ img { max-width: 100%; display: block; }
 /* Flow */
 .flow {
   display: flex; align-items: stretch; gap: 6px; flex-wrap: wrap;
-  margin-bottom: 40px;
+  margin-bottom: 28px;
 }
 .flow-node {
   flex: 1; min-width: 200px;
