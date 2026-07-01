@@ -329,9 +329,11 @@ img { max-width: 100%; display: block; }
   padding: 22px; transition: transform .3s, border-color .3s, box-shadow .3s;
 }
 .flow-node.highlight { border-color: rgba(255,140,26,0.5); box-shadow: 0 0 0 1px rgba(255,140,26,0.15), 0 12px 40px rgba(255,140,26,0.08); }
+.flow-node.highlight-green { border-color: rgba(55,214,122,0.5); box-shadow: 0 0 0 1px rgba(55,214,122,0.15), 0 12px 40px rgba(55,214,122,0.08); }
 .flow-node:hover { transform: translateY(-4px); border-color: var(--cyan); }
 .flow-icon { width: 42px; height: 42px; color: var(--cyan); margin-bottom: 14px; }
 .flow-node.highlight .flow-icon { color: var(--orange); }
+.flow-node.highlight-green .flow-icon { color: var(--green); }
 .flow-icon svg { width: 100%; height: 100%; }
 .flow-node h3 { font-family: var(--mono); font-size: 15px; color: var(--muted); font-weight: 600; }
 .flow-node p { margin: 8px 0 0; color: var(--text); font-size: 15px; }
