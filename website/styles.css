@@ -288,7 +288,7 @@ img { max-width: 100%; display: block; }
 
 /* ===================== Trust bar ===================== */
 .trustbar {
-  max-width: var(--maxw); margin: 12px auto 0; padding: 28px 24px;
+  max-width: var(--maxw); margin: 12px auto 28px; padding: 28px 24px;
   display: flex; flex-direction: row; align-items: center; gap: 40px;
   border-top: 1px solid var(--line-soft); border-bottom: 1px solid var(--line-soft);
   flex-wrap: wrap;
@@ -312,6 +312,7 @@ img { max-width: 100%; display: block; }
 
 /* ===================== Sections ===================== */
 .section { max-width: var(--maxw); margin: 0 auto; padding: 48px 24px 52px; }
+.trustbar + .section { padding-top: 68px; }
 .section-head { max-width: 760px; margin-bottom: 36px; }
 .kicker { font-family: var(--mono); font-size: 13px; color: var(--cyan); letter-spacing: 0.02em; }
 .section-head h2 { font-size: clamp(28px, 3.6vw, 42px); margin-top: 12px; font-weight: 700; }
@@ -338,7 +339,7 @@ img { max-width: 100%; display: block; }
 .flow-arrow::after { content: ''; position: absolute; right: -1px; top: -3px; border-left: 7px solid var(--cyan); border-top: 4px solid transparent; border-bottom: 4px solid transparent; }
 
 .arch-card {
-  border: 1px solid var(--line); border-radius: 18px; padding: 30px 26px;
+  border: 1px solid var(--line); border-radius: 18px; padding: 18px 22px;
   background:
     radial-gradient(700px 260px at 20% 0%, rgba(46,197,255,0.06), transparent 70%),
     radial-gradient(600px 260px at 85% 100%, rgba(255,140,26,0.06), transparent 70%),
@@ -349,6 +350,7 @@ img { max-width: 100%; display: block; }
 /* cards / boxes */
 .arch-svg .card { fill: var(--panel); stroke: var(--line); stroke-width: 1.4; }
 .arch-svg .card.accent { stroke: rgba(255,140,26,0.55); fill: #12101a; }
+.arch-svg .card.monitor { stroke: rgba(55,214,122,0.55); fill: #0d1218; }
 .arch-svg .mini { fill: #04060b; stroke: var(--line); stroke-width: 1; }
 .arch-svg .subbox { fill: rgba(46,197,255,0.05); stroke: var(--line); stroke-width: 1; }
 .arch-svg .doc rect { fill: rgba(255,140,26,0.06); stroke: rgba(255,140,26,0.28); stroke-width: 1; }
@@ -363,7 +365,7 @@ img { max-width: 100%; display: block; }
 .arch-svg .nn { fill: var(--text); }
 .arch-svg .fnn { fill: var(--cyan); }
 .arch-svg .foot { font-size: 11px; fill: var(--muted-2); }
-.arch-svg .doc text { font-size: 12px; fill: var(--muted); }
+.arch-svg .doc text { font-size: 12px; fill: var(--text); }
 .arch-svg .lbl { font-size: 11.5px; font-weight: 600; letter-spacing: 0.03em; }
 .arch-svg .cyt { fill: var(--cyan); }
 .arch-svg .ort { fill: var(--orange); }
