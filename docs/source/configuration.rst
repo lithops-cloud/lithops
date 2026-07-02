@@ -23,11 +23,11 @@ Choose your compute and storage backends from the table below:
 | `AWS Lambda <compute_config/aws_lambda.html>`_                     | `Google Cloud Storage <storage_config/gcp_storage.html>`_          |
 | `AWS Batch <compute_config/aws_batch.html>`_                       | `Azure Blob Storage <storage_config/azure_blob.html>`_             |
 | `Google Cloud Run functions <compute_config/gcp_functions.html>`_  | `Aliyun Object Storage Service <storage_config/aliyun_oss.html>`_  |
-| `Google Cloud Run <compute_config/gcp_cloudrun.html>`_            | `Infinispan <storage_config/infinispan.html>`_                     |
+| `Google Cloud Run <compute_config/gcp_cloudrun.html>`_             | `Infinispan <storage_config/infinispan.html>`_                     |
 | `Azure Functions <compute_config/azure_functions.html>`_           | `Ceph <storage_config/ceph.html>`_                                 |
 | `Azure Container Apps <compute_config/azure_containers.html>`_     | `MinIO <storage_config/minio.html>`_                               |
-| `Aliyun Function Compute <compute_config/aliyun_functions.html>`_ | `Redis <storage_config/redis.html>`_                               |
-| `Oracle Functions <compute_config/oracle_functions.html>`_         | `OpenStack Swift <storage_config/swift.html>`_                    |
+| `Aliyun Function Compute <compute_config/aliyun_functions.html>`_  | `Redis <storage_config/redis.html>`_                               |
+| `Oracle Functions <compute_config/oracle_functions.html>`_         | `OpenStack Swift <storage_config/swift.html>`_                     |
 | `Kubernetes <compute_config/kubernetes.html>`_                     | `Oracle Object Storage <storage_config/oracle_oss.html>`_          |
 | `Knative <compute_config/knative.html>`_                           |                                                                    |
 | `Singularity <compute_config/singularity.html>`_                   |                                                                    |

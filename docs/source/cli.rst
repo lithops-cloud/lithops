@@ -306,7 +306,7 @@ Build a new VM image.
 +-----------------+-----------------------------------+
 | --region, -r    | Compute backend region            |
 +-----------------+-----------------------------------+
-| --overwrite, -o | Overwrite the VM image if it exists  |
+| --overwrite, -o | Overwrite existing VM image       |
 +-----------------+-----------------------------------+
 | --debug, -d     | Activate debug logs (Flag)        |
 +-----------------+-----------------------------------+
