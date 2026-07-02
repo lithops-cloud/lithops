@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lithops — Python code at massive scale</title>
+  <meta name="description" content="Lithops is a Python multi-cloud serverless computing framework. Run unmodified Python at massive scale across AWS, GCP, Azure, IBM Cloud, Kubernetes and HPC — from thousands of parallel functions to petabytes of data." />
+  <link rel="icon" href="assets/favicon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=22" />
+</head>
+<body>
+  <!-- ===== Background grid / glow ===== -->
+  <div class="bg-grid" aria-hidden="true"></div>
+  <div class="bg-glow" aria-hidden="true"></div>
+
+  <!-- ===== Nav ===== -->
+  <header class="nav" id="nav">
+    <div class="nav-inner">
+      <a class="nav-logo" href="#top" id="navLogo">
+        <img src="assets/lithops_logo_white.png" alt="Lithops logo" class="nav-logo-img" />
+      </a>
+      <nav class="nav-links">
+        <a href="#how">How it works</a>
+        <a href="#features">Features</a>
+        <a href="#code">Code</a>
+        <a href="#backends">Backends</a>
+        <a href="#usecases">Use cases</a>
+      </nav>
+      <div class="nav-cta">
+        <a class="ghost-btn" href="https://github.com/lithops-cloud/lithops" target="_blank" rel="noopener">
+          <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+          <span>GitHub</span>
+        </a>
+        <a class="solid-btn" href="https://lithops-cloud.github.io/docs/" target="_blank" rel="noopener">Docs</a>
+      </div>
+      <button class="nav-burger" id="burger" aria-label="Toggle menu"><span></span><span></span><span></span></button>
+    </div>
+  </header>
+
+  <!-- ===== Hero ===== -->
+  <section class="hero" id="top">
+    <div class="hero-copy">
+      <div class="hero-brand" id="heroBrand">
+        <a class="hero-logo" href="#top" aria-label="Lithops home">
+          <img src="assets/lithops_logo_white.png" alt="Lithops" />
+        </a>
+        <p class="hero-tagline">Multi-cloud serverless for Python</p>
+      </div>
+      <h1 class="hero-title">
+        Run <span class="accent">Python code</span><br />
+        at <span class="grad">massive scale</span>.
+      </h1>
+      <p class="hero-sub">
+        Lithops turns your laptop into a supercomputer. Fan a single Python
+        function out to <strong>thousands of parallel cloud workers</strong> in seconds —
+        no servers, no YAML, no infrastructure to manage.
+      </p>
+
+      <div class="hero-install">
+        <code><span class="prompt">$</span> pip install lithops</code>
+        <button class="copy-btn" data-copy="pip install lithops" aria-label="Copy install command">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        </button>
+      </div>
+
+      <div class="hero-actions">
+        <a class="solid-btn big" href="https://lithops-cloud.github.io/docs/">Get started →</a>
+        <a class="ghost-btn big" href="#how">See how it works</a>
+      </div>
+
+      <div class="hero-stats">
+        <div class="stat"><span class="stat-num" data-count="10000" data-suffix="+">0</span><span class="stat-label">functions in parallel</span></div>
+        <div class="stat"><span class="stat-num" data-count="80" data-suffix=" GB/s">0</span><span class="stat-label">aggregate bandwidth</span></div>
+        <div class="stat"><span class="stat-num" data-count="15" data-suffix="+">0</span><span class="stat-label">cloud backends</span></div>
+      </div>
+    </div>
+
+    <!-- Canvas visualization: laptop invoking thousands of functions in the cloud -->
+    <div class="hero-viz">
+      <canvas id="scaleCanvas"></canvas>
+      <div class="viz-hud">
+        <div class="hud-row"><span class="hud-key">invoker</span><span class="hud-val" id="hudState">dispatching…</span></div>
+        <div class="hud-row"><span class="hud-key">active workers</span><span class="hud-val" id="hudWorkerPool">0</span></div>
+        <div class="hud-row"><span class="hud-key">running</span><span class="hud-val orange" id="hudActive">0</span></div>
+        <div class="hud-row"><span class="hud-key">completed</span><span class="hud-val cyan" id="hudDone">0</span></div>
+      </div>
+      <div class="viz-progress" aria-hidden="true">
+        <div class="viz-progress-head">
+          <span class="viz-progress-label">map()</span>
+          <span class="viz-progress-pct" id="hudPct">0%</span>
+        </div>
+        <div class="viz-progress-track">
+          <div class="viz-progress-fill" id="hudProgress"></div>
+        </div>
+        <div class="viz-progress-meta">
+          <span id="hudThroughput">0 fn/s</span>
+          <span id="hudWorkers">10,000 invoked</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Trust bar ===== -->
+  <section class="trustbar">
+    <span class="kicker trust-label">// runs anywhere</span>
+    <div class="trust-logos" id="trustLogos">
+      <img src="assets/ibm_cloud.png" alt="IBM Cloud" />
+      <img src="assets/aws.png" alt="AWS" />
+      <img src="assets/google_cloud.png" alt="Google Cloud" />
+      <img src="assets/azure.png" alt="Azure" />
+      <img src="assets/oracle.png" alt="Oracle Cloud" />
+      <img src="assets/aliyun.png" alt="Alibaba Cloud" />
+      <img src="assets/k8s.png" alt="Kubernetes" />
+      <img src="assets/openshift.png" alt="OpenShift" />
+    </div>
+  </section>
+
+  <!-- ===== How it works ===== -->
+  <section class="section" id="how">
+    <div class="section-head">
+      <span class="kicker">// architecture</span>
+      <h2>Your laptop → thousands of workers → back again</h2>
+      <p class="section-lead">
+        Write plain Python. Lithops serializes your function and data, provisions
+        the workers, invokes them in parallel across your chosen backend, and streams
+        the results straight back to your session.
+      </p>
+    </div>
+
+    <div class="flow">
+      <div class="flow-node" data-step="1">
+        <div class="flow-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="18" height="12" rx="1.5"/><path d="M2 20h20M9 8l3 2-3 2M13 12h3"/></svg>
+        </div>
+        <h3>1 · Write</h3>
+        <p>A regular Python function and an iterable. No decorators, no rewrites.</p>
+      </div>
+      <div class="flow-arrow" aria-hidden="true"></div>
+      <div class="flow-node" data-step="2">
+        <div class="flow-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 2v4M12 18v4M2 12h4M18 12h4M5 5l3 3M16 16l3 3M19 5l-3 3M8 16l-3 3"/><circle cx="12" cy="12" r="3"/></svg>
+        </div>
+        <h3>2 · Dispatch</h3>
+        <p>The executor packages code + data and invokes workers in parallel.</p>
+      </div>
+      <div class="flow-arrow" aria-hidden="true"></div>
+      <div class="flow-node highlight" data-step="3">
+        <div class="flow-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 15a4 4 0 0 1 .5-8 5.5 5.5 0 0 1 10.7 1.2A3.5 3.5 0 0 1 17 15H6z"/><path d="M9 19l1-2M12 20l1-2M15 19l1-2"/></svg>
+        </div>
+        <h3>3 · Scale out</h3>
+        <p>Thousands of serverless functions run at once, right next to your data.</p>
+      </div>
+      <div class="flow-arrow" aria-hidden="true"></div>
+      <div class="flow-node highlight-green" data-step="4">
+        <div class="flow-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 6h16M4 12h16M4 18h10"/><path d="M20 15l2 2-2 2"/></svg>
+        </div>
+        <h3>4 · Collect</h3>
+        <p>Results and logs stream back as if it all ran locally.</p>
+      </div>
+    </div>
+
+    <div class="arch-card">
+      <svg class="arch-svg" viewBox="0 62 1000 362" role="img" aria-label="Lithops architecture: client dispatches via the runtime; workers use object storage; JobMonitor polls storage and streams results back to the client">
+        <defs>
+          <marker id="arrCy" markerWidth="9" markerHeight="9" refX="6.5" refY="3.2" orient="auto"><path d="M0,0 L7,3.2 L0,6.4 Z" fill="#2ec5ff"/></marker>
+          <marker id="arrOr" markerWidth="9" markerHeight="9" refX="6.5" refY="3.2" orient="auto"><path d="M0,0 L7,3.2 L0,6.4 Z" fill="#ff8c1a"/></marker>
+          <marker id="arrOrStart" markerWidth="9" markerHeight="9" refX="6.5" refY="3.2" orient="auto-start-reverse"><path d="M0,0 L7,3.2 L0,6.4 Z" fill="#ff8c1a"/></marker>
+          <marker id="arrGr" markerWidth="9" markerHeight="9" refX="6.5" refY="3.2" orient="auto"><path d="M0,0 L7,3.2 L0,6.4 Z" fill="#37d67a"/></marker>
+        </defs>
+
+        <!-- connectors (under cards) -->
+        <path class="fl cy"  d="M222,218 L296,218" marker-end="url(#arrCy)"/>
+        <path class="fl cy"  d="M552,164 C590,164 596,144 620,144" fill="none" marker-end="url(#arrCy)"/>
+        <path class="fl or"  d="M552,264 C592,264 596,312 620,312" fill="none" marker-end="url(#arrOr)"/>
+        <path class="fl or" d="M800,252 L800,294" marker-end="url(#arrOr)" marker-start="url(#arrOrStart)"/>
+        <text class="lbl ort" x="818" y="276" text-anchor="start">get / put</text>
+
+        <text class="lbl cyt" x="259" y="208" text-anchor="middle">map()</text>
+        <text class="lbl cyt" x="590" y="134" text-anchor="middle">invoke</text>
+        <text class="lbl ort" x="590" y="334" text-anchor="middle">objects</text>
+
+        <!-- CLIENT -->
+        <g>
+          <rect class="card" x="24" y="150" width="198" height="176" rx="14"/>
+          <text class="chip-t cyt" x="40" y="177">CLIENT</text>
+          <rect class="mini" x="40" y="188" width="166" height="98" rx="8"/>
+          <circle cx="52" cy="202" r="2.6" fill="#ff5f57"/><circle cx="61" cy="202" r="2.6" fill="#febc2e"/><circle cx="70" cy="202" r="2.6" fill="#28c840"/>
+          <text class="code kk" x="50" y="224">import <tspan class="nn">lithops</tspan></text>
+          <text class="code" x="50" y="244"><tspan class="fnn">fexec.map</tspan>(fn, data)</text>
+          <text class="code" x="50" y="264"><tspan class="fnn">fexec.get_result</tspan>()</text>
+          <text class="foot" x="123" y="312" text-anchor="middle">your laptop</text>
+        </g>
+
+        <!-- LITHOPS RUNTIME -->
+        <g>
+          <rect class="card accent" x="296" y="72" width="256" height="208" rx="14"/>
+          <text class="chip-t ort" x="316" y="98">LITHOPS RUNTIME</text>
+          <g class="sub">
+            <rect class="subbox" x="316" y="112" width="216" height="46" rx="9"/>
+            <text class="sub-t" x="330" y="134">Serializer</text>
+            <text class="sub-d" x="330" y="150">code + module analysis</text>
+          </g>
+          <g class="sub">
+            <rect class="subbox" x="316" y="166" width="216" height="46" rx="9"/>
+            <text class="sub-t" x="330" y="188">Executor</text>
+            <text class="sub-d" x="330" y="204">orchestrates the job</text>
+          </g>
+          <g class="sub">
+            <rect class="subbox" x="316" y="220" width="216" height="46" rx="9"/>
+            <text class="sub-t" x="330" y="242">Invoker</text>
+            <text class="sub-d" x="330" y="258">fans out to workers</text>
+          </g>
+        </g>
+
+        <!-- LITHOPS MONITOR -->
+        <g>
+          <rect class="card monitor" x="296" y="328" width="256" height="88" rx="14"/>
+          <text class="chip-t grt" x="316" y="352">LITHOPS MONITOR</text>
+          <g class="sub">
+            <rect class="subbox" x="316" y="362" width="216" height="42" rx="9"/>
+            <text class="sub-t" x="330" y="382">JobMonitor</text>
+            <text class="sub-d" x="330" y="396">polls storage</text>
+          </g>
+        </g>
+
+        <!-- COMPUTE BACKEND -->
+        <g>
+          <rect class="card" x="624" y="88" width="352" height="158" rx="14"/>
+          <text class="chip-t cyt" x="644" y="114">COMPUTE BACKEND</text>
+          <text class="foot rgt" x="956" y="114" text-anchor="end">1 … N functions</text>
+      <rect class="aw" x="648" y="122" width="16" height="16" rx="3" style="animation-delay:0.0s"/>
+      <rect class="aw lit" x="672" y="122" width="16" height="16" rx="3" style="animation-delay:0.7s"/>
+      <rect class="aw" x="696" y="122" width="16" height="16" rx="3" style="animation-delay:1.4s"/>
+      <rect class="aw" x="720" y="122" width="16" height="16" rx="3" style="animation-delay:0.1s"/>
+      <rect class="aw" x="744" y="122" width="16" height="16" rx="3" style="animation-delay:0.8s"/>
+      <rect class="aw lit" x="768" y="122" width="16" height="16" rx="3" style="animation-delay:1.5s"/>
+      <rect class="aw lit" x="792" y="122" width="16" height="16" rx="3" style="animation-delay:0.2s"/>
+      <rect class="aw" x="816" y="122" width="16" height="16" rx="3" style="animation-delay:0.9s"/>
+      <rect class="aw" x="840" y="122" width="16" height="16" rx="3" style="animation-delay:1.6s"/>
+      <rect class="aw lit" x="864" y="122" width="16" height="16" rx="3" style="animation-delay:0.3s"/>
+      <rect class="aw" x="888" y="122" width="16" height="16" rx="3" style="animation-delay:1.0s"/>
+      <rect class="aw" x="912" y="122" width="16" height="16" rx="3" style="animation-delay:1.7s"/>
+      <rect class="aw" x="936" y="122" width="16" height="16" rx="3" style="animation-delay:0.4s"/>
+      <rect class="aw" x="648" y="146" width="16" height="16" rx="3" style="animation-delay:1.3s"/>
+      <rect class="aw" x="672" y="146" width="16" height="16" rx="3" style="animation-delay:0.0s"/>
+      <rect class="aw lit" x="696" y="146" width="16" height="16" rx="3" style="animation-delay:0.7s"/>
+      <rect class="aw lit" x="720" y="146" width="16" height="16" rx="3" style="animation-delay:1.4s"/>
+      <rect class="aw" x="744" y="146" width="16" height="16" rx="3" style="animation-delay:0.1s"/>
+      <rect class="aw" x="768" y="146" width="16" height="16" rx="3" style="animation-delay:0.8s"/>
+      <rect class="aw" x="792" y="146" width="16" height="16" rx="3" style="animation-delay:1.5s"/>
+      <rect class="aw lit" x="816" y="146" width="16" height="16" rx="3" style="animation-delay:0.2s"/>
+      <rect class="aw" x="840" y="146" width="16" height="16" rx="3" style="animation-delay:0.9s"/>
+      <rect class="aw" x="864" y="146" width="16" height="16" rx="3" style="animation-delay:1.6s"/>
+      <rect class="aw" x="888" y="146" width="16" height="16" rx="3" style="animation-delay:0.3s"/>
+      <rect class="aw lit" x="912" y="146" width="16" height="16" rx="3" style="animation-delay:1.0s"/>
+      <rect class="aw" x="936" y="146" width="16" height="16" rx="3" style="animation-delay:1.7s"/>
+      <rect class="aw lit" x="648" y="170" width="16" height="16" rx="3" style="animation-delay:0.6s"/>
+      <rect class="aw" x="672" y="170" width="16" height="16" rx="3" style="animation-delay:1.3s"/>
+      <rect class="aw" x="696" y="170" width="16" height="16" rx="3" style="animation-delay:0.0s"/>
+      <rect class="aw" x="720" y="170" width="16" height="16" rx="3" style="animation-delay:0.7s"/>
+      <rect class="aw lit" x="744" y="170" width="16" height="16" rx="3" style="animation-delay:1.4s"/>
+      <rect class="aw" x="768" y="170" width="16" height="16" rx="3" style="animation-delay:0.1s"/>
+      <rect class="aw" x="792" y="170" width="16" height="16" rx="3" style="animation-delay:0.8s"/>
+      <rect class="aw" x="816" y="170" width="16" height="16" rx="3" style="animation-delay:1.5s"/>
+      <rect class="aw lit" x="840" y="170" width="16" height="16" rx="3" style="animation-delay:0.2s"/>
+      <rect class="aw lit" x="864" y="170" width="16" height="16" rx="3" style="animation-delay:0.9s"/>
+      <rect class="aw" x="888" y="170" width="16" height="16" rx="3" style="animation-delay:1.6s"/>
+      <rect class="aw" x="912" y="170" width="16" height="16" rx="3" style="animation-delay:0.3s"/>
+      <rect class="aw lit" x="936" y="170" width="16" height="16" rx="3" style="animation-delay:1.0s"/>
+      <rect class="aw" x="648" y="194" width="16" height="16" rx="3" style="animation-delay:1.9s"/>
+      <rect class="aw" x="672" y="194" width="16" height="16" rx="3" style="animation-delay:0.6s"/>
+      <rect class="aw lit" x="696" y="194" width="16" height="16" rx="3" style="animation-delay:1.3s"/>
+      <rect class="aw" x="720" y="194" width="16" height="16" rx="3" style="animation-delay:0.0s"/>
+      <rect class="aw" x="744" y="194" width="16" height="16" rx="3" style="animation-delay:0.7s"/>
+      <rect class="aw" x="768" y="194" width="16" height="16" rx="3" style="animation-delay:1.4s"/>
+      <rect class="aw lit" x="792" y="194" width="16" height="16" rx="3" style="animation-delay:0.1s"/>
+      <rect class="aw" x="816" y="194" width="16" height="16" rx="3" style="animation-delay:0.8s"/>
+      <rect class="aw" x="840" y="194" width="16" height="16" rx="3" style="animation-delay:1.5s"/>
+      <rect class="aw" x="864" y="194" width="16" height="16" rx="3" style="animation-delay:0.2s"/>
+      <rect class="aw lit" x="888" y="194" width="16" height="16" rx="3" style="animation-delay:0.9s"/>
+      <rect class="aw" x="912" y="194" width="16" height="16" rx="3" style="animation-delay:1.6s"/>
+      <rect class="aw" x="936" y="194" width="16" height="16" rx="3" style="animation-delay:0.3s"/>
+        </g>
+
+        <!-- OBJECT STORAGE -->
+        <g>
+          <rect class="card" x="624" y="298" width="352" height="104" rx="14"/>
+          <text class="chip-t ort" x="644" y="324">OBJECT STORAGE</text>
+          <g class="doc"><rect x="648" y="338" width="96" height="46" rx="8"/><text x="696" y="366" text-anchor="middle">code</text></g>
+          <g class="doc"><rect x="752" y="338" width="96" height="46" rx="8"/><text x="800" y="366" text-anchor="middle">data</text></g>
+          <g class="doc"><rect x="856" y="338" width="104" height="46" rx="8"/><text x="908" y="366" text-anchor="middle">results</text></g>
+        </g>
+
+        <!-- monitor ↔ storage ↔ client (above cards) -->
+        <path class="fl or" d="M624,366 C600,366 580,372 552,372" fill="none" marker-end="url(#arrOr)"/>
+        <text class="lbl ort" x="588" y="386" text-anchor="middle">poll status</text>
+        <path class="fl gr gr-fwd" d="M296,372 C250,372 230,336 222,304" fill="none" marker-end="url(#arrGr)"/>
+        <text class="lbl grt" x="255" y="388" text-anchor="middle">results</text>
+      </svg>
+    </div>
+  </section>
+
+  <!-- ===== Features ===== -->
+  <section class="section" id="features">
+    <div class="section-head">
+      <span class="kicker">// why lithops</span>
+      <h2>Built for developers, tuned for scale</h2>
+    </div>
+
+    <div class="feature-grid">
+      <article class="feature">
+        <div class="f-ico">⚡</div>
+        <h3>Zero-config scale-out</h3>
+        <p>Go from one core to thousands with a single <code>map()</code>. No cluster to spin up, no capacity planning.</p>
+      </article>
+      <article class="feature">
+        <div class="f-ico">🌍</div>
+        <h3>True multi-cloud</h3>
+        <p>The same code runs on AWS, GCP, Azure, IBM, Oracle, Aliyun, Kubernetes and HPC. Provider details stay transparent.</p>
+      </article>
+      <article class="feature">
+        <div class="f-ico">🐍</div>
+        <h3>Just Python</h3>
+        <p>NumPy, pandas, scikit-learn — your existing code, unmodified. No cloud-specific boilerplate.</p>
+      </article>
+      <article class="feature">
+        <div class="f-ico">📦</div>
+        <h3>Object storage, simplified</h3>
+        <p>Automatic discovery and transparent partitioning of CSV, Parquet and JSON straight from S3-style buckets.</p>
+      </article>
+      <article class="feature">
+        <div class="f-ico">🎯</div>
+        <h3>Optimize your way</h3>
+        <p>Chase latency with Lambda's millisecond starts, or cut cost with Batch on Spot — same program, your call.</p>
+      </article>
+      <article class="feature">
+        <div class="f-ico">🔎</div>
+        <h3>Error-friendly</h3>
+        <p>Traceback a remote failure just like a local one. Built-in logging, retries and event sourcing.</p>
+      </article>
+    </div>
+  </section>
+
+  <!-- ===== Code ===== -->
+  <section class="section" id="code">
+    <div class="section-head">
+      <span class="kicker">// two lines to the cloud</span>
+      <h2>Change how it runs, not what you write</h2>
+      <p class="section-lead">Pick an example. This is the whole program — Lithops handles the rest.</p>
+    </div>
+
+    <div class="code-wrap">
+      <div class="code-tabs" role="tablist">
+        <button class="code-tab active" data-tab="hello" role="tab">hello.py</button>
+        <button class="code-tab" data-tab="map" role="tab">estimate_pi.py</button>
+        <button class="code-tab" data-tab="reduce" role="tab">map_reduce.py</button>
+        <button class="code-tab" data-tab="storage" role="tab">storage.py</button>
+      </div>
+
+      <div class="editor">
+        <div class="editor-bar">
+          <span class="tl tl-r"></span><span class="tl tl-y"></span><span class="tl tl-g"></span>
+          <span class="editor-file" id="editorFile">hello.py</span>
+        </div>
+        <pre class="code-pane active" id="pane-hello"><code><span class="c"># A single serverless invocation</span>
+<span class="k">import</span> lithops
+
+<span class="k">def</span> <span class="fn">hello</span>(name):
+    <span class="k">return</span> <span class="s">f'Hello {name}!'</span>
+
+fexec = lithops.<span class="fn">FunctionExecutor</span>()
+fexec.<span class="fn">call_async</span>(hello, <span class="s">'World'</span>)
+<span class="fn">print</span>(fexec.<span class="fn">get_result</span>())
+</code></pre>
+        <pre class="code-pane" id="pane-map"><code><span class="c"># Estimate Pi with 10 parallel workers</span>
+<span class="k">import</span> lithops, random
+
+<span class="k">def</span> <span class="fn">is_inside</span>(n):
+    count = <span class="n">0</span>
+    <span class="k">for</span> _ <span class="k">in</span> <span class="fn">range</span>(n):
+        x, y = random.<span class="fn">random</span>(), random.<span class="fn">random</span>()
+        <span class="k">if</span> x*x + y*y &lt; <span class="n">1</span>:
+            count += <span class="n">1</span>
+    <span class="k">return</span> count
+
+np, n = <span class="n">10</span>, <span class="n">15_000_000</span>
+parts = [n // np] * np
+
+fexec = lithops.<span class="fn">FunctionExecutor</span>()
+fexec.<span class="fn">map</span>(is_inside, parts)          <span class="c"># fan out</span>
+pi = <span class="fn">sum</span>(fexec.<span class="fn">get_result</span>()) / n * <span class="n">4</span>  <span class="c"># fan in</span>
+<span class="fn">print</span>(<span class="s">f'Estimated Pi: {pi}'</span>)
+</code></pre>
+        <pre class="code-pane" id="pane-reduce"><code><span class="c"># Map then reduce, in the cloud</span>
+<span class="k">import</span> lithops
+
+iterdata = [<span class="n">1</span>, <span class="n">2</span>, <span class="n">3</span>, <span class="n">4</span>]
+
+<span class="k">def</span> <span class="fn">my_map</span>(x):
+    <span class="k">return</span> x + <span class="n">7</span>
+
+<span class="k">def</span> <span class="fn">my_reduce</span>(results):
+    <span class="k">return</span> <span class="fn">sum</span>(results)
+
+fexec = lithops.<span class="fn">FunctionExecutor</span>()
+fexec.<span class="fn">map_reduce</span>(my_map, iterdata, my_reduce)
+<span class="fn">print</span>(fexec.<span class="fn">get_result</span>())
+</code></pre>
+        <pre class="code-pane" id="pane-storage"><code><span class="c"># Unified storage across any cloud</span>
+<span class="k">from</span> lithops <span class="k">import</span> Storage
+
+st = <span class="fn">Storage</span>()
+st.<span class="fn">put_object</span>(bucket=<span class="s">'mybucket'</span>,
+              key=<span class="s">'test.txt'</span>,
+              body=<span class="s">'Hello World'</span>)
+
+data = st.<span class="fn">get_object</span>(bucket=<span class="s">'mybucket'</span>,
+                     key=<span class="s">'test.txt'</span>)
+<span class="fn">print</span>(data)
+</code></pre>
+      </div>
+
+      <div class="code-side">
+        <div class="run-panel">
+          <div class="run-head"><span class="tl tl-r"></span><span class="tl tl-y"></span><span class="tl tl-g"></span><span class="run-title">terminal</span></div>
+          <div class="run-body" id="runBody">
+            <div class="run-line"><span class="prompt">$</span> python <span id="runFile">hello.py</span></div>
+          </div>
+        </div>
+        <p class="code-note">Swap <code>FunctionExecutor()</code>'s backend in <code>~/.lithops/config</code> — your code never changes.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Backends ===== -->
+  <section class="section" id="backends">
+    <div class="section-head">
+      <span class="kicker">// compute anywhere</span>
+      <h2>One API. Every major backend.</h2>
+      <p class="section-lead">Mix serverless functions, containers, VMs, Kubernetes and HPC — Lithops keeps provider management out of your code.</p>
+    </div>
+
+    <div class="backend-grid">
+      <div class="backend-col">
+        <h4>Serverless functions</h4>
+        <ul>
+          <li>AWS Lambda</li><li>Google Cloud Run functions</li><li>Azure Functions</li>
+          <li>Oracle Functions</li><li>Aliyun Function Compute</li>
+          <li>OpenWhisk</li>
+        </ul>
+      </div>
+      <div class="backend-col">
+        <h4>Containers &amp; batch</h4>
+        <ul>
+          <li>AWS Batch</li><li>Google Cloud Run</li><li>Azure Container Apps</li>
+          <li>IBM Code Engine</li><li>Kubernetes Jobs</li><li>Knative</li><li>Singularity</li>
+        </ul>
+      </div>
+      <div class="backend-col">
+        <h4>Virtual machines</h4>
+        <ul>
+          <li>AWS EC2</li><li>Google Compute Engine</li><li>Azure Virtual Machines</li>
+          <li>IBM Virtual Private Cloud</li><li>Generic VM / on-prem</li>
+        </ul>
+      </div>
+      <div class="backend-col">
+        <h4>Storage</h4>
+        <ul>
+          <li>AWS S3</li><li>Google Cloud Storage</li><li>Azure Blob</li>
+          <li>IBM COS</li><li>MinIO · Ceph · Redis</li><li>Swift · Infinispan</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Use cases ===== -->
+  <section class="section" id="usecases">
+    <div class="section-head">
+      <span class="kicker">// what you can build</span>
+      <h2>Embarrassingly parallel? Perfect fit.</h2>
+      <p class="section-lead">If your problem breaks into many small, independent tasks, Lithops solves it at scale — fast.</p>
+    </div>
+
+    <div class="uc-grid">
+      <div class="uc"><span class="uc-tag">🔁</span><h3>Monte Carlo simulations</h3><p>Run millions of stochastic trials across thousands of cores and aggregate in seconds.</p></div>
+      <div class="uc"><span class="uc-tag">🧬</span><h3>Genomics &amp; metabolomics</h3><p>Powering platforms like MetaSpace on Lambda + EC2 directly over S3.</p></div>
+      <div class="uc"><span class="uc-tag">🗺️</span><h3>Geospatial analytics</h3><p>Tile, process and reduce huge raster/vector datasets in parallel.</p></div>
+      <div class="uc"><span class="uc-tag">🧠</span><h3>ML &amp; hyperparameter tuning</h3><p>Sweep parameter grids and preprocess training data at cloud scale.</p></div>
+      <div class="uc"><span class="uc-tag">📊</span><h3>Big data ETL</h3><p>Partition CSV/Parquet/JSON automatically and transform terabytes in one pass.</p></div>
+      <div class="uc"><span class="uc-tag">🔬</span><h3>Scientific pipelines</h3><p>From HPC clusters to pre-exascale supercomputers via the Lithops HPC backend.</p></div>
+    </div>
+  </section>
+
+  <!-- ===== CTA ===== -->
+  <section class="cta">
+    <div class="cta-card">
+      <h2>Give your Python 1000 cores.</h2>
+      <p>Two lines of setup. Zero infrastructure. Start on localhost, deploy to any cloud.</p>
+      <div class="cta-cmd">
+        <code><span class="prompt">$</span> pip install lithops &amp;&amp; lithops hello</code>
+        <button class="copy-btn" data-copy="pip install lithops && lithops hello" aria-label="Copy command">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        </button>
+      </div>
+      <div class="cta-actions">
+        <a class="solid-btn big" href="https://lithops-cloud.github.io/docs/">Read the docs</a>
+        <a class="ghost-btn big" href="https://github.com/lithops-cloud/lithops" target="_blank" rel="noopener">Star on GitHub</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Footer ===== -->
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <img src="assets/lithops_logo_white.png" alt="Lithops" class="brand-mark" />
+        <p>A Python multi-cloud serverless computing framework.</p>
+      </div>
+      <div class="footer-cols">
+        <div class="footer-col">
+          <h5>Project</h5>
+          <a href="https://lithops-cloud.github.io/docs/">Documentation</a>
+          <a href="https://github.com/lithops-cloud/lithops">GitHub</a>
+          <a href="https://pypi.org/project/lithops/">PyPI</a>
+          <a href="https://deepwiki.com/lithops-cloud/lithops">DeepWiki</a>
+        </div>
+        <div class="footer-col">
+          <h5>Learn</h5>
+          <a href="https://lithops-cloud.github.io/docs/">Get started</a>
+          <a href="#code">Examples</a>
+          <a href="#backends">Backends</a>
+          <a href="https://github.com/lithops-cloud/lithops/discussions">Discussions</a>
+        </div>
+        <div class="footer-col">
+          <h5>Community</h5>
+          <a href="https://github.com/lithops-cloud/lithops/issues">Report an issue</a>
+          <a href="https://github.com/lithops-cloud/lithops/blob/master/CONTRIBUTING.md">Contribute</a>
+        </div>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© <span id="year"></span> The Lithops Team · Apache-2.0</span>
+      <span class="footer-eu">Funded by the EU Horizon 2020 programme (CloudButton, grant 825184).</span>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      var nav = document.getElementById('nav');
+      var heroBrand = document.getElementById('heroBrand');
+      function syncNav() {
+        if (!nav) return;
+        var y = window.scrollY || document.documentElement.scrollTop || 0;
+        nav.classList.toggle('scrolled', y > 8);
+        if (!heroBrand) {
+          nav.classList.add('show-brand');
+          return;
+        }
+        var rect = heroBrand.getBoundingClientRect();
+        /* Wait until hero logo + tagline are fully above the nav — avoids double-logo overlap */
+        var show = rect.bottom < 0;
+        nav.classList.toggle('show-brand', show);
+      }
+      syncNav();
+      window.addEventListener('scroll', syncNav, { passive: true });
+      window.addEventListener('resize', syncNav, { passive: true });
+      window.addEventListener('load', syncNav);
+    })();
+  </script>
+  <script src="main.js?v=11"></script>
+</body>
+</html>
