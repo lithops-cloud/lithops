@@ -1,6 +1,6 @@
 # Changelog
 
-## [v3.6.5.dev0]
+## [v3.7.0]
 
 ### Added
 - [GCP Compute Engine] Added new GCP Compute Engine standalone backend
