@@ -46,7 +46,6 @@ No matter where your data lives, Lithops can execute your code right next to it.
 .. raw:: html
 
    <div class="cloud-logos" style="display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 2rem 2.5rem; margin: 1.5rem 0;">
-     <img src="_static/clouds/localhost.png" alt="Localhost" title="Localhost" width="65"/>
      <img src="_static/clouds/ibm_cloud.png" alt="IBM Cloud" title="IBM Cloud" width="100"/>
      <img src="_static/clouds/aws.png" alt="AWS" title="Amazon Web Services" width="100"/>
      <img src="_static/clouds/google_cloud.png" alt="Google Cloud" title="Google Cloud" width="100"/>
