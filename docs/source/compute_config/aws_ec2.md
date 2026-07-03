@@ -291,3 +291,33 @@ You can delete all the workers including the Master VM with the `--all` flag:
 ```bash
 lithops clean -b aws_ec2 -s aws_s3 --all
 ```
+
+## Architecture diagram
+
+Lithops provisions a dedicated VPC (unless you provide your own). Master and worker EC2 instances are launched in a **public subnet** with **public IPs**; outbound traffic uses an **Internet Gateway** (NAT gateway support exists in code but is not enabled today).
+
+```mermaid
+flowchart TB
+  subgraph aws [AWS region / VPC]
+    VPC["VPC lithops-vpc-XXXX"]
+    SUB["Public subnet 10.0.0.0/24"]
+    IGW["Internet Gateway"]
+    RT["Route table 0.0.0.0/0 → IGW"]
+    SG["Security group\nSSH :22 from internet\n:8080/:8081/:6379/:22 within VPC"]
+    M["Master EC2 lithops-master-XXXX\n+ public IP"]
+    W["Worker EC2 lithops-worker-*\n+ public IP"]
+  end
+  LAPTOP["Your laptop"] -->|SSH :22| M
+  LAPTOP -->|HTTP :8080 via SSH tunnel| M
+  M -->|Redis :6379 + HTTP :8081| W
+  M --> SUB
+  W --> SUB
+  SUB --> VPC
+  SUB --> RT
+  RT --> IGW
+  M -->|egress| IGW
+  W -->|egress| IGW
+  IGW --> INTERNET[Internet apt/docker/pip]
+  SG -.-> M
+  SG -.-> W
+```

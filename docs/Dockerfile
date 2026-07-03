@@ -7,7 +7,7 @@ RUN apt-get update \
 
 RUN pip install -U --no-cache-dir pip wheel setuptools
 
-RUN pip install --no-cache-dir sphinx myst-parser sphinx_copybutton jupyter ipykernel nbsphinx sphinx_book_theme sphinx-serve lithops
+RUN pip install --no-cache-dir sphinx myst-parser sphinx_copybutton jupyter ipykernel nbsphinx sphinx_book_theme sphinx-serve sphinxcontrib-mermaid lithops
 
 ADD lithops lithops
 

@@ -220,3 +220,32 @@ You can delete all the workers including the Master VM with the `--all` flag:
 ```bash
 lithops clean -b ibm_vpc -s ibm_cos --all
 ```
+
+## Architecture diagram
+
+Lithops creates a **VPC**, **subnet**, and **Public Gateway** in your resource group and zone (unless you provide existing resources). The master VSI gets a **floating IP**; worker VSIs stay on **private IPs** and use the **Public Gateway** for outbound internet access.
+
+```mermaid
+flowchart TB
+  subgraph ibm [IBM Cloud VPC / zone]
+    VPC["VPC lithops-vpc-XXXXXX"]
+    SUB["Subnet lithops-subnet-XXXXXX"]
+    SG["Default security group\nSSH :22 + ICMP from internet"]
+    GW["Public Gateway lithops-gateway-XXXXXX\n+ floating IP"]
+    FIP["Floating IP on master VSI"]
+    M["Master VSI lithops-master-XXXXXX"]
+    W["Worker VSIs lithops-worker-*\nprivate IP only"]
+  end
+  LAPTOP["Your laptop"] -->|SSH :22| FIP
+  FIP --> M
+  LAPTOP -->|HTTP :8080 via SSH tunnel| M
+  M -->|Redis :6379 + HTTP :8081| W
+  M --> SUB
+  W --> SUB
+  SUB --> VPC
+  SUB -->|attached| GW
+  W -->|egress| GW
+  GW --> INTERNET[Internet apt/docker/pip]
+  SG -.-> M
+  SG -.-> W
+```

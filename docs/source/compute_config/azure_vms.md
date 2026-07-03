@@ -201,3 +201,29 @@ You can delete all the workers including the Master VM with the `--all` flag:
 ```bash
 lithops clean -b azure_vms -s azure_storage --all
 ```
+
+## Architecture diagram
+
+Lithops creates a **Virtual Network** and **subnet** in your resource group (unless you provide existing ones). The master VM gets a **static public IP**; worker VMs use **private IPs only** and reach the internet through Azure's default subnet outbound routing.
+
+```mermaid
+flowchart TB
+  subgraph azure [Azure resource group / region]
+    VNET["Virtual Network lithops-vnet-XXXXXX\n10.0.0.0/16"]
+    SUB["Subnet lithops-vnet-XXXXXX-subnet\n10.0.0.0/24"]
+    NSG["Network Security Group lithops-security-group\nSSH :22 from internet\n:8080/:8081/:6379 within subnet"]
+    PIP["Static Public IP lithops-vnet-XXXXXX-ip"]
+    M["Master VM lithops-master-XXXXXX\nNIC + public IP"]
+    W["Worker VMs lithops-worker-*\nNIC, private IP only"]
+  end
+  LAPTOP["Your laptop"] -->|SSH :22| PIP
+  PIP --> M
+  LAPTOP -->|HTTP :8080 via SSH tunnel| M
+  M -->|Redis :6379 + HTTP :8081| W
+  M --> SUB
+  W --> SUB
+  SUB --> VNET
+  W -->|egress| INTERNET[Internet apt/docker/pip]
+  NSG -.-> M
+  NSG -.-> W
+```

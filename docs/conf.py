@@ -36,8 +36,11 @@ extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.todo',
     'sphinx_copybutton',
-    'nbsphinx'
+    'nbsphinx',
+    'sphinxcontrib.mermaid',
 ]
+
+myst_fence_as_directive = ['mermaid']
 
 todo_include_todos = True
 nbsphinx_allow_errors = False

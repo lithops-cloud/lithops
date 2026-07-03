@@ -72,3 +72,24 @@ You can view the function executions logs in your local machine using the *litho
 ```bash
 lithops logs poll
 ```
+
+## Architecture diagram
+
+The VM backend runs in **consume mode only**: Lithops uses a single existing machine as both **master** and **worker**. The master service, Redis, and worker processes all run on that host; no cloud resources are provisioned.
+
+```mermaid
+flowchart TB
+  subgraph vm [Existing VM / bare-metal host]
+    MASTER["Lithops master service :8080"]
+    REDIS["Redis :6379\njob + task queues"]
+    WORKER["Lithops worker service :8081\nN parallel runner processes"]
+    RUNNER["runner.py processes\none per CPU / worker_processes"]
+  end
+  LAPTOP["Your laptop"] -->|SSH :22| vm
+  LAPTOP -->|HTTP :8080 via SSH tunnel| MASTER
+  MASTER --> REDIS
+  WORKER -->|BRPOP tasks| REDIS
+  WORKER --> RUNNER
+  STORAGE[(Object storage\nS3 / COS / GCS / …)]
+  RUNNER -->|read/write data| STORAGE
+```
