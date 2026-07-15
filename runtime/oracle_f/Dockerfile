@@ -1,14 +1,10 @@
-# Python 3.6
-#FROM python:3.6-slim-buster
 
-# Python 3.7
-#FROM python:3.7-slim-buster
 
-# Python 3.8
-#FROM python:3.8-slim-buster
+# Python 3.12
+FROM python:3.12-slim-bookworm
 
-# Python 3.9
-FROM python:3.9-slim-buster
+# Python 3.11
+#FROM python:3.11-slim-bookworm
 
 RUN apt-get update \
     && apt-get install -y \
@@ -17,7 +13,6 @@ RUN apt-get update \
 
 RUN pip install --upgrade --ignore-installed setuptools six pip \
     && pip install --upgrade --no-cache-dir --ignore-installed \
-    fn \
     fdk \
     redis \
     httplib2 \
@@ -49,6 +44,5 @@ RUN unzip lithops_oracle.zip \
     && touch handler/__init__.py \
     && mv entry_point.py handler/
 
-
-ENV PYTHONPATH "${PYTHONPATH}:${FUNCTION_DIR}"
+ENV PYTHONPATH="${FUNCTION_DIR}"
 ENTRYPOINT ["/usr/local/bin/fdk", "handler/entry_point.py", "handler"]

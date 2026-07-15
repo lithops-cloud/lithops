@@ -5,10 +5,10 @@ Lithops with *OpenWhisk* as serverless compute backend. Lithops can also run fun
 
 ## Installation
 
-1. install the [openwhisk-cli](https://github.com/apache/openwhisk-cli)
+1. Install the [openwhisk-cli](https://github.com/apache/openwhisk-cli).
 
 
-2. Make sure you can run end-to-end [python example](https://github.com/apache/openwhisk/blob/master/docs/actions-python.md#creating-and-invoking-python-actions).
+2. Make sure you can run an end-to-end [Python example](https://github.com/apache/openwhisk/blob/master/docs/actions-python.md#creating-and-invoking-python-actions).
 
     For example, create a file named `hello.py` with the next content:
     
@@ -47,7 +47,7 @@ Lithops with *OpenWhisk* as serverless compute backend. Lithops can also run fun
         insecure    : <True/False>
     ```
 
-    - You can find all the values in the `~/.wskprops` file. The content of the file should looks like:
+    - You can find all the values in the `~/.wskprops` file. The content of the file should look like:
 
         ```
         APIHOST=192.168.1.30
@@ -80,11 +80,11 @@ Lithops with *OpenWhisk* as serverless compute backend. Lithops can also run fun
 |openwhisk | runtime_memory | 256 |no | Memory limit in MB. Default 256MB |
 |openwhisk | runtime_timeout | 600 |no | Runtime timeout in seconds. Default 10 minutes |
 |openwhisk | invoke_pool_threads | 500 |no | Number of concurrent threads used for invocation |
-|openwhisk | runtime_include_function | False | no | If set to true, Lithops will automatically build a new runtime, including the function's code, instead of transferring it through the storage backend at invocation time. This is useful when the function's code size is large (in the order of 10s of MB) and the code does not change frequently |
+|openwhisk | runtime_include_function | False | no | If set to true, Lithops will automatically build a new runtime, including the function's code, instead of transferring it through the storage backend at invocation time. This is useful when the function's code size is large (on the order of tens of MB) and the code does not change frequently |
 
 ## Test Lithops
 
-Once you have your compute and storage backends configured, you can run a hello world function with:
+Once you have your compute and storage backends configured, you can run a Hello World function with:
 
 ```bash
 lithops hello -b openwhisk -s ibm_cos

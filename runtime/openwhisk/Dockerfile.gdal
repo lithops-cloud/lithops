@@ -165,7 +165,7 @@ RUN if test "${GDAL_VERSION}" = "master"; then \
 # Build final image
 FROM ubuntu:18.04 as runner
 
-ENV FLASK_PROXY_PORT 8080
+ENV FLASK_PROXY_PORT=8080
 
 RUN apt-get update \
   && apt-get install -y python3-pip python3-dev \

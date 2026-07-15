@@ -21,7 +21,6 @@ import hashlib
 import time
 import json
 import zipfile
-import subprocess
 import botocore.exceptions
 import base64
 
@@ -357,8 +356,7 @@ class AWSLambdaBackend:
         auth_data = res['authorizationData'].pop()
         ecr_token = base64.b64decode(auth_data['authorizationToken']).split(b':')[1]
 
-        cmd = f'{docker_path} login --username AWS --password-stdin {registry}'
-        subprocess.check_output(cmd.split(), input=ecr_token)
+        utils.docker_login('AWS', ecr_token.decode('utf-8'), registry)
 
         repo_name = self._format_repo_name(runtime_name)
 

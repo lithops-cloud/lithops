@@ -3,15 +3,15 @@ Prometheus Monitoring
 
 .. warning:: This feature is experimental and as such is unstable. Using it in production is discouraged. Expect errors and API/functionality changes in future releases.
 
-Lithops allows to send executions metrics to Prometheus for real-time monitoring purposes.
-Currently this feature works by using a Prometheus apigateway.
+Lithops can send execution metrics to Prometheus for real-time monitoring purposes.
+Currently, this feature works by using a Prometheus push gateway.
 
 Installation
 ------------
 
-For testing purposes, the easiest way to get everything up is to use an Ubuntu VM and install the pre-compiled packages from the *apt* repository
+For testing purposes, the easiest way to get everything up is to use an Ubuntu VM and install the pre-compiled packages from the *apt* repository.
 
-1. Install the Prometheus severer:
+1. Install the Prometheus server:
 
 .. code::
 
@@ -54,4 +54,4 @@ Add in your config a new section called *prometheus* with the following keys:
      - apigateway
      - ``None``
      - No
-     - Prometheus apigateway endpointt. Make sure to use http:// prefix and corresponding port. For example: http://localhost:9091
+     - Prometheus apigateway endpoint. Make sure to use the ``http://`` prefix and the corresponding port. For example: ``http://localhost:9091``

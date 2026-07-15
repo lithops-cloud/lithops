@@ -42,6 +42,14 @@ ALLOWED_MEM = {
     3072: ('3Gi', 1.5),
     3584: ('3.5Gi', 1.75),
     4096: ('4Gi', 2),
+    4608: ('4.5Gi', 2.25),
+    5120: ('5Gi', 2.5),
+    5632: ('5.5Gi', 2.75),
+    6144: ('6Gi', 3),
+    6656: ('6.5Gi', 3.25),
+    7168: ('7Gi', 3.5),
+    7680: ('7.5Gi', 3.75),
+    8192: ('8Gi', 4),
 }
 
 REQUIRED_AZURE_STORAGE_PARAMS = ('storage_account_name', 'storage_account_key')
@@ -50,7 +58,7 @@ REQUIRED_AZURE_CONTAINERS_PARAMS = ('resource_group', 'region')
 CONTAINERAPP_JSON = {
     "type": "Microsoft.App/containerApps",
     "name": "",
-    "apiVersion": "2022-03-01",
+    "apiVersion": "2026-01-01",
     "kind": "containerapp",
     "location": "",
     "tags": {
@@ -60,7 +68,7 @@ CONTAINERAPP_JSON = {
         "runtime_memory": "",
     },
     "properties": {
-        "managedEnvironmentId": "",
+        "environmentId": "",
         "configuration": {
             "activeRevisionsMode": "single",
             "secrets": [{
@@ -167,7 +175,7 @@ def load_config(config_data):
         config_data['azure_containers']['region'] = config_data['azure_containers'].pop('location')
 
     for key in DEFAULT_CONFIG_KEYS:
-        if key not in config_data['azure_containers']:
+        if key not in config_data['azure_containers'] or not config_data['azure_containers'][key]:
             config_data['azure_containers'][key] = DEFAULT_CONFIG_KEYS[key]
 
     for key in REQUIRED_AZURE_STORAGE_PARAMS:

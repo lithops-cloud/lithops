@@ -19,7 +19,6 @@ import json
 import os
 import re
 import logging
-import subprocess
 import sys
 import botocore
 import time
@@ -106,7 +105,7 @@ class AWSBatchBackend:
         return f'{package}--{self.env_type}--{fmt_runtime_name}--{runtime_memory}mb'
 
     def _unformat_jobdef_name(self, jobdef_name):
-        # Default jobdef name is "lithops_v2-7-2_WU5O--FARGATE_SPOT--batch-default-runtime-v39--latest--1024mb"
+        # Default jobdef name is "lithops_v2-7-2_WU5O--FARGATE_SPOT--batch-default-runtime-v310--latest--1024mb"
         prefix, env_type, runtime = jobdef_name.split('--', 2)
         version = prefix.replace('lithops_v', '').split('_')[0].replace('-', '.')
         runtime_name, memory = runtime.rsplit("--", 1)
@@ -117,7 +116,7 @@ class AWSBatchBackend:
         python_version = utils.version_str(sys.version_info)
         dockerfile = "Dockerfile.default-batch-runtime"
         with open(dockerfile, 'w') as f:
-            f.write(f"FROM python:{python_version}-slim-buster\n")
+            f.write(f"FROM python:{python_version}-slim-bookworm\n")
             f.write(batch_config.DOCKERFILE_DEFAULT)
         try:
             self.build_runtime(runtime_name, dockerfile)
@@ -400,8 +399,7 @@ class AWSBatchBackend:
         finally:
             os.remove(batch_config.RUNTIME_ZIP)
 
-        cmd = f'{docker_path} login --username AWS --password-stdin {registry}'
-        subprocess.check_output(cmd.split(), input=ecr_token)
+        utils.docker_login('AWS', ecr_token.decode('utf-8'), registry)
 
         try:
             self.ecr_client.create_repository(repositoryName=repo_name,

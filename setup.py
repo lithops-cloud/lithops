@@ -45,8 +45,8 @@ extras_require = {
         'azure-storage-queue'
     ],
     'aliyun': [
-        'aliyun-fc2',
-        'oss2'
+        'alibabacloud-fc20230330>=4.7.0',
+        'oss2',
     ],
     'ceph': [
         'boto3'
@@ -83,6 +83,8 @@ extras_require = {
     ],
     'tests': [
         'pytest',
+        'kubernetes',
+        'pika',
     ]
 }
 
@@ -113,11 +115,11 @@ setup(
         'Operating System :: OS Independent',
         'Natural Language :: English',
         'License :: OSI Approved :: Apache Software License',
-        'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: 3.11',
         'Programming Language :: Python :: 3.12',
         'Programming Language :: Python :: 3.13',
+        'Programming Language :: Python :: 3.14',
         'Topic :: Software Development :: Libraries :: Python Modules',
         'Topic :: Scientific/Engineering',
         'Topic :: System :: Distributed Computing',

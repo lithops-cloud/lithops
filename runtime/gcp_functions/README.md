@@ -1,8 +1,14 @@
-# Lithops runtime for Google Cloud Functions
+# Lithops runtime for Google Cloud Run functions (v2)
 
-Google Cloud Functions operate within a runtime environment distinct from other serverless platforms like Google Cloud Run, as they do not rely on containers from the user prespective. Consequently, specifying a container image as the function's runtime isn't feasible. However, you can enhance the default package set by providing a custom `requirements.txt` file, allowing for the inclusion of additional Python modules automatically installable via `pip`.
+This backend targets Google Cloud Run functions (formerly Cloud Functions 2nd gen) through the Cloud Functions v2 API. Runtimes are deployed from source and built by Google-managed buildpacks, so you provide Python dependencies in `requirements.txt` instead of a custom container image.
 
-Currently, Google Cloud Functions supports Python >= 3.7. You can find the list of pre-installed modules [here](https://cloud.google.com/functions/docs/writing/specifying-dependencies-python#pre-installed_packages). In addition, the Lithops default runtimes are built with the packages included in this [requirements.txt](requirements.txt) file:
+You can check supported runtimes and language details in the Cloud Run functions docs:
+- [Runtime support](https://docs.cloud.google.com/functions/docs/runtime-support)
+- [Python dependencies](https://docs.cloud.google.com/run/docs/runtimes/python-dependencies)
+
+Cloud Run functions currently supports Python 3.10, 3.11, 3.12, 3.13 and 3.14.
+
+In addition, the Lithops default runtimes are built with the packages included in this [requirements.txt](requirements.txt) file:
 
 The default runtime is created automatically the first time you execute a function. Lithops automatically detects the Python version of your environment and deploys the default runtime based on it. In this sense, to run a function with the default runtime you don't need to specify anything in the code, since everything is managed internally by Lithops:
 
@@ -26,11 +32,11 @@ pw = lithops.FunctionExecutor(runtime_memory=512)
 
 ## Custom runtime
 
-**Build your own Lithops runtime for Google Cloud Functions**
+**Build your own Lithops runtime for Google Cloud Run functions (v2)**
 
 If you require additional Python modules not included in the default runtime, you can create your own custom Lithops runtime incorporating them. To create a custom runtime, compile all the necessary modules into a `requirements.txt` file.
 
-For instance, if you wish to integrate the `matplotlib` module into your runtime, which isn't part of the default setup, you need to append it to the existing [requirements.txt](requirements.txt) file. Note that this `requirements.txt` contains the mandatory pakcges required by lithops, so you don't have to remove any of them from the list, but just add your packages at the end.
+For instance, if you wish to integrate the `matplotlib` module into your runtime, which isn't part of the default setup, you need to append it to the existing [requirements.txt](requirements.txt) file. Note that this `requirements.txt` contains the mandatory packages required by Lithops, so you don't have to remove any of them from the list, but just add your packages at the end.
 
 After updating the file accordingly, you can proceed to build the custom runtime by specifying the modified `requirements.txt` file along with a chosen runtime name:
 
@@ -38,7 +44,7 @@ After updating the file accordingly, you can proceed to build the custom runtime
 $ lithops runtime build -b gcp_functions -f requirements.txt my_matplotlib_runtime 
 ```
 
-This command will add an extra runtime called `my_matplotlib_runtime` to the available Google Cloud Function runtimes.
+This command will add an extra runtime called `my_matplotlib_runtime` to the available Google Cloud Run functions (v2) runtimes.
 
 Finally, you can specify this new runtime when creating a Lithops Function Executor:
 

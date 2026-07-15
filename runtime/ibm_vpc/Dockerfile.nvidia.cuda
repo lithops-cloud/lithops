@@ -1,6 +1,6 @@
 FROM nvidia/cuda:11.5.1-runtime-ubuntu20.04
 
-ENV FLASK_PROXY_PORT 8080
+ENV FLASK_PROXY_PORT=8080
 
 RUN apt-get update \
     # add some packages required for the pip install

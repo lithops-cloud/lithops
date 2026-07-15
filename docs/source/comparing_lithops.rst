@@ -3,7 +3,7 @@ Comparing Lithops with Other Distributed Computing Frameworks
 
 Lithops introduces a novel approach to distributed computing by leveraging **serverless functions** for massively parallel computations. Unlike traditional frameworks that require managing a cluster of nodes, Lithops utilizes Function-as-a-Service (FaaS) platforms to dynamically scale execution resources — down to zero when idle and massively up when needed.
 
-In addition, Lithops offers a simple and consistent programming interface to transparently process data stored in **Object Storage** from within serverless functions. Its **modular and cloud-agnostic architecture** enables seamless portability across different cloud providers and FaaS platforms, effectively avoiding vendor lock-in.
+In addition, Lithops offers a simple and consistent programming interface to transparently process data stored in **Object Storage** from within serverless functions. Its **modular and cloud-agnostic architecture** enables seamless portability across different cloud providers and FaaS platforms, helping to avoid vendor lock-in.
 
 PyWren
 ------
@@ -14,7 +14,7 @@ In 2018, the Lithops team forked PyWren to adapt it for **IBM Cloud Functions**,
 
 By September 2020, the IBM PyWren fork had diverged significantly. The maintainers rebranded the project as **Lithops**, reflecting its broader goals — including multi-cloud compatibility, improved developer experience, and support for modern Python environments and distributed computing patterns.
 
-For more details, refer to the Middleware'18 industry paper:  
+For more details, refer to the Middleware 2018 industry paper:
 `Serverless Data Analytics in the IBM Cloud <https://dl.acm.org/doi/10.1145/3284028.3284029>`_.
 
 Ray and Dask

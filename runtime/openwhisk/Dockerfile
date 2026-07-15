@@ -1,11 +1,10 @@
-#FROM python:3.6-slim-buster
-#FROM python:3.7-slim-buster
-#FROM python:3.8-slim-buster
-#FROM python:3.9-slim-buster
-#FROM python:3.10-slim-buster
-FROM python:3.11-slim-buster
+# Python 3.10
+#FROM python:3.10-slim-bookworm
 
-ENV FLASK_PROXY_PORT 8080
+# Python 3.11
+FROM python:3.11-slim-bookworm
+
+ENV FLASK_PROXY_PORT=8080
 
 RUN apt-get update \
     # add some packages required for the pip install

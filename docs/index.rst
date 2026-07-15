@@ -1,7 +1,7 @@
 Welcome to Lithops!
 ********************
 
-**Lithops is a Python multi-cloud serverless computing framework** that empowers you to **run unmodified Python code at massive scale** on leading serverless platforms and beyond.
+**Lithops is a Python multi-cloud distributed computing framework** that empowers you to **run unmodified Python code at massive scale** across cloud, HPC, on-premise, and serverless platforms.
 
 Whether you're processing terabytes of data or launching thousands of parallel tasks, Lithops lets you **focus on your code, not infrastructure**. It brings simplicity, performance, and flexibility to cloud-native computing.
 
@@ -12,7 +12,7 @@ Why Lithops?
 Serverless computing makes it easy to run code in the cloud — but scaling data-intensive workloads across clouds is hard. Lithops solves this by providing:
 
 - ✅ **Zero-configuration scale-out**: Run your Python functions on thousands of cloud workers with no infrastructure management.
-- 🌍 **True multi-cloud portability**: Move seamlessly between AWS, GCP, Azure, IBM Cloud, etc...
+- 🌍 **True multi-cloud portability**: Move seamlessly between AWS, GCP, Azure, IBM Cloud, and more.
 - 💡 **Developer-first experience**: Write standard Python code, including NumPy, pandas, and scikit-learn — no cloud-specific boilerplate required.
 - 🧠 **Optimized for big data and AI**: Efficiently process massive datasets stored in object storage services with automatic partitioning.
 
@@ -43,9 +43,20 @@ Compute Anywhere
 
 No matter where your data lives, Lithops can execute your code right next to it.
 
-.. image:: source/images/multicloud.jpg
-   :alt: Available backends
-   :align: center
+.. raw:: html
+
+   <div class="cloud-logos" style="display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 2rem 2.5rem; margin: 1.5rem 0;">
+     <img src="_static/clouds/ibm_cloud.png" alt="IBM Cloud" title="IBM Cloud" width="100"/>
+     <img src="_static/clouds/aws.png" alt="AWS" title="Amazon Web Services" width="100"/>
+     <img src="_static/clouds/google_cloud.png" alt="Google Cloud" title="Google Cloud" width="100"/>
+     <img src="_static/clouds/azure.png" alt="Microsoft Azure" title="Microsoft Azure" width="100"/>
+     <img src="_static/clouds/aliyun.png" alt="Alibaba Cloud" title="Alibaba Cloud" width="100"/>
+     <img src="_static/clouds/oracle.png" alt="Oracle Cloud" title="Oracle Cloud" width="100"/>
+     <img src="_static/clouds/k8s.png" alt="Kubernetes" title="Kubernetes" width="95"/>
+     <img src="_static/clouds/openshift.png" alt="OpenShift" title="Red Hat OpenShift" width="95"/>
+   </div>
+
+See :doc:`Supported Clouds <source/supported_clouds>` for the full list of compute and storage backends.
 
 
 Object Storage Made Easy
@@ -56,7 +67,7 @@ Object Storage Made Easy
 Lithops simplifies working with data lakes and object storage by providing:
 
 - 🔍 **Automatic data discovery**: Detects and lists files across nested directories.
-- 📂 **Transparent data partitioning**: Splits large files (e.g., CSV, Parquet, JSON) into chunks for efficient parallel processing.
+- 📂 **Transparent data partitioning**: Splits large text-based files (for example, CSV) into chunks for efficient parallel processing.
 - 🧰 **Unified, Pythonic API**: Interact with your data using a single interface, regardless of where it's stored.
 
 You write simple Python code — Lithops handles the complexity of parallel I/O, data distribution, and storage backends under the hood.
@@ -131,7 +142,7 @@ Blogs and Talks
   <https://www.youtube.com/watch?v=-uS-wi8CxBo>`_
 
 * `Using Serverless to Run Your Python Code on 1000 Cores by Changing Two Lines of Code
-  <https://www.ibm.com/blog/using-serverless-to-run-your-python-code-on-1000-cores-by-changing-two-line-of-code>`_
+  <https://www.ibm.com/blog/using-serverless-to-run-your-python-code-on-1000-cores-by-changing-two-lines-of-code>`_
 
 * `Decoding dark molecular matter in spatial metabolomics with IBM Cloud Functions
   <https://www.ibm.com/blog/decoding-dark-molecular-matter-in-spatial-metabolomics-with-ibm-cloud-functions>`_
@@ -238,15 +249,15 @@ Lithops is an open-source project, actively maintained and supported by a commun
    :maxdepth: 0
    :caption: Lithops Storage API
 
-   source/api_storage.md
+   source/api_storage.rst
 
 .. toctree::
    :hidden:
    :maxdepth: 0
    :caption: Data Processing
 
-   source/data_processing.md
-   source/data_partitioning.md
+   source/data_processing.rst
+   source/data_partitioning.rst
 
 .. toctree::
    :hidden:
@@ -254,7 +265,7 @@ Lithops is an open-source project, actively maintained and supported by a commun
    :caption: Integrations
 
    source/api_multiprocessing.rst
-   source/api_storage_os.md
+   source/api_storage_os.rst
    source/sklearn_joblib.rst
    source/airflow.rst
 

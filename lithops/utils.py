@@ -164,7 +164,7 @@ def get_mode(backend):
 
     if backend is None:
         return constants.MODE_DEFAULT
-    elif backend == constants.LOCALHOST:
+    if backend == constants.LOCALHOST:
         return constants.LOCALHOST
     elif backend in constants.SERVERLESS_BACKENDS:
         return constants.SERVERLESS
@@ -401,15 +401,16 @@ def get_default_container_name(backend, backend_config, runtime_name):
                             f'in config under "{backend}" section')
         return f'{docker_server}/{docker_namespace}/{img}'
 
-    elif 'gcr.io' in docker_server:
-        # Google container registry
+    elif 'pkg.dev' in docker_server:
+        # Google Artifact Registry (Docker)
         try:
-            country = backend_config['region'].split('-')[0]
+            region = backend_config['region']
             project_name = backend_config['project_name']
+            repository = backend_config.get('artifact_registry_repository', 'lithops')
         except Exception:
             raise Exception('You must provide "region" and "project_name" params'
                             'in config under "gcp" section')
-        return f'{country}.gcr.io/{project_name}/{img}'
+        return f'{region}-docker.pkg.dev/{project_name}/{repository}/{img}'
 
     else:
         return f'{docker_server}/{img}'
@@ -533,26 +534,40 @@ def verify_args(func, iterdata, extra_args):
     non_verify_args = ['ibm_cos', 'storage', 'id', 'rabbitmq']
     func_sig = inspect.signature(func)
 
-    new_parameters = list()
-    for param in func_sig.parameters:
-        if param not in non_verify_args:
-            new_parameters.append(func_sig.parameters[param])
-
+    new_parameters = [
+        param
+        for name, param in func_sig.parameters.items()
+        if name not in non_verify_args
+    ]
     new_func_sig = func_sig.replace(parameters=new_parameters)
 
-    new_data = list()
+    # Detect presence of **kwargs (with any name)
+    has_var_keyword = any(
+        p.kind == inspect.Parameter.VAR_KEYWORD
+        for p in new_func_sig.parameters.values()
+    )
+
+    new_data = []
+
     for elem in data:
         if isinstance(elem, dict):
-            if set(list(new_func_sig.parameters.keys())) <= set(elem):
+            # If the function accepts **kwargs (any name), we cannot reliably
+            # enforce exact param name matching here, and we *want* to allow
+            # passing through arbitrary dicts (e.g., original function args)
+            # even when a decorator wrapper has **kwargs, etc.
+            if has_var_keyword:
+                new_data.append(elem)
+            elif set(expected_keys := list(new_func_sig.parameters)) <= set(elem):
+                # No **kwargs: enforce that the dict contains at least all
+                # required user parameters (excluding reserved ones).
                 new_data.append(elem)
             else:
-                raise ValueError("Check the args names in the data. "
-                                 "You provided these args: {}, and "
-                                 "the args must be: {}"
-                                 .format(list(elem.keys()),
-                                         list(new_func_sig.parameters.keys())))
+                raise ValueError(
+                    "Check the args names in the data. You provided these args: ",
+                    f"{list(elem)}, and the args must be: {expected_keys}",
+                )
         elif isinstance(elem, tuple):
-            new_elem = dict(new_func_sig.bind(*list(elem)).arguments)
+            new_elem = dict(new_func_sig.bind(*elem).arguments)
             new_data.append(new_elem)
         else:
             # single value (list, string, integer, dict, etc)
@@ -709,6 +724,31 @@ class WrappedStreamingBodyPartition(WrappedStreamingBody):
             self._eof = True
 
         return retval
+
+
+def docker_login(docker_user, docker_password, docker_server):
+    """
+    Log in to a container registry using docker/podman.
+
+    Docker Hub must be logged in without an explicit server host, matching
+    `docker login -u USER --password-stdin`.
+    """
+    if not docker_user or not docker_password:
+        raise Exception('docker_user and docker_password are required')
+    if not docker_server:
+        raise Exception('docker_server is required')
+
+    docker_path = get_docker_path()
+    docker_password = docker_password.strip()
+
+    if 'docker.io' in docker_server:
+        cmd = f'{docker_path} login -u {docker_user} --password-stdin'
+    else:
+        cmd = (f'{docker_path} login -u {docker_user} --password-stdin '
+               f'{docker_server}')
+
+    logger.debug('Logging in to container registry')
+    run_command(cmd, input=docker_password)
 
 
 def run_command(cmd, return_result=False, input=None):

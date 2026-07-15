@@ -16,11 +16,11 @@ python3 -m pip install lithops[ibm]
 
 2. Click `Create an IBM Cloud API Key` and provide the necessary information.
 
-3. Copy the generated IAM API key (You can only see the key the first time you create it, so make sure to copy it).
+3. Copy the generated IAM API key (you can only see the key the first time you create it, so make sure to copy it).
 
 4. Navigate to the [resource groups dashboard](https://cloud.ibm.com/account/resource-groups), and copy the desired resource group ID.
 
-5. Edit your lithops config and add the following keys:
+5. Edit your Lithops config and add the following keys:
 
     ```yaml
     lithops:
@@ -40,33 +40,31 @@ python3 -m pip install lithops[ibm]
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |ibm | iam_api_key | |yes | IBM Cloud IAM API key to authenticate against IBM services. Obtain the key [here](https://cloud.ibm.com/iam/apikeys) |
-|ibm | region | |yes | IBM Region.  One of: `eu-gb`, `eu-de`, `us-south`, `us-east`, `br-sao`, `ca-tor`, `jp-tok`, `jp-osa`, `au-syd` |
-|ibm | resource_group_id | | yes | Resource group id from your IBM Cloud account. Get it from [here](https://cloud.ibm.com/account/resource-groups) |
+|ibm | region | |yes | IBM Region. One of: `eu-gb`, `eu-de`, `eu-es`, `us-south`, `us-east`, `br-sao`, `ca-tor`, `jp-tok`, `jp-osa`, `au-syd` |
+|ibm | resource_group_id | | yes | Resource group id from your IBM Cloud account. Get it from [here](https://cloud.ibm.com/account/resource-groups). Required to auto-create a Code Engine project |
 
-## Code Engine:
+### Code Engine:
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|code_engine | project_name |  |no | Project name that already exists in Code Engine. If not provided lithops will automatically create a new project|
-|code_engine | namespace |  |no | Alternatively to `project_name`, you can provide `namespace`. Get it from you code engine k8s config file.|
-|code_engine | region |  | no | Cluster region. One of: `eu-gb`, `eu-de`, `us-south`, `us-east`, `br-sao`, `ca-tor`, `jp-tok`, `jp-osa`, `au-syd`. Lithops will use the `region` set under the `ibm` section if it is not set here |
+|code_engine | project_name |  |no | Name of an existing Code Engine project. If not provided, Lithops creates `lithops-<region>-<user_key>` automatically |
+|code_engine | region |  | no | Code Engine region. One of: `eu-gb`, `eu-de`, `eu-es`, `us-south`, `us-east`, `br-sao`, `ca-tor`, `jp-tok`, `jp-osa`, `au-syd`. Lithops uses the `region` set under the `ibm` section if not set here |
 |code_engine | docker_server | docker.io |no | Container registry URL |
 |code_engine | docker_user | |no | Container registry user name |
-|code_engine | docker_password | |no | Container registry password/token. In case of Docker hub, login to your docker hub account and generate a new access token [here](https://hub.docker.com/settings/security)|
+|code_engine | docker_password | |no | Container registry password/token. For Docker Hub, log in to your Docker Hub account and generate a new access token [here](https://hub.docker.com/settings/security)|
 |code_engine | max_workers | 1000 | no | Max number of workers per `FunctionExecutor()`|
-|code_engine | worker_processes | 1 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker. It is recommendable to set this value to the same number of CPUs of the container. |
+|code_engine | worker_processes | 1 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker. It is recommended to set this value to the same number of CPUs as the container. |
 |code_engine | runtime |  |no | Docker image name.|
-|code_engine | runtime_cpu | 0.125 |no | CPU limit. Default 0.125vCPU. See [valid combinations](https://cloud.ibm.com/docs/codeengine?topic=codeengine-mem-cpu-combo) |
-|code_engine | runtime_memory | 256 |no | Memory limit in MB. Default 256Mi. See [valid combinations](https://cloud.ibm.com/docs/codeengine?topic=codeengine-mem-cpu-combo) |
+|code_engine | runtime_cpu | 0.125 |no | CPU limit. Default 0.125 vCPU. See [valid combinations](https://cloud.ibm.com/docs/codeengine?topic=codeengine-mem-cpu-combo) |
+|code_engine | runtime_memory | 256 |no | Memory limit in MB. Default 256 MB. See [valid combinations](https://cloud.ibm.com/docs/codeengine?topic=codeengine-mem-cpu-combo) |
 |code_engine | runtime_timeout | 600 |no | Runtime timeout in seconds. Default 600 seconds |
-|code_engine | connection_retries | |no | If specified, number of job invoke retries in case of connection failure with error code 500 |
-|code_engine | runtime_include_function | False | no | If set to true, Lithops will automatically build a new runtime, including the function's code, instead of transferring it through the storage backend at invocation time. This is useful when the function's code size is large (in the order of 10s of MB) and the code does not change frequently |
+|code_engine | connection_retries | |no | If specified, number of API call retries in case of connection failure with error code 500 |
 
 
 ## Runtime
 
 ### Use your own runtime
-If a pre-built runtime is not provided, Lithops will automatically build the default runtime the first time you run a script. For this task it uses the **docker** command installed locally in your machine. To make this working, you need:
+If a pre-built runtime is not provided, Lithops will automatically build the default runtime the first time you run a script. For this task it uses the **Docker** command installed locally on your machine. To make this work, you need to:
 
 1. [Install the Docker CE version](https://docs.docker.com/get-docker/).
 
@@ -82,8 +80,8 @@ If you need to create a runtime with custom system packages and libraries, pleas
 
 ## Configure a private container registry for your runtime
 
-### Configure Docker hub
-To configure Lithops to access a private repository in your docker hub account, you need to extend the Code Engine config and add the following keys:
+### Configure Docker Hub
+To configure Lithops to access a private repository in your Docker Hub account, you need to extend the Code Engine config and add the following keys:
 
 ```yaml
 code_engine:
@@ -108,7 +106,7 @@ code_engine:
 
 ## Test Lithops
 
-Once you have your compute and storage backends configured, you can run a hello world function with:
+Once you have your compute and storage backends configured, you can run a Hello World function with:
 
 ```bash
 lithops hello -b code_engine -s ibm_cos
@@ -120,4 +118,18 @@ You can view the function executions logs in your local machine using the *litho
 
 ```bash
 lithops logs poll
+```
+
+## Clean up resources
+
+Delete Lithops runtimes, job runs, and cached metadata:
+
+```bash
+lithops clean -b code_engine -s ibm_cos
+```
+
+To also delete the Code Engine project and local cache:
+
+```bash
+lithops clean -b code_engine -s ibm_cos --all
 ```

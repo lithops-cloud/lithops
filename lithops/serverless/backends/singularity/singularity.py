@@ -108,7 +108,7 @@ class SingularityBackend:
 
         with open(singularityfile, 'w') as f:
             f.write("Bootstrap: docker\n")
-            f.write(f"From: python:{utils.CURRENT_PY_VERSION}-slim-buster\n")
+            f.write(f"From: python:{utils.CURRENT_PY_VERSION}-slim-bookworm\n")
             f.write(config.SINGULARITYFILE_DEFAULT)
 
         return singularityfile

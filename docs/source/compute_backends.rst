@@ -44,3 +44,4 @@ Compute Backends
    compute_config/ibm_vpc.md
    compute_config/aws_ec2.md
    compute_config/azure_vms.md
+   compute_config/gcp_compute_engine.md

@@ -29,7 +29,7 @@ from ibm_cloud_sdk_core import ApiException
 from concurrent.futures import ThreadPoolExecutor
 
 from lithops.version import __version__
-from lithops.util.ssh_client import SSHClient
+from lithops.util.ssh_client import SSHClient, ssh_boot_status_message
 from lithops.constants import COMPUTE_CLI_MSG, CACHE_DIR
 from lithops.config import load_yaml_config, dump_yaml_config
 from lithops.standalone.utils import (
@@ -37,15 +37,20 @@ from lithops.standalone.utils import (
     CLOUD_CONFIG_WORKER_PK,
     StandaloneMode,
     get_host_setup_script,
-    LithopsValidationError
+    LithopsValidationError,
+    prepare_standalone_clean,
+    standalone_clean_stop_early,
+)
+from .config import (
+    DEFAULT_LITHOPS_IMAGE_NAME,
+    DEFAULT_STOCK_UBUNTU_IMAGE_PREFIX,
+    DEFAULT_UBUNTU_LTS_MAJOR,
+    INSTANCE_START_TIMEOUT,
+    LIST_UBUNTU_LTS_RANGE,
+    VPC_API_VERSION,
 )
 
 logger = logging.getLogger(__name__)
-
-INSTANCE_START_TIMEOUT = 180
-VPC_API_VERSION = '2021-09-21'
-
-DEFAULT_LITHOPS_IMAGE_NAME = 'lithops-ubuntu-22-04-3-minimal-amd64-1'
 
 
 class IBMVPCBackend:
@@ -76,6 +81,7 @@ class IBMVPCBackend:
 
         self.master = None
         self.workers = []
+        self._init_created = None
 
         self.iam_api_key = self.config.get('iam_api_key')
         authenticator = IAMAuthenticator(self.iam_api_key, url=self.config.get('iam_endpoint'))
@@ -95,6 +101,8 @@ class IBMVPCBackend:
         """
         Checks if the backend is initialized
         """
+        if self.mode == StandaloneMode.CONSUME.value:
+            return True
         return os.path.isfile(self.cache_file)
 
     def _load_vpc_data(self):
@@ -106,7 +114,7 @@ class IBMVPCBackend:
         if self.vpc_data:
             logger.debug(f'VPC data loaded from {self.cache_file}')
 
-        if 'vpc_id' in self.vpc_data:
+        if self.vpc_data and 'vpc_id' in self.vpc_data:
             self.vpc_key = self.vpc_data['vpc_id'][-6:]
             self.vpc_name = self.vpc_data['vpc_name']
 
@@ -124,6 +132,85 @@ class IBMVPCBackend:
         """
         if os.path.exists(self.cache_file):
             os.remove(self.cache_file)
+
+    def _reset_init_created(self):
+        self._init_created = {
+            'vpc': False,
+            'ssh_key': False,
+            'subnet': False,
+            'gateway': False,
+        }
+
+    def _safe_rollback_delete(self, delete_fn, resource_desc):
+        try:
+            delete_fn()
+        except ApiException as err:
+            if err.code not in (404, 400):
+                logger.warning(f'Rollback: could not delete {resource_desc}: {err}')
+        except Exception as err:
+            logger.warning(f'Rollback: could not delete {resource_desc}: {err}')
+
+    def _rollback_init_resources(self):
+        """
+        Deletes IBM VPC resources created during a failed init().
+        """
+        if not self._init_created:
+            return
+
+        logger.info('Rolling back IBM VPC resources provisioned during failed init')
+        created = self._init_created
+        vpc_key = self.vpc_key or (
+            self.config['vpc_id'][-6:] if self.config.get('vpc_id') else ''
+        )
+
+        if created.get('gateway') and self.config.get('gateway_id'):
+            gateway_id = self.config['gateway_id']
+            gateway_name = f'lithops-gateway-{vpc_key}'
+
+            if self.config.get('subnet_id'):
+                self._safe_rollback_delete(
+                    lambda: self.vpc_cli.unset_subnet_public_gateway(self.config['subnet_id']),
+                    f'subnet public gateway for {self.config["subnet_id"]}',
+                )
+
+            self._safe_rollback_delete(
+                lambda: self.vpc_cli.delete_public_gateway(gateway_id),
+                f'public gateway {gateway_name}',
+            )
+
+        if created.get('subnet') and self.config.get('subnet_id'):
+            subnet_name = f'lithops-subnet-{vpc_key}'
+            subnet_id = self.config['subnet_id']
+            self._safe_rollback_delete(
+                lambda: self.vpc_cli.delete_subnet(subnet_id),
+                f'subnet {subnet_name}',
+            )
+
+        if created.get('vpc') and self.config.get('vpc_id'):
+            vpc_name = self.vpc_name or self.config.get('vpc_name', 'lithops-vpc')
+            vpc_id = self.config['vpc_id']
+            self._safe_rollback_delete(
+                lambda: self.vpc_cli.delete_vpc(vpc_id),
+                f'VPC {vpc_name}',
+            )
+
+        if created.get('ssh_key'):
+            key_filename = self.config.get('ssh_key_filename')
+            if key_filename and 'lithops-key-' in key_filename:
+                for path in (key_filename, f'{key_filename}.pub'):
+                    if os.path.isfile(path):
+                        os.remove(path)
+            if self.config.get('ssh_key_id'):
+                key_id = self.config['ssh_key_id']
+                self._safe_rollback_delete(
+                    lambda: self.vpc_cli.delete_key(id=key_id),
+                    f'SSH key {key_id}',
+                )
+
+        if self.vpc_data_type == 'created':
+            self._delete_vpc_data()
+
+        self._init_created = None
 
     def _create_vpc(self):
         """
@@ -166,6 +253,8 @@ class IBMVPCBackend:
             vpc_prototype['resource_group'] = {'id': self.config['resource_group_id']}
             response = self.vpc_cli.create_vpc(**vpc_prototype)
             vpc_info = response.result
+            if self._init_created is not None:
+                self._init_created['vpc'] = True
 
         self.config['vpc_id'] = vpc_info['id']
         self.config['security_group_id'] = vpc_info['default_security_group']['id']
@@ -229,10 +318,12 @@ class IBMVPCBackend:
                 if key["name"] == keyname:
                     return key
 
+        ssh_key_created = False
         if not os.path.isfile(key_filename):
             logger.debug("Generating new ssh key pair")
             os.system(f'ssh-keygen -b 2048 -t rsa -f {key_filename} -q -N ""')
             logger.debug(f"SHH key pair generated: {key_filename}")
+            ssh_key_created = True
         else:
             key_info = _get_ssh_key()
 
@@ -244,6 +335,7 @@ class IBMVPCBackend:
                     public_key=ssh_key_data, name=keyname, type="rsa",
                     resource_group={"id": self.config['resource_group_id']}
                 ).get_result()
+                ssh_key_created = True
             except ApiException as e:
                 logger.error(e)
                 if "Key with name already exists" in e.message:
@@ -252,6 +344,7 @@ class IBMVPCBackend:
                         public_key=ssh_key_data, name=keyname, type="rsa",
                         resource_group={"id": self.config['resource_group_id']},
                     ).get_result()
+                    ssh_key_created = True
                 else:
                     if "Key with fingerprint already exists" in e.message:
                         logger.error("Can't register an SSH key with the same fingerprint")
@@ -259,6 +352,8 @@ class IBMVPCBackend:
 
         self.config['ssh_key_id'] = key_info["id"]
         self.config['ssh_key_filename'] = key_filename
+        if self._init_created is not None and ssh_key_created:
+            self._init_created['ssh_key'] = True
 
     def _create_subnet(self):
         """
@@ -300,6 +395,8 @@ class IBMVPCBackend:
             subnet_prototype['total_ipv4_address_count'] = 8192
             response = self.vpc_cli.create_subnet(subnet_prototype)
             subnet_data = response.result
+            if self._init_created is not None:
+                self._init_created['subnet'] = True
 
         self.config['subnet_id'] = subnet_data['id']
         self.config['zone_name'] = subnet_data['zone']['name']
@@ -339,6 +436,8 @@ class IBMVPCBackend:
             gateway_prototype['floating_ip'] = {'id': fip_id}
             response = self.vpc_cli.create_public_gateway(**gateway_prototype)
             gateway_data = response.result
+            if self._init_created is not None:
+                self._init_created['gateway'] = True
 
         self.config['gateway_id'] = gateway_data['id']
 
@@ -408,8 +507,8 @@ class IBMVPCBackend:
 
         if 'image_id' in self.vpc_data:
             for image in images_def:
-                if image['id'] == self.vpc_data['image_id'] and \
-                   not image['name'].startswith('ibm-ubuntu-22'):
+                if image['id'] == self.vpc_data['image_id'] \
+                   and self._is_deploy_ubuntu_image(image):
                     self.config['image_id'] = self.vpc_data['image_id']
                     break
 
@@ -421,11 +520,15 @@ class IBMVPCBackend:
                     break
 
         if 'image_id' not in self.config:
-            for image in images_def:
-                if image['name'].startswith('ibm-ubuntu-22') \
-                   and "amd64" in image['name']:
-                    self.config['image_id'] = image['id']
-                    break
+            stock_images = [
+                image for image in images_def
+                if image['name'].startswith(DEFAULT_STOCK_UBUNTU_IMAGE_PREFIX)
+                and 'amd64' in image['name']
+            ]
+            if stock_images:
+                stock_images.sort(key=lambda image: image['name'], reverse=True)
+                self.config['image_id'] = stock_images[0]['id']
+                logger.debug(f"Using stock VM image: {stock_images[0]['name']}")
 
     def _create_master_instance(self):
         """
@@ -468,46 +571,52 @@ class IBMVPCBackend:
 
         elif self.mode in [StandaloneMode.CREATE.value, StandaloneMode.REUSE.value]:
 
-            # Create the VPC if not exists
-            self._create_vpc()
+            self._reset_init_created()
+            try:
+                # Create the VPC if not exists
+                self._create_vpc()
 
-            # Set the suffix used for the VPC resources
-            self.vpc_key = self.config['vpc_id'][-6:]
+                # Set the suffix used for the VPC resources
+                self.vpc_key = self.config['vpc_id'][-6:]
 
-            # Create the ssh key pair if not exists
-            self._create_ssh_key()
-            # Create a new subnaet if not exists
-            self._create_subnet()
-            # Create a new gateway if not exists
-            self._create_gateway()
-            # Create the master VM floating IP address
-            self._create_master_floating_ip()
-            # Requests the Ubuntu image ID
-            self._request_image_id()
+                # Create the ssh key pair if not exists
+                self._create_ssh_key()
+                # Create a new subnaet if not exists
+                self._create_subnet()
+                # Create a new gateway if not exists
+                self._create_gateway()
+                # Create the master VM floating IP address
+                self._create_master_floating_ip()
+                # Requests the Ubuntu image ID
+                self._request_image_id()
 
-            # Create the master VM instance
-            self._create_master_instance()
+                # Create the master VM instance
+                self._create_master_instance()
 
-            self.vpc_data = {
-                'mode': self.mode,
-                'vpc_data_type': self.vpc_data_type,
-                'ssh_data_type': self.ssh_data_type,
-                'master_name': self.master.name,
-                'master_id': self.vpc_key,
-                'vpc_name': self.vpc_name,
-                'vpc_id': self.config['vpc_id'],
-                'subnet_id': self.config['subnet_id'],
-                'security_group_id': self.config['security_group_id'],
-                'floating_ip': self.config['floating_ip'],
-                'floating_ip_id': self.config['floating_ip_id'],
-                'gateway_id': self.config['gateway_id'],
-                'zone_name': self.config['zone_name'],
-                'image_id': self.config['image_id'],
-                'ssh_key_id': self.config['ssh_key_id'],
-                'ssh_key_filename': self.config['ssh_key_filename']
-            }
-
-        self._dump_vpc_data()
+                self.vpc_data = {
+                    'mode': self.mode,
+                    'vpc_data_type': self.vpc_data_type,
+                    'ssh_data_type': self.ssh_data_type,
+                    'master_name': self.master.name,
+                    'master_id': self.vpc_key,
+                    'vpc_name': self.vpc_name,
+                    'vpc_id': self.config['vpc_id'],
+                    'subnet_id': self.config['subnet_id'],
+                    'security_group_id': self.config['security_group_id'],
+                    'floating_ip': self.config['floating_ip'],
+                    'floating_ip_id': self.config['floating_ip_id'],
+                    'gateway_id': self.config['gateway_id'],
+                    'zone_name': self.config['zone_name'],
+                    'image_id': self.config['image_id'],
+                    'ssh_key_id': self.config['ssh_key_id'],
+                    'ssh_key_filename': self.config['ssh_key_filename']
+                }
+                self._dump_vpc_data()
+            except Exception:
+                self._rollback_init_resources()
+                raise
+            finally:
+                self._init_created = None
 
     def build_image(self, image_name, script_file, overwrite, include, extra_args=[]):
         """
@@ -555,7 +664,7 @@ class IBMVPCBackend:
 
         logger.debug(f"Uploading installation script to {build_vm}")
         remote_script = "/tmp/install_lithops.sh"
-        script = get_host_setup_script()
+        script = get_host_setup_script(lithops_pip_spec='lithops[ibm,redis]')
         build_vm.get_ssh_client().upload_data_to_file(script, remote_script)
         logger.debug("Executing Lithops installation script. Be patient, this process can take up to 3 minutes")
         build_vm.get_ssh_client().run_remote_command(f"chmod 777 {remote_script}; sudo {remote_script}; rm {remote_script};")
@@ -626,9 +735,56 @@ class IBMVPCBackend:
                 time.sleep(2)
             logger.debug(f"VM Image '{image_name}' successfully deleted")
 
+    @staticmethod
+    def _ubuntu_lts_major_version(image_name, display_name=None):
+        for text in (display_name or '', image_name):
+            match = re.search(r'ubuntu[- ](\d{2})', text.lower())
+            if match:
+                return int(match.group(1))
+            match = re.search(r'(\d{2})\.\d{2}', text)
+            if match:
+                return int(match.group(1))
+        return None
+
+    @classmethod
+    def _is_ubuntu_amd64_image(cls, image):
+        return (
+            image['operating_system']['family'] == 'Ubuntu Linux'
+            and 'amd64' in image['name']
+        )
+
+    @classmethod
+    def _is_supported_ubuntu_image(cls, image, lts_range=None):
+        if not cls._is_ubuntu_amd64_image(image):
+            return False
+        if 'lithops' in image['name'].lower():
+            return True
+        major = cls._ubuntu_lts_major_version(
+            image['name'],
+            image['operating_system'].get('display_name'),
+        )
+        if major is None:
+            return False
+        if lts_range is None:
+            return major == DEFAULT_UBUNTU_LTS_MAJOR
+        min_major, max_major = lts_range
+        return min_major <= major <= max_major
+
+    @classmethod
+    def _is_deploy_ubuntu_image(cls, image):
+        """
+        Images valid for provisioning master/worker VSIs (Ubuntu 24 stock or Lithops custom).
+        """
+        if not cls._is_ubuntu_amd64_image(image):
+            return False
+        if 'lithops' in image['name'].lower():
+            return cls._is_supported_ubuntu_image(image)
+        return image['name'].startswith(DEFAULT_STOCK_UBUNTU_IMAGE_PREFIX)
+
     def list_images(self):
         """
-        List VM Images
+        List Ubuntu LTS images (22.04–24.04) and Lithops custom images.
+        Returns tuples of (name, image_id, creation_date).
         """
         images_def = self.vpc_cli.list_images().result['images']
         images_user = self.vpc_cli.list_images(resource_group_id=self.config['resource_group_id']).result['images']
@@ -637,14 +793,14 @@ class IBMVPCBackend:
         result = set()
 
         for img in images_def:
-            if img['operating_system']['family'] == 'Ubuntu Linux':
-                opsys = img['operating_system']['display_name']
-                image_name = img['name']
-                image_id = img['id']
-                created_at = datetime.strptime(img['created_at'], "%Y-%m-%dT%H:%M:%SZ")
-                created_at = created_at.strftime("%Y-%m-%d %H:%M:%S")
-                if '22' in opsys:
-                    result.add((image_name, image_id, created_at))
+            if not self._is_supported_ubuntu_image(img, lts_range=LIST_UBUNTU_LTS_RANGE):
+                continue
+
+            image_name = img['name']
+            image_id = img['id']
+            created_at = datetime.strptime(img['created_at'], "%Y-%m-%dT%H:%M:%SZ")
+            created_at = created_at.strftime("%Y-%m-%d %H:%M:%S")
+            result.add((image_name, image_id, created_at))
 
         return sorted(result, key=lambda x: x[2], reverse=True)
 
@@ -797,16 +953,15 @@ class IBMVPCBackend:
         """
         logger.info('Cleaning IBM VPC resources')
 
-        if not self.vpc_data:
+        prepare_standalone_clean(self, self._load_vpc_data)
+        if standalone_clean_stop_early(self, self.vpc_data, self._delete_vpc_data, all):
             return
 
-        if self.mode == StandaloneMode.CONSUME.value:
+        self._delete_vm_instances(all=all)
+        if all:
+            self._delete_vpc()
+            self._delete_ssh_key()
             self._delete_vpc_data()
-        else:
-            self._delete_vm_instances(all=all)
-            self._delete_vpc() if all else None
-            self._delete_ssh_key() if all else None
-            self._delete_vpc_data() if all else None
 
     def clear(self, job_keys=None):
         """
@@ -881,7 +1036,11 @@ class IBMVPCBackend:
         Creates the runtime key
         """
         name = runtime_name.replace('/', '-').replace(':', '-')
-        runtime_key = os.path.join(self.name, version, self.vpc_data['master_id'], name)
+        if self.mode == StandaloneMode.CONSUME.value:
+            master_id = self.config['instance_id']
+        else:
+            master_id = self.vpc_data['master_id']
+        runtime_key = os.path.join(self.name, version, master_id, name)
         return runtime_key
 
 
@@ -906,7 +1065,8 @@ class IBMVPCInstance:
         self.instance_data = None
         self.private_ip = None
         self.public_ip = None
-        self.home_dir = '/root'
+        ssh_user = self.config['ssh_username']
+        self.home_dir = '/root' if ssh_user == 'root' else f'/home/{ssh_user}'
 
         self.ssh_credentials = {
             'username': self.config['ssh_username'],
@@ -963,14 +1123,13 @@ class IBMVPCInstance:
         """
         Checks if the VM instance is ready to receive ssh connections
         """
-        login_type = 'password' if 'password' in self.ssh_credentials and \
-            not self.public else 'publickey'
         try:
             self.get_ssh_client().run_remote_command('id')
         except LithopsValidationError as err:
             raise err
         except Exception as err:
-            logger.debug(f'SSH to {self.public_ip if self.public else self.private_ip} failed ({login_type}): {err}')
+            ip = self.public_ip if self.public else self.private_ip
+            logger.debug(f'SSH to {ip}: {ssh_boot_status_message(err)}')
             self.del_ssh_client()
             return False
         return True
@@ -1052,6 +1211,17 @@ class IBMVPCInstance:
         logger.debug(f"VM instance {self.name} created successfully")
 
         return self.instance_data
+
+    def _rollback_instance_resources(self, instance_created=False):
+        """
+        Deletes a VM instance provisioned during a failed create().
+        """
+        if instance_created and self.instance_id:
+            logger.info(f'Rolling back resources provisioned for {self.name}')
+            try:
+                self._delete_instance()
+            except Exception as err:
+                logger.warning(f'Rollback: could not delete {self.name}: {err}')
 
     def _attach_floating_ip(self, instance):
         """
@@ -1140,12 +1310,21 @@ class IBMVPCInstance:
                 logger.debug(f'VM instance {self.name} already exists')
                 vsi_exists = True
 
-        instance = self._create_instance(user_data=user_data) if not vsi_exists else self.start()
+        instance_created = False
+        try:
+            if not vsi_exists:
+                instance = self._create_instance(user_data=user_data)
+                instance_created = True
+            else:
+                instance = self.start()
 
-        if instance and self.public:
-            self._attach_floating_ip(instance)
+            if instance and self.public:
+                self._attach_floating_ip(instance)
 
-        return self.instance_id
+            return self.instance_id
+        except Exception:
+            self._rollback_instance_resources(instance_created=instance_created)
+            raise
 
     def start(self):
         """
@@ -1298,7 +1477,7 @@ def vpc_retry_on_except(func):
         def _sleep_or_raise(sleep_time, err):
             if i < RETRIES - 1:
                 time.sleep(sleep_time)
-                logger.warning((f'Got exception {err}, retrying for the {i} time, left retries {RETRIES - 1 -i}'))
+                logger.warning((f'Got exception {err}, retrying for the {i} time, left retries {RETRIES - 1 - i}'))
                 return min(sleep_time * SLEEP_FACTOR, MAX_SLEEP)
             else:
                 raise err

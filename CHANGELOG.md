@@ -1,15 +1,55 @@
 # Changelog
 
-## [v3.6.3.dev0]
+## [v3.7.0]
 
 ### Added
--
+- [GCP Compute Engine] Added new GCP Compute Engine standalone backend
+- [Core] Added support for variable-length parameters in functions passed to the executor.
+- [Standalone] Added rollback logic to remove partially created resources when initialization fails
+- [Python] Added support for Python 3.14
 
 ### Changed
-- 
+- [K8s] Auto-detect cluster architecture when building runtimes.
+- [Runtimes] Updated runtime images and related version references across backends.
+- [K8s] Added configuration for pod and container `securityContext`.
+- [Docs] Corrected MinIO/Ceph config template keys and removed obsolete Kubernetes image references.
+- [GCP Functions] Updated `gcp_functions` backend to Google Cloud Run functions (Cloud Functions v2 API).
+- [Python] Updated all backends python versions (deprecated Python 3.9)
+- [Azure Funcions] Updated default funcions plan to Flex Consumption
+- [AWS EC2] Updated default Ubuntu Image to Ubuntu 24
+- [Azure VMS] Updated default Ubuntu Image to Ubuntu 24
+- [IBM VPC] Updated default Ubuntu image to 24.04
+- [IBM VPC] Changed default SSH user to `ubuntu`
+- [IBM VPC] Updated `lithops image list` to show Ubuntu 22 and 24 images
+- [Aliyun FC] Updated backend to Function Compute 3.0 (FC3 API) and added custom-container deploy mode support
+- [Code Engine] Rewrote backend to use the IBM Code Engine SDK v2 (`CodeEngineV2`) instead of the Kubernetes API
 
 ### Fixed
-- 
+- [K8s] Fixed default runtime builds impacted by Debian Buster end-of-life.
+- [GCP Cloud Run] Added Artifact Registry (`pkg.dev`) runtime deployment support
+- [K8s] Run default runtime image as non-root user (uid 1000)
+- [AWS] Fixed EC2 standalone initialization in consume mode and ECR authentication when building runtimes
+- [GCP] Fixed Cloud Functions runtime deletion and gRPC fork warnings during multiprocess execution on macOS
+- [Azure] Fixed Azure Functions deployment on Flex Consumption and consolidated container registry login across Azure backends
+- [Oracle Object Storage] Fixed authentication with `~` in `key_file`, resource principal fallback, and bucket name generation
+- [Oracle Functions] Fixed Python 3.12 runtime build, added OCIR registry login with auto-derived `docker_user`, and default `docker_server` from region
+- [Standalone] Fixed SSH key permissions for the `ubuntu` user on master VMs
+- [Standalone] Fixed pyOpenSSL/cryptography conflict on Ubuntu 24.04 for `ibm_cos`
+- [IBM VPC] Fixed `home_dir` when using non-root SSH users
+- [IBM VPC] Fixed default image selection to use Ubuntu 24 stock images only
+
+
+## [v3.6.4]
+
+### Fixed
+- [Executor] Support use of `functools.partial` with FunctionExecutor's `call_async` and `map` methods
+
+
+## [v3.6.3]
+
+### Fixed
+- [AWS Batch] Fixed memory available options for aws batch: 4 cpus
+- [Monitor] Fixed race condition and improving monitor stability
 
 
 ## [v3.6.2]
@@ -97,7 +137,7 @@
 - [AWS Batch] Updated CPU and Memory resource limits
 
 ### Fixed
-- [AWS Lambda] Fixed wrong AWS Lambda delete runtime_name match semantics 
+- [AWS Lambda] Fixed wrong AWS Lambda delete runtime_name match semantics
 - [Worker] Fixed potential issue that can appear during 'func_obj' loading from cache
 - [Monitor] Fixed potential 'keyerror' exceptions
 - [Swift] Fixed OpenStack Swift parameters and authentication by adding domain information
@@ -169,7 +209,7 @@
 ### Added
 - [k8s] Added a new way of invoking functions using a RabbitMQ work queue
 - [IBM VPC] Added "zone" config parameter
-- [IBM Code Engine] Get and print an error message in case of container execution failure 
+- [IBM Code Engine] Get and print an error message in case of container execution failure
 
 ### Changed
 - [OpenWhisk] Updated default runtimes
@@ -717,7 +757,7 @@
 - [Config] Allow 'log_stream' and 'log_filename' keys in configuration
 - [Config] Allow 'runtime' being configured at serverless backend level
 - [Config] Allow 'invoke_pool_threads' being configured at serverless backend level
-- [Multiprocessing] Added generic Manager 
+- [Multiprocessing] Added generic Manager
 - [Kubernetes] Add kubernetes job backend
 - [CLI] Extended lithops cli with storage put, get, delete and list options
 - [Azure] Added missing azure functions backend methods
@@ -964,7 +1004,7 @@
 - [Core] Generic compute client logic
 - [Core] IBM IAM service client lib
 - [Core] IBM VPC service client lib
-- [Docker] Docker backend compatible with IBM VPC VM 
+- [Docker] Docker backend compatible with IBM VPC VM
 
 ### Changed
 -  [Docker] Improved Docker executor
@@ -977,7 +1017,7 @@
 ## [v1.7.2]
 
 ### Added
-- [GCR] Added Google Cloud Run Backend
+- [GCP Cloud Run] Added Google Cloud Run backend
 
 
 ### Changed
@@ -1593,8 +1633,8 @@
 - Docs updated
 - Storage separation
 - Project update. 'bx' and 'wsk' CLI tools are no longer necessary
-- Updated setup.py 
-- Deleted requirements.txt 
+- Updated setup.py
+- Deleted requirements.txt
 - Updated default_preinstalls
 
 ### Fixed
@@ -1652,7 +1692,7 @@ First release.
 - When a new *executor class* is instantiated, it is created a *storage_handler* used in the all PyWren execution.
 - Now it is possible to specify the **runtime** when the user instantiates the *executor class* instead of changing the config file every time (In the config file is specified the default runtime).
 - The **logging level** is now specified when the user instantiates the *executor class* instead of put it in the first line of the code within an env variable.
-- The PyWren code which is executed remotely as a wrapper of the function now uses the main storage handler as the rest of the PyWren code. In previous versions, PyWren creates a new storage client directly with *boto3* library instead of using pywren/storage/storage.py wrapper. 
+- The PyWren code which is executed remotely as a wrapper of the function now uses the main storage handler as the rest of the PyWren code. In previous versions, PyWren creates a new storage client directly with *boto3* library instead of using pywren/storage/storage.py wrapper.
 - Added support for multiple parameters in the functions which are executed remotely as a cloud functions. Previous versions just allows one parameter.
 - Eased the usage of the storage backend within a function. By simply specifying *storage_handler* as a parameter of the function, the user will get access to the storage backend.
 - Added a new method for retrieving the results of an execution called **fetch_all_resuslts()**. Previous PyWren versions already includes a method called *get_all_results()*, but this is a sequential method and it takes long time to retrieve all the results. It was also included a *wait()* class which is more similar to *get_all_results()* method, the main difference is that the new method is all based on *list the available objects in a bucket*, and it returns when all the tasks are finished. The new method also has the possibility to activate a progress bar in order to track the current status of the execution (really useful for larger executions).

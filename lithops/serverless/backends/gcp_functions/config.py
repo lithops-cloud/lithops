@@ -22,21 +22,18 @@ from lithops.constants import TEMP_DIR
 FH_ZIP_LOCATION = os.path.join(TEMP_DIR, 'lithops_gcp_functions/{}.zip')
 SCOPES = ('https://www.googleapis.com/auth/cloud-platform',
           'https://www.googleapis.com/auth/pubsub')
-FUNCTIONS_API_VERSION = 'v1'
-PUBSUB_API_VERSION = 'v1'
+FUNCTIONS_API_VERSION = 'v2'
 AUDIENCE = "https://pubsub.googleapis.com/google.pubsub.v1.Publisher"
 
-RUNTIME_MEMORY_MAX = 8192  # 8GB
-RUNTIME_MEMORY_OPTIONS = {128, 256, 512, 1024, 2048, 4096, 8192}
+RUNTIME_MEMORY_MAX = 32768  # 32GB
+RUNTIME_MEMORY_OPTIONS = {128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768}
 
 AVAILABLE_PY_RUNTIMES = {
-    '3.7': 'python37',
-    '3.8': 'python38',
-    '3.9': 'python39',
     '3.10': 'python310',
     '3.11': 'python311',
     '3.12': 'python312',
-    '3.13': 'python313'
+    '3.13': 'python313',
+    '3.14': 'python314',
 }
 
 USER_RUNTIMES_PREFIX = 'lithops.user_runtimes'

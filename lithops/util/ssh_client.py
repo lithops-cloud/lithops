@@ -4,6 +4,25 @@ import os
 
 logger = logging.getLogger(__name__)
 
+# Paramiko logs full tracebacks on transient boot-time failures (banner EOF,
+# port closed, etc.). Lithops already retries; keep paramiko quiet.
+for _log_name in ('paramiko', 'paramiko.transport', 'paramiko.client'):
+    logging.getLogger(_log_name).setLevel(logging.CRITICAL)
+
+
+def ssh_boot_status_message(err):
+    """
+    Map transient SSH errors during VM boot to a short user-facing status.
+    """
+    msg = str(err).lower()
+    if 'timed out' in msg or 'timeout' in msg:
+        return 'VM is starting, waiting for network/SSH'
+    if 'unable to connect' in msg or 'connection refused' in msg:
+        return 'VM is up, starting SSH service'
+    if 'banner' in msg or 'no existing session' in msg or 'connection reset' in msg:
+        return 'Configuring SSH on VM'
+    return str(err)
+
 
 class SSHClient():
 
@@ -23,7 +42,11 @@ class SSHClient():
         """
         Closes the SSH client connection
         """
-        self.ssh_client.close()
+        if self.ssh_client:
+            try:
+                self.ssh_client.close()
+            except Exception:
+                pass
         self.ssh_client = None
 
     def create_client(self, timeout=2):

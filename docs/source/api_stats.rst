@@ -8,7 +8,7 @@ Lithops provides built-in internal tools to supply the user with technical stati
 Execution summary plots
 -----------------------
 
-The :code:`plot()` method from :code:`FunctionExecutor` creates a scatter plot and a histogram plot showing a summary of the tasks executed by a :code:`FunctionExecutor`. By default, lithops creates a :code:`plots/` directory in the working directory path containing both plots in PNG format. For more details refer to the `FunctionExecutor API reference <https://lithops-cloud.github.io/docs/source/api_futures.html>`_.
+The :code:`plot()` method from :code:`FunctionExecutor` creates a scatter plot and a histogram plot showing a summary of the tasks executed by a :code:`FunctionExecutor`. By default, Lithops creates a :code:`plots/` directory in the working directory path containing both plots in PNG format. For more details, refer to the `FunctionExecutor API reference <https://lithops-cloud.github.io/docs/source/api_futures.html>`_.
 
 To get started, first install Lithops and the plotting dependencies with:
 
@@ -32,7 +32,7 @@ To get started, first install Lithops and the plotting dependencies with:
    :alt: Lithops histogram plot
    :align: center
 
-The following example snipped was used to create the execution plots shown above:
+The following example snippet was used to create the execution plots shown above:
 
 .. code:: python
 
@@ -115,7 +115,7 @@ The user can obtain these statistics through the future object:
    * - Stat
      - Description
    * - :code:`func_data_size_bytes`
-     - Size in bytes of the input data processed by this function. That is, the object size of the input list item processed by this function. Note that if the function processes data obtained from object storage, this value does not include the size of that data, only those that have been serialized and sent from the host process to the function.
+     - Size in bytes of the input data processed by this function. That is, the object size of the input list item processed by this function. Note that if the function processes data obtained from object storage, this value does not include the size of that data—only the data serialized and sent from the host process to the function.
    * - :code:`func_module_size_bytes`
      - Size in bytes of the dependencies (function and modules) serialized and uploaded by the host process.
    * - :code:`func_result_size`
@@ -131,7 +131,7 @@ The user can obtain these statistics through the future object:
    * - :code:`host_job_serialize_time`
      - Total time taken by the host process to serialize the input data and dependencies (functions and modules).
    * - :code:`host_result_done_tstamp`
-     - Timestamp of when host received the function result from cloud object storage.
+     - Timestamp of when the host received the function result from cloud object storage.
    * - :code:`host_result_query_count`
      - Number of queries to the object storage to get the result object.
    * - :code:`host_status_done_tstamp`
@@ -143,9 +143,9 @@ The user can obtain these statistics through the future object:
    * - :code:`worker_cold_start`
      - Indicates whether it was a "warm" invocation (the container was already running) or "cold" (the container had to be deployed).
    * - :code:`worker_end_tstamp`
-     - Timestamp in which the worker function had finished its execution.
+     - Timestamp when the worker function finished its execution.
    * - :code:`worker_exec_time`
-     - Total execution time of the worker function (lithops wrapper + user defined funtion execution time).
+     - Total execution time of the worker function (Lithops wrapper + user-defined function execution time).
    * - :code:`worker_func_cpu_usage`
      - Array of CPU usage percentages, with each element representing the average usage of each CPU core during user-defined function execution.
    * - :code:`worker_func_cpu_user_time`

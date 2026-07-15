@@ -1,7 +1,7 @@
 Execution Modes
 ===============
 
-Lithops compute backends can be classified in 3 different execution modes depending 
+Lithops compute backends can be classified into 3 different execution modes depending
 on the backend you choose.
 
 
@@ -21,21 +21,21 @@ as it eliminates the need to deploy code to a cloud environment during the
 development phase.
 
 
-.. note:: This is the preferable option for starting with Lithops, and for testing (debugging) your applications.
+.. note:: This is the preferred option for starting with Lithops, and for testing (debugging) your applications.
 
 .. code:: python
 
     fexec = lithops.LocalhostExecutor()
 
 
-- Available backends: `Localhost <compute_config/localhost.md>`_
+- Available backends: `Localhost <compute_config/localhost.html>`_
 
 
 Serverless mode
 ---------------
 The "serverless mode" in Lithops is designed to execute functions using publicly 
-accessible serverless compute services, including IBM Cloud Functions, Amazon Lambda, 
-Google Cloud Functions, and more, enabling parallel task execution in isolated cloud 
+accessible serverless compute services, including AWS Lambda,
+Google Cloud Run functions, and more, enabling parallel task execution in isolated cloud
 environments.
 
 In serverless mode, Lithops leverages the power of these serverless platforms to execute 
@@ -60,7 +60,7 @@ computing capabilities.
     fexec = lithops.ServerlessExecutor()
 
 
-- Available backends: `IBM Cloud Functions <compute_config/ibm_cf.md>`_, `IBM Code Engine <compute_config/code_engine.md>`_, `AWS Lambda <compute_config/aws_lambda.md>`_, `AWS Batch <compute_config/aws_batch.md>`_, `Google Cloud Functions <compute_config/gcp_functions.md>`_, `Google Cloud Run <compute_config/gcp_cloudrun.md>`_, `Azure Functions <compute_config/azure_functions.md>`_, `Azure Container APPs <compute_config/azure_containers.md>`_, `Aliyun Function Compute <compute_config/aliyun_functions.md>`_, `Oracle Functions <compute_config/oracle_functions.md>`_, `Kubernetes Jobs <compute_config/kubernetes.md>`_, `Knative <compute_config/knative.md>`_, `Singularity <compute_config/singularity.md>`_, `OpenWhisk <compute_config/openwhisk.md>`_
+- Available backends: `IBM Code Engine <compute_config/code_engine.html>`_, `AWS Lambda <compute_config/aws_lambda.html>`_, `AWS Batch <compute_config/aws_batch.html>`_, `Google Cloud Run functions (v2) <compute_config/gcp_functions.html>`_, `Google Cloud Run <compute_config/gcp_cloudrun.html>`_, `Azure Functions <compute_config/azure_functions.html>`_, `Azure Container Apps <compute_config/azure_containers.html>`_, `Aliyun Function Compute <compute_config/aliyun_functions.html>`_, `Oracle Functions <compute_config/oracle_functions.html>`_, `Kubernetes Jobs <compute_config/kubernetes.html>`_, `Knative <compute_config/knative.html>`_, `Singularity <compute_config/singularity.html>`_, `OpenWhisk <compute_config/openwhisk.html>`_
 
 
 Standalone mode
@@ -77,10 +77,10 @@ By leveraging the automatic creation and configuration of VMs provided by Lithop
 developers can focus on writing their functions while Lithops takes care of the 
 underlying infrastructure.
 
-.. note:: This is the preferable option if your application (or a part) requires a more powerful environment than the ones provided by the Serverless backends (in terms of CPU and Memory).
+.. note:: This is the preferred option if your application (or a part) requires a more powerful environment than the ones provided by the Serverless backends (in terms of CPU and Memory).
 
 .. code:: python
 
     fexec = lithops.StandaloneExecutor()
 
-- Available backends: `IBM Virtual Private Cloud <compute_config/ibm_vpc.md>`_, `AWS Elastic Compute Cloud (EC2) <compute_config/aws_ec2.md>`_, `Azure Virtual Machines <compute_config/azure_vms.md>`_, `Virtual Machine <compute_config/vm.md>`_
+- Available backends: `IBM Virtual Private Cloud <compute_config/ibm_vpc.html>`_, `AWS Elastic Compute Cloud (EC2) <compute_config/aws_ec2.html>`_, `Azure Virtual Machines <compute_config/azure_vms.html>`_, `Google Compute Engine <compute_config/gcp_compute_engine.html>`_, `Virtual Machine <compute_config/vm.html>`_

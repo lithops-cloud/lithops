@@ -1,10 +1,10 @@
 # Localhost
 
-In localhost, Lithops will use local CPUs to run functions in parallel. In this mode of execution it is not necessary to provide any kind of configuration or create a configuration file.
+In localhost mode, Lithops uses your local CPUs to run functions in parallel. In this mode of execution it is not necessary to provide any kind of configuration or create a configuration file.
 
 ## Configuration
 
-1. In case you have a config file, edit it and add these keys:
+1. If you have a config file, edit it and add these keys:
 
 ```yaml
 lithops:
@@ -24,7 +24,7 @@ lithops logs poll
 
 ### Default Environment
 
-By default Lithops uses the local python interpreter to run the functions. That is, if for example you executed the main script with ``python3.12``, your functions will run with ``python3.12``. in this case, you must ensure that all the dependencies of your script are installed in your machine.
+By default, Lithops uses the local Python interpreter to run the functions. That is, for example, if you executed the main script with ``python3.12``, your functions will run with ``python3.12``. In this case, you must ensure that all the dependencies of your script are installed on your machine.
 
 ```python
 # As we use the default FunctionExecutor(), backend must be set to localhost in config
@@ -40,7 +40,7 @@ fexec = lithops.LocalhostExecutor()
 
 ### Container Environment
 
-The Container environment runs the functions within a ``docker container``. In this case you must [install the Docker CE version](https://docs.docker.com/get-docker/) in your machine. This environment is automatically activated when you provide a docker image as a runtime. For example, by adding the following keys in the config:
+The Container environment runs the functions within a ``Docker container``. In this case you must [install the Docker CE version](https://docs.docker.com/get-docker/) on your machine. This environment is automatically activated when you provide a Docker image as a runtime. For example, by adding the following keys in the config:
 
 ```yaml
 localhost:
@@ -59,7 +59,7 @@ fexec = lithops.FunctionExecutor(runtime='docker.io/lithopscloud/ibmcf-python-v3
 fexec = lithops.LocalhostExecutor(runtime='docker.io/lithopscloud/ibmcf-python-v312')
 ```
 
-In this mode of execution, you can use any docker image that contains all the required dependencies. For example, the IBM Cloud Functions and Knative runtimes are compatible with it.
+In this mode of execution, you can use any Docker image that contains all the required dependencies. For example, the IBM Cloud Functions and Knative runtimes are compatible with it.
 
 ## Summary of configuration keys for Localhost:
 
@@ -71,7 +71,7 @@ In this mode of execution, you can use any docker image that contains all the re
 
 ## Test Lithops
 
-Once you have your compute and storage backends configured, you can run a hello world function with:
+Once you have your compute and storage backends configured, you can run a Hello World function with:
 
 ```bash
 lithops hello -b localhost -s localhost

@@ -1,6 +1,6 @@
-# Google Cloud Functions
+# Google Cloud Run functions (v2)
 
-Lithops with *GCP Functions* as serverless compute backend.
+Lithops with *GCP Functions* (Cloud Run functions v2 via the Cloud Functions v2 API) as serverless compute backend.
 
 ## Installation
 
@@ -19,12 +19,12 @@ python3 -m pip install lithops[gcp]
 5. Click on *Create Service Account*. Name the service account `lithops-executor` or similar. Then click on *Create*.
 
 6. Add the following roles to the service account:
- - Service Accounts --> Service Account User
- - Cloud Functions --> Cloud Functions Admin
- - Pub/Sub --> Pub/Sub Admin
- - Cloud Storage --> Storage Admin
+   - Service Accounts --> Service Account User
+   - Cloud Functions --> Cloud Functions Admin
+   - Pub/Sub --> Pub/Sub Admin
+   - Cloud Storage --> Storage Admin
 
-7. Click on *Continue* and *Done*. Next, access the newly created service account, and click on the *keys* tab. Click on *Add key*. Select *JSON* and then *Create*. Download the JSON file to a secure location in you computer.
+7. Click on *Continue* and *Done*. Next, access the newly created service account and click on the *Keys* tab. Click on *Add key*. Select *JSON* and then *Create*. Download the JSON file to a secure location on your computer.
 
 8. Enable the **Cloud Build API** : Navigate to *APIs & services* tab on the menu. Click *ENABLE APIS AND SERVICES*. Look for "Cloud Build API" at the search bar. Click *Enable*.
 
@@ -32,9 +32,29 @@ python3 -m pip install lithops[gcp]
 
 10. Enable the **Artifact Registry API**: Navigate to *APIs & services* tab on the menu. Click *ENABLE APIS AND SERVICES*. Look for "Artifact Registry API" at the search bar. Click *Enable*.
 
+11. If you use `trigger: pub/sub`, enable the **Eventarc API** as well. Cloud Run functions v2 event triggers are managed through Eventarc.
+
+```bash
+gcloud services enable eventarc.googleapis.com --project <PROJECT_ID>
+```
+
+For first-time setup, you can enable all commonly required APIs in one command:
+
+```bash
+gcloud services enable \
+  cloudfunctions.googleapis.com \
+  run.googleapis.com \
+  eventarc.googleapis.com \
+  pubsub.googleapis.com \
+  cloudbuild.googleapis.com \
+  artifactregistry.googleapis.com \
+  storage.googleapis.com \
+  --project <PROJECT_ID>
+```
+
 ## Configuration
 
-1. Edit your lithops config and add the following keys:
+1. Edit your Lithops config and add the following keys:
 
 ```yaml
     lithops:
@@ -54,7 +74,7 @@ python3 -m pip install lithops[gcp]
 |gcp | region | |yes | Region name of the GCP services (e.g. `us-east1`) |
 |gcp | credentials_path | |yes | **Absolute** path of your JSON key file downloaded in step 7 (e.g. `/home/myuser/lithops-invoker1234567890.json`). Alternatively you can set `GOOGLE_APPLICATION_CREDENTIALS` environment variable. If not provided it will try to load the default credentials from the environment|
 
-### Google Cloud Functions
+### Google Cloud Run functions (v2)
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |gcp_functions | region | |no | Region name (e.g. `us-east1`). Functions and pub/sub queues will be created in the same region. Lithops will use the region set under the `gcp` section if it is not set here  |
@@ -68,11 +88,16 @@ python3 -m pip install lithops[gcp]
 
 
 ## Test Lithops
-Once you have your compute and storage backends configured, you can run a hello world function with:
+Once you have your compute and storage backends configured, you can run a Hello World function with:
 
 ```bash
 lithops hello -b gcp_functions -s gcp_storage
 ```
+
+## References
+
+- [Cloud Functions v2 REST API reference](https://cloud.google.com/functions/docs/reference/rest)
+- [Cloud Run functions best practices](https://cloud.google.com/run/docs/tips/functions-best-practices)
 
 
 ## Viewing the execution logs

@@ -189,8 +189,7 @@ class IBMCloudFunctionsBackend:
 
         if docker_user and docker_password:
             logger.debug('Container registry credentials found in config. Logging in into the registry')
-            cmd = f'{docker_path} login -u {docker_user} --password-stdin {docker_server}'
-            utils.run_command(cmd, input=docker_password)
+            utils.docker_login(docker_user, docker_password, docker_server)
 
         if utils.is_podman(docker_path):
             cmd = f'{docker_path} push {docker_image_name} --format docker --remove-signatures'

@@ -6,24 +6,27 @@ sudo apt-get update
 sudo apt-get install libguestfs-tools expect -y
 printf "\n\n"
 
+BASE_IMAGE="ubuntu-24.04-server-cloudimg-amd64.img"
+BASE_URL="https://cloud-images.ubuntu.com/releases/noble/release/${BASE_IMAGE}"
+
 # Download base image and show image information and partitions
 echo "----------------------------------------------------------"
-echo "--> Downloading ubuntu-20.04-server-cloudimg-amd64.img <--"
+echo "--> Downloading ${BASE_IMAGE} <--"
 echo "----------------------------------------------------------"
-curl -O https://cloud-images.ubuntu.com/releases/focal/release/ubuntu-20.04-server-cloudimg-amd64.img
-qemu-img info ubuntu-20.04-server-cloudimg-amd64.img
-virt-df -h -a ubuntu-20.04-server-cloudimg-amd64.img
+curl -L -O "${BASE_URL}"
+qemu-img info "${BASE_IMAGE}"
+virt-df -h -a "${BASE_IMAGE}"
 printf "\n\n"
 
-# Resize /dev/sda1 Partition
+# Resize root partition
 echo "-------------------------------------------------------"
-echo "--> Resizing ubuntu-20.04-server-cloudimg-amd64.img <--"
+echo "--> Resizing ${BASE_IMAGE} <--"
 echo "-------------------------------------------------------"
-cp ubuntu-20.04-server-cloudimg-amd64.img ubuntu-20.04-server-cloudimg-amd64-orig.img
-qemu-img resize ubuntu-20.04-server-cloudimg-amd64.img +7.5G
-virt-resize --expand /dev/sda1 ubuntu-20.04-server-cloudimg-amd64-orig.img ubuntu-20.04-server-cloudimg-amd64.img
-rm ubuntu-20.04-server-cloudimg-amd64-orig.img
-virt-filesystems --long -h --all -a ubuntu-20.04-server-cloudimg-amd64.img
+cp "${BASE_IMAGE}" "${BASE_IMAGE%.img}-orig.img"
+qemu-img resize "${BASE_IMAGE}" +7.5G
+virt-resize --expand /dev/sda1 "${BASE_IMAGE%.img}-orig.img" "${BASE_IMAGE}"
+rm "${BASE_IMAGE%.img}-orig.img"
+virt-filesystems --long -h --all -a "${BASE_IMAGE}"
 printf "\n\n"
 
 # Fix partitions
@@ -33,11 +36,11 @@ echo "---------------------------------------"
 
 /usr/bin/expect <<EOD
     set timeout -1
-    spawn virt-rescue ubuntu-20.04-server-cloudimg-amd64.img
+    spawn virt-rescue ${BASE_IMAGE}
     expect "*<rescue>*"
     send -- "mkdir /mnt\r"
     expect "*<rescue>*"
-    send -- "mount /dev/sda3 /mnt\r"
+    send -- "mount /dev/sda1 /mnt\r"
     expect "*<rescue>*"
     send -- "mount --bind /dev /mnt/dev\r"
     expect "*<rescue>*"
@@ -62,18 +65,18 @@ echo "--------------------------------------------"
 echo "-->   Installing lithops dependencies    <--"
 echo "--------------------------------------------"
 sleep 5
-virt-customize -a ubuntu-20.04-server-cloudimg-amd64.img  --run-command 'rm /var/lib/apt/lists/* -vfR ' 
-virt-customize -a ubuntu-20.04-server-cloudimg-amd64.img  --run-command 'apt-get clean' 
-virt-customize -a ubuntu-20.04-server-cloudimg-amd64.img  --run-command 'apt-get update'
-virt-customize -a ubuntu-20.04-server-cloudimg-amd64.img  --run-command 'apt-get install apt-transport-https ca-certificates curl software-properties-common gnupg-agent -y'
-virt-customize -a ubuntu-20.04-server-cloudimg-amd64.img  --run-command 'curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -'
-virt-customize -a ubuntu-20.04-server-cloudimg-amd64.img  --run-command 'add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"'
-virt-customize -a ubuntu-20.04-server-cloudimg-amd64.img  --run-command 'apt-get update'
-virt-customize -a ubuntu-20.04-server-cloudimg-amd64.img  --run-command 'apt-get install unzip redis-server python3-pip docker-ce docker-ce-cli containerd.io -y'
-virt-customize -a ubuntu-20.04-server-cloudimg-amd64.img  --run-command 'pip3 install -U flask gevent lithops'
-virt-customize -a ubuntu-20.04-server-cloudimg-amd64.img  --run-command 'rm -rf /var/lib/apt/lists/*'
-virt-customize -a ubuntu-20.04-server-cloudimg-amd64.img  --run-command 'rm -rf /var/cache/apt/archives/*'
-virt-customize -a ubuntu-20.04-server-cloudimg-amd64.img  --run-command 'apt-cache search linux-headers-generic'
+virt-customize -a "${BASE_IMAGE}"  --run-command 'rm /var/lib/apt/lists/* -vfR '
+virt-customize -a "${BASE_IMAGE}"  --run-command 'apt-get clean'
+virt-customize -a "${BASE_IMAGE}"  --run-command 'apt-get update'
+virt-customize -a "${BASE_IMAGE}"  --run-command 'apt-get install apt-transport-https ca-certificates curl software-properties-common gnupg-agent -y'
+virt-customize -a "${BASE_IMAGE}"  --run-command 'curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg'
+virt-customize -a "${BASE_IMAGE}"  --run-command 'echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" > /etc/apt/sources.list.d/docker.list'
+virt-customize -a "${BASE_IMAGE}"  --run-command 'apt-get update'
+virt-customize -a "${BASE_IMAGE}"  --run-command 'apt-get install unzip redis-server python3-pip docker-ce docker-ce-cli containerd.io -y'
+virt-customize -a "${BASE_IMAGE}"  --run-command 'pip3 install -U flask gevent lithops'
+virt-customize -a "${BASE_IMAGE}"  --run-command 'rm -rf /var/lib/apt/lists/*'
+virt-customize -a "${BASE_IMAGE}"  --run-command 'rm -rf /var/cache/apt/archives/*'
+virt-customize -a "${BASE_IMAGE}"  --run-command 'apt-cache search linux-headers-generic'
 printf "\n\n"
 
 
@@ -92,12 +95,12 @@ include_docker(){
     fi
 
     docker pull $DOCKER_IMAGE
-    
+
     sudo tar -cvf docker.tar /var/lib/docker > /dev/null 2>&1
-    virt-customize -a ubuntu-20.04-server-cloudimg-amd64.img  --run-command 'mkdir -p /tmp'
-    virt-copy-in -a ubuntu-20.04-server-cloudimg-amd64.img docker.tar /tmp
-    virt-customize -a ubuntu-20.04-server-cloudimg-amd64.img --run-command 'tar -xvf /tmp/docker.tar -C /'
-    virt-customize -a ubuntu-20.04-server-cloudimg-amd64.img --run-command 'rm -R /tmp'
+    virt-customize -a "${BASE_IMAGE}"  --run-command 'mkdir -p /tmp'
+    virt-copy-in -a "${BASE_IMAGE}" docker.tar /tmp
+    virt-customize -a "${BASE_IMAGE}" --run-command 'tar -xvf /tmp/docker.tar -C /'
+    virt-customize -a "${BASE_IMAGE}" --run-command 'rm -R /tmp'
     sudo rm docker.tar
     printf "\n\n"
 }
@@ -125,14 +128,11 @@ fi
 
 # Finished
 echo "-------------------------------------------------------------------"
-echo "--> Compressing image ubuntu-20.04-server-cloudimg-amd64.img    <--"
+echo "--> Compressing image ${BASE_IMAGE}    <--"
 echo "-------------------------------------------------------------------"
 echo "Final VM image: $FINAL_IMAGE"
 echo ""
-virt-sparsify ubuntu-20.04-server-cloudimg-amd64.img --compress $FINAL_IMAGE
-
-#rm ubuntu-20.04-server-cloudimg-amd64.img
-#kvm -net nic -net user -hda ubuntu-20.04-server-cloudimg-amd64.img -m 512
+virt-sparsify "${BASE_IMAGE}" --compress "$FINAL_IMAGE"
 
 echo "----------------------------------------------"
 echo "-->   Congratulations! VM Image Created    <--"

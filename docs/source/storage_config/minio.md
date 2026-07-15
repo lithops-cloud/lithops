@@ -17,7 +17,7 @@ python3 -m pip install lithops[minio]
 
 ## Configuration
 
-Edit your lithops config file and add the following keys:
+Edit your Lithops config file and add the following keys:
 
 ```yaml
     lithops:
@@ -33,8 +33,8 @@ Edit your lithops config file and add the following keys:
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|minio | endpoint | |yes | The host ip adress where you installed the Ceph server. Must start with http:// or https:// |
+|minio | endpoint | |yes | The host IP address where you installed the MinIO server. Must start with `http://` or `https://` |
 |minio | access_key_id | |yes | Account user access key |
 |minio | secret_access_key | |yes | Account user secret access key |
 |minio | session_token | |no | Session token for temporary AWS credentials |
-|minio | storage_bucket | | no | The name of a bucket that exists in you account. This will be used by Lithops for intermediate data. Lithops will automatically create a new one if it is not provided |
+|minio | storage_bucket | | no | The name of a bucket that exists in your account. This will be used by Lithops for intermediate data. Lithops will automatically create a new one if it is not provided |

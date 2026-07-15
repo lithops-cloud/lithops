@@ -1,10 +1,10 @@
-FROM python:3.6-slim-buster
+FROM python:3.10-slim-bookworm
 
 RUN apt-get update && apt-get install -y \
         zip \
         && rm -rf /var/lib/apt/lists/*
 
-RUN pip install --upgrade setuptools six \
+RUN pip install --upgrade setuptools six pip \
     && pip install --no-cache-dir \
         gunicorn==19.9.0 \
         pika==0.13.1 \
@@ -18,7 +18,7 @@ RUN pip install --upgrade setuptools six \
         numpy
 
 # Copy Lithops proxy and lib to the container image.
-ENV APP_HOME /lithops
+ENV APP_HOME=/lithops
 WORKDIR $APP_HOME
 
 COPY lithops ./lithops

@@ -26,7 +26,7 @@ section:
 
     from lithops.storage.cloud_proxy import CloudStorage, CloudFileProxy
 
-    config = {'lithops' : {'storage_config' : 'ibm_cos'},
+    config = {'lithops': {'storage': 'ibm_cos'},
               'ibm_cos': {'region': 'REGION', 'api_key': 'API_KEY'}}
 
     cloud_storage = CloudStorage(config)
@@ -43,7 +43,7 @@ Cloud Proxy Storage API
 
 Similar to Python's built-in function `open() <https://docs.python.org/3/library/functions.html#open>`__.
 
-Manipulate an object stored in Cloud Object Storage.
+Manipulate an object storaged in Cloud Object Storage.
 
 +-------------+-------------------------------------------------------------------------------------------------------------------+
 | Parameter   | Description                                                                                                       |
@@ -74,7 +74,7 @@ List all objects located in a directory.
 +==============+======================================+=========+
 | path         | File path. Must be an absolute path. |         |
 +--------------+--------------------------------------+---------+
-| suffix\_dirs | Append a slash to directories listes | False   |
+| suffix\_dirs | Append a slash to listed directories | False   |
 +--------------+--------------------------------------+---------+
 
 .. code:: python
@@ -112,7 +112,7 @@ List recursively all files and directories in a root path.
 ^^^^^^^^^^^^^
 
 Delete a file. If the directory where the file is located is empty after
-the file is deleted, this directory it is also removed.
+the file is deleted, the directory is also removed.
 
 +-----------+--------------------------------------+---------+
 | Parameter | Description                          | Default |
@@ -133,7 +133,7 @@ the file is deleted, this directory it is also removed.
 ``os.path``
 ~~~~~~~~~~~
 
-Similar to Python's `os.path <https://docs.python.org/3/library/os.path.html>`__, except only file-realted functionalities are implemented.
+Similar to Python's `os.path <https://docs.python.org/3/library/os.path.html>`__, except only file-related functionalities are implemented.
 
 ``os.path.isfile``
 ^^^^^^^^^^^^^^^^^^
@@ -176,7 +176,7 @@ Return ``True`` if a path is a directory.
 ``os.path.exists``
 ^^^^^^^^^^^^^^^^^^
 
-Retrun ``True`` if a path corresponds to an existing file or directory
+Return ``True`` if a path corresponds to an existing file or directory
 in Cloud Object Storage.
 
 +-----------+----------------------------------------+---------+

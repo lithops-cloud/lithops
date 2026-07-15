@@ -2,7 +2,7 @@
 
 Lithops with *IBM Cloud Functions* as compute backend.
 
-**Note**: This backend is deprecated. See the [deprecation overview](https://cloud.ibm.com/docs/openwhisk?topic=openwhisk-dep-overview)
+**Note**: This backend is deprecated. See the [deprecation overview](https://cloud.ibm.com/docs/openwhisk?topic=openwhisk-dep-overview).
 
 ## Installation
 
@@ -24,7 +24,7 @@ python3 -m pip install lithops[ibm]
 
 5. Navigate to the [resource groups dashboard](https://cloud.ibm.com/account/resource-groups), and copy the desired resource group ID.
 
-5. Edit your lithops config and add the following keys:
+6. Edit your Lithops config and add the following keys:
 
     ```yaml
     lithops:
@@ -61,12 +61,12 @@ python3 -m pip install lithops[ibm]
 |ibm_cf | runtime_timeout | 600 |no | Runtime timeout in seconds. Default 600 seconds |
 |ibm_cf | invoke_pool_threads | 500 |no | Number of concurrent threads used for invocation |
 |ibm_cf | remote_invoker | False | no |  Activate the remote invoker feature that uses one cloud function to spawn all the actual `map()` activations |
-|ibm_cf | runtime_include_function | False | no | If set to true, Lithops will automatically build a new runtime, including the function's code, instead of transferring it through the storage backend at invocation time. This is useful when the function's code size is large (in the order of 10s of MB) and the code does not change frequently |
+|ibm_cf | runtime_include_function | False | no | If set to true, Lithops will automatically build a new runtime, including the function's code, instead of transferring it through the storage backend at invocation time. This is useful when the function's code size is large (on the order of tens of MB) and the code does not change frequently |
 
 
 ## Test Lithops
 
-Once you have your compute and storage backends configured, you can run a hello world function with:
+Once you have your compute and storage backends configured, you can run a Hello World function with:
 
 ```bash
 lithops hello -b ibm_cf -s ibm_cos

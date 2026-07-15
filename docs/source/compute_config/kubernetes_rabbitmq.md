@@ -8,15 +8,15 @@ All of these changes are **ideal** for pipelines where launching **hundreds of p
 
 * **Utilization of RabbitMQ:** Within this architecture, RabbitMQ is employed to launch group invocations in a single call, avoiding the need for multiple calls for each function execution. Additionally, it enables data exchange between the client and running pods, bypassing the Storage Backend as an intermediary, which is slower. This accelerates and streamlines communication significantly.
 
-* **Warm Start Capability:** Unlike K8s, Lithops K8s RabbitMQ introduces the ability to perform warm starts on the workers pods. This means that previous workers pods still listening to RabbitMQ to launch a new task, further reducing invocation time to almost 0.
+* **Warm Start Capability:** Unlike standard K8s, Lithops K8s RabbitMQ introduces the ability to perform warm starts on the worker pods. This means that previous worker pods keep listening on RabbitMQ to launch new tasks, further reducing invocation time to almost 0.
 
-* **Improved Invocation Time:** Lithops K8s RabbitMQ offers an **up x4** significant enhancement in cold start time, effectively reducing the delay before your functions start executing.
+* **Improved Invocation Time:** Lithops K8s RabbitMQ offers an **up to 4x** significant enhancement in cold start time, effectively reducing the delay before your functions start executing.
 
-* **Resource Utilization:** In this backend, CPU assignment is employed by allocating identifiers to each CPU. This approach facilitates more effective resource management within our cluster, enabling the creation of pods that by default match the entire capacity of a machine (worker_processes) and allowing the launch of precisely the number of tasks that can run concurrently.
+* **Resource Utilization:** In this backend, CPU assignment is performed by allocating identifiers to each CPU. This approach facilitates more effective resource management within the cluster, enabling the creation of pods that by default match the entire capacity of a machine (`worker_processes`) and allowing the launch of precisely the number of tasks that can run concurrently.
 
 ## Installation
 
-1. Install kubernetes backend dependencies:
+1. Install Kubernetes backend dependencies:
 
 ```bash
 python3 -m pip install lithops[kubernetes]
@@ -33,8 +33,8 @@ python3 -m pip install lithops[kubernetes]
   k8s:
     ....
     docker_server       : docker.io
-    docker_user         : <Docker hub Username>
-    docker_password     : <DOcker hub access TOEKN>
+    docker_user         : <Docker Hub username>
+    docker_password     : <Docker Hub access token>
     ....
     rabbitmq_executor : True
 ```
@@ -107,7 +107,7 @@ In this scenario, it is evident that the invocation time is consistently reduced
 |k8s | namespace | default |no | Kubernetes namespace to use for lithops execution |
 |k8s | docker_server | docker.io |no | Container registry URL |
 |k8s | docker_user | |no | Container registry user name |
-|k8s | docker_password | |no | Container registry password/token. In case of Docker hub, login to your docker hub account and generate a new access token [here](https://hub.docker.com/settings/security)|
+|k8s | docker_password | |no | Container registry password/token. For Docker Hub, log in to your Docker Hub account and generate a new access token [here](https://hub.docker.com/settings/security)|
 |k8s | rabbitmq_executor | False | yes | Alternative K8s backend accelerating parallel function execution (map) thanks to rabbitmq group calls and warm-state pods of higher granularity.|
 |k8s | worker_processes |  |no | CPUs per pod. This enables pod granularity. Default gets all CPUs of the nodes. |
 |k8s | runtime |  |no | Docker image name.|
@@ -116,10 +116,10 @@ In this scenario, it is evident that the invocation time is consistently reduced
 
 ## Test Lithops
 
-Once you have your compute and storage backends configured, you can run a hello world function with:
+Once you have your compute and storage backends configured, you can run a Hello World function with:
 
 ```bash
-lithops hello -b k8s -s ibm_cos
+lithops hello -b k8s -s aws_s3
 ```
 
 ## Viewing the execution logs

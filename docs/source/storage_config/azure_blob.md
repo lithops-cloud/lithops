@@ -15,9 +15,9 @@ $ python3 -m pip install lithops[azure]
 
    Option 1:
 
-     1. Access to the [Azure portal Resource Groups](https://portal.azure.com/#blade/HubsExtension/BrowseResourceGroups) and create a new Resource group named **LithopsResourceGroup** in your preferred region. If you already have a resource group, omit this step.
+     1. Access the [Azure portal Resource Groups](https://portal.azure.com/#blade/HubsExtension/BrowseResourceGroups) and create a new Resource group named **LithopsResourceGroup** in your preferred region. If you already have a resource group, omit this step.
      
-     2. Access to the [Azure portal Storage Accounts](https://portal.azure.com/#blade/HubsExtension/BrowseResourceGroups) and create a new Storage Account with a unique name, for example: **lithops0sa25s1**. If you already have a storage account, omit this step.
+     2. Access the [Azure portal Storage Accounts](https://portal.azure.com/#view/HubsExtension/BrowseResource/resourceType/Microsoft.Storage%2FStorageAccounts) and create a new Storage Account with a unique name, for example: **lithops0sa25s1**. If you already have a storage account, omit this step.
 
    Option 2:
    
@@ -46,11 +46,11 @@ $ python3 -m pip install lithops[azure]
 
 ## Configuration
 
-1. Access to the [Storage Account](https://portal.azure.com/#blade/HubsExtension/BrowseResource/resourceType/Microsoft.Storage%2FStorageAccounts)
+1. Access the [Storage Account](https://portal.azure.com/#blade/HubsExtension/BrowseResource/resourceType/Microsoft.Storage%2FStorageAccounts)
 
 2. In the left menu, under the *Security + networking* section, click on *Access Keys* and copy the *Key 1*
 
-3. Edit your lithops config and add the following keys:
+3. Edit your Lithops config and add the following keys:
 
 ```yaml
   lithops:
@@ -67,4 +67,4 @@ $ python3 -m pip install lithops[azure]
 |---|---|---|---|---|
 |azure_storage | storage_account_name | | yes |  The storage account name |
 |azure_storage | storage_account_key  | | yes |  An Account Key, found in *Storage Accounts* > `account_name` > *Security + networking* > *Access Keys*|
-|azure_storage | storage_bucket | | no | The name of a container that exists in you account. This will be used by Lithops for intermediate data. Lithops will automatically create a new one if it is not provided |
+|azure_storage | storage_bucket | | no | The name of a container that exists in your account. This will be used by Lithops for intermediate data. Lithops will automatically create a new one if it is not provided |

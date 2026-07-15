@@ -288,9 +288,8 @@ class KnativeServingBackend:
 
         task_run = yaml.safe_load(config.task_run)
         task_run['spec']['inputs']['params'] = []
-        python_version = utils.CURRENT_PY_VERSION.replace('.', '')
         path_to_dockerfile = {'name': 'pathToDockerFile',
-                              'value': 'lithops/compute/backends/knative/tekton/Dockerfile.python{}'.format(python_version)}
+                              'value': 'lithops/compute/backends/knative/tekton/Dockerfile'}
         task_run['spec']['inputs']['params'].append(path_to_dockerfile)
         image_url = {'name': 'imageUrl',
                      'value': '/'.join([cr, image_name])}
@@ -373,7 +372,7 @@ class KnativeServingBackend:
         # Build default runtime using local dokcer
         dockerfile = "Dockefile.default-kn-runtime"
         with open(dockerfile, 'w') as f:
-            f.write(f"FROM python:{utils.CURRENT_PY_VERSION}-slim-buster\n")
+            f.write(f"FROM python:{utils.CURRENT_PY_VERSION}-slim-bookworm\n")
             f.write(config.DEFAULT_DOCKERFILE)
         try:
             self.build_runtime(default_runtime_img_name, dockerfile)
@@ -578,8 +577,7 @@ class KnativeServingBackend:
 
         if docker_user and docker_password:
             logger.debug('Container registry credentials found in config. Logging in into the registry')
-            cmd = f'{docker_path} login -u {docker_user} --password-stdin {docker_server}'
-            utils.run_command(cmd, input=docker_password)
+            utils.docker_login(docker_user, docker_password, docker_server)
 
         logger.debug(f'Pushing runtime {runtime_name} to container registry')
         if utils.is_podman(docker_path):

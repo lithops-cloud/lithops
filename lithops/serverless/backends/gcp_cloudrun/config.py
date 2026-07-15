@@ -23,22 +23,46 @@ logger = logging.getLogger(__name__)
 CLOUDRUN_API_VERSION = 'v1'
 SCOPES = ('https://www.googleapis.com/auth/cloud-platform',)
 
+# Defaults align with Cloud Run service limits (memory, CPU, request timeout).
+# See https://cloud.google.com/run/docs/configuring/services/memory-limits
+# and https://cloud.google.com/run/docs/configuring/services/cpu
 DEFAULT_CONFIG_KEYS = {
-    'runtime_timeout': 300,  # Default: 300 seconds => 5 minutes
-    'runtime_memory': 256,  # Default memory: 256 MB
-    'runtime_cpu': 0.25,  # 0.25 vCPU
-    'max_workers': 1000,
+    'runtime_timeout': 300,  # seconds (max 3600 for services)
+    'runtime_memory': 256,  # MiB (max 32768)
+    'runtime_cpu': 0.25,  # vCPU: 0.08–<1 in 0.001 steps, or 1, 2, 4, 6, 8
+    'max_workers': 100,
     'min_workers': 0,
     'worker_processes': 1,
     'invoke_pool_threads': 100,
     'trigger': 'https',
-    'docker_server': 'gcr.io'
+    # Substring marker so utils.get_default_container_name() builds an Artifact Registry image name.
+    'docker_server': 'pkg.dev',
+    'artifact_registry_repository': 'lithops',
 }
 
-MAX_RUNTIME_MEMORY = 32768  # 32 GiB
-MAX_RUNTIME_TIMEOUT = 3600  # 1 hour
+MAX_RUNTIME_MEMORY = 32768  # 32 GiB (Cloud Run service maximum)
+MAX_RUNTIME_TIMEOUT = 3600  # 60 minutes (Cloud Run request timeout maximum)
 
-AVAILABLE_RUNTIME_CPUS = [x / 100.0 for x in range(8, 100)] + [1, 2, 4, 6, 8]
+
+def is_valid_cloud_run_cpu(cpu):
+    """
+    True if cpu is allowed for Cloud Run: 1, 2, 4, 6, 8, or 0.08–<1.00 in 0.001 increments.
+    """
+    if cpu in (1, 2, 4, 6, 8):
+        return True
+    try:
+        c = float(cpu)
+    except (TypeError, ValueError):
+        return False
+    if not (0.08 <= c < 1.0):
+        return False
+    r = round(c, 3)
+    if abs(c - r) > 1e-5:
+        return False
+    n = int(round((r - 0.08) / 0.001 + 1e-9))
+    expected = round(0.08 + n * 0.001, 3)
+    return abs(r - expected) < 1e-5 and 0 <= n <= 919
+
 
 FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_cloudrun.zip')
 
@@ -62,7 +86,6 @@ RUN pip install --upgrade --ignore-installed setuptools six pip \
         cloudpickle \
         ps-mem \
         tblib \
-        namegenerator \
         cryptography \
         httplib2 \
         google-cloud-storage \
@@ -73,20 +96,20 @@ RUN pip install --upgrade --ignore-installed setuptools six pip \
         psutil
 
 
-ENV PORT 8080
-ENV PYTHONUNBUFFERED TRUE
+ENV PORT=8080
+ENV PYTHONUNBUFFERED=TRUE
 
-ENV CONCURRENCY 1
-ENV TIMEOUT 600
+ENV CONCURRENCY=1
+ENV TIMEOUT=600
 
 # Copy Lithops proxy and lib to the container image.
-ENV APP_HOME /lithops
+ENV APP_HOME=/lithops
 WORKDIR $APP_HOME
 
 COPY lithops_cloudrun.zip .
 RUN unzip lithops_cloudrun.zip && rm lithops_cloudrun.zip
 
-CMD exec gunicorn --bind :$PORT --workers $CONCURRENCY --timeout $TIMEOUT lithopsproxy:proxy
+CMD ["sh", "-c", "exec gunicorn --bind :$PORT --workers $CONCURRENCY --timeout $TIMEOUT lithopsproxy:proxy"]
 """
 
 service_res = """
@@ -139,6 +162,13 @@ def load_config(config_data):
 
     if 'credentials_path' in config_data['gcp']:
         config_data['gcp']['credentials_path'] = os.path.expanduser(config_data['gcp']['credentials_path'])
+    if 'credentials_path' not in config_data['gcp']:
+        raise Exception("'credentials_path' parameter is mandatory under the 'gcp' section for gcp_cloudrun")
+    if not os.path.isfile(config_data['gcp']['credentials_path']):
+        raise Exception(
+            'A valid "gcp.credentials_path" service account JSON file is required '
+            f'({config_data["gcp"]["credentials_path"]})'
+        )
 
     temp = copy.deepcopy(config_data['gcp_cloudrun'])
     config_data['gcp_cloudrun'].update(config_data['gcp'])
@@ -161,14 +191,15 @@ def load_config(config_data):
 
     if config_data['gcp_cloudrun']['runtime_timeout'] > MAX_RUNTIME_TIMEOUT:
         logger.warning('Runtime timeout {} exceeds maximum - '
-                       'Runtime timeout set to {}'.format(config_data['gcp_cloudrun']['runtime_memory'],
+                       'Runtime timeout set to {}'.format(config_data['gcp_cloudrun']['runtime_timeout'],
                                                           MAX_RUNTIME_TIMEOUT))
         config_data['gcp_cloudrun']['runtime_timeout'] = MAX_RUNTIME_TIMEOUT
 
-    if config_data['gcp_cloudrun']['runtime_cpu'] not in AVAILABLE_RUNTIME_CPUS:
-        raise Exception('{} vCPUs is not available - '
-                        'choose one from {} vCPUs'.format(config_data['gcp_cloudrun']['runtime_cpu'],
-                                                          AVAILABLE_RUNTIME_CPUS))
+    if not is_valid_cloud_run_cpu(config_data['gcp_cloudrun']['runtime_cpu']):
+        raise Exception(
+            '{} vCPU is not valid for Cloud Run — use 1, 2, 4, 6, 8, or '
+            '0.08 to less than 1.0 in steps of 0.001'.format(config_data['gcp_cloudrun']['runtime_cpu'])
+        )
     if config_data['gcp_cloudrun']['runtime_cpu'] == 4 and config_data['gcp_cloudrun']['runtime_memory'] < 4096:
         raise Exception('For {} vCPUs, runtime memory must be at least 4096 MiB'
                         .format(config_data['gcp_cloudrun']['runtime_cpu']))

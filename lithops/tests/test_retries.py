@@ -117,7 +117,7 @@ def deterministic_failure(path, timing_map, i):
     else:
         time.sleep(-timing_code)
         raise RuntimeError(
-            f"Deliberately fail on invocation number {invocation_count+1} for input {i}"
+            f"Deliberately fail on invocation number {invocation_count + 1} for input {i}"
         )
 
 

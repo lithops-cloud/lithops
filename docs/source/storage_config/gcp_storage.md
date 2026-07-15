@@ -12,7 +12,7 @@ python3 -m pip install lithops[gcp]
 
 ## Configuration
 
-1. [Login](https://console.cloud.google.com) to Google Cloud Console (or signup if you don't have an account).
+1. [Login](https://console.cloud.google.com) to the Google Cloud Console (or sign up if you don't have an account).
  
 2. Create a new project. Name it `lithops` or similar.
  
@@ -26,9 +26,9 @@ python3 -m pip install lithops[gcp]
 	- Pub/Sub Admin
 	- Storage Admin
 
-6. Click on *Continue*. Then, click on *Create key*. Select *JSON* and then *Create*. Download the JSON file to a secure location in you computer. Click *Done*.
+6. Click on *Continue*. Then, click on *Create key*. Select *JSON* and then *Create*. Download the JSON file to a secure location on your computer. Click *Done*.
 
-7. Edit your lithops config file and add the following keys:
+7. Edit your Lithops config file and add the following keys:
 
 ```yaml
     lithops:
@@ -45,8 +45,8 @@ python3 -m pip install lithops[gcp]
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|gcp | region | |yes | Region of the bucket created at step 8. Functions and pub/sub queue will be created in the same region (e.g. `us-east1`) |
-|gcp | credentials_path | |yes | **Absolute** path of your JSON key file downloaded in step 7 (e.g. `/home/myuser/lithops-invoker1234567890.json`). Alternatively you can set `GOOGLE_APPLICATION_CREDENTIALS` environment variable. If not provided it will try to load the default credentials from the environment |
+|gcp | region | |yes | Region of the bucket where intermediate data will be stored. Functions and pub/sub queues will be created in the same region (e.g. `us-east1`) |
+|gcp | credentials_path | |yes | **Absolute** path of your JSON key file downloaded in step 6 (e.g. `/home/myuser/lithops-invoker1234567890.json`). Alternatively you can set the `GOOGLE_APPLICATION_CREDENTIALS` environment variable. If not provided, it will try to load the default credentials from the environment |
 
 ### Google Cloud Storage
 |Group|Key|Default|Mandatory|Additional info|

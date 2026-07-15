@@ -3,7 +3,7 @@ Supported Clouds
 
 IBM Cloud
 ---------
-Lithops is officially supported for IBM Cloud and Red Hat OpenShift. Students or academic stuff are welcome to follow `IBM Academic Initiative <https://ibm.biz/academic>`_, a special program that allows free trial of IBM Cloud for Academic institutions. This program is provided for students and faculty staff members, and allow up to 12 months of free usage. You can register your university email and get a free of charge account.
+Lithops is officially supported for IBM Cloud and Red Hat OpenShift. Students and academic staff are welcome to join the `IBM Academic Initiative <https://ibm.biz/academic>`_, a special program that offers a free trial of IBM Cloud for academic institutions. This program is provided for students and faculty staff members, and allows up to 12 months of free usage. You can register with your university email and get a free account.
 
 Currently, Lithops for IBM Cloud supports these backends:
 
@@ -12,10 +12,8 @@ Currently, Lithops for IBM Cloud supports these backends:
 
    * - Compute
      - Storage
-   * - `IBM Cloud Functions <https://cloud.ibm.com/docs/openwhisk>`_
-     - `IBM Cloud Object Storage <https://cloud.ibm.com/docs/cloud-object-storage>`_
    * - `IBM Code Engine <https://cloud.ibm.com/docs/codeengine>`_
-     -
+     - `IBM Cloud Object Storage <https://cloud.ibm.com/docs/cloud-object-storage>`_
    * - `IBM Virtual Private Cloud (VPC) <https://cloud.ibm.com/docs/vpc>`_
      -
 
@@ -34,7 +32,7 @@ Currently, Lithops for AWS supports these backends:
      - `AWS S3 <https://docs.aws.amazon.com/s3/>`_
    * - `AWS Batch <https://docs.aws.amazon.com/batch/>`_
      -
-   * - `AWS Elastic Cloud Compute (EC2) <https://docs.aws.amazon.com/ec2/>`_
+   * - `AWS Elastic Compute Cloud (EC2) <https://docs.aws.amazon.com/ec2/>`_
      -
 
 Google Cloud
@@ -48,14 +46,16 @@ Currently, Lithops for Google Cloud Platform supports these backends:
 
    * - Compute
      - Storage
-   * - `Google Cloud Functions <https://cloud.google.com/functions/docs>`_
-     - `Google Cloud Storage <ttps://cloud.google.com/storage/docs>`_
+   * - `Google Cloud Run functions (v2) <https://cloud.google.com/functions/docs>`_
+     - `Google Cloud Storage <https://cloud.google.com/storage/docs>`_
    * - `Google Cloud Run <https://cloud.google.com/run/docs>`_
+     -
+   * - `Google Compute Engine (GCE) <https://cloud.google.com/compute/docs>`_
      -
 
 Microsoft Azure
 ---------------
-Microsoft Azure is a cloud computing service created by Microsoft for building, testing, deploying, and managing applications and services through Microsoft-managed data centers. The Azure cloud platform is more than 200 products and cloud services. It provides software as a service (SaaS), platform as a service (PaaS) and infrastructure as a service (IaaS) and supports many different programming languages, tools, and frameworks, including both Microsoft-specific and third-party software and systems.
+Microsoft Azure is a cloud computing service created by Microsoft for building, testing, deploying, and managing applications and services through Microsoft-managed data centers. The Azure cloud platform comprises more than 200 products and cloud services. It provides software as a service (SaaS), platform as a service (PaaS), and infrastructure as a service (IaaS), and supports many different programming languages, tools, and frameworks, including both Microsoft-specific and third-party software and systems.
 
 Currently, Lithops for Microsoft Azure supports these backends:
 
@@ -66,7 +66,7 @@ Currently, Lithops for Microsoft Azure supports these backends:
      - Storage
    * - `Azure Functions <https://learn.microsoft.com/en-us/azure/azure-functions/>`_
      - `Azure Blob Storage <https://learn.microsoft.com/en-us/azure/storage/blobs/>`_
-   * - `Azure Container APPs <https://learn.microsoft.com/en-us/azure/container-apps/>`_
+   * - `Azure Container Apps <https://learn.microsoft.com/en-us/azure/container-apps/>`_
      -
    * - `Azure Virtual Machines <https://learn.microsoft.com/en-us/azure/virtual-machines/>`_
      -
@@ -101,7 +101,7 @@ Currently, Lithops for Oracle Cloud supports these backends:
 
 Kubernetes & On-premise
 -----------------------
-Automated container deployment, scaling, and management Kubernetes, also known as K8s, is an open-source system for automating deployment, scaling, and management of containerized applications. It groups containers that make up an application into logical units for easy management and discovery.
+Kubernetes (also known as K8s) is an open-source system for automating deployment, scaling, and management of containerized applications. It groups the containers that make up an application into logical units for easy management and discovery.
 
 Currently, Lithops for Kubernetes and On-Premise supports these backends:
 

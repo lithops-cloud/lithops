@@ -1,13 +1,13 @@
 Data Partitioning
 =================
 
-When using the Lithop's map function to run a single function over a
-rather large file, one might consider breaking the workload to smaller
+When using the Lithops ``map`` function to run a single function over a
+rather large file, one might consider breaking the workload into smaller
 portions, handing each portion to a separate thread. We refer to said
 portions as chunks.
 
-Hereinafter is an example for using a map function to read a csv. file,
-stored in COS, split to pre-determined sized chunks:
+Below is an example of using a map function to read a CSV file
+stored in COS, split into chunks of a pre-determined size:
 
 .. code:: python
 
@@ -28,20 +28,20 @@ stored in COS, split to pre-determined sized chunks:
         size = int(6.7 * pow(2,20))  # ~6.7MiB - arbitrarily chosen chunk size in bytes 
 
         fexec = lithops.FunctionExecutor()
-        fexec.map(line_counter_in_chunk, data_location,obj_chunk_size=size)
+        fexec.map(line_counter_in_chunk, data_location, obj_chunk_size=size)
         res = fexec.get_result()
 
         with open('logs/map_output', 'w') as f:
             f.write(str(res).replace('{','\n{'))
 
--  To take full advantage of the test above (for the next topic), use a
-   file with a K number of rows repeating themselves as a routine. You
-   may create a csv. example file using the following function:
+-  To take full advantage of the example above (for the next topic), use a
+   file with a fixed number of rows repeated as a routine. You can
+   create an example CSV file using the following function:
 
    .. code:: python
 
        def create_routine_file():
-           """ creates a ~17MB csv. file consisting of 5 lines repeating routine.  """
+           """ Creates a ~17MB CSV file consisting of 5 repeating lines. """
 
            # EOL = end of line identifier for ease of testing
            str_routine = """The Project Gutenberg eBook of Judgments in Vacation, by Edward Abbott Parry EOL1
@@ -57,28 +57,28 @@ stored in COS, split to pre-determined sized chunks:
                    if i < ITERATIONS - 1:
                        f.write('\n')
 
--  Alternatively, One may exchange the obj\_chunk\_size with the
-   obj\_chunk\_number parameter to split the file into a known number of
+-  Alternatively, you can replace ``obj_chunk_size`` with the
+   ``obj_chunk_number`` parameter to split the file into a known number of
    chunks.
 
--  You may tinker with the test's parameters, such as: uploading files
-   of different size, altering the chunk size, running a map function of
-   your choosing, but, As written in the documentation, chunk size must
-   be upwards of 1 MIB.
+-  You may tinker with the test's parameters, such as uploading files
+   of different sizes, altering the chunk size, or running a map function of
+   your choosing. As mentioned in the documentation, the chunk size must
+   be at least 1 MiB.
 
 Keeping line integrity in mind
 ------------------------------
 
-One important feat implemented as a part of the chunking functionality,
-is dividing input file into chunks while making sure no chunk contains
+One important feature implemented as part of the chunking functionality
+is dividing the input file into chunks while making sure no chunk contains
 partial lines. Thus, running the test above with any (legal)
-configuration of parameters, will output a file consisting of entire
-rows solely.
+configuration of parameters will produce a file consisting solely of
+entire rows.
 
-In case you opted to adhere to the recommendation above (regarding the
-file contents) you may verify line integrity quickly by exchanging the
-call to the map function with the following map\_reduce and adding the
-map\_function below:
+If you opted to follow the recommendation above (regarding the
+file contents), you can verify line integrity quickly by replacing the
+call to the map function with the following ``map_reduce`` and adding the
+``map_function`` below:
 
 .. code:: python
 
@@ -98,48 +98,47 @@ map\_function below:
 The next part covers the main details of the chunking procedure, as it's
 implemented in the Lithops project.
 
-The Algorithm behind the scenes
+The algorithm behind the scenes
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-As map or map\_reduce is being called, a new job is created (in
-lithops/job/job.py). The relevant part of the algorithm begins when
-create\_partitions(in lithops/job/partitioner.py) is called, and the
-job's chunks are associated with byte range. in this stage of the
-algorithm each chunk simply gets its fair share + a fixed threshold,
-whose purpose will become apparent shortly. Said byte ranges are pickled
-and stored in the cloud.
+When ``map`` or ``map_reduce`` is called, a new job is created (in
+``lithops/job/job.py``). The relevant part of the algorithm begins when
+``create_partitions`` (in ``lithops/job/partitioner.py``) is called, and the
+job's chunks are associated with byte ranges. At this stage, each chunk
+simply gets its fair share plus a fixed threshold, whose purpose will become
+apparent shortly. These byte ranges are pickled and stored in the cloud.
 
-Later on, each thread is aggregating (unpickling) from the cloud
-relevant data associated with its own chunk (in run() of
-lithops/worker/taskrunner.py), which contains aforementioned byte
-ranges. Amongst other aggregated objects, a data\_stream object that
-handles the line integrity is initialized and appended. finally,
-taskrunner.py passes it all forwards to the map function (the very
-reason the function in the example receives a parameter).
-| When users wish to read the chunks, they may do so by calling the read
-function (the overriding version of lithops/utils.py), which is
-implemented in the following way:
+Later, each thread aggregates (unpickles) from the cloud the relevant
+data associated with its own chunk (in ``run()`` of
+``lithops/worker/taskrunner.py``), which contains the aforementioned byte
+ranges. Among other aggregated objects, a ``data_stream`` object that
+handles the line integrity is initialized and appended. Finally,
+``taskrunner.py`` passes it all forward to the map function (the reason
+the function in the example receives a parameter).
 
-#. Store the first byte of the current chunk, unless the chunk in matter
-   is the first / only chunk in the mapping job.
+When users wish to read the chunks, they may do so by calling the ``read``
+function (the overriding version in ``lithops/utils.py``), which is
+implemented as follows:
+
+#. Store the first byte of the current chunk, unless the chunk in question
+   is the first or only chunk in the mapping job.
 
 #. Read the whole chunk and store it as a string in the variable
-   "retval". Sum of bytes stored is regarded as the default
-   last\_row\_end\_pos.
+   ``retval``. The total number of bytes stored is treated as the default
+   ``last_row_end_pos``.
 
-#. Since the first byte is as a matter of fact the last byte of the
-   former chunk, we inspect whether it's a new line ('') or not. in case
-   of the latter, it means that the current chunk started from the midst
-   on a line belonging in its entirety to the former chunk. In such
-   case, position first\_row\_start\_pos at the beginning of the next
-   line.
+#. Since the first byte is, as a matter of fact, the last byte of the
+   previous chunk, we inspect whether it is a newline (``\n``) or not. If
+   not,    it means that the current chunk starts in the middle of a line
+   belonging entirely to the former chunk. In such a case,
+   position ``first_row_start_pos`` at the beginning of the next line.
 
-#. Due to the fact that each chunk received an extra amount of bytes,
-   i.e. the threshold previously mentioned (for the very purpose
-   mentioned in clause 3), every chunk, apart from the last one, has to
-   rid itself from excessive rows, by moving last\_row\_end\_pos to the
-   beginning of the next row within the threshold.
+#. Because each chunk received an extra amount of bytes (the
+   threshold previously mentioned, for the very purpose stated in step 3),
+   every chunk except the last one needs to discard the excess rows by
+   moving ``last_row_end_pos`` to the beginning of the next row within
+   the threshold.
 
-#. finally, retval[first\_row\_start\_pos : last\_row\_end\_pos], which
+#. Finally, ``retval[first_row_start_pos : last_row_end_pos]``, which
    contains a chunk free from any split lines, is returned.
 

@@ -15,6 +15,7 @@
 #
 
 import os
+import hashlib
 import oss2
 import shutil
 import logging
@@ -59,21 +60,66 @@ class AliyunObjectStorageServiceBackend:
     def get_client(self):
         return self
 
+    def _bucket_name_suffix(self, salt=''):
+        """
+        OSS bucket names are globally unique; use a stable hash instead of
+        a short access-key prefix to avoid collisions with other accounts.
+        """
+        key = self.config['access_key_id']
+        account_id = self.config.get('account_id', '')
+        digest = hashlib.sha1(f'{key}{account_id}{salt}'.encode()).hexdigest()
+        return digest[:12]
+
     def generate_bucket_name(self):
         """
         Generates a unique bucket name
         """
-        key = self.config['access_key_id']
-        self.config['storage_bucket'] = f'lithops-{self.region}-{key[:6].lower()}'
-
+        self.config['storage_bucket'] = (
+            f'lithops-{self.region}-{self._bucket_name_suffix()}'
+        )
         return self.config['storage_bucket']
+
+    def _bucket_exists(self, bucket):
+        try:
+            bucket.get_bucket_info()
+            return True
+        except oss2.exceptions.NoSuchBucket:
+            return False
 
     def create_bucket(self, bucket_name):
         """
         Create a bucket if it doesn't exist
         """
         bucket = self._connect_bucket(bucket_name)
-        bucket.create_bucket()
+        if self._bucket_exists(bucket):
+            logger.debug(f'Bucket {bucket_name} already exists in Aliyun OSS')
+            self.config['storage_bucket'] = bucket_name
+            return bucket_name
+
+        logger.debug(f'Creating bucket {bucket_name} in Aliyun OSS')
+        for attempt in range(5):
+            try:
+                bucket.create_bucket()
+                self.config['storage_bucket'] = bucket_name
+                return bucket_name
+            except oss2.exceptions.ServerError as e:
+                code = (e.details or {}).get('Code', '')
+                if e.status == 409 and code == 'BucketAlreadyExists':
+                    bucket_name = (
+                        f'lithops-{self.region}-{self._bucket_name_suffix(str(attempt))}'
+                    )
+                    logger.debug(
+                        f'OSS bucket name unavailable, retrying with {bucket_name}'
+                    )
+                    bucket = self._connect_bucket(bucket_name)
+                    continue
+                raise
+
+        raise Exception(
+            'Unable to create an Aliyun OSS bucket: all generated names are '
+            'already taken. Set storage_bucket in the aliyun_oss section of '
+            'your Lithops config to a globally unique name.'
+        )
 
     def put_object(self, bucket_name, key, data):
         """

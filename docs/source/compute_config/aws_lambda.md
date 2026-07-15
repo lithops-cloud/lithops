@@ -12,7 +12,7 @@ python3 -m pip install lithops[aws]
 
 ## Configuration
 
-1. [Login](https://console.aws.amazon.com/?nc2=h_m_mc) to Amazon Web Services Console (or signup if you don't have an account)
+1. [Login](https://console.aws.amazon.com/?nc2=h_m_mc) to the Amazon Web Services Console (or sign up if you don't have an account).
  
 2. Navigate to **IAM > Policies**. Click on **Create policy**.
 
@@ -53,7 +53,7 @@ In summary, you can use one of the following settings:
 
 1. Provide the credentials via the `~/.aws/config` file, or set the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` environment variables.
 
-    You can run `aws configure` command if the AWS CLI is installed to setup the credentials. Then set in the Lithops config file:
+    If the AWS CLI is installed, you can run the `aws configure` command to set up the credentials. Then set them in the Lithops config file:
     ```yaml
     lithops:
         backend: aws_lambda
@@ -87,13 +87,13 @@ In summary, you can use one of the following settings:
 |aws | access_key_id | |no | Account access key to AWS services. To find them, navigate to *My Security Credentials* and click *Create Access Key* if you don't already have one. |
 |aws | secret_access_key | |no | Account secret access key to AWS services. To find them, navigate to *My Security Credentials* and click *Create Access Key* if you don't already have one. |
 |aws | session_token | |no | Session token for temporary AWS credentials |
-|aws | account_id | |no | *This field will be used if present to retrieve the account ID instead of using AWS STS. The account ID is used to format full image names for container runtimes. |
+|aws | account_id | |no | This field, if present, will be used to retrieve the account ID instead of using AWS STS. The account ID is used to format full image names for container runtimes. |
 
 ### AWS Lambda
 
 | Group | Key | Default | Mandatory | Additional info |
 | --- | --- | --- | --- | --- |
-| aws_lambda | execution_role |  | yes | ARN of the execution role created at step 3. You can find it in the Role page at the *Roles* list in the *IAM* section (e.g. `arn:aws:iam::1234567890:role/lambdaLithopsExecutionRole` |
+| aws_lambda | execution_role |  | yes | ARN of the execution role created in step 3. You can find it in the Role page at the *Roles* list in the *IAM* section (e.g. `arn:aws:iam::1234567890:role/lambdaLithopsExecutionRole`) |
 | aws_lambda | region |  | no | Region where Lambda functions will be invoked (e.g. `us-east-1`). Lithops will use the `region` set under the `aws` section if it is not set here |
 | aws_lambda | max_workers | 1000 | no | Max number of workers per `FunctionExecutor()` |
 | aws_lambda | worker_processes | 1 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker |
@@ -107,7 +107,7 @@ In summary, you can use one of the following settings:
 | aws_lambda | user_tags | {} | no | List of {name: ..., value: ...} pairs for Lambda instance user tags |
 | aws_lambda | env_vars | {} | no | List of {name: ..., value: ...} pairs for Lambda instance environment variables |
 | aws_lambda | namespace |  | no | Virtual namespace. This can be useful to virtually group Lithops function workers. The functions deployed by lithops will be prefixed by this namespace. For example you can set it to differentiate between `prod`, `dev` and `stage` environments.  |
-| aws_lambda | runtime_include_function | False | no | If set to true, Lithops will automatically build a new runtime, including the function's code, instead of transferring it through the storage backend at invocation time. This is useful when the function's code size is large (in the order of 10s of MB) and the code does not change frequently |
+| aws_lambda | runtime_include_function | False | no | If set to true, Lithops will automatically build a new runtime, including the function's code, instead of transferring it through the storage backend at invocation time. This is useful when the function's code size is large (on the order of tens of MB) and the code does not change frequently |
 
 
 ## Additional configuration
@@ -163,7 +163,7 @@ For more information, check out [AWS documentation on attaching EFS volumes to L
 
 
 ## Test Lithops
-Once you have your compute and storage backends configured, you can run a hello world function with:
+Once you have your compute and storage backends configured, you can run a Hello World function with:
 
 ```bash
 lithops hello -b aws_lambda -s aws_s3

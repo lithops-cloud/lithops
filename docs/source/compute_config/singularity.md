@@ -6,7 +6,7 @@ Lithops with *Singularity* as a serverless compute backend is **ideal for High-P
 
 ## Configuration
 
-### Configure RabbiMQ
+### Configure RabbitMQ
 
    ```yaml
    lithops:
@@ -53,7 +53,7 @@ Depending on your cluster setup, you might need to adjust permissions of the `.s
 
 
 ## Test Lithops
-Once you have your compute and storage backends configured, you can run a hello world function with:
+Once you have your compute and storage backends configured, you can run a Hello World function with:
 
 ```bash
 lithops hello -b singularity

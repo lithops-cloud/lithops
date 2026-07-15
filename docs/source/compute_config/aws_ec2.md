@@ -1,14 +1,15 @@
 # AWS Elastic Compute Cloud (EC2)
 
-The AWS EC2 client of Lithops can provide a truely serverless user experience on top of EC2 where Lithops creates new Virtual Machines (VMs) dynamically in runtime and scale Lithops jobs against them (Create & Reuse modes). Alternatively Lithops can start and stop an existing VM instance (Consume mode).
+The AWS EC2 client of Lithops can provide a truly serverless user experience on top of EC2 where Lithops creates new Virtual Machines (VMs) dynamically at runtime and scales Lithops jobs against them (Create & Reuse modes). Alternatively, Lithops can start and stop an existing VM instance (Consume mode).
 
-## AWS 
-The assumption that you already familiar with AWS, and you have AUTH credentials to your account (HMAC Credentials).
+## AWS
+
+This guide assumes that you are already familiar with AWS, and that you have authentication credentials for your account (HMAC Credentials).
 
 ### Choose an operating system image for the VM
-Any Virtual Machine (VM) needs to define the instance’s operating system and version. Lithops supports both standard operating system choices provided by the VPC or using pre-defined custom images that already contains all dependencies required by Lithops.
+Any Virtual Machine (VM) needs to define the instance's operating system and version. Lithops supports both standard operating system choices provided by AWS and pre-defined custom images that already contain all dependencies required by Lithops.
 
-- Option 1: By default, Lithops uses an Ubuntu 22.04 image. In this case, no further action is required and you can continue to the next step. Lithops will install all required dependencies in the VM by itself. Note this can consume about 3 min to complete all installations.
+- Option 1: By default, Lithops uses an Ubuntu 24.04 image. In this case, no further action is required and you can continue to the next step. Lithops will install all required dependencies in the VM by itself. Note that this can take about 3 minutes to complete all installations.
 
 - Option 2: Alternatively, you can use a pre-built custom image that will greatly improve VM creation time for Lithops jobs. To benefit from this approach, navigate to [runtime/aws_ec2](https://github.com/lithops-cloud/lithops/tree/master/runtime/aws_ec2), and follow the instructions.
 
@@ -21,8 +22,8 @@ python3 -m pip install lithops[aws]
 ```
 
 ## Create and reuse modes
-In the `create` mode, Lithops will automatically create new worker VM instances in runtime, scale Lithops job against generated VMs, and automatically delete the VMs when the job is completed.
-Alternatively, you can set the `reuse` mode to keep running the started worker VMs, and reuse them for further executions. In the `reuse` mode, Lithops checks all the available worker VMs and start new workers only if necessary.
+In the `create` mode, Lithops will automatically create new worker VM instances at runtime, scale Lithops jobs against the generated VMs, and automatically delete the VMs when the job is completed.
+Alternatively, you can set the `reuse` mode to keep the started worker VMs running and reuse them for further executions. In the `reuse` mode, Lithops checks all the available worker VMs and starts new workers only if necessary.
 
 
 ### Configuration
@@ -67,7 +68,7 @@ In summary, you can use one of the following settings:
 
 1. Provide the credentials via the `~/.aws/config` file, or set the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` environment variables.
 
-    You can run `aws configure` command if the AWS CLI is installed to setup the credentials. Then set in the Lithops config file:
+    If the AWS CLI is installed, you can run the `aws configure` command to set up the credentials. Then set them in the Lithops config file:
     ```yaml
     lithops:
         backend: aws_ec2
@@ -101,7 +102,7 @@ In summary, you can use one of the following settings:
 |aws | access_key_id | |no | Account access key to AWS services. To find them, navigate to *My Security Credentials* and click *Create Access Key* if you don't already have one. |
 |aws | secret_access_key | |no | Account secret access key to AWS services. To find them, navigate to *My Security Credentials* and click *Create Access Key* if you don't already have one. |
 |aws | session_token | |no | Session token for temporary AWS credentials |
-|aws | account_id | |no | *This field will be used if present to retrieve the account ID instead of using AWS STS. The account ID is used to format full image names for container runtimes. |
+|aws | account_id | |no | This field, if present, will be used to retrieve the account ID instead of using AWS STS. The account ID is used to format full image names for container runtimes. |
 
 ### EC2 - Create and Reuse Modes
 
@@ -118,7 +119,7 @@ In summary, you can use one of the following settings:
 |aws_ec2 | ssh_password |  |no | Password for accessing the worker VMs. If not provided, it is created randomly|
 |aws_ec2 | ssh_key_filename | ~/.ssh/id_rsa | no | Path to the ssh key file provided to access the VPC. If not provided, Lithops will use the default path and create a new ssh key for the VPC |
 |aws_ec2 | request_spot_instances | True | no | Request spot instance for worker VMs|
-|aws_ec2 | target_ami | | no | Virtual machine image id. Default is Ubuntu Server 22.04 |
+|aws_ec2 | target_ami | | no | Virtual machine image id. Default is Ubuntu Server 24.04 |
 |aws_ec2 | master_instance_type | t2.micro | no | Profile name for the master VM |
 |aws_ec2 | worker_instance_type | t2.medium | no | Profile name for the worker VMs |
 |aws_ec2 | delete_on_dismantle | True | no | Delete the worker VMs when they are stopped. Master VM is never deleted when stopped |
@@ -129,11 +130,13 @@ In summary, you can use one of the following settings:
 |aws_ec2 | soft_dismantle_timeout | 300 |no| Time in seconds to stop the VM instance after a job **completed** its execution |
 |aws_ec2 | hard_dismantle_timeout | 3600 | no | Time in seconds to stop the VM instance after a job **started** its execution |
 |aws_ec2 | exec_mode | reuse | no | One of: **consume**, **create** or **reuse**. If set to  **create**, Lithops will automatically create new VMs for each map() call based on the number of elements in iterdata. If set to **reuse** will try to reuse running workers if exist |
+|aws_ec2 | extra_apt_packages | [] | no | Extra Debian/Ubuntu packages on master/worker VMs during setup (YAML list or space-separated string) |
+|aws_ec2 | extra_python_packages | [] | no | Extra pip packages on master/worker VMs after Lithops (YAML list or space-separated string) |
 
 
 ## Additional configuration
 
-# Elastic Block Store (EBS)
+### Elastic Block Store (EBS)
 
 To attach EBS volumes to an EC2 instance in Lithops, you can configure the `aws_ec2` section as follows.
 
@@ -167,7 +170,7 @@ aws_ec2:
 | ebs | volume_type | gp2 | No | Type of volume. Options: `gp2`, `gp3`, `io1`, `io2`, `sc1`, `st1`, `standard`|
 | ebs | delete_on_termination| True | No | Whether the volume is deleted automatically when the instance is terminated |
 | ebs | encrypted | False | No | Whether the volume is encrypted |
-| ebs | kms_key_i | | No | ARN of the KMS key used for encryption. If not provided, the default AWS-managed key is used |
+| ebs | kms_key_id | | No | ARN of the KMS key used for encryption. If not provided, the default AWS-managed key is used |
 | ebs | iops | | No | Provisioned IOPS for `io1`, `io2`, or `gp3` volumes |
 | ebs | throughput | | No | Throughput in MiB/s for `gp3` volumes |
 
@@ -184,7 +187,7 @@ In summary, you can use one of the following settings:
 
 1. Provide the credentials via the `~/.aws/config` file, or set the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` environment variables.
 
-    You can run `aws configure` command if the AWS CLI is installed to setup the credentials. Then set in the Lithops config file:
+    If the AWS CLI is installed, you can run the `aws configure` command to set up the credentials. Then set them in the Lithops config file:
     ```yaml
     lithops:
         backend: aws_ec2
@@ -219,7 +222,7 @@ In summary, you can use one of the following settings:
 |aws | access_key_id | |no | Account access key to AWS services. To find them, navigate to *My Security Credentials* and click *Create Access Key* if you don't already have one. |
 |aws | secret_access_key | |no | Account secret access key to AWS services. To find them, navigate to *My Security Credentials* and click *Create Access Key* if you don't already have one. |
 |aws | session_token | |no | Session token for temporary AWS credentials |
-|aws | account_id | |no | *This field will be used if present to retrieve the account ID instead of using AWS STS. The account ID is used to format full image names for container runtimes. |
+|aws | account_id | |no | This field, if present, will be used to retrieve the account ID instead of using AWS STS. The account ID is used to format full image names for container runtimes. |
 
 ### Summary of configuration keys for the consume Mode
 
@@ -237,7 +240,7 @@ In summary, you can use one of the following settings:
 
 
 ## Test Lithops
-Once you have your compute and storage backends configured, you can run a hello world function with:
+Once you have your compute and storage backends configured, you can run a Hello World function with:
 
 ```bash
 lithops hello -b aws_ec2 -s aws_s3
@@ -287,4 +290,34 @@ You can delete all the workers including the Master VM with the `--all` flag:
 
 ```bash
 lithops clean -b aws_ec2 -s aws_s3 --all
+```
+
+## Architecture diagram
+
+Lithops provisions a dedicated VPC (unless you provide your own). Master and worker EC2 instances are launched in a **public subnet** with **public IPs**; outbound traffic uses an **Internet Gateway** (NAT gateway support exists in code but is not enabled today).
+
+```mermaid
+flowchart TB
+  subgraph aws [AWS region / VPC]
+    VPC["VPC lithops-vpc-XXXX"]
+    SUB["Public subnet 10.0.0.0/24"]
+    IGW["Internet Gateway"]
+    RT["Route table 0.0.0.0/0 → IGW"]
+    SG["Security group\nSSH :22 from internet\n:8080/:8081/:6379/:22 within VPC"]
+    M["Master EC2 lithops-master-XXXX\n+ public IP"]
+    W["Worker EC2 lithops-worker-*\n+ public IP"]
+  end
+  LAPTOP["Your laptop"] -->|SSH :22| M
+  LAPTOP -->|HTTP :8080 via SSH tunnel| M
+  M -->|Redis :6379 + HTTP :8081| W
+  M --> SUB
+  W --> SUB
+  SUB --> VPC
+  SUB --> RT
+  RT --> IGW
+  M -->|egress| IGW
+  W -->|egress| IGW
+  IGW --> INTERNET[Internet apt/docker/pip]
+  SG -.-> M
+  SG -.-> W
 ```

@@ -1,61 +1,212 @@
 Architecture Design
 ===================
 
-Lithops high-level architecture design:
----------------------------------------
+Lithops is a Python framework that runs **unmodified Python functions at scale** across
+serverless platforms, containers, virtual machines, HPC clusters and your own laptop.
+Its job is to hide the differences between all of those environments behind a single,
+small API: you write plain Python, and Lithops takes care of packaging your code,
+provisioning the workers, invoking them in parallel and streaming the results back.
 
-.. figure:: images/lithops.jpg
+This page describes how Lithops is built internally — its main components, the different
+execution modes, and the exact path a computation follows from a ``map()`` call on the
+client to thousands of parallel calls in the cloud and back.
+
+High-level architecture
+-----------------------
+
+.. figure:: images/arch_overview.svg
    :align: center
-   :width: 400
-   :alt: Lithops Architecture v1.0
+   :width: 100%
+   :alt: Lithops high-level architecture
 
-   Lithops Architecture
+   The client, the compute backend and the shared object storage that connects them.
 
-Overview
---------
+At the highest level, a Lithops deployment is made of three parts:
 
-The chart below presents the main components of the architecture of Lithops. The components are largely divided into three sets: \* Components inside the dashed purple frame comprise the client code (running e.g., on your laptop). \* Components inside the dashed orange frame comprise a Lithops worker. Each worker executes a “call”, one unit of computation (e.g., processing one dataset record, or one object) within a larger map or reduce job of Lithops. Workers execute in the compute backend of choice, such as IBM Cloud Functions, Knative Serving or even your local laptop. \* Outside both frames are various external facilities or services with which Lithops components interact. These external components are marked in ellipses, each one with its name and logo.
+* **The client** — the process where you ``import lithops`` (your laptop, a notebook,
+  a CI runner, a web service…). It builds jobs, serializes your code and data, invokes
+  the workers and collects the results. All of the orchestration logic lives here.
 
-Note that the sets of Lithops components in both dashed frames are partially overlapping. In particular, the storage components are shared since Lithops’s main communication between the client and the workers relies on storage.
+* **The compute backend** — where the *workers* run. A worker executes a single *call*
+  (one unit of work, such as one partition of your data). Depending on the backend, a
+  worker is a serverless function invocation, a container task, a process on a VM, or a
+  local process. Lithops can fan a job out to thousands of workers at once.
 
-.. figure:: images/lithops.png
+* **The object storage backend** — the shared *communication bus* between the client and
+  the workers. Lithops does not open direct connections to workers: instead, the client
+  writes the serialized function and data to storage, and each worker reads its input from
+  storage and writes its output and status back. This decoupled, storage-centric design is
+  what lets Lithops scale to massive fan-out and work identically across every backend.
+
+Core components
+---------------
+
+The client-side logic is organized into a handful of components, most of which map
+directly to a module or class in the ``lithops`` package:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 26 30 44
+
+   * - Component
+     - Location
+     - Responsibility
+   * - ``lithops.__init__``
+     - ``lithops/__init__.py``
+     - Public API surface (``FunctionExecutor``, ``Storage``, and helpers).
+   * - ``FunctionExecutor``
+     - ``lithops/executors.py``
+     - Main entry point. Orchestrates job creation, invocation and monitoring, and
+       returns futures. Specialized as ``LocalhostExecutor``, ``ServerlessExecutor``
+       and ``StandaloneExecutor``.
+   * - Configuration
+     - ``lithops/config.py``
+     - Loads and merges configuration from dicts, environment variables and YAML files,
+       then validates the selected compute and storage backends.
+   * - Job creation
+     - ``lithops/job/job.py``, ``serialize.py``, ``partitioner.py``
+     - Serializes the function with ``cloudpickle``, analyzes module dependencies and
+       partitions the input data into per-call chunks.
+   * - ``Invoker``
+     - ``lithops/invokers.py``
+     - Backend-specific dispatch. ``FaaSInvoker`` performs concurrent per-call
+       invocations; ``BatchInvoker`` submits a single batch/job for many tasks.
+   * - ``JobMonitor``
+     - ``lithops/monitor.py``
+     - Tracks completion through either ``StorageMonitor`` (polling) or
+       ``RabbitmqMonitor`` (push notifications).
+   * - ``InternalStorage``
+     - ``lithops/storage/storage.py``
+     - Uniform storage client used by both the client and the workers, backed by
+       S3, IBM COS, Azure Blob, GCS, MinIO, Ceph, Redis and more.
+   * - ``ResponseFuture``
+     - ``lithops/future.py``
+     - Future object that tracks the state of a single call and exposes its result.
+   * - Worker
+     - ``lithops/worker/`` (``handler.py``, ``jobrunner.py``)
+     - Runs inside the compute backend: ``entry_point`` → ``function_handler()`` →
+       ``JobRunner`` executes the call and reports back.
+
+Execution modes
+---------------
+
+The same program can run in three different modes; only the backend you configure
+changes. Lithops picks the matching executor and invoker automatically.
+
+.. figure:: images/arch_modes.svg
    :align: center
-   :alt: Lithops Architecture v1.0
+   :width: 100%
+   :alt: Lithops execution modes
 
-   Lithops Internal Design
+   The three execution modes: Localhost, Serverless and Standalone.
 
-The Lithops components themselves consist of key classes and modules. Both classes and modules are shown using UML class symbols, but class names start with uppercase letters and have an ``__init__()`` method, while modules do not.
+* **Localhost** — uses Python ``multiprocessing`` to run calls in a local pool of
+  processes, with the local filesystem acting as the storage bus. Ideal for developing
+  and testing before moving to the cloud.
 
-The top-level client API module of Lithops, ``lithops.__init__``, is shown as a green module. It provides the API functions described in the documentation. Each of its functions creates an instance of ``FunctionExecutor``, which is the main class implementing Lithops logic, shown in with a gray background.
+* **Serverless** — deploys calls to managed **FaaS** platforms (AWS Lambda, Google Cloud
+  Functions, Azure Functions, Aliyun, OpenWhisk) or to **container/batch**
+  platforms (AWS Batch, Google Cloud Run, Azure Container Apps, IBM Code Engine,
+  Kubernetes, Knative). This
+  mode excels at highly parallel, short-lived tasks with elastic, on-demand scaling.
 
-A worker is deployed by the client code, but independently of the client - separate process, container, etc. Therefore, it requires a separate entry point to its logic, defined in the ``entry_point`` module, with a yellow background. As part of its execution, it eventually creates an instance of ``JobRunner``, which is the main class implementing the Lithops worker logic, also shown with a gray background.
+* **Standalone** — a master–worker architecture over virtual machines (AWS EC2, IBM VPC,
+  Azure VMs, or a generic/on-prem VM). A master VM coordinates task distribution to worker
+  VMs through a Redis queue. It supports three lifecycle patterns: **CREATE** (ephemeral
+  workers per job), **REUSE** (a persistent worker pool shared across jobs) and **CONSUME**
+  (run the whole job on a single existing VM). This mode suits long-running jobs, custom VM
+  images and HPC environments.
 
-The last components worth special mentioning are ``ComputeBackend`` and ``StorageBackend``. Each of these components has a light blue background and is surrounded by a compute or storage symbol, respectively, in dashed dark blue.
-
-The ``ComputeBackend`` pseudo-interface represents a backend medium in which Lithops workers are deployed for executing computation - such as IBM Cloud Functions, Knative Serving, a Docker cloud, or your local laptop. A specific compute backend is chosen by using the specific API executor function.
-
-The ``StorageBackend`` pseudo-interface represents a backend medium which Lithops uses for communicating between the client and the workers. When a client invokes a job, which is then passed to multiple workers for execution, the job data and specific call data is stored in this medium. Upon a worker completing a call, results are also stored in this medium. A specific storage backend is selected through Lithops configuration - IBM Cloud Object Storage, OpenStack Swift or local laptop’s file-system. All storage usage in Lithops adheres to object storage semantics, including objects, buckets, writing each object once, etc.
-
-Computation flow
-----------------
-
-In Lithops, each map or reduce computation is executed as a separate compute *job*. This means that calling a ``FunctionExecutor.map()`` results in one job, and calling ``FunctionExecutor.map_reduce()`` results in two jobs, one of ``map()`` and one of ``reduce()``, executed one after the other.
-
-As mentioned above, the ``FunctionExecutor`` class is responsible for orchestrating the computation in Lithops. One ``FunctionExecutor`` object is instantiated prior to any use of Lithops. Its initialization includes these important steps: 1. It sets up the workers (depending on the specific compute backend), such as constructing docker images, defining IBM Cloud Functions, etc. This step may not include actually creating the workers, as this may be done automatically by the backend on-demand. 2. It defines a bucket in object storage (depending on the storage backend) in which each job will store job and call data (prior to computation) and results (when computation is complete). 3. It creates a ``FunctionInvoker`` object, which is responsible for executing a job as a set of independent per-worker calls.
-
-Compute jobs are created in the functions of the ``job`` module (see chart above), invoked from the respective API method of ``FunctionExecutor``. Map jobs are created in ``create_map_job()`` and reduce jobs in ``create_reduce_job()``. The flow in both functions is quite similar. First, data is partitioned, with the intention that each partition be processed by one worker. For map jobs, this is done by invoking the ``create_partitions()`` function of the ``partitioner`` module, yielding a partition map.
-
-For reduce jobs, Lithops currently supports two modes: reduce per object, where each object is processed by a reduce function, and global (default) reduce, where all data is processed by a single reduce function. Respectively, data is partitioned as either one partition per storage object, or one global partition with all data. This process yields a partition map similar to map jobs. Additionally, ``create_reduce_job()`` wraps the reduce function in a special wrapper function that forces waiting for data before the actual reduce function is invoked. This is because reduce jobs follow map jobs, so the output of the map jobs needs to finish before reduce can run.
-
-Eventually, both functions of ``create_map_job()`` and ``create_reduce_job()`` end up calling ``_create_job()`` which is the main flow of creating a job, described in high-level below: 1. A ``job_description`` record is defined for the job (and is eventually returned from all job creation functions) 2. The partition map and the data processing function (that processes a single partition in either map or reduce jobs) are each *pickled* (serialized) into a byte sequence. 3. The pickled partition map is stored in the object storage bucket, under ``agg_data_key`` object 4. The pickled processing function and its module dependencies are stored in the same bucket under ``func_key`` object
-
-Once job creation is done and the ``job_description`` record for the new job is returned to the ``FunctionExecutor`` object, it proceeds to execute the job by calling ``run()`` method of its ``FunctionInvoker`` instance. This triggers the following flow: 1. The job is executed as a set of independent *calls* (invocations) that are submitted to a ``ThreadPoolExecutor`` object (thread pool size is defined by configuration). This means call invocation is concurrent from the start. 2. Each call executes first a call to an internal ``invoke()`` function defined inside ``FunctionInvoker.run()``, which builds a ``payload`` (parameter) as a single dictionary with all the data the call needs. The call data includes copy of some of the ``job_description`` data as well as some specific data for the call such as: \* ``call_id`` (integer ranging from 0 to ``total_calls - 1``) \* ``data_byte_range`` - defines the specific partition for this call, as defined by the partitioner during job creation \* ``output_key`` - specific storage object (in the bucket) for computation output \* ``status_key`` - specific storage object (in the bucket) for computation logs 3. Invocation proceeds to ``Compute.invoke()``, which adds a retry mechanism for the current call, with random delays between retries (all configurable). 4. Invocation proceeds to ``ComputeBackend.invoke()``. Further execution depends on the compute backend: \* On IBM Cloud Functions, ``invoke()`` is performed as a standard non-blocking action invocation, with the payload being included as a single JSON parameter. \* On Knative Serving, ``invoke()`` is performed as an HTTP POST request delivered over a connection that lasts for the entire time of the computation. \* On a localhost (your laptop), ``invoke()`` is performed as posting the call on a queue. A master process continuously pulls calls from the queue and dispatches them onto processes from a pool of configurable size. \* On a Docker cloud, ``invoke()`` is performed similar to localhost above, except the processes in the pool controlled by the master further delegate execution to a Docker container they create. 5. When computation completes, each call commits the result to object storage in the configured bucket under ``output_key`` object 6. Each ``invoke()`` returns a ``ResponseFuture`` object, which is a future object to wait on for the computed result of each call 7. A list of ``ResponseFuture`` objects returned by ``FunctionInvoker.run()`` is stored in the ``FunctionExecutor`` object and also returned by its respective method for map [+reduce] job. Later calls to ``wait()`` or ``get_result()`` can be used to wait for job completion and retrieve the results, respectively.
-
-Detecting Completion of Job
+Backend type classification
 ---------------------------
 
-Completion of a computation job in Lithops is detected in one of two techniques: using RabbitMQ or polling object storage. The choice of either technique is configurable. A waiting part is implemented in ``FunctionExecutor.wait()``. A notification part is implemented in the worker code, depending on the chosen technique. This way, waiting in ``FunctionExecutor`` completes when all calls have notified completion, or a pre-configured timeout has expired.
+Internally, every compute backend is classified into one of three *types*, which
+determines how calls are invoked and scaled:
 
-**RabbitMQ**: A unique RabbitMQ topic is defined for each job. combining the executor id and job id. Each worker, once completes a call, posts a notification message on that topic (code in ``function_handler()`` in ``handler`` module, called from ``entry_point`` module of the worker). The ``wait_rabbitmq()`` function from ``wait_rabbitmq`` module, which is called from ``FunctionExecutor.wait()``, consumes a number of messages on that topic equal to ``total_calls`` and determines completion.
+* **FaaS** — direct, independent function invocations, rate-limited with a token bucket.
+  Each call is one activation (e.g. AWS Lambda, Google Cloud Functions).
+* **Batch** — a single job/definition submission manages many task executions
+  (e.g. IBM Code Engine, Kubernetes Jobs, AWS Batch).
+* **Standalone** — a master VM distributes tasks to worker VMs over Redis
+  (e.g. IBM VPC, AWS EC2, Azure VMs).
 
-**Object Storage**: As explained above, each call persists its computation results in a specific object. Determining completion of a job is by the ``FunctionExecutor.wait()`` invoking the ``wait_storage()`` function from the ``wait_storage`` module. This function repeatedly, once per fixed period (controllable), polls the executor’s bucket for status objects of a subset of calls that have still not completed. This allows control of resource usage and eventual detection of all calls.
+Execution flow
+--------------
+
+In Lithops, each ``map`` or ``reduce`` computation is executed as a separate compute
+*job*. Calling ``FunctionExecutor.map()`` produces one job, while
+``FunctionExecutor.map_reduce()`` produces two jobs — a ``map`` job followed by a
+``reduce`` job that waits for the map output before running.
+
+.. figure:: images/arch_flow.svg
+   :align: center
+   :width: 100%
+   :alt: Lithops execution flow
+
+   The path of a ``map()`` call: from job creation on the client, through object storage,
+   to the workers and back.
+
+**1. Executor initialization.**
+A single ``FunctionExecutor`` is created before any use of Lithops. Its setup selects and
+prepares the compute backend (for example, building or referencing a runtime image),
+defines the object-storage bucket where jobs will keep their data, and creates the
+``Invoker`` responsible for dispatching calls.
+
+**2. Job creation.**
+Map jobs are built by ``create_map_job()`` and reduce jobs by ``create_reduce_job()`` (in
+the ``job`` module), both ending in the common ``_create_job()`` routine. Input data is
+first partitioned — by the ``partitioner`` module for map jobs — so that each partition can
+be processed by one worker. Reduce jobs support *per-object* reduce (one reduce per storage
+object) and *global* reduce (a single reduce over all data), and wrap the reduce function so
+it waits for the map results.
+
+**3. Serialization and upload.**
+The processing function and its detected module dependencies are serialized with
+``cloudpickle``, and the partition map is pickled as well. Both are written to the
+storage bucket:
+
+* the pickled function and modules under the ``func_key`` object, and
+* the pickled partition map under the ``agg_data`` object.
+
+**4. Invocation.**
+The executor calls ``Invoker.run()``, which submits the job's calls to a
+``ThreadPoolExecutor`` so invocation is concurrent from the start. Each call builds a
+``payload`` dictionary describing exactly what that worker must do, including:
+
+* ``call_id`` — the index of the call, from ``0`` to ``total_calls - 1``;
+* ``data_byte_range`` — the partition assigned to this call;
+* ``output_key`` — the storage object where the result will be written;
+* ``status_key`` — the storage object where logs and status will be written.
+
+Invocation flows through a retry layer (with configurable random back-off) and then into
+the backend-specific ``invoke()``: an async activation for FaaS, an HTTP request for
+Knative, a queued task for localhost/standalone, and so on. Each invocation returns a
+``ResponseFuture``.
+
+**5. Worker execution.**
+On the compute backend, a worker starts at its ``entry_point`` and calls
+``function_handler()`` (``worker/handler.py``), which eventually creates a ``JobRunner``
+(``worker/jobrunner.py``). The worker reads ``func_key`` and its data partition from
+storage, executes your function on that partition, and writes the result to ``output_key``
+and its status to ``status_key``.
+
+**6. Monitoring and results.**
+A list of ``ResponseFuture`` objects is returned to the client. Calling ``wait()`` or
+``get_result()`` blocks until the job completes and then fetches the outputs from storage.
+
+Detecting completion of a job
+-----------------------------
+
+``FunctionExecutor.wait()`` decides when a job is finished using one of two configurable
+techniques, both implemented on top of the same storage-centric design:
+
+* **Object storage polling** — the default. ``wait_storage`` periodically polls the
+  bucket for the ``status`` objects of the calls that have not completed yet. The polling
+  period is configurable, which lets you trade responsiveness against request volume.
+
+* **RabbitMQ** — a lower-latency, push-based option. A unique topic is derived from the
+  executor and job ids; each worker publishes a message when its call finishes, and the
+  client consumes exactly ``total_calls`` messages to detect completion.
+
+In both cases, ``wait()`` returns once every call has reported completion or a configured
+timeout has elapsed.

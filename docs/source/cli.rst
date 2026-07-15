@@ -28,13 +28,13 @@ Runs a *hello-world* function.
 | --debug, -d     | Activate debug logs (Flag)   |
 +-----------------+------------------------------+
 
--  **Usage example**: ``lithops hello -b ibm_cf -s ibm_cos``
+-  **Usage example**: ``lithops hello -b aws_lambda -s aws_s3``
 
 ``lithops test``
 ~~~~~~~~~~~~~~~~
 
-Runs the unit testing suite. For more instructions about testing `view
-this page <testing.md>`__.
+Runs the unit testing suite. For more instructions about testing, see the
+`CONTRIBUTING guide <https://github.com/lithops-cloud/lithops/blob/master/CONTRIBUTING.md>`__.
 
 +------------------------+----------------------------------------------------------------+
 | Parameter              | Description                                                    |
@@ -58,14 +58,14 @@ this page <testing.md>`__.
 | --keep\_datasets, -k   | Keeps datasets in storage after the test run (Flag)            |
 +------------------------+----------------------------------------------------------------+
 
--  **Usage example**: ``lithops test -b ibm_cf -s ibm_cos``
+-  **Usage example**: ``lithops test -b aws_lambda -s aws_s3``
 
 ``lithops clean``
 ~~~~~~~~~~~~~~~~~
 
 Deletes all the information related to Lithops except the config file.
 It includes deployed runtimes and temporary data stored in the storage
-backend. Run this command is like *start from scratch* with Lithops. In
+backend. Running this command is like *starting from scratch* with Lithops. In
 some circumstances, when there is some inconsistency between the local
 machine and the cloud, it is convenient to run this command.
 
@@ -85,7 +85,7 @@ machine and the cloud, it is convenient to run this command.
 | --all, -a       | Delete all (Flag)            |
 +-----------------+------------------------------+
 
--  **Usage example**: ``lithops clean -b ibm_cf -s ibm_cos``
+-  **Usage example**: ``lithops clean -b aws_lambda -s aws_s3``
 
 ``lithops attach``
 ~~~~~~~~~~~~~~~~~~
@@ -156,10 +156,10 @@ refer to the ``runtime/`` folder and choose your compute backend.
 ``lithops runtime build <runtime-name>``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Build a new runtime image. Depending of the compute backend, there must
+Build a new runtime image. Depending on the compute backend, there must
 be a Dockerfile located in the same folder you run the command,
-otherwise use ``-f`` parameter. Note that this command only builds the
-image and puts it into a container registry. This command do not deploy
+otherwise use the ``-f`` parameter. Note that this command only builds the
+image and puts it into a container registry. This command does not deploy
 the runtime to the compute backend.
 
 +-----------------+-----------------------------------+
@@ -177,7 +177,7 @@ the runtime to the compute backend.
 +-----------------+-----------------------------------+
 
 -  **Usage example**:
-   ``lithops runtime build -f Dockefile.pythonv39 -b ibm_cf lithopscloud/my-runtime-name-v39:01``
+   ``lithops runtime build -f Dockerfile -b aws_lambda lithopscloud/my-runtime-name-v312:01``
 
 ``lithops runtime deploy <runtime-name>``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -206,11 +206,11 @@ cases you can avoid using this command.
 +-----------------+------------------------------------------------+
 | --memory, -m    | Memory size in MBs to assign to the runtime.   |
 +-----------------+------------------------------------------------+
-| --timeout, -t   | Timeout is seconds to assign to the runtime    |
+| --timeout, -t   | Timeout in seconds to assign to the runtime    |
 +-----------------+------------------------------------------------+
 
 -  **Usage example**:
-   ``lithops runtime deploy -b ibm_cf lithopscloud/my-runtime-name-v39:01 -m 1024 -t 300``
+   ``lithops runtime deploy -b aws_lambda lithopscloud/my-runtime-name-v312:01 -m 1024 -t 300``
 
 ``lithops runtime update <runtime-name>``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -236,12 +236,12 @@ let Lithops create the runtime automatically with the new Lithops code.
 +-----------------+------------------------------+
 
 -  **Usage example**:
-   ``lithops runtime update -b ibm_cf lithopscloud/my-runtime-name-v39:01``
+   ``lithops runtime update -b aws_lambda lithopscloud/my-runtime-name-v312:01``
 
 ``lithops runtime list``
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-Lists all created/deployed runtimes of an specific compute backend.
+Lists all created/deployed runtimes of a specific compute backend.
 
 +-----------------+------------------------------+
 | Parameter       | Description                  |
@@ -253,15 +253,15 @@ Lists all created/deployed runtimes of an specific compute backend.
 | --debug, -d     | Activate debug logs (Flag)   |
 +-----------------+------------------------------+
 
--  **Usage example**: ``lithops runtime list -b ibm_cf``
+-  **Usage example**: ``lithops runtime list -b aws_lambda``
 
 ``lithops runtime delete <runtime-name>``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Deletes all runtimes created/deployed in the compute backend that
-matches the provided runtime-name. As an alternative, you can run
+match the provided runtime-name. As an alternative, you can run
 ``lithops clean -b <backend-name>`` to delete not only the runtimes that
-match the provided runtime-name, but all them.
+match the provided runtime-name, but all of them.
 
 +-----------------+----------------------------------------------+
 | Parameter       | Description                                  |
@@ -282,7 +282,7 @@ match the provided runtime-name, but all them.
 +-----------------+----------------------------------------------+
 
 -  **Usage example**:
-   ``lithops runtime delete -b ibm_cf -s ibm_cos lithopscloud/my-runtime-name-v39:01``
+   ``lithops runtime delete -b aws_lambda -s aws_s3 lithopscloud/my-runtime-name-v312:01``
 
 
 VM Images management
@@ -306,7 +306,7 @@ Build a new VM image.
 +-----------------+-----------------------------------+
 | --region, -r    | Compute backend region            |
 +-----------------+-----------------------------------+
-| --overwrite, -o | Overwrite the VM image if exists  |
+| --overwrite, -o | Overwrite existing VM image       |
 +-----------------+-----------------------------------+
 | --debug, -d     | Activate debug logs (Flag)        |
 +-----------------+-----------------------------------+
@@ -349,7 +349,7 @@ Prints to the screen the Lithops function logs as they are produced.
 ``lithops logs get <job-key>``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Prints to the screen the Lithops function of a specific job.
+Prints to the screen the Lithops function logs of a specific job.
 
 +-------------+---------------+
 | Parameter   | Description   |
@@ -387,12 +387,12 @@ Uploads a local file to a bucket.
 +-----------------+--------------------------------------+
 
 -  **Usage example**:
-   ``lithops storage put -b ibm_cos test.txt cloudbucket``
+   ``lithops storage put -b aws_s3 test.txt cloudbucket``
 
 ``lithops storage get <bucket> <key>``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Downloads a remote object stored in a bucket to a local file.
+Downloads a remote object storaged in a bucket to a local file.
 
 +-----------------+------------------------------------+
 | Parameter       | Description                        |
@@ -411,7 +411,7 @@ Downloads a remote object stored in a bucket to a local file.
 +-----------------+------------------------------------+
 
 -  **Usage example**:
-   ``lithops storage get -b ibm_cos cloudbucket test.txt``
+   ``lithops storage get -b aws_s3 cloudbucket test.txt``
 
 ``lithops storage delete <bucket> <key>``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -434,15 +434,16 @@ Deletes objects from a given bucket.
 | --config, -c    | Path to your config file           |
 +-----------------+------------------------------------+
 
--  **Usage example**:
--  To delete a given
-   object:\ ``lithops storage delete -b ibm_cos cloudbucket test.txt``
+-  **Usage examples**:
 
--  To delete all objects that start with given prefix
-   :``lithops storage delete -b ibm_cos cloudbucket -p test/``
+   - To delete a given object:
+     ``lithops storage delete -b aws_s3 cloudbucket test.txt``
 
--  To delete all the objects (empty the bucket):
-   ``lithops storage delete -b ibm_cos cloudbucket``
+   - To delete all objects that start with a given prefix:
+     ``lithops storage delete -b aws_s3 cloudbucket -p test/``
+
+   - To delete all objects (empty the bucket):
+     ``lithops storage delete -b aws_s3 cloudbucket``
 
 ``lithops storage list <bucket>``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -463,9 +464,10 @@ Lists objects from a given bucket.
 | --config, -c    | Path to your config file        |
 +-----------------+---------------------------------+
 
--  **Usage example**:
--  To list all the objects in a
-   bucket:\ ``lithops storage list -b ibm_cos cloudbucket``
+-  **Usage examples**:
 
--  To list all objects that start with given prefix
-   :``lithops storage list -b ibm_cos cloudbucket -p test/``
+   - To list all objects in a bucket:
+     ``lithops storage list -b aws_s3 cloudbucket``
+
+   - To list all objects that start with a given prefix:
+     ``lithops storage list -b aws_s3 cloudbucket -p test/``

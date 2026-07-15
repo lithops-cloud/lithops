@@ -129,8 +129,7 @@ class OpenWhiskBackend:
         logger.debug(f'Pushing runtime {docker_image_name} to container registry')
 
         if docker_user and docker_password:
-            cmd = f'{docker_path} login -u {docker_user} --password-stdin {docker_server}'
-            utils.run_command(cmd, input=docker_password)
+            utils.docker_login(docker_user, docker_password, docker_server)
 
         if utils.is_podman(docker_path):
             cmd = f'{docker_path} push {docker_image_name} --format docker --remove-signatures'

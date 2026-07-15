@@ -12,7 +12,7 @@ python3 -m pip install lithops[aws]
 
 ## Configuration
 
-1. [Login](https://console.aws.amazon.com/?nc2=h_m_mc) to Amazon Web Services Console (or signup if you don't have an account)
+1. [Login](https://console.aws.amazon.com/?nc2=h_m_mc) to the Amazon Web Services Console (or sign up if you don't have an account).
  
 2. Navigate to **IAM > Roles** to create the ECS Task Execution Role. AWS provides a default role named `ecsTaskExecutionRole`, which can be used instead. If you want to create another role or it is missing, create a new role attached to `Elastic Container Service Task`, and add the following policies:
     - `SecretsManagerReadWrite`
@@ -62,7 +62,7 @@ In summary, you can use one of the following settings:
 
 1. Provide the credentials via the `~/.aws/config` file, or set the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` environment variables.
 
-    You can run `aws configure` command if the AWS CLI is installed to setup the credentials. Then set in the Lithops config file:
+    If the AWS CLI is installed, you can run the `aws configure` command to set up the credentials. Then set them in the Lithops config file:
     ```yaml
     lithops:
         backend: aws_batch
@@ -112,7 +112,7 @@ In summary, you can use one of the following settings:
 |aws | access_key_id | |no | Account access key to AWS services. To find them, navigate to *My Security Credentials* and click *Create Access Key* if you don't already have one. |
 |aws | secret_access_key | |no | Account secret access key to AWS services. To find them, navigate to *My Security Credentials* and click *Create Access Key* if you don't already have one. |
 |aws | session_token | |no | Session token for temporary AWS credentials |
-|aws | account_id | |no | *This field will be used if present to retrieve the account ID instead of using AWS STS. The account ID is used to format full image names for container runtimes. |
+|aws | account_id | |no | This field, if present, will be used to retrieve the account ID instead of using AWS STS. The account ID is used to format full image names for container runtimes. |
 
 ### AWS Batch
 
@@ -121,7 +121,7 @@ In summary, you can use one of the following settings:
 | aws_batch  | execution_role   |  | yes | ARN of the execution role used to execute AWS Batch tasks on ECS for Fargate environments |
 | aws_batch  | job_role   |  | yes | ARN of the job role used to execute AWS Batch tasks on ECS for Fargate environments. Not mandatory if the credentials are in the `aws` section of the configuration|
 | aws_batch  | security_groups  |  | yes | List of Security groups to attach for ECS task containers. By default, you can use a security group that accepts all outbound traffic but blocks all inbound traffic. |
-| aws_batch  | subnets          |  | yes | List of subnets from a VPC where to deploy the ECS task containers. Note that if you are using a **private subnet**, you can set `assign_public_ip` to `false` but make sure containers can reach other AWS services like ECR, Secrets service, etc., by, for example, using a NAT gateway. If you are using a **public subnet** you must set `assign_public_up` to `true` |
+| aws_batch  | subnets          |  | yes | List of subnets from a VPC where the ECS task containers will be deployed. Note that if you are using a **private subnet**, you can set `assign_public_ip` to `false`, but make sure containers can reach other AWS services like ECR, Secrets Manager, etc., for example by using a NAT gateway. If you are using a **public subnet**, you must set `assign_public_ip` to `true`. |
 | aws_batch  | instance_role    |  | no | ARN of the execution role used to execute AWS Batch tasks on ECS for EC2 environments. Mandatory if using the **EC2** or **SPOT** `env_type` |
 | aws_batch  | region      |  | no | Region name (like `us-east-1`) where to deploy the ECS cluster. Lithops will use the region set under the `aws` section if it is not set here |
 | aws_batch  | assign_public_ip | `true` | no | Assign public IPs to ECS task containers. Set to `true` if the tasks are being deployed in a public subnet. Set to `false` when deploying on a private subnet. |
@@ -136,7 +136,7 @@ In summary, you can use one of the following settings:
 
 
 ## Test Lithops
-Once you have your compute and storage backends configured, you can run a hello world function with:
+Once you have your compute and storage backends configured, you can run a Hello World function with:
 
 ```bash
 lithops hello -b aws_batch -s aws_s3

@@ -14,9 +14,9 @@ python3 -m pip install lithops[aws]
 
 Lithops automatically creates a bucket with a unique name for your user. If you want to use a different bucket, you can create it manually and provide the name in the lithops config file. For this:
 
-1. [Login](https://console.aws.amazon.com/?nc2=h_m_mc) to Amazon Web Services Console (or signup if you don't have an account)
+1. [Login](https://console.aws.amazon.com/?nc2=h_m_mc) to the Amazon Web Services Console (or sign up if you don't have an account).
 
-2. Navigate to *S3* and *create a bucket*. Type a name (e.g. `lithops-data-mysuer`). The bucket should be created in the same region as the Lambda functions are expected to be run (mainly to avoid inter-region data transfer charges).
+2. Navigate to *S3* and *create a bucket*. Type a name (e.g. `lithops-data-myuser`). The bucket should be created in the same region as the Lambda functions are expected to run (to avoid inter-region data transfer charges).
 
 
 ## AWS Credential setup
@@ -27,7 +27,7 @@ In summary, you can use one of the following settings:
 
 1. Provide the credentials via the `~/.aws/config` file, or set the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` environment variables.
 
-    You can run `aws configure` command if the AWS CLI is installed to setup the credentials. Then set in the Lithops config file:
+    If the AWS CLI is installed, you can run the `aws configure` command to set up the credentials. Then set them in the Lithops config file:
     ```yaml
     lithops:
         storage: aws_s3
@@ -63,5 +63,5 @@ In summary, you can use one of the following settings:
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |aws_s3 | region | |no | Region of your Bucket. e.g `us-east-1`, `eu-west-1`, etc. Lithops will use the region set under the `aws` section if it is not set here |
-|aws_s3 | storage_bucket | | no | The name of a bucket that exists in you account. This will be used by Lithops for intermediate data. Lithops will automatically create a new one if it is not provided |
+|aws_s3 | storage_bucket | | no | The name of a bucket that exists in your account. This will be used by Lithops for intermediate data. Lithops will automatically create a new one if it is not provided |
 

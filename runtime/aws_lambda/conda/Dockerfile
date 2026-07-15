@@ -1,4 +1,4 @@
-FROM public.ecr.aws/lambda/python:3.9
+FROM public.ecr.aws/lambda/python:3.10
 
 ARG FUNCTION_DIR
 
@@ -11,7 +11,7 @@ RUN yum update -y && \
 RUN wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -o miniconda.sh && \
     sh Miniconda3-latest-Linux-x86_64.sh -b -p /opt/miniconda
 
-COPY lithops-env-py39.yml /tmp/lithops-conda.yml
+COPY lithops-env.yml /tmp/lithops-conda.yml
 
 RUN /opt/miniconda/bin/conda update -n base -c defaults conda &&  \
     /opt/miniconda/bin/conda env create --file /tmp/lithops-conda.yml --prefix /opt/conda-env
@@ -37,10 +37,10 @@ RUN /opt/conda-env/bin/pip install --upgrade --no-cache-dir --ignore-installed \
 # RUN /opt/conda-env/bin/pip install --upgrade --no-cache-dir --ignore-installed
 
 # Replace python intepreter with conda's
-RUN mv /var/lang/bin/python3.9 /var/lang/bin/python3.9-clean && \
-    ln -sf /opt/conda-env/bin/python /var/lang/bin/python3.9
+RUN mv /var/lang/bin/python3.10 /var/lang/bin/python3.10-clean && \
+    ln -sf /opt/conda-env/bin/python /var/lang/bin/python3.10
 
-ENV PYTHONPATH "/var/lang/lib/python3.9/site-packages:${FUNCTION_DIR}"
+ENV PYTHONPATH="/var/lang/lib/python3.10/site-packages:${FUNCTION_DIR}"
 
 ENV PATH="${PATH}:/opt/conda-env/bin/"
 

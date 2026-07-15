@@ -30,13 +30,13 @@ When processing data from cloud object storage, your input must be one of the fo
 
 Based on your configuration:
 
-- If `obj_chunk_size` or `obj_chunk_number` is set, **each object is automatically split into smaller chunks**, and Lithops runs one function activation per chunk.
+- If ``obj_chunk_size`` or ``obj_chunk_number`` is set, **each object is automatically split into smaller chunks**, and Lithops runs one function activation per chunk.
 - If chunking is not configured, Lithops runs one function activation per full object.
 
 Accessing Object Metadata
 --------------------------
 
-Inside your function, the `obj` parameter gives you access to metadata and data for the current chunk being processed.
+Inside your function, the ``obj`` parameter gives you access to metadata and data for the current chunk being processed.
 
 Example:
 
@@ -107,9 +107,9 @@ Processing Data from Public URLs
 
 Lithops also supports processing data directly from **public URLs**. The input can be a single URL or a list of URLs.
 
-If you set the `obj_chunk_size` or `obj_chunk_number`, Lithops activates its internal partitioner to split each file into smaller chunks—**provided that the remote server supports HTTP range requests**. If range requests are not supported, each URL is processed as a single object.
+If you set ``obj_chunk_size`` or ``obj_chunk_number``, Lithops activates its internal partitioner to split each file into smaller chunks—**provided that the remote server supports HTTP range requests**. If range requests are not supported, each URL is processed as a single object.
 
-As with other backends, the special **`obj`** parameter gives you access to metadata and the content of the chunk being processed.
+As with other backends, the special ``obj`` parameter gives you access to metadata and the content of the chunk being processed.
 
 Example:
 
@@ -162,9 +162,9 @@ Lithops can also process files stored on the local filesystem. The input can be:
 - A directory path
 - A list of directory paths
 
-As in other cases, if you set `obj_chunk_size` or `obj_chunk_number`, the file(s) will be split into chunks and processed in parallel. If not set, each file is processed as a single object.
+As in other cases, if you set ``obj_chunk_size`` or ``obj_chunk_number``, the file(s) will be split into chunks and processed in parallel. If not set, each file is processed as a single object.
 
-The **`obj`** parameter again exposes the metadata and content of the chunk.
+The ``obj`` parameter again exposes the metadata and content of the chunk.
 
 Example:
 
@@ -208,9 +208,9 @@ Example:
 Reducer Granularity
 -------------------
 
-When using the :meth:`map_reduce()` API along with `obj_chunk_size` or `obj_chunk_number`, Lithops defaults to using **a single reducer** to aggregate results across **all chunks and objects**.
+When using the :meth:`map_reduce()` API along with ``obj_chunk_size`` or ``obj_chunk_number``, Lithops defaults to using **a single reducer** to aggregate results across **all chunks and objects**.
 
-If you'd prefer to reduce results **per original object** (e.g., one reducer per file), you can set the parameter `obj_reduce_by_key=True`.
+If you'd prefer to reduce results **per original object** (e.g., one reducer per file), you can set the parameter ``obj_reduce_by_key=True``.
 
 Example:
 
@@ -224,7 +224,7 @@ Example:
 Elastic Data Processing and Cloud-Optimized Formats
 ===================================================
 
-Lithops is especially powerful for **massively parallel data processing**. When the input to `map()` or `map_reduce()` is a **storage bucket** or a collection of large files, Lithops will automatically:
+Lithops is especially powerful for **massively parallel data processing**. When the input to ``map()`` or ``map_reduce()`` is a **storage bucket** or a collection of large files, Lithops will automatically:
 
 - Launch one function per file, or  
 - Partition large files into chunks and assign each chunk to a different function  
@@ -251,8 +251,8 @@ Partitioning Non-Optimized Formats with Dataplug
 Thanks to the `DATAPLUG <https://github.com/CLOUDLAB-URV/dataplug>`_ library, Lithops also supports **on-the-fly partitioning** of data formats that are **not cloud-optimized**. Supported formats include:
 
 - Genomics: **FASTA**, **FASTQ**, **FASTQ.GZ**
-- Metabolomics: **mlMZ**
-- Geospatial: **LIDAR (.laz)**
+- Metabolomics: **imzML**
+- Geospatial: **LiDAR (.laz)**
 
 Dataplug wraps these formats into cloud-native interfaces and exposes partitioning strategies that Lithops can consume directly.
 

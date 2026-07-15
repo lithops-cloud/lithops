@@ -1,28 +1,28 @@
 Functions and Parameters
 ========================
 
-This document describes how to invoke functions based on the *iterdata* variable. In this sense, Lithops allows to send either *args* or *kwargs* in the function invocation. Take into account that there are some reserved parameter names that activate internal logic, and they cannot be used as regular parameters.
+This document describes how to invoke functions based on the *iterdata* variable. Lithops allows you to send either *args* or *kwargs* in the function invocation. Note that there are some reserved parameter names that activate internal logic, and they cannot be used as regular parameters.
 
 Reserved parameters
 -------------------
-Reserved parameters are only accessible when using the [Futures API](api_futures.rst).
+Reserved parameters are only accessible when using the [Futures API](./api_futures.rst).
 
 
 - **id**: To get the call id. For instance, if you spawn 10 activations of a function, you will get here a number from 0 to 9, for example: [map.py](https://github.com/lithops-cloud/lithops/blob/master/examples/map.py)
 
-- **obj**: This parameter is used to activate the internal logic that allows to process data objects stored in the object store or public URLs in a transparent way. See [data processing](data_processing.rst) documentation for more details and instructions on how to use this built-in data-processing logic.
+- **obj**: This parameter is used to activate the internal logic that allows you to process data objects stored in object storage or at public URLs in a transparent way. See the [data processing](data_processing.rst) documentation for more details and instructions on how to use this built-in data-processing logic.
 
-- **storage**: To get a ready-to use lithops.storage.Storage() instance. This allows you to access your storage backend defined in configuration from any function in an easy way, for example: [storage_arg.py](https://github.com/lithops-cloud/lithops/blob/master/examples/storage_arg.py)
+- **storage**: To get a ready-to-use `lithops.storage.Storage()` instance. This allows you to access your storage backend defined in configuration from any function in an easy way, for example: [storage_arg.py](https://github.com/lithops-cloud/lithops/blob/master/examples/storage_arg.py)
 
-- **rabbitmq**: To get a ready-to use [pika.BlockingConnection()](https://pika.readthedocs.io/en/latest/modules/adapters/blocking.html) instance (AMQP URL must be set in the configuration to make it working). This allows you to access the RabbitMQ service from any function in an easy way, for example: [rabbitmq_arg.py](https://github.com/lithops-cloud/lithops/blob/master/examples/rabbitmq_arg.py)
+- **rabbitmq**: To get a ready-to-use [pika.BlockingConnection()](https://pika.readthedocs.io/en/latest/modules/adapters/blocking.html) instance (AMQP URL must be set in the configuration to make it work). This allows you to access the RabbitMQ service from any function in an easy way, for example: [rabbitmq_arg.py](https://github.com/lithops-cloud/lithops/blob/master/examples/rabbitmq_arg.py)
 
 
 
 Parameters in the call_async() method 
 -------------------------------------
 
-You can send multiple parameters to a single call function writing them into a list. The parameters will be mapped in
-the order you wrote them. In the following example the x  parameter will take the value 3 and the y parameter will 
+You can send multiple parameters to a single-call function by writing them into a list. The parameters will be mapped in
+the order you wrote them. In the following example, the `x` parameter will take the value 3 and the `y` parameter will
 take the value 6.
 
 ```python
@@ -109,7 +109,7 @@ To test all of the previous examples run the [multiple_args_call_async.py](https
 Parameters in the map() and map_reduce() methods 
 ------------------------------------------------
 
-The 'iterdata' variable must be always a list []. In this case to send multiple parameters to the function, the parameters of
+The 'iterdata' variable must always be a list []. In this case to send multiple parameters to the function, the parameters of
 each function must be enclosed within a tuple () as in the next example. The parameters will be mapped in the order you wrote
 them.
 
@@ -212,12 +212,12 @@ print(fexec.get_result())
 ```
 
 
-Common parameters across functions invocations
+Common parameters across function invocations
 ----------------------------------------------
 
 Sometimes, functions have common parameters for all the invocations. In this case you have two options to proceed:
 
-- Setting variables in the global scope: You can define the desired variables in the global scope before defining the function. All of these variables can be catched within the function, for example:
+- Setting variables in the global scope: You can define the desired variables in the global scope before defining the function. All of these variables can be captured within the function, for example:
 
     ```python
     import lithops
@@ -233,9 +233,9 @@ Sometimes, functions have common parameters for all the invocations. In this cas
     print(fexec.get_result())
     ```
 
-- Using `extra_args` parameter in the `map()` or `map_reduce()` calls. `extra_args` must be a **set* or a **dict**, depending on whether `iteradata` contains *args* or *kwargs*. 
+- Using the `extra_args` parameter in the `map()` or `map_reduce()` calls. `extra_args` must be a **tuple** or a **dict**, depending on whether `iterdata` contains *args* or *kwargs*.
 
-    If `iterdata` is a list of individual values or a list of sets:
+    If `iterdata` is a list of individual values or a list of tuples:
 
     ```python
     import lithops

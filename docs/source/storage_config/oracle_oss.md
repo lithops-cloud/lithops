@@ -2,7 +2,7 @@
 
 Lithops with Oracle Object Storage as storage backend.
 
-**Note**: This is a beta backend. Please open an issue if you encounter any error/bug
+**Note**: This is a beta backend. Please open an issue if you encounter any errors or bugs.
 
 ## Installation
 
@@ -14,7 +14,7 @@ python3 -m pip install lithops[oracle]
 
 ## Configuration
 
-1. Navigate to the [API keys page](https://cloud.oracle.com/identity/domains/my-profile/api-keys) and generate and download a new API signing keys. Omit this step if you already generated and downloaded one key. When you generate a new Key, oracle provides a sample config file with most of the required parameters by lithops. Copy all the `key:value` pairs and configure lithops as follows:
+1. Navigate to the [API keys page](https://cloud.oracle.com/identity/domains/my-profile/api-keys) and generate and download a new API signing key. Omit this step if you have already generated and downloaded a key. When you generate a new key, Oracle provides a sample config file with most of the parameters required by Lithops. Copy all the `key:value` pairs and configure Lithops as follows:
 
 ```yaml
 lithops:
@@ -39,7 +39,7 @@ oracle:
 |oracle | tenancy | |yes | Tenancy's OCID from [here](https://cloud.oracle.com/tenancy)|
 |oracle | key_file | |yes | Path to the private key (PEM) file |
 |oracle | compartment_id | |yes | Compartment's ID from [here](https://cloud.oracle.com/identity/compartments)|
-|oracle | tenancy_namespace | |no | Auto-generated Object Storage namespace string of the tenancy. You cand find it [here](https://cloud.oracle.com/tenancy), under *Object storage namespace*|
+|oracle | tenancy_namespace | |no | Auto-generated Object Storage namespace string of the tenancy. You can find it [here](https://cloud.oracle.com/tenancy), under *Object storage namespace*|
 
 ## Summary of configuration keys for Oracle Object Storage Service :
 

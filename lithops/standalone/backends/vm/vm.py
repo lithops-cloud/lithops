@@ -21,7 +21,7 @@ import time
 from lithops.standalone.utils import StandaloneMode
 from lithops.version import __version__
 from lithops.constants import COMPUTE_CLI_MSG
-from lithops.util.ssh_client import SSHClient
+from lithops.util.ssh_client import SSHClient, ssh_boot_status_message
 from lithops.standalone import LithopsValidationError
 
 logger = logging.getLogger(__name__)
@@ -126,7 +126,7 @@ class VMInstance:
         except LithopsValidationError as e:
             raise e
         except Exception as e:
-            logger.debug(f'ssh to {self.public_ip} failed: {e}')
+            logger.debug(f'SSH to {self.public_ip}: {ssh_boot_status_message(e)}')
             self.del_ssh_client()
             return False
         return True

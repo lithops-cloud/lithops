@@ -13,7 +13,7 @@ Lithops with OpenStack Swift as storage backend.
 
 ## Configuration
 
-4. Edit your lithops config file and add the following keys:
+1. Edit your Lithops config file and add the following keys:
 
 ```yaml
     lithops:
@@ -35,7 +35,7 @@ Lithops with OpenStack Swift as storage backend.
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|swift | storage_bucket | | yes | The name of a container that exists in you account. This will be used by Lithops for intermediate data. If set, this will overwrite the `storage_bucket` set in `lithops` section |
+|swift | storage_bucket | | yes | The name of a container that exists in your account. This will be used by Lithops for intermediate data. If set, this will overwrite the `storage_bucket` set in the `lithops` section |
 |swift | auth_url | |yes | The keystone endpoint for authentication |
 |swift | region | |yes | The region of your container |
 |swift | project_id | |yes | The Project ID |

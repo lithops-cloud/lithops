@@ -2,9 +2,9 @@
 
 The runtime is the place where the functions are executed. In Google Cloud Run, runtimes are based on container images.
 
-Google Cloud Run requires container images to be pushed to Google Cloud Container Registry (images pushed to Dockerhub are not permitted).
+Google Cloud Run requires container images to be in a registry allowed by your project (typically [Artifact Registry](https://cloud.google.com/artifact-registry/docs/docker/overview); images on Docker Hub are not permitted unless you configure [private registries](https://cloud.google.com/run/docs/deploying#images)).
 
-Lithops automatically tags and pushes the image to GCR with authentication from the service account key file. 
+Lithops automatically tags and pushes the image to Artifact Registry (`REGION-docker.pkg.dev/PROJECT/REPOSITORY/...`) using the service account key file. Create a Docker repository in Artifact Registry (see the main docs) or set `artifact_registry_repository` in config. 
 
 If you don't have an already built runtime, the default runtime is built the first time you execute a function. Lithops automatically detects the Python version of your environment and deploys the default runtime based on it.
 
@@ -34,7 +34,7 @@ import lithops
 pw = lithops.FunctionExecutor(runtime_memory=512)
 ```
 
-By default, Lithops uses 1vCPU for the Google Cloud Run runtimes. However, you can change it in the `config` by setting the appropiate vCPU size in vCPUs units.
+By default, Lithops uses 1 vCPU for Google Cloud Run runtimes. You can change it in the `config` by setting `runtime_cpu`.
 
 ```yaml
 gcp_cloudrun:
@@ -47,7 +47,7 @@ gcp_cloudrun:
 
     If you need some Python modules (or other system libraries) which are not included in the default container image, it is possible to build your own Lithops runtime with all of them.
 
-    This alternative usage is based on to build a local container image, deploy it to GCR and use it as a Lithops base runtime.
+    This alternative usage is based on building a local container image, deploying it to Artifact Registry, and using it as a Lithops base runtime.
     Project provides some skeletons of Docker images, for example:
 
     * [Dockerfile](Dockerfile) 
@@ -55,7 +55,7 @@ gcp_cloudrun:
     To build your own runtime, first install the Docker CE version in your client machine. You can find the instructions [here](https://docs.docker.com/get-docker/). If you already have Docker installed omit this step.
 
     Update the Dockerfile that better fits to your requirements with your required system packages and Python modules.
-    If you need another Python version, for example Python 3.12, you must change the initial line of the Dockefile.
+    If you need another Python version, for example Python 3.12, you must change the initial line of the Dockerfile.
     
     For example, we will add `PyTorch` to our Lithops runtime. The Dockerfile would look like this:
     ```dockerfile
@@ -80,17 +80,16 @@ gcp_cloudrun:
             cloudpickle \
             ps-mem \
             tblib \
-            namegenerator \
             torch \
             torchvision \
             google-cloud-storage \
             google-api-python-client \
             google-auth
     
-    ENV PYTHONUNBUFFERED TRUE
+    ENV PYTHONUNBUFFERED=TRUE
     
     # Copy Lithops proxy and lib to the container image.
-    ENV APP_HOME /lithops
+    ENV APP_HOME=/lithops
     WORKDIR $APP_HOME
     
     COPY lithops_cloudrun.zip .

@@ -1,12 +1,12 @@
 Apache Airflow
 ==============
 
-Airflow is a platform created by the community to programmatically author, schedule and monitor workflows.
-The Airflow/Lithops integration allows Airflow users to keep all of their Ray code in Python functions and
-define task dependencies by moving data through python functions.
+Airflow is a platform created by the community to programmatically author, schedule, and monitor workflows.
+The Airflow/Lithops integration allows Airflow users to keep all of their Lithops code in Python functions and
+define task dependencies by moving data through Python functions.
 
 
-Refer to the `integration repository <https://github.com/lithops-cloud/airflow-plugin>`_ .
+Refer to the `integration repository <https://github.com/lithops-cloud/airflow-plugin>`_.
 
 Examples
 --------
@@ -18,7 +18,7 @@ Define a function in a separate file (``my_functions.py``):
 .. code:: python
 
     def add(x, y):
-	    return x + y
+        return x + y
 
 
 Import the Lithops operator and the function, and create the DAG to execute:
@@ -48,7 +48,7 @@ Import the Lithops operator and the function, and create the DAG to execute:
 
     mult_num_map = LithopsMapOperator(
         task_id='mult_num_map',
-        map_function=example_functions.add_num,
+        map_function=add,
         iterdata_from_task={'a': 'gen_list'},
         extra_args={'b': 10},
         dag=dag

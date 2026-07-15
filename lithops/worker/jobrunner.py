@@ -234,7 +234,8 @@ class JobRunner:
             logger.info(f"Going to execute '{str(fn_name)}()'")
             print('---------------------- FUNCTION LOG ----------------------')
             function_start_tstamp = time.time()
-            result = func(**data)
+            args, kwargs = _prepare_args(func, data)
+            result = func(*args, **kwargs)
             function_end_tstamp = time.time()
             print('----------------------------------------------------------')
             logger.info("Success function execution")
@@ -310,3 +311,28 @@ class JobRunner:
                 self.stats.write("worker_result_upload_time", round(output_upload_end_tstamp - output_upload_start_tstamp, 8))
             self.jobrunner_conn.send("Finished")
             logger.info("Process finished")
+
+
+def _prepare_args(func, data):
+    # Convert the "data" envelope into normal *args/**kwargs,
+    # respecting the actual var-length parameter names of `func`.
+    func_sig = inspect.signature(func)
+    var_pos_name = None
+    var_kw_name = None
+
+    for name, param in func_sig.parameters.items():
+        if param.kind == inspect.Parameter.VAR_POSITIONAL:
+            var_pos_name = name
+        elif param.kind == inspect.Parameter.VAR_KEYWORD:
+            var_kw_name = name
+
+    payload = dict(data)
+
+    # Extract var-positional argument value if present
+    args = payload.pop(var_pos_name) or () if var_pos_name in payload else ()
+    # Extract var-keyword argument value if present
+    kwargs = payload.pop(var_kw_name) or {} if var_kw_name in payload else {}
+    # Any remaining keys become normal keyword arguments
+    kwargs.update(payload)
+
+    return args, kwargs

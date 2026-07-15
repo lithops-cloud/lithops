@@ -19,11 +19,11 @@ python3 -m pip install lithops[gcp]
 5. Click on *Create Service Account*. Name the service account `lithops-executor` or similar. Then click on *Create*.
 
 6. Add the following roles to the service account:
- - Service Accounts --> Service Account User
- - Cloud Run --> Cloud Run Admin
- - Cloud Storage -->Storage Admin
+   - Service Accounts --> Service Account User
+   - Cloud Run --> Cloud Run Admin
+   - Cloud Storage --> Storage Admin
 
-7. Click on *Continue*. Then, click on *Create key*. Select *JSON* and then *Create*. Download the JSON file to a secure location in you computer. Click *Done*.
+7. Click on *Continue*. Then, click on *Create key*. Select *JSON* and then *Create*. Download the JSON file to a secure location on your computer. Click *Done*.
 
 8. Enable the **Cloud Build API** : Navigate to *APIs & services* tab on the menu. Click *ENABLE APIS AND SERVICES*. Look for "Cloud Build API" at the search bar. Click *Enable*.
 
@@ -31,9 +31,32 @@ python3 -m pip install lithops[gcp]
 
 10. Enable the **Artifact Registry API**: Navigate to *APIs & services* tab on the menu. Click *ENABLE APIS AND SERVICES*. Look for "Artifact Registry API" at the search bar. Click *Enable*.
 
+11. Create a **Docker** repository in Artifact Registry (in the same region as Cloud Run), for example named `lithops`, or set `artifact_registry_repository` in config to match your repository name. From a shell with `gcloud` and the correct project:
+
+```bash
+gcloud artifacts repositories create lithops \
+  --repository-format=docker \
+  --location=<REGION_NAME> \
+  --description="Lithops Cloud Run runtimes"
+```
+
+Grant the service account **Artifact Registry Writer** (or **Artifact Registry Create-on-push Writer** if you prefer) so it can push images.
+
+Example command:
+
+```bash
+gcloud artifacts repositories add-iam-policy-binding gcf-artifacts \
+  --location=us-east1 \
+  --project=lithops-dev \
+  --member="serviceAccount:lithops-executor@lithops-dev.iam.gserviceaccount.com" \
+  --role="roles/artifactregistry.writer"
+```
+
+Replace `gcf-artifacts`, `us-east1`, `lithops-dev`, and the service account email with your own values.
+
 ## Configuration
 
-1. Edit your lithops config and add the following keys:
+1. Edit your Lithops config and add the following keys:
 
 ```yaml
     lithops:
@@ -59,17 +82,19 @@ python3 -m pip install lithops[gcp]
 |gcp_cloudrun | region | |no | Region name (e.g. `us-east1`). Lithops will use the region set under the `gcp` section if it is not set here |
 |gcp_cloudrun | min_workers | 0 | no | Minimum number of workers of a given runtime to keep in warm status|
 |gcp_cloudrun | max_workers | 1000 | no | Maximum number of workers to scale a given runtime|
-|gcp_cloudrun | worker_processes | 1 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker. It is recommendable to set this value to the same number of CPUs of the container. |
+|gcp_cloudrun | worker_processes | 1 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker. It is recommended to set this value to the same number of CPUs as the container. |
 |gcp_cloudrun | runtime |  |no | Container image name|
 |gcp_cloudrun | runtime_cpu | 0.25 |no | CPU limit. Default 0.25vCPU |
 |gcp_cloudrun | runtime_memory | 256 |no | Memory limit in MB. Default 256Mi |
 |gcp_cloudrun | runtime_timeout | 300 |no | Runtime timeout in seconds. Default 5 minutes |
 |gcp_cloudrun | trigger | https  | no | Currently it supports 'https' trigger|
 |gcp_cloudrun | invoke_pool_threads | 100 |no | Number of concurrent threads used for invocation |
-|gcp_cloudrun | runtime_include_function | False | no | If set to true, Lithops will automatically build a new runtime, including the function's code, instead of transferring it through the storage backend at invocation time. This is useful when the function's code size is large (in the order of 10s of MB) and the code does not change frequently |
+|gcp_cloudrun | runtime_include_function | False | no | If set to true, Lithops will automatically build a new runtime, including the function's code, instead of transferring it through the storage backend at invocation time. This is useful when the function's code size is large (on the order of tens of MB) and the code does not change frequently |
+|gcp_cloudrun | docker_server | pkg.dev | no | Marker for [Artifact Registry](https://cloud.google.com/artifact-registry/docs/docker/names) default image names (`REGION-docker.pkg.dev/PROJECT/REPOSITORY/IMAGE`). |
+|gcp_cloudrun | artifact_registry_repository | lithops | no | Docker repository name in Artifact Registry (must exist under your project in the configured region). |
 
 ## Test Lithops
-Once you have your compute and storage backends configured, you can run a hello world function with:
+Once you have your compute and storage backends configured, you can run a Hello World function with:
 
 ```bash
 lithops hello -b gcp_cloudrun -s gcp_storage
