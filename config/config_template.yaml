@@ -90,6 +90,7 @@
     #env_type: FARGATE_SPOT               # One of: EC2, SPOT, FARGATE, FARGATE_SPOT
     #env_max_cpus: 10                     # Max total vCPUs of the compute environment
     #instance_role: <INSTANCE_ROLE_ARN>   # Mandatory for env_type EC2 / SPOT
+    #instance_types: ['optimal']          # EC2/SPOT only: list of instance types/families, or ['optimal']
     #service_role: <SERVICE_ROLE_ARN>
     #assign_public_ip: True
     #runtime: <RUNTIME_NAME>

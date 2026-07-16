@@ -129,6 +129,13 @@ def load_config(config_data):
     if config_data['aws_batch']['env_type'] in {'EC2', 'SPOT'}:
         if 'instance_role' not in config_data['aws_batch']:
             raise Exception("'instance_role' mandatory for EC2 or SPOT environments")
+        if 'instance_types' in config_data['aws_batch']:
+            it = config_data['aws_batch']['instance_types']
+            if not isinstance(it, list) or not all(isinstance(x, str) and x for x in it):
+                raise Exception(
+                    "'instance_types' must be a list of strings, e.g. "
+                    "['m5.large','c5.xlarge'], ['m5'], or ['optimal']"
+                )
 
     config_data['aws_batch']['max_workers'] = config_data['aws_batch']['env_max_cpus'] \
         // config_data['aws_batch']['runtime_cpu']
