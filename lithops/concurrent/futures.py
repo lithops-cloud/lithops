@@ -182,9 +182,11 @@ def _failure_message(lf):
 
 
 def _unknown_state_error(lf):
+    # Not a BrokenExecutor: one call was lost, the executor itself is fine
+    # and still takes work
     call_id = getattr(lf, 'call_id', None)
     where = f' (call {call_id})' if call_id else ''
-    return BrokenExecutor(
+    return RuntimeError(
         f'Lithops lost track of the activation{where}: it is marked done '
         'but never reported a status, so there is no result to read'
     )
@@ -198,6 +200,26 @@ def _storage_of(executor):
     return getattr(inner, 'internal_storage', None)
 
 
+# One entry per (class, method) pair, so the signature of a Lithops future is
+# only ever read once however many calls go through it
+_TAKES_STORAGE = {}
+
+
+def _accepts_storage(fn):
+    key = (type(getattr(fn, '__self__', fn)), getattr(fn, '__name__', None))
+    cached = _TAKES_STORAGE.get(key)
+    if cached is None:
+        try:
+            params = inspect.signature(fn).parameters
+        except (TypeError, ValueError):
+            params = {}
+        cached = _TAKES_STORAGE[key] = 'internal_storage' in params or any(
+            param.kind is inspect.Parameter.VAR_KEYWORD
+            for param in params.values()
+        )
+    return cached
+
+
 def _with_storage(fn, storage, **kwargs):
     """
     Calls a Lithops future method, handing it the internal storage handler
@@ -205,15 +227,7 @@ def _with_storage(fn, storage, **kwargs):
     it, and a blanket ``except TypeError`` would also swallow one raised
     inside the call and run it a second time
     """
-    try:
-        params = inspect.signature(fn).parameters
-    except (TypeError, ValueError):
-        params = {}
-    accepts_storage = 'internal_storage' in params or any(
-        param.kind is inspect.Parameter.VAR_KEYWORD
-        for param in params.values()
-    )
-    if accepts_storage and storage is not None:
+    if storage is not None and _accepts_storage(fn):
         kwargs['internal_storage'] = storage
     return fn(**kwargs)
 

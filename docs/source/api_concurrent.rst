@@ -93,6 +93,8 @@ The *API* matches ``concurrent.futures``. The *runtime* is Lithops:
   ``include_modules``, ``exclude_modules``) are set on the executor. Keyword
   arguments to ``submit(fn, *args, **kwargs)`` are passed to ``fn``.
 * Each ``Future`` also exposes ``lithops_future`` and ``stats``.
+* A call Lithops loses track of raises ``RuntimeError`` rather than handing
+  back a silent ``None``. It fails that one future; the executor stays usable.
 * ``RetryingFunctionExecutor`` cannot be wrapped. Its retries are driven from
   its own ``wait()``, which this adapter never calls, so wrapping it would
   quietly give you no retries at all. Wrap the ``FunctionExecutor`` it holds.

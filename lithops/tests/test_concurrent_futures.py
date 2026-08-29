@@ -334,13 +334,18 @@ class TestSubmit:
             assert fut.result(timeout=5) == 4
 
     def test_lost_activation_raises_instead_of_returning_none(self):
-        """A future Lithops marks Unknown is done, but has no result."""
+        """
+        A future Lithops marks Unknown is done, but has no result. It is one
+        lost call, not a dead executor, so it must not raise BrokenExecutor
+        """
         lf = FakeLithopsFuture(finished=False)
         with _adapter(FakeInnerExecutor(lf)) as ex:
             fut = ex.submit(pow, 2, 2)
             lf.lose()
-            with pytest.raises(BrokenExecutor, match='lost track'):
+            with pytest.raises(RuntimeError, match='lost track') as raised:
                 fut.result(timeout=5)
+            assert not isinstance(raised.value, BrokenExecutor)
+            assert ex.submit(pow, 2, 2) is not None
 
     def test_missing_output_surfaces_as_an_error(self):
         """result() flips the future to Error when the output never lands."""
@@ -1023,8 +1028,10 @@ class TestConcurrentFuturesLive:
 
         native = count(with_native_api)
         adapter = count(with_adapter)
-        # Same order of magnitude, with room for the jitter of two live runs
-        assert adapter <= native * 1.5 + 20, (adapter, native)
+        # Generous, on purpose: the regression this guards against is the
+        # adapter reading every status every round, which is an order of
+        # magnitude, not the drift between two live runs on a busy machine
+        assert adapter <= native * 3 + 50, (adapter, native)
 
 
 def _sleep_and_double(x):

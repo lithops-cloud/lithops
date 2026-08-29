@@ -148,7 +148,7 @@ Supported backends by platform:
 
 ## High-level API
 
-Lithops provides three high-level compute APIs and two high-level storage APIs.
+Lithops provides a native compute API, two drop-in replacements for standard Python APIs, and two storage APIs.
 
 ### [Core API](docs/source/api_futures.rst)
 
