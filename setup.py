@@ -70,7 +70,8 @@ extras_require = {
     'joblib': [
         'joblib',
         'diskcache',
-        'numpy'
+        'numpy',
+        'redis'
     ],
     'plotting': [
         'pandas',

@@ -35,6 +35,8 @@ import subprocess as sp
 from enum import Enum
 from contextlib import closing
 
+from typing import List
+
 from lithops import constants
 from lithops.version import __version__
 
@@ -42,12 +44,46 @@ from lithops.version import __version__
 logger = logging.getLogger(__name__)
 
 
+class ShutdownSafeStreamHandler(logging.StreamHandler):
+    """StreamHandler that does not traceback when the stream is already closed."""
+
+    def emit(self, record):
+        try:
+            stream = self.stream
+            if stream is None or getattr(stream, 'closed', False):
+                return
+            msg = self.format(record)
+            stream.write(msg + self.terminator)
+            self.flush()
+        except RecursionError:
+            # handleError() logs, so it would recurse again. Same as logging
+            raise
+        except (ValueError, OSError):
+            # The stream was closed between the check above and the write
+            return
+        except Exception:
+            self.handleError(record)
+
+
 def uuid_str():
     return str(uuid.uuid4())
 
 
+def _as_future_list(fs):
+    """Wrap a single future; leave list / FuturesList unchanged."""
+    return fs if isinstance(fs, list) else [fs]
+
+
+def _future_id(fut):
+    return (fut.executor_id, fut.job_id, fut.call_id)
+
+
 def create_executor_id(lenght=6):
-    """ Creates an executor ID. """
+    """
+    Creates the ID of a new executor. Executors of the same session share the
+    session ID and are told apart by a counter, both kept in the environment
+    so that they survive across processes
+    """
     if '__LITHOPS_SESSION_ID' in os.environ:
         session_id = os.environ['__LITHOPS_SESSION_ID']
     else:
@@ -60,14 +96,53 @@ def create_executor_id(lenght=6):
         exec_num = 0
     os.environ['__LITHOPS_TOTAL_EXECUTORS'] = str(exec_num)
 
-    return '{}-{}'.format(session_id, exec_num)
+    return f'{session_id}-{exec_num}'
+
+
+# Carries the monitoring queues of an executor down to the workers, so that an
+# executor created inside one of them can extend the chain
+MONITORING_QUEUES_ENV = '__LITHOPS_MONITORING_QUEUES'
+
+
+def monitoring_queue_name(executor_id: str) -> str:
+    """Returns the name of the queue an executor is monitored through"""
+    return f'lithops-{executor_id}'
+
+
+def monitoring_queues(executor_id: str) -> List[str]:
+    """
+    Returns every queue a call status of this executor has to be published to:
+    the queue of each executor up the chain, ending with this one.
+
+    The chain travels in the environment instead of being read back out of the
+    executor id, because the id does not say how deep it is: a worker adds the
+    job and the call to the session id while a remote invoker adds only the
+    job, so the same number of tokens can stand for different chains
+    """
+    parent_queues = []
+    raw_queues = os.environ.get(MONITORING_QUEUES_ENV)
+    if raw_queues:
+        try:
+            parent_queues = list(json.loads(raw_queues))
+        except ValueError:
+            logger.warning(
+                f'Ignoring a malformed {MONITORING_QUEUES_ENV}: {raw_queues}'
+            )
+
+    queue = monitoring_queue_name(executor_id)
+    if queue in parent_queues:
+        # The remote invoker builds the payload of the job it spawns from
+        # inside a worker that already exported this very chain, so without
+        # this every remotely invoked task would report twice to the client
+        return parent_queues
+    return parent_queues + [queue]
 
 
 def get_executor_id():
-    """ retrieves the current executor ID. """
+    """Returns the ID of the last executor created in this session"""
     session_id = os.environ['__LITHOPS_SESSION_ID']
     exec_num = os.environ['__LITHOPS_TOTAL_EXECUTORS']
-    return '{}-{}'.format(session_id, exec_num)
+    return f'{session_id}-{exec_num}'
 
 
 def iterchunks(lst, n):
@@ -77,8 +152,9 @@ def iterchunks(lst, n):
 
 
 def agg_data(data_strs):
-    """Auxiliary function that aggregates data of a job to a single
-    byte string.
+    """
+    Concatenates the data of every call of a job into a single byte string,
+    and returns it along with the byte range that each call occupies
     """
     ranges = []
     pos = 0
@@ -90,7 +166,7 @@ def agg_data(data_strs):
 
 
 def create_futures_list(futures, executor):
-    """creates a new FuturesList an initiates its attrs"""
+    """Creates a new FuturesList bound to the executor that produced it"""
     fl = FuturesList(futures)
     fl.config = executor.config
     fl.executor = executor
@@ -99,13 +175,27 @@ def create_futures_list(futures, executor):
 
 
 class FuturesList(list):
+    """
+    List of futures that can be mapped over again, so that jobs can be
+    chained. Chaining replaces the contents with the futures of the new job,
+    while alt_list keeps every future of the chain for wait() and get_result()
+    """
+
+    # Defaults for lists that were not built by create_futures_list, and for
+    # the ones rehydrated by __reduce__, which drops the executor
+    executor = None
+    config = None
 
     def _create_executor(self):
         if not self.executor:
             from lithops import FunctionExecutor
             self.executor = FunctionExecutor(config=self.config)
 
+    def _all_futures(self):
+        return self.alt_list if hasattr(self, 'alt_list') else self
+
     def _extend_futures(self, fs):
+        # Only the last job of the chain produces the output of the chain
         for fut in self:
             fut._produce_output = False
         if not hasattr(self, 'alt_list'):
@@ -127,67 +217,85 @@ class FuturesList(list):
         self._create_executor()
         if sync:
             self.executor.wait(self)
-        fs = self.executor.map_reduce(map_function, self, reduce_function, **kwargs)
+        fs = self.executor.map_reduce(
+            map_function, self, reduce_function, **kwargs
+        )
         self._extend_futures(fs)
         return self
 
     def wait(self, **kwargs):
         self._create_executor()
-        fs_tt = self.alt_list if hasattr(self, 'alt_list') else self
-        return self.executor.wait(fs_tt, **kwargs)
+        return self.executor.wait(self._all_futures(), **kwargs)
 
     def get_result(self, **kwargs):
         self._create_executor()
-        fs_tt = self.alt_list if hasattr(self, 'alt_list') else self
-        return self.executor.get_result(fs_tt, **kwargs)
+        return self.executor.get_result(self._all_futures(), **kwargs)
 
     def __reduce__(self):
+        # The executor is not picklable, and a rehydrated list creates its own
         self.executor = None
         return super().__reduce__()
 
 
-def get_default_backend(mode):
-    """ Return lithops execution backend """
+_MODE_TO_DEFAULT_BACKEND = {
+    constants.LOCALHOST: constants.LOCALHOST,
+    constants.SERVERLESS: constants.SERVERLESS_BACKEND_DEFAULT,
+    constants.STANDALONE: constants.STANDALONE_BACKEND_DEFAULT,
+}
 
-    if mode == constants.LOCALHOST:
-        return constants.LOCALHOST
-    elif mode == constants.SERVERLESS:
-        return constants.SERVERLESS_BACKEND_DEFAULT
-    elif mode == constants.STANDALONE:
-        return constants.STANDALONE_BACKEND_DEFAULT
-    elif mode:
-        raise Exception("Unknown exeution mode: {}".format(mode))
+
+def get_default_backend(mode):
+    """Returns the compute backend an execution mode defaults to"""
+    if mode in _MODE_TO_DEFAULT_BACKEND:
+        return _MODE_TO_DEFAULT_BACKEND[mode]
+    if mode:
+        raise Exception(f"Unknown execution mode: {mode}")
 
 
 def get_mode(backend):
-    """ Return lithops execution mode """
-
+    """Returns the execution mode a compute backend belongs to"""
     if backend is None:
         return constants.MODE_DEFAULT
     if backend == constants.LOCALHOST:
         return constants.LOCALHOST
-    elif backend in constants.SERVERLESS_BACKENDS:
+    if backend in constants.SERVERLESS_BACKENDS:
         return constants.SERVERLESS
-    elif backend in constants.STANDALONE_BACKENDS:
+    if backend in constants.STANDALONE_BACKENDS:
         return constants.STANDALONE
-    elif backend:
-        raise Exception("Unknown compute backend: {}".format(backend))
+    if backend:
+        raise Exception(f"Unknown compute backend: {backend}")
+
+
+def log_prefix(executor_id, job_id=None, call_id=None) -> str:
+    """Identity prefix used in Lithops log messages"""
+    parts = [f'ExecutorID {executor_id}']
+    if job_id is not None:
+        parts.append(f'JobID {job_id}')
+    if call_id is not None:
+        parts.append(f'CallID {call_id}')
+    return ' | '.join(parts)
 
 
 def setup_lithops_logger(log_level=constants.LOGGER_LEVEL,
                          log_format=constants.LOGGER_FORMAT,
                          stream=None, filename=None):
-    """Setup logging for lithops."""
+    """
+    Configures the lithops logger. A log level of None, or 'none', leaves the
+    logging of the process untouched
+    """
     if log_level is None or str(log_level).lower() == 'none':
         return
 
     if stream is None:
         stream = constants.LOGGER_STREAM
 
+    # Both handlers are always declared, so the unused FileHandler is pointed
+    # at os.devnull rather than at a file nobody asked for
+    log_to_file = filename is not None
     if filename is None:
         filename = os.devnull
 
-    if type(log_level) is str:
+    if isinstance(log_level, str):
         log_level = logging.getLevelName(log_level.upper())
 
     config_dict = {
@@ -202,7 +310,7 @@ def setup_lithops_logger(log_level=constants.LOGGER_LEVEL,
             'console_handler': {
                 'level': log_level,
                 'formatter': 'standard',
-                'class': 'logging.StreamHandler',
+                'class': 'lithops.utils.ShutdownSafeStreamHandler',
                 'stream': stream
             },
             'file_handler': {
@@ -222,116 +330,151 @@ def setup_lithops_logger(log_level=constants.LOGGER_LEVEL,
         }
     }
 
-    if filename is not os.devnull:
+    if log_to_file:
         config_dict['loggers']['lithops']['handlers'] = ['file_handler']
 
     logging.config.dictConfig(config_dict)
 
 
-def create_handler_zip(dst_zip_location, entry_point_files, entry_point_name=None):
-    """Create the zip package that is uploaded as a function"""
+_SKIP_HANDLER_ZIP_DIRS = frozenset({'__pycache__', '.pytest_cache'})
 
-    logger.debug("Creating function handler zip in {}".format(dst_zip_location))
 
-    def add_folder_to_zip(zip_file, full_dir_path, sub_dir=''):
-        for file in os.listdir(full_dir_path):
-            full_path = os.path.join(full_dir_path, file)
-            if os.path.isfile(full_path):
-                zip_file.write(full_path, os.path.join('lithops', sub_dir, file))
-            elif os.path.isdir(full_path) and '__pycache__' not in full_path:
-                add_folder_to_zip(zip_file, full_path, os.path.join(sub_dir, file))
+def _skip_in_handler_zip(path: str, dst_zip_location: str) -> bool:
+    # The zip is often written inside the package directory that is being
+    # zipped, so it must not add itself, nor any other package left there
+    return os.path.abspath(path) == dst_zip_location or path.endswith('.zip')
 
+
+def _add_folder_to_handler_zip(
+    zip_file: zipfile.ZipFile,
+    full_dir_path: str,
+    dst_zip_location: str,
+    sub_dir: str = ''
+) -> None:
+    """Adds a directory tree to the zip, under the lithops/ prefix"""
+    for name in os.listdir(full_dir_path):
+        full_path = os.path.join(full_dir_path, name)
+        if os.path.isdir(full_path):
+            if name not in _SKIP_HANDLER_ZIP_DIRS:
+                _add_folder_to_handler_zip(
+                    zip_file,
+                    full_path,
+                    dst_zip_location,
+                    os.path.join(sub_dir, name),
+                )
+        elif os.path.isfile(full_path):
+            if not _skip_in_handler_zip(full_path, dst_zip_location):
+                zip_file.write(
+                    full_path, os.path.join('lithops', sub_dir, name)
+                )
+
+
+def create_handler_zip(
+    dst_zip_location, entry_point_files, entry_point_name=None
+):
+    """
+    Creates the zip package that is uploaded as a function: the entry points
+    at its root, and the whole lithops package under lithops/
+    """
+    dst_zip_location = os.path.abspath(dst_zip_location)
+    logger.debug(f"Creating function handler zip in {dst_zip_location}")
+
+    if not isinstance(entry_point_files, list):
+        entry_point_files = [entry_point_files]
+
+    created = False
     try:
-        ep_files = entry_point_files if isinstance(entry_point_files, list) else [entry_point_files]
-        with zipfile.ZipFile(dst_zip_location, 'w', zipfile.ZIP_DEFLATED) as lithops_zip:
-            module_location = os.path.dirname(os.path.abspath(lithops.__file__))
-            for ep_file in ep_files:
+        with zipfile.ZipFile(
+            dst_zip_location, 'w', zipfile.ZIP_DEFLATED
+        ) as lithops_zip:
+            module_location = os.path.dirname(
+                os.path.abspath(lithops.__file__)
+            )
+            for ep_file in entry_point_files:
                 ep_name = entry_point_name or os.path.basename(ep_file)
                 lithops_zip.write(ep_file, ep_name)
-            add_folder_to_zip(lithops_zip, module_location)
-
+            _add_folder_to_handler_zip(
+                lithops_zip, module_location, dst_zip_location
+            )
+        created = True
+        zip_size = os.path.getsize(dst_zip_location)
+        logger.debug(
+            f'Function handler zip created - Size: {sizeof_fmt(zip_size)}'
+        )
     except Exception as e:
-        raise Exception(f'Unable to create the {dst_zip_location} package: {e}')
+        raise Exception(
+            f'Unable to create the {dst_zip_location} package: {e}'
+        ) from e
+    finally:
+        # A half written zip would be uploaded and fail at invocation time
+        if not created and os.path.exists(dst_zip_location):
+            os.remove(dst_zip_location)
 
 
-def verify_runtime_name(runtime_name):
-    """Check if the runtime name has a correct formating"""
+def verify_runtime_name(runtime_name: str) -> None:
+    """Asserts that the runtime name can be used as a container image name"""
     assert re.match("^[A-Za-z0-9_/.:-]*$", runtime_name), \
         f'Runtime name "{runtime_name}" not valid'
 
 
 def timeout_handler(error_msg, signum, frame):
+    """Signal handler that turns an alarm into a TimeoutError"""
     raise TimeoutError(error_msg)
 
 
-def version_str(version_info):
-    """Format the python version information"""
-    return "{}.{}".format(version_info[0], version_info[1])
+def version_str(version_info) -> str:
+    """Formats a sys.version_info tuple as major.minor"""
+    return f"{version_info[0]}.{version_info[1]}"
 
 
-def is_unix_system():
-    """Check if the current OS is UNIX"""
-    curret_system = platform.system()
-    return curret_system != 'Windows'
+def is_unix_system() -> bool:
+    """Checks if the current OS is UNIX"""
+    return platform.system() != 'Windows'
 
 
-def is_linux_system():
-    """Check if the current OS is LINUX"""
-    curret_system = platform.system().lower()
-    if curret_system == "linux":
-        return True
-    else:
+def is_linux_system() -> bool:
+    """Checks if the current OS is LINUX"""
+    return platform.system().lower() == "linux"
+
+
+def is_lithops_worker() -> bool:
+    """Checks if the current execution is within a lithops worker"""
+    return 'LITHOPS_WORKER' in os.environ
+
+
+def is_object_processing_function(map_function) -> bool:
+    """
+    Checks if a function contains the obj parameter, which means
+    the user wants to activate the data processing logic
+    """
+    func_sig = inspect.signature(map_function)
+    return 'obj' in func_sig.parameters
+
+
+def is_notebook() -> bool:
+    """Checks if the current execution is within a Jupyter notebook"""
+    try:
+        return get_ipython().__class__.__name__ == 'ZMQInteractiveShell'
+    except NameError:
         return False
 
 
-def is_lithops_worker():
-    """
-    Checks if the current execution is within a lithops worker
-    """
-    if 'LITHOPS_WORKER' in os.environ:
-        return True
-    return False
-
-
-def is_object_processing_function(map_function):
-    """
-    Checks if a function contains the obj parameter, which means
-    the user wants to activate the data processing logic.
-    """
-    func_sig = inspect.signature(map_function)
-    return {'obj'} & set(func_sig.parameters)
-
-
-def is_notebook():
-    try:
-        shell = get_ipython().__class__.__name__
-        if shell == 'ZMQInteractiveShell':
-            return True   # Jupyter notebook or qtconsole
-        elif shell == 'TerminalInteractiveShell':
-            return False  # Terminal running IPython
-        else:
-            return False  # Other type (?)
-    except NameError:
-        return False      # Probably standard Python interpreter
-
-
 def convert_bools_to_string(extra_env):
-    """
-    Converts all booleans of a dictionary to a string
-    """
-    for key in extra_env:
-        if type(extra_env[key]) is bool:
-            extra_env[key] = str(extra_env[key])
+    """Converts every boolean value of a dictionary to a string, in place"""
+    for key, value in extra_env.items():
+        if isinstance(value, bool):
+            extra_env[key] = str(value)
 
     return extra_env
 
 
-def sizeof_fmt(num, suffix='B'):
+def sizeof_fmt(num, suffix='B') -> str:
+    """Formats a number of bytes with a binary unit prefix"""
     for unit in ['', 'Ki', 'Mi', 'Gi', 'Ti', 'Pi', 'Ei', 'Zi']:
         if abs(num) < 1024.0:
-            return "%3.1f%s%s" % (num, unit, suffix)
+            return f'{num:3.1f}{unit}{suffix}'
         num /= 1024.0
-    return "%.1f%s%s" % (num, 'Yi', suffix)
+    return f'{num:.1f}Yi{suffix}'
 
 
 def sdb_to_dict(item):
@@ -364,7 +507,8 @@ def b64str_to_bytes(str_data):
     return byte_data
 
 
-def get_docker_path():
+def get_docker_path() -> str:
+    """Returns the path of the docker command, or of podman as a fallback"""
     docker_path = shutil.which('docker')
     podman_path = shutil.which('podman')
     if not docker_path and not podman_path:
@@ -373,112 +517,134 @@ def get_docker_path():
     return docker_path or podman_path
 
 
+def _get_required_param(backend_config, backend: str, param: str):
+    if param not in backend_config:
+        raise Exception(
+            f'You must provide "{param}" param in config '
+            f'under "{backend}" section'
+        )
+    return backend_config[param]
+
+
 def get_default_container_name(backend, backend_config, runtime_name):
     """
-    Generates the default runtime image name
-    Used in serverless/kubernetes-based backends
+    Generates the default runtime image name, qualified with the registry the
+    backend is configured to use. Used in serverless and kubernetes backends
     """
     python_version = CURRENT_PY_VERSION.replace('.', '')
     img = f'{runtime_name}-v{python_version}:{__version__}'
 
     docker_server = backend_config['docker_server']
 
+    # Every registry qualifies the image with a different set of params, so
+    # they are recognised by their well known hostnames
     if 'docker.io' in docker_server:
         # Docker hub container registry
-        try:
-            docker_user = backend_config['docker_user']
-        except Exception:
-            raise Exception('You must provide "docker_user" param '
-                            f'in config under "{backend}" section')
+        docker_user = _get_required_param(
+            backend_config, backend, 'docker_user'
+        )
         return f'docker.io/{docker_user}/{img}'
 
     elif 'icr.io' in docker_server:
         # IBM container registry
-        try:
-            docker_namespace = backend_config['docker_namespace']
-        except Exception:
-            raise Exception('You must provide "docker_namespace" param'
-                            f'in config under "{backend}" section')
+        docker_namespace = _get_required_param(
+            backend_config, backend, 'docker_namespace'
+        )
         return f'{docker_server}/{docker_namespace}/{img}'
 
     elif 'pkg.dev' in docker_server:
         # Google Artifact Registry (Docker)
-        try:
-            region = backend_config['region']
-            project_name = backend_config['project_name']
-            repository = backend_config.get('artifact_registry_repository', 'lithops')
-        except Exception:
-            raise Exception('You must provide "region" and "project_name" params'
-                            'in config under "gcp" section')
+        if 'region' not in backend_config or 'project_name' not in backend_config:
+            raise Exception(
+                'You must provide "region" and "project_name" params in '
+                'config under "gcp" section'
+            )
+        region = backend_config['region']
+        project_name = backend_config['project_name']
+        repository = backend_config.get(
+            'artifact_registry_repository', 'lithops'
+        )
         return f'{region}-docker.pkg.dev/{project_name}/{repository}/{img}'
 
     else:
         return f'{docker_server}/{img}'
 
 
-def get_docker_username():
-    user = None
-    docker_path = get_docker_path()
+def _get_docker_desktop_username() -> str:
+    """Reads the registry user out of the Docker Desktop credential helper"""
+    cmd = (
+        "docker-credential-desktop list | jq -r 'to_entries[].key' | while "
+        "read; do docker-credential-desktop get <<<$REPLY; break; done"
+    )
+    try:
+        credentials = sp.check_output(
+            cmd, shell=True, encoding='UTF-8', stderr=sp.STDOUT
+        )
+        return json.loads(credentials)['Username']
+    except Exception:
+        raise Exception('Unable to get the Docker registry user')
 
-    docker_user_info = sp.check_output(
+
+def get_docker_username():
+    """Returns the user that docker/podman is logged in to the registry as"""
+    docker_path = get_docker_path()
+    docker_info = sp.check_output(
         f"{docker_path} info", shell=True,
         encoding='UTF-8', stderr=sp.STDOUT
     )
-    for line in docker_user_info.splitlines():
+
+    user = None
+    for line in docker_info.splitlines():
         if 'Username' in line:
-            _, useranme = line.strip().split(':')
-            user = useranme.strip()
+            _, username = line.strip().split(':')
+            user = username.strip()
 
-    if user is None:
-        try:
-            cmd = ("docker-credential-desktop list | jq -r 'to_entries[].key' | while "
-                   "read; do docker-credential-desktop get <<<$REPLY; break; done")
-            docker_user_info = sp.check_output(cmd, shell=True, encoding='UTF-8', stderr=sp.STDOUT)
-            docker_data = json.loads(docker_user_info)
-            user = docker_data['Username']
-        except Exception:
-            raise Exception('Unable to get the Docker registry user')
-
-    return user
+    return user if user is not None else _get_docker_desktop_username()
 
 
-def find_free_port():
+def find_free_port() -> int:
+    """Returns a port that is free at this instant"""
     with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
-        s.bind(('', 0))
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        s.bind(('', 0))
         return s.getsockname()[1]
 
 
+# Schemes that name a Lithops storage backend by its protocol
+_URL_SCHEME_ALIASES = {'cos': 'ibm_cos', 's3': 'aws_s3'}
+
+
 def split_object_url(obj_url):
+    """
+    Splits a data URL into its storage backend, bucket, prefix and object
+    name. A URL ending in '/' names a folder, so it has no object name
+    """
     if '://' in obj_url:
         sb, path = obj_url.split('://')
     else:
         sb = None
         path = obj_url
 
-    sb = 'ibm_cos' if sb == 'cos' else sb
-    sb = 'aws_s3' if sb == 's3' else sb
+    sb = _URL_SCHEME_ALIASES.get(sb, sb)
 
     bucket, full_key = path.split('/', 1) if '/' in path else (path, '')
 
     if full_key.endswith('/'):
-        prefix = ''.join(full_key.rsplit('/', 1))
-        obj_name = ''
-    elif full_key:
-        prefix, obj_name = full_key.rsplit('/', 1) if '/' in full_key else ('', full_key)
+        prefix, obj_name = full_key[:-1], ''
+    elif '/' in full_key:
+        prefix, obj_name = full_key.rsplit('/', 1)
     else:
-        prefix = ''
-        obj_name = ''
+        prefix, obj_name = '', full_key
 
     return sb, bucket, prefix, obj_name
 
 
 def split_path(path):
-
-    if (path.startswith("/")):
+    """Splits a storage path into its bucket and its key"""
+    if path.startswith("/"):
         path = path[1:]
     ind = path.find("/")
-    if (ind > 0):
+    if ind > 0:
         bucket_name = path[:ind]
         key = path[ind + 1:]
     else:
@@ -489,106 +655,108 @@ def split_path(path):
 
 def format_data(iterdata, extra_args):
     """
-    Converts iteradata to a list with extra_args
+    Converts iterdata to a list, appending extra_args to every element. The
+    element decides how: tuples are concatenated, dicts are merged
     """
-    # Format iterdata in a proper way
-    if type(iterdata) in [range, set]:
-        data = list(iterdata)
-    elif type(iterdata) is not list and type(iterdata) is not FuturesList:
-        data = [iterdata]
-    else:
-        data = iterdata
+    data = _as_iterdata_list(iterdata)
+    if not extra_args:
+        return data
 
-    if extra_args:
-        new_iterdata = []
-        for data_i in data:
+    new_iterdata = []
+    for data_i in data:
+        if type(data_i) is tuple:
+            if type(extra_args) is not tuple:
+                raise Exception(
+                    'extra_args must contain args in a tuple'
+                )
+            new_iterdata.append(data_i + extra_args)
+        elif type(data_i) is dict:
+            if type(extra_args) is not dict:
+                raise Exception(
+                    'extra_args must contain kwargs in a dictionary'
+                )
+            data_i.update(extra_args)
+            new_iterdata.append(data_i)
+        else:
+            new_iterdata.append((data_i, *extra_args))
+    return new_iterdata
 
-            if type(data_i) is tuple:
-                # multiple args
-                if type(extra_args) is not tuple:
-                    raise Exception('extra_args must contain args in a tuple')
-                new_iterdata.append(data_i + extra_args)
 
-            elif type(data_i) is dict:
-                # kwargs
-                if type(extra_args) is not dict:
-                    raise Exception('extra_args must contain kwargs in a dictionary')
-                data_i.update(extra_args)
-                new_iterdata.append(data_i)
-            else:
-                new_iterdata.append((data_i, *extra_args))
-        data = new_iterdata
+def _as_iterdata_list(iterdata):
+    if isinstance(iterdata, (range, set)):
+        return list(iterdata)
+    if isinstance(iterdata, list):
+        return iterdata
+    return [iterdata]
 
-    return data
+
+# Params that Lithops injects at invocation time, so the user is not expected
+# to provide them in the iterdata
+_INJECTED_ARGS = frozenset({'ibm_cos', 'storage', 'id', 'rabbitmq'})
+
+
+def _user_signature(func) -> inspect.Signature:
+    """Signature of a map function, without the params Lithops injects"""
+    func_sig = inspect.signature(func)
+    user_parameters = [
+        param
+        for name, param in func_sig.parameters.items()
+        if name not in _INJECTED_ARGS
+    ]
+    return func_sig.replace(parameters=user_parameters)
 
 
 def verify_args(func, iterdata, extra_args):
-
+    """
+    Binds every element of the iterdata to the params of the map function,
+    returning one kwargs dict per call
+    """
     if isinstance(iterdata, FuturesList):
-        # this is required for function chaining
+        # A chained job receives the future of the previous one, which is only
+        # bound to a param once the previous job finishes
         return [{'future': f} for f in iterdata]
 
     data = format_data(iterdata, extra_args)
+    func_sig = _user_signature(func)
 
-    # Verify parameters
-    non_verify_args = ['ibm_cos', 'storage', 'id', 'rabbitmq']
-    func_sig = inspect.signature(func)
-
-    new_parameters = [
-        param
-        for name, param in func_sig.parameters.items()
-        if name not in non_verify_args
-    ]
-    new_func_sig = func_sig.replace(parameters=new_parameters)
-
-    # Detect presence of **kwargs (with any name)
+    # A wrapper, such as a decorator, hides the params of the function behind
+    # **kwargs, so the names of a dict element cannot be checked against them
     has_var_keyword = any(
         p.kind == inspect.Parameter.VAR_KEYWORD
-        for p in new_func_sig.parameters.values()
+        for p in func_sig.parameters.values()
     )
 
     new_data = []
 
     for elem in data:
         if isinstance(elem, dict):
-            # If the function accepts **kwargs (any name), we cannot reliably
-            # enforce exact param name matching here, and we *want* to allow
-            # passing through arbitrary dicts (e.g., original function args)
-            # even when a decorator wrapper has **kwargs, etc.
-            if has_var_keyword:
-                new_data.append(elem)
-            elif set(expected_keys := list(new_func_sig.parameters)) <= set(elem):
-                # No **kwargs: enforce that the dict contains at least all
-                # required user parameters (excluding reserved ones).
+            if has_var_keyword or set(func_sig.parameters) <= set(elem):
                 new_data.append(elem)
             else:
                 raise ValueError(
-                    "Check the args names in the data. You provided these args: ",
-                    f"{list(elem)}, and the args must be: {expected_keys}",
+                    "Check the args names in the data. You provided these "
+                    f"args: {list(elem)}, and the args must be: "
+                    f"{list(func_sig.parameters)}"
                 )
         elif isinstance(elem, tuple):
-            new_elem = dict(new_func_sig.bind(*elem).arguments)
-            new_data.append(new_elem)
+            new_data.append(dict(func_sig.bind(*elem).arguments))
         else:
-            # single value (list, string, integer, dict, etc)
-            new_elem = dict(new_func_sig.bind(elem).arguments)
-            new_data.append(new_elem)
+            # A single value of any other type binds to the first param
+            new_data.append(dict(func_sig.bind(elem).arguments))
 
     return new_data
 
 
 class WrappedStreamingBody:
     """
-    Wrap boto3's StreamingBody object to provide enough Python fileobj functionality.
+    Wrap boto3's StreamingBody object to provide enough
+    Python fileobj functionality.
 
     from https://gist.github.com/debedb/2e5cbeb54e43f031eaf0
     """
     def __init__(self, sb, size):
-        # The StreamingBody we're wrapping
         self.sb = sb
-        # Initial position
         self.pos = 0
-        # Size of the object
         self.size = size
 
     def tell(self):
@@ -622,7 +790,6 @@ class WrappedStreamingBody:
                 retval = self.size
             else:
                 retval = offset
-        # print("In seek(%s, %s): %s, size is %s" % (offset, whence, retval, self.size))
 
         self.pos = retval
         return retval
@@ -637,49 +804,32 @@ class WrappedStreamingBody:
         return self.read(64 * 1024)
 
     def __getattr__(self, attr):
-        if attr == 'tell':
-            return self.tell
-        elif attr == 'seek':
-            return self.seek
-        elif attr == 'read':
-            return self.read
-        elif attr == 'readline':
-            return self.readline
-        elif attr == '__str__':
-            return self.__str__
-        elif attr == '__iter__':
-            return self.__iter__
-        elif attr == '__next__':
-            return self.__next__
-        else:
-            return getattr(self.sb, attr)
+        # Only reached for the attributes this wrapper does not define, so
+        # everything else of the fileobj protocol falls through to boto3
+        return getattr(self.sb, attr)
 
 
 class WrappedStreamingBodyPartition(WrappedStreamingBody):
     """
-    Wrap boto3's StreamingBody object to provide line integrity of the partitions
-    based on the newline character.
+    Wrap boto3's StreamingBody object to provide line
+    integrity of the partitions based on the newline
+    character.
     """
     def __init__(self, sb, size, byterange, newline='\n'):
         super().__init__(sb, size)
-        # Range of the chunk
         self.range = byterange
-        # New line character
         self.newline_char = newline.encode()
-        # The first chunk does not contain plusbyte
+        # Every chunk but the first one reads one byte early, so that read()
+        # can tell whether the previous chunk ended in the middle of a row
         self._plusbytes = 0 if not self.range or self.range[0] == 0 else 1
-        # To store the first byte of this chunk, which actually is the last byte of previous chunk
         self._first_byte = None
-        # Flag that indicates the end of the file
         self._eof = False
-        # special logic the first time the stream is read
         self._first_read = True
 
     def read(self, n=None):
         if self._eof:
             return b''
-        # Data always contain one byte from the previous chunk,
-        # so l'ets check if it is a \n or not
+
         if not self._first_byte and self._plusbytes == 1:
             self._first_byte = self.sb.read(self._plusbytes)
 
@@ -690,13 +840,13 @@ class WrappedStreamingBodyPartition(WrappedStreamingBody):
 
         if self._first_read and self._first_byte and \
            self._first_byte != self.newline_char:
+            # The previous chunk did not end in a newline, so the first row of
+            # this one is a cut row that the previous chunk already returned
             logger.debug('Discarding first partial row')
-            # Previous byte is not self.newline_char
-            # This means that we have to discard first row because it is cut
             first_row_start_pos = retval.find(self.newline_char) + 1
             self._first_read = False
 
-        # Find end of the line in threshold
+        # The last row of a chunk is completed past its own end
         if self.pos >= self.size:
             current_end_pos = last_row_end_pos - (self.pos - self.size)
             last_byte_pos = retval[current_end_pos - 1:].find(self.newline_char)
@@ -752,24 +902,31 @@ def docker_login(docker_user, docker_password, docker_server):
 
 
 def run_command(cmd, return_result=False, input=None):
-    kwargs = {}
-
-    if logger.getEffectiveLevel() != logging.DEBUG:
-        kwargs['stderr'] = sp.DEVNULL
+    """
+    Runs a shell command, silencing its output unless lithops is in debug
+    mode. Returns its stdout if asked to, otherwise nothing
+    """
+    quiet = logger.getEffectiveLevel() != logging.DEBUG
+    kwargs = {'stderr': sp.DEVNULL} if quiet else {}
 
     if input:
-        return sp.check_output(cmd.split(), input=bytes(input, 'utf-8'), **kwargs)
+        return sp.check_output(
+            cmd.split(),
+            input=bytes(input, 'utf-8'),
+            **kwargs,
+        )
 
     if return_result:
         result = sp.check_output(cmd.split(), encoding='UTF-8', **kwargs)
         return result.strip().replace('"', '')
-    else:
-        if logger.getEffectiveLevel() != logging.DEBUG:
-            kwargs['stdout'] = sp.DEVNULL
-        sp.check_call(cmd.split(), **kwargs)
+
+    if quiet:
+        kwargs['stdout'] = sp.DEVNULL
+    sp.check_call(cmd.split(), **kwargs)
 
 
-def is_podman(docker_path):
+def is_podman(docker_path) -> bool:
+    """Checks whether the docker command is actually podman"""
     try:
         cmd = f'{docker_path} info | grep podman'
         sp.check_output(cmd, shell=True, stderr=sp.STDOUT)
@@ -784,6 +941,11 @@ class BackendType(Enum):
 
 
 class CountDownLatch:
+    """
+    Barrier that blocks the waiters until it has been unlocked as many times
+    as the count it was created with
+    """
+
     def __init__(self, count):
         self.count = count
         self.event = threading.Event()

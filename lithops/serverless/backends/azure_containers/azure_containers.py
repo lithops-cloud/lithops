@@ -70,26 +70,35 @@ class AzureContainerAppBackend:
 
     def _run_az_command(self, cmd, return_json=False, return_result=False):
         """
-        Run an Azure CLI command using shell=True.
+        Run an Azure CLI command. Uses subprocess.run so az progress on
+        stderr cannot fill a pipe and deadlock (unlike check_call + PIPE).
         """
         self._check_az_cli()
-        quiet = logger.getEffectiveLevel() != logging.DEBUG
-        kwargs = {'shell': True, 'encoding': 'UTF-8', 'stderr': sp.PIPE}
-        if quiet and not (return_json or return_result):
-            kwargs['stdout'] = sp.DEVNULL
+        debug = logger.getEffectiveLevel() == logging.DEBUG
+        capture = return_json or return_result or not debug
+
+        logger.debug(f'Running Azure CLI: {cmd}')
         try:
-            if return_json or return_result:
-                result = sp.check_output(cmd, **kwargs)
-            else:
-                sp.check_call(cmd, **kwargs)
-                return None
+            completed = sp.run(
+                cmd,
+                shell=True,
+                encoding='UTF-8',
+                stdout=sp.PIPE if capture else None,
+                stderr=sp.PIPE if capture else None,
+                stdin=sp.DEVNULL,
+                check=True,
+            )
         except sp.CalledProcessError as e:
             err_msg = f'Azure CLI command failed: {cmd}'
-            if e.stderr:
-                err_msg += f'\n{e.stderr.strip()}'
+            detail = ((e.stderr or e.stdout) or '').strip()
+            if detail:
+                err_msg += f'\n{detail}'
             raise Exception(err_msg) from e
 
-        result = result.strip()
+        if not (return_json or return_result):
+            return None
+
+        result = (completed.stdout or '').strip()
         if return_json:
             try:
                 return json.loads(result)
@@ -97,9 +106,7 @@ class AzureContainerAppBackend:
                 raise Exception(
                     f'Failed to parse Azure CLI output as JSON: {result}'
                 ) from e
-        if return_result:
-            return result.replace('"', '')
-        return result
+        return result.replace('"', '')
 
     def _format_containerapp_name(self, runtime_name, runtime_memory, version=__version__):
         """
@@ -120,19 +127,39 @@ class AzureContainerAppBackend:
                f'--query id --only-show-errors')
         return self._run_az_command(cmd, return_result=True)
 
-    def _containerapp_exists(self, containerapp_name):
+    def _get_containerapp_provisioning_state(self, containerapp_name):
         cmd = (f'az containerapp show --name {containerapp_name} '
-               f'--resource-group {self.resource_group} --only-show-errors')
-        kwargs = {'shell': True}
-        if logger.getEffectiveLevel() != logging.DEBUG:
-            kwargs['stderr'] = sp.DEVNULL
-            kwargs['stdout'] = sp.DEVNULL
+               f'--resource-group {self.resource_group} '
+               f'--query properties.provisioningState -o tsv')
         try:
-            sp.check_call(cmd, **kwargs)
-            return True
-        except sp.CalledProcessError:
-            logger.debug(f'Container app {containerapp_name} not found, will create it')
-            return False
+            state = self._run_az_command(cmd, return_result=True)
+            return (state or '').strip() or None
+        except Exception:
+            return None
+
+    def _wait_until_containerapp_idle(self, containerapp_name, timeout=360):
+        """
+        Wait until the app is not creating, updating, or deleting.
+        Returns the provisioning state, or None if the app does not exist.
+        """
+        deadline = time.time() + timeout
+        busy = ('inprogress', 'deleting')
+        logged = False
+        while time.time() < deadline:
+            state = self._get_containerapp_provisioning_state(containerapp_name)
+            if not state or state.lower() not in busy:
+                return state
+            if not logged:
+                logger.info(
+                    f'Container app {containerapp_name} has a provisioning '
+                    f'operation in progress, waiting for it to finish'
+                )
+                logged = True
+            logger.debug(
+                f'Container app {containerapp_name} provisioning state: {state}'
+            )
+            time.sleep(15)
+        return self._get_containerapp_provisioning_state(containerapp_name)
 
     def _get_default_runtime_image_name(self):
         """
@@ -274,26 +301,44 @@ class AzureContainerAppBackend:
         deployed = False
         retries = 0
         last_error = None
+        cmd = None
 
         while retries < 10:
             try:
-                if self._containerapp_exists(containerapp_name):
+                state = self._wait_until_containerapp_idle(containerapp_name)
+                if state and state.lower() == 'failed':
+                    logger.warning(
+                        f'Container app {containerapp_name} is in Failed state, recreating'
+                    )
+                    del_cmd = (
+                        f'az containerapp delete --name {containerapp_name} '
+                        f'--resource-group {self.resource_group} -y -o none'
+                    )
+                    self._run_az_command(del_cmd)
+                    self._wait_until_containerapp_idle(containerapp_name)
+                    state = None
+
+                if state:
                     logger.debug(f'Container app {containerapp_name} already exists, updating')
                     cmd = (f'az containerapp update --name {containerapp_name} '
                            f'--resource-group {self.resource_group} '
-                           f'--yaml {config.CA_JSON_LOCATION} --only-show-errors')
+                           f'--yaml {config.CA_JSON_LOCATION} -o none')
                 else:
                     cmd = (f'az containerapp create --name {containerapp_name} '
                            f'--resource-group {self.resource_group} '
-                           f'--yaml {config.CA_JSON_LOCATION} --only-show-errors')
+                           f'--yaml {config.CA_JSON_LOCATION} -o none')
                 self._run_az_command(cmd)
                 os.remove(config.CA_JSON_LOCATION)
                 deployed = True
                 break
             except Exception as e:
                 last_error = e
+                in_progress = 'ContainerAppOperationInProgress' in str(e)
                 logger.warning(f'Container app deploy attempt {retries + 1} failed: {e}')
-                time.sleep(10)
+                if in_progress:
+                    self._wait_until_containerapp_idle(containerapp_name)
+                else:
+                    time.sleep(15)
                 retries += 1
 
         if not deployed:
@@ -303,9 +348,11 @@ class AzureContainerAppBackend:
         """
         Deletes a runtime
         """
-        logger.info(f'Deleting runtime: {runtime_name} - {memory}MB')
+        logger.info(f'Deleting runtime: {runtime_name} - {memory}MB (this may take several minutes)')
         containerapp_name = self._format_containerapp_name(runtime_name, memory, version)
-        cmd = f'az containerapp delete --name {containerapp_name} --resource-group {self.resource_group} -y --only-show-errors'
+        self._wait_until_containerapp_idle(containerapp_name)
+        cmd = (f'az containerapp delete --name {containerapp_name} '
+               f'--resource-group {self.resource_group} -y -o none')
         self._run_az_command(cmd)
 
         try:

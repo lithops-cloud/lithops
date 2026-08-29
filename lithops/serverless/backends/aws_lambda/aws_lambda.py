@@ -129,13 +129,19 @@ class AWSLambdaBackend:
         """
         current_location = os.path.dirname(os.path.abspath(__file__))
         main_file = os.path.join(current_location, 'entry_point.py')
+        logger.debug(f'Building handler zip at {os.path.abspath(LITHOPS_FUNCTION_ZIP)}')
         utils.create_handler_zip(LITHOPS_FUNCTION_ZIP, main_file, 'entry_point.py')
 
         with open(LITHOPS_FUNCTION_ZIP, 'rb') as action_zip:
             action_bin = action_zip.read()
 
+        logger.debug(
+            f'Handler zip loaded into memory - Size: {utils.sizeof_fmt(len(action_bin))}'
+        )
+
         if remove:
             os.remove(LITHOPS_FUNCTION_ZIP)
+            logger.debug(f'Removed temporary handler zip {LITHOPS_FUNCTION_ZIP}')
 
         return action_bin
 
@@ -145,23 +151,31 @@ class AWSLambdaBackend:
         Raises exception if waiting times out or if state is 'Failed' or 'Inactive'
         """
         retries, sleep_seconds = (15, 25) if 'vpc' in self.lambda_config else (30, 5)
+        logger.debug(
+            f'Waiting for Lambda function "{func_name}" to become active'
+        )
 
         while retries > 0:
             res = self.lambda_client.get_function(FunctionName=func_name)
             state = res['Configuration']['State']
             if state == 'Pending':
+                logger.debug(
+                    f'"{func_name}" function is being deployed... (status: {state})'
+                )
                 time.sleep(sleep_seconds)
-                logger.debug('"{}" function is being deployed... '
-                             '(status: {})'.format(func_name, res['Configuration']['State']))
                 retries -= 1
                 if retries == 0:
-                    raise Exception('"{}" function not deployed (timed out): {}'.format(func_name, res))
-            elif state == 'Failed' or state == 'Inactive':
-                raise Exception('"{}" function not deployed (state is "{}"): {}'.format(func_name, state, res))
+                    raise Exception(
+                        f'"{func_name}" function not deployed (timed out): {res}'
+                    )
+            elif state in ('Failed', 'Inactive'):
+                raise Exception(
+                    f'"{func_name}" function not deployed (state is "{state}"): {res}'
+                )
             elif state == 'Active':
                 break
 
-        logger.debug('Ok --> function "{}" is active'.format(func_name))
+        logger.debug(f'Ok --> function "{func_name}" is active')
 
     def _get_layer(self, runtime_name):
         """
@@ -393,6 +407,10 @@ class AWSLambdaBackend:
         code = self._create_handler_bin()
         env_vars = {t['name']: t['value'] for t in self.lambda_config['env_vars']}
 
+        logger.debug(
+            f'Creating Lambda function {function_name} '
+            f'({utils.sizeof_fmt(len(code))} payload)'
+        )
         try:
             response = self.lambda_client.create_function(
                 FunctionName=function_name,
@@ -428,16 +446,25 @@ class AWSLambdaBackend:
             )
 
             if response['ResponseMetadata']['HTTPStatusCode'] not in (200, 201):
-                raise Exception(f'An error occurred creating/updating action {runtime_name}: {response}')
+                raise Exception(
+                    f'An error occurred creating/updating action {runtime_name}: {response}'
+                )
+            logger.debug(
+                f'Create function request accepted for {function_name} '
+                f'(HTTP {response["ResponseMetadata"]["HTTPStatusCode"]})'
+            )
 
         except Exception as e:
             if 'ResourceConflictException' in str(e):
-                pass
+                logger.debug(
+                    f'Lambda function {function_name} already exists, '
+                    'waiting until it is active'
+                )
             else:
                 raise e
 
         self._wait_for_function_deployed(function_name)
-        logger.debug('OK --> Created lambda function {}'.format(function_name))
+        logger.debug(f'OK --> Created lambda function {function_name}')
 
     def _deploy_container_runtime(self, runtime_name, memory, timeout):
         """

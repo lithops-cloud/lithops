@@ -18,18 +18,16 @@ import copy
 import os
 import json
 import threading
+import time
 import uuid
-import shlex
-import signal
 import lithops
 import logging
-import shutil
 import queue
 import subprocess as sp
-from shutil import copyfile
+from contextlib import contextmanager
 from pathlib import Path
+from typing import Any, Dict, List
 
-from lithops.version import __version__
 from lithops.constants import (
     JOBS_DIR,
     TEMP_DIR,
@@ -37,6 +35,7 @@ from lithops.constants import (
     COMPUTE_CLI_MSG,
     CPU_COUNT,
     USER_TEMP_DIR,
+    RN_LOG_FILE,
 )
 from lithops.utils import (
     BackendType,
@@ -44,71 +43,108 @@ from lithops.utils import (
     get_docker_path,
     is_lithops_worker,
     is_podman,
-    is_unix_system
+    is_unix_system,
+    log_prefix,
 )
 from lithops.localhost.config import (
-    LocvalhostEnvironment,
-    get_environment
+    LocalhostEnvironment,
+    get_environment,
+    runtime_info,
+    runtime_key,
+)
+from lithops.localhost.utils import (
+    copy_lithops_package,
+    docker_exec_python_cmd,
+    docker_pull_cmd,
+    docker_rm_cmd,
+    docker_run_cmd,
+    kill_process,
+    log_process_failure,
 )
 
 logger = logging.getLogger(__name__)
 
 RUNNER_FILE = os.path.join(LITHOPS_TEMP_DIR, 'localhost-runner.py')
 LITHOPS_LOCATION = os.path.dirname(os.path.abspath(lithops.__file__))
+# The local temp dir is mounted on /tmp, so this is where a container sees the
+# runner that was copied to RUNNER_FILE
+DOCKER_RUNNER_FILE = f'/tmp/{USER_TEMP_DIR}/localhost-runner.py'
+# How long the job manager waits before looking again for the latch of
+# a job that is being invoked right now
+MANAGER_IDLE_WAIT = 0.1
 
 
 class LocalhostHandlerV2:
     """
-    A localhostHandler object is used by invokers and other components to
-    access underlying localhost backend without exposing the implementation
+    A LocalhostHandler object is used by invokers and other components to
+    access the underlying localhost backend without exposing implementation
     details.
     """
 
-    def __init__(self, localhost_config):
+    def __init__(self, config: Dict[str, Any]):
         logger.debug('Creating Localhost compute client')
-        self.config = localhost_config
+        self.config = config
         self.runtime_name = self.config['runtime']
         self.environment = get_environment(self.runtime_name)
 
         self.env = None
         self.job_manager = None
-        self.invocation_in_progress = False
+        self.invocations_lock = threading.Lock()
+        self.invocations_in_progress = 0
 
-        msg = COMPUTE_CLI_MSG.format('Localhost compute v2')
-        logger.info(f"{msg}")
+        logger.info(COMPUTE_CLI_MSG.format('Localhost compute v2'))
+
+    @property
+    def invocation_in_progress(self) -> bool:
+        """True while at least one invoke() is still queueing its tasks"""
+        return self.invocations_in_progress > 0
+
+    @contextmanager
+    def _invocation(self):
+        """
+        Marks an invocation as in flight, so that the job manager does not
+        stop while its tasks are still being queued
+        """
+        with self.invocations_lock:
+            self.invocations_in_progress += 1
+        try:
+            yield
+        finally:
+            with self.invocations_lock:
+                self.invocations_in_progress -= 1
 
     def get_backend_type(self):
-        """
-        Wrapper method that returns the type of the backend (Batch or FaaS)
-        """
+        """Returns the backend type, which is invoked with a whole job"""
         return BackendType.BATCH.value
 
     def init(self):
-        """
-        Init tasks for localhost
-        """
-        if self.environment == LocvalhostEnvironment.DEFAULT:
+        """Creates and sets up the environment where the tasks will run"""
+        if self.environment == LocalhostEnvironment.DEFAULT:
             self.env = DefaultEnvironment(self.config)
         else:
             self.env = ContainerEnvironment(self.config)
-
         self.env.setup()
 
     def start_manager(self):
         """
-        Starts manager thread to keep order in tasks
+        Starts the thread that waits for the running jobs, and the consumers
+        that execute their tasks, unless they are already running
         """
         def job_manager():
-            logger.debug('Staring localhost job manager')
+            logger.debug('Starting localhost job manager')
 
             while True:
                 for job_key in list(self.env.jobs.keys()):
                     self.env.jobs[job_key].wait()
-                if all(job.done for job in self.env.jobs.values()):
+                # A new job may have been invoked while waiting for the
+                # previous ones, so only stop once every latch is down
+                if all(job.done for job in list(self.env.jobs.values())):
                     if self.invocation_in_progress:
+                        # An invoke() is queueing its tasks right now, so
+                        # wait for its latch to show up instead of spinning
+                        time.sleep(MANAGER_IDLE_WAIT)
                         continue
-                    else:
-                        break
+                    break
 
             self.job_manager = None
             logger.debug("Localhost job manager finished")
@@ -119,250 +155,298 @@ class LocalhostHandlerV2:
             self.env.start()
 
     def deploy_runtime(self, runtime_name, *args):
-        """
-        Extract the runtime metadata and preinstalled modules
-        """
+        """Returns the metadata of the runtime, which needs no deployment"""
         logger.info(f"Deploying runtime: {runtime_name}")
         return self.env.get_metadata()
 
-    def invoke(self, job_payload):
-        """
-        Run the job description against the selected environment
-        """
-        self.invocation_in_progress = True
-        executor_id = job_payload['executor_id']
-        job_id = job_payload['job_id']
-        total_calls = len(job_payload['call_ids'])
-
-        logger.debug(f'ExecutorID {executor_id} | JobID {job_id} - Running '
-                     f'{total_calls} activations in the localhost worker')
-
-        self.env.run_job(job_payload)
-
-        self.start_manager()
-        self.invocation_in_progress = False
+    def invoke(self, job_payload: Dict[str, Any]) -> None:
+        """Queues the tasks of a job and makes sure the consumers are up"""
+        with self._invocation():
+            executor_id = job_payload['executor_id']
+            job_id = job_payload['job_id']
+            logger.debug(
+                f'{log_prefix(executor_id, job_id)} - Running '
+                f'{len(job_payload["call_ids"])} activations in the localhost '
+                f'worker'
+            )
+            self.env.run_job(job_payload)
+            self.start_manager()
 
     def get_runtime_key(self, runtime_name, *args):
-        """
-        Generate the runtime key that identifies the runtime
-        """
-        runtime_key = os.path.join('localhost', __version__, runtime_name.strip("/"))
-
-        return runtime_key
+        """Returns the key the runtime metadata is cached under"""
+        return runtime_key(runtime_name)
 
     def get_runtime_info(self):
-        """
-        Method that returns a dictionary with all the relevant runtime
-        information set in config
-        """
-        return {
-            'runtime_name': self.config['runtime'],
-            'runtime_memory': self.config.get('runtime_memory'),
-            'runtime_timeout': self.config.get('runtime_timeout'),
-            'max_workers': self.config['max_workers'],
-        }
+        """Returns the runtime limits the executor reports to the user"""
+        return runtime_info(self.config)
 
     def clean(self, **kwargs):
-        """
-        Deletes all local runtimes
-        """
+        """Nothing to clean up: the localhost backend deploys nothing"""
         pass
 
     def clear(self, job_keys=None, exception=None):
         """
-        Kills the running service in case of exception
+        Drops the tasks of the given jobs that have not started yet, kills the
+        running ones and releases their latches so that the job manager can
+        finish. Jobs that were not named are left running
         """
-        while not self.env.work_queue.empty():
-            try:
-                self.env.work_queue.get(False)
-            except Exception:
-                pass
-
+        self.env.drop_pending_tasks(job_keys)
         self.env.stop(job_keys)
 
         for job_key in list(self.env.jobs.keys()):
+            if job_keys is not None and job_key not in job_keys:
+                continue
             while not self.env.jobs[job_key].done:
                 self.env.jobs[job_key].unlock()
 
 
 class ExecutionEnvironment:
-    """
-    Base environment class for shared methods
-    """
+    """Base environment class for shared methods."""
 
-    def __init__(self, config):
+    def __init__(self, config: Dict[str, Any]):
         self.config = config
         self.runtime_name = self.config['runtime']
         self.worker_processes = self.config.get('worker_processes', CPU_COUNT)
         self.work_queue = queue.Queue()
         self.is_unix_system = is_unix_system()
         self.task_processes = {}
+        self.task_processes_lock = threading.Lock()
+        self.stopped_jobs = set()
         self.consumer_threads = []
         self.jobs = {}
 
     def _copy_lithops_to_tmp(self):
+        # A task invoked from inside a worker reuses the package that the
+        # parent already copied, otherwise it would overwrite it while running
         if is_lithops_worker() and os.path.isfile(RUNNER_FILE):
             return
-        os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
-        dst_path = os.path.join(LITHOPS_TEMP_DIR, 'lithops')
-        shutil.rmtree(dst_path, ignore_errors=True)
-        shutil.copytree(LITHOPS_LOCATION, dst_path, dirs_exist_ok=True)
-        src_handler = os.path.join(LITHOPS_LOCATION, 'localhost', 'v2', 'runner.py')
-        copyfile(src_handler, RUNNER_FILE)
+        copy_lithops_package(
+            LITHOPS_LOCATION,
+            os.path.join(LITHOPS_LOCATION, 'localhost', 'v2', 'runner.py'),
+            RUNNER_FILE,
+            LITHOPS_TEMP_DIR,
+        )
 
-    def run_job(self, job_payload):
+    def _ensure_runner(self):
+        if not os.path.isfile(RUNNER_FILE):
+            self.setup()
+
+    def _run_task_process(self, job_key_call_id: str, cmd: List[str]) -> None:
         """
-        Adds a job to the localhost work queue
+        Runs one task in a subprocess and waits for it, reporting whatever it
+        printed if it failed
+        """
+        logger.debug(f"Going to execute task process {job_key_call_id}")
+        # Started and registered as one step, so that a stop() running right
+        # now either kills this process or stops it from being started at all
+        with self.task_processes_lock:
+            if job_key_call_id.rsplit('-', 1)[0] in self.stopped_jobs:
+                logger.debug(
+                    f"Task process {job_key_call_id} not started, its job "
+                    f"was stopped"
+                )
+                return
+            process = sp.Popen(
+                cmd,
+                stdout=sp.PIPE,
+                stderr=sp.PIPE,
+                start_new_session=True,
+            )
+            self.task_processes[job_key_call_id] = process
+
+        stdout, stderr = process.communicate()
+
+        if process.returncode != 0:
+            log_process_failure(
+                logger,
+                f"Task process {job_key_call_id} failed with return "
+                f"code {process.returncode}",
+                stdout=stdout,
+                stderr=stderr,
+                log_file=RN_LOG_FILE,
+            )
+        self.task_processes.pop(job_key_call_id, None)
+        logger.debug(f"Task process {job_key_call_id} finished")
+
+    def run_job(self, job_payload: Dict[str, Any]) -> None:
+        """
+        Splits a job into one queued task per call, each one carrying only the
+        data range of its own call
         """
         job_key = job_payload['job_key']
         self.jobs[job_key] = CountDownLatch(len(job_payload['call_ids']))
         os.makedirs(os.path.join(JOBS_DIR, job_key), exist_ok=True)
 
         dbr = job_payload['data_byte_ranges']
+        with self.task_processes_lock:
+            self.stopped_jobs.discard(job_payload['job_key'])
         for call_id in job_payload['call_ids']:
             task_payload = copy.deepcopy(job_payload)
             task_payload['call_ids'] = [call_id]
             task_payload['data_byte_ranges'] = [dbr[int(call_id)]]
             self.work_queue.put(json.dumps(task_payload))
 
+    def _process_task(self, task_payload_str: str) -> None:
+        """
+        Dumps a queued task where the runner will read it, runs it and counts
+        it down on its job latch
+        """
+        task_payload = json.loads(task_payload_str)
+        job_key = task_payload['job_key']
+        call_id = task_payload['call_ids'][0]
+
+        task_filename = os.path.join(JOBS_DIR, job_key, call_id + '.task')
+        with open(task_filename, 'w') as task_file:
+            json.dump(task_payload, task_file, default=str)
+
+        self.run_task(job_key, call_id)
+
+        if os.path.exists(task_filename):
+            os.remove(task_filename)
+
+        self.jobs[job_key].unlock()
+
+    def _queue_consumer(self) -> None:
+        while True:
+            task_payload_str = self.work_queue.get()
+            if task_payload_str is None:
+                break
+            self._process_task(task_payload_str)
+
     def start(self):
-        """
-        Starts the threads responsible to consume individual tasks from the queue
-        and execute them in the appropiate environment
-        """
+        """Starts the consumer threads that run the queued tasks"""
         if self.consumer_threads:
             return
 
-        def process_task(task_payload_str):
-            task_payload = json.loads(task_payload_str)
-            job_key = task_payload['job_key']
-            call_id = task_payload['call_ids'][0]
-
-            task_filename = os.path.join(JOBS_DIR, job_key, call_id + '.task')
-            with open(task_filename, 'w') as jl:
-                json.dump(task_payload, jl, default=str)
-
-            self.run_task(job_key, call_id)
-
-            if os.path.exists(task_filename):
-                os.remove(task_filename)
-
-            self.jobs[job_key].unlock()
-
-        def queue_consumer(work_queue):
-            while True:
-                task_payload_str = work_queue.get()
-                if task_payload_str is None:
-                    break
-                process_task(task_payload_str)
-
         logger.debug("Starting Localhost work queue consumer threads")
         for _ in range(self.worker_processes):
-            t = threading.Thread(
-                target=queue_consumer,
-                args=(self.work_queue,),
-                daemon=True)
-            t.start()
-            self.consumer_threads.append(t)
+            thread = threading.Thread(target=self._queue_consumer, daemon=True)
+            thread.start()
+            self.consumer_threads.append(thread)
+
+    def drop_pending_tasks(self, job_keys=None) -> None:
+        """
+        Takes the queued tasks of the given jobs out of the work queue, and
+        puts back the ones belonging to jobs nobody asked to stop
+        """
+        kept = []
+        while True:
+            try:
+                task_payload_str = self.work_queue.get(block=False)
+            except queue.Empty:
+                break
+            # A sentinel left behind by an earlier stop() would kill the next
+            # consumer that starts, so it never goes back into the queue
+            if task_payload_str is None or job_keys is None:
+                continue
+            if json.loads(task_payload_str)['job_key'] not in job_keys:
+                kept.append(task_payload_str)
+
+        for task_payload_str in kept:
+            self.work_queue.put(task_payload_str)
 
     def stop(self, job_keys=None):
         """
-        Stops running consumer threads
+        Kills the task processes of the given jobs, and stops the environment
+        unless jobs other than those are still to run
         """
+        self._kill_task_processes(job_keys or list(self.jobs.keys()))
+
+        if job_keys is not None and self._has_jobs_left(job_keys):
+            logger.debug(
+                "Localhost environment left running, it still has jobs to run"
+            )
+            return
+
+        self._teardown()
+
+    def _has_jobs_left(self, stopped_job_keys) -> bool:
+        """Tells whether a job other than the stopped ones is still running"""
+        return any(
+            not latch.done
+            for job_key, latch in list(self.jobs.items())
+            if job_key not in stopped_job_keys
+        )
+
+    def _kill_task_processes(self, job_keys) -> None:
+        """Kills the task processes of the given jobs"""
+        with self.task_processes_lock:
+            # Marked before the sweep, so that a task about to start is not
+            # left running behind it
+            self.stopped_jobs.update(job_keys)
+            for job_key in job_keys:
+                for job_key_call_id in list(self.task_processes.keys()):
+                    if job_key_call_id.rsplit('-', 1)[0] != job_key:
+                        continue
+                    process = self.task_processes.pop(job_key_call_id, None)
+                    if process is None:
+                        continue
+                    try:
+                        kill_process(process, self.is_unix_system)
+                    except Exception:
+                        pass
+
+    def _teardown(self) -> None:
+        """Stops the consumer threads, leaving the environment idle"""
+        if not self.consumer_threads:
+            return
+
         logger.debug("Stopping Localhost work queue consumer threads")
-        for _ in range(self.worker_processes):
+        # One sentinel per running consumer, no more: one that nobody takes
+        # stays in the queue and kills the next consumer that starts
+        for _ in self.consumer_threads:
             self.work_queue.put(None)
 
-        for t in self.consumer_threads:
-            t.join()
+        for thread in self.consumer_threads:
+            thread.join()
 
         self.consumer_threads = []
 
 
 class DefaultEnvironment(ExecutionEnvironment):
-    """
-    Default environment uses current python3 installation
-    """
+    """Default environment uses the current Python installation."""
 
-    def __init__(self, config):
+    def __init__(self, config: Dict[str, Any]):
         super().__init__(config)
         logger.debug(f'Starting default environment for {self.runtime_name}')
 
     def setup(self):
+        """Installs the Lithops package and the runner in the temp dir"""
         logger.debug('Setting up default environment')
         self._copy_lithops_to_tmp()
 
     def get_metadata(self):
-        if not os.path.isfile(RUNNER_FILE):
-            self.setup()
+        """Asks the local interpreter for the packages it has installed"""
+        self._ensure_runner()
 
         logger.debug(f"Extracting metadata from: {self.runtime_name}")
-        cmd = [self.runtime_name, RUNNER_FILE, 'get_metadata']
         process = sp.run(
-            cmd, check=True,
+            [self.runtime_name, RUNNER_FILE, 'get_metadata'],
+            check=True,
             stdout=sp.PIPE,
             universal_newlines=True,
-            start_new_session=True
+            start_new_session=True,
         )
-        runtime_meta = json.loads(process.stdout.strip())
-        return runtime_meta
+        return json.loads(process.stdout.strip())
 
     def start(self):
-        if not os.path.isfile(RUNNER_FILE):
-            self.setup()
-
+        """Starts the consumer threads, with the runner in place"""
+        self._ensure_runner()
         super().start()
 
-    def run_task(self, job_key, call_id):
-        """
-        Runs a task
-        """
-        job_key_call_id = f'{job_key}-{call_id}'
+    def run_task(self, job_key: str, call_id: str) -> None:
+        """Runs one task in a subprocess of the local interpreter"""
         task_filename = os.path.join(JOBS_DIR, job_key, call_id + '.task')
-
-        logger.debug(f"Going to execute task process {job_key_call_id}")
-        cmd = [self.runtime_name, RUNNER_FILE, 'run_job', task_filename]
-        process = sp.Popen(cmd, stdout=sp.PIPE, stderr=sp.PIPE, start_new_session=True)
-        self.task_processes[job_key_call_id] = process
-        process.communicate()  # blocks until the process finishes
-        if process.returncode != 0:
-            logger.error(f"Task process {job_key_call_id} failed with return code {process.returncode}")
-        del self.task_processes[job_key_call_id]
-        logger.debug(f"Task process {job_key_call_id} finished")
-
-    def stop(self, job_keys=None):
-        """
-        Stops running processes
-        """
-        def kill_process(process):
-            if process and process.poll() is None:
-                PID = process.pid
-                if self.is_unix_system:
-                    PGID = os.getpgid(PID)
-                    os.killpg(PGID, signal.SIGKILL)
-                else:
-                    os.kill(PID, signal.SIGTERM)
-
-        job_keys_to_stop = job_keys or list(self.jobs.keys())
-        for job_key in job_keys_to_stop:
-            for job_key_call_id in list(self.task_processes.keys()):
-                if job_key_call_id.rsplit('-', 1)[0] == job_key:
-                    process = self.task_processes[job_key_call_id]
-                    try:
-                        kill_process(process)
-                    except Exception:
-                        pass
-                    self.task_processes[job_key_call_id] = None
-
-        super().stop(job_keys)
+        self._run_task_process(
+            f'{job_key}-{call_id}',
+            [self.runtime_name, RUNNER_FILE, 'run_job', task_filename],
+        )
 
 
 class ContainerEnvironment(ExecutionEnvironment):
-    """
-    Container environment uses a container runtime image
-    """
+    """Container environment uses a container runtime image."""
 
-    def __init__(self, config):
+    def __init__(self, config: Dict[str, Any]):
         super().__init__(config)
         logger.debug(f'Starting container environment for {self.runtime_name}')
         self.use_gpu = self.config.get('use_gpu', False)
@@ -373,83 +457,90 @@ class ContainerEnvironment(ExecutionEnvironment):
         self.uid = os.getuid() if self.is_unix_system else None
         self.gid = os.getgid() if self.is_unix_system else None
 
+    def _container_run_cmd(self, name, *, use_gpu=False, **kwargs) -> List[str]:
+        return docker_run_cmd(
+            self.docker_path,
+            self.runtime_name,
+            name=name,
+            tmp_path=Path(TEMP_DIR).as_posix(),
+            uid=self.uid,
+            gid=self.gid,
+            is_podman=self.is_podman,
+            use_gpu=use_gpu,
+            **kwargs,
+        )
+
     def setup(self):
+        """Installs the runner in the temp dir and pulls the image if asked"""
         logger.debug('Setting up container environment')
         self._copy_lithops_to_tmp()
-
         if self.config.get('pull_runtime', False):
             logger.debug(f'Pulling runtime {self.runtime_name}')
             sp.run(
-                shlex.split(f'{self.docker_path} pull {self.runtime_name}'),
-                check=True, stdout=sp.PIPE, universal_newlines=True
+                docker_pull_cmd(self.docker_path, self.runtime_name),
+                check=True,
+                stdout=sp.PIPE,
+                universal_newlines=True,
             )
 
     def get_metadata(self):
-        if not os.path.isfile(RUNNER_FILE):
-            self.setup()
+        """Asks the runtime image for the packages it has installed"""
+        self._ensure_runner()
 
         logger.debug(f"Extracting metadata from: {self.runtime_name}")
-
-        tmp_path = Path(TEMP_DIR).as_posix()
-
-        cmd = f'{self.docker_path} run --name lithops_metadata '
-        cmd += f'--user {self.uid}:{self.gid} ' if self.is_unix_system and not self.is_podman else ''
-        cmd += f'--env USER={os.getenv("USER", "root")} '
-        cmd += f'--rm -v {tmp_path}:/tmp --entrypoint "python3" '
-        cmd += f'{self.runtime_name} /tmp/{USER_TEMP_DIR}/localhost-runner.py get_metadata'
-
         process = sp.run(
-            shlex.split(cmd), check=True, stdout=sp.PIPE,
-            universal_newlines=True, start_new_session=True
+            self._container_run_cmd(
+                'lithops_metadata',
+                container_args=[DOCKER_RUNNER_FILE, 'get_metadata'],
+            ),
+            check=True,
+            stdout=sp.PIPE,
+            universal_newlines=True,
+            start_new_session=True,
         )
-        runtime_meta = json.loads(process.stdout.strip())
-
-        return runtime_meta
+        return json.loads(process.stdout.strip())
 
     def start(self):
-        if not os.path.isfile(RUNNER_FILE):
-            self.setup()
+        """
+        Starts the container that will run every task of this executor, and
+        the consumer threads that feed it through docker exec
+        """
+        self._ensure_runner()
 
-        tmp_path = Path(TEMP_DIR).as_posix()
-
-        cmd = f'{self.docker_path} run --name {self.container_name} '
-        cmd += '--gpus all ' if self.use_gpu else ''
-        cmd += f'--user {self.uid}:{self.gid} ' if self.is_unix_system and not self.is_podman else ''
-        cmd += f'--env USER={os.getenv("USER", "root")} '
-        cmd += f'--rm -v {tmp_path}:/tmp -it --detach '
-        cmd += f'--entrypoint=/bin/bash {self.runtime_name}'
-
-        self.container_process = sp.Popen(shlex.split(cmd), stdout=sp.DEVNULL, start_new_session=True)
-        self.container_process.communicate()  # blocks until the process finishes
-
+        self.container_process = sp.Popen(
+            self._container_run_cmd(
+                self.container_name,
+                extra_run_args=['-it', '--detach'],
+                entrypoint='/bin/bash',
+                use_gpu=self.use_gpu,
+            ),
+            stdout=sp.DEVNULL,
+            start_new_session=True,
+        )
+        self.container_process.communicate()
         super().start()
 
-    def run_task(self, job_key, call_id):
-        """
-        Runs a task
-        """
-        job_key_call_id = f'{job_key}-{call_id}'
-        docker_job_dir = f'/tmp/{USER_TEMP_DIR}/jobs/{job_key}'
-        docker_task_filename = f'{docker_job_dir}/{call_id}.task'
-
-        logger.debug(f"Going to execute task process {job_key_call_id}")
-        cmd = f'{self.docker_path} exec {self.container_name} /bin/bash -c '
-        cmd += f'"python3 /tmp/{USER_TEMP_DIR}/localhost-runner.py '
-        cmd += f'run_job {docker_task_filename}"'
-
-        process = sp.Popen(shlex.split(cmd), stdout=sp.PIPE, stderr=sp.PIPE, start_new_session=True)
-        self.task_processes[job_key_call_id] = process
-        process.communicate()  # blocks until the process finishes
-        if process.returncode != 0:
-            logger.error(f"Task process {job_key_call_id} failed with return code {process.returncode}")
-        logger.debug(f"Task process {job_key_call_id} finished")
-
-    def stop(self, job_keys=None):
-        """
-        Stop localhost container
-        """
-        sp.Popen(
-            shlex.split(f'{self.docker_path} rm -f {self.container_name}'),
-            stdout=sp.DEVNULL, stderr=sp.DEVNULL
+    def run_task(self, job_key: str, call_id: str) -> None:
+        """Runs one task inside the already running container"""
+        docker_task_filename = (
+            f'/tmp/{USER_TEMP_DIR}/jobs/{job_key}/{call_id}.task'
         )
-        super().stop(job_keys)
+        self._run_task_process(
+            f'{job_key}-{call_id}',
+            docker_exec_python_cmd(
+                self.docker_path,
+                self.container_name,
+                DOCKER_RUNNER_FILE,
+                'run_job',
+                docker_task_filename,
+            ),
+        )
+
+    def _teardown(self) -> None:
+        """Removes the container along with the consumer threads"""
+        sp.Popen(
+            docker_rm_cmd(self.docker_path, self.container_name),
+            stdout=sp.DEVNULL,
+            stderr=sp.DEVNULL,
+        )
+        super()._teardown()

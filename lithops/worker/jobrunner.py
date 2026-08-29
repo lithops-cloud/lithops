@@ -27,9 +27,12 @@ import inspect
 import requests
 import traceback
 from pydoc import locate
+from types import SimpleNamespace
+from typing import Any, Callable, Dict, Optional, Tuple
 
 from lithops.worker.utils import peak_memory
 
+# Importing numpy here makes numpy types pickle-compatible in the worker.
 try:
     import numpy as np
     np.__version__
@@ -39,172 +42,337 @@ except ModuleNotFoundError:
 from lithops.storage import Storage
 from lithops.wait import wait
 from lithops.future import ResponseFuture
-from lithops.utils import WrappedStreamingBody, sizeof_fmt, \
-    is_object_processing_function, FuturesList, verify_args
-from lithops.utils import WrappedStreamingBodyPartition
+from lithops.utils import (
+    WrappedStreamingBody, sizeof_fmt, is_object_processing_function,
+    FuturesList, verify_args, WrappedStreamingBodyPartition
+)
 from lithops.util.metrics import PrometheusExporter
 from lithops.storage.utils import create_output_key
 
 logger = logging.getLogger(__name__)
 
+# Results below this size are written to the stats file, which travels back
+# with the call status, instead of being uploaded to storage on their own
+_MAX_INLINE_RESULT_SIZE = 8 * 1024
+
+
+def _prepost(func):
+    """Runs the PRE_RUN / POST_RUN callables from the environment around func"""
+    def call(env_var):
+        if env_var in os.environ:
+            method = locate(os.environ[env_var])
+            method()
+
+    def wrapper_decorator(*args, **kwargs):
+        call('PRE_RUN')
+        value = func(*args, **kwargs)
+        call('POST_RUN')
+        return value
+    return wrapper_decorator
+
 
 class JobStats:
+    """
+    Line based stats file, written as the task progresses and read back by
+    the handler once the JobRunner is done
+    """
 
-    def __init__(self, stats_filename):
+    def __init__(self, stats_filename: str):
         self.stats_filename = stats_filename
         self.stats_fid = open(stats_filename, 'w')
 
-    def write(self, key, value):
-        self.stats_fid.write("{} {}\n".format(key, value))
+    def write(self, key: str, value: Any) -> None:
+        """Appends one stat, flushed so that it survives a killed worker"""
+        self.stats_fid.write(f"{key} {value}\n")
         self.stats_fid.flush()
 
+    def close(self) -> None:
+        """Closes the stats file, unless it is closed already"""
+        if getattr(self, 'stats_fid', None) and not self.stats_fid.closed:
+            self.stats_fid.close()
+
     def __del__(self):
-        self.stats_fid.close()
+        self.close()
+
+
+def _get_function_name(func: Callable) -> str:
+    """Returns the name of a function, or of the class of a callable object"""
+    if inspect.isfunction(func) or inspect.ismethod(func):
+        return func.__name__
+    return type(func).__name__
+
+
+def _returns_futures(result: Any) -> bool:
+    """
+    Tells whether the function returned futures to chain, instead of data.
+    A list is only inspected by its first element, as the client does
+    """
+    if isinstance(result, (ResponseFuture, FuturesList)):
+        return True
+    return (
+        isinstance(result, list)
+        and len(result) > 0
+        and isinstance(result[0], ResponseFuture)
+    )
 
 
 class JobRunner:
+    """
+    Runs the user function of a single task, isolated from the handler, and
+    reports the result and the stats through the task stats file
+    """
 
-    def __init__(self, job, jobrunner_conn, internal_storage):
+    def __init__(self, job: SimpleNamespace, jobrunner_conn, internal_storage):
         self.job = job
         self.jobrunner_conn = jobrunner_conn
         self.internal_storage = internal_storage
         self.lithops_config = job.config
 
-        self.output_key = create_output_key(job.executor_id, job.job_id, job.call_id)
-
-        # Setup stats class
+        self.output_key = create_output_key(
+            job.executor_id, job.job_id, job.call_id
+        )
         self.stats = JobStats(self.job.stats_file)
 
-        # Setup prometheus for live metrics
         prom_enabled = self.lithops_config['lithops'].get('telemetry')
         prom_config = self.lithops_config.get('prometheus', {})
         self.prometheus = PrometheusExporter(prom_enabled, prom_config)
 
-    def _fill_optional_args(self, function, data):
+    def _prom_labels(
+        self, fn_name: Optional[str]
+    ) -> Tuple[Tuple[str, str], ...]:
+        return (
+            ('job_id', self.job.job_key),
+            ('call_id', '-'.join([self.job.job_key, self.job.call_id])),
+            ('function_name', fn_name or 'undefined')
+        )
+
+    def _create_ibm_cos_client(self):
+        """Creates the boto3 client injected as the ibm_cos parameter"""
+        if 'ibm_cos' not in self.lithops_config:
+            raise Exception(
+                'Cannot create the ibm_cos client: missing configuration'
+            )
+
+        if self.internal_storage.backend == 'ibm_cos':
+            return self.internal_storage.get_client()
+
+        return Storage(
+            config=self.lithops_config, backend='ibm_cos'
+        ).get_client()
+
+    def _create_rabbitmq_connection(self):
+        """Creates the connection injected as the rabbitmq parameter"""
+        if 'rabbitmq' not in self.lithops_config:
+            raise Exception(
+                'Cannot create the rabbitmq client: missing configuration'
+            )
+
+        rabbit_amqp_url = self.lithops_config['rabbitmq'].get('amqp_url')
+        return pika.BlockingConnection(pika.URLParameters(rabbit_amqp_url))
+
+    def _fill_optional_args(
+        self, function: Callable, data: Dict[str, Any]
+    ) -> None:
         """
-        Fills in those reserved, optional parameters that might be write to the function signature
+        Fills in those reserved, optional parameters that might be written to
+        the function signature
         """
         func_sig = inspect.signature(function)
 
         if len(data) == 1 and 'future' in data:
             # Function chaining feature
-            out = [data.pop('future').result(internal_storage=self.internal_storage)]
+            out = [
+                data.pop('future').result(
+                    internal_storage=self.internal_storage
+                )
+            ]
             data.update(verify_args(function, out, None)[0])
 
         if 'ibm_cos' in func_sig.parameters:
-            if 'ibm_cos' in self.lithops_config:
-                if self.internal_storage.backend == 'ibm_cos':
-                    ibm_boto3_client = self.internal_storage.get_client()
-                else:
-                    ibm_boto3_client = Storage(config=self.lithops_config, backend='ibm_cos').get_client()
-                data['ibm_cos'] = ibm_boto3_client
-            else:
-                raise Exception('Cannot create the ibm_cos client: missing configuration')
+            data['ibm_cos'] = self._create_ibm_cos_client()
 
         if 'storage' in func_sig.parameters:
             data['storage'] = self.internal_storage.storage
 
         if 'rabbitmq' in func_sig.parameters:
-            if 'rabbitmq' in self.lithops_config:
-                rabbit_amqp_url = self.lithops_config['rabbitmq'].get('amqp_url')
-                params = pika.URLParameters(rabbit_amqp_url)
-                connection = pika.BlockingConnection(params)
-                data['rabbitmq'] = connection
-            else:
-                raise Exception('Cannot create the rabbitmq client: missing configuration')
+            data['rabbitmq'] = self._create_rabbitmq_connection()
 
         if 'id' in func_sig.parameters:
             data['id'] = int(self.job.call_id)
 
-    def _wait_futures(self, data):
+    def _wait_futures(self, data: Dict[str, Any]) -> None:
+        """
+        Replaces the futures a reduce function receives by their results,
+        blocking until every one of them is done
+        """
         logger.info('Reduce function: waiting for map results')
-        fut_list = list(data.values())[0]
+        key = next(iter(data))
+        fut_list = data[key]
         wait(fut_list, self.internal_storage, download_results=True)
         results = [f.result() for f in fut_list if f.done and not f.futures]
         fut_list.clear()
-        data[next(iter(data))] = results
+        data[key] = results
 
-    def _load_object(self, data):
-        """
-        Loads the object in case of object processing
-        """
-        extra_get_args = {}
-        obj = data['obj']
-
+    def _open_object_stream(self, obj: Any, extra_get_args: Dict[str, Any]):
+        """Opens the object to process, wherever it lives"""
         if hasattr(obj, 'bucket') and not hasattr(obj, 'path'):
-            logger.info(f'Getting dataset from {obj.backend}://{obj.bucket}/{obj.key}')
+            logger.info(
+                f'Getting dataset from {obj.backend}://{obj.bucket}/{obj.key}'
+            )
             if obj.backend == self.internal_storage.backend:
                 storage = self.internal_storage.storage
             else:
-                storage = Storage(config=self.lithops_config, backend=obj.backend)
-            if obj.data_byte_range is not None:
-                extra_get_args['Range'] = 'bytes={}-{}'.format(*obj.data_byte_range)
-            stream = storage.get_object(obj.bucket, obj.key, stream=True, extra_get_args=extra_get_args)
-            stream_body = stream
+                storage = Storage(
+                    config=self.lithops_config, backend=obj.backend
+                )
+            return storage.get_object(
+                obj.bucket, obj.key, stream=True, extra_get_args=extra_get_args
+            )
 
-        elif hasattr(obj, 'url'):
+        if hasattr(obj, 'url'):
             logger.info(f'Getting dataset from {obj.url}')
-            if obj.data_byte_range is not None:
-                extra_get_args['Range'] = 'bytes={}-{}'.format(*obj.data_byte_range)
-            stream = requests.get(obj.url, headers=extra_get_args, stream=True).raw
-            stream_body = stream
+            return requests.get(
+                obj.url, headers=extra_get_args, stream=True
+            ).raw
 
-        elif hasattr(obj, 'path'):
-            logger.info(f'Getting dataset from {obj.path}')
-            with open(obj.path, "rb") as f:
-                if obj.data_byte_range is not None:
-                    first_byte, last_byte = obj.data_byte_range
-                    f.seek(first_byte)
-                    stream = io.BytesIO(f.read(last_byte - first_byte + 1))
-                else:
-                    stream = io.BytesIO(f.read())
-            stream_body = stream
+        logger.info(f'Getting dataset from {obj.path}')
+        with open(obj.path, "rb") as f:
+            if obj.data_byte_range is None:
+                return io.BytesIO(f.read())
+            first_byte, last_byte = obj.data_byte_range
+            f.seek(first_byte)
+            return io.BytesIO(f.read(last_byte - first_byte + 1))
 
-        if obj.data_byte_range is not None:
-            if obj.newline is None:
-                stream_body = WrappedStreamingBody(stream, obj.chunk_size)
-            else:
-                stream_body = WrappedStreamingBodyPartition(stream, obj.chunk_size, obj.data_byte_range, obj.newline)
-
-        obj.data_stream = stream_body
-
+    def _load_object(self, data: Dict[str, Any]) -> None:
+        """
+        Opens the object to process as a stream, and narrows its byte range
+        down to the chunk that this task is responsible for
+        """
+        obj = data['obj']
+        extra_get_args = {}
         if obj.data_byte_range is not None:
             first_byte, last_byte = obj.data_byte_range
+            extra_get_args['Range'] = f'bytes={first_byte}-{last_byte}'
+
+        stream = self._open_object_stream(obj, extra_get_args)
+
+        if obj.data_byte_range is None:
+            obj.data_stream = stream
+            first_byte = 0
+            last_byte = obj.chunk_size - 1
+            obj.data_byte_range = (first_byte, last_byte)
+        else:
+            if obj.newline is None:
+                obj.data_stream = WrappedStreamingBody(stream, obj.chunk_size)
+            else:
+                obj.data_stream = WrappedStreamingBodyPartition(
+                    stream, obj.chunk_size, obj.data_byte_range, obj.newline
+                )
             if last_byte - first_byte > obj.chunk_size:
                 last_byte = first_byte + obj.chunk_size - 1
                 obj.data_byte_range = (first_byte, last_byte)
-        else:
-            first_byte = 0
-            last_byte = obj.chunk_size - 1
-            obj.data_byte_range = (0, last_byte)
 
-        logger.info(f'Chunk: {obj.part}/{obj.total_parts} - Size: {obj.chunk_size} - Range: {first_byte}-{last_byte}')
+        logger.info(
+            f'Chunk: {obj.part}/{obj.total_parts} - Size: {obj.chunk_size} - '
+            f'Range: {first_byte}-{last_byte}'
+        )
 
-    # Decorator to execute pre-run and post-run functions provided via environment variables
-    def prepost(func):
-        def call(envVar):
-            if envVar in os.environ:
-                method = locate(os.environ[envVar])
-                method()
-
-        def wrapper_decorator(*args, **kwargs):
-            call('PRE_RUN')
-            value = func(*args, **kwargs)
-            call('POST_RUN')
-            return value
-        return wrapper_decorator
-
-    @prepost
-    def run(self):
+    def _write_function_stats(
+        self, start_tstamp: float, end_tstamp: float
+    ) -> None:
         """
-        Runs the function
+        Reports how long the user function took, with a result size that
+        _write_result overwrites if the function returned anything
         """
-        # self.stats.write('worker_jobrunner_start_tstamp', time.time())
+        self.stats.write('worker_func_start_tstamp', start_tstamp)
+        self.stats.write('worker_func_end_tstamp', end_tstamp)
+        self.stats.write(
+            'worker_func_exec_time', round(end_tstamp - start_tstamp, 8)
+        )
+        self.stats.write('func_result_size', 0)
+
+    def _write_result(self, result: Any) -> Optional[bytes]:
+        """
+        Reports the result of the function, and returns the pickled result
+        back when it is too big to travel with the call status
+        """
+        if result is None:
+            return None
+
+        if _returns_futures(result):
+            self.stats.write('new_futures', pickle.dumps(result))
+            return None
+
+        logger.debug("Pickling result")
+        pickled_output = pickle.dumps(result)
+        self.stats.write('func_result_size', len(pickled_output))
+
+        if len(pickled_output) >= _MAX_INLINE_RESULT_SIZE:
+            return pickled_output
+
+        self.stats.write('result', pickled_output)
+        self.stats.write("worker_result_upload_time", 0)
+        return None
+
+    def _write_exception(self) -> None:
+        """
+        Prints the traceback to the task log and reports the exception, so
+        that the client can re-raise it. Only valid while handling one
+        """
+        self.stats.write("exception", True)
+        exc_type, exc_value, exc_traceback = sys.exc_info()
+        print('----------------------- EXCEPTION !-----------------------')
+        traceback.print_exc(file=sys.stdout)
+        print('----------------------------------------------------------')
+
+        try:
+            logger.debug("Pickling exception")
+            pickled_exc = pickle.dumps((exc_type, exc_value, exc_traceback))
+            pickle.loads(pickled_exc)
+
+        except Exception as pickle_exception:
+            # Shockingly often, modules like subprocess don't properly call
+            # the base Exception.__init__, which results in them being
+            # unpickleable. Report the pieces that do pickle instead of
+            # losing the exception altogether
+            self.stats.write("exc_pickle_fail", True)
+            pickled_exc = pickle.dumps({
+                'exc_type': str(exc_type),
+                'exc_value': str(exc_value),
+                'exc_traceback': exc_traceback,
+                'pickle_exception': pickle_exception,
+            })
+            pickle.loads(pickled_exc)
+
+        self.stats.write("exc_info", str(pickled_exc))
+
+    def _upload_result(self, pickled_output: bytes) -> None:
+        """
+        Uploads a result too big to travel with the call status, and reports
+        how long the upload took
+        """
+        upload_start_tstamp = time.time()
+        logger.info(
+            f"Storing function result - "
+            f"Size: {sizeof_fmt(len(pickled_output))}"
+        )
+        self.internal_storage.put_data(self.output_key, pickled_output)
+        upload_end_tstamp = time.time()
+        self.stats.write(
+            "worker_result_upload_time",
+            round(upload_end_tstamp - upload_start_tstamp, 8)
+        )
+
+    @_prepost
+    def run(self) -> None:
+        """
+        Runs the user function and reports everything the client needs: its
+        result or its exception, its stats and its peak memory
+        """
         self.stats.write('worker_peak_memory_start', peak_memory())
         logger.debug("Process started")
-        result = None
-        exception = False
         fn_name = None
+        pending_output = None
 
         try:
             func = pickle.loads(self.job.func)
@@ -217,21 +385,15 @@ class JobRunner:
 
             self._fill_optional_args(func, data)
 
-            fn_name = func.__name__ if inspect.isfunction(func) \
-                or inspect.ismethod(func) else type(func).__name__
-
+            fn_name = _get_function_name(func)
             self.prometheus.send_metric(
                 name='function_start',
                 value=time.time(),
                 type='gauge',
-                labels=(
-                    ('job_id', self.job.job_key),
-                    ('call_id', '-'.join([self.job.job_key, self.job.call_id])),
-                    ('function_name', fn_name or 'undefined')
-                )
+                labels=self._prom_labels(fn_name)
             )
 
-            logger.info(f"Going to execute '{str(fn_name)}()'")
+            logger.info(f"Going to execute '{fn_name}()'")
             print('---------------------- FUNCTION LOG ----------------------')
             function_start_tstamp = time.time()
             args, kwargs = _prepare_args(func, data)
@@ -240,82 +402,38 @@ class JobRunner:
             print('----------------------------------------------------------')
             logger.info("Success function execution")
 
-            self.stats.write('worker_func_start_tstamp', function_start_tstamp)
-            self.stats.write('worker_func_end_tstamp', function_end_tstamp)
-            self.stats.write('worker_func_exec_time', round(function_end_tstamp - function_start_tstamp, 8))
-            self.stats.write('func_result_size', 0)
-
-            if result is not None:
-                # Check for new futures
-                if isinstance(result, ResponseFuture) or isinstance(result, FuturesList) \
-                   or (type(result) is list and len(result) > 0 and isinstance(result[0], ResponseFuture)):
-                    self.stats.write('new_futures', pickle.dumps(result))
-                    result = None
-                else:
-                    logger.debug("Pickling result")
-                    pickled_output = pickle.dumps(result)
-                    pickled_output_size = len(pickled_output)
-                    self.stats.write('func_result_size', pickled_output_size)
-                    if pickled_output_size < 8 * 1024:  # 8KB
-                        self.stats.write('result', pickled_output)
-                        self.stats.write("worker_result_upload_time", 0)
-                        result = None
+            self._write_function_stats(
+                function_start_tstamp, function_end_tstamp
+            )
+            pending_output = self._write_result(result)
 
         except Exception:
-            exception = True
-            self.stats.write("exception", True)
-            exc_type, exc_value, exc_traceback = sys.exc_info()
-            print('----------------------- EXCEPTION !-----------------------')
-            traceback.print_exc(file=sys.stdout)
-            print('----------------------------------------------------------')
-
-            try:
-                logger.debug("Pickling exception")
-                pickled_exc = pickle.dumps((exc_type, exc_value, exc_traceback))
-                pickle.loads(pickled_exc)  # this is just to make sure they can be unpickled
-                self.stats.write("exc_info", str(pickled_exc))
-
-            except Exception as pickle_exception:
-                # Shockingly often, modules like subprocess don't properly
-                # call the base Exception.__init__, which results in them
-                # being unpickleable. As a result, we actually wrap this in a try/catch block
-                # and more-carefully handle the exceptions if any part of this save / test-reload
-                # fails
-                self.stats.write("exc_pickle_fail", True)
-                pickled_exc = pickle.dumps({'exc_type': str(exc_type),
-                                            'exc_value': str(exc_value),
-                                            'exc_traceback': exc_traceback,
-                                            'pickle_exception': pickle_exception})
-                pickle.loads(pickled_exc)  # this is just to make sure it can be unpickled
-                self.stats.write("exc_info", str(pickled_exc))
+            self._write_exception()
 
         finally:
-            # self.stats.write('worker_jobrunner_end_tstamp', time.time())
             self.stats.write('worker_peak_memory_end', peak_memory())
             self.prometheus.send_metric(
                 name='function_end',
                 value=time.time(),
                 type='gauge',
-                labels=(
-                    ('job_id', self.job.job_key),
-                    ('call_id', '-'.join([self.job.job_key, self.job.call_id])),
-                    ('function_name', fn_name or 'undefined')
-                )
+                labels=self._prom_labels(fn_name)
             )
 
-            if result is not None and not exception:
-                output_upload_start_tstamp = time.time()
-                logger.info(f"Storing function result - Size: {sizeof_fmt(len(pickled_output))}")
-                self.internal_storage.put_data(self.output_key, pickled_output)
-                output_upload_end_tstamp = time.time()
-                self.stats.write("worker_result_upload_time", round(output_upload_end_tstamp - output_upload_start_tstamp, 8))
+            if pending_output is not None:
+                self._upload_result(pending_output)
+
             self.jobrunner_conn.send("Finished")
             logger.info("Process finished")
+            self.stats.close()
 
 
-def _prepare_args(func, data):
-    # Convert the "data" envelope into normal *args/**kwargs,
-    # respecting the actual var-length parameter names of `func`.
+def _prepare_args(
+    func: Callable, data: Dict[str, Any]
+) -> Tuple[Any, Dict[str, Any]]:
+    """
+    Converts the data envelope into normal args and kwargs, respecting the
+    actual var-length parameter names of func
+    """
     func_sig = inspect.signature(func)
     var_pos_name = None
     var_kw_name = None
@@ -328,11 +446,20 @@ def _prepare_args(func, data):
 
     payload = dict(data)
 
-    # Extract var-positional argument value if present
-    args = payload.pop(var_pos_name) or () if var_pos_name in payload else ()
-    # Extract var-keyword argument value if present
-    kwargs = payload.pop(var_kw_name) or {} if var_kw_name in payload else {}
-    # Any remaining keys become normal keyword arguments
+    if var_pos_name is not None and var_pos_name in payload:
+        args = payload.pop(var_pos_name)
+        if args is None:
+            args = ()
+    else:
+        args = ()
+
+    if var_kw_name is not None and var_kw_name in payload:
+        kwargs = payload.pop(var_kw_name)
+        if kwargs is None:
+            kwargs = {}
+    else:
+        kwargs = {}
+
     kwargs.update(payload)
 
     return args, kwargs

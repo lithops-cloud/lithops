@@ -25,6 +25,7 @@ from lithops.tests.functions import (
     lithops_return_futures_call_async,
     lithops_return_futures_map_multiple,
     concat,
+    echo_env_flag,
 )
 
 
@@ -153,3 +154,34 @@ class TestMap:
             result = fexec.get_result()
 
         assert result == [22, 22, 20, 30, 32, 32, 32]
+
+    def test_extra_args_tuple_and_dict(self):
+        fexec = lithops.FunctionExecutor(config=pytest.lithops_config)
+        fexec.map(simple_map_function, [1, 2, 3], extra_args=(10,))
+        assert fexec.get_result() == [11, 12, 13]
+
+        fexec = lithops.FunctionExecutor(config=pytest.lithops_config)
+        fexec.map(
+            simple_map_function,
+            [{'x': 1}, {'x': 2}],
+            extra_args={'y': 10},
+        )
+        assert fexec.get_result() == [11, 12]
+
+    def test_extra_env(self):
+        fexec = lithops.FunctionExecutor(config=pytest.lithops_config)
+        fexec.map(
+            echo_env_flag, [1, 2], extra_env={'LITHOPS_TEST_FLAG': 'hello'}
+        )
+        assert fexec.get_result() == ['hello', 'hello']
+
+    def test_futures_list_chaining(self):
+        def add_one(x):
+            return x + 1
+
+        def mul_two(x):
+            return x * 2
+
+        fexec = lithops.FunctionExecutor(config=pytest.lithops_config)
+        result = fexec.map(add_one, [1, 2, 3]).map(mul_two).get_result()
+        assert result == [4, 6, 8]

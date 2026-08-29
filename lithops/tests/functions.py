@@ -1,4 +1,5 @@
 import lithops
+import os
 import time
 import pickle
 
@@ -193,3 +194,21 @@ class SideEffect:
 
 def passthrough_function(x):
     return x.result
+
+
+def raise_value_error(x):
+    raise ValueError('worker failed')
+
+
+def sleep_seconds(x):
+    time.sleep(x)
+    return x
+
+
+def echo_object(obj):
+    data = obj.data_stream.read()
+    return data.decode() if isinstance(data, bytes) else data
+
+
+def echo_env_flag(x):
+    return os.environ.get('LITHOPS_TEST_FLAG')

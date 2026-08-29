@@ -1,8 +1,12 @@
 import time
+from unittest.mock import MagicMock
+
 import pytest
 
 from lithops import FunctionExecutor
 from lithops import RetryingFunctionExecutor
+from lithops.retries import RetryingFuture
+from lithops.wait import ALWAYS, ANY_COMPLETED
 
 
 def run_test(function, input, retries, timeout=5):
@@ -154,3 +158,192 @@ def check_invocation_counts(
                     f"Invocation count for {i}, expected: {expected_count}, actual: {actual_count}"
                 )
     assert actual_invocation_counts == expected_invocation_counts
+
+
+class FakeResponseFuture:
+    def __init__(self, error=False, result=None, done=False):
+        self.error = error
+        self.done = done
+        self._result = result
+        self._status = 'ok'
+        self._exception = (RuntimeError, RuntimeError('failed'), None)
+        self.stats = {'worker_exec_time': 1.0}
+
+    def status(self, throw_except=True, internal_storage=None, check_only=False):
+        return self._status
+
+    def result(self, throw_except=True, internal_storage=None):
+        return self._result
+
+
+class TestRetryingFutureUnit:
+
+    def test_should_retry_until_budget_exhausted(self):
+        future = RetryingFuture(FakeResponseFuture(), map_function=lambda x: x, input=1, retries=1)
+        assert future._should_retry() is True
+        future._inc_failure_count()
+        assert future.failure_count == 1
+        assert future._should_retry() is True
+        future._inc_failure_count()
+        assert future._should_retry() is False
+
+    def test_cancel_prevents_retry(self):
+        future = RetryingFuture(FakeResponseFuture(), map_function=lambda x: x, input=1, retries=5)
+        future.cancel()
+        assert future._should_retry() is False
+
+    def test_retries_default_to_zero(self):
+        future = RetryingFuture(FakeResponseFuture(), map_function=lambda x: x, input=1)
+        assert future.retries == 0
+
+    def test_status_and_result_reraise_on_error(self):
+        wrapped = FakeResponseFuture(error=True, result='nope')
+        future = RetryingFuture(wrapped, map_function=lambda x: x, input=1, retries=0)
+        with pytest.raises(RuntimeError, match='failed'):
+            future.status()
+        with pytest.raises(RuntimeError, match='failed'):
+            future.result()
+
+    def test_status_and_result_passthrough_on_success(self):
+        wrapped = FakeResponseFuture(error=False, result=42)
+        future = RetryingFuture(wrapped, map_function=lambda x: x, input=1)
+        assert future.status() == 'ok'
+        assert future.result() == 42
+        assert future.done is False
+        assert future.stats == wrapped.stats
+
+    def test_retry_resubmits_original_input_and_kwargs(self):
+        replacement = FakeResponseFuture(result=99)
+        executor = MagicMock()
+        executor.map.return_value = [replacement]
+        future = RetryingFuture(
+            FakeResponseFuture(error=True),
+            map_function=str,
+            input=7,
+            retries=1,
+            timeout=11,
+        )
+        future._retry(executor)
+        executor.map.assert_called_once_with(str, [7], timeout=11)
+        assert future.response_future is replacement
+
+
+class TestRetryingFunctionExecutorUnit:
+
+    def test_map_uses_config_retries_and_forwards_kwargs(self):
+        inner = MagicMock()
+        inner.config = {'lithops': {'retries': 4}}
+        inner.map.return_value = [FakeResponseFuture(), FakeResponseFuture()]
+        executor = RetryingFunctionExecutor(inner)
+
+        futures = executor.map(
+            lambda x: x,
+            [1, 2],
+            timeout=9,
+            extra_env={'A': '1'},
+            chunksize=3,
+            obj_chunk_size=10,
+            obj_chunk_number=2,
+            obj_newline=None,
+        )
+
+        assert [f.retries for f in futures] == [4, 4]
+        assert [f.input for f in futures] == [1, 2]
+        inner.map.assert_called_once()
+        kwargs = inner.map.call_args.kwargs
+        assert kwargs['timeout'] == 9
+        assert kwargs['extra_env'] == {'A': '1'}
+        assert kwargs['chunksize'] == 3
+        assert kwargs['obj_chunk_size'] == 10
+        assert kwargs['obj_chunk_number'] == 2
+        assert kwargs['obj_newline'] is None
+        assert futures[0].map_kwargs['timeout'] == 9
+
+    def test_explicit_retries_override_config(self):
+        inner = MagicMock()
+        inner.config = {'lithops': {'retries': 4}}
+        inner.map.return_value = [FakeResponseFuture()]
+        executor = RetryingFunctionExecutor(inner)
+
+        futures = executor.map(lambda x: x, [1], retries=0)
+        assert futures[0].retries == 0
+
+    def test_wait_retries_failed_futures_until_all_complete(self):
+        first = FakeResponseFuture(error=True)
+        retried = FakeResponseFuture(error=False, result=1)
+        inner = MagicMock()
+        inner.config = {}
+        inner.wait.side_effect = [
+            ([first], []),
+            ([retried], []),
+        ]
+        inner.map.return_value = [retried]
+
+        retrying = RetryingFuture(first, map_function=lambda x: x, input=1, retries=1)
+        executor = RetryingFunctionExecutor(inner)
+        done, pending = executor.wait([retrying], throw_except=False)
+
+        assert pending == []
+        assert done == [retrying]
+        assert retrying.response_future is retried
+        inner.map.assert_called_once()
+
+    def test_wait_always_returns_after_first_poll(self):
+        pending_resp = FakeResponseFuture()
+        inner = MagicMock()
+        inner.config = {}
+        inner.wait.return_value = ([], [pending_resp])
+        retrying = RetryingFuture(pending_resp, map_function=lambda x: x, input=1, retries=0)
+        executor = RetryingFunctionExecutor(inner)
+
+        done, pending = executor.wait([retrying], return_when=ALWAYS)
+        assert done == []
+        assert pending == [retrying]
+        assert inner.wait.call_count == 1
+
+    def test_wait_any_completed_stops_when_one_succeeds(self):
+        finished = FakeResponseFuture(error=False, result=1)
+        pending = FakeResponseFuture()
+        inner = MagicMock()
+        inner.config = {}
+        inner.wait.return_value = ([finished], [pending])
+        done_f = RetryingFuture(finished, map_function=lambda x: x, input=1, retries=0)
+        pending_f = RetryingFuture(pending, map_function=lambda x: x, input=2, retries=0)
+        executor = RetryingFunctionExecutor(inner)
+        done, still_pending = executor.wait(
+            [done_f, pending_f], return_when=ANY_COMPLETED
+        )
+        assert done == [done_f]
+        assert still_pending == [pending_f]
+        assert inner.wait.call_count == 1
+
+    def test_wait_exhausted_retries_are_treated_as_done(self):
+        failed = FakeResponseFuture(error=True)
+        inner = MagicMock()
+        inner.config = {}
+        inner.wait.return_value = ([failed], [])
+        retrying = RetryingFuture(failed, map_function=lambda x: x, input=1, retries=0)
+        executor = RetryingFunctionExecutor(inner)
+        done, pending = executor.wait([retrying], throw_except=False)
+        assert pending == []
+        assert done == [retrying]
+        inner.map.assert_not_called()
+
+    def test_context_manager_and_clean_delegate(self):
+        inner = MagicMock()
+        executor = RetryingFunctionExecutor(inner)
+        with executor:
+            pass
+        inner.__enter__.assert_called_once()
+        inner.__exit__.assert_called_once()
+        executor.clean('fs', 'cs', False, True, True)
+        inner.clean.assert_called_once_with('fs', 'cs', False, True, True)
+
+    def test_retries_to_use_prefers_explicit_then_config(self):
+        inner = MagicMock()
+        inner.config = {'lithops': {'retries': 9}}
+        executor = RetryingFunctionExecutor(inner)
+        assert executor._retries_to_use(3) == 3
+        assert executor._retries_to_use(None) == 9
+        executor.config = {}
+        assert executor._retries_to_use(None) == 0

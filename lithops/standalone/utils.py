@@ -3,7 +3,9 @@ import re
 import json
 import shlex
 from enum import Enum
+from typing import Any, Dict, List, Tuple
 
+from lithops.localhost.config import LocalhostEnvironment, get_environment
 from lithops.constants import (
     SA_INSTALL_DIR,
     SA_SETUP_LOG_FILE,
@@ -17,27 +19,32 @@ from lithops.constants import (
 
 
 class StandaloneMode(Enum):
+    """
+    How a standalone run uses its VMs: run everything on the master, create
+    one set of workers per job, or keep the workers around for the next job
+    """
+
     CONSUME = "consume"
     CREATE = "create"
     REUSE = "reuse"
 
 
-def prepare_standalone_clean(backend, load_cache_fn):
+def prepare_standalone_clean(backend, load_cache_fn) -> None:
     """
-    Load persisted stack metadata from disk when the backend has a cache file.
-
-    Standalone cloud backends call this at the start of clean() so cleanup works
-    even when clean() is invoked without a prior init() in the same process.
+    Loads the stack metadata a previous run persisted on disk, so that clean()
+    works even when it is called without an init() in the same process
     """
     if backend.is_initialized():
         load_cache_fn()
 
 
-def standalone_clean_stop_early(backend, stack_data, delete_cache_fn, all_flag):
+def standalone_clean_stop_early(
+    backend, stack_data, delete_cache_fn, all_flag
+) -> bool:
     """
-    Common clean() early exits for consume mode and missing stack metadata.
-
-    Returns True when no further cloud resource cleanup is required.
+    Handles the clean() cases that own no cloud resources: consume mode, which
+    runs on an instance the user manages, and a stack nothing was created for.
+    Returns True when there is nothing else to clean
     """
     if backend.mode == StandaloneMode.CONSUME.value:
         delete_cache_fn()
@@ -50,6 +57,8 @@ def standalone_clean_stop_early(backend, stack_data, delete_cache_fn, all_flag):
 
 
 class WorkerStatus(Enum):
+    """States a worker VM reports while it is being set up and used"""
+
     STARTING = "starting"
     STARTED = "started"
     ERROR = "error"
@@ -61,6 +70,8 @@ class WorkerStatus(Enum):
 
 
 class JobStatus(Enum):
+    """States a job goes through in a standalone run"""
+
     SUBMITTED = "submitted"
     PENDING = "pending"
     RUNNING = "running"
@@ -69,7 +80,12 @@ class JobStatus(Enum):
 
 
 class LithopsValidationError(Exception):
-    pass
+    """Raised when the setup of a standalone run cannot be trusted"""
+
+
+def is_container_runtime(runtime_name: str) -> bool:
+    """True when the runtime is a container image and not an interpreter"""
+    return get_environment(runtime_name) is LocalhostEnvironment.CONTAINER
 
 
 MASTER_SERVICE_NAME = 'lithops-master.service'
@@ -116,7 +132,7 @@ users:
       shell: /bin/bash
 """
 
-CLOUD_CONFIG_WORKER = """
+CLOUD_CONFIG_WORKER = r"""
 #cloud-config
 bootcmd:
     - echo '{0}:{1}' | chpasswd
@@ -130,7 +146,11 @@ runcmd:
 """
 
 
-def _normalize_package_list(packages):
+def _normalize_package_list(packages) -> List[str]:
+    """
+    Returns the packages of a config entry as a list, accepting both a list
+    and a space separated string
+    """
     if not packages:
         return []
     if isinstance(packages, str):
@@ -138,7 +158,12 @@ def _normalize_package_list(packages):
     return [str(p).strip() for p in packages if str(p).strip()]
 
 
-def _format_apt_packages_for_shell(packages):
+def _format_apt_packages_for_shell(packages) -> str:
+    """
+    Returns the apt packages as one argument list for the setup script. The
+    names go into a shell command, so anything that is not a package name is
+    rejected instead of quoted
+    """
     safe = []
     for package in _normalize_package_list(packages):
         if not re.match(r'^[a-z0-9][a-z0-9.+~-]*$', package, re.IGNORECASE):
@@ -149,7 +174,12 @@ def _format_apt_packages_for_shell(packages):
     return ' '.join(safe)
 
 
-def _format_pip_packages_for_shell(packages):
+def _format_pip_packages_for_shell(packages) -> str:
+    """
+    Returns the pip specs as one argument list for the setup script. Specs
+    carry version markers, so they are quoted rather than restricted, and only
+    shell metacharacters are rejected
+    """
     quoted = []
     for package in _normalize_package_list(packages):
         if re.search(r'[;&|`$(){}]', package):
@@ -160,22 +190,28 @@ def _format_pip_packages_for_shell(packages):
     return ' '.join(quoted)
 
 
-def install_script_kwargs_from_config(config=None):
+def install_script_kwargs_from_config(config=None) -> Dict[str, str]:
     """
-    Build keyword arguments for get_host_setup_script() from standalone config.
+    Returns the arguments get_host_setup_script() takes, read from the
+    standalone configuration
     """
     config = config or {}
     return {
         'lithops_pip_spec': lithops_pip_spec_from_config(config),
-        'extra_apt_packages': _format_apt_packages_for_shell(config.get('extra_apt_packages')),
-        'extra_python_packages': _format_pip_packages_for_shell(config.get('extra_python_packages')),
+        'extra_apt_packages': _format_apt_packages_for_shell(
+            config.get('extra_apt_packages')
+        ),
+        'extra_python_packages': _format_pip_packages_for_shell(
+            config.get('extra_python_packages')
+        ),
     }
 
 
-def lithops_pip_spec_from_config(config=None, default='lithops'):
+def lithops_pip_spec_from_config(config=None, default: str = 'lithops') -> str:
     """
-    Build a minimal pip spec from lithops config (avoid lithops[all] on VMs).
-    Standalone master/workers always need the redis extra for the job queue.
+    Returns the pip spec the VMs install, holding only the extras the
+    configured backends need. Installing lithops[all] on a VM would pull in
+    every cloud SDK, and the redis extra is always needed for the job queue
     """
     if not config:
         return default
@@ -186,7 +222,7 @@ def lithops_pip_spec_from_config(config=None, default='lithops'):
         name = (config.get(key) or lithops_cfg.get(key) or '').lower()
         if name.startswith('gcp'):
             extras.add('gcp')
-        elif name.startswith('aws') or name in ('aws_s3', 'aws_sqs'):
+        elif name.startswith('aws'):
             extras.add('aws')
         elif name.startswith('azure'):
             extras.add('azure')
@@ -204,16 +240,18 @@ def lithops_pip_spec_from_config(config=None, default='lithops'):
 
 
 def get_host_setup_script(
-    docker=True,
-    run_install=True,
-    lithops_pip_spec='lithops',
-    extra_apt_packages='',
-    extra_python_packages='',
-):
+    docker: bool = True,
+    run_install: bool = True,
+    lithops_pip_spec: str = 'lithops',
+    extra_apt_packages: str = '',
+    extra_python_packages: str = '',
+) -> str:
     """
-    Returns the script necessary for installing a lithops VM host.
-    Set run_install=False when appending master/worker setup (they run install first).
-    extra_apt_packages/extra_python_packages are pre-validated space-separated strings.
+    Returns the script that installs everything a Lithops VM host needs.
+
+    Pass run_install=False when the master or worker setup is appended to it,
+    as those run the installation themselves. The extra package arguments are
+    space separated strings that have already been validated
     """
     script = f"""#!/bin/bash
     mkdir -p {SA_INSTALL_DIR};
@@ -255,7 +293,9 @@ def get_host_setup_script(
     set -e
     export DEBIAN_FRONTEND=noninteractive
     export DOCKER_REQUIRED={str(docker).lower()};
-    command -v docker >/dev/null 2>&1 || {{ export INSTALL_DOCKER=true; export INSTALL_LITHOPS_DEPS=true;}};
+    command -v docker >/dev/null 2>&1 || {{
+    export INSTALL_DOCKER=true; export INSTALL_LITHOPS_DEPS=true;
+    }};
     command -v unzip >/dev/null 2>&1 || {{ export INSTALL_LITHOPS_DEPS=true; }};
     command -v pip3 >/dev/null 2>&1 || {{ export INSTALL_LITHOPS_DEPS=true; }};
 
@@ -264,7 +304,8 @@ def get_host_setup_script(
     echo "--> Installing Docker repository"
     apt_install update
     apt_install install -y apt-transport-https ca-certificates curl gnupg software-properties-common
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg |
+    gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
     DOCKER_APT="deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg]"
     DOCKER_APT="$DOCKER_APT https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
     echo "$DOCKER_APT" > /etc/apt/sources.list.d/docker.list
@@ -318,20 +359,30 @@ def get_host_setup_script(
     return script
 
 
-def docker_login(config):
+def docker_login(config) -> str:
+    """
+    Returns the script line that logs into a private container registry, or
+    an empty string when no credentials are configured
+    """
     backend = config['backend']
     if all(k in config[backend] for k in ("docker_server", "docker_user", "docker_password")):
         user = config[backend]['docker_user']
         passwd = config[backend]['docker_password']
         server = config[backend]['docker_server']
-        return f"""docker login -u {user} -p {passwd} {server} >> /tmp/kuku 2>&1
+        login = (
+            f"printf '%s' {shlex.quote(passwd)} | docker login "
+            f"-u {shlex.quote(user)} --password-stdin {shlex.quote(server)}"
+        )
+        return f"""{login} >> {SA_SETUP_LOG_FILE} 2>&1
     """
     return ""
 
 
-def get_master_setup_script(config, vm_data):
+def get_master_setup_script(config, vm_data) -> str:
     """
-    Returns master VM installation script
+    Returns the script that turns a VM into the Lithops master: it unpacks the
+    package, starts the master service, and generates the key pair the master
+    uses to reach the workers it creates
     """
     script = docker_login(config)
     script += f"""
@@ -360,7 +411,8 @@ def get_master_setup_script(config, vm_data):
     ssh-keygen -f $USER_HOME/.ssh/lithops_id_rsa -t rsa -N '';
     cp $USER_HOME/.ssh/lithops_id_rsa $USER_HOME/.ssh/id_rsa
     cp $USER_HOME/.ssh/lithops_id_rsa.pub $USER_HOME/.ssh/id_rsa.pub
-    chown ${{SUDO_USER}}:${{SUDO_USER}} $USER_HOME/.ssh/lithops_id_rsa* $USER_HOME/.ssh/id_rsa $USER_HOME/.ssh/id_rsa.pub
+    chown ${{SUDO_USER}}:${{SUDO_USER}} $USER_HOME/.ssh/lithops_id_rsa*
+    chown ${{SUDO_USER}}:${{SUDO_USER}} $USER_HOME/.ssh/id_rsa $USER_HOME/.ssh/id_rsa.pub
     chmod 600 $USER_HOME/.ssh/lithops_id_rsa $USER_HOME/.ssh/id_rsa
     chmod 644 $USER_HOME/.ssh/lithops_id_rsa.pub $USER_HOME/.ssh/id_rsa.pub
     cp $USER_HOME/.ssh/lithops_id_rsa /root/.ssh/lithops_id_rsa
@@ -378,24 +430,42 @@ def get_master_setup_script(config, vm_data):
     return script
 
 
-def get_worker_setup_script(config, vm_data):
+def _worker_service_commands(config: Dict[str, Any]) -> Tuple[str, str, str]:
     """
-    Returns worker VM installation script
-    this script is expected to be executed only from Master VM
+    Returns the systemd ExecStartPre, ExecStart and ExecStop of the worker
+    service. A container runtime runs the worker inside the image, so it has
+    to remove a leftover container before starting and after stopping
     """
-    if config['runtime'].startswith(('python', '/')):
-        cmd_pre = cmd_stop = "id"
-        cmd_start = f"/usr/bin/python3 {SA_INSTALL_DIR}/worker.py"
-    else:
-        cmd_pre = '-docker rm -f lithops_worker'
-        cmd_start = 'docker run --rm --name lithops_worker '
-        cmd_start += '--gpus all ' if config["use_gpu"] else ''
-        cmd_start += f'--user {os.getuid()}:{os.getgid()} '
-        cmd_start += f'--env USER={os.getenv("USER", "root")} --env DOCKER=Lithops '
-        cmd_start += f'-p {SA_WORKER_SERVICE_PORT}:{SA_WORKER_SERVICE_PORT} '
-        cmd_start += f'-v {SA_INSTALL_DIR}:{SA_INSTALL_DIR} -v /tmp:/tmp '
-        cmd_start += f'--entrypoint "python3" {config["runtime"]} {SA_INSTALL_DIR}/worker.py'
-        cmd_stop = '-docker rm -f lithops_worker'
+    if not is_container_runtime(config['runtime']):
+        identity = 'id'
+        start = f"/usr/bin/python3 {SA_INSTALL_DIR}/worker.py"
+        return identity, start, identity
+
+    gpu = '--gpus all ' if config.get('use_gpu') else ''
+    uid = os.getuid()
+    gid = os.getgid()
+    user = os.getenv('USER', 'root')
+    runtime = config['runtime']
+    rm = '-docker rm -f lithops_worker'
+    start = (
+        'docker run --rm --name lithops_worker '
+        f'{gpu}'
+        f'--user {uid}:{gid} '
+        f'--env USER={user} --env DOCKER=Lithops '
+        f'-p {SA_WORKER_SERVICE_PORT}:{SA_WORKER_SERVICE_PORT} '
+        f'-v {SA_INSTALL_DIR}:{SA_INSTALL_DIR} -v /tmp:/tmp '
+        f'--entrypoint "python3" {runtime} {SA_INSTALL_DIR}/worker.py'
+    )
+    return rm, start, rm
+
+
+def get_worker_setup_script(config, vm_data) -> str:
+    """
+    Returns the script that turns a VM into a Lithops worker, which only the
+    master runs, as it is the one holding the key the worker has to trust
+    """
+    cmd_pre, cmd_start, cmd_stop = _worker_service_commands(config)
+    unit_file = WORKER_SERVICE_FILE.format(cmd_pre, cmd_start, cmd_stop)
 
     script = docker_login(config)
     script += f"""
@@ -407,7 +477,7 @@ def get_worker_setup_script(config, vm_data):
     }}
     USER_HOME=$(eval echo ~${{SUDO_USER}});
     setup_service(){{
-    echo '{WORKER_SERVICE_FILE.format(cmd_pre, cmd_start, cmd_stop)}' > /etc/systemd/system/{WORKER_SERVICE_NAME};
+    echo '{unit_file}' > /etc/systemd/system/{WORKER_SERVICE_NAME};
     chmod 644 /etc/systemd/system/{WORKER_SERVICE_NAME};
     systemctl daemon-reload;
     systemctl stop {WORKER_SERVICE_NAME};
@@ -424,11 +494,17 @@ def get_worker_setup_script(config, vm_data):
     if "ssh_credentials" in vm_data:
         ssh_user = vm_data['ssh_credentials']['username']
         home_dir = '/root' if ssh_user == 'root' else f'/home/{ssh_user}'
+        master_pub_key = ''
         try:
-            master_pub_key = open(f'{home_dir}/.ssh/lithops_id_rsa.pub', 'r').read()
-        except Exception:
-            master_pub_key = ''
-        script += f"""
+            with open(f'{home_dir}/.ssh/lithops_id_rsa.pub', 'r') as key_file:
+                master_pub_key = key_file.read()
+        except OSError:
+            # The master generates this key on its own setup, so a worker
+            # created before that has nothing to authorize yet
+            pass
+
+        if master_pub_key:
+            script += f"""
         if ! grep -qF "{master_pub_key}" "$USER_HOME/.ssh/authorized_keys"; then
             echo "{master_pub_key}" >> $USER_HOME/.ssh/authorized_keys;
         fi

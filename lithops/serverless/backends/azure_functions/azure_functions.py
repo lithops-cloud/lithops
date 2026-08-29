@@ -73,26 +73,35 @@ class AzureFunctionAppBackend:
 
     def _run_az_command(self, cmd, return_json=False, return_result=False):
         """
-        Run an Azure CLI command using shell=True.
+        Run an Azure CLI command. Uses subprocess.run so az progress on
+        stderr cannot fill a pipe and deadlock (unlike check_call + PIPE).
         """
         self._check_az_cli()
-        quiet = logger.getEffectiveLevel() != logging.DEBUG
-        kwargs = {'shell': True, 'encoding': 'UTF-8', 'stderr': sp.PIPE}
-        if quiet and not (return_json or return_result):
-            kwargs['stdout'] = sp.DEVNULL
+        debug = logger.getEffectiveLevel() == logging.DEBUG
+        capture = return_json or return_result or not debug
+
+        logger.debug(f'Running Azure CLI: {cmd}')
         try:
-            if return_json or return_result:
-                result = sp.check_output(cmd, **kwargs)
-            else:
-                sp.check_call(cmd, **kwargs)
-                return None
+            completed = sp.run(
+                cmd,
+                shell=True,
+                encoding='UTF-8',
+                stdout=sp.PIPE if capture else None,
+                stderr=sp.PIPE if capture else None,
+                stdin=sp.DEVNULL,
+                check=True,
+            )
         except sp.CalledProcessError as e:
             err_msg = f'Azure CLI command failed: {cmd}'
-            if e.stderr:
-                err_msg += f'\n{e.stderr.strip()}'
+            detail = ((e.stderr or e.stdout) or '').strip()
+            if detail:
+                err_msg += f'\n{detail}'
             raise Exception(err_msg) from e
 
-        result = result.strip()
+        if not (return_json or return_result):
+            return None
+
+        result = (completed.stdout or '').strip()
         if return_json:
             try:
                 return json.loads(result)
@@ -100,19 +109,19 @@ class AzureFunctionAppBackend:
                 raise Exception(
                     f'Failed to parse Azure CLI output as JSON: {result}'
                 ) from e
-        if return_result:
-            return result.replace('"', '')
-        return result
+        return result.replace('"', '')
 
     def _function_app_exists(self, function_name):
         cmd = (f'az functionapp show --name {function_name} '
                f'--resource-group {self.resource_group}')
-        kwargs = {}
-        if logger.getEffectiveLevel() != logging.DEBUG:
-            kwargs['stderr'] = sp.DEVNULL
-            kwargs['stdout'] = sp.DEVNULL
         try:
-            sp.check_call(cmd, shell=True, **kwargs)
+            # Probe only; hide az CLI's ResourceNotFound when the app is missing.
+            sp.check_call(
+                cmd,
+                shell=True,
+                stdout=sp.DEVNULL,
+                stderr=sp.DEVNULL,
+            )
             return True
         except sp.CalledProcessError:
             logger.debug(f'Function app {function_name} not found, will create it')

@@ -432,9 +432,9 @@ class GCPFunctionsBackend:
         job_id = payload.get('job_id')
 
         if exec_id and job_id and call_id:
-            logger.debug(f'ExecutorID {exec_id} | JobID {job_id} - Invoking function call {call_id}')
+            logger.debug(f'{utils.log_prefix(exec_id, job_id)} - Invoking function call {call_id}')
         elif exec_id and job_id:
-            logger.debug(f'ExecutorID {exec_id} | JobID {job_id} - Invoking function')
+            logger.debug(f'{utils.log_prefix(exec_id, job_id)} - Invoking function')
         else:
             logger.debug('Invoking function')
 

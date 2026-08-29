@@ -1,5 +1,70 @@
 # Changelog
 
+## [v3.7.1.dev0]
+
+### Added
+
+- [Tests] Added a unit test suite for all non-backend modules (18 files, 876 tests).
+- [Core] Added a `log_prefix()` helper for uniform log prefixes across core and backends.
+- [Core] Added a cache of serialized functions to avoid re-uploading the same function.
+- [Core] Added `ShutdownSafeStreamHandler` to avoid tracebacks when logging on a closed stream.
+- [Localhost] Added `localhost/utils.py` with helpers shared by the v1 and v2 backends.
+- [AWS Batch] Added `instance_types` config option for EC2/SPOT compute environments.
+
+### Changed
+
+- [Worker] Replaced the `multiprocessing` Manager queue of the worker pool with a POSIX pipe.
+- [Core] Results under 8KB now travel in the call status instead of a separate storage object.
+- [Core] Reorganised all non-backend modules for readability, with no behaviour change.
+- [Core] `wait()` now returns two empty lists for empty input instead of `None`.
+- [Core] `verify_args()` now raises a single message instead of a tuple.
+- [Monitoring] The RabbitMQ queues of a call status now travel with the job.
+- [CLI] `job list`, `worker list`, `image delete` and `image list` now reject unknown flags.
+- [CLI] `lithops clean --all` no longer shadows the `all` builtin.
+- [CLI] `lithops clean` now empties the local temp directory instead of removing it, and leaves the pending cleaner requests of the other processes alone.
+- [Storage] `CloudFileProxy.walk()` now yields nothing for a missing path, like `os.walk`.
+- [Storage] `cloud_open()` now raises `ValueError` on an unsupported mode.
+- [Joblib] Capped the shared-argument upload and download pools at 32 threads.
+- [Joblib] `lithops_args` is now applied to the pool that runs the batches.
+- [Standalone] `docker login` now reads the password from stdin and quotes its arguments.
+
+### Fixed
+
+- [Localhost] Fixed a deadlock on a `map` after `wait()` and `get_result()`, caused by stale work queue sentinels.
+- [Localhost] Fixed a partial `clear()` tearing down the consumers, tasks and latches of other jobs.
+- [Localhost] Fixed a task starting after `stop()`, leaving a process nobody kills.
+- [Localhost] Fixed the v2 job manager spinning a core while an invocation was queueing.
+- [Localhost] Fixed two concurrent `invoke()` calls clearing each other's in-progress flag.
+- [Localhost] Fixed the v2 container being removed while other jobs were still running in it.
+- [Standalone] Fixed a dict race that killed the budget keeper and left the VM running.
+- [Standalone] Fixed a file descriptor leak of the runner log, one per task.
+- [Standalone] Fixed the worker `/stop` endpoint iterating the process map while it changed.
+- [Standalone] Fixed `cancel_job_process()` raising on an emptied queue or a job with no queue.
+- [Standalone] Fixed the master dropping the errors of its parallel worker and job requests.
+- [Standalone] Fixed the SSH client keeping a client that failed to connect.
+- [Storage] Fixed `delete_cloudobjects()` deleting part of the list before rejecting a foreign object.
+- [Storage] Fixed `CloudFileProxy.listdir()` returning nothing for its default argument.
+- [Core] Fixed `find_free_port()` setting `SO_REUSEADDR` after the bind.
+- [Core] Fixed module inspection crashing on a function whose `__module__` is `None`.
+- [Core] Fixed a hand-built `FuturesList` raising `AttributeError` instead of creating its executor.
+- [Core] Fixed the cleaner skipping requests and two cleaners racing for the pid file.
+- [Core] Fixed `lithops clean` deleting the local temp directory of the jobs running at the same time on the same machine.
+- [Core] Fixed the cleaner reading a request another process was still writing.
+- [Core] Fixed the cleaner looping forever on a request it could not read or classify.
+- [Core] Fixed the cleaner lock surviving a killed cleaner and blocking every later one.
+- [Monitoring] Fixed a nested executor publishing statuses to a queue nobody declares.
+- [Monitoring] Fixed the failed RabbitMQ publishes being dropped with nothing in the log.
+- [Worker] Fixed the memory monitor reporting a peak of zero where usage cannot be read.
+- [Worker] Fixed the remote invoker returning before its invocations in flight were done.
+- [Job] Fixed folder markers being counted as objects, returning empty partitions.
+- [Joblib] Fixed the backend being unused with joblib 1.4+, which renamed `apply_async` to `submit`.
+- [Joblib] Fixed a `KeyError` on shared arguments over 32KB, from a check-then-read on the disk cache.
+- [Joblib] Fixed shared arguments going to the default storage instead of the configured one.
+- [Joblib] Fixed a race losing one of two shared arguments proxied in the same call.
+- [Joblib] Fixed `lithops[joblib]` missing `redis`, needed to import the backend.
+- [IBM] Fixed the COS token manager raising if `ibm_botocore` hides the private expiry attribute.
+- [Tests] Fixed the test suite depending on the order its files run in.
+
 ## [v3.7.0]
 
 ### Added

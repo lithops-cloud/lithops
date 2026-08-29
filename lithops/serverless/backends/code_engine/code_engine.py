@@ -823,7 +823,7 @@ class CodeEngineBackend:
             job_payload['chunksize'] = chunksize
 
         logger.debug(
-            f'ExecutorID {executor_id} | JobID {job_id} - Required Workers: {total_workers}'
+            f'{utils.log_prefix(executor_id, job_id)} - Required Workers: {total_workers}'
         )
 
         jobdef_name = self._format_jobdef_name(docker_image_name, runtime_memory)

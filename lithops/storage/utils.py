@@ -18,6 +18,8 @@
 import os
 import time
 import logging
+from typing import Any, List
+
 from lithops.constants import JOBS_PREFIX
 
 
@@ -33,19 +35,31 @@ init_key_suffix = ".init"
 
 
 class StorageNoSuchKeyError(Exception):
-    def __init__(self, bucket, key):
+    """Raised when a key a caller asked for is not in the storage backend"""
+
+    def __init__(self, bucket: str, key: str):
         msg = f"No such key /{bucket}/{key} found in storage."
-        super(StorageNoSuchKeyError, self).__init__(msg)
+        super().__init__(msg)
 
 
 class StorageConfigMismatchError(Exception):
-    def __init__(self, current_path, prev_path):
-        msg = f"The data is stored at {prev_path}, but current storage is configured at {current_path}"
-        super(StorageConfigMismatchError, self).__init__(msg)
+    """
+    Raised when the data of a previous run lives in a different backend or
+    bucket than the one currently configured
+    """
+
+    def __init__(self, current_path: List[str], prev_path: List[str]):
+        msg = (
+            f"The data is stored at {prev_path}, but current storage "
+            f"is configured at {current_path}"
+        )
+        super().__init__(msg)
 
 
 class CloudObject:
-    def __init__(self, backend, bucket, key):
+    """Reference to an object in a storage backend"""
+
+    def __init__(self, backend: str, bucket: str, key: str):
         self.backend = backend
         self.bucket = bucket
         self.key = key
@@ -56,7 +70,9 @@ class CloudObject:
 
 
 class CloudObjectUrl:
-    def __init__(self, url):
+    """Reference to an object named by its URL"""
+
+    def __init__(self, url: str):
         self.url = url
 
     def __str__(self):
@@ -64,7 +80,9 @@ class CloudObjectUrl:
 
 
 class CloudObjectLocal:
-    def __init__(self, path):
+    """Reference to an object that lives in the local filesystem"""
+
+    def __init__(self, path: str):
         self.path = path
         self.bucket = os.path.dirname(path)
         self.key = os.path.basename(path)
@@ -73,19 +91,24 @@ class CloudObjectLocal:
         return f'<CloudObject at {self.path}>'
 
 
-def clean_bucket(storage, bucket, prefix, sleep=5):
+def clean_bucket(
+    storage: Any, bucket: str, prefix: str, sleep: int = 5
+) -> None:
     """
-    Deletes all the files from COS. These files include the function,
-    the data serialization and the function invocation results.
+    Deletes every object under a prefix, which is where the serialized
+    function, its data and its results live. Lists again after each batch,
+    because a backend may report keys that the previous delete had not
+    applied yet
     """
     msg = f"Deleting objects from bucket '{bucket}'"
-    msg = msg + f" and prefix '{prefix}'" if prefix else msg
+    if prefix:
+        msg = f"{msg} and prefix '{prefix}'"
     logger.info(msg)
     total_objects = 0
     objects_to_delete = storage.list_keys(bucket, prefix)
 
     while objects_to_delete:
-        total_objects = total_objects + len(objects_to_delete)
+        total_objects += len(objects_to_delete)
         storage.delete_objects(bucket, objects_to_delete)
         time.sleep(sleep)
         objects_to_delete = storage.list_keys(bucket, prefix)
@@ -93,85 +116,69 @@ def clean_bucket(storage, bucket, prefix, sleep=5):
     logger.info(f'Finished deleting objects, total found: {total_objects}')
 
 
-def create_job_key(executor_id, job_id):
-    """
-    Create job key
-    :param executor_id: prefix
-    :param job_id: Job's ID
-    :return: exec id
-    """
+def create_job_key(executor_id: str, job_id: str) -> str:
+    """Returns the key that identifies a job, shared by all of its calls"""
     return '-'.join([executor_id, job_id])
 
 
-def create_func_key(executor_id, function_hash):
-    """
-    Create function key
-    :param prefix: prefix
-    :param executor_id: callset's ID
-    :return: function key
-    """
-    return '/'.join([JOBS_PREFIX, executor_id, f'{function_hash}.{func_key_suffix}'])
+def _jobs_key(*parts: str) -> str:
+    return '/'.join((JOBS_PREFIX, *parts))
 
 
-def create_data_key(executor_id, job_id):
+def create_func_key(executor_id: str, function_hash: str) -> str:
     """
-    Create aggregate data key
-    :param prefix: prefix
-    :param executor_id: callset's ID
-    :param job_id: Job's ID
-    :return: a key for aggregate data
+    Returns the key of a serialized function. The hash is part of the key, so
+    that the same function is uploaded only once per executor
     """
-    job_key = create_job_key(executor_id, job_id)
-    return '/'.join([JOBS_PREFIX, job_key, agg_data_key_suffix])
+    return _jobs_key(executor_id, f'{function_hash}.{func_key_suffix}')
 
 
-def create_output_key(executor_id, job_id, call_id):
-    """
-    Create output key
-    :param prefix: prefix
-    :param executor_id: Executor's ID
-    :param job_id: Job's ID
-    :param call_id: call's ID
-    :return: output key
-    """
-    job_key = create_job_key(executor_id, job_id)
-    return '/'.join([JOBS_PREFIX, job_key, call_id, output_key_suffix])
+def create_data_key(executor_id: str, job_id: str) -> str:
+    """Returns the key of the aggregated data of every call of a job"""
+    return _jobs_key(create_job_key(executor_id, job_id), agg_data_key_suffix)
 
 
-def create_status_key(executor_id, job_id, call_id):
-    """
-    Create status key
-    :param prefix: prefix
-    :param executor_id: Executor's ID
-    :param job_id: Job's ID
-    :param call_id: call's ID
-    :return: status key
-    """
-    job_key = create_job_key(executor_id, job_id)
-    return '/'.join([JOBS_PREFIX, job_key, call_id, status_key_suffix])
+def create_output_key(executor_id: str, job_id: str, call_id: str) -> str:
+    """Returns the key the result of a single call is written to"""
+    return _jobs_key(
+        create_job_key(executor_id, job_id), call_id, output_key_suffix
+    )
 
 
-def create_init_key(executor_id, job_id, call_id, act_id):
-    """
-    Create init key
-    :param prefix: prefix
-    :param executor_id: Executor's ID
-     :param job_id: Job's ID
-    :param call_id: call's ID
-    :return: output key
-    """
-    job_key = create_job_key(executor_id, job_id)
-    return '/'.join([JOBS_PREFIX, job_key, call_id, f'{act_id}{init_key_suffix}'])
+def create_status_key(executor_id: str, job_id: str, call_id: str) -> str:
+    """Returns the key the final status of a single call is written to"""
+    return _jobs_key(
+        create_job_key(executor_id, job_id), call_id, status_key_suffix
+    )
 
 
-def get_storage_path(storage_config):
+def create_init_key(
+    executor_id: str, job_id: str, call_id: str, act_id: str
+) -> str:
+    """
+    Returns the key a call writes when it starts running. The activation id
+    is part of the key, so that a retried call does not overwrite the mark of
+    the attempt that came before it
+    """
+    return _jobs_key(
+        create_job_key(executor_id, job_id),
+        call_id,
+        f'{act_id}{init_key_suffix}',
+    )
+
+
+def get_storage_path(storage_config: dict) -> List[str]:
+    """Returns the backend and the bucket the data of a run lives in"""
     backend = storage_config['backend']
     bucket = storage_config[backend]['storage_bucket']
-
     return [backend, bucket]
 
 
-def check_storage_path(storage_config, prev_path):
+def check_storage_path(storage_config: dict, prev_path: List[str]) -> None:
+    """
+    Makes sure the configured storage is the one a previous run used, as data
+    written elsewhere is not reachable from here
+    """
     current_path = get_storage_path(storage_config)
     if current_path != prev_path:
         raise StorageConfigMismatchError(current_path, prev_path)

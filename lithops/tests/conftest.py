@@ -18,6 +18,23 @@ def pytest_addoption(parser):
     parser.addoption("--region", metavar="", default=None, help="region")
 
 
+@pytest.fixture(autouse=True)
+def restore_environ():
+    """
+    Gives every test the environment back as it found it.
+
+    Worker code sets process-wide variables of its own — LITHOPS_WORKER, the
+    session id, the monitoring queues — so a test that calls it leaks them
+    into every test that runs afterwards, and `monkeypatch.delenv` registers
+    no undo for a variable that was not there to begin with. That made the
+    outcome depend on the order the files happened to run in
+    """
+    saved = os.environ.copy()
+    yield
+    os.environ.clear()
+    os.environ.update(saved)
+
+
 @pytest.fixture(scope="session", autouse=True)
 def setup_global(request):
     config = request.config
