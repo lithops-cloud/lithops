@@ -148,9 +148,9 @@ Supported backends by platform:
 
 ## High-level API
 
-Lithops provides two high-level compute APIs and two high-level storage APIs.
+Lithops provides three high-level compute APIs and two high-level storage APIs.
 
-### [Futures API](docs/source/api_futures.rst)
+### [Core API](docs/source/api_futures.rst)
 
 ```python
 from lithops import FunctionExecutor
@@ -161,6 +161,18 @@ def double(i):
 with FunctionExecutor() as fexec:
     f = fexec.map(double, [1, 2, 3, 4])
     print(f.result())
+```
+
+### [Concurrent Futures API](docs/source/api_concurrent.rst)
+
+```python
+from lithops.concurrent.futures import ProcessPoolExecutor
+
+def double(i):
+    return i * 2
+
+with ProcessPoolExecutor() as executor:
+    print(list(executor.map(double, [1, 2, 3, 4])))
 ```
 
 ### [Multiprocessing API](docs/source/api_multiprocessing.rst)

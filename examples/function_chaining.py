@@ -1,6 +1,6 @@
 """
 Simple Lithops example using the function chaining pattern
-in the Futures API.
+in the Core API.
 """
 import lithops
 

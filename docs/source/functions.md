@@ -5,7 +5,7 @@ This document describes how to invoke functions based on the *iterdata* variable
 
 Reserved parameters
 -------------------
-Reserved parameters are only accessible when using the [Futures API](./api_futures.rst).
+Reserved parameters are only accessible when using the [Core API](./api_futures.rst).
 
 
 - **id**: To get the call id. For instance, if you spawn 10 activations of a function, you will get here a number from 0 to 9, for example: [map.py](https://github.com/lithops-cloud/lithops/blob/master/examples/map.py)

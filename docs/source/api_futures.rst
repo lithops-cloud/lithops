@@ -1,7 +1,8 @@
+.. _core-api:
 .. _futures-api:
 
-Lithops Futures API
-===================
+Lithops Core API
+================
 
 The core abstraction in Lithops is the **executor**, which is responsible for orchestrating the execution of your functions across different environments.
 
@@ -41,8 +42,8 @@ By default, executors load configuration from the Lithops configuration file (e.
 This layered executor design lets Lithops provide a powerful, unified API for parallel function execution — from local development to multi-cloud production deployments, with fault tolerance and retries built in.
 
 
-Futures API Reference
----------------------
+Core API Reference
+------------------
 
 .. automodule:: lithops.executors
    :members:

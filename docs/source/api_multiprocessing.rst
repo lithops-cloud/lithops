@@ -13,7 +13,7 @@ Before utilizing this API, you will need to install its dependencies:
 Process and Pool
 ----------------
 
-`Processes <https://docs.python.org/3/library/multiprocessing.html#the-process-class>`_ and `Pool <https://docs.python.org/3/library/multiprocessing.html#using-a-pool-of-workers>`_ are the abstractions used in multiprocessing to parallelize computation. They interact directly with Lithops' Futures API.
+`Processes <https://docs.python.org/3/library/multiprocessing.html#the-process-class>`_ and `Pool <https://docs.python.org/3/library/multiprocessing.html#using-a-pool-of-workers>`_ are the abstractions used in multiprocessing to parallelize computation. They interact directly with Lithops' Core API.
 
 .. code:: python
 

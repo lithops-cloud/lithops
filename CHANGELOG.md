@@ -4,6 +4,8 @@
 
 ### Added
 
+- [API] Added `lithops.concurrent.futures`, a `concurrent.futures`-compatible executor interface (`submit`, eager `map`, stdlib `wait`/`as_completed`) backed by Lithops. See issue #1427.
+- [Docs] Renamed the native executor documentation from "Futures API" to "Core API".
 - [Tests] Added a unit test suite for all non-backend modules (18 files, 876 tests).
 - [Core] Added a `log_prefix()` helper for uniform log prefixes across core and backends.
 - [Core] Added a cache of serialized functions to avoid re-uploading the same function.
