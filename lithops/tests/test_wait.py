@@ -20,11 +20,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from lithops.utils import is_unix_system
-
-from lithops.utils import FuturesList
-
-wait_mod = importlib.import_module('lithops.wait')
+from lithops.utils import FuturesList, is_unix_system
 from lithops.wait import (
     ALL_COMPLETED,
     ALWAYS,
@@ -41,6 +37,8 @@ from lithops.wait import (
     get_result,
     wait,
 )
+
+wait_mod = importlib.import_module('lithops.wait')
 
 
 class FakeFuture:

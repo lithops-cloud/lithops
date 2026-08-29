@@ -128,6 +128,20 @@ def _sum_with(shared, i):
     return int(shared.sum()) + i
 
 
+def _tiny_classification_data(n=40, n_features=8, n_classes=3):
+    """
+    A small labelled set for the sklearn searches. load_digits() assigns
+    to ndarray.shape, which NumPy 2.5 warns on
+    """
+    import numpy as np
+
+    rng = np.random.default_rng(0)
+    return (
+        rng.normal(size=(n, n_features)),
+        rng.integers(0, n_classes, size=n),
+    )
+
+
 class TestSklearnOverJoblib:
     """
     The searches the examples in examples/ run, in a smaller shape so that
@@ -139,11 +153,10 @@ class TestSklearnOverJoblib:
         pytest.importorskip('sklearn')
 
     def test_grid_search_over_the_lithops_backend(self):
-        from sklearn.datasets import load_digits
         from sklearn.model_selection import GridSearchCV
         from sklearn.tree import DecisionTreeClassifier
 
-        digits = load_digits()
+        X, y = _tiny_classification_data()
         search = GridSearchCV(
             DecisionTreeClassifier(random_state=0),
             {'max_depth': [2, 4]},
@@ -152,12 +165,12 @@ class TestSklearnOverJoblib:
         )
 
         with _on_localhost():
-            search.fit(digits.data, digits.target)
+            search.fit(X, y)
 
         assert search.best_params_['max_depth'] in (2, 4)
         assert 0.0 < search.best_score_ <= 1.0
         # refit ran, so the search can predict
-        assert len(search.predict(digits.data[:5])) == 5
+        assert len(search.predict(X[:5])) == 5
 
     def test_the_dataset_is_proxied_for_every_fit_of_the_search(self):
         # Every fit gets the same X and y, so they travel as one cloud object
@@ -165,13 +178,12 @@ class TestSklearnOverJoblib:
         # carries a fourth element with their positions
         from unittest.mock import patch
 
-        from sklearn.datasets import load_digits
         from sklearn.model_selection import GridSearchCV
         from sklearn.tree import DecisionTreeClassifier
 
         from lithops.util.joblib import lithops_backend
 
-        digits = load_digits()
+        X, y = _tiny_classification_data()
         search = GridSearchCV(
             DecisionTreeClassifier(random_state=0),
             {'max_depth': [2, 4, 6]},
@@ -184,7 +196,7 @@ class TestSklearnOverJoblib:
             _counting_optimizer(proxied)
         ):
             with _on_localhost():
-                search.fit(digits.data, digits.target)
+                search.fit(X, y)
 
         assert proxied, 'the batch never went through the optimizer'
         # Three candidates over two folds
@@ -192,11 +204,10 @@ class TestSklearnOverJoblib:
 
     def test_randomized_search_over_the_lithops_backend(self):
         import numpy as np
-        from sklearn.datasets import load_digits
         from sklearn.model_selection import RandomizedSearchCV
         from sklearn.tree import DecisionTreeClassifier
 
-        digits = load_digits()
+        X, y = _tiny_classification_data()
         search = RandomizedSearchCV(
             DecisionTreeClassifier(random_state=0),
             {'min_samples_leaf': np.arange(1, 10)},
@@ -206,19 +217,18 @@ class TestSklearnOverJoblib:
         )
 
         with _on_localhost():
-            search.fit(digits.data, digits.target)
+            search.fit(X, y)
 
         assert 0.0 < search.best_score_ <= 1.0
 
     def test_a_pipeline_search_over_the_lithops_backend(self):
         # The shape of examples/sklearn_job_3.py, without pandas
-        from sklearn.datasets import load_digits
         from sklearn.model_selection import GridSearchCV
         from sklearn.pipeline import Pipeline
         from sklearn.preprocessing import StandardScaler
         from sklearn.tree import DecisionTreeClassifier
 
-        digits = load_digits()
+        X, y = _tiny_classification_data()
         pipeline = Pipeline([
             ('scale', StandardScaler()),
             ('classifier', DecisionTreeClassifier(random_state=0)),
@@ -228,7 +238,7 @@ class TestSklearnOverJoblib:
         )
 
         with _on_localhost():
-            search.fit(digits.data, digits.target)
+            search.fit(X, y)
 
         assert search.best_params_['classifier__max_depth'] in (2, 4)
         assert 0.0 < search.best_score_ <= 1.0
