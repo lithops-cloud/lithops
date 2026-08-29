@@ -20,12 +20,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from lithops.util.ibm_token_manager import (
-    COSTokenManager,
-    EXPIRY_MINUTES,
-    IAMTokenManager,
-    IBMTokenManager,
-)
 from lithops.util.metrics import PrometheusExporter
 from lithops.util.ssh_client import SSHClient, ssh_boot_status_message
 
@@ -179,28 +173,48 @@ class TestPrometheusExporter:
             exporter.send_metric('n', 1, type='gauge', labels=[])
 
 
-class _StubTokenManager(IBMTokenManager):
-    TOKEN_FILE = None
-    TYPE = 'TEST'
+class TestIBMTokenManager:
+    """
+    ibm_token_manager imports ibm_botocore, which is only present with the
+    IBM extra. Skip this class when that extra is not installed so the rest
+    of the file still collects
+    """
 
-    def _generate_new_token(self):
-        self.token = 'new-token'
-        self.expiry_time = int(
-            (datetime.now(timezone.utc) + timedelta(hours=1)).timestamp()
+    @pytest.fixture(autouse=True)
+    def _ibm(self):
+        pytest.importorskip('ibm_botocore')
+        pytest.importorskip('ibm_cloud_sdk_core')
+        from lithops.util.ibm_token_manager import (
+            COSTokenManager,
+            EXPIRY_MINUTES,
+            IAMTokenManager,
+            IBMTokenManager,
         )
 
+        class StubTokenManager(IBMTokenManager):
+            TOKEN_FILE = None
+            TYPE = 'TEST'
 
-class TestIBMTokenManager:
+            def _generate_new_token(self):
+                self.token = 'new-token'
+                self.expiry_time = int(
+                    (datetime.now(timezone.utc) + timedelta(hours=1)).timestamp()
+                )
+
+        self.COSTokenManager = COSTokenManager
+        self.EXPIRY_MINUTES = EXPIRY_MINUTES
+        self.IAMTokenManager = IAMTokenManager
+        self.StubTokenManager = StubTokenManager
 
     def test_token_file_constant_is_spelled_correctly(self):
-        assert hasattr(COSTokenManager, 'TOKEN_FILE')
-        assert hasattr(IAMTokenManager, 'TOKEN_FILE')
-        assert 'ibm_cos' in COSTokenManager.TOKEN_FILE
-        assert 'ibm_iam' in IAMTokenManager.TOKEN_FILE
-        assert not hasattr(COSTokenManager, 'TOEKN_FILE')
+        assert hasattr(self.COSTokenManager, 'TOKEN_FILE')
+        assert hasattr(self.IAMTokenManager, 'TOKEN_FILE')
+        assert 'ibm_cos' in self.COSTokenManager.TOKEN_FILE
+        assert 'ibm_iam' in self.IAMTokenManager.TOKEN_FILE
+        assert not hasattr(self.COSTokenManager, 'TOEKN_FILE')
 
     def test_missing_expiry_is_expired(self):
-        mgr = _StubTokenManager('key')
+        mgr = self.StubTokenManager('key')
         assert mgr._get_token_minutes_left() == 0
         assert mgr._is_token_expired()
 
@@ -208,16 +222,16 @@ class TestIBMTokenManager:
         expiry = int(
             (datetime.now(timezone.utc) + timedelta(hours=2)).timestamp()
         )
-        mgr = _StubTokenManager('key', token='cached', token_expiry_time=expiry)
-        assert mgr._get_token_minutes_left() >= EXPIRY_MINUTES
+        mgr = self.StubTokenManager('key', token='cached', token_expiry_time=expiry)
+        assert mgr._get_token_minutes_left() >= self.EXPIRY_MINUTES
         token, exp = mgr.get_token()
         assert token == 'cached'
         assert exp == expiry
 
     def test_refresh_dumps_and_returns_new_token(self, tmp_path, monkeypatch):
         path = tmp_path / 'token'
-        monkeypatch.setattr(_StubTokenManager, 'TOKEN_FILE', str(path))
-        mgr = _StubTokenManager('key')
+        monkeypatch.setattr(self.StubTokenManager, 'TOKEN_FILE', str(path))
+        mgr = self.StubTokenManager('key')
         with patch(
             'lithops.util.ibm_token_manager.dump_yaml_config'
         ) as dump:
@@ -229,7 +243,7 @@ class TestIBMTokenManager:
 
     def test_loads_cache_file(self, tmp_path, monkeypatch):
         path = tmp_path / 'token'
-        monkeypatch.setattr(_StubTokenManager, 'TOKEN_FILE', str(path))
+        monkeypatch.setattr(self.StubTokenManager, 'TOKEN_FILE', str(path))
         path.write_text('x')
         expiry = int(
             (datetime.now(timezone.utc) + timedelta(hours=2)).timestamp()
@@ -242,7 +256,7 @@ class TestIBMTokenManager:
                 'lithops.util.ibm_token_manager.os.path.exists',
                 return_value=True,
             ):
-                mgr = _StubTokenManager('key')
+                mgr = self.StubTokenManager('key')
         assert mgr.token == 'from-disk'
         assert mgr.expiry_time == expiry
 
