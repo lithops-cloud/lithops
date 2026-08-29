@@ -323,6 +323,7 @@ class TestTimeoutAndStatusLog:
         monitor = _monitor()
         monitor.add_futures([FakeFuture('M000', invoked=True, ready=True)])
         first, _ = monitor._print_status_log(previous_log=None, log_time=0)
+        caplog.clear()
         with caplog.at_level(logging.DEBUG, logger='lithops.monitor'):
             counts, log_time = monitor._print_status_log(
                 previous_log=first, log_time=LOG_INTERVAL + 1

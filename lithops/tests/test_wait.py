@@ -12,6 +12,7 @@
 # limitations under the License.
 #
 
+import importlib
 import signal
 import threading
 from types import SimpleNamespace
@@ -22,6 +23,8 @@ import pytest
 from lithops.utils import is_unix_system
 
 from lithops.utils import FuturesList
+
+wait_mod = importlib.import_module('lithops.wait')
 from lithops.wait import (
     ALL_COMPLETED,
     ALWAYS,
@@ -144,7 +147,7 @@ class TestWait:
 
 class TestCreateExecutorsData:
 
-    @patch('lithops.wait.InternalStorage')
+    @patch.object(wait_mod, 'InternalStorage')
     def test_groups_futures_and_reuses_matching_storage(self, mock_storage_cls):
         internal = MagicMock()
         internal.backend = 'localhost'
@@ -238,7 +241,7 @@ class TestWaitPolling:
         monitor.storage_backend = 'localhost'
         internal = MagicMock()
         internal.backend = 'localhost'
-        with patch('lithops.wait._get_executor_data', return_value=0) as get:
+        with patch.object(wait_mod, '_get_executor_data', return_value=0) as get:
             wait(
                 [future],
                 return_when=ALWAYS,
@@ -250,8 +253,9 @@ class TestWaitPolling:
 
     def test_keyboard_interrupt_reraises_after_logging(self):
         future = FakeFuture()
-        with patch(
-            'lithops.wait._create_executors_data_from_futures',
+        with patch.object(
+            wait_mod,
+            '_create_executors_data_from_futures',
             side_effect=KeyboardInterrupt,
         ):
             with pytest.raises(KeyboardInterrupt):
@@ -270,9 +274,9 @@ class TestWaitPolling:
             future.success = True
             return 1
 
-        with patch('lithops.wait.JobMonitor', return_value=monitor) as cls, \
-                patch('lithops.wait._get_executor_data', side_effect=get_data), \
-                patch('lithops.wait.time.sleep'):
+        with patch.object(wait_mod, 'JobMonitor', return_value=monitor) as cls, \
+                patch.object(wait_mod, '_get_executor_data', side_effect=get_data), \
+                patch.object(wait_mod.time, 'sleep'):
             wait(
                 [future],
                 show_progressbar=False,
@@ -301,10 +305,10 @@ class TestWaitPolling:
             future.success = True
             return 1
 
-        with patch('lithops.wait.signal.signal', side_effect=fake_signal), \
-                patch('lithops.wait.signal.alarm') as alarm, \
-                patch('lithops.wait._get_executor_data', side_effect=get_data), \
-                patch('lithops.wait.time.sleep'):
+        with patch.object(wait_mod.signal, 'signal', side_effect=fake_signal), \
+                patch.object(wait_mod.signal, 'alarm') as alarm, \
+                patch.object(wait_mod, '_get_executor_data', side_effect=get_data), \
+                patch.object(wait_mod.time, 'sleep'):
             wait(
                 [future],
                 timeout=17,
@@ -342,8 +346,8 @@ class TestWaitPolling:
             if threading.current_thread() is test_thread:
                 sleeps.append(seconds)
 
-        with patch('lithops.wait._get_executor_data', side_effect=get_data), \
-                patch('lithops.wait.time.sleep', side_effect=sleep):
+        with patch.object(wait_mod, '_get_executor_data', side_effect=get_data), \
+                patch.object(wait_mod.time, 'sleep', side_effect=sleep):
             wait(
                 [future],
                 return_when=ALL_COMPLETED,
@@ -373,7 +377,7 @@ class TestWaitPolling:
         internal = MagicMock()
         internal.backend = 'localhost'
 
-        with patch('lithops.wait.time.sleep'):
+        with patch.object(wait_mod.time, 'sleep'):
             done, not_done = wait(
                 [parent],
                 show_progressbar=False,
