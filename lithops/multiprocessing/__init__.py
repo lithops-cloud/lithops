@@ -6,12 +6,22 @@
 #
 
 from .context import (
-    CloudContext,
+    ProcessError,
+    BufferTooShort,
+    TimeoutError,
+    AuthenticationError,
     cpu_count,
     get_context,
     get_all_start_methods,
     set_start_method,
-    get_start_method
+    get_start_method,
+    freeze_support,
+    allow_connection_pickling,
+    set_executable,
+    set_forkserver_preload,
+    get_logger,
+    log_to_stderr,
+    reducer
 )
 from .context import CloudContext as DefaultContext
 from .connection import Pipe
@@ -36,6 +46,17 @@ from . import config
 
 
 __all__ = [
+    'ProcessError',
+    'BufferTooShort',
+    'TimeoutError',
+    'AuthenticationError',
+    'allow_connection_pickling',
+    'freeze_support',
+    'get_logger',
+    'log_to_stderr',
+    'reducer',
+    'set_executable',
+    'set_forkserver_preload',
     'cpu_count',
     'get_context',
     'get_all_start_methods',
@@ -66,5 +87,6 @@ __all__ = [
     'config'
 ]
 
-
-context = CloudContext()
+# `lithops.multiprocessing.context` is left as the module it is, the way
+# `multiprocessing.context` is. Binding an instance over it here made every
+# `mp.context.<name>` of ported code fail. The class is `DefaultContext`

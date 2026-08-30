@@ -105,10 +105,10 @@ def export_execution_details(futures, lithops_executor):
 
 
 def get_network_ip():
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-    s.connect(('<broadcast>', 0))
-    return s.getsockname()[0]
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        s.connect(('<broadcast>', 0))
+        return s.getsockname()[0]
 
 
 #
@@ -212,15 +212,15 @@ def setup_log_streaming(executor):
 
 class RemoteLogIOBuffer:
     def __init__(self, stream):
-        self._feeder_thread = threading
         self._buff = io.StringIO()
         self._redis = get_redis_client()
         self._stream = stream
+        self._old_stdout = None
 
     def write(self, log):
         self._buff.write(log)
-        # self.flush()
-        self._old_stdout.write(log)
+        if self._old_stdout is not None:
+            self._old_stdout.write(log)
 
     def flush(self):
         log = self._buff.getvalue()
@@ -228,14 +228,14 @@ class RemoteLogIOBuffer:
         self._buff = io.StringIO()
 
     def start(self):
-        import sys
         self._old_stdout = sys.stdout
         sys.stdout = self
         logger.debug('Starting remote logging feed to stream %s', self._stream)
 
     def stop(self):
-        import sys
-        sys.stdout = self._old_stdout
+        if self._old_stdout is not None:
+            sys.stdout = self._old_stdout
+            self._old_stdout = None
         logger.debug('Stopping remote logging feed to stream %s', self._stream)
 
 
@@ -260,7 +260,8 @@ class RemoteLoggingFeed:
         logger.debug('Logger monitor thread for stream %s finished', stream)
 
     def start(self):
-        # self._logger_thread.daemon = True
+        # A daemon: a feed nobody stopped must not hold up interpreter exit
+        self._logger_thread.daemon = True
         self._enabled = True
         self._logger_thread.start()
 

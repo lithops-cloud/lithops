@@ -286,6 +286,17 @@ class FunctionExecutor:
         """Keep list subclasses (including FuturesList) unchanged; wrap a single future."""
         return wrap_as_future_list(futures)
 
+    def _monitor_of(self, futures):
+        """
+        The job monitor to wait with. This executor's own only tracks the
+        jobs it invoked itself, since it polls the storage prefix of its own
+        id, so futures from anywhere else need wait() to start the monitors
+        that match the executors they belong to
+        """
+        if all(fut.executor_id == self.executor_id for fut in futures):
+            return self.job_monitor
+        return None
+
     @staticmethod
     def _disable_iterdata_output(iterdata):
         """
@@ -704,7 +715,7 @@ class FunctionExecutor:
             wait(
                 fs=futures,
                 internal_storage=self.internal_storage,
-                job_monitor=self.job_monitor,
+                job_monitor=self._monitor_of(futures),
                 download_results=download_results,
                 throw_except=throw_except,
                 return_when=return_when,

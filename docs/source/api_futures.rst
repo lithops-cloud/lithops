@@ -53,3 +53,11 @@ Futures API Reference
    :members:
    :undoc-members:
    :show-inheritance:
+
+``map()`` and ``map_reduce()`` return a :class:`~lithops.utils.FuturesList`, which
+is a list of futures that can be mapped over again. See
+:doc:`Function chaining <notebooks/function_chaining>`.
+
+.. autoclass:: lithops.utils.FuturesList
+   :members: map, map_reduce, wait, get_result
+   :show-inheritance:

@@ -18,20 +18,64 @@ logger = logging.getLogger(__name__)
 # Exceptions
 #
 
-class ProcessError(Exception):
-    pass
+from .errors import (  # noqa: E402  (re-exported where the stdlib keeps them)
+    ProcessError,
+    BufferTooShort,
+    TimeoutError,
+    AuthenticationError,
+)
 
 
-class BufferTooShort(ProcessError):
-    pass
+#
+# Module-level helpers of the standard library that a cloud backend has
+# nothing to do. They are here so that code ported from multiprocessing
+# imports and calls them without an AttributeError
+#
+
+def freeze_support():
+    """
+    No-op. The standard library re-executes the parent script in a spawned
+    child and needs this to stop it recursing; Lithops workers never do
+    """
 
 
-class TimeoutError(ProcessError):
-    pass
+def allow_connection_pickling():
+    """No-op. Lithops connections are picklable to begin with"""
 
 
-class AuthenticationError(ProcessError):
-    pass
+def set_executable(executable):
+    """No-op. There is no local interpreter to point at"""
+
+
+def set_forkserver_preload(module_names):
+    """No-op. There is no fork server"""
+
+
+def get_logger():
+    """The logger of this package, as multiprocessing.get_logger() is"""
+    return logging.getLogger(__package__)
+
+
+_log_to_stderr = False
+
+
+def log_to_stderr(level=None):
+    """
+    Sends the log of this package to stderr, and returns it. Idempotent, as
+    in the standard library: calling it twice does not print every line twice
+    """
+    global _log_to_stderr
+    package_logger = get_logger()
+    if not _log_to_stderr:
+        handler = logging.StreamHandler()
+        handler.setFormatter(
+            logging.Formatter('[%(levelname)s/%(processName)s] %(message)s')
+        )
+        package_logger.addHandler(handler)
+        _log_to_stderr = True
+    if level is not None:
+        package_logger.setLevel(level)
+    return package_logger
 
 
 #
@@ -107,7 +151,7 @@ class CloudContext:
     def JoinableQueue(self, maxsize=0):
         """Returns a queue object"""
         from .queues import JoinableQueue
-        return JoinableQueue()
+        return JoinableQueue(maxsize)
 
     def SimpleQueue(self):
         """Returns a queue object"""
@@ -137,7 +181,17 @@ class CloudContext:
                      ctx=self.get_context())
 
     def cpu_count(self):
-        lithops_config = lithops.config.default_config()
+        """
+        How many function calls can run at once: the workers of the backend
+        times the processes each of them runs.
+
+        Resolved against the configuration lithops.multiprocessing was given,
+        not the one this machine happens to have, or a Pool sized from this
+        is sized against the wrong backend
+        """
+        from . import config as mp_config
+        config_data = mp_config.get_parameter(mp_config.LITHOPS_CONFIG) or None
+        lithops_config = lithops.config.default_config(config_data=config_data)
         backend = lithops_config['lithops']['backend']
         max_workers = lithops_config[backend]['max_workers']
         worker_processes = lithops_config[backend]['worker_processes']
@@ -172,6 +226,10 @@ class CloudContext:
 
 
 _default_context = CloudContext()
+
+# multiprocessing.reducer is the reduction module of the default context.
+# Nothing here reduces objects that way, so it stands at None
+reducer = _default_context.reducer
 
 cpu_count = _default_context.cpu_count
 get_context = _default_context.get_context

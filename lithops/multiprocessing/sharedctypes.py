@@ -32,6 +32,8 @@ typecode_to_type = {
 
 class SharedCTypeProxy:
     def __init__(self, ctype, *args, **kwargs):
+        # The tail of the MRO: the lock and context a synchronized proxy was
+        # given have been consumed by now
         self._typeid = ctype.__name__
         self._oid = '{}-{}'.format(self._typeid, util.get_uuid())
         self._client = util.get_redis_client()
@@ -65,7 +67,7 @@ class SynchronizedSharedCTypeProxy(SharedCTypeProxy):
 
 class RawValueProxy(SharedCTypeProxy):
     def __init__(self, ctype, *args, **kwargs):
-        super().__init__(ctype=ctype)
+        super().__init__(ctype=ctype, *args, **kwargs)
 
     def __setattr__(self, key, value):
         if key == 'value':
@@ -86,7 +88,7 @@ class RawValueProxy(SharedCTypeProxy):
                 value = cloudpickle.loads(obj)
             return value
         else:
-            super().__getattribute__(item)
+            return super().__getattribute__(item)
 
 
 class SynchronizedValueProxy(RawValueProxy, SynchronizedSharedCTypeProxy):
@@ -99,7 +101,7 @@ class SynchronizedValueProxy(RawValueProxy, SynchronizedSharedCTypeProxy):
 
 class RawArrayProxy(SharedCTypeProxy):
     def __init__(self, ctype, *args, **kwargs):
-        super().__init__(ctype)
+        super().__init__(ctype=ctype, *args, **kwargs)
         self._it = 0
 
     def _append(self, value):
@@ -179,11 +181,12 @@ class SynchronizedStringProxy(SynchronizedArrayProxy):
         if item == 'value':
             return self[:]
         else:
-            super().__getattribute__(item)
+            return super().__getattribute__(item)
 
     def __getitem__(self, i):
         if isinstance(i, slice):
             start, stop, step = i.indices(self.__len__())
+            stop -= 1  # lrange is inclusive on both ends
             logger.debug('Requested get string slice from %i to %i', start, stop)
             objl = self._client.lrange(self._oid, start, stop)
             self._client.expire(self._oid, mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
@@ -206,7 +209,7 @@ def RawValue(typecode_or_type, initial_value=None):
     logger.debug('Requested creation of resource RawValue')
     type_ = typecode_to_type.get(typecode_or_type, typecode_or_type)
     obj = RawValueProxy(type_)
-    if initial_value:
+    if initial_value is not None:
         obj.value = initial_value
     return obj
 
@@ -240,7 +243,7 @@ def Value(typecode_or_type, initial_value=None, lock=True, ctx=None):
     """
     logger.debug('Requested creation of resource Value')
     type_ = typecode_to_type.get(typecode_or_type, typecode_or_type)
-    obj = SynchronizedValueProxy(type_)
+    obj = SynchronizedValueProxy(type_, lock=lock if lock is not True else None, ctx=ctx)
     if initial_value is not None:
         obj.value = initial_value
     return obj
@@ -252,10 +255,11 @@ def Array(typecode_or_type, size_or_initializer, *, lock=True, ctx=None):
     """
     logger.debug('Requested creation of resource Array')
     type_ = typecode_to_type.get(typecode_or_type, typecode_or_type)
+    given_lock = lock if lock is not True else None
     if type_ is ctypes.c_char:
-        obj = SynchronizedStringProxy(type_)
+        obj = SynchronizedStringProxy(type_, lock=given_lock, ctx=ctx)
     else:
-        obj = SynchronizedArrayProxy(type_)
+        obj = SynchronizedArrayProxy(type_, lock=given_lock, ctx=ctx)
 
     if isinstance(size_or_initializer, list) or isinstance(size_or_initializer, bytes):
         obj._extend(size_or_initializer)

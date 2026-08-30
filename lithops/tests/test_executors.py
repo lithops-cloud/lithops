@@ -279,6 +279,28 @@ class TestSubmitAndCleanup:
 class TestWaitAndGetResult:
 
     @patch('lithops.executors.wait')
+    def test_wait_uses_its_own_monitor_for_its_own_futures(self, mock_wait):
+        executor = _bare_executor()
+        executor.wait([FakeFuture(executor_id='sess-0')], show_progressbar=False)
+        assert mock_wait.call_args.kwargs['job_monitor'] is executor.job_monitor
+
+    @patch('lithops.executors.wait')
+    def test_wait_on_another_executors_futures_starts_its_own_monitors(
+        self, mock_wait
+    ):
+        """
+        This monitor polls the storage prefix of this executor id, so handing
+        it futures invoked elsewhere would leave them unwatched. wait() has
+        to start one monitor per executor they belong to instead
+        """
+        executor = _bare_executor()
+        executor.wait(
+            [FakeFuture(executor_id='sess-0'), FakeFuture(executor_id='sess-1')],
+            show_progressbar=False,
+        )
+        assert mock_wait.call_args.kwargs['job_monitor'] is None
+
+    @patch('lithops.executors.wait')
     def test_wait_partitions_by_done_when_downloading_results(self, mock_wait):
         finished = FakeFuture(done=True, success=True)
         pending = FakeFuture(done=False, success=False)

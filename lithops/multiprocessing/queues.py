@@ -12,6 +12,7 @@
 __all__ = ['Queue', 'SimpleQueue', 'JoinableQueue']
 
 import os
+import time
 import cloudpickle
 import logging
 
@@ -22,6 +23,9 @@ from . import util
 from . import synchronize
 
 logger = logging.getLogger(__name__)
+
+# How often a bounded queue re-checks whether room came free
+_POLL_SEC = 0.05
 
 
 #
@@ -51,13 +55,6 @@ class Queue:
          self._writer, self._opid, self._ref) = state
         self._after_fork()
 
-    @property
-    def _notfull(self):
-        if self._maxsize > 0:
-            return self.qsize() < self._maxsize
-        else:
-            return True
-
     def _after_fork(self):
         logger.debug('Queue._after_fork()')
         self._closed = False
@@ -67,12 +64,28 @@ class Queue:
         self._poll = self._reader.poll
 
     def put(self, obj, block=True, timeout=None):
+        """
+        Puts an object on the queue, waiting for room on a bounded one.
+
+        A full queue raises Full rather than dropping the object, which is a
+        loss the caller has no way of noticing
+        """
         if self._closed:
             raise ValueError(f"Queue {self!r} is closed")
 
-        if self._notfull:
-            obj = cloudpickle.dumps(obj)
-            self._send_bytes(obj)
+        if self._maxsize > 0:
+            self._wait_for_room(block, timeout)
+
+        self._send_bytes(cloudpickle.dumps(obj))
+
+    def _wait_for_room(self, block, timeout):
+        end = None if timeout is None else time.monotonic() + timeout
+        while self.qsize() >= self._maxsize:
+            if not block:
+                raise Full
+            if end is not None and time.monotonic() >= end:
+                raise Full
+            time.sleep(_POLL_SEC)
 
     def get(self, block=True, timeout=None):
         if block and timeout is None:
@@ -95,15 +108,15 @@ class Queue:
 
     def full(self):
         if self._maxsize > 0:
-            return self.qsize() < self._maxsize
+            return self.qsize() >= self._maxsize
         else:
             return False
 
     def get_nowait(self):
-        return self.get(False)
+        return self.get(block=False)
 
     def put_nowait(self, obj):
-        return self.put(obj, False)
+        return self.put(obj, block=False)
 
     def close(self):
         self._closed = True
@@ -164,10 +177,10 @@ class SimpleQueue:
         return False
 
     def get_nowait(self):
-        return self.get()
+        return self.get(block=False)
 
     def put_nowait(self, obj):
-        return self.put(obj)
+        return self.put(obj, block=False)
 
     def close(self):
         if not self._closed:
@@ -180,8 +193,8 @@ class SimpleQueue:
 #
 
 class JoinableQueue(Queue):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, maxsize=0):
+        super().__init__(maxsize)
         self._unfinished_tasks = synchronize.Semaphore(0)
         self._cond = synchronize.Condition()
 

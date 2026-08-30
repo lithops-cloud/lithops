@@ -42,14 +42,43 @@ logger = logging.getLogger(__name__)
 # Public functions
 #
 
+class _CurrentProcess:
+    """
+    What current_process() reports from inside a worker. Only the identity
+    of the running call: building a CloudProcess here would create a Lithops
+    executor and a Redis client just to read a name back
+    """
+
+    def __init__(self, name, pid):
+        self.name = name
+        self._pid = pid
+        self.daemon = False
+        self.exitcode = None
+
+    @property
+    def ident(self):
+        return self._pid
+
+    pid = ident
+
+    def is_alive(self):
+        return True
+
+    def __repr__(self):
+        return '<{}(name={}, pid={})>'.format(
+            type(self).__name__, self.name, self._pid
+        )
+
+
 def current_process():
     """
     Return process object representing the current process
     """
     if is_lithops_worker():
-        p = CloudProcess(name=os.environ.get('LITHOPS_MP_WORKER_NAME'))
-        p._pid = os.environ.get('__LITHOPS_SESSION_ID', '-1')
-        return p
+        return _CurrentProcess(
+            name=os.environ.get('LITHOPS_MP_WORKER_NAME'),
+            pid=os.environ.get('__LITHOPS_SESSION_ID', '-1'),
+        )
     else:
         return _mp.current_process()
 
@@ -73,8 +102,9 @@ def parent_process():
 #
 
 def cloud_process_wrapper(data, func, initializer=None, initargs=(), name=None, log_stream=None, op=None):
-    # Put worker name in envs to get it from within the function
-    os.environ['LITHOPS_MP_WORKER_NAME'] = 'test'
+    # Put the worker name in the environment, which is where current_process()
+    # reads it back from
+    os.environ['LITHOPS_MP_WORKER_NAME'] = name or 'CloudProcess'
 
     # Setup remote logger
     if log_stream is not None:
@@ -89,18 +119,15 @@ def cloud_process_wrapper(data, func, initializer=None, initargs=(), name=None, 
 
     try:
         if op == 'apply':
-            res = func(*data['args'], **data['kwargs'])
+            return func(*data['args'], **data['kwargs'])
         elif op == 'map':
-            res = func(data,)
+            return func(data,)
         elif op == 'starmap':
-            res = func(*data)
+            return func(*data)
         else:
-            exception = Exception(op)
-            raise exception
-        return res
+            raise ValueError('Unknown operation {}'.format(op))
     except Exception as e:
         # Print exception stack trace to remote logging buffer
-        exception = e
         header = "---------- {} at {} ({}) ----------".format(e.__class__.__name__,
                                                               os.environ.get('LITHOPS_MP_WORKER_NAME'),
                                                               os.environ.get('__LITHOPS_SESSION_ID'))
@@ -108,17 +135,11 @@ def cloud_process_wrapper(data, func, initializer=None, initargs=(), name=None, 
         footer = '-' * len(header)
         if remote_log_buff:
             remote_log_buff.write('\n'.join([header, exception_body, footer, '']))
+        raise
     finally:
         if remote_log_buff:
             remote_log_buff.flush()
             remote_log_buff.stop()
-
-    if exception:
-        raise exception
-
-    @property
-    def __name__(self):
-        return os.environ.get('LITHOPS_MP_WORKER_NAME')
 
 
 #
@@ -143,12 +164,13 @@ class CloudProcess:
         self._pid = None
         if daemon is not None:
             self.daemon = daemon
-        lithops_config = mp_config.get_parameter(mp_config.LITHOPS_CONFIG)
-        self._executor = FunctionExecutor(**lithops_config)
+        # The executor is built by start(): a process that is never started
+        # should not leave a monitor and an invoker thread behind, and a
+        # process talks to Lithops rather than to Redis
+        self._executor = None
         self._future = None
         self._sentinel = object()
         self._remote_logger = None
-        self._redis = util.get_redis_client()
 
     def run(self):
         """
@@ -164,11 +186,13 @@ class CloudProcess:
         assert not self._pid, 'cannot start a process twice'
         assert self._parent_pid == os.getpid(), 'can only start a process object created by current process'
 
+        lithops_config = mp_config.get_parameter(mp_config.LITHOPS_CONFIG)
+        self._executor = FunctionExecutor(**lithops_config)
         self._remote_logger, stream = util.setup_log_streaming(self._executor)
 
         extra_env = mp_config.get_parameter(mp_config.ENV_VARS)
 
-        process_name = '-'.join(['CloudProcess', str(next(_process_counter)), self._target.__name__])
+        process_name = '-'.join([self._name, self._target.__name__])
         self._future = self._executor.call_async(cloud_process_wrapper,
                                                  {'func': self._target,
                                                   'data': {
@@ -190,6 +214,30 @@ class CloudProcess:
         """
         raise NotImplementedError()
 
+    def kill(self):
+        """
+        Terminate process; sends SIGKILL signal or uses TerminateProcess()
+        """
+        raise NotImplementedError()
+
+    def close(self):
+        """
+        Releases the resources of the process, which cannot be used again.
+
+        Unlike the standard library this does not refuse to close a process
+        still running: Lithops cannot tell whether the activation is over
+        without asking storage, and the call outlives this object either way
+        """
+        if self._remote_logger is not None:
+            self._remote_logger.stop()
+            self._remote_logger = None
+        executor, self._executor = self._executor, None
+        if executor is not None:
+            try:
+                executor.__exit__(None, None, None)
+            except Exception:
+                logger.debug('Error shutting down the Lithops executor', exc_info=True)
+
     def join(self, timeout=None):
         """
         Wait until child process terminates
@@ -199,12 +247,13 @@ class CloudProcess:
 
         exception = None
         try:
-            self._executor.wait(fs=[self._future])
+            self._executor.wait(fs=[self._future], timeout=timeout)
         except Exception as e:
             exception = e
         finally:
             if self._remote_logger:
                 self._remote_logger.stop()
+                self._remote_logger = None
 
             util.export_execution_details([self._future], self._executor)
 

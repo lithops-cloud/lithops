@@ -30,6 +30,10 @@
 
 ### Fixed
 
+- [Core] Fixed `wait()` on futures another executor invoked, which crashed with an `AttributeError` in `JobMonitor.is_alive()` and, once past it, watched the wrong storage prefix and never returned.
+- [Chaining] Fixed pickling a `FuturesList` detaching the list being pickled from its executor.
+- [Chaining] Fixed a list or a slice of futures of a previous job not being recognised as a chain, which failed with an argument binding error instead.
+- [Chaining] `extra_args` now raises at submit time instead of letting every activation of the chained job fail on a missing argument.
 - [Localhost] Fixed a deadlock on a `map` after `wait()` and `get_result()`, caused by stale work queue sentinels.
 - [Localhost] Fixed a partial `clear()` tearing down the consumers, tasks and latches of other jobs.
 - [Localhost] Fixed a task starting after `stop()`, leaving a process nobody kills.

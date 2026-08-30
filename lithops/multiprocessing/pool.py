@@ -12,7 +12,6 @@
 #
 # Imports
 #
-import queue
 import itertools
 import logging
 
@@ -20,6 +19,9 @@ from lithops import FunctionExecutor
 
 from . import util
 from . import config as mp_config
+# Aliased so that the builtin TimeoutError, which is what Lithops raises
+# when a wait runs out, stays reachable in this module
+from .errors import TimeoutError as ProcessTimeoutError
 from .process import cloud_process_wrapper, CloudProcess
 
 logger = logging.getLogger(__name__)
@@ -47,25 +49,21 @@ class Pool(object):
     """
     Class which supports an async version of applying functions to arguments.
     """
-    _wrap_exception = True
-
     Process = CloudProcess
 
     def __init__(self, processes=None, initializer=None, initargs=None, maxtasksperchild=None, context=None):
         if initargs is None:
             initargs = ()
 
-        self._taskqueue = queue.Queue()
-        self._cache = {}
+        if processes is not None and processes < 1:
+            raise ValueError("Number of processes must be at least 1")
+        if initializer is not None and not callable(initializer):
+            raise TypeError('initializer must be a callable')
+
         self._state = RUN
         self._maxtasksperchild = maxtasksperchild
         self._initializer = initializer
         self._initargs = initargs
-        self._remote_logger = {}
-        self._logger_stream = None
-
-        if processes is not None and processes < 1:
-            raise ValueError("Number of processes must be at least 1")
 
         lithops_conf = mp_config.get_parameter(mp_config.LITHOPS_CONFIG)
 
@@ -76,24 +74,24 @@ class Pool(object):
             self._executor = FunctionExecutor(**lithops_conf)
             self._processes = self._executor.invoker.max_workers
 
-        if initializer is not None and not callable(initializer):
-            raise TypeError('initializer must be a callable')
-
         self._remote_logger, self._logger_stream = util.setup_log_streaming(self._executor)
 
     def apply(self, func, args=(), kwds={}):
         """
         Equivalent of `func(*args, **kwds)`.
         """
-        assert self._state == RUN
-        if kwds and not args:
-            args = {}
+        if self._state != RUN:
+            raise ValueError("Pool not running")
         return self.apply_async(func, args, kwds).get()
 
     def map(self, func, iterable, chunksize=None):
         """
         Apply `func` to each element in `iterable`, collecting the results
         in a list that is returned.
+
+        ``chunksize`` is how many items one worker takes, which is what it
+        means for the standard library too. Left unset, the chunksize of the
+        Lithops configuration applies.
         """
         return self._map_async(func, iterable, chunksize).get()
 
@@ -112,16 +110,21 @@ class Pool(object):
         return self._map_async(func, iterable, chunksize=chunksize,
                                callback=callback, error_callback=error_callback, starmap=True)
 
-    def imap(self, func, iterable, chunksize=1):
+    def imap(self, func, iterable, chunksize=None):
         """
-        Equivalent of `map()` -- can be MUCH slower than `Pool.map()`.
+        Equivalent of `map()`.
+
+        Unlike the standard library, this is not lazy: every call is
+        submitted and every result collected before the first one is
+        yielded. An iterator that never ends will not work here.
         """
         res = self.map(func, iterable, chunksize=chunksize)
         return IMapIterator(res)
 
-    def imap_unordered(self, func, iterable, chunksize=1):
+    def imap_unordered(self, func, iterable, chunksize=None):
         """
-        Like `imap()` method but ordering of results is arbitrary.
+        Like `imap()`, and like it not lazy. The results come back in the
+        order of the input, which the standard library does not promise.
         """
         res = self.map(func, iterable, chunksize=chunksize)
         return IMapIterator(res)
@@ -133,8 +136,8 @@ class Pool(object):
         if self._state != RUN:
             raise ValueError("Pool not running")
 
-        self._remote_logger, stream = util.setup_log_streaming(self._executor)
         extra_env = mp_config.get_parameter(mp_config.ENV_VARS)
+        stream = self._logger_stream
 
         process_name = '-'.join([self._executor.executor_id, func.__name__])
         futures = self._executor.call_async(cloud_process_wrapper,
@@ -166,6 +169,8 @@ class Pool(object):
         """
         if self._state != RUN:
             raise ValueError("Pool not running")
+        if chunksize is not None and chunksize < 1:
+            raise ValueError("chunksize must be >= 1")
         if not hasattr(iterable, '__len__'):
             iterable = list(iterable)
 
@@ -183,6 +188,7 @@ class Pool(object):
 
         futures = self._executor.map(cloud_process_wrapper,
                                      fmt_args,
+                                     chunksize=chunksize,
                                      extra_args=extra_args,
                                      extra_env=extra_env)
 
@@ -201,19 +207,44 @@ class Pool(object):
     def terminate(self):
         logger.debug('terminating pool')
         self._state = TERMINATE
-        if self._remote_logger:
-            self._remote_logger.stop()
-            self._remote_logger = None
+        self._release()
 
     def join(self):
         logger.debug('joining pool')
-        assert self._state in (CLOSE, TERMINATE)
+        if self._state not in (CLOSE, TERMINATE):
+            raise ValueError('Pool is still running')
+        self._release()
+
+    def _release(self):
+        """
+        Stops the log feed and gives the Lithops executor back. Without it
+        the monitor and invoker threads of the executor outlive the pool
+        """
+        if self._remote_logger is not None:
+            self._remote_logger.stop()
+            self._remote_logger = None
+        executor, self._executor = self._executor, None
+        if executor is not None:
+            try:
+                executor.__exit__(None, None, None)
+            except Exception:
+                logger.debug('Error shutting down the Lithops executor', exc_info=True)
 
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.terminate()
+
+
+class ThreadPool(Pool):
+    """
+    The name ``multiprocessing.pool`` uses for its thread-backed pool.
+
+    Provided so that ``from multiprocessing.pool import ThreadPool`` keeps
+    working after the import is swapped; the tasks still run on Lithops
+    workers rather than in local threads.
+    """
 
 
 #
@@ -232,7 +263,11 @@ class ApplyResult(object):
         self._exception = None
 
     def ready(self):
-        return all(fut.done for fut in self._futures)
+        # A call whose status has arrived is finished as far as the caller is
+        # concerned; `done` only turns true once its result was downloaded
+        return all(
+            fut.success or fut.done or fut.error for fut in self._futures
+        )
 
     def successful(self):
         if not self.ready():
@@ -240,34 +275,42 @@ class ApplyResult(object):
         return not any(fut.error for fut in self._futures)
 
     def wait(self, timeout=None):
+        """
+        Waits for the calls, reporting nothing, as in the standard library.
+        A wait that timed out leaves the result there to be fetched later
+        """
         try:
             self._executor.wait(self._futures, download_results=False, timeout=timeout)
-        except Exception as e:
-            self._exception = e
+        except Exception:
+            logger.debug('Timed out waiting for the pool results', exc_info=True)
+
+    def _get_values(self, timeout=None):
+        """
+        The value of every call, in order.
+
+        Read from the futures rather than through get_result(), which unwraps
+        a lone result depending on what the executor was last asked to do. A
+        map in between would otherwise change the shape of this result, and a
+        call that returns a list of its own is indistinguishable either way
+        """
+        try:
+            self._executor.wait(
+                self._futures, download_results=True, timeout=timeout
+            )
+        except TimeoutError as exc:
+            # Lithops reports it as the builtin, which is an OSError and so
+            # not what `except multiprocessing.TimeoutError` catches
+            raise ProcessTimeoutError(str(exc)) from exc
+        values = [fut.result() for fut in self._futures]
+        util.export_execution_details(self._futures, self._executor)
+        return values
 
     def get(self, timeout=None):
-        if self._exception:
-            raise self._exception
-
-        self._value = self._executor.get_result(self._futures, timeout=timeout)
-
+        """The value of the single call this result stands for"""
+        self._value = self._get_values(timeout)[0]
         if self._callback is not None:
             self._callback(self._value)
-
-        util.export_execution_details(self._futures, self._executor)
-
         return self._value
-
-    def _set(self, i, success_result):
-        self._success, self._value = success_result
-        if self._callback and self._success:
-            self._callback(self._value)
-            self._callback = None
-        if self._error_callback and not self._success:
-            self._error_callback(self._value)
-            self._callback = None
-        # self._event.set()
-        # del self._cache[self._job]
 
 
 AsyncResult = ApplyResult  # create alias
@@ -279,10 +322,12 @@ AsyncResult = ApplyResult  # create alias
 
 class MapResult(ApplyResult):
 
-    def __init__(self, executor, futures, callback, error_callback):
-        ApplyResult.__init__(self, executor, futures, callback, error_callback)
-
-        self._value = [None] * len(futures)
+    def get(self, timeout=None):
+        """The list of values, one per item of the iterable"""
+        self._value = self._get_values(timeout)
+        if self._callback is not None:
+            self._callback(self._value)
+        return self._value
 
 
 #

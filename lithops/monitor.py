@@ -657,9 +657,11 @@ class JobMonitor:
 
     def is_alive(self):
         """
-        Tells whether the monitor thread is still running
+        Tells whether the monitor thread is still running. False when none
+        was ever started, which is what an executor asked to wait on futures
+        it did not invoke itself has
         """
-        return self.monitor.is_alive()
+        return self.monitor is not None and self.monitor.is_alive()
 
     def remove(self, fs):
         """

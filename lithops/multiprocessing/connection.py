@@ -10,14 +10,12 @@
 #
 
 import time
-import selectors
 import threading
 import random
 import io
 import logging
 import cloudpickle
 
-from multiprocessing.context import BufferTooShort
 
 try:
     import pynng
@@ -26,6 +24,7 @@ except ModuleNotFoundError:
 
 from . import util
 from . import config as mp_config
+from .errors import BufferTooShort
 from queue import Queue
 
 logger = logging.getLogger(__name__)
@@ -319,13 +318,12 @@ class _RedisConnection(_ConnectionBase):
         self._set_expiry = lambda key: None
 
     def _close(self, _close=None):
-        if hasattr(self, '_pubsub'):
-            if self._pubsub is not None:
-                self._pubsub.unsubscribe(self._handle)
-        # older versions of StrictRedis can't be closed
-        if hasattr(self, '_client'):
-            if hasattr(self._client, 'close'):
-                self._client.close()
+        # Only the subscription belongs to this connection. The client is the
+        # one every shared object of the process talks through, so closing it
+        # here would take the rest of them down along with this connection
+        if getattr(self, '_pubsub', None) is not None:
+            self._pubsub.unsubscribe(self._handle)
+            self._pubsub = None
 
     def _listwrite(self, handle, buf):
         self._set_expiry(handle)
@@ -591,6 +589,7 @@ class _RedisListener:
     def __init__(self, address, family=None, backlog=1):
         logger.debug('Requested creation of Redis listener for address %s', address)
         self._address = address
+        self._family = family
         self._client = util.get_redis_client()
         self._connect()
 
@@ -658,15 +657,6 @@ def _RedisClient(address):
 #
 # Wait
 #
-
-# poll/select have the advantage of not requiring any extra file
-# descriptor, contrarily to epoll/kqueue (also, they require a single
-# syscall).
-if hasattr(selectors, 'PollSelector'):
-    _WaitSelector = selectors.PollSelector
-else:
-    _WaitSelector = selectors.SelectSelector
-
 
 def wait(object_list, timeout=None):
     """

@@ -144,6 +144,12 @@ class TestFormatData:
         assert format_data([pt], (9,)) == [(pt, 9)]
 
 
+def _response_future():
+    """A ResponseFuture with none of the state the constructor would set"""
+    from lithops.future import ResponseFuture
+    return ResponseFuture.__new__(ResponseFuture)
+
+
 class TestVerifyArgs:
 
     def test_futures_list_becomes_future_kwargs(self):
@@ -152,6 +158,41 @@ class TestVerifyArgs:
             {'future': 'f1'},
             {'future': 'f2'},
         ]
+
+    def test_a_plain_list_of_futures_is_a_chain_too(self):
+        """
+        A slice of a FuturesList, or one built by a comprehension, is a plain
+        list. Binding a future as if it were data fails with an error that
+        says nothing about chaining
+        """
+        futures = [_response_future(), _response_future()]
+        assert verify_args(lambda x, y: x, futures, None) == [
+            {'future': futures[0]},
+            {'future': futures[1]},
+        ]
+
+    def test_a_slice_of_a_futures_list_still_chains(self):
+        futures = FuturesList([_response_future() for _ in range(3)])
+        assert verify_args(lambda x: x, futures[:2], None) == [
+            {'future': futures[0]},
+            {'future': futures[1]},
+        ]
+
+    def test_futures_mixed_with_plain_data_raises(self):
+        with pytest.raises(ValueError, match='mixes futures'):
+            verify_args(lambda x: x, [_response_future(), 7], None)
+
+    def test_extra_args_with_a_chain_raises(self):
+        """
+        The worker binds the previous result to the whole signature, leaving
+        no room for them. Every activation would fail on a missing argument
+        """
+        futures = FuturesList([_response_future()])
+        with pytest.raises(ValueError, match='extra_args is not supported'):
+            verify_args(lambda x, factor: x, futures, (10,))
+
+    def test_an_empty_futures_list_submits_nothing(self):
+        assert verify_args(lambda x: x, FuturesList(), None) == []
 
     def test_positional_and_dict_binding(self):
         def fn(a, b):
@@ -597,9 +638,12 @@ class TestMiscUtils:
         assert fl.get_result() == [1]
 
         fl2 = FuturesList([1, 2])
-        fl2.executor = object()
+        executor = object()
+        fl2.executor = executor
         dumped = pickle.dumps(fl2)
-        assert fl2.executor is None
+        # Pickling reports the list, it does not consume it: the executor of
+        # the one being pickled has to survive
+        assert fl2.executor is executor
         loaded = pickle.loads(dumped)
         assert list(loaded) == [1, 2]
         assert loaded.executor is None

@@ -275,9 +275,13 @@ class Event:
             self._client.set(self._flag_handle, '0')
 
     def wait(self, timeout=None):
+        """
+        Waits for the flag and reports it, as in the standard library, where
+        `if event.wait(timeout):` is how a timeout is told from a set flag
+        """
         with self._cond:
             logger.debug('Request wait for event %s', self._flag_handle)
-            self._cond.wait_for(self.is_set, timeout)
+            return bool(self._cond.wait_for(self.is_set, timeout))
 
 
 #

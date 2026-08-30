@@ -35,7 +35,15 @@ _DEFAULT_CONFIG = {
     EXPORT_EXECUTION_DETAILS: False
 }
 
-_config = _DEFAULT_CONFIG
+# A copy: without it every set_parameter() would also rewrite the defaults,
+# leaving nothing to fall back to and no way to tell what a fresh process sees
+_config = dict(_DEFAULT_CONFIG)
+
+
+def reset():
+    """Puts every parameter back to its default value"""
+    _config.clear()
+    _config.update(_DEFAULT_CONFIG)
 
 
 def update(config_dic=None, **configurations):

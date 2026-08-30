@@ -206,6 +206,24 @@ class FuturesList(list):
         self.extend(fs)
 
     def map(self, map_function, sync=False, **kwargs):
+        """
+        Chains a new map job that takes the results of this one as its input.
+        The intermediate results are read by the workers of the new job and
+        are never downloaded to the client.
+
+        :param map_function: The function to map over the results
+        :param sync: Wait for this job before invoking the new one. Left
+            False, the new job is invoked right away and each of its workers
+            blocks until its own input is ready, which is worker time you pay
+            for. Waiting costs about the same wall-clock time and no idle
+            workers, at the price of not overlapping the two invocations
+        :param kwargs: Passed on to
+            :meth:`~lithops.executors.FunctionExecutor.map`. ``extra_args`` is
+            not among them: a chained function is called with the result of
+            the previous one and nothing else
+
+        :return: This list, now holding the futures of the new job
+        """
         self._create_executor()
         if sync:
             self.executor.wait(self)
@@ -214,6 +232,19 @@ class FuturesList(list):
         return self
 
     def map_reduce(self, map_function, reduce_function, sync=False, **kwargs):
+        """
+        Chains a new map-reduce job that takes the results of this one as the
+        input of its map stage.
+
+        :param map_function: The function to map over the results
+        :param reduce_function: The function to reduce the map results with
+        :param sync: Wait for this job before invoking the new one. See
+            :meth:`map`
+        :param kwargs: Passed on to
+            :meth:`~lithops.executors.FunctionExecutor.map_reduce`
+
+        :return: This list, now holding the futures of the new job
+        """
         self._create_executor()
         if sync:
             self.executor.wait(self)
@@ -224,17 +255,42 @@ class FuturesList(list):
         return self
 
     def wait(self, **kwargs):
+        """
+        Waits for every job of the chain, not only for the last one.
+
+        :param kwargs: Passed on to
+            :meth:`~lithops.executors.FunctionExecutor.wait`
+
+        :return: `(fs_done, fs_notdone)`
+        """
         self._create_executor()
         return self.executor.wait(self._all_futures(), **kwargs)
 
     def get_result(self, **kwargs):
+        """
+        Returns the results of the last job of the chain. The intermediate
+        ones are read by the workers, never by the client.
+
+        :param kwargs: Passed on to
+            :meth:`~lithops.executors.FunctionExecutor.get_result`
+
+        :return: The results of the last job
+        """
         self._create_executor()
         return self.executor.get_result(self._all_futures(), **kwargs)
 
     def __reduce__(self):
-        # The executor is not picklable, and a rehydrated list creates its own
-        self.executor = None
-        return super().__reduce__()
+        # The executor is not picklable, and a rehydrated list creates its
+        # own. Dropped from the pickled state rather than from the object,
+        # so that pickling a list does not detach the one being pickled
+        reduced = list(super().__reduce__())
+        # A list that never had an attribute set reduces without a state
+        state = reduced[2] if len(reduced) > 2 else None
+        if isinstance(state, dict) and 'executor' in state:
+            state = dict(state)
+            state.pop('executor')
+            reduced[2] = state
+        return tuple(reduced)
 
 
 _MODE_TO_DEFAULT_BACKEND = {
@@ -706,15 +762,57 @@ def _user_signature(func) -> inspect.Signature:
     return func_sig.replace(parameters=user_parameters)
 
 
+def _chained_futures(iterdata):
+    """
+    The futures of a previous job used as the input of this one, or None
+    when the iterdata is plain data.
+
+    A slice of a FuturesList, or a list built from one, is a chain too: both
+    lose the FuturesList type, and binding a future to a parameter as if it
+    were data fails with an error that says nothing about chaining
+    """
+    from lithops.future import ResponseFuture
+
+    if isinstance(iterdata, FuturesList):
+        return list(iterdata)
+
+    if not isinstance(iterdata, (list, tuple)) or not iterdata:
+        return None
+
+    futures = [
+        elem for elem in iterdata if isinstance(elem, ResponseFuture)
+    ]
+    if not futures:
+        return None
+    if len(futures) != len(iterdata):
+        raise ValueError(
+            "The iterdata mixes futures of a previous job with plain data. "
+            "Chaining takes the futures of one job as the whole input of "
+            "the next one"
+        )
+    return list(iterdata)
+
+
 def verify_args(func, iterdata, extra_args):
     """
     Binds every element of the iterdata to the params of the map function,
     returning one kwargs dict per call
     """
-    if isinstance(iterdata, FuturesList):
+    chained = _chained_futures(iterdata)
+    if chained is not None:
+        if extra_args:
+            # The worker binds the result of the previous call to the whole
+            # signature, so there is no room left for these. Said here rather
+            # than letting every activation fail on a missing argument
+            raise ValueError(
+                "extra_args is not supported when chaining jobs: a chained "
+                "function is called with the result of the previous one and "
+                "nothing else. Return the extra values from the previous "
+                "function, or get its results and start a new job with them"
+            )
         # A chained job receives the future of the previous one, which is only
         # bound to a param once the previous job finishes
-        return [{'future': f} for f in iterdata]
+        return [{'future': f} for f in chained]
 
     data = format_data(iterdata, extra_args)
     func_sig = _user_signature(func)

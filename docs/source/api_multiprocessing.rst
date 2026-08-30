@@ -30,8 +30,8 @@ Process and Pool
 
 .. code:: python
 
-    # from multiprocessing import Pool
-    from lithops.multiprocessing import Pool
+    # from multiprocessing import Pool, TimeoutError
+    from lithops.multiprocessing import Pool, TimeoutError
 
     def square(x):
         return x * x
@@ -44,12 +44,76 @@ Process and Pool
         except TimeoutError:
             print("Timed out!")
 
+.. note:: ``Process`` and ``Pool`` need no Redis instance. Everything under
+   `Stateful abstractions`_ does.
+
+What is not supported
+---------------------
+
+The API is the standard one, but the runtime is not a local operating system,
+so a few things of it have no counterpart:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Call
+     - Behaviour
+   * - ``active_children()``, ``parent_process()``
+     - Raise ``NotImplementedError``. There is no process tree to walk
+   * - ``Process.terminate()``, ``Process.is_alive()``, ``Process.exitcode``
+     - Raise ``NotImplementedError``. Lithops cannot recall an activation it
+       already dispatched, nor report on one
+   * - ``Pool.imap()``, ``Pool.imap_unordered()``
+     - Not lazy: every call is submitted and every result collected before the
+       first one is yielded, so an endless iterable will not work. The results
+       always come back in the order of the input
+   * - ``Pool.join()``
+     - Returns as soon as the pool is released; it does not wait for the calls
+       still in flight. Use the ``AsyncResult`` of each call to wait for it
+   * - ``Pool(maxtasksperchild=...)``, ``Process.daemon``, ``Process.authkey``
+     - Accepted and ignored. Workers are ephemeral, so there is nothing to
+       recycle, nothing to daemonize and no handshake to authenticate
+   * - ``RLock``
+     - Only re-entrant for the object that took it. A copy of it in another
+       process, or one restored from a pickle, does not know the lock is held
+   * - ``Semaphore.acquire()``, ``Lock.acquire()``
+     - Take ``block``, but no ``timeout``
+   * - ``Condition.wait(timeout)``
+     - A wait that timed out leaves its token behind, so the next
+       ``notify()`` may wake nobody. ``notify_all()`` is not affected
+   * - ``RawArray('c', ...)``
+     - Not implemented. Use ``Array('c', ...)``
+   * - ``Process.close()``
+     - Releases the executor whatever state the call is in. The standard
+       library refuses to close a process still running; Lithops cannot tell
+       without asking storage, and the activation outlives the object anyway
+   * - ``freeze_support()``, ``allow_connection_pickling()``,
+       ``set_executable()``, ``set_forkserver_preload()``
+     - Accepted and do nothing. There is no re-executed parent, no local
+       interpreter to point at and no fork server
+
+Everything else that ``multiprocessing`` exports is here under the same name,
+including ``ProcessError``, ``BufferTooShort``, ``TimeoutError``,
+``AuthenticationError``, ``get_logger()`` and ``log_to_stderr()``, and
+``ThreadPool`` under ``lithops.multiprocessing.pool``.
+
+.. note:: ``TimeoutError`` is the one of this package, not the builtin of the
+   same name, exactly as in the standard library. Catch it by importing it::
+
+       from lithops.multiprocessing import Pool, TimeoutError
+
 Stateful abstractions
 ---------------------
 
 Lithops also implements all stateful abstractions from Python multiprocessing: Queue, Pipes, Shared memory, Events, etc.
 
 Since FaaS lacks mechanisms for function-to-function communication, a `Redis <https://redis.io/>`_ database instance is used.
+
+.. note:: Redis is required for **every** shared object: ``Pipe``, ``Queue``,
+   ``SimpleQueue``, ``JoinableQueue``, ``Lock``, ``RLock``, ``Semaphore``,
+   ``BoundedSemaphore``, ``Condition``, ``Event``, ``Barrier``, ``Value``,
+   ``Array`` and ``Manager``. Building any of them without a ``redis`` section
+   in the configuration raises an error.
 
 .. note:: Both the functions and the Lithops orchestrator (local process) must be able to access the Redis instance. For example, deploying it on your local machine won't work, since the cloud functions won't be able to reach it.
 
@@ -123,8 +187,12 @@ Multiprocessing configuration keys
      - Environment variables for the processes, passed directly to Lithops FunctionExecutor ``extra_env`` argument
      - ``{}``
    * - EXPORT_EXECUTION_DETAILS
-     - Calls ``lithops.FunctionExecutor.plot()``, pass a path to store the plots, ``None`` to disable it
-     - ``None``
+     - Calls ``lithops.FunctionExecutor.plot()``, pass a path to store the plots, ``False`` to disable it
+     - ``False``
+
+``lithops.multiprocessing.config.reset()`` puts every parameter back to its
+default. The parameters are process-wide, so a library that sets one changes
+what every pool of that process sees.
 
 
 \* To use nanomsg for Pipes, you must still deploy a Redis instance (used for the pipe directory). Note that this feature only works in environments where functions can open a port and communicate with each other.

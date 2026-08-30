@@ -19,7 +19,6 @@ import threading
 import time
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from lithops.monitor import (
     LOG_INTERVAL,
@@ -248,13 +247,17 @@ class TestJobMonitor:
         live.stop.assert_called_once()
         live.join.assert_called_once_with(timeout=5)
 
-    def test_is_alive_requires_a_started_monitor(self):
+    def test_is_alive_without_a_started_monitor(self):
+        """
+        wait() asks this of the monitor of the executor it was called on,
+        which has no thread of its own until something is invoked through it
+        """
         storage = MagicMock()
         storage.get_storage_config.return_value = {'monitoring_interval': 2}
         storage.backend = 'localhost'
         job_monitor = JobMonitor('sess-0', storage)
-        with pytest.raises(AttributeError):
-            job_monitor.is_alive()
+        assert job_monitor.monitor is None
+        assert job_monitor.is_alive() is False
 
 
 class TestMonitorHelpers:
