@@ -393,6 +393,9 @@ class ResponseFuture:
         if self._state == self.State.New:
             raise ValueError("task not yet invoked")
 
+        if self.error and (self._call_status or {}).get('exception'):
+            return self._raise_call_exception(throw_except)
+
         if self.success or self.done:
             return self._call_status
 

@@ -5,33 +5,39 @@
 ### Added
 
 - [API] Added `lithops.concurrent.futures`, a `concurrent.futures`-compatible executor interface backed by Lithops.
-- [Tests] Added a unit test suite for all non-backend modules (18 files, 876 tests).
-- [Monitoring] Added Redis, AWS SQS (`aws_sqs`), GCP Pub/Sub (`gcp_pubsub`) and Azure Queue Storage (`azure_queue`) monitoring backends.
+- [Monitoring] Added Redis, AWS SQS, GCP Pub/Sub and Azure Queue Storage monitoring backends.
+- [Core] Added a cache of serialized functions to avoid re-uploading the same function.
+- [AWS Batch] Added the `instance_types` config option for EC2/SPOT compute environments.
+- [Tests] Added a unit test suite for all non-backend modules (18 files, 1266 tests).
 
 ### Changed
 
-- [Worker] Replaced the `multiprocessing` Manager queue of the worker pool with a POSIX pipe.
-- [Core] Results under 8KB now travel in the call status instead of a separate storage object.
-- [Core] Added a cache of serialized functions to avoid re-uploading the same function.
 - [Monitoring] Reorganised job monitoring as pluggable backends.
+- [Monitoring] The RabbitMQ queue is now deleted on cleanup instead of on every `stop()`, so a later `map()` can reuse it.
+- [Monitoring] Status lines (Pending/Running/Done) are now logged every 30s instead of on every activation.
+- [Core] Results under 8KB now travel in the call status instead of a separate storage object.
 - [Core] `wait()` now returns two empty lists for empty input instead of `None`.
+- [Worker] Replaced the `multiprocessing` Manager queue of the worker pool with a POSIX pipe.
 - [CLI] `job list`, `worker list`, `image delete` and `image list` now reject unknown flags.
 - [CLI] `lithops clean` now empties the local temp directory instead of removing it.
 - [Storage] `CloudFileProxy.walk()` now yields nothing for a missing path, like `os.walk`.
 - [Storage] `cloud_open()` now raises `ValueError` on an unsupported mode.
-- [Joblib] Capped the shared-argument upload and download pools at 32 threads.
 - [Joblib] `lithops_args` is now applied to the pool that runs the batches.
 - [Standalone] `docker login` now reads the password from stdin and quotes its arguments.
-- [AWS Batch] Allow to set `instance_types` config option for EC2/SPOT compute environments.
 
 ### Fixed
 
-- [Core] Fixed `wait()` on futures another executor invoked, which crashed with an `AttributeError` in `JobMonitor.is_alive()` and, once past it, watched the wrong storage prefix and never returned.
-- [Chaining] Fixed pickling a `FuturesList` detaching the list being pickled from its executor.
-- [Chaining] Fixed a list or a slice of futures of a previous job not being recognised as a chain, which failed with an argument binding error instead.
-- [Chaining] `extra_args` now raises at submit time instead of letting every activation of the chained job fail on a missing argument.
-- [Monitoring] Redis, RabbitMQ and SQS now delete their queues only in ``cleanup()``, and keep the monitor thread until ``stop()``.
-- [Monitoring] Status lines (Pending/Running/Done) are logged on start, every 30s, and when the job finishes, not on every activation.
+- [Core] Fixed `wait()` on futures another executor invoked, which crashed instead of waiting for them.
+- [Core] Fixed `result()` returning `None` instead of re-raising when the call had already failed.
+- [Core] Fixed module inspection crashing on a function whose `__module__` is `None`.
+- [Core] Fixed a hand-built `FuturesList` raising `AttributeError` instead of creating its executor.
+- [Chaining] Fixed pickling a `FuturesList` detaching the list from its executor.
+- [Chaining] Fixed a list or a slice of futures of a previous job not being recognised as a chain.
+- [Chaining] `extra_args` now raises at submit time instead of failing every activation of the chained job.
+- [Monitoring] Fixed a nested executor publishing statuses to a queue nobody declares.
+- [Monitoring] Fixed failed RabbitMQ publishes being dropped with nothing in the log.
+- [Multiprocessing] Fixed `error_callback` never being called by `apply_async()`, `map_async()` and `starmap_async()`.
+- [Multiprocessing] Fixed a full bounded `Queue` silently discarding what was put on it. It now waits, and raises `Full`.
 - [Localhost] Fixed a partial `clear()` tearing down the consumers, tasks and latches of other jobs.
 - [Localhost] Fixed a task starting after `stop()`, leaving a process nobody kills.
 - [Localhost] Fixed the v2 job manager spinning a core while an invocation was queueing.
@@ -40,21 +46,12 @@
 - [Standalone] Fixed a dict race that killed the budget keeper and left the VM running.
 - [Standalone] Fixed a file descriptor leak of the runner log, one per task.
 - [Standalone] Fixed the worker `/stop` endpoint iterating the process map while it changed.
-- [Standalone] Fixed `cancel_job_process()` raising on an emptied queue or a job with no queue.
 - [Standalone] Fixed the master dropping the errors of its parallel worker and job requests.
 - [Standalone] Fixed the SSH client keeping a client that failed to connect.
 - [Storage] Fixed `delete_cloudobjects()` deleting part of the list before rejecting a foreign object.
 - [Storage] Fixed `CloudFileProxy.listdir()` returning nothing for its default argument.
-- [Core] Fixed `find_free_port()` setting `SO_REUSEADDR` after the bind.
-- [Core] Fixed module inspection crashing on a function whose `__module__` is `None`.
-- [Core] Fixed a hand-built `FuturesList` raising `AttributeError` instead of creating its executor.
-- [Cleaner] Fixed the cleaner skipping requests and two cleaners racing for the pid file.
-- [Cleaner] Fixed `lithops clean` deleting the local temp directory of the jobs running at the same time on the same machine.
-- [Cleaner] Fixed the cleaner reading a request another process was still writing.
+- [Cleaner] Fixed two cleaners racing for the pid file, and requests being skipped or read while still being written.
 - [Cleaner] Fixed the cleaner looping forever on a request it could not read or classify.
-- [Cleaner] Fixed the cleaner lock surviving a killed cleaner and blocking every later one.
-- [Monitoring] Fixed a nested executor publishing statuses to a queue nobody declares.
-- [Monitoring] Fixed the failed RabbitMQ publishes being dropped with nothing in the log.
 - [Worker] Fixed the memory monitor reporting a peak of zero where usage cannot be read.
 - [Worker] Fixed the remote invoker returning before its invocations in flight were done.
 - [Job] Fixed folder markers being counted as objects, returning empty partitions.
@@ -64,7 +61,6 @@
 - [Joblib] Fixed a race losing one of two shared arguments proxied in the same call.
 - [Joblib] Fixed `lithops[joblib]` missing `redis`, needed to import the backend.
 - [IBM] Fixed the COS token manager raising if `ibm_botocore` hides the private expiry attribute.
-- [Tests] Fixed the test suite depending on the order its files run in.
 
 ## [v3.7.0]
 

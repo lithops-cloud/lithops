@@ -211,7 +211,7 @@ class JoinableQueue(Queue):
 
     def put(self, obj, block=True, timeout=None):
         with self._cond:
-            super().put(obj)
+            super().put(obj, block, timeout)
             self._unfinished_tasks.release()
 
     def task_done(self):

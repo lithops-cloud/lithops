@@ -86,6 +86,7 @@ class FakeExecutor:
         self.kwargs = kwargs
         self.executor_id = 'sess-0'
         self.invoker = type('I', (), {'max_workers': 7})()
+        self.futures = []
         self.call_async_calls = []
         self.map_calls = []
         self.wait_calls = []
