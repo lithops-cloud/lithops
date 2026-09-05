@@ -23,7 +23,7 @@
     #backend: aws_lambda                  # Default: aws_lambda
     #storage: aws_s3                      # Default: aws_s3
     #data_cleaner: True                   # Clean intermediate data after execution. Default: True
-    #monitoring: storage                  # One of: storage, rabbitmq. Default: storage
+    #monitoring: storage                  # Monitoring backend name. Built-in: storage, rabbitmq, redis, aws_sqs, gcp_pubsub, azure_queue. Default: storage
     #monitoring_interval: 2               # Polling interval (seconds) when monitoring=storage. Default: 2
     #data_limit: 4                        # Max iterdata aggregated size (MiB) before using storage. Default: 4
     #execution_timeout: 1800              # Per-call timeout in seconds. Default: 1800
@@ -559,6 +559,35 @@
 # =============================================================================
 #rabbitmq:
     #amqp_url: amqp://<USER>:<PASSWORD>@<HOST>:<PORT>/<VHOST>
+
+
+# =============================================================================
+# AWS SQS – optional overrides when `lithops.monitoring=aws_sqs`. Credentials
+# and region are taken from the `aws` section if this one is empty.
+# =============================================================================
+#aws_sqs:
+    #region: <REGION>                     # Mandatory here or under `aws`
+    #access_key_id: <ACCESS_KEY_ID>
+    #secret_access_key: <SECRET_ACCESS_KEY>
+    #session_token: <SESSION_TOKEN>
+
+
+# =============================================================================
+# GCP Pub/Sub – optional overrides when `lithops.monitoring=gcp_pubsub`.
+# Project and credentials are taken from the `gcp` section if this one is empty.
+# =============================================================================
+#gcp_pubsub:
+    #project_name: <GCP_PROJECT_ID>       # Mandatory here or under `gcp`
+    #credentials_path: <ABSOLUTE_PATH_TO_SERVICE_ACCOUNT_JSON>
+
+
+# =============================================================================
+# Azure Queue Storage – optional overrides when `lithops.monitoring=azure_queue`.
+# Account name and key are taken from `azure_storage` if this one is empty.
+# =============================================================================
+#azure_queue:
+    #storage_account_name: <STORAGE_ACCOUNT>
+    #storage_account_key: <STORAGE_ACCOUNT_KEY>
 
 
 # =============================================================================

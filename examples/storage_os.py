@@ -1,3 +1,11 @@
+"""
+Simple Lithops example using the cloud proxy, which makes the storage
+backend look like a local filesystem.
+
+The open() and os imported here write to storage instead of the disk, so
+familiar file code works unchanged, and a file written by a function can
+be read back by the client.
+"""
 import lithops
 from lithops.storage.cloud_proxy import open, os
 
@@ -30,7 +38,7 @@ if __name__ == "__main__":
     # Get files that have been created in functions
     fexec = lithops.FunctionExecutor()
     fexec.map(map_func, [1, 2, 3, 4])
-    res = fexec.get_result()
+    fexec.get_result()  # waits for the functions to write their files
 
     with open('test/3.txt', 'r') as f:
         print(f.read())

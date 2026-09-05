@@ -19,8 +19,8 @@ map function for each partition, and one reducer for all
 partitions of the same object. In this case you will get
 one result for each object specified in 'iterdata' variable.
 
-In the reduce function there will be always one parameter
-from where you can access to the partial results.
+The reduce function takes a single parameter, holding the results of
+the map functions that fed it.
 """
 
 import lithops

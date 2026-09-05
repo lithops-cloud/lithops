@@ -1,6 +1,6 @@
 """
 Simple Lithops example using the 'ibm_cos' parameter, which is
-a ready-to-use ibm_boto3.CLient() instance.
+a ready-to-use ibm_boto3.Client() instance.
 """
 import lithops
 

@@ -1,3 +1,11 @@
+"""
+Simple Lithops example that streams the logs of the functions back while
+they are still running.
+
+Each function writes into a RemoteLogIOBuffer, and the client tails that
+stream, so prints from inside the cloud show up locally instead of only
+being available once the job is over.
+"""
 import sys
 
 import lithops

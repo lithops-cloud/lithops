@@ -64,11 +64,13 @@ from lithops.localhost.utils import (
 
 logger = logging.getLogger(__name__)
 
-RUNNER_FILE = os.path.join(LITHOPS_TEMP_DIR, 'localhost-runner.py')
+RUNNER_FILE = os.path.join(LITHOPS_TEMP_DIR, 'localhost-runner-v2.py')
 LITHOPS_LOCATION = os.path.dirname(os.path.abspath(lithops.__file__))
-# The local temp dir is mounted on /tmp, so this is where a container sees the
-# runner that was copied to RUNNER_FILE
-DOCKER_RUNNER_FILE = f'/tmp/{USER_TEMP_DIR}/localhost-runner.py'
+# The local temp dir is mounted on /tmp, so this is where a container sees
+# the runner that was copied to RUNNER_FILE. The name carries the version:
+# v1 and v2 install a different runner, and a job of one started with the
+# other's runner fails without saying why
+DOCKER_RUNNER_FILE = f'/tmp/{USER_TEMP_DIR}/localhost-runner-v2.py'
 # How long the job manager waits before looking again for the latch of
 # a job that is being invoked right now
 MANAGER_IDLE_WAIT = 0.1
@@ -186,12 +188,22 @@ class LocalhostHandlerV2:
 
     def clear(self, job_keys=None, exception=None):
         """
-        Drops the tasks of the given jobs that have not started yet, kills the
-        running ones and releases their latches so that the job manager can
-        finish. Jobs that were not named are left running
+        Drops the tasks of the given jobs that have not started yet.
+        Running ones are killed when the job ended in an exception, or
+        when no job is named and the whole executor is going away; after
+        a successful wait on a named job they are left to finish so their
+        runner log stays in the file instead of being dumped as a crash
         """
         self.env.drop_pending_tasks(job_keys)
-        self.env.stop(job_keys)
+        # A named job that ended cleanly is left to finish, so its runner
+        # log stays in the file instead of being dumped as a crash. An
+        # exception, or the executor shutting down (no job named), stops
+        # the tasks instead: nobody is waiting on their output any more,
+        # and waiting for one holds up the shutdown for as long as it runs
+        if exception is not None or job_keys is None:
+            self.env.stop(job_keys)
+        else:
+            self.env.finish(job_keys)
 
         for job_key in list(self.env.jobs.keys()):
             if job_keys is not None and job_key not in job_keys:
@@ -256,7 +268,7 @@ class ExecutionEnvironment:
 
         stdout, stderr = process.communicate()
 
-        if process.returncode != 0:
+        if process.returncode > 0:
             log_process_failure(
                 logger,
                 f"Task process {job_key_call_id} failed with return "
@@ -264,6 +276,11 @@ class ExecutionEnvironment:
                 stdout=stdout,
                 stderr=stderr,
                 log_file=RN_LOG_FILE,
+            )
+        elif process.returncode < 0:
+            logger.debug(
+                f"Task process {job_key_call_id} exited with signal "
+                f"{-process.returncode}"
             )
         self.task_processes.pop(job_key_call_id, None)
         logger.debug(f"Task process {job_key_call_id} finished")
@@ -351,7 +368,14 @@ class ExecutionEnvironment:
         unless jobs other than those are still to run
         """
         self._kill_task_processes(job_keys or list(self.jobs.keys()))
+        self.finish(job_keys)
 
+    def finish(self, job_keys=None):
+        """
+        Stops the environment without killing anything, leaving the task
+        processes of the given jobs to exit on their own. Kept running
+        when jobs other than those are still to run
+        """
         if job_keys is not None and self._has_jobs_left(job_keys):
             logger.debug(
                 "Localhost environment left running, it still has jobs to run"

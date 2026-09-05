@@ -25,6 +25,32 @@ def lithops_inside_lithops_map_function(x):
     return fexec.get_result()
 
 
+def _started(fut):
+    """
+    Tells whether a future has at least started, the way the job monitor
+    does. The states are mutually exclusive, so a future that already ran
+    past Ready into Success or Done is no longer `ready`: testing only
+    `running or ready` misses it and loops for ever
+    """
+    return fut.running or fut.ready or fut.success or fut.done
+
+
+def _wait_until_started(futures, timeout=60):
+    """
+    Waits for every future to have started, so that the parent executor
+    can pick them up once this one returns them. Required for the
+    localhost tests to pass on Windows
+    """
+    deadline = time.time() + timeout
+    while not all(_started(f) for f in futures):
+        if time.time() > deadline:
+            raise TimeoutError(
+                'Nested futures did not start within '
+                f'{timeout}s: {[f._state for f in futures]}'
+            )
+        time.sleep(0.1)
+
+
 def lithops_return_futures_map(x):
     def _func(x):
         return x + 1
@@ -32,9 +58,7 @@ def lithops_return_futures_map(x):
     fexec = lithops.FunctionExecutor()
     futures = fexec.map(_func, range(x))
 
-    # this while loop is required to pass localhost tests on Windows
-    while not all(f.running or f.ready for f in futures):
-        time.sleep(0.1)
+    _wait_until_started(futures)
 
     return futures
 
@@ -48,9 +72,7 @@ def lithops_return_futures_map_over_partial(x):
     fexec = lithops.FunctionExecutor()
     futures = fexec.map(partial(_func, 2), range(x))
 
-    # this while loop is required to pass localhost tests on Windows
-    while not all(f.running or f.ready for f in futures):
-        time.sleep(0.1)
+    _wait_until_started(futures)
 
     return futures
 
@@ -62,9 +84,7 @@ def lithops_return_futures_call_async(x):
     fexec = lithops.FunctionExecutor()
     fut = fexec.call_async(_func, x + 5)
 
-    # this while loop is required to pass localhost tests on Windows
-    while not (fut.running or fut.ready):
-        time.sleep(0.1)
+    _wait_until_started([fut])
 
     return fut
 
@@ -77,9 +97,7 @@ def lithops_return_futures_map_multiple(x):
     fut1 = fexec.map(_func, range(x))
     fut2 = fexec.map(_func, range(x))
 
-    # this while loop is required to pass localhost tests on Windows
-    while not all(f.running or f.ready for f in fut1 + fut2):
-        time.sleep(0.1)
+    _wait_until_started(fut1 + fut2)
 
     return fut1 + fut2
 

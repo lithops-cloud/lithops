@@ -197,6 +197,64 @@ class TestReadyFuturesAndExecutorData:
         exec_data = SimpleNamespace(futures=[success, done])
         assert _ready_futures(exec_data, download_results=True) == [success]
 
+    def test_ready_futures_over_every_state_combination(self):
+        """
+        This used to intersect a set of the futures whose status had arrived
+        with a set of the ones not fetched yet, walking the list four times
+        and building a call id per future on each. It is one filter now, and
+        this pins the two down as the same answer for every state a future
+        can be in
+        """
+        import itertools
+
+        combos = list(itertools.product([False, True], repeat=3))
+        futures = [
+            FakeFuture(ready=r, success=s, done=d, call_id=f'{i:05d}')
+            for i, (r, s, d) in enumerate(combos)
+        ]
+        exec_data = SimpleNamespace(futures=futures)
+
+        assert _ready_futures(exec_data, download_results=False) == [
+            f for f in futures if f.ready and not (f.success or f.done)
+        ]
+        assert _ready_futures(exec_data, download_results=True) == [
+            f for f in futures if (f.ready or f.success) and not f.done
+        ]
+
+    def test_ready_futures_does_not_look_at_call_ids(self):
+        """
+        Two futures of the same job never share a call id, so matching them
+        up by id was only ever asking two things of the same future — at the
+        cost of a tuple per future, four times per poll, ten polls a second
+        """
+        ready = FakeFuture(ready=True, call_id='00000')
+        other = FakeFuture(ready=True, call_id='00000')
+        exec_data = SimpleNamespace(futures=[ready, other])
+        assert _ready_futures(exec_data, download_results=False) == [
+            ready, other
+        ]
+
+    def test_check_done_any_completed_stops_at_the_first(self):
+        """
+        Counting every future to compare the total against one is a full
+        pass per poll, on the caller's thread
+        """
+        seen = []
+
+        class Counted(FakeFuture):
+            @property
+            def success(self):
+                seen.append(self.call_id)
+                return True
+
+            @success.setter
+            def success(self, value):
+                pass
+
+        fs = [Counted(call_id=f'{i:05d}') for i in range(100)]
+        assert _check_done(fs, ANY_COMPLETED, False) is True
+        assert len(seen) == 1
+
     def test_get_executor_data_fetches_status_and_extends_new_futures(self):
         parent = FakeFuture(ready=True, call_id='00000')
         child = FakeFuture(call_id='00001')

@@ -61,7 +61,7 @@ from lithops.localhost import LocalhostHandlerV1, LocalhostHandlerV2
 from lithops.standalone import StandaloneHandler
 from lithops.serverless import ServerlessHandler
 from lithops.storage.utils import create_job_key, CloudObject
-from lithops.monitor import JobMonitor
+from lithops.monitoring import JobMonitor
 
 
 logger = logging.getLogger(__name__)
@@ -130,8 +130,8 @@ class FunctionExecutor:
     :param config_file: Path to the lithops config file
     :param backend: Compute backend to run the functions
     :param storage: Storage backend to store Lithops data
-    :param monitoring: Monitoring system implementation.
-        One of: storage, rabbitmq
+    :param monitoring: Monitoring backend name.
+        Built-in: storage, rabbitmq, redis, aws_sqs, gcp_pubsub, azure_queue
     :param log_level: Log level printing (INFO, DEBUG, ...).
         Set it to None to hide all logs.
         If this is param is set, all logging params in config
@@ -172,13 +172,11 @@ class FunctionExecutor:
         )
 
         self.data_cleaner = self.config['lithops'].get('data_cleaner', True)
-        if self.data_cleaner and not self.is_lithops_worker:
-            atexit.register(
-                self.clean,
-                clean_cloudobjects=False,
-                clean_fn=True,
-                on_exit=True,
-            )
+        if not self.is_lithops_worker:
+            # Registered whatever data_cleaner says: it decides whether the
+            # temporary data of the jobs is deleted, not whether the queue,
+            # topic or subscription this executor created outlives it
+            atexit.register(self._clean_at_exit)
 
         storage_config = extract_storage_config(self.config)
         self.internal_storage = InternalStorage(storage_config)
@@ -215,8 +213,37 @@ class FunctionExecutor:
     def __exit__(self, exc_type, exc_value, traceback):
         """Context manager method."""
         self.job_monitor.stop()
-        self.invoker.stop()
+        self.job_monitor.cleanup()
+        self.invoker.stop(wait=True)
         self.compute_handler.clear()
+
+    def _clean_at_exit(self):
+        """
+        Cleans up while the interpreter is shutting down.
+
+        The monitor resources go first and unconditionally: a queue, a topic
+        or a subscription this executor created is not temporary job data,
+        and nothing else comes back to delete it.
+
+        Anything raised here is reported by atexit as an ignored exception
+        and does not stop the remaining hooks, so a Ctrl+C during shutdown
+        prints one traceback per executor still registered. Swallowing it
+        keeps that noise down, and there is nothing useful left to do with
+        an error at this point anyway
+        """
+        try:
+            self.job_monitor.stop()
+            self.job_monitor.cleanup()
+        except BaseException as e:
+            logger.debug(f'Could not release the job monitor on exit: {e!r}')
+
+        if not self.data_cleaner:
+            return
+
+        try:
+            self.clean(clean_cloudobjects=False, clean_fn=True, on_exit=True)
+        except BaseException as e:
+            logger.debug(f'Could not clean up on exit: {e!r}')
 
     @staticmethod
     def _build_config_overwrite(mode, backend, storage, monitoring, kwargs):
@@ -311,6 +338,11 @@ class FunctionExecutor:
         """
         Invokes a job and tracks its futures in this executor
         """
+        # The queue, topic or key the workers report to has to be there
+        # before the first of them is invoked, or the first status would be
+        # published into nowhere. Done here rather than in __init__ so that
+        # building an executor does not create anything on its own
+        self.job_monitor.prepare()
         futures = self.invoker.run_job(job)
         self.futures.extend(futures)
         return futures
@@ -678,7 +710,8 @@ class FunctionExecutor:
         timeout: Optional[int] = None,
         threadpool_size: Optional[int] = THREADPOOL_SIZE,
         wait_dur_sec: Optional[int] = None,
-        show_progressbar: Optional[bool] = True
+        show_progressbar: Optional[bool] = True,
+        clean_jobs: Optional[bool] = None
     ) -> Tuple[FuturesList, FuturesList]:
         """
         Wait for the Future instances (possibly created by
@@ -704,12 +737,17 @@ class FunctionExecutor:
             Default 1 second
         :param show_progressbar: whether or not to show the
             progress bar.
+        :param clean_jobs: Delete temporary job data when every
+            future is done. Default is ``data_cleaner``. ``get_result()``
+            passes False so it can log that results are in before it
+            cleans.
 
         :return: `(fs_done, fs_notdone)` where `fs_done` is a
             list of futures that have completed and `fs_notdone`
             is a list of futures that have not completed.
         """
         futures = self._as_future_list(fs or self.futures)
+        do_clean = self.data_cleaner if clean_jobs is None else clean_jobs
 
         try:
             wait(
@@ -726,18 +764,18 @@ class FunctionExecutor:
                 futures_from_executor_wait=not fs,
             )
 
-            if self.data_cleaner and return_when == ALL_COMPLETED:
-                self._cleanup_jobs(futures)
             self._stop_monitor_if_idle(futures)
+            if do_clean and return_when == ALL_COMPLETED:
+                self._cleanup_jobs(futures)
 
         except (KeyboardInterrupt, Exception) as e:
-            self.invoker.stop()
+            self.invoker.stop(wait=True)
             self.job_monitor.remove(futures)
             for future in futures:
                 future._set_exception()
+            self._stop_monitor_if_idle(futures)
             if self.data_cleaner:
                 self._cleanup_jobs(futures, exception=e, force=True)
-            self._stop_monitor_if_idle(futures)
             raise
 
         fs_done, fs_notdone = _partition_futures(futures, download_results)
@@ -786,7 +824,8 @@ class FunctionExecutor:
             download_results=True,
             threadpool_size=threadpool_size,
             wait_dur_sec=wait_dur_sec,
-            show_progressbar=show_progressbar
+            show_progressbar=show_progressbar,
+            clean_jobs=False,
         )
 
         result = []
@@ -805,6 +844,9 @@ class FunctionExecutor:
         logger.debug(
             f'{log_prefix(self.executor_id)} - Finished getting results'
         )
+
+        if self.data_cleaner:
+            self._cleanup_jobs(self._as_future_list(fs or self.futures))
 
         if len(result) == 1 and self.last_call != 'map':
             return result[0]
@@ -896,6 +938,10 @@ class FunctionExecutor:
         """
         if not hasattr(self, 'internal_storage'):
             return
+
+        if on_exit and hasattr(self, 'job_monitor'):
+            self.job_monitor.stop()
+            self.job_monitor.cleanup()
 
         storage_config = self.internal_storage.get_storage_config()
 

@@ -1,7 +1,7 @@
 """
 Simple Lithops example using 2 function invocations (writer, reader) with
 the 'rabbitmq' parameter, which is a pika.BlockingConnection() instance.
-RabbitMQ amqp_url must be in configuration to make it working.
+The rabbitmq section of the config must have an 'amqp_url'.
 """
 import lithops
 
@@ -24,7 +24,7 @@ def my_function_reader(queue_name, rabbitmq):
 
     channel = rabbitmq.channel()
     channel.queue_declare(queue=queue_name, auto_delete=True)  # No effect if the queue already exists
-    channel.basic_consume(callback, queue=queue_name, no_ack=True)
+    channel.basic_consume(queue_name, callback, auto_ack=True)
     channel.start_consuming()
     rabbitmq.close()
 

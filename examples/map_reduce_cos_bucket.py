@@ -16,8 +16,8 @@ map function for each partition. To finish one reducer will be
 launched for all the objects in the Bucket. So In this case you
 will get just one result from the reduce method.
 
-In the reduce function there will be always one parameter
-from where you can access to the partial results.
+The reduce function takes a single parameter, holding the results of
+the map functions that fed it.
 """
 
 import lithops

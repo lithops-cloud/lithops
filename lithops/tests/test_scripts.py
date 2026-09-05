@@ -218,6 +218,7 @@ class TestHelloAndClean:
 
     def test_hello_call_async(self):
         fexec = MagicMock()
+        fexec.__enter__.return_value = fexec
         fexec.get_result.return_value = 'Hello tester!'
         with patch('getpass.getuser', return_value='tester'):
             with patch(
@@ -228,7 +229,11 @@ class TestHelloAndClean:
                     result = _cli('hello')
         assert result.exit_code == 0
         fexec.call_async.assert_called_once()
+        fexec.__exit__.assert_called_once()
         assert 'Lithops is working as expected' in result.output
+        assert result.output.strip().endswith(
+            'Hello tester! Lithops is working as expected :)'
+        )
 
     def test_clean_localhost(self):
         cfg = {

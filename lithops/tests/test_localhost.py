@@ -13,6 +13,7 @@ import shutil
 import signal
 import subprocess as sp
 import sys
+import time
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -185,6 +186,12 @@ class TestLocalhostHandlerV2:
         handler.env.start.assert_not_called()
 
     def test_clear_drains_queue_and_unlocks_jobs(self):
+        """
+        clear() without a job named is the executor going away, so the
+        running tasks are stopped: nothing is waiting on their output,
+        and waiting for one would hold up the shutdown for as long as
+        it runs
+        """
         handler = LocalhostHandlerV2(_config())
         handler.env = MagicMock()
         handler.env.work_queue = queue.Queue()
@@ -195,7 +202,29 @@ class TestLocalhostHandlerV2:
         handler.clear()
         handler.env.drop_pending_tasks.assert_called_once_with(None)
         handler.env.stop.assert_called_once_with(None)
+        handler.env.finish.assert_not_called()
         assert latch.done is True
+
+    def test_clear_of_a_named_job_lets_its_tasks_finish(self):
+        """
+        A named job that ended cleanly keeps its runner log, so its
+        tasks are left to exit on their own
+        """
+        handler = LocalhostHandlerV2(_config())
+        handler.env = MagicMock()
+        handler.env.jobs = {}
+        handler.clear({'sess-0-M000'})
+        handler.env.finish.assert_called_once_with({'sess-0-M000'})
+        handler.env.stop.assert_not_called()
+
+    def test_clear_kills_running_tasks_on_exception(self):
+        handler = LocalhostHandlerV2(_config())
+        handler.env = MagicMock()
+        handler.env.jobs = {}
+        error = RuntimeError('boom')
+        handler.clear(exception=error)
+        handler.env.stop.assert_called_once_with(None)
+        handler.env.finish.assert_not_called()
 
     def test_clear_leaves_the_latches_of_other_jobs_alone(self):
         handler = LocalhostHandlerV2(_config())
@@ -236,11 +265,30 @@ class TestLocalhostHandlerV1:
         assert handler.invocation_in_progress is False
 
     def test_clear_drains_queue_and_sends_sentinel(self):
+        """
+        clear() without a job named is the executor going away, so the
+        running job is stopped rather than waited for
+        """
         handler = LocalhostHandlerV1(_config())
         handler.env = MagicMock()
         handler.job_manager = object()
         handler.job_queue.put(('job', 'file'))
         handler.clear()
+        handler.env.stop.assert_called_once_with(None)
+        assert handler.job_queue.get_nowait() == (None, None)
+
+    def test_clear_of_a_named_job_lets_it_finish(self):
+        handler = LocalhostHandlerV1(_config())
+        handler.env = MagicMock()
+        handler.job_manager = object()
+        handler.clear({'sess-0-M000'})
+        handler.env.stop.assert_not_called()
+
+    def test_clear_kills_running_jobs_on_exception(self):
+        handler = LocalhostHandlerV1(_config())
+        handler.env = MagicMock()
+        handler.job_manager = object()
+        handler.clear(exception=RuntimeError('boom'))
         handler.env.stop.assert_called_once()
         assert handler.job_queue.get_nowait() == (None, None)
 
@@ -345,6 +393,17 @@ class TestV2Environment:
         log_fail.assert_called_once()
         assert log_fail.call_args.kwargs['stderr'] == b'Traceback: boom\n'
 
+    def test_default_run_task_does_not_dump_logs_when_signalled(self):
+        env = v2.DefaultEnvironment(_config())
+        proc = MagicMock()
+        proc.returncode = -9
+        proc.communicate.return_value = (b'', b'')
+        with patch('lithops.localhost.v2.localhost.sp.Popen', return_value=proc), \
+                patch('lithops.localhost.v2.localhost.log_process_failure') as log_fail:
+            env.run_task('sess-0-M000', '00000')
+        log_fail.assert_not_called()
+        assert 'sess-0-M000-00000' not in env.task_processes
+
     def test_default_stop_kills_matching_process_group(self):
         env = v2.DefaultEnvironment(_config(worker_processes=1))
         proc = MagicMock()
@@ -388,6 +447,31 @@ class TestV2Environment:
         # Once that job is done too, the environment is torn down
         env.jobs['sess-0-M001'].unlock()
         env.stop(['sess-0-M001'])
+        assert env.consumer_threads == []
+
+    def test_finish_keeps_consumers_while_another_job_runs(self):
+        env = v2.DefaultEnvironment(_config(worker_processes=1))
+        env.jobs = {
+            'sess-0-M000': CountDownLatch(0),
+            'sess-0-M001': CountDownLatch(1),
+        }
+        threads = [MagicMock()]
+        env.consumer_threads = list(threads)
+        env.finish(['sess-0-M000'])
+        assert env.consumer_threads == threads
+        threads[0].join.assert_not_called()
+
+    def test_finish_tears_down_without_killing(self):
+        env = v2.DefaultEnvironment(_config(worker_processes=1))
+        proc = MagicMock()
+        proc.poll.return_value = None
+        env.task_processes['sess-0-M000-00000'] = proc
+        env.jobs = {'sess-0-M000': CountDownLatch(0)}
+        env.consumer_threads = [MagicMock()]
+        with patch('lithops.localhost.utils.os.killpg') as killpg:
+            env.finish(['sess-0-M000'])
+        killpg.assert_not_called()
+        assert 'sess-0-M000-00000' in env.task_processes
         assert env.consumer_threads == []
 
     def test_drop_pending_tasks_keeps_the_other_jobs_tasks(self):
@@ -450,7 +534,10 @@ class TestV2Environment:
         assert '--user' in cmd
         assert '1000:1000' in joined
         assert 'get_metadata' in joined
-        assert f'/tmp/{USER_TEMP_DIR}/localhost-runner.py' in joined
+        # Taken from the constant, not spelled out: the runner name
+        # carries the localhost version, and v1 and v2 must differ
+        assert v2.DOCKER_RUNNER_FILE in joined
+        assert f'/tmp/{USER_TEMP_DIR}/' in v2.DOCKER_RUNNER_FILE
 
     def test_container_run_task_uses_docker_exec(self):
         with patch.object(v2, 'get_docker_path', return_value='docker'), \
@@ -688,6 +775,97 @@ class TestLocalhostUtils:
         assert (copied / 'mod.py').is_file()
         assert not (copied / '__pycache__').exists()
         assert (dest_root / 'runner.py').read_text() == '# runner\n'
+
+    def test_copy_lithops_package_always_installs_the_given_runner(
+        self, tmp_path
+    ):
+        """
+        The v1 and v2 backends copy a different runner to the same
+        destination, so switching between them in one process has to
+        replace it. The package tree itself is only copied once
+        """
+        from lithops.localhost import utils as localhost_utils
+
+        src = tmp_path / 'src' / 'lithops'
+        src.mkdir(parents=True)
+        (src / 'mod.py').write_text('x = 1\n')
+        runner_a = tmp_path / 'a.py'
+        runner_a.write_text('# runner A\n')
+        runner_b = tmp_path / 'b.py'
+        runner_b.write_text('# runner B\n')
+        dest_root = tmp_path / 'dest'
+        installed = dest_root / 'runner.py'
+
+        copies = []
+        real_copytree = localhost_utils.shutil.copytree
+
+        def counting(*args, **kwargs):
+            copies.append(1)
+            return real_copytree(*args, **kwargs)
+
+        with patch.object(localhost_utils.shutil, 'copytree', counting):
+            for runner in (runner_a, runner_b, runner_a):
+                copy_lithops_package(
+                    str(src), str(runner), str(installed), str(dest_root)
+                )
+                assert installed.read_text() == runner.read_text()
+
+        assert len(copies) == 1, 'the package tree was copied more than once'
+        assert (dest_root / 'lithops' / 'mod.py').is_file()
+
+    def test_copy_lithops_package_recopies_a_changed_source(self, tmp_path):
+        """
+        A development install changes under a running process, and a cache
+        keyed on the path alone would keep serving the tree as it was when
+        the first executor of the session started
+        """
+        from lithops.localhost import utils as localhost_utils
+
+        src = tmp_path / 'src' / 'lithops'
+        src.mkdir(parents=True)
+        (src / 'mod.py').write_text('x = 1\n')
+        runner_src = tmp_path / 'runner.py'
+        runner_src.write_text('# runner\n')
+        dest_root = tmp_path / 'dest'
+        args = (
+            str(src), str(runner_src),
+            str(dest_root / 'runner.py'), str(dest_root),
+        )
+
+        copies = []
+        real_copytree = localhost_utils.shutil.copytree
+
+        def counting(*a, **kw):
+            copies.append(1)
+            return real_copytree(*a, **kw)
+
+        with patch.object(localhost_utils.shutil, 'copytree', counting):
+            copy_lithops_package(*args)
+            copy_lithops_package(*args)
+            assert len(copies) == 1
+
+            (src / 'mod.py').write_text('x = 2\n')
+            os.utime(src / 'mod.py', (time.time() + 10, time.time() + 10))
+            copy_lithops_package(*args)
+            assert len(copies) == 2
+
+        assert (dest_root / 'lithops' / 'mod.py').read_text() == 'x = 2\n'
+
+    def test_copy_lithops_package_recopies_a_missing_tree(self, tmp_path):
+        src = tmp_path / 'src' / 'lithops'
+        src.mkdir(parents=True)
+        (src / 'mod.py').write_text('x = 1\n')
+        runner_src = tmp_path / 'runner.py'
+        runner_src.write_text('# runner\n')
+        dest_root = tmp_path / 'dest'
+        args = (
+            str(src), str(runner_src),
+            str(dest_root / 'runner.py'), str(dest_root),
+        )
+        copy_lithops_package(*args)
+        shutil.rmtree(dest_root / 'lithops')
+        copy_lithops_package(*args)
+        assert (dest_root / 'lithops' / 'mod.py').is_file()
 
 
 class TestLocalhostRunners:
@@ -989,6 +1167,7 @@ class TestLocalhostContainerLive:
         cfg['lithops']['backend'] = 'localhost'
         cfg['lithops']['mode'] = 'localhost'
         cfg['lithops']['storage'] = 'localhost'
+        cfg['lithops']['monitoring'] = 'storage'
         cfg.setdefault('localhost', {})
         cfg['localhost']['runtime'] = image
         cfg['localhost']['pull_runtime'] = False

@@ -465,6 +465,92 @@ class TestDefaultConfig:
                 'lithops': {'mode': 'spaceship', 'storage': c.LOCALHOST}
             })
 
+    def test_unknown_monitoring_backend_raises(self):
+        with pytest.raises(Exception, match='Unknown monitoring backend'):
+            default_config(config_data=_localhost_input(monitoring='nope'))
+
+    def test_a_null_monitoring_key_falls_back_to_storage(self):
+        """
+        An explicit null used to reach .lower() and raise AttributeError
+        rather than falling back the way a missing key does
+        """
+        config_data = _localhost_input()
+        config_data['lithops']['monitoring'] = None
+        cfg = default_config(config_data=config_data)
+        assert cfg['lithops']['monitoring'] == 'storage'
+
+    def test_the_monitoring_backend_name_is_normalised(self):
+        config_data = _localhost_input(monitoring='RabbitMQ')
+        config_data['rabbitmq'] = {'amqp_url': 'amqp://guest@localhost'}
+        cfg = default_config(config_data=config_data)
+        assert cfg['lithops']['monitoring'] == 'rabbitmq'
+
+    def test_rabbitmq_monitoring_requires_amqp_url(self):
+        with pytest.raises(Exception, match='rabbitmq'):
+            default_config(config_data=_localhost_input(monitoring='rabbitmq'))
+
+    def test_rabbitmq_monitoring_loads_with_amqp_url(self):
+        config_data = _localhost_input(monitoring='rabbitmq')
+        config_data['rabbitmq'] = {'amqp_url': 'amqp://guest@localhost'}
+        cfg = default_config(config_data=config_data)
+        assert cfg['lithops']['monitoring'] == 'rabbitmq'
+        assert cfg['rabbitmq']['amqp_url'] == 'amqp://guest@localhost'
+
+    def test_redis_monitoring_requires_host(self):
+        with pytest.raises(Exception, match='redis'):
+            default_config(config_data=_localhost_input(monitoring='redis'))
+
+    def test_redis_monitoring_loads_with_host(self):
+        config_data = _localhost_input(monitoring='redis')
+        config_data['redis'] = {'host': 'localhost'}
+        cfg = default_config(config_data=config_data)
+        assert cfg['lithops']['monitoring'] == 'redis'
+        assert cfg['redis']['host'] == 'localhost'
+
+    def test_aws_sqs_monitoring_merges_aws_section(self):
+        config_data = _localhost_input(monitoring='aws_sqs')
+        config_data['aws'] = {'region': 'eu-west-1', 'access_key_id': 'AK'}
+        cfg = default_config(config_data=config_data)
+        assert cfg['lithops']['monitoring'] == 'aws_sqs'
+        assert cfg['aws_sqs']['region'] == 'eu-west-1'
+        assert cfg['aws_sqs']['access_key_id'] == 'AK'
+
+    def test_aws_sqs_monitoring_requires_region(self):
+        with pytest.raises(Exception, match='region'):
+            default_config(config_data=_localhost_input(monitoring='aws_sqs'))
+
+    def test_gcp_pubsub_monitoring_merges_gcp_section(self, monkeypatch):
+        monkeypatch.delenv('GOOGLE_APPLICATION_CREDENTIALS', raising=False)
+        config_data = _localhost_input(monitoring='gcp_pubsub')
+        config_data['gcp'] = {
+            'project_name': 'my-proj',
+            'credentials_path': '/tmp/creds.json',
+        }
+        cfg = default_config(config_data=config_data)
+        assert cfg['lithops']['monitoring'] == 'gcp_pubsub'
+        assert cfg['gcp_pubsub']['project_name'] == 'my-proj'
+        assert cfg['gcp_pubsub']['credentials_path'] == '/tmp/creds.json'
+
+    def test_gcp_pubsub_monitoring_requires_project_name(self, monkeypatch):
+        monkeypatch.delenv('GOOGLE_APPLICATION_CREDENTIALS', raising=False)
+        with pytest.raises(Exception, match='project_name'):
+            default_config(config_data=_localhost_input(monitoring='gcp_pubsub'))
+
+    def test_azure_queue_monitoring_merges_azure_storage(self):
+        config_data = _localhost_input(monitoring='azure_queue')
+        config_data['azure_storage'] = {
+            'storage_account_name': 'acct',
+            'storage_account_key': 'key',
+        }
+        cfg = default_config(config_data=config_data)
+        assert cfg['lithops']['monitoring'] == 'azure_queue'
+        assert cfg['azure_queue']['storage_account_name'] == 'acct'
+        assert cfg['azure_queue']['storage_account_key'] == 'key'
+
+    def test_azure_queue_monitoring_requires_account(self):
+        with pytest.raises(Exception, match='storage_account_name'):
+            default_config(config_data=_localhost_input(monitoring='azure_queue'))
+
 
 class TestStorageAndExtract:
 

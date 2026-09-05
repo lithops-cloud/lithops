@@ -154,7 +154,7 @@ if __name__ == '__main__':
 | lithops | backend             | aws_lambda   | no        | Compute backend implementation. `localhost` is the default if no config or config file is provided. |
 | lithops | storage             | aws_s3       | no        | Storage backend implementation. `localhost` is the default if no config or config file is provided. |
 | lithops | data_cleaner        | True         | no        | If True, automatically deletes temporary data written to `storage_bucket/lithops.jobs`.          |
-| lithops | monitoring          | storage      | no        | Monitoring system implementation. Options: **storage** or **rabbitmq**.                           |
+| lithops | monitoring          | storage      | no        | Monitoring backend. Built-in: **storage**, **rabbitmq**, **redis**, **aws_sqs**, **gcp_pubsub**, **azure_queue**. |
 | lithops | monitoring_interval | 2            | no        | Interval in seconds for monitoring checks when using **storage** monitoring.                      |
 | lithops | data_limit          | 4            | no        | Maximum size (in MB) for iterator data chunks. Set to False for unlimited size.                   |
 | lithops | execution_timeout   | 1800         | no        | Maximum execution time in seconds for functions. Functions exceeding this time are terminated. Can also be set per call via the `timeout` parameter. |

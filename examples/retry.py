@@ -1,3 +1,12 @@
+"""
+Simple Lithops example using RetryingFunctionExecutor to run functions
+that fail the first few times.
+
+Each input is set to fail a given number of times before it succeeds, so
+the retries can be seen doing their work. The last input needs more
+attempts than retries allows, which is how a call that never succeeds
+looks.
+"""
 import lithops
 from lithops.storage import Storage
 from lithops import RetryingFunctionExecutor

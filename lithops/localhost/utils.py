@@ -29,6 +29,34 @@ from lithops.constants import LITHOPS_TEMP_DIR
 _COPY_IGNORE = shutil.ignore_patterns('__pycache__', '*.pyc', '*.pyo')
 
 
+# (lithops_location, temp_dir, fingerprint) triples this process has copied
+_COPIED_PACKAGES = set()
+
+
+def _source_fingerprint(lithops_location: str) -> tuple:
+    """
+    How many source files the package has and when the newest was written.
+
+    Cheap enough to check on every executor (a stat per file, no reads), and
+    enough to notice the edits of a development install, where the package
+    does change under a running process
+    """
+    newest = 0.0
+    count = 0
+    for dirpath, dirnames, filenames in os.walk(lithops_location):
+        dirnames[:] = [d for d in dirnames if d != '__pycache__']
+        for filename in filenames:
+            if filename.endswith(('.pyc', '.pyo')):
+                continue
+            count += 1
+            try:
+                mtime = os.stat(os.path.join(dirpath, filename)).st_mtime
+            except OSError:
+                continue
+            newest = max(newest, mtime)
+    return count, newest
+
+
 def copy_lithops_package(
     lithops_location: str,
     runner_src: str,
@@ -42,29 +70,57 @@ def copy_lithops_package(
     staging directory first, then replace the destination under a file lock
     so one rmtree cannot delete another copy mid-flight. Bytecode caches are
     omitted because pytest and other processes rewrite them while we copy.
+
+    Every FunctionExecutor calls this, so the tree is copied once and only
+    checked afterwards. Repeating it means one copytree of the whole
+    package per executor, each taking the cross-process lock, which
+    serialises executors that have nothing to do with each other, and
+    sessions running side by side. It is copied again if the destination
+    has gone missing, or if the source changed, which a development
+    install does under a running process.
+
+    The runner is installed on every call, never skipped, and put in place
+    with a rename: a plain copy truncates the destination before writing
+    it, and a task process of another session starting in that window
+    would exec a half-written file.
     """
     os.makedirs(temp_dir, exist_ok=True)
     dst_path = os.path.join(temp_dir, 'lithops')
     lock_path = os.path.join(temp_dir, '.lithops-copy.lock')
-    staging = tempfile.mkdtemp(prefix='lithops-src-', dir=temp_dir)
-    try:
-        shutil.copytree(
-            lithops_location,
-            os.path.join(staging, 'lithops'),
-            ignore=_COPY_IGNORE,
-        )
-        with open(lock_path, 'a') as lock_file:
-            if fcntl is not None:
-                fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
-            try:
-                shutil.rmtree(dst_path, ignore_errors=True)
-                shutil.move(os.path.join(staging, 'lithops'), dst_path)
-            finally:
+
+    package_key = (
+        lithops_location, temp_dir, _source_fingerprint(lithops_location)
+    )
+    if package_key not in _COPIED_PACKAGES or not os.path.isdir(dst_path):
+        staging = tempfile.mkdtemp(prefix='lithops-src-', dir=temp_dir)
+        try:
+            shutil.copytree(
+                lithops_location,
+                os.path.join(staging, 'lithops'),
+                ignore=_COPY_IGNORE,
+            )
+            with open(lock_path, 'a') as lock_file:
                 if fcntl is not None:
-                    fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
-        shutil.copyfile(runner_src, runner_dst)
+                    fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+                try:
+                    shutil.rmtree(dst_path, ignore_errors=True)
+                    shutil.move(os.path.join(staging, 'lithops'), dst_path)
+                finally:
+                    if fcntl is not None:
+                        fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+            _COPIED_PACKAGES.add(package_key)
+        finally:
+            shutil.rmtree(staging, ignore_errors=True)
+
+    # Staged under a name of this process, then renamed over the
+    # destination, which is atomic on the same filesystem
+    runner_tmp = f'{runner_dst}.{os.getpid()}.tmp'
+    try:
+        shutil.copyfile(runner_src, runner_tmp)
+        os.replace(runner_tmp, runner_dst)
     finally:
-        shutil.rmtree(staging, ignore_errors=True)
+        if os.path.exists(runner_tmp):
+            os.remove(runner_tmp)
 
 
 def decode_process_output(data: Optional[object]) -> str:

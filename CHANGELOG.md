@@ -4,31 +4,25 @@
 
 ### Added
 
-- [API] Added `lithops.concurrent.futures`, a `concurrent.futures`-compatible executor interface (`submit`, eager `map`, stdlib `wait`/`as_completed`) backed by Lithops. See issue #1427.
-- [Docs] Renamed the native executor documentation from "Futures API" to "Core API".
+- [API] Added `lithops.concurrent.futures`, a `concurrent.futures`-compatible executor interface backed by Lithops.
 - [Tests] Added a unit test suite for all non-backend modules (18 files, 876 tests).
-- [Core] Added a `log_prefix()` helper for uniform log prefixes across core and backends.
-- [Core] Added a cache of serialized functions to avoid re-uploading the same function.
-- [Core] Added `ShutdownSafeStreamHandler` to avoid tracebacks when logging on a closed stream.
-- [Localhost] Added `localhost/utils.py` with helpers shared by the v1 and v2 backends.
-- [AWS Batch] Added `instance_types` config option for EC2/SPOT compute environments.
+- [Monitoring] Added Redis, AWS SQS (`aws_sqs`), GCP Pub/Sub (`gcp_pubsub`) and Azure Queue Storage (`azure_queue`) monitoring backends.
 
 ### Changed
 
 - [Worker] Replaced the `multiprocessing` Manager queue of the worker pool with a POSIX pipe.
 - [Core] Results under 8KB now travel in the call status instead of a separate storage object.
-- [Core] Reorganised all non-backend modules for readability, with no behaviour change.
+- [Core] Added a cache of serialized functions to avoid re-uploading the same function.
+- [Monitoring] Reorganised job monitoring as pluggable backends.
 - [Core] `wait()` now returns two empty lists for empty input instead of `None`.
-- [Core] `verify_args()` now raises a single message instead of a tuple.
-- [Monitoring] The RabbitMQ queues of a call status now travel with the job.
 - [CLI] `job list`, `worker list`, `image delete` and `image list` now reject unknown flags.
-- [CLI] `lithops clean --all` no longer shadows the `all` builtin.
-- [CLI] `lithops clean` now empties the local temp directory instead of removing it, and leaves the pending cleaner requests of the other processes alone.
+- [CLI] `lithops clean` now empties the local temp directory instead of removing it.
 - [Storage] `CloudFileProxy.walk()` now yields nothing for a missing path, like `os.walk`.
 - [Storage] `cloud_open()` now raises `ValueError` on an unsupported mode.
 - [Joblib] Capped the shared-argument upload and download pools at 32 threads.
 - [Joblib] `lithops_args` is now applied to the pool that runs the batches.
 - [Standalone] `docker login` now reads the password from stdin and quotes its arguments.
+- [AWS Batch] Allow to set `instance_types` config option for EC2/SPOT compute environments.
 
 ### Fixed
 
@@ -36,7 +30,8 @@
 - [Chaining] Fixed pickling a `FuturesList` detaching the list being pickled from its executor.
 - [Chaining] Fixed a list or a slice of futures of a previous job not being recognised as a chain, which failed with an argument binding error instead.
 - [Chaining] `extra_args` now raises at submit time instead of letting every activation of the chained job fail on a missing argument.
-- [Localhost] Fixed a deadlock on a `map` after `wait()` and `get_result()`, caused by stale work queue sentinels.
+- [Monitoring] Redis, RabbitMQ and SQS now delete their queues only in ``cleanup()``, and keep the monitor thread until ``stop()``.
+- [Monitoring] Status lines (Pending/Running/Done) are logged on start, every 30s, and when the job finishes, not on every activation.
 - [Localhost] Fixed a partial `clear()` tearing down the consumers, tasks and latches of other jobs.
 - [Localhost] Fixed a task starting after `stop()`, leaving a process nobody kills.
 - [Localhost] Fixed the v2 job manager spinning a core while an invocation was queueing.
@@ -53,11 +48,11 @@
 - [Core] Fixed `find_free_port()` setting `SO_REUSEADDR` after the bind.
 - [Core] Fixed module inspection crashing on a function whose `__module__` is `None`.
 - [Core] Fixed a hand-built `FuturesList` raising `AttributeError` instead of creating its executor.
-- [Core] Fixed the cleaner skipping requests and two cleaners racing for the pid file.
-- [Core] Fixed `lithops clean` deleting the local temp directory of the jobs running at the same time on the same machine.
-- [Core] Fixed the cleaner reading a request another process was still writing.
-- [Core] Fixed the cleaner looping forever on a request it could not read or classify.
-- [Core] Fixed the cleaner lock surviving a killed cleaner and blocking every later one.
+- [Cleaner] Fixed the cleaner skipping requests and two cleaners racing for the pid file.
+- [Cleaner] Fixed `lithops clean` deleting the local temp directory of the jobs running at the same time on the same machine.
+- [Cleaner] Fixed the cleaner reading a request another process was still writing.
+- [Cleaner] Fixed the cleaner looping forever on a request it could not read or classify.
+- [Cleaner] Fixed the cleaner lock surviving a killed cleaner and blocking every later one.
 - [Monitoring] Fixed a nested executor publishing statuses to a queue nobody declares.
 - [Monitoring] Fixed the failed RabbitMQ publishes being dropped with nothing in the log.
 - [Worker] Fixed the memory monitor reporting a peak of zero where usage cannot be read.

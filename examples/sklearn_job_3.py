@@ -1,3 +1,10 @@
+"""
+Simple Lithops example running a scikit-learn Pipeline grid search on
+cloud functions, through the joblib backend.
+
+The whole pipeline is fitted inside each function, so the preprocessing
+steps are applied on the same data split as the model they feed.
+"""
 import joblib
 import pandas as pd
 from lithops.util.joblib import register_lithops

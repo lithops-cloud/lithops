@@ -31,12 +31,11 @@ from lithops.utils import (
     is_lithops_worker,
     FuturesList,
     _as_future_list,
-    _future_id,
     log_prefix,
 )
 from lithops.storage import InternalStorage
 from lithops.future import ResponseFuture
-from lithops.monitor import JobMonitor
+from lithops.monitoring import JobMonitor
 
 
 ALWAYS = 0
@@ -377,12 +376,14 @@ def _check_done(fs, return_when, download_results):
     """
     Checks if return_when% of futures are ready or done
     """
+    if return_when == ANY_COMPLETED:
+        # Stops at the first one, rather than counting every future on
+        # every poll to compare the total against one
+        return any(_future_is_complete(f, download_results) for f in fs)
+
     total_done = sum(
         1 for f in fs if _future_is_complete(f, download_results)
     )
-
-    if return_when == ANY_COMPLETED:
-        return total_done >= 1
 
     done_percentage = int(total_done * 100 / len(fs))
     return done_percentage >= return_when
@@ -391,19 +392,23 @@ def _check_done(fs, return_when, download_results):
 def _ready_futures(exec_data, download_results):
     """
     Returns the futures of one executor that have data waiting on the other
-    side: their status has arrived, but the caller has not fetched it yet
+    side: their status has arrived, but the caller has not fetched it yet.
+
+    One pass, no call ids: this used to intersect a set of the futures that
+    had arrived with a set of the ones not fetched yet, which walked the
+    list four times and built a tuple per future on each. The futures of an
+    executor are distinct objects, so the intersection was only ever asking
+    both things of the same future
     """
     if download_results:
-        done_ids = {
-            _future_id(f) for f in exec_data.futures if f.ready or f.success
-        }
-        pending = (f for f in exec_data.futures if not f.done)
-    else:
-        done_ids = {_future_id(f) for f in exec_data.futures if f.ready}
-        pending = (f for f in exec_data.futures if not (f.success or f.done))
-
-    ready_ids = {_future_id(f) for f in pending} & done_ids
-    return [f for f in exec_data.futures if _future_id(f) in ready_ids]
+        return [
+            f for f in exec_data.futures
+            if (f.ready or f.success) and not f.done
+        ]
+    return [
+        f for f in exec_data.futures
+        if f.ready and not (f.success or f.done)
+    ]
 
 
 def _get_executor_data(

@@ -1,9 +1,10 @@
 """
-Simple Lithops example using the map method.
-In this example the map() method will launch one
-map function for each entry in 'iterdata'. Finally
-it will print the results for each invocation with
-fexec.get_result()
+Simple Lithops example showing what happens when a function fails.
+
+Some of the functions below raise an exception. Passing
+throw_except=False to get_result() makes Lithops hand back what it has
+instead of re-raising, so the successful calls can be told apart from
+the failed ones.
 """
 import lithops
 import time

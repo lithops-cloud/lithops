@@ -492,28 +492,31 @@ def hello(config, backend, storage, debug, region, map_count):
     def hello_fn(name):
         return f'Hello {name}!'
 
-    fexec = lithops.FunctionExecutor(
-        config=config_data, backend=backend, storage=storage, region=region
-    )
     expected = f'Hello {username}!'
+    with lithops.FunctionExecutor(
+        config=config_data, backend=backend, storage=storage, region=region
+    ) as fexec:
+        if map_count:
+            fexec.map(hello_fn, [username] * map_count)
+            results = fexec.get_result()
+            succeeded = all(result == expected for result in results)
+            message = (
+                f'All {map_count} map activations returned: {expected}\n'
+                'Lithops is working as expected :)'
+                if succeeded else
+                f'{results} Something went wrong :('
+            )
+        else:
+            fexec.call_async(hello_fn, username)
+            result = fexec.get_result()
+            message = (
+                f'{result} Lithops is working as expected :)'
+                if result == expected else
+                f'{result} Something went wrong :('
+            )
 
-    if map_count:
-        fexec.map(hello_fn, [username] * map_count)
-        results = fexec.get_result()
-        print()
-        if all(result == expected for result in results):
-            print(f'All {map_count} map activations returned: {expected}')
-            print('Lithops is working as expected :)')
-        else:
-            print(results, 'Something went wrong :(')
-    else:
-        fexec.call_async(hello_fn, username)
-        result = fexec.get_result()
-        print()
-        if result == expected:
-            print(result, 'Lithops is working as expected :)')
-        else:
-            print(result, 'Something went wrong :(')
+    print()
+    print(message)
     print()
 
 

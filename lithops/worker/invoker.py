@@ -21,11 +21,15 @@ from types import SimpleNamespace
 from typing import Any, Dict
 
 from lithops.serverless import ServerlessHandler
-from lithops.monitor import JobMonitor
+from lithops.monitoring import JobMonitor
 from lithops.storage import InternalStorage
 from lithops.config import extract_serverless_config, extract_storage_config
 from lithops.invokers import FaaSInvoker
-from lithops.utils import MONITORING_QUEUES_ENV, monitoring_queues
+from lithops.utils import (
+    MONITORING_QUEUES_ENV,
+    monitoring_queues,
+    remote_invoker_queue_name,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -39,14 +43,21 @@ def function_invoker(job_payload: Dict[str, Any]) -> None:
     config = job_payload['config']
     job = SimpleNamespace(**job_payload['job'])
 
+    # This invoker watches the calls of the client's executor, but it cannot
+    # read the client's queue: a message taken from a queue is gone, and the
+    # two would end up splitting the statuses between them. It takes a queue
+    # of its own, and the calls report to both
+    invoker_queue = remote_invoker_queue_name(job.executor_id)
+
     os.environ.update({
         'LITHOPS_WORKER': 'True',
         'PYTHONUNBUFFERED': 'True',
         '__LITHOPS_SESSION_ID': job.job_key,
-        # The job this invoker spawns reports to the queues of the client, and
-        # an executor created here extends that chain rather than replacing it
+        # The job this invoker spawns reports to the queues of the client and
+        # to this invoker's own, and an executor created here extends that
+        # chain rather than replacing it
         MONITORING_QUEUES_ENV: json.dumps(
-            monitoring_queues(job.executor_id)
+            monitoring_queues(job.executor_id) + [invoker_queue]
         ),
     })
 
@@ -59,13 +70,13 @@ def function_invoker(job_payload: Dict[str, Any]) -> None:
     serverless_config = extract_serverless_config(config)
     compute_handler = ServerlessHandler(serverless_config, storage_config)
 
-    monitoring_backend = config['lithops']['monitoring'].lower()
     job_monitor = JobMonitor(
         executor_id=job.executor_id,
         internal_storage=internal_storage,
-        backend=monitoring_backend,
-        config=config.get(monitoring_backend)
+        config=config,
+        queue_name=invoker_queue,
     )
+    job_monitor.prepare()
 
     invoker = FaaSRemoteInvoker(
         config,
@@ -104,5 +115,8 @@ class FaaSRemoteInvoker(FaaSInvoker):
         # Waits for the invocations still in flight, which this worker must not
         # be frozen in the middle of
         self.stop(wait=True)
+        # The queue belongs to this invoker, and nothing else will come back
+        # to delete it once the worker is gone
+        self.job_monitor.cleanup()
 
         logger.info('Remote Invoker Finished')

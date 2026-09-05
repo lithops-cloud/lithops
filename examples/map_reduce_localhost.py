@@ -3,19 +3,15 @@ Simple Lithops example using the map_reduce method which
 counts the number of words inside each object specified
 in 'iterdata' variable.
 
-This example processes some objects which are in a localhost path.
+The objects are files in a local directory.
 
-As in this case you are processing objects from COS, the
-map_reduce() method will first launch a partitioner to split
-the objects in smaller chunks, thus increasing the parallelism
-of the execution and reducing the total time needed to process
-the data. After creating the partitions, it will launch one
-map function for each partition, and one reducer for all
-partitions of the same object. In this case you will get
-one result for each object specified in 'iterdata' variable.
+Lithops first splits each object into smaller chunks, so that more
+functions can work on it at once. It then runs one map function per
+chunk, and one reduce function per object, which is why you get one
+result per entry in 'iterdata'.
 
-In the reduce function there will be always one parameter
-from where you can access to the partial results.
+The reduce function takes a single parameter, holding the results of
+the map functions that fed it.
 """
 
 import os
@@ -73,5 +69,4 @@ if __name__ == "__main__":
 
     fexec = lithops.FunctionExecutor(backend='localhost', storage='localhost', log_level='DEBUG')
     fexec.map_reduce(my_map_function, iterdata, my_reduce_function, obj_chunk_number=2)
-    result = fexec.get_result()
-    print("Done!")
+    print(fexec.get_result())

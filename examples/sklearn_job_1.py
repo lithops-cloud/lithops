@@ -1,3 +1,10 @@
+"""
+Simple Lithops example running a scikit-learn hyperparameter search on
+cloud functions, through the joblib backend.
+
+RandomizedSearchCV tries many parameter combinations, and each one is an
+independent fit, so joblib hands them out as separate functions.
+"""
 import numpy as np
 import joblib
 from lithops.util.joblib import register_lithops

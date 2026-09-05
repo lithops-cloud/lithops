@@ -293,7 +293,14 @@ class ResponseFuture:
         # hook prints the one the function had in the worker instead. Anything
         # else raised afterwards restores the default hook
         def exception_hook(exctype, exc, trcbck):
-            if exctype == fn_exctype and str(exc) == str(fn_exc):
+            # Ctrl+C and sys.exit() are the interpreter going down, not the
+            # function failing. Formatting them here reads source files
+            # through linecache, so a second Ctrl+C lands inside this hook
+            # and turns into "Error in sys.excepthook"
+            if issubclass(exctype, (KeyboardInterrupt, SystemExit)):
+                sys.excepthook = sys.__excepthook__
+                sys.__excepthook__(exctype, exc, trcbck)
+            elif exctype == fn_exctype and str(exc) == str(fn_exc):
                 if self._handler_exception:
                     logger.warning(
                         f'Exception: {fn_exctype.__name__} - {fn_exc}'

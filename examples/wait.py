@@ -1,6 +1,6 @@
 """
 Simple Lithops example using rabbitmq to wait map function invocations
-RabbitMQ amqp_url must be in configuration to make it working.
+The rabbitmq section of the config must have an 'amqp_url'.
 """
 import lithops
 import time

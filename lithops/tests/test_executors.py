@@ -346,12 +346,75 @@ class TestWaitAndGetResult:
         executor.job_monitor.stop.assert_called_once()
 
     @patch('lithops.executors.wait')
+    def test_wait_stops_monitor_before_cleaning(self, mock_wait):
+        future = FakeFuture(done=True, success=True)
+        executor = _bare_executor(data_cleaner=True, futures=[future])
+        order = []
+        executor._stop_monitor_if_idle = lambda *a, **k: order.append('stop')
+        executor._cleanup_jobs = lambda *a, **k: order.append('clean')
+        executor.wait([future], return_when=ALL_COMPLETED, show_progressbar=False)
+        assert order == ['stop', 'clean']
+
+    @patch('lithops.executors.wait')
     def test_wait_keeps_monitor_when_other_futures_are_pending(self, mock_wait):
         done = FakeFuture(done=True, success=True)
         pending = FakeFuture(done=False, success=False)
         executor = _bare_executor(futures=[done, pending])
         executor.wait([done], return_when=ALL_COMPLETED, show_progressbar=False)
         executor.job_monitor.stop.assert_not_called()
+
+    def test_exit_waits_for_the_invoker_threads(self):
+        """
+        The invoker loops drain the invocations already in flight only as
+        they exit, so leaving the block has to give them the chance rather
+        than returning while they are still dispatching
+        """
+        executor = _bare_executor()
+        executor.__exit__(None, None, None)
+        executor.invoker.stop.assert_called_once_with(wait=True)
+        executor.job_monitor.stop.assert_called_once()
+        executor.job_monitor.cleanup.assert_called_once()
+        executor.compute_handler.clear.assert_called_once()
+
+    def test_invoking_a_job_creates_the_monitor_resources_first(self):
+        """
+        The queue, topic or key the workers report to has to exist before
+        the first of them is invoked, or the first status is published into
+        nowhere. Doing it in __init__ instead meant that merely building an
+        executor created a queue in the cloud, and failed on a broker that
+        was not reachable
+        """
+        calls = []
+        executor = _bare_executor()
+        executor.job_monitor.prepare.side_effect = lambda: calls.append(
+            'prepare'
+        )
+        executor.invoker.run_job.side_effect = lambda job: (
+            calls.append('run_job') or []
+        )
+        executor._invoke(MagicMock())
+        assert calls == ['prepare', 'run_job']
+
+    def test_the_monitor_resources_are_released_at_exit_either_way(self):
+        """
+        data_cleaner decides whether the temporary job data is deleted, not
+        whether a queue this executor created outlives it: nothing else
+        comes back to delete that one
+        """
+        for data_cleaner in (True, False):
+            executor = _bare_executor(data_cleaner=data_cleaner)
+            with patch.object(executor, 'clean') as clean:
+                executor._clean_at_exit()
+            executor.job_monitor.stop.assert_called_once()
+            executor.job_monitor.cleanup.assert_called_once()
+            assert clean.called is data_cleaner
+
+    def test_a_failure_at_exit_does_not_stop_the_remaining_hooks(self):
+        executor = _bare_executor(data_cleaner=True)
+        executor.job_monitor.stop.side_effect = RuntimeError('broker gone')
+        with patch.object(executor, 'clean') as clean:
+            executor._clean_at_exit()
+        clean.assert_called_once()
 
     @patch('lithops.executors.wait', side_effect=RuntimeError('boom'))
     def test_wait_exception_stops_invoker_and_reraises(self, mock_wait):
@@ -375,6 +438,17 @@ class TestWaitAndGetResult:
         with patch.object(executor, 'wait', return_value=([future], [])):
             assert executor.get_result() == 42
         assert future._read is True
+
+    def test_get_result_cleans_after_collecting_results(self):
+        future = FakeFuture(_result=42)
+        executor = _bare_executor(
+            data_cleaner=True, last_call='call_async', futures=[future]
+        )
+        with patch.object(executor, 'wait', return_value=([future], [])) as waited:
+            with patch.object(executor, '_cleanup_jobs') as cleanup:
+                assert executor.get_result() == 42
+        assert waited.call_args.kwargs['clean_jobs'] is False
+        cleanup.assert_called_once()
 
     def test_get_result_keeps_list_for_map(self):
         future = FakeFuture(_result=42)

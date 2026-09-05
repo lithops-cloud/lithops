@@ -1,3 +1,10 @@
+"""
+Simple Lithops example running a scikit-learn grid search on cloud
+functions, through the joblib backend.
+
+GridSearchCV fits one model per point of the parameter grid, and joblib
+hands each of them to a function.
+"""
 import joblib
 from lithops.util.joblib import register_lithops
 from sklearn.datasets import load_digits

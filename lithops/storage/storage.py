@@ -379,7 +379,9 @@ class InternalStorage:
         """
         if job_ids:
             keys = []
-            for job_id in job_ids:
+            # Copied first: a caller may pass a set that its own threads
+            # keep adding jobs to while this listing runs
+            for job_id in tuple(job_ids):
                 prefix = '/'.join([
                     JOBS_PREFIX, utils.create_job_key(executor_id, job_id)
                 ])

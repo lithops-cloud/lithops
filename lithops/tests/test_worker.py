@@ -13,6 +13,7 @@
 #
 
 import io
+import json
 import os
 import pickle
 import sys
@@ -20,6 +21,9 @@ import threading
 from queue import Empty, Queue
 from types import SimpleNamespace
 from unittest.mock import MagicMock, mock_open, patch
+
+import ast
+import signal
 
 import pytest
 
@@ -37,12 +41,12 @@ from lithops.worker.handler import (
     run_task,
 )
 from lithops.worker.jobrunner import JobRunner, JobStats, _prepare_args
-from lithops.worker.status import (
+from lithops.monitoring import (
     CallStatus,
-    RabbitmqCallStatus,
     StorageCallStatus,
     create_call_status,
 )
+from lithops.monitoring.backends.rabbitmq.status import RabbitmqCallStatus
 from lithops.worker.utils import (
     LogStream,
     SystemMonitor,
@@ -400,6 +404,9 @@ class TestPrepareAndRunTask:
         assert os.environ['__LITHOPS_ACTIVATION_ID'] == 'alreadythere1'
 
 
+_MISSING_EXITCODE = object()
+
+
 class TestRunTask:
 
     def _patch_run(self, task, jrp, handler_conn, stats_text=None):
@@ -475,18 +482,62 @@ class TestRunTask:
         assert added['exception'] is True
         assert 'exc_info' in added
 
-    def test_no_completion_message_is_memory_error(self, tmp_path):
+    def _run_without_completion(self, task, exitcode):
+        """
+        Drives run_task() down the path where the JobRunner reported
+        nothing, with the given exit code, and returns the recorded status
+        """
+        jrp = MagicMock()
+        jrp.is_alive.return_value = False
+        if exitcode is _MISSING_EXITCODE:
+            del jrp.exitcode
+        else:
+            jrp.exitcode = exitcode
+        conn = MagicMock()
+        conn.poll.return_value = False
+        return self._patch_run(task, jrp, conn)
+
+    def _exc_of(self, status):
+        pickled = {
+            c.args[0]: c.args[1] for c in status.add.call_args_list
+        }['exc_info']
+        return pickle.loads(ast.literal_eval(pickled))[0]
+
+    def test_a_sigkilled_jobrunner_is_reported_as_memory(self, tmp_path):
         task = _task()
         task.log_stream = MagicMock()
         task.log_file = str(tmp_path / 'execution.log')
         task.stats_file = str(tmp_path / 'missing.txt')
-        jrp = MagicMock()
-        jrp.is_alive.return_value = False
-        conn = MagicMock()
-        conn.poll.return_value = False
-        status = self._patch_run(task, jrp, conn)
+        status = self._run_without_completion(task, -signal.SIGKILL)
         added = {c.args[0]: c.args[1] for c in status.add.call_args_list}
         assert added['exception'] is True
+        assert self._exc_of(status) is MemoryError
+
+    def test_another_signal_is_not_reported_as_memory(self, tmp_path):
+        """
+        Guessing at an out-of-memory kill for every silent JobRunner is
+        what sent us looking in the wrong place for a fork() abort
+        """
+        task = _task()
+        task.log_stream = MagicMock()
+        task.log_file = str(tmp_path / 'execution.log')
+        task.stats_file = str(tmp_path / 'missing.txt')
+        status = self._run_without_completion(task, -signal.SIGABRT)
+        assert self._exc_of(status) is RuntimeError
+
+    def test_a_jobrunner_without_an_exitcode_does_not_crash(self, tmp_path):
+        """
+        Where there is no fork the JobRunner is a Thread, which has no
+        exitcode at all
+        """
+        task = _task()
+        task.log_stream = MagicMock()
+        task.log_file = str(tmp_path / 'execution.log')
+        task.stats_file = str(tmp_path / 'missing.txt')
+        status = self._run_without_completion(task, _MISSING_EXITCODE)
+        added = {c.args[0]: c.args[1] for c in status.add.call_args_list}
+        assert added['exception'] is True
+        assert self._exc_of(status) is RuntimeError
 
     def test_keyboard_interrupt_skips_finish_event(self, tmp_path):
         task = _task()
@@ -495,6 +546,14 @@ class TestRunTask:
         task.stats_file = str(tmp_path / 'missing.txt')
         status = MagicMock()
         status.send_init_event.side_effect = KeyboardInterrupt()
+        # The init event is sent after the JobRunner has been started, so
+        # the context is mocked out like the other tests here do: without
+        # it this unit test forks a real process to interrupt
+        jrp = MagicMock()
+        jrp.is_alive.return_value = False
+        ctx = MagicMock()
+        ctx.Pipe.return_value = (MagicMock(), MagicMock())
+        ctx.Process.return_value = jrp
         with patch('lithops.worker.handler.setup_lithops_logger'):
             with patch(
                 'lithops.worker.handler.extract_storage_config', return_value={}
@@ -504,7 +563,10 @@ class TestRunTask:
                         'lithops.worker.handler.create_call_status',
                         return_value=status,
                     ):
-                        run_task(task)
+                        with patch('lithops.worker.handler._MP_CTX', ctx):
+                            with patch('lithops.worker.handler.JobRunner'):
+                                run_task(task)
+        status.send_init_event.assert_called_once()
         status.send_finish_event.assert_not_called()
 
     def test_runtime_memory_log_branch(self, tmp_path):
@@ -532,6 +594,89 @@ class TestRunTask:
         assert extra == {}
         assert '__LITHOPS_SESSION_ID' not in extra
         assert 'LITHOPS_CONFIG' not in extra
+
+
+class TestJobRunnerDeathReason:
+    """
+    The JobRunner leaving without a result used to be reported as an
+    out-of-memory kill whatever the cause, which sends anyone reading the
+    error looking in the wrong place
+    """
+
+    def test_sigkill_reads_as_memory(self):
+        from lithops.worker.handler import _jobrunner_death_reason
+        reason = _jobrunner_death_reason(-signal.SIGKILL)
+        assert 'SIGKILL' in reason
+        assert 'memory' in reason
+
+    def test_a_plain_exit_code_is_reported_as_such(self):
+        from lithops.worker.handler import _jobrunner_death_reason
+        reason = _jobrunner_death_reason(3)
+        assert 'exited with code 3' in reason
+        assert 'memory' not in reason
+
+    def test_still_running_is_not_called_a_kill(self):
+        from lithops.worker.handler import _jobrunner_death_reason
+        assert 'no\n        exit code' not in _jobrunner_death_reason(None)
+        assert 'exit code' in _jobrunner_death_reason(None)
+
+    def test_sigabrt_on_macos_points_at_the_fork_check(self):
+        from lithops.worker.handler import _jobrunner_death_reason
+        with patch('lithops.worker.handler.sys.platform', 'darwin'):
+            reason = _jobrunner_death_reason(-signal.SIGABRT)
+        assert 'fork()' in reason
+        assert 'OBJC_DISABLE_INITIALIZE_FORK_SAFETY' in reason
+
+    def test_macos_is_told_to_allow_a_fork_with_a_client_open(self, monkeypatch):
+        """
+        A worker keeps its client for the whole process, so from the second
+        call on there is one alive when the next JobRunner is forked. This
+        is the workaround Apple documents for the fork() safety check its
+        frameworks apply, and the one this very module points at when a
+        JobRunner dies of SIGABRT
+        """
+        import lithops.worker.handler as handler
+
+        monkeypatch.setattr(handler.sys, 'platform', 'darwin')
+        monkeypatch.delenv(handler.FORK_SAFETY_ENV, raising=False)
+        handler._allow_fork_after_a_client_exists()
+        assert os.environ[handler.FORK_SAFETY_ENV] == 'YES'
+
+    def test_a_value_the_user_chose_is_left_alone(self, monkeypatch):
+        import lithops.worker.handler as handler
+
+        monkeypatch.setattr(handler.sys, 'platform', 'darwin')
+        monkeypatch.setenv(handler.FORK_SAFETY_ENV, 'NO')
+        handler._allow_fork_after_a_client_exists()
+        assert os.environ[handler.FORK_SAFETY_ENV] == 'NO'
+
+    def test_other_platforms_are_left_alone(self, monkeypatch):
+        import lithops.worker.handler as handler
+
+        monkeypatch.setattr(handler.sys, 'platform', 'linux')
+        monkeypatch.delenv(handler.FORK_SAFETY_ENV, raising=False)
+        handler._allow_fork_after_a_client_exists()
+        assert handler.FORK_SAFETY_ENV not in os.environ
+
+    def test_a_platform_without_sigkill_is_not_an_attribute_error(self):
+        """
+        Windows has no signal.SIGKILL, and a Thread stands in for the
+        Process there, so it has no exit code either. Reaching for SIGKILL
+        by name on that path turned a silent death into an AttributeError
+        """
+        import lithops.worker.handler as handler
+        with patch.object(handler, '_SIGKILL', None):
+            assert 'exit code' in handler._jobrunner_death_reason(None)
+            assert 'code 1' in handler._jobrunner_death_reason(1)
+            # A negative code cannot happen there, but must not raise here
+            assert handler._jobrunner_death_reason(-9)
+
+    def test_sigabrt_elsewhere_stays_generic(self):
+        from lithops.worker.handler import _jobrunner_death_reason
+        with patch('lithops.worker.handler.sys.platform', 'linux'):
+            reason = _jobrunner_death_reason(-signal.SIGABRT)
+        assert 'SIGABRT' in reason
+        assert 'OBJC_DISABLE' not in reason
 
 
 class TestGetFunctionAndModules:
@@ -757,6 +902,14 @@ class TestWorkerUtils:
 
 class TestCallStatus:
 
+    @pytest.fixture(autouse=True)
+    def _no_clients_left_over(self):
+        """The clients are kept for the process, so tests must not share one"""
+        from lithops.monitoring.status import close_shared_clients
+        close_shared_clients()
+        yield
+        close_shared_clients()
+
     def test_create_call_status_storage_and_rabbitmq(self):
         job = _task()
         st = create_call_status(job, MagicMock())
@@ -764,6 +917,83 @@ class TestCallStatus:
         job.config['lithops']['monitoring'] = 'rabbitmq'
         rb = create_call_status(job, MagicMock())
         assert isinstance(rb, RabbitmqCallStatus)
+
+    def test_create_call_status_redis_and_sqs(self):
+        from lithops.monitoring.backends.redis.status import RedisCallStatus
+        from lithops.monitoring.backends.aws_sqs.status import SqsCallStatus
+
+        job = _task()
+        job.config['lithops']['monitoring'] = 'redis'
+        job.config['redis'] = {'host': 'localhost'}
+        assert isinstance(create_call_status(job, MagicMock()), RedisCallStatus)
+
+        job.config['lithops']['monitoring'] = 'aws_sqs'
+        job.config['aws_sqs'] = {'region': 'us-east-1'}
+        assert isinstance(create_call_status(job, MagicMock()), SqsCallStatus)
+
+    def test_create_call_status_gcp_pubsub_and_azure_queue(self):
+        from lithops.monitoring.backends.gcp_pubsub.status import (
+            GcpPubsubCallStatus,
+        )
+        from lithops.monitoring.backends.azure_queue.status import (
+            AzureQueueCallStatus,
+        )
+
+        job = _task()
+        job.config['lithops']['monitoring'] = 'gcp_pubsub'
+        job.config['gcp_pubsub'] = {'project_name': 'proj'}
+        assert isinstance(
+            create_call_status(job, MagicMock()), GcpPubsubCallStatus
+        )
+
+        job.config['lithops']['monitoring'] = 'azure_queue'
+        job.config['azure_queue'] = {
+            'storage_account_name': 'acct', 'storage_account_key': 'key',
+        }
+        assert isinstance(
+            create_call_status(job, MagicMock()), AzureQueueCallStatus
+        )
+
+    def test_create_call_status_falls_back_to_storage(self):
+        """
+        The client falls back to the storage monitor when nothing names a
+        backend, so the worker has to report through the same one. Reading
+        the key straight out of the config raised here instead
+        """
+        job = _task()
+        job.config['lithops'].pop('monitoring', None)
+        assert isinstance(
+            create_call_status(job, MagicMock()), StorageCallStatus
+        )
+
+    def test_create_call_status_unknown_backend(self):
+        job = _task()
+        job.config['lithops']['monitoring'] = 'nope'
+        with pytest.raises(ValueError, match='Unknown monitoring backend'):
+            create_call_status(job, MagicMock())
+
+    def test_no_backend_client_is_built_before_the_first_status(self):
+        """
+        run_task() builds the call status and then forks the JobRunner off.
+        A client that already exists at that point is what the fork() safety
+        check of the Apple frameworks aborts the child over, so every
+        backend builds its own only when the first status is published
+        """
+        from lithops.monitoring.backends.redis import redis as redis_backend
+        from lithops.monitoring.backends.aws_sqs import aws_sqs as sqs_backend
+
+        job = _task()
+        job.config['lithops']['monitoring'] = 'redis'
+        job.config['redis'] = {'host': 'localhost'}
+        with patch.object(redis_backend, 'redis_client') as build:
+            create_call_status(job, MagicMock())
+            build.assert_not_called()
+
+        job.config['lithops']['monitoring'] = 'aws_sqs'
+        job.config['aws_sqs'] = {'region': 'us-east-1'}
+        with patch.object(sqs_backend, 'sqs_client') as build:
+            create_call_status(job, MagicMock())
+            build.assert_not_called()
 
     def test_warm_container_flag(self, monkeypatch):
         monkeypatch.delenv('WARM_CONTAINER', raising=False)
@@ -807,7 +1037,8 @@ class TestCallStatus:
         status.status['type'] = '__end__'
         status.status['activation_id'] = 'act'
         with patch(
-            'lithops.worker.status.pika.BlockingConnection', return_value=conn
+            'lithops.monitoring.backends.rabbitmq.status.pika.BlockingConnection',
+            return_value=conn
         ):
             status._send()
         assert channel.basic_publish.call_count == 2
@@ -821,7 +1052,7 @@ class TestCallStatus:
         ]
         job.config = _job_config(monitoring='rabbitmq')
         status = RabbitmqCallStatus(job, MagicMock())
-        assert status._queue_names() == job.monitoring_queues
+        assert status._targets() == job.monitoring_queues
 
     def test_rabbitmq_falls_back_to_its_own_queue(self):
         # A payload with no chain can only reach this executor's own queue
@@ -829,7 +1060,7 @@ class TestCallStatus:
         job.executor_id = 'sess-0-M000-00000-0'
         job.config = _job_config(monitoring='rabbitmq')
         status = RabbitmqCallStatus(job, MagicMock())
-        assert status._queue_names() == ['lithops-sess-0-M000-00000-0']
+        assert status._targets() == ['lithops-sess-0-M000-00000-0']
 
     def test_rabbitmq_gives_up_after_five_failures(self):
         job = _task()
@@ -839,7 +1070,7 @@ class TestCallStatus:
         status = RabbitmqCallStatus(job, storage)
         status.status['type'] = '__init__'
         with patch(
-            'lithops.worker.status.pika.BlockingConnection',
+            'lithops.monitoring.backends.rabbitmq.status.pika.BlockingConnection',
             side_effect=Exception('down'),
         ):
             test_thread = threading.current_thread()
@@ -849,9 +1080,12 @@ class TestCallStatus:
                 if threading.current_thread() is test_thread:
                     sleeps.append(_seconds)
 
-            with patch('lithops.worker.status.time.sleep', side_effect=sleep):
+            with patch('lithops.monitoring.status.time.sleep', side_effect=sleep):
                 status._send()
-        assert len(sleeps) == 5
+        # Five attempts have four gaps between them: there is nothing left
+        # to wait for after the last one. Backed off, so that they span a
+        # broker hiccup instead of being spent within the same second
+        assert sleeps == [0.2, 0.4, 0.8, 1.6]
         storage.put_data.assert_not_called()
 
 
@@ -1143,6 +1377,78 @@ class TestFunctionInvoker:
         invoker.run_job.assert_called_once()
         assert os.environ['LITHOPS_WORKER'] == 'True'
         assert payload['config']['aws_lambda']['invoke_pool_threads'] == 128
+
+    def test_the_remote_invoker_takes_a_queue_of_its_own(self, monkeypatch):
+        """
+        It watches the client's executor from a worker, so it must not read
+        the client's queue: the statuses it took would never reach the
+        client. It reads its own, and the calls report to both
+        """
+        from lithops.utils import (
+            MONITORING_QUEUES_ENV,
+            monitoring_queue_name,
+            monitoring_queues,
+            remote_invoker_queue_name,
+        )
+
+        monkeypatch.delenv('LITHOPS_WORKER', raising=False)
+        monkeypatch.delenv(MONITORING_QUEUES_ENV, raising=False)
+        payload = {
+            'config': _job_config(
+                monitoring='redis', backend='aws_lambda'
+            ),
+            'job': {
+                'job_key': 'jk',
+                'executor_id': 'ex',
+                'job_id': 'j0',
+                'chunksize': 1,
+            },
+        }
+        payload['config']['aws_lambda'] = {}
+        job_monitor = MagicMock()
+        with patch(
+            'lithops.worker.invoker.extract_storage_config', return_value={}
+        ):
+            with patch('lithops.worker.invoker.InternalStorage'):
+                with patch(
+                    'lithops.worker.invoker.extract_serverless_config',
+                    return_value={},
+                ):
+                    with patch('lithops.worker.invoker.ServerlessHandler'):
+                        with patch(
+                            'lithops.worker.invoker.JobMonitor',
+                            return_value=job_monitor,
+                        ) as monitor_cls:
+                            with patch(
+                                'lithops.worker.invoker.FaaSRemoteInvoker'
+                            ):
+                                function_invoker(payload)
+
+        client_queue = monitoring_queue_name('ex')
+        invoker_queue = remote_invoker_queue_name('ex')
+        assert monitor_cls.call_args.kwargs['queue_name'] == invoker_queue
+        assert invoker_queue != client_queue
+
+        # the calls this invoker spawns report to both queues
+        assert json.loads(os.environ[MONITORING_QUEUES_ENV]) == [
+            client_queue, invoker_queue
+        ]
+        assert monitoring_queues('ex') == [client_queue, invoker_queue]
+
+    def test_the_remote_invoker_deletes_its_own_queue(self):
+        """
+        Nothing else knows about that queue, so if this worker leaves it
+        behind it stays on the broker for good
+        """
+        from lithops.worker.invoker import FaaSRemoteInvoker
+        inv = FaaSRemoteInvoker.__new__(FaaSRemoteInvoker)
+        inv.job_monitor = MagicMock()
+        inv.pending_calls_q = MagicMock()
+        inv.pending_calls_q.qsize.return_value = 0
+        inv.stop = MagicMock()
+        inv._run_job = MagicMock(return_value=['f'])
+        inv.run_job(SimpleNamespace(job_id='j0', chunksize=1))
+        inv.job_monitor.cleanup.assert_called_once()
 
     def test_remote_invoker_run_job_drains_then_stops_waiting(self):
         from lithops.worker.invoker import FaaSRemoteInvoker

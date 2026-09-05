@@ -261,7 +261,29 @@ def default_config(
     for key, value in c.LITHOPS_DEFAULT_CONFIG_KEYS.items():
         config_data['lithops'].setdefault(key, value)
 
+    _load_monitoring_backend_config(config_data)
+
     return config_data
+
+
+def _load_monitoring_backend_config(config_data):
+    """Lets the config module of the monitoring backend fill in its own defaults"""
+    from lithops.monitoring.backends import (
+        import_backend_module,
+        resolve_backend,
+    )
+
+    # Resolved the same way the client and the workers resolve it, so that a
+    # config with no 'monitoring' key, or an explicit null, still reaches the
+    # config module of the backend that is going to be used
+    monitoring = resolve_backend(config_data)
+    config_data['lithops']['monitoring'] = monitoring
+    logger.debug(f"Loading Monitoring backend module: {monitoring}")
+    try:
+        module = import_backend_module(monitoring, 'config')
+    except ValueError as exc:
+        raise Exception(str(exc)) from exc
+    module.load_config(config_data)
 
 
 def default_storage_config(config_file=None, config_data=None, backend=None):

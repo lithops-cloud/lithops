@@ -26,6 +26,7 @@ import base64
 import pickle
 import struct
 import logging
+import signal
 import traceback
 import multiprocessing as mp
 from queue import Queue, Empty
@@ -48,7 +49,7 @@ from lithops.utils import (
     setup_lithops_logger,
     is_unix_system,
 )
-from lithops.worker.status import create_call_status
+from lithops.monitoring import create_call_status
 
 pickling_support.install()
 
@@ -317,6 +318,71 @@ def prepare_and_run_task(task: SimpleNamespace) -> None:
         os.environ.pop(key, None)
 
 
+# Windows has no SIGKILL, and no process there is reported as killed by one
+_SIGKILL = getattr(signal, 'SIGKILL', None)
+
+#: Apple's own opt-out of the fork() safety check of its frameworks, which
+#: aborts a child forked from a process where one of them was being set up
+FORK_SAFETY_ENV = 'OBJC_DISABLE_INITIALIZE_FORK_SAFETY'
+
+
+def _allow_fork_after_a_client_exists() -> None:
+    """
+    Lets the worker fork the JobRunner off while a monitoring client is open.
+
+    A worker keeps its client for the whole process, so from the second call
+    on there is one alive when the next JobRunner is forked. On macOS that is
+    what the fork() safety check of the Apple frameworks can abort the child
+    over, and this is the workaround Apple documents for it — the same one
+    the error message of a dead JobRunner points at. Set before the first
+    fork, and never over a value the user chose
+    """
+    if sys.platform != 'darwin' or FORK_SAFETY_ENV in os.environ:
+        return
+    os.environ[FORK_SAFETY_ENV] = 'YES'
+
+
+def _jobrunner_death_reason(exitcode: Optional[int]) -> str:
+    """
+    Explains why the JobRunner left without reporting its result. A
+    negative exit code is the number of the signal that killed it
+    """
+    if exitcode is None:
+        return (
+            'The function ended without reporting its result, and left no '
+            'exit code to say why: either it ran in a thread, which has '
+            'none, or the process is somehow still running'
+        )
+    if exitcode >= 0:
+        return (
+            f'The function process exited with code {exitcode} before '
+            'reporting its result'
+        )
+
+    killed_by = -exitcode
+    try:
+        name = signal.Signals(killed_by).name
+    except ValueError:
+        name = f'signal {killed_by}'
+
+    if killed_by == _SIGKILL:
+        return (
+            'The function process was killed with SIGKILL, which is what '
+            'the out-of-memory killer does: the function most likely '
+            'exceeded the memory available to it'
+        )
+    if killed_by == signal.SIGABRT and sys.platform == 'darwin':
+        return (
+            'The function process was aborted with SIGABRT. On macOS this '
+            'is usually the fork() safety check of the Apple frameworks: '
+            'something the parent process had already used, such as a '
+            'network client, cannot be used again in a forked child. '
+            'Setting OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES in the '
+            'environment works around it'
+        )
+    return f'The function process was killed with {name}'
+
+
 def _add_resource_usage(call_status, sys_monitor: SystemMonitor) -> None:
     """
     Reports the CPU, network and memory that the task consumed
@@ -404,6 +470,7 @@ def run_task(task: SimpleNamespace) -> None:
     }
     os.environ.update(task.extra_env)
     os.environ.update(injected_env)
+    _allow_fork_after_a_client_exists()
 
     storage_config = extract_storage_config(task.config)
     internal_storage = InternalStorage(storage_config)
@@ -423,8 +490,6 @@ def run_task(task: SimpleNamespace) -> None:
     job_interrupted = False
 
     try:
-        call_status.send_init_event()
-
         handler_conn, jobrunner_conn = _MP_CTX.Pipe()
         jobrunner = JobRunner(task, jobrunner_conn, internal_storage)
         logger.debug('Starting JobRunner process')
@@ -441,6 +506,14 @@ def run_task(task: SimpleNamespace) -> None:
         sys_monitor.start()
 
         jrp.start()
+
+        # Reported once the process is running, which is also when the call
+        # has really started. Sending it here rather than before the fork
+        # keeps the one-off cost of opening the monitoring client off the
+        # critical path: the first call of a worker pays for a connection
+        # (some 13 ms for AMQP, then kept for the whole process) while the
+        # function is already running, instead of delaying its start
+        call_status.send_init_event()
         jrp.join(task.execution_timeout)
 
         sys_monitor.stop()
@@ -461,15 +534,21 @@ def run_task(task: SimpleNamespace) -> None:
             )
 
         if not handler_conn.poll():
-            # The JobRunner sends exactly one message when it finishes, so no
-            # message means it was killed. That is an OOM 99% of the times
+            # The JobRunner sends exactly one message when it finishes, so
+            # no message means it died before getting there. Its exit code
+            # says why, and guessing at an out-of-memory kill regardless
+            # sends whoever reads the error looking in the wrong place
+            # A Thread stands in for the Process where there is no fork,
+            # and it has no exit code to report
+            exitcode = getattr(jrp, 'exitcode', None)
+            reason = _jobrunner_death_reason(exitcode)
             logger.error(
-                'No completion message received from JobRunner process'
+                'No completion message received from the JobRunner '
+                f'process, which exited with code {exitcode}: {reason}'
             )
-            logger.debug('Assuming memory overflow...')
-            raise MemoryError(
-                'Function exceeded maximum memory and was killed'
-            )
+            if _SIGKILL is not None and exitcode == -_SIGKILL:
+                raise MemoryError(reason)
+            raise RuntimeError(reason)
 
         _add_task_stats(call_status, task.stats_file)
 

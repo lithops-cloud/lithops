@@ -1,3 +1,10 @@
+"""
+Simple Lithops example using the joblib backend.
+
+Registering Lithops with joblib makes Parallel() run its jobs as cloud
+functions, so code already written against joblib needs no changes
+beyond the parallel_backend() line.
+"""
 import joblib
 from joblib import Parallel, delayed
 from lithops.util.joblib import register_lithops

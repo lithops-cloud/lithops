@@ -109,6 +109,17 @@ def monitoring_queue_name(executor_id: str) -> str:
     return f'lithops-{executor_id}'
 
 
+def remote_invoker_queue_name(executor_id: str) -> str:
+    """
+    Returns the name of the queue the remote invoker is monitored through.
+
+    It follows the calls of an executor it does not own, so it cannot read
+    the queue of that executor: a message taken from a queue is gone, and
+    the client waiting on the other end would never see it
+    """
+    return f'{monitoring_queue_name(executor_id)}-invoker'
+
+
 def monitoring_queues(executor_id: str) -> List[str]:
     """
     Returns every queue a call status of this executor has to be published to:

@@ -145,7 +145,7 @@ class FakeMonitor:
 
 class FakeJobMonitor:
     """
-    Stand-in for lithops.monitor.JobMonitor. Records the futures it was
+    Stand-in for lithops.monitoring.JobMonitor. Records the futures it was
     asked to track so a test can tell whether the adapter restarted it
     """
 
@@ -167,6 +167,14 @@ class FakeJobMonitor:
     def stop(self):
         self.stopped = True
         if self.monitor is not None:
+            self.monitor.alive = False
+
+    def cleanup(self):
+        pass
+
+    def prepare(self):
+        if self.monitor is None:
+            self.monitor = FakeMonitor()
             self.monitor.alive = False
 
 

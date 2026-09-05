@@ -11,8 +11,8 @@ will first discover objects inside the buckets. Then, it will launch
 one map function for each object. So In this case you will get one
 result from the each object in the bucket.
 
-In the reduce function there will be always one parameter
-from where you can access to the partial results.
+The reduce function takes a single parameter, holding the results of
+the map functions that fed it.
 """
 
 import lithops

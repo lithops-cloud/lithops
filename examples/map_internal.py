@@ -1,6 +1,6 @@
 """
-Simple Lithops example using the call_async method.
-to spawn an internal map execution.
+Simple Lithops example where a single function, invoked with
+call_async(), runs a map() of its own from inside the cloud.
 """
 import lithops
 

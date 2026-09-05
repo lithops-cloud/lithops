@@ -72,7 +72,7 @@ directly to a module or class in the ``lithops`` package:
      - Backend-specific dispatch. ``FaaSInvoker`` performs concurrent per-call
        invocations; ``BatchInvoker`` submits a single batch/job for many tasks.
    * - ``JobMonitor``
-     - ``lithops/monitor.py``
+     - ``lithops/monitoring/``
      - Tracks completion through either ``StorageMonitor`` (polling) or
        ``RabbitmqMonitor`` (push notifications).
    * - ``InternalStorage``

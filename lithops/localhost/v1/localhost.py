@@ -58,11 +58,13 @@ from lithops.localhost.utils import (
 
 logger = logging.getLogger(__name__)
 
-RUNNER_FILE = os.path.join(LITHOPS_TEMP_DIR, 'localhost-runner.py')
+RUNNER_FILE = os.path.join(LITHOPS_TEMP_DIR, 'localhost-runner-v1.py')
 LITHOPS_LOCATION = os.path.dirname(os.path.abspath(lithops.__file__))
-# The local temp dir is mounted on /tmp, so this is where a container sees the
-# runner that was copied to RUNNER_FILE
-DOCKER_RUNNER_FILE = f'/tmp/{USER_TEMP_DIR}/localhost-runner.py'
+# The local temp dir is mounted on /tmp, so this is where a container sees
+# the runner that was copied to RUNNER_FILE. The name carries the version:
+# v1 and v2 install a different runner, and a job of one started with the
+# other's runner fails without saying why
+DOCKER_RUNNER_FILE = f'/tmp/{USER_TEMP_DIR}/localhost-runner-v1.py'
 
 
 class LocalhostHandlerV1:
@@ -143,7 +145,7 @@ class LocalhostHandlerV1:
             return
         stdout, stderr = process.communicate()
 
-        if process.returncode != 0:
+        if process.returncode > 0:
             log_process_failure(
                 logger,
                 f'{log_prefix(executor_id, job_id)} - Job process failed '
@@ -151,6 +153,11 @@ class LocalhostHandlerV1:
                 stdout=stdout,
                 stderr=stderr,
                 log_file=RN_LOG_FILE,
+            )
+        elif process.returncode < 0:
+            logger.debug(
+                f'{log_prefix(executor_id, job_id)} - Job process exited '
+                f'with signal {-process.returncode}'
             )
         logger.debug(f'{log_prefix(executor_id, job_id)} - Execution finished')
 
@@ -211,11 +218,17 @@ class LocalhostHandlerV1:
 
     def clear(self, job_keys=None, exception=None):
         """
-        Drops the given jobs if they have not started yet and kills them if
-        they have. Jobs that were not named stay queued
+        Drops the given jobs if they have not started yet. Running ones
+        are killed when the job ended in an exception, or when no job is
+        named and the whole executor is going away; after a successful
+        wait on a named job they are left to finish so their runner log
+        stays in the file
         """
         self._drop_queued_jobs(job_keys)
-        self.env.stop(job_keys)
+        # See LocalhostHandlerV2.clear(): a named job that ended cleanly
+        # keeps its runner log, an exception or a shutdown stops the job
+        if exception is not None or job_keys is None:
+            self.env.stop(job_keys)
 
         if self.job_manager:
             self.job_queue.put((None, None))
