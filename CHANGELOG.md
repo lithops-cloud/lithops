@@ -12,8 +12,6 @@
 - [AWS Batch] Added the `instance_types` config option for EC2/SPOT compute environments.
 - [Multiprocessing] Added `timeout` to `acquire()`, and `_getvalue()`, `_callmethod()` and `copy_proxy()` to the manager proxies.
 - [Multiprocessing] Added `ThreadPool`, `Manager`, the standard error classes and the module-level helpers (`freeze_support()`, `get_logger()`, `log_to_stderr()`).
-- [Docs] Added architecture diagrams for the localhost, VM, AWS EC2, Azure VMs and IBM VPC backends.
-- [Docs] Added the `lithops.concurrent.futures` reference, the localhost v1/v2 guide, and rewrote the monitoring docs.
 - [Tests] Added a unit test suite for all non-backend modules.
 
 ### Changed
@@ -41,7 +39,6 @@
 - [Multiprocessing] Shared objects now refresh their expiry when read, not only when written.
 - [Multiprocessing] Connection polling now backs off from 1ms instead of waiting a fixed 100ms.
 - [Multiprocessing] `imap()` and `imap_unordered()` now default to the configured chunksize.
-- [Docs] Removed the `website/` sources; the landing page now lives in the documentation site.
 
 ### Fixed
 
