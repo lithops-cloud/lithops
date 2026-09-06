@@ -20,7 +20,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from lithops.util.metrics import PrometheusExporter
 from lithops.util.ssh_client import SSHClient, ssh_boot_status_message
 
 
@@ -135,42 +134,6 @@ class TestSSHClient:
         assert ftp.put.call_count == 2
         client.upload_data_to_file('hello', '/dst')
         remote.write.assert_called_once_with('hello')
-
-
-class TestPrometheusExporter:
-
-    def test_missing_session_id_does_not_raise(self, monkeypatch):
-        monkeypatch.delenv('__LITHOPS_SESSION_ID', raising=False)
-        exporter = PrometheusExporter(False, None)
-        assert exporter.instance == 'lithops'
-        exporter.send_metric('n', 1, type='gauge', labels=[])
-
-    def test_instance_from_session_id(self, monkeypatch):
-        monkeypatch.setenv('__LITHOPS_SESSION_ID', 'ek-j0-00000')
-        exporter = PrometheusExporter(True, {'apigateway': 'http://prom'})
-        assert exporter.instance == 'ek'
-
-    def test_send_metric_posts_when_enabled(self, monkeypatch):
-        monkeypatch.setenv('__LITHOPS_SESSION_ID', 'sid-1')
-        exporter = PrometheusExporter(True, {'apigateway': 'http://prom'})
-        with patch('lithops.util.metrics.requests.post') as post:
-            exporter.send_metric(
-                'function_start', 1.5, type='gauge',
-                labels=[('job_id', 'j'), ('call_id', 'c')],
-            )
-        post.assert_called_once()
-        url = post.call_args[0][0]
-        assert url.startswith('http://prom/metrics/')
-        assert 'job/lithops' in url
-        assert 'function_start' in post.call_args.kwargs['data']
-
-    def test_send_metric_swallows_post_errors(self, monkeypatch):
-        monkeypatch.setenv('__LITHOPS_SESSION_ID', 'sid-1')
-        exporter = PrometheusExporter(True, {'apigateway': 'http://prom'})
-        with patch(
-            'lithops.util.metrics.requests.post', side_effect=OSError('down')
-        ):
-            exporter.send_metric('n', 1, type='gauge', labels=[])
 
 
 class TestIBMTokenManager:

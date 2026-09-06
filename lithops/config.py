@@ -262,6 +262,7 @@ def default_config(
         config_data['lithops'].setdefault(key, value)
 
     _load_monitoring_backend_config(config_data)
+    _load_telemetry_backend_config(config_data)
 
     return config_data
 
@@ -284,6 +285,24 @@ def _load_monitoring_backend_config(config_data):
     except ValueError as exc:
         raise Exception(str(exc)) from exc
     module.load_config(config_data)
+
+
+def _load_telemetry_backend_config(config_data):
+    """
+    Lets the config module of the telemetry backend fill in its own
+    defaults. A no-op when telemetry is off, which is the default: the
+    client library of a backend nobody asked for is never imported
+    """
+    from lithops.telemetry import load_backend_config, resolve_backend
+
+    telemetry = resolve_backend(config_data)
+    config_data['lithops']['telemetry'] = telemetry or False
+    if telemetry is None:
+        return
+    try:
+        load_backend_config(config_data)
+    except ValueError as exc:
+        raise Exception(str(exc)) from exc
 
 
 def default_storage_config(config_file=None, config_data=None, backend=None):

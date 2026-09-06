@@ -44,7 +44,7 @@ from lithops.constants import (
     SA_INSTALL_DIR,
     STANDALONE_BACKENDS
 )
-from lithops.util.metrics import PrometheusExporter
+from lithops.telemetry import get_telemetry
 
 logger = logging.getLogger(__name__)
 
@@ -147,12 +147,9 @@ class Invoker:
         self.is_lithops_worker = is_lithops_worker()
         self.job_monitor = job_monitor
 
-        prom_enabled = self.config['lithops'].get('telemetry', False)
-        prom_config = self.config.get('prometheus', {})
-        self.prometheus = PrometheusExporter(prom_enabled, prom_config)
-
         self.mode = self.config['lithops']['mode']
         self.backend = self.config['lithops']['backend']
+        self.telemetry = get_telemetry(self.config, self.backend)
         self.include_function = self.config[self.backend].get(
             'runtime_include_function', False
         )
@@ -247,27 +244,6 @@ class Invoker:
             'worker_processes': job.worker_processes
         }
 
-    def _send_job_metrics(self, job):
-        """
-        Reports the size of the job to Prometheus, if telemetry is enabled
-        """
-        labels = (
-            ('job_id', job.job_key),
-            ('function_name', job.function_name),
-        )
-        self.prometheus.send_metric(
-            name='job_total_calls',
-            value=job.total_calls,
-            type='counter',
-            labels=labels,
-        )
-        self.prometheus.send_metric(
-            name='job_runtime_memory',
-            value=job.runtime_memory or 0,
-            type='counter',
-            labels=labels,
-        )
-
     def _build_futures(self, job):
         """
         Creates one future per call of the job, already marked as invoked
@@ -306,7 +282,10 @@ class Invoker:
             f'{job.total_calls} activations'
         )
 
-        self._send_job_metrics(job)
+        # After the runtime is settled, so that the job is measured under
+        # the runtime it actually runs on
+        job.runtime_name = self.runtime_name
+        self.telemetry.on_job_submitted(job)
 
         if self.backend not in STANDALONE_BACKENDS:
             logger.debug(
@@ -315,7 +294,6 @@ class Invoker:
             )
 
         try:
-            job.runtime_name = self.runtime_name
             self._invoke_job(job)
         except (KeyboardInterrupt, Exception):
             self.stop()

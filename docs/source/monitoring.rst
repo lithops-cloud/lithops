@@ -215,3 +215,11 @@ Azure Queue Storage
 
 Both keys are mandatory. Add an ``azure_queue`` section only if you need to override what is in ``azure_storage``.
 Azure only accepts lowercase queue names, so Lithops adjusts the name it derives from the executor id.
+
+
+Metrics
+-------
+
+The statuses the monitor reads carry everything the worker measured about a call. Whichever backend delivers them,
+those numbers can be exported to Prometheus or to an OpenTelemetry collector as they arrive, so that jobs can be
+watched while they run and compared over time. See :doc:`metrics`.

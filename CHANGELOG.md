@@ -12,6 +12,7 @@
 - [AWS Batch] Added the `instance_types` config option for EC2/SPOT compute environments.
 - [Multiprocessing] Added `timeout` to `acquire()`, and `_getvalue()`, `_callmethod()` and `copy_proxy()` to the manager proxies.
 - [Multiprocessing] Added `ThreadPool`, `Manager`, the standard error classes and the module-level helpers (`freeze_support()`, `get_logger()`, `log_to_stderr()`).
+- [Telemetry] Added `lithops.telemetry`, which turns the call statuses the monitor reads into 29 Prometheus or OpenTelemetry metrics.
 - [Tests] Added a unit test suite for all non-backend modules.
 
 ### Changed
@@ -39,6 +40,8 @@
 - [Multiprocessing] Shared objects now refresh their expiry when read, not only when written.
 - [Multiprocessing] Connection polling now backs off from 1ms instead of waiting a fixed 100ms.
 - [Multiprocessing] `imap()` and `imap_unordered()` now default to the configured chunksize.
+- [Telemetry] Metrics are now produced on the client instead of being pushed by every worker, and no longer carry a `job_id` or `call_id` label.
+- [Telemetry] `lithops.telemetry` now names the backend rather than being a bool, and the `prometheus` section takes `gateway` instead of `apigateway`.
 
 ### Fixed
 

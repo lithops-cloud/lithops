@@ -24,6 +24,8 @@ from typing import Any, Dict, Optional
 
 from tblib import pickling_support
 
+from lithops.telemetry import NOOP as NOOP_TELEMETRY
+from lithops.telemetry.metrics import OUTCOME_CHAINED, OUTCOME_TIMEOUT
 from lithops.utils import _future_id, log_prefix, monitoring_queue_name
 
 # _future_timeout_checker() pickles sys.exc_info() so that the client can
@@ -101,6 +103,12 @@ class Monitor(threading.Thread):
 
     #: How many statuses that arrived before their future may be held
     MAX_HELD_STATUS = 100_000
+
+    #: Where the metrics of every call go. A class attribute, so that a
+    #: monitor nobody attached telemetry to is safe rather than broken,
+    #: and so that a backend that forgets to call super().__init__() does
+    #: not turn into an AttributeError on the first status
+    telemetry = NOOP_TELEMETRY
 
     def __init_subclass__(cls, abstract: bool = False, **kwargs):
         """
@@ -324,6 +332,38 @@ class Monitor(threading.Thread):
         self._cleaned = True
         self._delete_resources()
 
+    def attach_telemetry(self, telemetry):
+        """
+        Points the monitor at the telemetry of its executor. Called by
+        :class:`~lithops.monitoring.JobMonitor` right after the monitor is
+        built, before any future is added to it
+        """
+        self.telemetry = telemetry
+
+    def _mark_running(self, future, call_status):
+        """
+        Moves a future to running and measures it.
+
+        Every state change of a future goes through this method or
+        through :meth:`_mark_ready`, and both are called from behind the
+        guard that makes the transition happen at most once. A message
+        service that redelivers a status, or a storage sweep that reads
+        one the channel already delivered, therefore counts once
+        """
+        future._set_running(call_status)
+        self.telemetry.on_call_started(future, call_status)
+
+    def _mark_ready(self, future, call_status, outcome=None):
+        """
+        Moves a future to ready and measures it. ``outcome`` is derived
+        from the status when the caller does not know better
+
+        Measured after the transition, so that the timestamp the future
+        records for the arrival of the status is part of what is measured
+        """
+        future._set_ready(call_status)
+        self.telemetry.on_call_finished(future, call_status, outcome)
+
     def _all_ready(self):
         """
         Checks if all futures are ready, success or done
@@ -338,6 +378,11 @@ class Monitor(threading.Thread):
             return False
 
         f._set_futures(call_status)
+        # A call that returned futures produced no result of its own. It
+        # is counted here, once, under its own outcome, so that it is
+        # neither missing from the totals nor mixed in with the calls
+        # that did return something
+        self.telemetry.on_call_finished(f, call_status, OUTCOME_CHAINED)
         self.add_futures(f._new_futures)
         logger.debug(
             f'{log_prefix(self.executor_id)} - Received {len(f._new_futures)} '
@@ -380,7 +425,7 @@ class Monitor(threading.Thread):
                     'worker_start_tstamp': start_tstamp,
                     'worker_end_tstamp': time.time(),
                 }
-                fut._set_ready(call_status)
+                self._mark_ready(fut, call_status, OUTCOME_TIMEOUT)
 
     def _print_status_log(self, force=False):
         """
@@ -527,7 +572,7 @@ class MessageMonitor(Monitor, abstract=True):
         if future is None:
             return False
         if not _is_started(future):
-            future._set_running(call_status)
+            self._mark_running(future, call_status)
         return True
 
     def _tag_future_as_ready(self, call_status):
@@ -540,7 +585,7 @@ class MessageMonitor(Monitor, abstract=True):
             return False
         if not _is_finished(future):
             if not self._check_new_futures(call_status, future):
-                future._set_ready(call_status)
+                self._mark_ready(future, call_status)
         return True
 
     def _generate_tokens(self, call_status):
@@ -626,7 +671,7 @@ class MessageMonitor(Monitor, abstract=True):
             if not call_status:
                 continue
             if not self._check_new_futures(call_status, future):
-                future._set_ready(call_status)
+                self._mark_ready(future, call_status)
             recovered += 1
             if self.generate_tokens and 'activation_id' in call_status:
                 self._generate_tokens(call_status)

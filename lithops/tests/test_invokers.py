@@ -147,7 +147,7 @@ def _bare_invoker(**attrs):
         config={'lithops': {'mode': SERVERLESS, 'backend': 'ibm_cf'}, 'ibm_cf': {}},
         backend='ibm_cf',
         include_function=False,
-        prometheus=MagicMock(),
+        telemetry=MagicMock(),
         job_monitor=MagicMock(),
         storage_config={'backend': 'localhost', 'localhost': {'storage_bucket': 'test-bucket'}},
         max_workers=8,
@@ -236,7 +236,7 @@ class TestPayloadAndFutures:
         job = _job()
         futures = inv._run_job(job)
         inv._invoke_job.assert_called_once_with(job)
-        inv.prometheus.send_metric.assert_called()
+        inv.telemetry.on_job_submitted.assert_called_once_with(job)
         assert len(futures) == 2
 
     def test_run_job_include_function_extends_runtime(self, tmp_path, monkeypatch):

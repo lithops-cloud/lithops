@@ -125,7 +125,7 @@ class StorageMonitor(Monitor):
                 'activation_id': call[1],
                 'worker_start_tstamp': current_time,
             }
-            f._set_running(call_status)
+            self._mark_running(f, call_status)
 
         self.callids_running_processed_timeout.update(to_process)
         self._future_timeout_checker()
@@ -173,7 +173,7 @@ class StorageMonitor(Monitor):
             f._status_query_count += 1
             if cs:
                 if not self._check_new_futures(cs, f):
-                    f._set_ready(cs)
+                    self._mark_ready(f, cs)
                 return _future_id(f)
             return None
 
