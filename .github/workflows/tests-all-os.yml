@@ -23,10 +23,8 @@ jobs:
             python-version: "3.12"
           - os: ubuntu-latest
             python-version: "3.13"
-          - os: ubuntu-22.04
-            python-version: "3.10"
-          - os: ubuntu-22.04
-            python-version: "3.11"
+          - os: ubuntu-latest
+            python-version: "3.14"
 
           # macOS
           - os: macos-latest
@@ -37,10 +35,8 @@ jobs:
             python-version: "3.12"
           - os: macos-latest
             python-version: "3.13"
-          - os: macos-15
-            python-version: "3.10"
-          - os: macos-15
-            python-version: "3.11"
+          - os: macos-latest
+            python-version: "3.14"
 
           # Windows
           - os: windows-latest
@@ -51,6 +47,8 @@ jobs:
             python-version: "3.12"
           - os: windows-latest
             python-version: "3.13"
+          - os: windows-latest
+            python-version: "3.14"
 
     steps:
       - name: Clone Lithops repository
