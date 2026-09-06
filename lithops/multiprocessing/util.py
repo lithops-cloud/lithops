@@ -133,6 +133,10 @@ class RemoteReference:
 
         self._callback = None
         self.managed = managed
+        # The object that just built this holds a reference. Without it the
+        # count started a whole owner short, so the first owner to go away
+        # took the shared object with it
+        self.incref()
 
     @property
     def managed(self):
@@ -140,6 +144,9 @@ class RemoteReference:
 
     @managed.setter
     def managed(self, value):
+        self._set_managed(value)
+
+    def _set_managed(self, value):
         managed = value
 
         if self._callback is not None:
@@ -153,6 +160,16 @@ class RemoteReference:
                                               self._client, self._rck, self._referenced)
 
     def __getstate__(self):
+        """
+        Takes a reference on behalf of the copy that comes back out.
+
+        Nothing owns a proxy while it is bytes on its way to a worker. The
+        count used to be raised only once it was unpickled, so a proxy
+        pickled from a temporary -- passed straight into a call, or copied --
+        was collected while in flight and deleted the shared object before
+        the copy ever existed
+        """
+        self.incref()
         return (self._rck, self._referenced,
                 self._client, self.managed)
 
@@ -160,8 +177,9 @@ class RemoteReference:
         (self._rck, self._referenced,
          self._client) = state[:-1]
         self._callback = None
-        self.managed = state[-1]
-        self.incref()
+        # Adopts the reference __getstate__ took. Raising it again here
+        # would leave one that nothing ever gives back
+        self._set_managed(state[-1])
 
     def incref(self):
         if not self.managed:
@@ -181,7 +199,7 @@ class RemoteReference:
 
     def refcount(self):
         count = self._client.get(self._rck)
-        return 1 if count is None else int(count) + 1
+        return 0 if count is None else int(count)
 
     def collect(self):
         if len(self._referenced) > 0:
@@ -190,8 +208,15 @@ class RemoteReference:
 
     @staticmethod
     def _finalize(client, rck, referenced):
+        """
+        Deletes the shared object once the last owner is gone.
+
+        The creator now takes a reference of its own, so the count reaching
+        zero is what says nobody is left; it used to have to go negative,
+        which is one owner too many
+        """
         count = int(client.decr(rck, 1))
-        if count < 0 and len(referenced) > 0:
+        if count <= 0 and len(referenced) > 0:
             client.delete(*referenced)
 
 

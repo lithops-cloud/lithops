@@ -8,7 +8,8 @@
 - [Monitoring] Added Redis, AWS SQS, GCP Pub/Sub and Azure Queue Storage monitoring backends.
 - [Core] Added a cache of serialized functions to avoid re-uploading the same function.
 - [AWS Batch] Added the `instance_types` config option for EC2/SPOT compute environments.
-- [Tests] Added a unit test suite for all non-backend modules (18 files, 1266 tests).
+- [Tests] Added a unit test suite for all non-backend modules.
+- [Multiprocessing] Added `timeout` to `acquire()`, and `_getvalue()`, `_callmethod()` and `copy_proxy()` to the manager proxies.
 
 ### Changed
 
@@ -24,12 +25,16 @@
 - [Storage] `cloud_open()` now raises `ValueError` on an unsupported mode.
 - [Joblib] `lithops_args` is now applied to the pool that runs the batches.
 - [Standalone] `docker login` now reads the password from stdin and quotes its arguments.
+- [Multiprocessing] Manager proxies now follow the standard library API more closely.
+- [Multiprocessing] Shared objects now refresh their expiry when read, not only when written.
+- [Multiprocessing] Connection polling now backs off from 1ms instead of waiting a fixed 100ms.
 
 ### Fixed
 
 - [Core] Fixed `wait()` on futures another executor invoked, which crashed instead of waiting for them.
 - [Core] Fixed `result()` returning `None` instead of re-raising when the call had already failed.
 - [Core] Fixed module inspection crashing on a function whose `__module__` is `None`.
+- [Core] Fixed `wait()` with a fractional timeout raising `TypeError` from `signal.alarm()` instead of waiting.
 - [Core] Fixed a hand-built `FuturesList` raising `AttributeError` instead of creating its executor.
 - [Chaining] Fixed pickling a `FuturesList` detaching the list from its executor.
 - [Chaining] Fixed a list or a slice of futures of a previous job not being recognised as a chain.
@@ -38,6 +43,15 @@
 - [Monitoring] Fixed failed RabbitMQ publishes being dropped with nothing in the log.
 - [Multiprocessing] Fixed `error_callback` never being called by `apply_async()`, `map_async()` and `starmap_async()`.
 - [Multiprocessing] Fixed a full bounded `Queue` silently discarding what was put on it. It now waits, and raises `Full`.
+- [Multiprocessing] Fixed shared list writes being dropped or misplaced through slices, `remove()`, `index()`, `pop()` and `del`.
+- [Multiprocessing] Fixed manager proxies not raising the `KeyError`, `ValueError` and `IndexError` the standard library raises.
+- [Multiprocessing] Fixed concurrent updates to a shared object overwriting each other.
+- [Multiprocessing] Fixed `Condition.wait()` never reporting a notify, so every wait looked like a timeout.
+- [Multiprocessing] Fixed over-releasing a lock or bounded semaphore passing silently.
+- [Multiprocessing] Fixed a re-entrant `RLock` giving back a token it never took.
+- [Multiprocessing] Fixed `Queue.empty()` always saying True over a pynng connection.
+- [Multiprocessing] Fixed a shared object being deleted while on its way to a worker.
+- [Localhost] Fixed a job cleared mid-task leaving a latch closed, spinning the v2 job manager on a full core.
 - [Localhost] Fixed a partial `clear()` tearing down the consumers, tasks and latches of other jobs.
 - [Localhost] Fixed a task starting after `stop()`, leaving a process nobody kills.
 - [Localhost] Fixed the v2 job manager spinning a core while an invocation was queueing.

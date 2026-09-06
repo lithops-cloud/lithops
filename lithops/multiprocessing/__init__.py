@@ -25,7 +25,7 @@ from .context import (
 )
 from .context import CloudContext as DefaultContext
 from .connection import Pipe
-from .managers import SyncManager as Manager
+from .managers import Manager, SyncManager  # noqa: F401
 from .pool import Pool
 from .process import CloudProcess as Process
 from .queues import Queue, SimpleQueue, JoinableQueue
