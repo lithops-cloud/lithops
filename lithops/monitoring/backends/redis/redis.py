@@ -149,7 +149,7 @@ class RedisMonitor(PollingMessageMonitor):
         monitor's own: redis_client() builds a client per caller, so the
         storage, multiprocessing and joblib backends keep theirs
         """
-        self.should_run = False
+        super().stop()
         try:
             self.client.connection_pool.disconnect()
         except Exception:

@@ -13,6 +13,7 @@ import shutil
 import signal
 import subprocess as sp
 import sys
+import threading
 import time
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -234,6 +235,62 @@ class TestLocalhostHandlerV2:
         handler.clear({'sess-0-M000'})
         assert mine.done is True
         assert theirs.done is False
+
+    def test_clear_opens_the_latch_while_a_task_is_counting_it_down(self):
+        """
+        clear() and the consumer that has just finished a task both touch
+        the same latch, and with a message-based monitoring backend the
+        client learns the job is done early enough that they collide.
+
+        clear() used to drain the latch with `while not done: unlock()`. A
+        consumer's own unlock() landing between the check and the unlock
+        pushed the count past zero, which left done() False and the event
+        unset for good: job_manager span on a full core for the rest of the
+        process and never came back, which held up interpreter exit too.
+
+        The interleaving is forced rather than raced for, so this fails
+        every time on the old code instead of once in a while
+        """
+        class RacingLatch(CountDownLatch):
+            """Counts the last task down exactly as clear() reads done"""
+
+            def __init__(self, count):
+                super().__init__(count)
+                self.raced = False
+                self.unlocks = 0
+
+            @property
+            def done(self):
+                seen = CountDownLatch.done.fget(self)
+                if not self.raced:
+                    self.raced = True
+                    # The consumer, landing between the check and the unlock
+                    self.unlock()
+                return seen
+
+            def unlock(self):
+                self.unlocks += 1
+                assert self.unlocks <= 10, (
+                    'clear() kept counting a latch down past zero'
+                )
+                super().unlock()
+
+        handler = LocalhostHandlerV2(_config())
+        handler.env = MagicMock()
+        latch = RacingLatch(1)
+        handler.env.jobs = {'sess-0-M000': latch}
+
+        handler.clear({'sess-0-M000'})
+
+        assert latch.done is True
+        # job_manager waits on every latch it knows about, so one that never
+        # opens is what stops that thread from ever coming back
+        waited = threading.Event()
+        waiter = threading.Thread(target=lambda: (latch.wait(), waited.set()))
+        waiter.daemon = True
+        waiter.start()
+        waiter.join(timeout=5)
+        assert waited.is_set() is True
 
 
 class TestLocalhostHandlerV1:

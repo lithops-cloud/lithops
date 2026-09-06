@@ -121,7 +121,7 @@ class RabbitmqMonitor(PollingMessageMonitor):
         connection belongs to the monitor thread, so the close is handed to
         it instead of being done here
         """
-        self.should_run = False
+        super().stop()
         connection = self.connection
         if connection is None:
             return

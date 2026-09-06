@@ -23,12 +23,15 @@ what was submitted. Nothing in this file needs a Redis server or a backend.
 
 import ctypes
 import pickle
+import queue
+import sys
 import threading
 import time
 import types
 
 import cloudpickle
 import pytest
+from unittest.mock import MagicMock, patch
 
 from lithops.multiprocessing import config as mp_config
 from lithops.multiprocessing import util as mp_util
@@ -921,9 +924,25 @@ class TestSemLock:
             assert lock.get_value() == 0
         assert lock.get_value() == 1
 
-    def test_a_bounded_semaphore_does_not_go_over_its_value(self, redis):
+    def test_a_bounded_semaphore_rejects_a_release_it_cannot_hold(self, redis):
+        """
+        A release that would take it past its bound raises, as the standard
+        library documents, instead of being swallowed. Not compared against
+        multiprocessing here: its check reads the semaphore value through
+        sem_getvalue(), which macOS does not implement, so a BoundedSemaphore
+        larger than 1 never raises there
+        """
         from lithops.multiprocessing import BoundedSemaphore
         sem = BoundedSemaphore(2)
+        with pytest.raises(ValueError, match='released too many times'):
+            sem.release()
+        assert sem.get_value() == 2
+
+    def test_a_bounded_semaphore_allows_a_release_it_acquired(self, redis):
+        from lithops.multiprocessing import BoundedSemaphore
+        sem = BoundedSemaphore(2)
+        sem.acquire()
+        assert sem.get_value() == 1
         sem.release()
         assert sem.get_value() == 2
 
@@ -1199,3 +1218,404 @@ class TestPackageSurface:
         from lithops.multiprocessing import Lock
         lock = Lock()
         assert cloudpickle.loads(cloudpickle.dumps(lock))._name == lock._name
+
+
+class TestConnectionPolling:
+    """
+    Nothing in a Redis handle or a local buffer can be blocked on, so these
+    polls are timed waits. They used to step in a flat 0.1s, which made a
+    message that was already there cost a tenth of a second
+    """
+
+    def _connection(self, buff):
+        from lithops.multiprocessing.connection import _NanomsgConnection
+
+        conn = _NanomsgConnection.__new__(_NanomsgConnection)
+        conn._buff = buff
+        return conn
+
+    def test_poll_zero_looks_at_the_buffer(self):
+        """
+        poll(0) is what Queue.empty() and get(block=False) call. It used to
+        compare the clock against a deadline it had just set and fall
+        straight through without ever looking, so empty() said True whatever
+        the queue held and get(block=False) raised Empty on a queue with
+        data in it
+        """
+        buff = queue.Queue()
+        buff.put(b'a message that is definitely there')
+        assert self._connection(buff)._poll(0.0) is True
+        assert self._connection(queue.Queue())._poll(0.0) is False
+
+    def test_poll_returns_as_soon_as_a_message_lands(self):
+        buff = queue.Queue()
+        timer = threading.Timer(0.01, lambda: buff.put(b'x'))
+        timer.start()
+        try:
+            started = time.monotonic()
+            assert self._connection(buff)._poll(5.0) is True
+            assert time.monotonic() - started < 0.09
+        finally:
+            timer.cancel()
+
+    def test_poll_does_not_overshoot_its_timeout(self):
+        started = time.monotonic()
+        assert self._connection(queue.Queue())._poll(0.05) is False
+        # The flat 0.1s step used to sleep past the deadline it was given
+        assert 0.05 <= time.monotonic() - started < 0.12
+
+    def test_poll_until_always_checks_once(self):
+        from lithops.multiprocessing.connection import _poll_until
+
+        checks = []
+        assert _poll_until(lambda: checks.append(1) or False, 0.0) is False
+        assert len(checks) == 1
+        assert _poll_until(lambda: 'ready', 0.0) == 'ready'
+
+    def test_poll_until_backs_off_to_the_cap(self):
+        from lithops.multiprocessing import connection as conn_mod
+
+        waits = []
+        with patch.object(conn_mod.time, 'sleep', side_effect=waits.append):
+            conn_mod._poll_until(lambda: False if len(waits) < 12 else True, None)
+        assert waits[0] == conn_mod.POLL_MIN_SLEEP
+        assert waits == sorted(waits)
+        assert max(waits) == conn_mod.POLL_MAX_SLEEP
+
+    def test_wait_returns_the_ready_handles(self):
+        from lithops.multiprocessing import connection as conn_mod
+
+        client = MagicMock()
+        client.llen.side_effect = lambda h: 1 if h.endswith('b') else 0
+        handles = [
+            (client, conn_mod.REDIS_LIST_CONN + '-a'),
+            (client, conn_mod.REDIS_LIST_CONN + '-b'),
+        ]
+        assert conn_mod.wait(handles, timeout=0.0) == [handles[1]]
+
+    def test_wait_returns_an_empty_list_when_nothing_is_ready(self):
+        from lithops.multiprocessing import connection as conn_mod
+
+        client = MagicMock()
+        client.llen.return_value = 0
+        handles = [(client, conn_mod.REDIS_LIST_CONN + '-a')]
+        assert conn_mod.wait(handles, timeout=0.0) == []
+
+
+class TestAddressLookup:
+    """
+    A connection waits for its peer to publish its address. Sleeping a fixed
+    second before looking again made a peer that was 20 ms late cost a full
+    second of setup
+    """
+
+    def test_the_address_is_picked_up_as_soon_as_it_appears(self):
+        from lithops.multiprocessing import connection as conn_mod
+
+        client = MagicMock()
+        client.get.side_effect = [None, None, b'tcp://127.0.0.1:5555']
+        started = time.monotonic()
+        addr = conn_mod._poll_until(
+            lambda: client.get('h'),
+            conn_mod.ADDRESS_LOOKUP_TIMEOUT,
+            max_sleep=conn_mod.ADDRESS_LOOKUP_MAX_SLEEP,
+        )
+        assert addr == b'tcp://127.0.0.1:5555'
+        assert time.monotonic() - started < 0.5
+
+    def test_it_gives_up_after_the_timeout(self):
+        from lithops.multiprocessing import connection as conn_mod
+
+        client = MagicMock()
+        client.get.return_value = None
+        assert conn_mod._poll_until(lambda: client.get('h'), 0.05) is None
+        assert client.get.call_count >= 1
+
+
+class TestSemLockContract:
+    """
+    These follow multiprocessing.Lock/Semaphore, which callers write against
+    """
+
+    def test_acquire_takes_a_timeout(self, redis):
+        """
+        The standard library's signature is acquire(block, timeout). Not
+        taking one turned every timed acquire into a TypeError
+        """
+        from lithops.multiprocessing import Lock
+
+        lock = Lock()
+        assert lock.acquire() is True
+        try:
+            assert lock.acquire(True, 0.1) is False
+        finally:
+            lock.release()
+
+    def test_a_timeout_that_has_passed_is_a_single_attempt(self, redis):
+        """
+        BLPOP reads a zero timeout as "block for ever", so it cannot be
+        handed one straight through
+        """
+        from lithops.multiprocessing import Lock
+
+        lock = Lock()
+        lock.acquire()
+        try:
+            assert lock.acquire(True, 0) is False
+            assert lock.acquire(True, -1) is False
+        finally:
+            lock.release()
+
+    def test_a_failed_acquire_does_not_claim_ownership(self, redis):
+        """
+        owned used to be set whatever the acquire returned, which left an
+        RLock whose first acquire had failed reporting success on the next
+        one: mutual exclusion handed out without the lock behind it
+        """
+        from lithops.multiprocessing import Lock, RLock
+
+        lock = Lock()
+        lock.acquire()
+        try:
+            assert lock.acquire(False) is False
+            assert lock.owned is True   # this holder does own it
+        finally:
+            lock.release()
+
+        rlock = RLock()
+        rlock._client.delete(rlock._name)      # nothing left to take
+        assert rlock.acquire(False) is False
+        assert rlock.owned is False
+        assert rlock.acquire(False) is False   # and still cannot claim it
+
+    def test_rlock_counts_its_recursion(self, redis):
+        """
+        Only the first acquire takes the token and only the last release
+        gives it back. Giving one back per release returned a token the
+        re-entrant acquire never took
+        """
+        from lithops.multiprocessing import RLock
+
+        rlock = RLock()
+        assert rlock.acquire() is True
+        assert rlock.acquire() is True
+        rlock.release()
+        assert rlock.owned is True             # still held after one release
+        rlock.release()
+        assert rlock.owned is False
+        assert rlock.acquire(False) is True    # the token really came back
+        rlock.release()
+
+    def test_releasing_an_rlock_that_is_not_held_raises(self, redis):
+        from lithops.multiprocessing import RLock
+
+        with pytest.raises(AssertionError, match='not owned'):
+            RLock().release()
+
+    def test_a_bounded_semaphore_rejects_an_extra_release(self, redis):
+        """
+        A bounded semaphore that silently swallows an over-release is not
+        bounded at all
+        """
+        from lithops.multiprocessing import BoundedSemaphore
+
+        sem = BoundedSemaphore(1)
+        sem.acquire()
+        sem.release()
+        with pytest.raises(ValueError, match='released too many times'):
+            sem.release()
+
+    def test_an_unbounded_semaphore_still_allows_extra_releases(self, redis):
+        from lithops.multiprocessing import Semaphore
+
+        sem = Semaphore(1)
+        sem.release()
+        sem.release()
+        assert sem.get_value() == 3
+
+    def test_releasing_a_lock_that_was_never_held_raises(self, redis):
+        from lithops.multiprocessing import Lock
+
+        with pytest.raises(ValueError, match='released too many times'):
+            Lock().release()
+
+
+class TestBlpopTimeoutFallback:
+    """
+    BLPOP takes a fractional timeout only from Redis 6.0 on. The fallback
+    that rounds up for an older server must not be reached by anything else:
+    it is process wide, so one wrong trip leaves every later wait rounded to
+    the whole second
+    """
+
+    @staticmethod
+    def _client(error=None):
+        calls = []
+
+        class FakeClient:
+            def blpop(self, keys, timeout=0):
+                calls.append(timeout)
+                if error is not None and len(calls) == 1:
+                    raise error
+                return (keys[0], b'')
+
+        return FakeClient(), calls
+
+    @pytest.fixture(autouse=True)
+    def _reset_flag(self):
+        """The flag is module state, so a test must not leak it to the next"""
+        sync = sys.modules['lithops.multiprocessing.synchronize']
+        before = sync._BLPOP_TAKES_FLOAT
+        sync._BLPOP_TAKES_FLOAT = True
+        yield sync
+        sync._BLPOP_TAKES_FLOAT = before
+
+    def test_a_whole_second_timeout_never_goes_near_the_fallback(self, _reset_flag):
+        client, calls = self._client()
+        _reset_flag._blpop(client, 'k', 2)
+        assert calls == [2]
+
+    def test_a_fractional_timeout_is_passed_through(self, _reset_flag):
+        client, calls = self._client()
+        _reset_flag._blpop(client, 'k', 0.25)
+        assert calls == [0.25]
+
+    def test_an_old_server_rounds_the_wait_up(self, _reset_flag):
+        import redis as redis_pkg
+
+        error = redis_pkg.exceptions.ResponseError(
+            'timeout is not an integer or out of range'
+        )
+        client, calls = self._client(error)
+        _reset_flag._blpop(client, 'k', 0.25)
+        # Rounded up, never down: 0 would mean "block for ever"
+        assert calls == [0.25, 1]
+        assert _reset_flag._BLPOP_TAKES_FLOAT is False
+
+    def test_a_socket_timeout_is_not_mistaken_for_an_old_server(self, _reset_flag):
+        """
+        A read that timed out also says "timeout". Swallowing one would hide
+        it and round every later wait up to the second for the whole process
+        """
+        import redis as redis_pkg
+
+        error = redis_pkg.exceptions.TimeoutError('Timeout reading from socket')
+        client, calls = self._client(error)
+
+        with pytest.raises(redis_pkg.exceptions.TimeoutError):
+            _reset_flag._blpop(client, 'k', 0.25)
+
+        assert calls == [0.25]
+        assert _reset_flag._BLPOP_TAKES_FLOAT is True
+
+    def test_another_server_error_is_not_swallowed(self, _reset_flag):
+        import redis as redis_pkg
+
+        error = redis_pkg.exceptions.ResponseError('WRONGTYPE')
+        client, calls = self._client(error)
+
+        with pytest.raises(redis_pkg.exceptions.ResponseError, match='WRONGTYPE'):
+            _reset_flag._blpop(client, 'k', 0.25)
+
+        assert _reset_flag._BLPOP_TAKES_FLOAT is True
+
+    def test_no_timeout_blocks_for_ever(self, _reset_flag):
+        client, calls = self._client()
+        _reset_flag._blpop(client, 'k', None)
+        # int(None) would raise, and BLPOP reads zero as "block for ever"
+        assert calls == [0]
+
+    def test_a_condition_wait_uses_the_same_fallback(self, redis, _reset_flag):
+        """
+        Condition.wait(0.5) used to hand the fraction straight to BLPOP, so
+        it failed on a server where a timed acquire worked
+        """
+        from lithops.multiprocessing import Condition
+
+        seen = []
+        real = _reset_flag._blpop
+
+        def spy(client, name, timeout):
+            seen.append(timeout)
+            return real(client, name, timeout)
+
+        cond = Condition()
+        with patch.object(_reset_flag, '_blpop', spy):
+            with cond:
+                assert cond.wait(0.2) is False
+        assert seen == [0.2]
+
+
+class TestConditionContract:
+
+    def test_wait_says_whether_it_was_notified(self, redis):
+        """
+        The standard library returns False on a timeout and True on a
+        notify, and callers branch on it. Returning None made every wait
+        look like a timeout
+        """
+        from lithops.multiprocessing import Condition
+
+        cond = Condition()
+        with cond:
+            assert cond.wait(0.1) is False
+
+        notified = []
+
+        def waiter():
+            with cond:
+                notified.append(cond.wait(5))
+
+        thread = threading.Thread(target=waiter)
+        thread.start()
+        time.sleep(0.3)
+        with cond:
+            cond.notify_all()
+        thread.join(10)
+        assert notified == [True]
+
+    def test_wait_with_a_timeout_that_has_passed_does_not_block(self, redis):
+        from lithops.multiprocessing import Condition
+
+        cond = Condition()
+        with cond:
+            started = time.monotonic()
+            assert cond.wait(0) is False
+            assert time.monotonic() - started < 1
+
+
+class TestWaitAlarm:
+    """
+    lithops.wait() arms a SIGALRM, and signal.alarm() only takes whole
+    seconds
+    """
+
+    def test_a_fractional_timeout_is_rounded_up(self):
+        lw = sys.modules['lithops.wait']
+
+        armed = []
+        with patch.object(lw.signal, 'alarm', side_effect=armed.append), \
+                patch.object(lw.signal, 'signal'):
+            lw._set_wait_alarm(0.2)
+            lw._set_wait_alarm(2.7)
+        # int() would give 0 and 2: the first cancels the alarm outright,
+        # and the second cuts the wait short of what was asked for
+        assert armed == [1, 3]
+
+    def test_a_timeout_that_has_passed_raises_at_once(self):
+        lw = sys.modules['lithops.wait']
+
+        with pytest.raises(TimeoutError, match='Timeout of 0 seconds'):
+            lw._set_wait_alarm(0)
+
+    def test_pool_get_with_a_fractional_timeout_raises_timeout_error(self):
+        """
+        Pool.AsyncResult.get(0.2) reached signal.alarm() through wait() and
+        came back as TypeError instead of the multiprocessing TimeoutError
+        """
+        lw = sys.modules['lithops.wait']
+
+        with patch.object(lw.signal, 'alarm') as alarm, \
+                patch.object(lw.signal, 'signal'):
+            lw._set_wait_alarm(0.2)
+        alarm.assert_called_once_with(1)

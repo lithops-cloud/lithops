@@ -208,8 +208,7 @@ class LocalhostHandlerV2:
         for job_key in list(self.env.jobs.keys()):
             if job_keys is not None and job_key not in job_keys:
                 continue
-            while not self.env.jobs[job_key].done:
-                self.env.jobs[job_key].unlock()
+            self.env.jobs[job_key].release()
 
 
 class ExecutionEnvironment:

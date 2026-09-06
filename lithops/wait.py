@@ -16,8 +16,8 @@
 
 import signal
 import logging
-import math
 import time
+import math
 import concurrent.futures as cf
 from functools import partial
 from types import SimpleNamespace
@@ -94,17 +94,30 @@ def _log_wait_start(prefix: str, return_when: Any, pending: int) -> None:
     )
 
 
-def _set_wait_alarm(timeout: int) -> None:
+def _set_wait_alarm(timeout: float) -> None:
     """
-    Arms a SIGALRM that aborts the wait once the timeout is exceeded
+    Arms a SIGALRM that aborts the wait once the timeout is exceeded.
+
+    signal.alarm() takes whole seconds and rounds nothing, so a fractional
+    timeout used to raise TypeError before the wait even started, which is
+    what a caller asking for 0.5 s got. Rounded up rather than truncated:
+    int(0.5) is 0, and alarm(0) cancels the alarm instead of setting one, so
+    the wait would have run for ever with no timeout at all.
+
+    A timeout that has already passed raises here, since there is no shorter
+    alarm than one second to arm
     """
-    logger.debug(f'Setting waiting timeout to {timeout} seconds')
     error_msg = (
         f'Timeout of {timeout} seconds exceeded waiting for '
         'function activations to finish'
     )
+    if timeout <= 0:
+        raise TimeoutError(error_msg)
+
+    seconds = math.ceil(timeout)
+    logger.debug(f'Setting waiting timeout to {timeout} seconds')
     signal.signal(signal.SIGALRM, partial(timeout_handler, error_msg))
-    signal.alarm(timeout)
+    signal.alarm(seconds)
 
 
 def _create_progressbar(total: int, initial: int):
@@ -168,7 +181,9 @@ def _poll_until_done(
             if _get_executor_data(fs, executor_data, **poll_kwargs):
                 new_data = True
 
-        time.sleep(0 if new_data else sleep_sec)
+        if new_data:
+            continue
+        time.sleep(sleep_sec)
 
 
 def wait(

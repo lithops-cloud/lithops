@@ -39,6 +39,20 @@ REDIS_LIST_CONN = 'redislist'  # uses Redis lists
 REDIS_LIST_CONN_A = REDIS_LIST_CONN + '-a-'
 REDIS_LIST_CONN_B = REDIS_LIST_CONN + '-b-'
 
+#: There is nothing to block on when polling a Redis handle or a local
+#: buffer, so the wait between checks starts here and doubles up to the cap.
+#: The cap is what the interval used to be, so an idle poll is no busier
+#: than before, while a message already on its way is picked up at once
+POLL_MIN_SLEEP = 0.001
+POLL_MAX_SLEEP = 0.1
+
+#: How long a connection waits for its peer to publish its address, and how
+#: long it backs off to while waiting. Coarser than a data poll: this is a
+#: rendezvous that can legitimately take a while, and every check is a round
+#: trip to the directory
+ADDRESS_LOOKUP_TIMEOUT = 60
+ADDRESS_LOOKUP_MAX_SLEEP = 1.0
+
 REDIS_PUBSUB_CONN = 'redispubsub'  # uses Redis channels (pub/sub)
 REDIS_PUBSUB_CONN_A = REDIS_PUBSUB_CONN + '-a-'
 REDIS_PUBSUB_CONN_B = REDIS_PUBSUB_CONN + '-b-'
@@ -457,15 +471,21 @@ class _NanomsgConnection(_ConnectionBase):
             logger.debug('Get address from directory for handle %s', self._subhandle)
             addr = self._client.get(self._subhandle)
 
-            retry = 15
-            retry_sleep = 1
-            while addr is None:
-                time.sleep(retry_sleep)
-                retry_sleep += 0.5
-                addr = self._client.get(self._subhandle)
-                retry -= 1
-                if retry == 0:
-                    raise Exception('Server address could not be fetched for handle {}'.format(self._subhandle))
+            if addr is None:
+                # The peer publishes its address as it comes up, so this is a
+                # rendezvous. Waiting a fixed second before looking again
+                # made a peer that was 20 ms late cost a full second; the
+                # backoff finds it as soon as it is there and still gives it
+                # ADDRESS_LOOKUP_TIMEOUT to appear
+                addr = _poll_until(
+                    lambda: self._client.get(self._subhandle),
+                    ADDRESS_LOOKUP_TIMEOUT,
+                    max_sleep=ADDRESS_LOOKUP_MAX_SLEEP,
+                )
+            if addr is None:
+                raise Exception(
+                    'Server address could not be fetched for handle {}'.format(self._subhandle)
+                )
 
             self._subhandle_addr = addr.decode('utf-8')
             logger.debug('Dialing %s', self._subhandle_addr)
@@ -481,13 +501,17 @@ class _NanomsgConnection(_ConnectionBase):
         return chunk
 
     def _poll(self, timeout):
-        max_time = time.monotonic() + timeout
-        while time.monotonic() < max_time:
-            qsize = self._buff.qsize()
-            if qsize > 0:
-                return True
-            else:
-                time.sleep(0.1)
+        """
+        Whether a message is waiting in the local buffer the subscriber
+        thread fills.
+
+        The buffer is checked before the timeout is, so poll(0) answers what
+        is actually there. It used to start by comparing the clock against a
+        deadline it had just set, which with timeout=0 fell straight through
+        without ever looking: Queue.empty() said True whatever the queue
+        held, and get(block=False) raised Empty on a queue with data in it
+        """
+        return bool(_poll_until(lambda: self._buff.qsize() > 0, timeout))
 
 
 PipeConnection = _RedisConnection
@@ -658,30 +682,49 @@ def _RedisClient(address):
 # Wait
 #
 
+def _poll_until(is_ready, timeout, max_sleep=POLL_MAX_SLEEP):
+    """
+    Calls ``is_ready()`` until it returns something truthy or the timeout is
+    up, and hands back whatever it returned last.
+
+    The check always runs at least once, including with ``timeout=0``, which
+    is what ``poll(0)``, ``Queue.empty()`` and ``get(block=False)`` ask for.
+    Between checks it waits ``POLL_MIN_SLEEP`` and doubles up to
+    ``max_sleep``: something that is already on its way is picked up in about
+    a millisecond instead of waiting out a fixed interval, while a poll that
+    finds nothing settles at the interval it always used, so an idle wait
+    costs no more than before
+    """
+    deadline = None if timeout is None else time.monotonic() + timeout
+    delay = POLL_MIN_SLEEP
+    while True:
+        ready = is_ready()
+        if ready:
+            return ready
+        if deadline is None:
+            time.sleep(delay)
+        else:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return ready
+            time.sleep(min(delay, remaining))
+        delay = min(delay * 2, max_sleep)
+
+
 def wait(object_list, timeout=None):
     """
     Wait till an object in object_list is ready/readable.
 
     Returns list of those objects in object_list which are ready/readable.
     """
-    if timeout is not None:
-        deadline = time.monotonic() + timeout
-
-    while True:
-        ready = []
+    def ready():
+        found = []
         for client, handle in object_list:
             if handle.startswith(REDIS_LIST_CONN):
-                llen = client.llen(handle)
-                if llen > 0:
-                    ready.append((client, handle))
+                if client.llen(handle) > 0:
+                    found.append((client, handle))
             elif handle.startswith(REDIS_PUBSUB_CONN) and client.connection.can_read():
-                ready.append((client, handle))
+                found.append((client, handle))
+        return found
 
-        if any(ready):
-            return ready
-
-        if timeout is not None:
-            timeout = deadline - time.monotonic()
-            if timeout < 0:
-                return ready
-        time.sleep(0.1)
+    return _poll_until(ready, timeout) or []
