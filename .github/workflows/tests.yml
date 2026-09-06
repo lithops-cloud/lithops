@@ -7,9 +7,15 @@ on:
     paths:
       - 'setup.py'
       - 'lithops/**'
+      - '.github/workflows/tests.yml'
 
   workflow_dispatch: 
   # this allows to run the workflow manually through the github dashboard
+
+# A new push to a PR supersedes the run that is still going for it
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
 
@@ -35,10 +41,10 @@ jobs:
 
     steps:
       - name: Clone Lithops repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
           cache: 'pip'
@@ -51,4 +57,4 @@ jobs:
       - name: Run Lithops tests
         run: |
           cd lithops/tests
-          pytest -v --backend localhost --storage localhost
+          pytest -v --timeout=120 --timeout-method=thread --backend localhost --storage localhost

@@ -84,6 +84,7 @@ extras_require = {
     ],
     'tests': [
         'pytest',
+        'pytest-timeout',
         'kubernetes',
         'pika',
         'ibm-cos-sdk',
