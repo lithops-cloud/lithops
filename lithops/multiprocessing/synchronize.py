@@ -56,6 +56,7 @@ def _blpop(client, name, timeout):
             )
     return client.blpop([name], timeout=math.ceil(timeout))
 
+
 #
 # Constants
 #
