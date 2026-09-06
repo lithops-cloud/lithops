@@ -22,12 +22,28 @@ import requests
 import json
 import base64
 import io
+from concurrent.futures import ThreadPoolExecutor
 from requests.auth import HTTPBasicAuth
 from requests.auth import HTTPDigestAuth
 from lithops.constants import STORAGE_CLI_MSG
 from lithops.storage.utils import StorageNoSuchKeyError
 
 logger = logging.getLogger(__name__)
+
+CONN_POOL_SIZE = 32
+
+
+def _parse_range(bytes_range):
+    """
+    Translates an HTTP byte range into the slice of the value it selects.
+    Accepts 'L-H', 'L-' (from L to the end) and '-N' (the last N bytes)
+    """
+    start, _, end = bytes_range.partition('-')
+
+    if not start:  # '-N': the last N bytes
+        return slice(-int(end), None)
+
+    return slice(int(start), int(end) + 1 if end else None)
 
 
 class InfinispanBackend:
@@ -38,17 +54,31 @@ class InfinispanBackend:
     def __init__(self, infinispan_config):
         logger.debug("Creating Infinispan storage client")
         self.infinispan_config = infinispan_config
-        self.mech = infinispan_config.get('auth_mech', 'DIGEST')
+        # the documented key is 'mech'; 'auth_mech' is what the code used to
+        # read, and is kept working for configurations written against it
+        self.mech = infinispan_config.get('mech') or \
+            infinispan_config.get('auth_mech', 'DIGEST')
         if self.mech == 'DIGEST':
-            self.auth = HTTPDigestAuth(infinispan_config.get('username'),
-                                       infinispan_config.get('password'))
+            auth_class = HTTPDigestAuth
         elif self.mech == 'BASIC':
-            self.auth = HTTPBasicAuth(infinispan_config.get('username'),
-                                      infinispan_config.get('password'))
+            auth_class = HTTPBasicAuth
+        else:
+            raise Exception(
+                f"Unsupported Infinispan authentication mechanism '{self.mech}'"
+                ", it must be one of DIGEST or BASIC"
+            )
+        self.auth = auth_class(infinispan_config.get('username'),
+                               infinispan_config.get('password'))
         self.endpoint = infinispan_config.get('endpoint')
         self.cache_names = infinispan_config.get('cache_names', ['storage'])
         self.cache_type = infinispan_config.get('cache_type', 'org.infinispan.DIST_SYNC')
         self.infinispan_client = requests.session()
+        # the default pool of 10 throws away connections as soon as a
+        # listing, or a handful of workers, run requests side by side
+        adapter = requests.adapters.HTTPAdapter(pool_connections=CONN_POOL_SIZE,
+                                                pool_maxsize=CONN_POOL_SIZE)
+        self.infinispan_client.mount('http://', adapter)
+        self.infinispan_client.mount('https://', adapter)
 
         self.__is_server_version_supported()
         self.caches = {}
@@ -106,6 +136,7 @@ class InfinispanBackend:
                                           auth=self.auth,
                                           headers=self.headers)
         logger.debug(resp)
+        resp.raise_for_status()
 
     def get_object(self, bucket_name, key, stream=False, extra_get_args={}):
         """
@@ -116,13 +147,12 @@ class InfinispanBackend:
         """
         url = self.__key_url(bucket_name, key)
         res = self.infinispan_client.get(url, headers=self.headers, auth=self.auth)
-        data = res.content
-        if data is None or len(data) == 0:
+        if res.status_code == 404:
             raise StorageNoSuchKeyError(bucket_name, key)
+        res.raise_for_status()
+        data = res.content
         if 'Range' in extra_get_args:
-            byte_range = extra_get_args['Range'].replace('bytes=', '')
-            first_byte, last_byte = map(int, byte_range.split('-'))
-            data = data[first_byte:last_byte + 1]
+            data = data[_parse_range(extra_get_args['Range'][6:])]
         if stream:
             return io.BytesIO(data)
         return data
@@ -181,8 +211,6 @@ class InfinispanBackend:
         :rtype: str/bytes
         """
         obj = self.get_object(bucket_name, key)
-        if obj is None:
-            raise StorageNoSuchKeyError(bucket=bucket_name, key=key)
         return {'content-length': str(len(obj))}
 
     def delete_object(self, bucket_name, key):
@@ -200,19 +228,21 @@ class InfinispanBackend:
         :param bucket: bucket name
         :param key_list: list of keys
         """
-        result = []
-        for key in key_list:
-            self.delete_object(bucket_name, key)
-        return result
+        return [self.delete_object(bucket_name, key) for key in key_list]
 
     def head_bucket(self, bucket_name):
         """
         Head bucket from COS with a name. Throws StorageNoSuchKeyError if the given bucket does not exist.
         :param bucket_name: name of the bucket
         :return: Metadata of the bucket
-        :rtype: str/bytes
+        :rtype: dict
         """
-        raise NotImplementedError
+        url = self.endpoint + '/rest/v2/caches/' + bucket_name
+        res = self.infinispan_client.head(url, auth=self.auth)
+        if res.status_code == 404:
+            raise StorageNoSuchKeyError(bucket_name, '')
+        res.raise_for_status()
+        return {'ResponseMetadata': {'HTTPStatusCode': 200}}
 
     def list_objects(self, bucket_name, prefix=None, match_pattern=None):
         """
@@ -233,14 +263,28 @@ class InfinispanBackend:
             pref = ""
         else:
             pref = prefix
-        for k in j:
-            if len(k) > 0:
-                key = k
-                if key.startswith(pref):
-                    h = self.get_object(bucket_name, key)
-                    d = {'Key': key, 'Size': len(h)}
-                    result.append(d)
-        return result
+        keys = [k for k in j if len(k) > 0 and k.startswith(pref)]
+        if not keys:
+            return result
+
+        def size_of(key):
+            # a key listed a moment ago may be gone by now, and a listing
+            # should skip it rather than fail
+            try:
+                return len(self.get_object(bucket_name, key))
+            except StorageNoSuchKeyError:
+                return None
+
+        # The REST API exposes no size metadata, so every value has to be
+        # read back; overlapping the requests keeps a listing from costing
+        # one full round trip per key
+        with ThreadPoolExecutor(max_workers=min(CONN_POOL_SIZE, len(keys))) as pool:
+            sizes = pool.map(size_of, keys)
+
+        return [
+            {'Key': key, 'Size': size}
+            for key, size in zip(keys, sizes) if size is not None
+        ]
 
     def list_keys(self, bucket_name, prefix=None):
         """

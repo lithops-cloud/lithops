@@ -14,7 +14,6 @@
 
 import importlib
 import signal
-import threading
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -331,8 +330,7 @@ class TestWaitPolling:
             return 1
 
         with patch.object(wait_mod, 'JobMonitor', return_value=monitor) as cls, \
-                patch.object(wait_mod, '_get_executor_data', side_effect=get_data), \
-                patch.object(wait_mod.time, 'sleep'):
+                patch.object(wait_mod, '_get_executor_data', side_effect=get_data):
             wait(
                 [future],
                 show_progressbar=False,
@@ -363,8 +361,7 @@ class TestWaitPolling:
 
         with patch.object(wait_mod.signal, 'signal', side_effect=fake_signal), \
                 patch.object(wait_mod.signal, 'alarm') as alarm, \
-                patch.object(wait_mod, '_get_executor_data', side_effect=get_data), \
-                patch.object(wait_mod.time, 'sleep'):
+                patch.object(wait_mod, '_get_executor_data', side_effect=get_data):
             wait(
                 [future],
                 timeout=17,
@@ -377,7 +374,7 @@ class TestWaitPolling:
         alarm.assert_called_with(0)
         assert 'Timeout of 17 seconds exceeded' in handlers[signal.SIGALRM].args[0]
 
-    def test_all_completed_restarts_dead_monitor_and_sleeps_on_empty_poll(self):
+    def test_all_completed_restarts_dead_monitor_and_waits_on_empty_poll(self):
         future = FakeFuture()
         monitor = MagicMock()
         monitor.type = 'storage'
@@ -395,15 +392,10 @@ class TestWaitPolling:
             future.done = True
             return 3
 
-        sleeps = []
-        test_thread = threading.current_thread()
-
-        def sleep(seconds):
-            if threading.current_thread() is test_thread:
-                sleeps.append(seconds)
+        waits = []
 
         with patch.object(wait_mod, '_get_executor_data', side_effect=get_data), \
-                patch.object(wait_mod.time, 'sleep', side_effect=sleep):
+                patch.object(wait_mod.time, 'sleep', waits.append):
             wait(
                 [future],
                 return_when=ALL_COMPLETED,
@@ -413,7 +405,9 @@ class TestWaitPolling:
             )
 
         monitor.start.assert_called_once_with(fs=[future])
-        assert sleeps == [0.1, 0]
+        # An empty poll sleeps the poll interval; a poll that fetched
+        # something goes straight round again without waiting at all
+        assert waits == [0.1]
 
     def test_wait_tracks_nested_futures_until_they_complete(self):
         child = FakeFuture(call_id='00001')
@@ -433,13 +427,12 @@ class TestWaitPolling:
         internal = MagicMock()
         internal.backend = 'localhost'
 
-        with patch.object(wait_mod.time, 'sleep'):
-            done, not_done = wait(
-                [parent],
-                show_progressbar=False,
-                job_monitor=monitor,
-                internal_storage=internal,
-            )
+        done, not_done = wait(
+            [parent],
+            show_progressbar=False,
+            job_monitor=monitor,
+            internal_storage=internal,
+        )
 
         assert parent.success is True
         assert child.success is True

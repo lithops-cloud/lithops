@@ -15,6 +15,7 @@
 import io
 import logging
 import pickle
+import threading
 import zipfile
 from collections import namedtuple
 from unittest.mock import MagicMock, patch
@@ -288,6 +289,54 @@ class TestMiscUtils:
         latch = CountDownLatch(0)
         latch.wait()
         assert latch.done is True
+
+    def test_countdown_latch_survives_being_unlocked_too_many_times(self):
+        """
+        A caller draining a latch cannot tell whether the last task is
+        counting it down right now. An unlock past zero used to leave the
+        count negative, which never opened the latch: done() stayed False
+        for ever and wait() stopped blocking, which spun the localhost job
+        manager on a full core for the rest of the session
+        """
+        latch = CountDownLatch(1)
+        latch.unlock()
+        latch.unlock()
+        latch.unlock()
+
+        assert latch.done is True
+        latch.wait()
+
+    def test_countdown_latch_release_opens_it_with_the_count_pending(self):
+        latch = CountDownLatch(3)
+        latch.unlock()
+        assert latch.done is False
+
+        latch.release()
+
+        assert latch.done is True
+        latch.wait()
+        # The tasks that never arrive must not close it again
+        latch.unlock()
+        assert latch.done is True
+
+    def test_countdown_latch_is_not_closed_by_a_concurrent_drain(self):
+        """
+        The consumer counting down its finished task and clear() opening
+        the latch, racing the way they do on a job that ends while its last
+        task is still reporting
+        """
+        for _ in range(200):
+            latch = CountDownLatch(2)
+            latch.unlock()
+            threads = [
+                threading.Thread(target=latch.unlock),
+                threading.Thread(target=latch.release),
+            ]
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join()
+            assert latch.done is True
 
     def test_log_prefix_builds_executor_job_and_call_identity(self):
         assert log_prefix('sess-0') == 'ExecutorID sess-0'

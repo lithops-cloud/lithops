@@ -51,9 +51,11 @@ class RedisBackend:
         :param bucket_name: bucket name
         :param key: key of the object.
         :param data: data of the object
-        :type data: str/bytes
+        :type data: str/bytes/file-like
         :return: None
         """
+        if hasattr(data, 'read'):
+            data = data.read()
         if not isinstance(data, (str, bytes, bytearray)):
             raise TypeError(type(data), 'valid types: {}'.format((str, bytes, bytearray)))
 
@@ -91,9 +93,15 @@ class RedisBackend:
         redis_key = self._format_key(bucket_name, key)
         try:
             if 'Range' in extra_get_args:  # expected format: Range='bytes=L-H'
-                bytes_range = extra_get_args.pop('Range')[6:]
-                start, end = self._parse_range(bytes_range)
-                data = self._client.getrange(redis_key, start, end)
+                start, end = self._parse_range(extra_get_args['Range'][6:])
+                pipeline = self._client.pipeline(False)
+                pipeline.exists(redis_key)
+                pipeline.getrange(redis_key, start, end)
+                exists, data = pipeline.execute()
+                # GETRANGE answers the empty string for a key that is not
+                # there, which is also a legitimate answer for one that is
+                if not exists:
+                    data = None
             else:
                 data = self._client.get(redis_key)
 
@@ -164,13 +172,16 @@ class RedisBackend:
         :rtype: dict
         """
         redis_key = self._format_key(bucket_name, key)
-        try:
-            meta = self._client.debug_object(redis_key)
-        except redis.exceptions.ResponseError:
+
+        pipeline = self._client.pipeline(False)
+        pipeline.exists(redis_key)
+        pipeline.strlen(redis_key)
+        exists, length = pipeline.execute()
+
+        if not exists:
             raise StorageNoSuchKeyError(bucket_name, key)
 
-        meta['content-length'] = meta['serializedlength'] - 1
-        return meta
+        return {'content-length': str(length)}
 
     def delete_object(self, bucket_name, key):
         """
@@ -186,6 +197,9 @@ class RedisBackend:
         :param bucket_name: bucket name
         :param key_list: list of keys
         """
+        if not key_list:
+            return
+
         redis_key_list = [self._format_key(bucket_name, k) for k in key_list]
 
         pipeline = self._client.pipeline(False)
@@ -206,7 +220,10 @@ class RedisBackend:
         :return: metadata of the bucket
         :rtype: dict
         """
-        return bool(self._client.exists(self._format_key(bucket_name, '')))
+        if not self._client.exists(self._format_key(bucket_name, '')):
+            raise StorageNoSuchKeyError(bucket_name, '')
+
+        return {'ResponseMetadata': {'HTTPStatusCode': 200}}
 
     def list_objects(self, bucket_name, prefix=None, match_pattern=None):
         """
@@ -216,10 +233,24 @@ class RedisBackend:
         :return: List of objects in bucket that match the given prefix.
         :rtype: list of dict
         """
+        keys = self.list_keys(bucket_name, prefix)
+
+        # STRLEN keeps the listing off the wire: the sizes are all that is
+        # needed and the bodies can be arbitrarily large. EXISTS goes with
+        # it because STRLEN answers 0 for a key that is not there, and the
+        # directory sets outlive a value that was evicted or expired - a
+        # phantom has to be dropped, not reported as a zero-byte object
         pipeline = self._client.pipeline(False)
-        for key in self.list_keys(bucket_name, prefix):
-            pipeline.get(self._format_key(bucket_name, key))
-        return pipeline.execute()
+        for key in keys:
+            redis_key = self._format_key(bucket_name, key)
+            pipeline.exists(redis_key)
+            pipeline.strlen(redis_key)
+        res = pipeline.execute()
+
+        return [
+            {'Key': key, 'Size': size}
+            for key, exists, size in zip(keys, res[::2], res[1::2]) if exists
+        ]
 
     def list_keys(self, bucket_name, prefix=None):
         """
@@ -233,52 +264,46 @@ class RedisBackend:
         redis_prefix = self._format_key(bucket_name, prefix)
 
         pdir = '/'.join(redis_prefix.split('/')[:-1]) + '/'
-        dir_keys = [key.decode() for key in self._client.smembers(pdir)]
         key_list = []
+        pending = []
 
-        for key in dir_keys:
-            full_key = pdir + key
+        for member in self._client.smembers(pdir):
+            full_key = pdir + member.decode()
             if full_key.startswith(redis_prefix):
-                if full_key.endswith('/'):
-                    key_list.extend(self._walk(bucket_name, full_key))
-                else:
-                    key_list.append(full_key)
+                target = pending if full_key.endswith('/') else key_list
+                target.append(full_key)
+
+        # Breadth-first, one pipelined round trip per level of the tree.
+        # Descending one directory at a time costs a round trip per
+        # directory, and a job holds one directory per activation
+        while pending:
+            pipeline = self._client.pipeline(False)
+            for dir_key in pending:
+                pipeline.smembers(dir_key)
+
+            next_level = []
+            for dir_key, members in zip(pending, pipeline.execute()):
+                for member in members:
+                    full_key = dir_key + member.decode()
+                    target = next_level if full_key.endswith('/') else key_list
+                    target.append(full_key)
+            pending = next_level
 
         offset = len(bucket_name) + 1
         return [key[offset:] for key in key_list]
-
-    def _walk(self, bucket_name, dir_key):
-        dir_keys = [key.decode() for key in self._client.smembers(dir_key)]
-        key_list = []
-
-        for key in dir_keys:
-            full_key = dir_key + key
-            if full_key.endswith('/'):
-                key_list.extend(self._walk(bucket_name, full_key))
-            else:
-                key_list.append(full_key)
-
-        return key_list
 
     def _format_key(self, bucket, key):
         return '/'.join([bucket, key])
 
     def _parse_range(self, bytes_range):
-        if '--' in bytes_range:
-            bytes_range = bytes_range.replace('--', '-')
-            sign = -1
-        else:
-            sign = 1
+        """
+        Translates an HTTP byte range into the (start, end) pair GETRANGE
+        wants, where both ends are inclusive and -1 is the last byte.
+        Accepts 'L-H', 'L-' (from L to the end) and '-N' (the last N bytes)
+        """
+        start, _, end = bytes_range.partition('-')
 
-        if '-' in bytes_range:
-            bytes_range = bytes_range.split('-')
-            if bytes_range[0] == '':
-                end = int(bytes_range[1]) * -1
-                start = end
-            else:
-                start = int(bytes_range[0])
-                end = int(bytes_range[1]) * sign
-        else:
-            start = end = int(bytes_range)
+        if not start:  # '-N': the last N bytes
+            return -int(end), -1
 
-        return start, end
+        return int(start), int(end) if end else -1

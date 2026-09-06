@@ -76,6 +76,7 @@ class RabbitmqCallStatus(MessageCallStatus):
         """
         amqp, self._amqp = self._amqp, None
         self.discard_client('_amqp')
+        self._amqp = None
         if amqp is None:
             return
         for closeable in reversed(amqp):

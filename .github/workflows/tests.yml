@@ -7,15 +7,32 @@ on:
     paths:
       - 'setup.py'
       - 'lithops/**'
+      - '.github/workflows/tests.yml'
 
   workflow_dispatch: 
   # this allows to run the workflow manually through the github dashboard
 
+# A new push to a PR supersedes the run that is still going for it
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
 
   localhost_tests:
-    runs-on: ubuntu-22.04
-    timeout-minutes: 5
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    services:
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
 
     strategy:
       fail-fast: false
@@ -24,12 +41,14 @@ jobs:
 
     steps:
       - name: Clone Lithops repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+          cache-dependency-path: setup.py
 
       - name: Install Lithops
         run: |
@@ -38,4 +57,4 @@ jobs:
       - name: Run Lithops tests
         run: |
           cd lithops/tests
-          pytest -v --backend localhost --storage localhost
+          pytest -v --timeout=120 --timeout-method=thread --backend localhost --storage localhost

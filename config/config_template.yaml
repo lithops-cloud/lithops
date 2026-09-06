@@ -545,13 +545,6 @@
         #- storage
     #cache_type: default                  # Cache type
 
-#infinispan_hotrod:
-    #endpoint: <INFINISPAN_SERVER_HOSTNAME:PORT>
-    #username: <USERNAME>
-    #password: <PASSWORD>
-    #cache_names:
-        #- storage
-
 
 # =============================================================================
 # RabbitMQ – required when `lithops.monitoring=rabbitmq`, by k8s with

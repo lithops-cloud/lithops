@@ -12,7 +12,7 @@ jobs:
 
   determine_runnable_test_jobs:
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    timeout-minutes: 5
 
     outputs:
       localhost: ${{ steps.script.outputs.localhost }}
@@ -23,20 +23,22 @@ jobs:
         id: script
         run: |
           echo "localhost=true" >> $GITHUB_OUTPUT
-          echo "code_engine=false" >> $GITHUB_OUTPUT
+          # The Code Engine job needs the config secret to run at all
+          echo "code_engine=$HAVE_LITHOPS_CONFIG" >> $GITHUB_OUTPUT
 
 
   localhost_tests:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: determine_runnable_test_jobs
     if: needs.determine_runnable_test_jobs.outputs.localhost == 'true'
 
     steps:
       - name: Clone Lithops repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Python 3.10
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.10'
 
@@ -47,20 +49,21 @@ jobs:
       - name: Run Lithops tests
         run: |
           cd lithops/tests
-          pytest -v --backend localhost --storage localhost
+          pytest -v --timeout=120 --timeout-method=thread --backend localhost --storage localhost
 
 
   ibm_ce_cos_tests:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     needs: determine_runnable_test_jobs
     if: needs.determine_runnable_test_jobs.outputs.code_engine == 'true'
 
     steps:
       - name: Clone Lithops repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Python 3.10
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.10'
 
@@ -75,7 +78,7 @@ jobs:
 
       - name: Build new runtime
         run: |
-          docker login -u ${{ secrets.DOCKER_USER }} -p ${{ secrets.DOCKER_TOKEN }}
+          echo '${{ secrets.DOCKER_TOKEN }}' | docker login -u '${{ secrets.DOCKER_USER }}' --password-stdin
           cd runtime/code_engine
           lithops runtime build -f Dockerfile.githubci ${{ secrets.DOCKER_USER }}/lithops-ce-gihub-ci:${{ github.run_id }} -b code_engine
           sed -i '/runtime: lithops-ce/c\    runtime: '${{ secrets.DOCKER_USER }}'/lithops-ce-gihub-ci:'${{ github.run_id }} $LITHOPS_CONFIG_FILE

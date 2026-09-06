@@ -22,13 +22,17 @@ what was submitted. Nothing in this file needs a Redis server or a backend.
 """
 
 import ctypes
+import gc
 import pickle
+import queue
+import sys
 import threading
 import time
 import types
 
 import cloudpickle
 import pytest
+from unittest.mock import MagicMock, patch
 
 from lithops.multiprocessing import config as mp_config
 from lithops.multiprocessing import util as mp_util
@@ -63,6 +67,39 @@ def redis():
     return server
 
 
+@pytest.fixture
+def real_redis():
+    """
+    A real server, for the manager proxies.
+
+    They lean on hashes, WATCH/MULTI and pickled hash fields, none of which
+    the in-memory double has, and writing the double and the code it is
+    meant to check in the same pass proves nothing. Skipped where no server
+    is reachable; every key the test makes is dropped afterwards
+    """
+    # The picklable wrapper, which is what get_redis_client() builds. A plain
+    # redis.Redis carries a connection pool with a lock in it, so a proxy
+    # holding one cannot be sent to a worker -- a difference the tests must
+    # not paper over
+    client = mp_util.PicklableRedis(host='localhost')
+    try:
+        client.ping()
+    except Exception:
+        pytest.skip('no Redis reachable on localhost')
+
+    before = set(client.keys('*'))
+    saved_client, saved_config = mp_util.REDIS_CLIENT, mp_util.LITHOPS_CONFIG
+    mp_util.REDIS_CLIENT = client
+    mp_util.LITHOPS_CONFIG = {'redis': {'host': 'localhost'}}
+    try:
+        yield client
+    finally:
+        mp_util.REDIS_CLIENT, mp_util.LITHOPS_CONFIG = saved_client, saved_config
+        made = set(client.keys('*')) - before
+        if made:
+            client.delete(*made)
+
+
 class FakeFuture:
     def __init__(self, value=None, error=False):
         self.executor_id = 'sess-0'
@@ -86,6 +123,7 @@ class FakeExecutor:
         self.kwargs = kwargs
         self.executor_id = 'sess-0'
         self.invoker = type('I', (), {'max_workers': 7})()
+        self.futures = []
         self.call_async_calls = []
         self.map_calls = []
         self.wait_calls = []
@@ -209,10 +247,13 @@ class TestRemoteReference:
         assert ref.decref() is None
 
     def test_unmanaged_reference_counts_up_and_down(self, redis):
+        # Building one takes a reference of its own, so the count starts at
+        # one rather than zero: whatever built it is an owner
         ref = mp_util.RemoteReference('key-1', client=redis)
-        assert ref.incref() == 1
+        assert ref.refcount() == 1
         assert ref.incref() == 2
-        assert ref.decref() == 1
+        assert ref.incref() == 3
+        assert ref.decref() == 2
 
     def test_the_counter_key_is_collected_with_the_referenced_ones(self, redis):
         ref = mp_util.RemoteReference(['key-1', 'key-2'], client=redis)
@@ -920,9 +961,25 @@ class TestSemLock:
             assert lock.get_value() == 0
         assert lock.get_value() == 1
 
-    def test_a_bounded_semaphore_does_not_go_over_its_value(self, redis):
+    def test_a_bounded_semaphore_rejects_a_release_it_cannot_hold(self, redis):
+        """
+        A release that would take it past its bound raises, as the standard
+        library documents, instead of being swallowed. Not compared against
+        multiprocessing here: its check reads the semaphore value through
+        sem_getvalue(), which macOS does not implement, so a BoundedSemaphore
+        larger than 1 never raises there
+        """
         from lithops.multiprocessing import BoundedSemaphore
         sem = BoundedSemaphore(2)
+        with pytest.raises(ValueError, match='released too many times'):
+            sem.release()
+        assert sem.get_value() == 2
+
+    def test_a_bounded_semaphore_allows_a_release_it_acquired(self, redis):
+        from lithops.multiprocessing import BoundedSemaphore
+        sem = BoundedSemaphore(2)
+        sem.acquire()
+        assert sem.get_value() == 1
         sem.release()
         assert sem.get_value() == 2
 
@@ -1198,3 +1255,960 @@ class TestPackageSurface:
         from lithops.multiprocessing import Lock
         lock = Lock()
         assert cloudpickle.loads(cloudpickle.dumps(lock))._name == lock._name
+
+
+class TestConnectionPolling:
+    """
+    Nothing in a Redis handle or a local buffer can be blocked on, so these
+    polls are timed waits. They used to step in a flat 0.1s, which made a
+    message that was already there cost a tenth of a second
+    """
+
+    def _connection(self, buff):
+        from lithops.multiprocessing.connection import _NanomsgConnection
+
+        conn = _NanomsgConnection.__new__(_NanomsgConnection)
+        conn._buff = buff
+        return conn
+
+    def test_poll_zero_looks_at_the_buffer(self):
+        """
+        poll(0) is what Queue.empty() and get(block=False) call. It used to
+        compare the clock against a deadline it had just set and fall
+        straight through without ever looking, so empty() said True whatever
+        the queue held and get(block=False) raised Empty on a queue with
+        data in it
+        """
+        buff = queue.Queue()
+        buff.put(b'a message that is definitely there')
+        assert self._connection(buff)._poll(0.0) is True
+        assert self._connection(queue.Queue())._poll(0.0) is False
+
+    def test_poll_returns_as_soon_as_a_message_lands(self):
+        buff = queue.Queue()
+        timer = threading.Timer(0.01, lambda: buff.put(b'x'))
+        timer.start()
+        try:
+            started = time.monotonic()
+            assert self._connection(buff)._poll(5.0) is True
+            assert time.monotonic() - started < 0.09
+        finally:
+            timer.cancel()
+
+    def test_poll_does_not_overshoot_its_timeout(self):
+        started = time.monotonic()
+        assert self._connection(queue.Queue())._poll(0.05) is False
+        # The flat 0.1s step used to sleep past the deadline it was given
+        assert 0.05 <= time.monotonic() - started < 0.12
+
+    def test_poll_until_always_checks_once(self):
+        from lithops.multiprocessing.connection import _poll_until
+
+        checks = []
+        assert _poll_until(lambda: checks.append(1) or False, 0.0) is False
+        assert len(checks) == 1
+        assert _poll_until(lambda: 'ready', 0.0) == 'ready'
+
+    def test_poll_until_backs_off_to_the_cap(self):
+        from lithops.multiprocessing import connection as conn_mod
+
+        waits = []
+        with patch.object(conn_mod.time, 'sleep', side_effect=waits.append):
+            conn_mod._poll_until(lambda: False if len(waits) < 12 else True, None)
+        assert waits[0] == conn_mod.POLL_MIN_SLEEP
+        assert waits == sorted(waits)
+        assert max(waits) == conn_mod.POLL_MAX_SLEEP
+
+    def test_wait_returns_the_ready_handles(self):
+        from lithops.multiprocessing import connection as conn_mod
+
+        client = MagicMock()
+        client.llen.side_effect = lambda h: 1 if h.endswith('b') else 0
+        handles = [
+            (client, conn_mod.REDIS_LIST_CONN + '-a'),
+            (client, conn_mod.REDIS_LIST_CONN + '-b'),
+        ]
+        assert conn_mod.wait(handles, timeout=0.0) == [handles[1]]
+
+    def test_wait_returns_an_empty_list_when_nothing_is_ready(self):
+        from lithops.multiprocessing import connection as conn_mod
+
+        client = MagicMock()
+        client.llen.return_value = 0
+        handles = [(client, conn_mod.REDIS_LIST_CONN + '-a')]
+        assert conn_mod.wait(handles, timeout=0.0) == []
+
+
+class TestAddressLookup:
+    """
+    A connection waits for its peer to publish its address. Sleeping a fixed
+    second before looking again made a peer that was 20 ms late cost a full
+    second of setup
+    """
+
+    def test_the_address_is_picked_up_as_soon_as_it_appears(self):
+        from lithops.multiprocessing import connection as conn_mod
+
+        client = MagicMock()
+        client.get.side_effect = [None, None, b'tcp://127.0.0.1:5555']
+        started = time.monotonic()
+        addr = conn_mod._poll_until(
+            lambda: client.get('h'),
+            conn_mod.ADDRESS_LOOKUP_TIMEOUT,
+            max_sleep=conn_mod.ADDRESS_LOOKUP_MAX_SLEEP,
+        )
+        assert addr == b'tcp://127.0.0.1:5555'
+        assert time.monotonic() - started < 0.5
+
+    def test_it_gives_up_after_the_timeout(self):
+        from lithops.multiprocessing import connection as conn_mod
+
+        client = MagicMock()
+        client.get.return_value = None
+        assert conn_mod._poll_until(lambda: client.get('h'), 0.05) is None
+        assert client.get.call_count >= 1
+
+
+class TestSemLockContract:
+    """
+    These follow multiprocessing.Lock/Semaphore, which callers write against
+    """
+
+    def test_acquire_takes_a_timeout(self, redis):
+        """
+        The standard library's signature is acquire(block, timeout). Not
+        taking one turned every timed acquire into a TypeError
+        """
+        from lithops.multiprocessing import Lock
+
+        lock = Lock()
+        assert lock.acquire() is True
+        try:
+            assert lock.acquire(True, 0.1) is False
+        finally:
+            lock.release()
+
+    def test_a_timeout_that_has_passed_is_a_single_attempt(self, redis):
+        """
+        BLPOP reads a zero timeout as "block for ever", so it cannot be
+        handed one straight through
+        """
+        from lithops.multiprocessing import Lock
+
+        lock = Lock()
+        lock.acquire()
+        try:
+            assert lock.acquire(True, 0) is False
+            assert lock.acquire(True, -1) is False
+        finally:
+            lock.release()
+
+    def test_a_failed_acquire_does_not_claim_ownership(self, redis):
+        """
+        owned used to be set whatever the acquire returned, which left an
+        RLock whose first acquire had failed reporting success on the next
+        one: mutual exclusion handed out without the lock behind it
+        """
+        from lithops.multiprocessing import Lock, RLock
+
+        lock = Lock()
+        lock.acquire()
+        try:
+            assert lock.acquire(False) is False
+            assert lock.owned is True   # this holder does own it
+        finally:
+            lock.release()
+
+        rlock = RLock()
+        rlock._client.delete(rlock._name)      # nothing left to take
+        assert rlock.acquire(False) is False
+        assert rlock.owned is False
+        assert rlock.acquire(False) is False   # and still cannot claim it
+
+    def test_rlock_counts_its_recursion(self, redis):
+        """
+        Only the first acquire takes the token and only the last release
+        gives it back. Giving one back per release returned a token the
+        re-entrant acquire never took
+        """
+        from lithops.multiprocessing import RLock
+
+        rlock = RLock()
+        assert rlock.acquire() is True
+        assert rlock.acquire() is True
+        rlock.release()
+        assert rlock.owned is True             # still held after one release
+        rlock.release()
+        assert rlock.owned is False
+        assert rlock.acquire(False) is True    # the token really came back
+        rlock.release()
+
+    def test_releasing_an_rlock_that_is_not_held_raises(self, redis):
+        from lithops.multiprocessing import RLock
+
+        with pytest.raises(AssertionError, match='not owned'):
+            RLock().release()
+
+    def test_a_bounded_semaphore_rejects_an_extra_release(self, redis):
+        """
+        A bounded semaphore that silently swallows an over-release is not
+        bounded at all
+        """
+        from lithops.multiprocessing import BoundedSemaphore
+
+        sem = BoundedSemaphore(1)
+        sem.acquire()
+        sem.release()
+        with pytest.raises(ValueError, match='released too many times'):
+            sem.release()
+
+    def test_an_unbounded_semaphore_still_allows_extra_releases(self, redis):
+        from lithops.multiprocessing import Semaphore
+
+        sem = Semaphore(1)
+        sem.release()
+        sem.release()
+        assert sem.get_value() == 3
+
+    def test_releasing_a_lock_that_was_never_held_raises(self, redis):
+        from lithops.multiprocessing import Lock
+
+        with pytest.raises(ValueError, match='released too many times'):
+            Lock().release()
+
+
+class TestBlpopTimeoutFallback:
+    """
+    BLPOP takes a fractional timeout only from Redis 6.0 on. The fallback
+    that rounds up for an older server must not be reached by anything else:
+    it is process wide, so one wrong trip leaves every later wait rounded to
+    the whole second
+    """
+
+    @staticmethod
+    def _client(error=None):
+        calls = []
+
+        class FakeClient:
+            def blpop(self, keys, timeout=0):
+                calls.append(timeout)
+                if error is not None and len(calls) == 1:
+                    raise error
+                return (keys[0], b'')
+
+        return FakeClient(), calls
+
+    @pytest.fixture(autouse=True)
+    def _reset_flag(self):
+        """The flag is module state, so a test must not leak it to the next"""
+        sync = sys.modules['lithops.multiprocessing.synchronize']
+        before = sync._BLPOP_TAKES_FLOAT
+        sync._BLPOP_TAKES_FLOAT = True
+        yield sync
+        sync._BLPOP_TAKES_FLOAT = before
+
+    def test_a_whole_second_timeout_never_goes_near_the_fallback(self, _reset_flag):
+        client, calls = self._client()
+        _reset_flag._blpop(client, 'k', 2)
+        assert calls == [2]
+
+    def test_a_fractional_timeout_is_passed_through(self, _reset_flag):
+        client, calls = self._client()
+        _reset_flag._blpop(client, 'k', 0.25)
+        assert calls == [0.25]
+
+    def test_an_old_server_rounds_the_wait_up(self, _reset_flag):
+        import redis as redis_pkg
+
+        error = redis_pkg.exceptions.ResponseError(
+            'timeout is not an integer or out of range'
+        )
+        client, calls = self._client(error)
+        _reset_flag._blpop(client, 'k', 0.25)
+        # Rounded up, never down: 0 would mean "block for ever"
+        assert calls == [0.25, 1]
+        assert _reset_flag._BLPOP_TAKES_FLOAT is False
+
+    def test_a_socket_timeout_is_not_mistaken_for_an_old_server(self, _reset_flag):
+        """
+        A read that timed out also says "timeout". Swallowing one would hide
+        it and round every later wait up to the second for the whole process
+        """
+        import redis as redis_pkg
+
+        error = redis_pkg.exceptions.TimeoutError('Timeout reading from socket')
+        client, calls = self._client(error)
+
+        with pytest.raises(redis_pkg.exceptions.TimeoutError):
+            _reset_flag._blpop(client, 'k', 0.25)
+
+        assert calls == [0.25]
+        assert _reset_flag._BLPOP_TAKES_FLOAT is True
+
+    def test_another_server_error_is_not_swallowed(self, _reset_flag):
+        import redis as redis_pkg
+
+        error = redis_pkg.exceptions.ResponseError('WRONGTYPE')
+        client, calls = self._client(error)
+
+        with pytest.raises(redis_pkg.exceptions.ResponseError, match='WRONGTYPE'):
+            _reset_flag._blpop(client, 'k', 0.25)
+
+        assert _reset_flag._BLPOP_TAKES_FLOAT is True
+
+    def test_no_timeout_blocks_for_ever(self, _reset_flag):
+        client, calls = self._client()
+        _reset_flag._blpop(client, 'k', None)
+        # int(None) would raise, and BLPOP reads zero as "block for ever"
+        assert calls == [0]
+
+    def test_a_condition_wait_uses_the_same_fallback(self, redis, _reset_flag):
+        """
+        Condition.wait(0.5) used to hand the fraction straight to BLPOP, so
+        it failed on a server where a timed acquire worked
+        """
+        from lithops.multiprocessing import Condition
+
+        seen = []
+        real = _reset_flag._blpop
+
+        def spy(client, name, timeout):
+            seen.append(timeout)
+            return real(client, name, timeout)
+
+        cond = Condition()
+        with patch.object(_reset_flag, '_blpop', spy):
+            with cond:
+                assert cond.wait(0.2) is False
+        assert seen == [0.2]
+
+
+class TestConditionContract:
+
+    def test_wait_says_whether_it_was_notified(self, redis):
+        """
+        The standard library returns False on a timeout and True on a
+        notify, and callers branch on it. Returning None made every wait
+        look like a timeout
+        """
+        from lithops.multiprocessing import Condition
+
+        cond = Condition()
+        with cond:
+            assert cond.wait(0.1) is False
+
+        notified = []
+
+        def waiter():
+            with cond:
+                notified.append(cond.wait(5))
+
+        thread = threading.Thread(target=waiter)
+        thread.start()
+        time.sleep(0.3)
+        with cond:
+            cond.notify_all()
+        thread.join(10)
+        assert notified == [True]
+
+    def test_wait_with_a_timeout_that_has_passed_does_not_block(self, redis):
+        from lithops.multiprocessing import Condition
+
+        cond = Condition()
+        with cond:
+            started = time.monotonic()
+            assert cond.wait(0) is False
+            assert time.monotonic() - started < 1
+
+
+class TestWaitAlarm:
+    """
+    lithops.wait() arms a SIGALRM, and signal.alarm() only takes whole
+    seconds
+    """
+
+    def test_a_fractional_timeout_is_rounded_up(self):
+        lw = sys.modules['lithops.wait']
+
+        armed = []
+        with patch.object(lw.signal, 'alarm', side_effect=armed.append), \
+                patch.object(lw.signal, 'signal'):
+            lw._set_wait_alarm(0.2)
+            lw._set_wait_alarm(2.7)
+        # int() would give 0 and 2: the first cancels the alarm outright,
+        # and the second cuts the wait short of what was asked for
+        assert armed == [1, 3]
+
+    def test_a_timeout_that_has_passed_raises_at_once(self):
+        lw = sys.modules['lithops.wait']
+
+        with pytest.raises(TimeoutError, match='Timeout of 0 seconds'):
+            lw._set_wait_alarm(0)
+
+    def test_pool_get_with_a_fractional_timeout_raises_timeout_error(self):
+        """
+        Pool.AsyncResult.get(0.2) reached signal.alarm() through wait() and
+        came back as TypeError instead of the multiprocessing TimeoutError
+        """
+        lw = sys.modules['lithops.wait']
+
+        with patch.object(lw.signal, 'alarm') as alarm, \
+                patch.object(lw.signal, 'signal'):
+            lw._set_wait_alarm(0.2)
+        alarm.assert_called_once_with(1)
+
+
+class TestListProxy:
+    """
+    lithops.multiprocessing.Manager().list(), against a real Redis. Every
+    case here is one the proxy used to get wrong
+    """
+
+    @staticmethod
+    def _list(*args):
+        from lithops.multiprocessing import managers
+        return managers.ListProxy(*args)
+
+    def test_it_matches_a_plain_list(self, real_redis):
+        assert self._list([1, 2, 3]).tolist() == [1, 2, 3]
+        assert len(self._list([1, 2, 3])) == 3
+        assert self._list([]).tolist() == []
+
+    # -- slice reads
+
+    def test_a_step_is_honoured(self, real_redis):
+        plain = [0, 1, 2, 3, 4, 5]
+        proxy = self._list(plain)
+        # LRANGE cannot step, so these used to come back as the whole list,
+        # and l[::-1] came back the right way round
+        assert proxy[::2] == plain[::2]
+        assert proxy[::-1] == plain[::-1]
+        assert proxy[1:5:2] == plain[1:5:2]
+
+    def test_slice_reads_match_a_plain_list(self, real_redis):
+        plain = [0, 1, 2, 3, 4]
+        proxy = self._list(plain)
+        for s in [slice(0, 2), slice(None, None), slice(1, -1), slice(2, 2),
+                  slice(None, 0), slice(3, None), slice(1, 0), slice(0, -9)]:
+            assert proxy[s] == plain[s], s
+
+    # -- slice assignment
+
+    def test_slice_assignment_writes_every_element(self, real_redis):
+        """
+        deslice() hands back the inclusive end LRANGE wants, and the caller
+        walked it with range(), which is exclusive: the last element of
+        every slice assignment was left as it was
+        """
+        proxy, plain = self._list([1, 2, 3]), [1, 2, 3]
+        proxy[0:2] = [9, 8]
+        plain[0:2] = [9, 8]
+        assert proxy.tolist() == plain == [9, 8, 3]
+
+    def test_assigning_the_whole_list(self, real_redis):
+        proxy = self._list([1, 2, 3])
+        proxy[:] = [9, 8, 7]
+        assert proxy.tolist() == [9, 8, 7]
+
+    def test_slice_assignment_can_prepend(self, real_redis):
+        """l[:0] = x hit the start-is-None guard and did nothing at all"""
+        proxy, plain = self._list([1, 2, 3]), [1, 2, 3]
+        proxy[:0] = [0]
+        plain[:0] = [0]
+        assert proxy.tolist() == plain == [0, 1, 2, 3]
+
+    def test_slice_assignment_can_append(self, real_redis):
+        """l[len(l):] = x walked an empty range and did nothing"""
+        proxy, plain = self._list([1, 2, 3]), [1, 2, 3]
+        proxy[3:] = [4, 5]
+        plain[3:] = [4, 5]
+        assert proxy.tolist() == plain == [1, 2, 3, 4, 5]
+
+    def test_slice_assignment_can_grow_and_shrink(self, real_redis):
+        proxy, plain = self._list([1, 2]), [1, 2]
+        proxy[0:5] = [9, 8, 7, 6, 5]
+        plain[0:5] = [9, 8, 7, 6, 5]
+        assert proxy.tolist() == plain
+
+        proxy, plain = self._list([1, 2, 3, 4]), [1, 2, 3, 4]
+        proxy[1:3] = []
+        plain[1:3] = []
+        assert proxy.tolist() == plain == [1, 4]
+
+    def test_extended_slice_assignment(self, real_redis):
+        proxy, plain = self._list([0, 1, 2, 3]), [0, 1, 2, 3]
+        proxy[::2] = ['a', 'b']
+        plain[::2] = ['a', 'b']
+        assert proxy.tolist() == plain
+
+    def test_an_extended_slice_of_the_wrong_length_raises(self, real_redis):
+        proxy = self._list([0, 1, 2, 3])
+        with pytest.raises(ValueError):
+            proxy[::2] = [1, 2, 3]
+
+    # -- deletion
+
+    def test_deleting_a_slice(self, real_redis):
+        """
+        __delitem__ assigned a uuid sentinel, which the slice branch then
+        iterated character by character, leaving ['a', '7', 3]
+        """
+        proxy, plain = self._list([1, 2, 3]), [1, 2, 3]
+        del proxy[0:2]
+        del plain[0:2]
+        assert proxy.tolist() == plain == [3]
+
+    def test_deleting_an_index(self, real_redis):
+        proxy = self._list([1, 2, 3])
+        del proxy[1]
+        assert proxy.tolist() == [1, 3]
+
+    # -- remove / index / count
+
+    def test_remove_matches_by_equality_not_by_pickle(self, real_redis):
+        """
+        LREM compares the stored pickle byte for byte. dumps(1) is not
+        dumps(1.0), so remove(1) walked past a 1.0 and did nothing
+        """
+        proxy = self._list([1.0, 2])
+        proxy.remove(1)
+        assert proxy.tolist() == [2]
+
+    def test_remove_matches_an_equal_dict_built_in_another_order(self, real_redis):
+        proxy = self._list([{'a': 1, 'b': 2}])
+        proxy.remove({'b': 2, 'a': 1})
+        assert proxy.tolist() == []
+
+    def test_removing_something_that_is_not_there_raises(self, real_redis):
+        proxy = self._list([1, 2])
+        with pytest.raises(ValueError):
+            proxy.remove(99)
+        assert proxy.tolist() == [1, 2]
+
+    def test_index_looks_to_the_end_by_default(self, real_redis):
+        """The default end=-1 left the last element out of every search"""
+        proxy = self._list([1, 2, 3])
+        assert proxy.index(3) == 2
+        assert proxy.index(2, 1) == 1
+        with pytest.raises(ValueError):
+            proxy.index(99)
+
+    def test_count(self, real_redis):
+        assert self._list([1, 1, 2]).count(1) == 2
+
+    def test_contains(self, real_redis):
+        proxy = self._list([1, 2, 3])
+        assert (2 in proxy) is True
+        assert (99 in proxy) is False
+
+    # -- pop
+
+    def test_popping_an_empty_list_raises(self, real_redis):
+        """RPOP answers nil, and that nil used to be handed back as a value"""
+        with pytest.raises(IndexError):
+            self._list([]).pop()
+
+    def test_pop_returns_and_removes_the_same_element(self, real_redis):
+        proxy = self._list([1, 2, 3])
+        assert proxy.pop() == 3
+        assert proxy.pop(0) == 1
+        assert proxy.tolist() == [2]
+
+    def test_popping_a_bad_index_raises(self, real_redis):
+        with pytest.raises(IndexError):
+            self._list([1]).pop(5)
+
+    # -- extend / multiply / reverse / sort / insert
+
+    def test_extending_with_an_empty_iterable(self, real_redis):
+        """
+        `iterable != []` was true for every empty thing that is not a list,
+        and RPUSH with no values is an error from the server
+        """
+        for empty in [(), '', set(), iter([]), (x for x in [])]:
+            proxy = self._list([1])
+            proxy.extend(empty)
+            assert proxy.tolist() == [1]
+
+    def test_reversing_an_empty_list(self, real_redis):
+        """reversed([]) is an iterator, so it got past the `!= []` guard"""
+        proxy = self._list([])
+        proxy.reverse()
+        assert proxy.tolist() == []
+
+    def test_reverse_and_sort(self, real_redis):
+        proxy = self._list([3, 1, 2])
+        proxy.sort()
+        assert proxy.tolist() == [1, 2, 3]
+        proxy.reverse()
+        assert proxy.tolist() == [3, 2, 1]
+        proxy.sort(reverse=True)
+        assert proxy.tolist() == [3, 2, 1]
+
+    def test_insert(self, real_redis):
+        proxy = self._list([1, 3])
+        proxy.insert(1, 2)
+        assert proxy.tolist() == [1, 2, 3]
+
+    def test_multiplying_in_place_by_zero_empties_the_list(self, real_redis):
+        """The `n > 1` guard made l *= 0 and l *= -1 no-ops"""
+        for n in (0, -1):
+            proxy = self._list([1, 2, 3])
+            proxy *= n
+            assert proxy.tolist() == []
+
+    def test_multiplying_in_place(self, real_redis):
+        proxy = self._list([1, 2])
+        proxy *= 2
+        assert proxy.tolist() == [1, 2, 1, 2]
+
+    def test_a_list_built_from_another_proxy_gets_an_expiry(self, real_redis):
+        """The Lua extend only RPUSHed, so the key never expired"""
+        source = self._list([1, 2])
+        copy = self._list(source)
+        assert copy.tolist() == [1, 2]
+        assert real_redis.ttl(copy._oid) > 0
+
+    def test_str_shows_the_list(self, real_redis):
+        assert str(self._list([1, 2])) == '[1, 2]'
+
+
+class TestDictProxy:
+
+    @staticmethod
+    def _dict(*args, **kwargs):
+        from lithops.multiprocessing import managers
+        return managers.DictProxy(*args, **kwargs)
+
+    def test_it_matches_a_plain_dict(self, real_redis):
+        d = self._dict({'a': 1}, b=2)
+        assert d.todict() == {'a': 1, 'b': 2}
+        assert d['a'] == 1
+        assert len(d) == 2
+        assert ('a' in d) is True
+        assert sorted(d.keys()) == ['a', 'b']
+        assert sorted(d.values()) == [1, 2]
+        assert sorted(d.items()) == [('a', 1), ('b', 2)]
+
+    def test_update_from_a_sequence_of_pairs(self, real_redis):
+        assert self._dict([('a', 1), ('b', 2)]).todict() == {'a': 1, 'b': 2}
+
+    def test_keys_keep_their_type(self, real_redis):
+        """
+        Keys went to redis-py as they were, so an int key came back a str:
+        d[1] = 'x' then d.keys() gave ['1']
+        """
+        d = self._dict()
+        d[1] = 'x'
+        assert d.keys() == [1]
+        assert d.items() == [(1, 'x')]
+        assert (1 in d) is True
+
+    def test_any_hashable_key_works(self, real_redis):
+        """A tuple key raised DataError, and True and None raised too"""
+        d = self._dict()
+        for key in [(1, 2), True, None, 3.5, b'raw', frozenset({1})]:
+            d[key] = 'v'
+            assert d[key] == 'v'
+            assert key in d
+            del d[key]
+
+    def test_a_bool_key_is_not_confused_with_an_int(self, real_redis):
+        d = self._dict()
+        d[1] = 'int'
+        d[True] = 'bool'
+        assert d[1] == 'int'
+        assert d[True] == 'bool'
+
+    def test_pop_without_a_default_raises(self, real_redis):
+        """The default was baked in, so a missing key quietly gave None"""
+        d = self._dict({'a': 1})
+        assert d.pop('a') == 1
+        with pytest.raises(KeyError):
+            d.pop('missing')
+        assert d.pop('missing', 'fallback') == 'fallback'
+
+    def test_pop_removes_the_key(self, real_redis):
+        d = self._dict({'a': 1})
+        d.pop('a')
+        assert 'a' not in d
+
+    def test_popitem(self, real_redis):
+        d = self._dict({'a': 1})
+        assert d.popitem() == ('a', 1)
+        with pytest.raises(KeyError, match='dictionary is empty'):
+            d.popitem()
+
+    def test_setdefault(self, real_redis):
+        d = self._dict()
+        assert d.setdefault('a', 1) == 1
+        assert d.setdefault('a', 2) == 1
+        # Every other writer refreshes the expiry; this one never did
+        assert real_redis.ttl(d._oid) > 0
+
+    def test_copy_is_a_plain_dict(self, real_redis):
+        """It used to hand back a proxy, allocating a second Redis key"""
+        copy = self._dict({'a': 1}).copy()
+        assert copy == {'a': 1}
+        assert isinstance(copy, dict)
+
+    def test_missing_key_raises(self, real_redis):
+        d = self._dict()
+        with pytest.raises(KeyError):
+            d['nope']
+        with pytest.raises(KeyError):
+            del d['nope']
+        assert d.get('nope') is None
+        assert d.get('nope', 5) == 5
+
+    def test_reads_refresh_the_expiry(self, real_redis):
+        """
+        A dict written once and then only read used to lose its key when
+        REDIS_EXPIRY_TIME was up, mid-job
+        """
+        d = self._dict({'a': 1})
+        real_redis.expire(d._oid, 5)
+        d.todict()
+        assert real_redis.ttl(d._oid) > 10
+
+    def test_str_shows_the_dict(self, real_redis):
+        assert str(self._dict({'a': 1})) == "{'a': 1}"
+
+
+class TestNamespaceProxy:
+
+    @staticmethod
+    def _ns(**kwargs):
+        from lithops.multiprocessing import managers
+        return managers.NamespaceProxy(**kwargs)
+
+    def test_attributes_round_trip(self, real_redis):
+        ns = self._ns(x=1)
+        assert ns.x == 1
+        ns.y = 2
+        assert ns.y == 2
+        del ns.y
+        with pytest.raises(AttributeError):
+            ns.y
+
+    def test_a_missing_attribute_raises(self, real_redis):
+        with pytest.raises(AttributeError):
+            self._ns().nope
+
+
+class TestValueProxy:
+
+    @staticmethod
+    def _value(*args):
+        from lithops.multiprocessing import managers
+        return managers.ValueProxy(*args)
+
+    def test_it_holds_a_value(self, real_redis):
+        v = self._value('i', 7)
+        assert v.get() == 7
+        v.set(9)
+        assert v.value == 9
+
+    def test_it_can_hold_none(self, real_redis):
+        """
+        A None was never written, so the key did not exist and get() handed
+        None to loads() and raised TypeError
+        """
+        assert self._value('i', None).get() is None
+        assert self._value().get() is None
+
+    def test_reads_refresh_the_expiry(self, real_redis):
+        v = self._value('i', 1)
+        real_redis.expire(v._oid, 5)
+        v.get()
+        assert real_redis.ttl(v._oid) > 10
+
+
+class TestArrayProxy:
+
+    @staticmethod
+    def _array(*args):
+        from lithops.multiprocessing import managers
+        return managers.ArrayProxy(*args)
+
+    def test_it_can_be_built_from_a_size(self, real_redis):
+        """Array('i', 10) reached extend(10) and raised TypeError"""
+        assert self._array('i', 10).tolist() == [0] * 10
+
+    def test_it_can_be_built_from_a_sequence(self, real_redis):
+        assert self._array('i', [1, 2, 3]).tolist() == [1, 2, 3]
+
+    def test_it_can_be_deep_copied(self, real_redis):
+        """
+        A plain list, like the standard library, which deepcopies a proxy to
+        its referent. copy_proxy() is what makes another shared one
+        """
+        import copy
+
+        arr = self._array('i', [1, 2])
+        assert copy.deepcopy(arr) == [1, 2]
+        assert arr.copy_proxy().tolist() == [1, 2]
+
+
+class TestManagerContract:
+
+    def test_manager_returns_a_started_manager(self, real_redis):
+        """
+        The class was exported under this name, so every manager came back
+        unstarted: shutdown() was a no-op and nothing was ever collected
+        """
+        import lithops.multiprocessing as mp
+
+        manager = mp.Manager()
+        try:
+            assert manager._managing is True
+            shared = manager.list([1, 2])
+            assert manager._number_of_objects() == 1
+            assert shared.tolist() == [1, 2]
+        finally:
+            manager.shutdown()
+        assert manager._managing is False
+
+    def test_register_takes_the_class_as_callable(self, real_redis):
+        """
+        The standard library's documented idiom is register(typeid,
+        callable=Cls). callable was accepted and then ignored, so the proxy
+        was built from None and blew up on first use
+        """
+        import lithops.multiprocessing as mp
+
+        class Maths:
+            def __init__(self):
+                self.total = 0
+
+            def add(self, n):
+                self.total += n
+                return self.total
+
+        class MyManager(mp.SyncManager):
+            pass
+
+        MyManager.register('Maths', callable=Maths)
+        with MyManager() as manager:
+            maths = manager.Maths()
+            assert maths.add(3) == 3
+            assert maths.add(4) == 7
+
+    def test_a_method_may_create_a_new_attribute(self, real_redis):
+        """
+        The hashes came from the pre-call HGETALL, so a name the method set
+        for the first time was missing from it and raised KeyError
+        """
+        import lithops.multiprocessing as mp
+
+        class Grower:
+            def __init__(self):
+                self.x = 0
+
+            def add_y(self):
+                self.y = 5
+                return 'ok'
+
+        class MyManager(mp.SyncManager):
+            pass
+
+        MyManager.register('Grower', callable=Grower)
+        with MyManager() as manager:
+            assert manager.Grower().add_y() == 'ok'
+
+    def test_concurrent_method_calls_do_not_lose_an_update(self, real_redis):
+        """
+        Read state, run the method, write back: with nothing serialising it,
+        two workers both read total=0 and both wrote total=1, and one
+        increment vanished. Serialising calls is the whole point of a manager
+        """
+        import lithops.multiprocessing as mp
+
+        class Counter:
+            def __init__(self):
+                self.total = 0
+
+            def increment(self):
+                self.total += 1
+
+        class MyManager(mp.SyncManager):
+            pass
+
+        MyManager.register('Counter', callable=Counter)
+        with MyManager() as manager:
+            counter = manager.Counter()
+            start = threading.Barrier(8)
+
+            def bump():
+                start.wait()
+                counter.increment()
+
+            threads = [threading.Thread(target=bump) for _ in range(8)]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
+
+            stored = real_redis.hget(counter._oid, 'total')
+            assert cloudpickle.loads(stored) == 8
+
+
+class TestRemoteReferenceOwnership:
+    """
+    Proxies are reference counted in Redis, and the shared object is deleted
+    once the last owner is gone
+    """
+
+    def test_a_proxy_pickled_from_a_temporary_keeps_its_data(self, real_redis):
+        """
+        Nothing owns a proxy while it is bytes on the way to a worker. The
+        count was raised only on unpickling, so a proxy built and pickled in
+        one expression was collected in flight and deleted the shared object
+        before the copy existed
+        """
+        from lithops.multiprocessing import managers
+
+        data = pickle.dumps(managers.ListProxy([1, 2]))
+        gc.collect()
+        assert pickle.loads(data).tolist() == [1, 2]
+
+    def test_the_creator_holds_a_reference(self, real_redis):
+        from lithops.multiprocessing import managers
+
+        proxy = managers.ListProxy([1])
+        assert proxy._ref.refcount() == 1
+
+    def test_a_copy_keeps_the_object_alive(self, real_redis):
+        from lithops.multiprocessing import managers
+
+        proxy = managers.ListProxy([1, 2])
+        oid = proxy._oid
+        copy = pickle.loads(pickle.dumps(proxy))
+        del proxy
+        gc.collect()
+        # The copy is still holding it
+        assert copy.tolist() == [1, 2]
+        assert real_redis.exists(oid)
+
+    def test_the_last_owner_going_away_deletes_the_object(self, real_redis):
+        from lithops.multiprocessing import managers
+
+        proxy = managers.ListProxy([1, 2])
+        oid, rck = proxy._oid, proxy._ref._rck
+        del proxy
+        gc.collect()
+        assert not real_redis.exists(oid)
+        assert not real_redis.exists(rck)
+
+    def test_a_managed_proxy_is_left_to_the_manager(self, real_redis):
+        """A manager collects what it handed out, on shutdown"""
+        import lithops.multiprocessing as mp
+
+        manager = mp.Manager()
+        shared = manager.list([1, 2])
+        oid = shared._oid
+        del shared
+        gc.collect()
+        assert real_redis.exists(oid)
+        manager.shutdown()
+        assert not real_redis.exists(oid)

@@ -249,7 +249,9 @@ class FakeScript:
         with server._cond:
             current = len(server.lists.get(name, []))
             if current >= max_value:
-                return current
+                # -1, as the real script does, so that the caller can tell a
+                # release of something that was never held from a normal one
+                return -1
             server.lists.setdefault(name, []).append(b'')
             server._cond.notify_all()
             return current + 1

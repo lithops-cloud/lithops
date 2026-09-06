@@ -67,9 +67,10 @@ so a few things of it have no counterpart:
      - Not lazy: every call is submitted and every result collected before the
        first one is yielded, so an endless iterable will not work. The results
        always come back in the order of the input
-   * - ``Pool.join()``
-     - Returns as soon as the pool is released; it does not wait for the calls
-       still in flight. Use the ``AsyncResult`` of each call to wait for it
+   * - ``Pool.terminate()``
+     - Gives the Lithops executor back and stops the calls still in flight,
+       so the ``AsyncResult`` of one of them has nothing left to return.
+       Close and join the pool instead when the results are still wanted
    * - ``Pool(maxtasksperchild=...)``, ``Process.daemon``, ``Process.authkey``
      - Accepted and ignored. Workers are ephemeral, so there is nothing to
        recycle, nothing to daemonize and no handshake to authenticate

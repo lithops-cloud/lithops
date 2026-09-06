@@ -1059,20 +1059,40 @@ class CountDownLatch:
         self.count = count
         self.event = threading.Event()
         self.lock = threading.Lock()
+        if count <= 0:
+            self.event.set()
 
     def unlock(self):
+        """
+        Counts one down, and opens the latch once nothing is left.
+
+        Clamped at zero: a caller draining a latch cannot tell whether the
+        last task is counting it down right now, and an unlock past zero
+        used to leave the count negative, which never opened the latch and
+        never let done() be true again
+        """
         with self.lock:
+            if self.count == 0:
+                return
             self.count -= 1
             if self.count == 0:
                 self.event.set()
 
+    def release(self):
+        """
+        Opens the latch at once, whatever is left of the count, for the
+        tasks that are never going to arrive because their job was stopped
+        """
+        with self.lock:
+            self.count = 0
+            self.event.set()
+
     def wait(self):
-        if self.count > 0:
-            self.event.wait()
+        self.event.wait()
 
     @property
     def done(self):
-        return self.count == 0
+        return self.event.is_set()
 
 
 CURRENT_PY_VERSION = version_str(sys.version_info)

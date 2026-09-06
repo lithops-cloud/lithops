@@ -213,7 +213,40 @@ class Pool(object):
         logger.debug('joining pool')
         if self._state not in (CLOSE, TERMINATE):
             raise ValueError('Pool is still running')
+        if self._state == CLOSE:
+            self._wait_for_calls()
         self._release()
+
+    def _wait_for_calls(self):
+        """
+        Waits for the calls still in flight, as join() does in the standard
+        library.
+
+        Releasing the executor stops whatever is still running, so a pool
+        that was closed rather than terminated has to let its calls finish
+        first: their results are read from the AsyncResult afterwards, and a
+        call killed here would never produce one. terminate() is the one that
+        does not wait, which is what it means there too
+        """
+        executor = self._executor
+        if executor is None:
+            return
+        try:
+            # Nothing to wait for only when the executor says so; one that
+            # does not keep a list of its futures is waited on anyway
+            if not getattr(executor, 'futures', True):
+                return
+            # throw_except=False: a call that failed is reported by get(),
+            # and raising here would force-clean the results of the ones that
+            # did not, which get() still has to read
+            executor.wait(
+                download_results=False,
+                throw_except=False,
+                show_progressbar=False,
+                clean_jobs=False,
+            )
+        except Exception:
+            logger.debug('Error waiting for the pool calls', exc_info=True)
 
     def _release(self):
         """
@@ -301,9 +334,27 @@ class ApplyResult(object):
             # Lithops reports it as the builtin, which is an OSError and so
             # not what `except multiprocessing.TimeoutError` catches
             raise ProcessTimeoutError(str(exc)) from exc
-        values = [fut.result() for fut in self._futures]
+        except Exception as exc:
+            # The call raised, and wait() re-raises it while downloading the
+            # results. The standard library hands that to error_callback
+            # before letting get() raise it
+            self._fail(exc)
+            raise
+        values = []
+        for fut in self._futures:
+            try:
+                values.append(fut.result())
+            except Exception as exc:
+                self._fail(exc)
+                raise
         util.export_execution_details(self._futures, self._executor)
         return values
+
+    def _fail(self, exc):
+        """Records the failure of a call and reports it to error_callback"""
+        self._exception = exc
+        if self._error_callback is not None:
+            self._error_callback(exc)
 
     def get(self, timeout=None):
         """The value of the single call this result stands for"""
