@@ -45,6 +45,17 @@
 
 ### Fixed
 
+- [Redis] Fixed `put_object()` rejecting file-like objects, which also made `upload_file()` and `download_file()` always fail.
+- [Redis] Fixed `head_object()`, which reported every key as missing on Redis 7 and up because it relied on the now-disabled `DEBUG OBJECT` command.
+- [Redis] Fixed `list_objects()` returning the object bodies instead of their keys and sizes, and skip keys whose value is gone.
+- [Redis] Fixed `head_bucket()` returning a bool instead of the bucket metadata, and `delete_objects()` raising on an empty list.
+- [Redis] Fixed the `bytes=L-` and `bytes=-N` forms of the `Range` argument raising `ValueError`, and a ranged read of a missing key returning an empty result instead of raising.
+- [Redis] `list_keys()` now walks the key space one pipelined round trip per level instead of one per directory, which cost a round trip per activation when listing a job.
+- [Infinispan] Fixed an empty object being reported as a missing key, which also made `list_objects()` fail for the whole bucket.
+- [Infinispan] Fixed the `bytes=L-` and `bytes=-N` forms of the `Range` argument raising `ValueError`.
+- [Infinispan] Fixed `head_bucket()` raising `NotImplementedError`, and `put_object()` ignoring a failed request.
+- [Infinispan] Fixed the documented `mech` config key being ignored, so `mech: BASIC` silently authenticated with DIGEST.
+- [Infinispan] Fixed `list_objects()` reading every value one after the other, which made a listing cost one round trip per key.
 - [Core] Fixed `wait()` on futures another executor invoked, which crashed instead of waiting for them.
 - [Core] Fixed `wait()` leaving behind the monitors it started for futures of other executors.
 - [Core] Fixed `wait()` with a fractional timeout raising `TypeError` from `signal.alarm()` instead of waiting.
