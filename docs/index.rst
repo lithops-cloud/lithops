@@ -276,6 +276,7 @@ Lithops is an open-source project, actively maintained and supported by a commun
    :caption: Advanced Features
 
    source/monitoring.rst
+   source/metrics.rst
    Custom Runtimes <https://github.com/lithops-cloud/lithops/tree/master/runtime>
 
 
@@ -284,7 +285,6 @@ Lithops is an open-source project, actively maintained and supported by a commun
    :maxdepth: 0
    :caption: Experimental Features
 
-   source/metrics.rst
    source/dso.rst
 
 

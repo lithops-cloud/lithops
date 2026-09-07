@@ -93,6 +93,8 @@ CONFIG_FILE_GLOBAL = '/etc/lithops/config'
 LITHOPS_DEFAULT_CONFIG_KEYS = {
     'monitoring': 'storage',
     'monitoring_interval': 2,
+    'telemetry': False,
+    'telemetry_interval': 10,
     'execution_timeout': 1800
 }
 

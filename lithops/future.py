@@ -33,6 +33,7 @@ from lithops.storage.utils import (
     create_job_key
 )
 from lithops.constants import FN_LOG_FILE, LOGS_DIR
+from lithops.telemetry.metrics import SOURCE_INLINE, SOURCE_STORAGE
 from lithops.utils import log_prefix
 
 logger = logging.getLogger(__name__)
@@ -85,6 +86,7 @@ class ResponseFuture:
         self.execution_timeout = job.execution_timeout
         self.runtime_name = job.runtime_name
         self.runtime_memory = job.runtime_memory
+        self.backend = getattr(job, 'backend', None)
         self.activation_id = None
         self.stats = {}
         self.logs = None
@@ -348,6 +350,23 @@ class ResponseFuture:
         else:
             self._new_futures = new_futures
 
+    def _record_result_stats(self, source: str, query_count: int) -> None:
+        """
+        Records the arrival of the result.
+
+        The monitor measures everything up to the call being done; this is
+        the only part of it that happens afterwards, so it is the only
+        part the monitor cannot report. The telemetry of the process is
+        looked up rather than held, so that a future stays as picklable as
+        it was: a worker pickles one whenever a function returns futures
+        """
+        self.stats['host_result_done_tstamp'] = time.time()
+        self.stats['host_result_query_count'] = query_count
+
+        from lithops.telemetry import current_telemetry
+
+        current_telemetry(self.backend).on_result_read(self, source)
+
     def _read_inline_result(self) -> None:
         """
         Takes the result the worker embedded in the status, which saves the
@@ -356,8 +375,7 @@ class ResponseFuture:
         self._call_output = _pickle_from_encoded(
             self._call_status['result']
         )
-        self.stats['host_result_done_tstamp'] = time.time()
-        self.stats['host_result_query_count'] = 0
+        self._record_result_stats(SOURCE_INLINE, 0)
         logger.debug(
             f'{self._id_prefix()} - Got output from call '
             f'{self.call_id} - Activation ID: {self.activation_id}'
@@ -523,8 +541,9 @@ class ResponseFuture:
                 return None
 
             self._call_output = pickle.loads(call_output)
-            self.stats['host_result_done_tstamp'] = time.time()
-            self.stats['host_result_query_count'] = self._output_query_count
+            self._record_result_stats(
+                SOURCE_STORAGE, self._output_query_count
+            )
             logger.debug(
                 f'{self._id_prefix()} - Got output from call '
                 f'{self.call_id} - Activation ID: {self.activation_id}'

@@ -1732,6 +1732,29 @@ class TestCallStatusPublishing:
 
         return Plain
 
+    def test_the_python_version_falls_back_to_the_interpreter(self, monkeypatch):
+        """
+        Only the container runtimes declare PYTHON_VERSION. Everywhere
+        else the interpreter running the worker is the answer, and the
+        field was reported as None
+        """
+        from lithops.utils import CURRENT_PY_VERSION
+
+        monkeypatch.delenv('PYTHON_VERSION', raising=False)
+        status = self._status_cls(lambda payload: None)(
+            self._job(), MagicMock()
+        )
+
+        assert status.status['python_version'] == CURRENT_PY_VERSION
+
+    def test_a_declared_python_version_wins(self, monkeypatch):
+        monkeypatch.setenv('PYTHON_VERSION', '3.9')
+        status = self._status_cls(lambda payload: None)(
+            self._job(), MagicMock()
+        )
+
+        assert status.status['python_version'] == '3.9'
+
     def test_a_publish_that_keeps_failing_still_writes_to_the_storage(self):
         cls = self._status_cls(
             lambda payload: (_ for _ in ()).throw(ConnectionError('down'))

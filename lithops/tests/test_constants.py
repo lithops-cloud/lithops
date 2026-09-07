@@ -98,9 +98,12 @@ class TestConstants:
 
     def test_default_config_keys(self):
         assert set(constants.LITHOPS_DEFAULT_CONFIG_KEYS) == {
-            'monitoring', 'monitoring_interval', 'execution_timeout'
+            'monitoring', 'monitoring_interval', 'telemetry',
+            'telemetry_interval', 'execution_timeout'
         }
         assert constants.LITHOPS_DEFAULT_CONFIG_KEYS['monitoring_interval'] == 2
+        assert constants.LITHOPS_DEFAULT_CONFIG_KEYS['telemetry'] is False
+        assert constants.LITHOPS_DEFAULT_CONFIG_KEYS['telemetry_interval'] == 10
 
     def test_get_mode_and_default_backend_round_trip(self):
         assert get_mode(constants.LOCALHOST) == constants.LOCALHOST

@@ -18,6 +18,7 @@ import logging
 import queue
 
 from lithops.monitoring.backends import load_backend_attr, resolve_backend
+from lithops.telemetry import get_telemetry
 from lithops.utils import log_prefix
 
 logger = logging.getLogger(__name__)
@@ -61,6 +62,11 @@ class JobMonitor:
         self.token_bucket_q = queue.Queue()
         self.monitor = None
         self.job_chunksize = {}
+
+        # Metrics are produced from the statuses the monitor reads, so the
+        # telemetry of the executor is resolved here and handed to every
+        # monitor thread this object spawns. NOOP when telemetry is off
+        self.telemetry = get_telemetry(config)
 
         self.MonitorClass = load_backend_attr(
             self.type, 'MonitoringBackend'
@@ -114,6 +120,9 @@ class JobMonitor:
             generate_tokens=generate_tokens,
             config=monitor_config
         )
+        # Attached before the caller adds any future, so that no status
+        # can reach the monitor while it is still pointing at the no-op
+        self.monitor.attach_telemetry(self.telemetry)
 
     def _thread_finished(self):
         """
@@ -184,6 +193,12 @@ class JobMonitor:
         Deletes queues, keys or other backend resources of this executor,
         once the thread that consumes from them has wound down
         """
+        # The executor is done with, so what has been measured is pushed
+        # now rather than on the next tick of the flush timer. The
+        # exporter itself outlives the executor: it belongs to the
+        # process, and another executor may still be running
+        self.telemetry.flush()
+
         if self.monitor is None:
             return
         self.monitor.stop()

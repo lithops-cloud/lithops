@@ -34,7 +34,8 @@
     #log_format: "%(asctime)s [%(levelname)s] %(name)s -- %(message)s"
     #log_stream: ext://sys.stderr
     #log_filename: <PATH_TO_LOG_FILE>
-    #telemetry: False                     # Enable Prometheus push-gateway metrics
+    #telemetry: False                     # Client-side metrics. One of: False, prometheus, otlp
+    #telemetry_interval: 10               # Seconds between metric pushes. Default: 10
 
 
 # =============================================================================
@@ -584,7 +585,24 @@
 
 
 # =============================================================================
-# Prometheus – pushed metrics when `lithops.telemetry=True`
+# Prometheus – metrics pushed when `lithops.telemetry=prometheus`
 # =============================================================================
 #prometheus:
-    #apigateway: <PUSH_GATEWAY_URL>       # Prometheus Pushgateway base URL
+    #gateway: http://localhost:9091       # Pushgateway base URL. Default: http://localhost:9091
+    #job: lithops                         # Pushgateway job label. Default: lithops
+    #instance: <HOSTNAME>                 # Pushgateway instance label. Default: the hostname
+    #username: <USERNAME>                 # Basic auth user, when the gateway needs one
+    #password: <PASSWORD>                 # Basic auth password, when the gateway needs one
+    #timeout: 10                          # Push timeout in seconds. Default: 10
+
+
+# =============================================================================
+# OpenTelemetry – metrics exported when `lithops.telemetry=otlp`
+# =============================================================================
+#otlp:
+    #endpoint: http://localhost:4318      # Collector endpoint. Default: http://localhost:4318
+    #protocol: http/protobuf              # One of: http/protobuf, grpc. Default: http/protobuf
+    #service_name: lithops                # OTel service.name. Default: lithops
+    #instance: <HOSTNAME>                 # OTel host.name. Default: the hostname
+    #headers: {}                          # Extra headers, e.g. authentication
+    #timeout: 10                          # Export timeout in seconds. Default: 10

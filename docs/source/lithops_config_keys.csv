@@ -4,6 +4,8 @@ lithops;storage;`aws_s3`;no;Storage backend implementation. Default is AWS S3.
 lithops;data_cleaner;`True`;no;If True, automatically deletes temporary data written to `storage_bucket/lithops.jobs`.
 lithops;monitoring;`storage`;no;Monitoring system implementation. Options: **storage** or **rabbitmq**.
 lithops;monitoring_interval;`2`;no;Interval in seconds for monitoring checks (used if monitoring is set to **storage**).
+lithops;telemetry;`False`;no;Client-side metrics exporter. Options: **False**, **prometheus** or **otlp**. See the Metrics and Telemetry section.
+lithops;telemetry_interval;`10`;no;Interval in seconds between metric pushes (used if telemetry is enabled).
 lithops;data_limit;`4`;no;Maximum size (in MB) for iterator data chunks. Set to False for unlimited size.
 lithops;execution_timeout;`1800`;no;Maximum execution time for functions in seconds. Functions exceeding this time are killed. Can also be set per call using the `timeout` parameter.
 lithops;include_modules;`[]`;no;List of dependencies to explicitly include for pickling. If empty, all required dependencies are included. If set to None, no dependencies are included.

@@ -46,7 +46,6 @@ from lithops.utils import (
     WrappedStreamingBody, sizeof_fmt, is_object_processing_function,
     FuturesList, verify_args, WrappedStreamingBodyPartition
 )
-from lithops.util.metrics import PrometheusExporter
 from lithops.storage.utils import create_output_key
 
 logger = logging.getLogger(__name__)
@@ -132,19 +131,6 @@ class JobRunner:
             job.executor_id, job.job_id, job.call_id
         )
         self.stats = JobStats(self.job.stats_file)
-
-        prom_enabled = self.lithops_config['lithops'].get('telemetry')
-        prom_config = self.lithops_config.get('prometheus', {})
-        self.prometheus = PrometheusExporter(prom_enabled, prom_config)
-
-    def _prom_labels(
-        self, fn_name: Optional[str]
-    ) -> Tuple[Tuple[str, str], ...]:
-        return (
-            ('job_id', self.job.job_key),
-            ('call_id', '-'.join([self.job.job_key, self.job.call_id])),
-            ('function_name', fn_name or 'undefined')
-        )
 
     def _create_ibm_cos_client(self):
         """Creates the boto3 client injected as the ibm_cos parameter"""
@@ -386,13 +372,6 @@ class JobRunner:
             self._fill_optional_args(func, data)
 
             fn_name = _get_function_name(func)
-            self.prometheus.send_metric(
-                name='function_start',
-                value=time.time(),
-                type='gauge',
-                labels=self._prom_labels(fn_name)
-            )
-
             logger.info(f"Going to execute '{fn_name}()'")
             print('---------------------- FUNCTION LOG ----------------------')
             function_start_tstamp = time.time()
@@ -412,12 +391,6 @@ class JobRunner:
 
         finally:
             self.stats.write('worker_peak_memory_end', peak_memory())
-            self.prometheus.send_metric(
-                name='function_end',
-                value=time.time(),
-                type='gauge',
-                labels=self._prom_labels(fn_name)
-            )
 
             if pending_output is not None:
                 self._upload_result(pending_output)

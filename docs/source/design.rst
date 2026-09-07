@@ -75,6 +75,10 @@ directly to a module or class in the ``lithops`` package:
      - ``lithops/monitoring/``
      - Tracks completion through either ``StorageMonitor`` (polling) or
        ``RabbitmqMonitor`` (push notifications).
+   * - Telemetry
+     - ``lithops/telemetry/``
+     - Turns the call statuses the monitor reads into metrics, and pushes them
+       to Prometheus or to an OpenTelemetry collector. Off by default.
    * - ``InternalStorage``
      - ``lithops/storage/storage.py``
      - Uniform storage client used by both the client and the workers, backed by

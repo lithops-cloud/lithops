@@ -509,6 +509,7 @@ def _create_job(
         if execution_timeout is None
         else execution_timeout
     )
+    job.backend = backend
     job.executor_id = executor_id
     job.job_id = job_id
     job.job_key = create_job_key(job.executor_id, job.job_id)

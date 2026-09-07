@@ -99,6 +99,11 @@ extras_require = {
         'flask',
         'gevent',
         'scikit-learn',
+    ],
+    'telemetry': [
+        'prometheus-client',
+        'opentelemetry-sdk',
+        'opentelemetry-exporter-otlp-proto-http',
     ]
 }
 
