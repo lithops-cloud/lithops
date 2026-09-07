@@ -78,25 +78,76 @@ def _future_id(fut):
     return (fut.executor_id, fut.job_id, fut.call_id)
 
 
+#: The session this process belongs to, and how many executors it has
+#: created. Held here rather than only in the environment: the counter is
+#: what makes two executor IDs of one process different, and an
+#: environment can be rewritten under a running process
+_SESSION_LOCK = threading.Lock()
+_SESSION_ID = None
+_EXECUTOR_COUNT = 0
+
+SESSION_ID_ENV = '__LITHOPS_SESSION_ID'
+TOTAL_EXECUTORS_ENV = '__LITHOPS_TOTAL_EXECUTORS'
+
+
+def _inherited_executor_count():
+    """
+    The number the session that this process joined had reached, so that
+    the executors created here carry on from it instead of repeating it
+    """
+    try:
+        return int(os.environ[TOTAL_EXECUTORS_ENV]) + 1
+    except (KeyError, TypeError, ValueError):
+        return 0
+
+
 def create_executor_id(lenght=6):
     """
-    Creates the ID of a new executor. Executors of the same session share the
-    session ID and are told apart by a counter, both kept in the environment
-    so that they survive across processes
+    Creates the ID of a new executor. Executors of the same session share
+    the session ID and are told apart by a counter.
+
+    Both are exported to the environment, so that a process spawned from
+    this one joins the same session, and a worker can put a session of its
+    own there for the task it is about to run. They are *read* back only
+    when the environment names a session other than the one this process
+    is already in.
+
+    That last part is the difference between an ID that is unique and one
+    that is merely unlikely to repeat. The counter is what tells two
+    executors of the same process apart; a process that lost the variable
+    -- anything that saves and restores ``os.environ`` does that -- used
+    to start counting from zero again, which left the six characters of
+    the session ID as the only thing keeping its storage keys apart from
+    those of every executor it had already created.
     """
-    if '__LITHOPS_SESSION_ID' in os.environ:
-        session_id = os.environ['__LITHOPS_SESSION_ID']
-    else:
-        session_id = uuid_str().replace('/', '')[:lenght]
-        os.environ['__LITHOPS_SESSION_ID'] = session_id
+    global _SESSION_ID, _EXECUTOR_COUNT
 
-    if '__LITHOPS_TOTAL_EXECUTORS' in os.environ:
-        exec_num = int(os.environ['__LITHOPS_TOTAL_EXECUTORS']) + 1
-    else:
-        exec_num = 0
-    os.environ['__LITHOPS_TOTAL_EXECUTORS'] = str(exec_num)
+    with _SESSION_LOCK:
+        env_session = os.environ.get(SESSION_ID_ENV)
+        if _SESSION_ID is None:
+            # The first executor of this process. It joins the session the
+            # process that spawned this one left in the environment,
+            # carrying on from wherever that had got to, or starts one
+            if env_session:
+                _SESSION_ID = env_session
+                _EXECUTOR_COUNT = _inherited_executor_count()
+            else:
+                _SESSION_ID = uuid_str().replace('/', '')[:lenght]
+                _EXECUTOR_COUNT = 0
+        elif env_session and env_session != _SESSION_ID:
+            # The process has been put in a different session, which is
+            # what a worker does before each task it runs. The count of
+            # the session it left does not carry over
+            _SESSION_ID = env_session
+            _EXECUTOR_COUNT = 0
 
-    return f'{session_id}-{exec_num}'
+        exec_num = _EXECUTOR_COUNT
+        _EXECUTOR_COUNT += 1
+
+        os.environ[SESSION_ID_ENV] = _SESSION_ID
+        os.environ[TOTAL_EXECUTORS_ENV] = str(exec_num)
+
+        return f'{_SESSION_ID}-{exec_num}'
 
 
 # Carries the monitoring queues of an executor down to the workers, so that an
@@ -150,10 +201,18 @@ def monitoring_queues(executor_id: str) -> List[str]:
 
 
 def get_executor_id():
-    """Returns the ID of the last executor created in this session"""
-    session_id = os.environ['__LITHOPS_SESSION_ID']
-    exec_num = os.environ['__LITHOPS_TOTAL_EXECUTORS']
-    return f'{session_id}-{exec_num}'
+    """
+    Returns the ID of the last executor created in this session.
+
+    Read from this process rather than from the environment, so that it
+    still answers after something has rewritten the environment, and
+    raises the same KeyError as it always did when no executor has been
+    created at all
+    """
+    with _SESSION_LOCK:
+        if _SESSION_ID is None:
+            raise KeyError(SESSION_ID_ENV)
+        return f'{_SESSION_ID}-{_EXECUTOR_COUNT - 1}'
 
 
 def iterchunks(lst, n):

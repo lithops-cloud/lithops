@@ -41,6 +41,7 @@
 - [Multiprocessing] `imap()` and `imap_unordered()` now default to the configured chunksize.
 
 ### Fixed
+- [Core] Fixed executor IDs repeating in a process whose environment is reset between executors, which made two of them share their storage keys and read back each other's results.
 
 - [Redis] Fixed `put_object()` rejecting file-like objects, which also made `upload_file()` and `download_file()` always fail.
 - [Redis] Fixed `head_object()`, which reported every key as missing on Redis 7 and up because it relied on the now-disabled `DEBUG OBJECT` command.
