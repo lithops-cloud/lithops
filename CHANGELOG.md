@@ -6,7 +6,6 @@
 
 - [API] Added `lithops.concurrent.futures`, a `concurrent.futures`-compatible executor interface backed by Lithops.
 - [Monitoring] Added Redis, AWS SQS, GCP Pub/Sub and Azure Queue Storage monitoring backends.
-- [Monitoring] Added the `aws_sqs`, `gcp_pubsub` and `azure_queue` config sections, which fall back to the `aws`, `gcp` and `azure_storage` credentials.
 - [Core] Added a cache of serialized functions to avoid re-uploading the same function.
 - [Core] Added `clean_jobs` to `wait()`, to keep the temporary data until the results are read.
 - [AWS Batch] Added the `instance_types` config option for EC2/SPOT compute environments.
@@ -40,8 +39,6 @@
 - [Multiprocessing] Shared objects now refresh their expiry when read, not only when written.
 - [Multiprocessing] Connection polling now backs off from 1ms instead of waiting a fixed 100ms.
 - [Multiprocessing] `imap()` and `imap_unordered()` now default to the configured chunksize.
-- [Telemetry] Metrics are now produced on the client instead of being pushed by every worker, and no longer carry a `job_id` or `call_id` label.
-- [Telemetry] `lithops.telemetry` now names the backend rather than being a bool, and the `prometheus` section takes `gateway` instead of `apigateway`.
 
 ### Fixed
 
