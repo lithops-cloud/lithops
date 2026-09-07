@@ -98,6 +98,13 @@ class MetricsBackend(ABC):
 
     def shutdown(self) -> None:
         """
-        Releases whatever the backend holds. Called once, after the last
-        flush
+        Gets the last of what has been aggregated out of the process and
+        releases whatever the backend holds. Called once.
+
+        The default is a plain flush, which is all a backend that holds
+        nothing has to do. One that does override it, and are then
+        responsible for the final flush themselves: exporting twice on the
+        way out is how a client library ends up logging about a batch it
+        can no longer send
         """
+        self.flush()

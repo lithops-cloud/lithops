@@ -559,83 +559,98 @@ ran on it.
 Querying it
 -----------
 
-A few queries to build a dashboard from:
+.. note::
+
+    A Lithops client is a script, not a service. Its counters live for as
+    long as the process does and start again from zero in the next run, so
+    ``rate()`` over a five minute window is zero for most of the window and
+    meaningless for the rest. Read the counters as they stand instead —
+    ``sum(x)`` for a total, ``sum(x_sum) / sum(x_count)`` for a mean,
+    ``histogram_quantile(q, sum by (le) (x_bucket))`` for a percentile.
+    ``rate()`` comes into its own only for a long-lived client.
 
 .. code::
 
-    # p50 / p95 / p99 execution time
-    histogram_quantile(0.95,
-      sum by (le, function_name) (rate(lithops_call_duration_seconds_bucket[5m])))
+    # Calls completed, by outcome
+    sum by (outcome) (lithops_calls_completed_total)
 
-    # Calls currently in flight
+    # Calls still in flight
     sum(lithops_calls_invoked_total) - sum(lithops_calls_completed_total)
 
     # Failure rate
-    sum(rate(lithops_calls_completed_total{outcome!="success"}[5m]))
-      / sum(rate(lithops_calls_completed_total[5m]))
+    sum(lithops_calls_completed_total{outcome!="success"})
+      / sum(lithops_calls_completed_total)
 
     # Cold start rate
-    sum(rate(lithops_cold_starts_total[5m]))
-      / sum(rate(lithops_calls_started_total[5m]))
+    sum(lithops_cold_starts_total) / sum(lithops_calls_completed_total)
+
+    # p95 execution time
+    histogram_quantile(0.95,
+      sum by (le, function_name) (lithops_call_duration_seconds_bucket))
+
+    # End-to-end latency as the caller feels it, p95
+    histogram_quantile(0.95,
+      sum by (le, function_name) (lithops_call_end_to_end_seconds_bucket))
 
     # Scheduling latency of the backend, p95
     histogram_quantile(0.95,
-      sum by (le, backend) (rate(lithops_call_queue_delay_seconds_bucket[5m])))
+      sum by (le, backend) (lithops_call_queue_delay_seconds_bucket))
 
     # Runtimes that are over-provisioned: p95 peak memory well under 1.
     # Use kind="peak" — summing across the kinds mixes two distributions
     histogram_quantile(0.95,
       sum by (le, runtime_name, runtime_memory)
-        (rate(lithops_worker_memory_utilization_ratio_bucket{kind="peak"}[30m])))
+        (lithops_worker_memory_utilization_ratio_bucket{kind="peak"}))
 
     # What the runtime costs before any user code runs
-    histogram_quantile(0.5,
-      sum by (le, runtime_name)
-        (rate(lithops_worker_memory_bytes_bucket{kind="baseline"}[30m])))
+    sum by (runtime_name) (lithops_worker_memory_bytes_sum{kind="baseline"})
+      / sum by (runtime_name) (lithops_worker_memory_bytes_count{kind="baseline"})
 
-    # Client-side overhead per job: preparing and uploading
-    histogram_quantile(0.95,
-      sum by (le, function_name) (rate(lithops_job_create_seconds_bucket[30m])))
+    # Mean time per call in one phase, e.g. what the client spent preparing
+    sum(lithops_job_create_seconds_sum) / sum(lithops_job_create_seconds_count)
 
-    # What the monitoring channel costs against the storage backend
-    sum(rate(lithops_call_status_queries_sum[5m]))
-
-    # End-to-end latency as the user feels it, p95
-    histogram_quantile(0.95,
-      sum by (le, function_name) (rate(lithops_call_end_to_end_seconds_bucket[5m])))
-
-    # Where the time actually goes: one series per phase, stack them
-    sum by (phase) (label_replace(rate(lithops_call_queue_delay_seconds_sum[5m]),
-                                  "phase", "queue", "", "")
-                 or label_replace(rate(lithops_call_worker_setup_seconds_sum[5m]),
-                                  "phase", "setup", "", "")
-                 or label_replace(rate(lithops_call_duration_seconds_sum[5m]),
-                                  "phase", "function", "", "")
-                 or label_replace(rate(lithops_call_worker_teardown_seconds_sum[5m]),
-                                  "phase", "teardown", "", "")
-                 or label_replace(rate(lithops_call_status_latency_seconds_sum[5m]),
-                                  "phase", "status", "", "")
-                 or label_replace(rate(lithops_call_result_download_seconds_sum[5m]),
-                                  "phase", "download", "", ""))
+    # What the monitoring channel costs against the storage backend,
+    # in requests per call. Zero means a channel that pushes
+    sum(lithops_call_status_queries_sum) / sum(lithops_call_status_queries_count)
 
     # How often a result was small enough to skip storage entirely
-    sum(rate(lithops_call_result_download_seconds_count{source="inline"}[5m]))
-      / sum(rate(lithops_call_result_download_seconds_count[5m]))
+    sum(lithops_call_result_download_seconds_count{source="inline"})
+      / sum(lithops_call_result_download_seconds_count)
+
+    # Worker seconds, the billed part of a call, split by the memory the
+    # runtime was given. PromQL cannot turn the runtime_memory label into
+    # a number, so multiply the two columns in Grafana for GB-seconds
+    sum by (function_name, runtime_memory) (
+      lithops_call_total_duration_seconds_sum)
 
     # The execution environments in use, for an "environment" panel
-    count by (runtime_name, runtime_memory, python_version, lithops_version) (
-      lithops_worker_info)
+    count by (backend, runtime_name, runtime_memory, python_version,
+              lithops_version) (lithops_worker_info)
 
-    # GB-seconds, the cost proxy of a FaaS backend
-    sum by (function_name) (
-      rate(lithops_call_total_duration_seconds_sum[5m])
-        * on() group_left() (lithops_calls_completed_total * 0 + 1))
 
-Point Grafana at Prometheus as a datasource and these become panels directly.
-The natural layout is a row of counters across the top (calls in flight,
-completed, failure rate, cold start rate), a latency percentile graph and a
-throughput graph below it, a memory utilisation heatmap under that, and a table
-built from ``lithops_worker_info`` showing the runtimes in use.
+A ready-made Grafana dashboard
+------------------------------
+
+``docs/source/grafana/lithops-dashboard.json`` is the dashboard these
+queries add up to: an overview row, throughput and latency, the phase
+decomposition of a call, memory, storage, client-side job preparation, and
+a table of the execution environments. It has ``backend``, ``runtime`` and
+``function`` template variables, and asks for the Prometheus datasource on
+import.
+
+In Grafana: **Dashboards → New → Import → Upload JSON file**, then pick the
+Prometheus datasource. Or over the API:
+
+.. code::
+
+    curl -u admin:admin -H 'Content-Type: application/json' \
+      -X POST http://localhost:3000/api/dashboards/db \
+      -d "{\"dashboard\": $(cat docs/source/grafana/lithops-dashboard.json), \
+           \"overwrite\": true}"
+
+Two panels stay empty on the localhost backend, and correctly so: memory
+utilisation needs a ``runtime_memory`` to divide by, and the partitioning
+time only exists for a job that processes objects.
 
 
 Troubleshooting

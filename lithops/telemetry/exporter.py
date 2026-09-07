@@ -473,6 +473,17 @@ class TelemetryExporter:
         return BoundTelemetry(self, compute_backend)
 
     def flush(self) -> None:
+        """
+        Pushes what has been recorded so far.
+
+        A no-op once the exporter has been shut down. The executor
+        flushes from its own atexit hook, which can run after the one
+        that shut the exporter down, and a client library asked to send a
+        batch through something it has already closed is entitled to
+        complain about it
+        """
+        if self._shutdown_done:
+            return
         try:
             self.backend.flush()
         except Exception as exc:
@@ -484,9 +495,10 @@ class TelemetryExporter:
 
     def shutdown(self) -> None:
         """
-        Flushes one last time and releases the backend. Idempotent, and
-        best effort: it runs from atexit, where the interpreter may
-        already be tearing the modules the HTTP client needs down
+        Shuts the backend down, which is what flushes it one last time.
+        Idempotent, and best effort: it runs from atexit, where the
+        interpreter may already be tearing the modules the HTTP client
+        needs down
         """
         with self._shutdown_lock:
             if self._shutdown_done:
@@ -495,7 +507,6 @@ class TelemetryExporter:
 
         self._stopped.set()
         try:
-            self.backend.flush()
             self.backend.shutdown()
         except Exception as exc:
             logger.debug(f'Telemetry: shutdown was incomplete: {exc}')

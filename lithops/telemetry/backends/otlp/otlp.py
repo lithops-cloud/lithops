@@ -88,10 +88,15 @@ class MetricsBackend(BaseMetricsBackend):
             'service.version': __version__,
             'host.name': config['instance'],
         })
+        # The exporter above owns the shutdown, and it flushes before it
+        # shuts the provider down. Left to itself the SDK registers an
+        # atexit hook of its own, which runs after that one and tries to
+        # export through a reader that is already closed
         self._provider = MeterProvider(
             resource=resource,
             metric_readers=[self._create_reader(config)],
             views=self._create_views(),
+            shutdown_on_exit=False,
         )
         self._meter = self._provider.get_meter('lithops', __version__)
 

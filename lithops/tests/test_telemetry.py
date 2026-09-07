@@ -666,14 +666,36 @@ class TestTelemetryNeverBreaksAJob:
 
 class TestExporterLifecycle:
 
-    def test_shutdown_flushes_once_and_is_idempotent(self):
+    def test_shutdown_is_idempotent(self):
         backend = RecordingBackend()
         exporter = TelemetryExporter(backend, flush_interval=3600)
         exporter.shutdown()
         exporter.shutdown()
 
-        assert backend.flushes == 1
         assert backend.shutdowns == 1
+
+    def test_a_flush_after_shutdown_is_ignored(self):
+        # The executor flushes from an atexit hook of its own, which can
+        # run after the hook that shut the exporter down
+        backend = RecordingBackend()
+        exporter = TelemetryExporter(backend, flush_interval=3600)
+        exporter.shutdown()
+        exporter.flush()
+        exporter.bind('aws_lambda').flush()
+
+        assert backend.flushes == 0
+        assert backend.shutdowns == 1
+
+    def test_shutting_a_backend_down_flushes_it_by_default(self):
+        # The last of what was recorded has to leave the process, and a
+        # backend that holds nothing should not have to say so
+        class Plain(RecordingBackend):
+            shutdown = MetricsBackend.shutdown
+
+        backend = Plain()
+        TelemetryExporter(backend, flush_interval=3600).shutdown()
+
+        assert backend.flushes == 1
 
     def test_the_flush_thread_pushes_on_its_own(self):
         backend = RecordingBackend()
