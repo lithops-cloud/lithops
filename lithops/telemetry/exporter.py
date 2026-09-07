@@ -70,6 +70,26 @@ def _number(status: Dict[str, Any], key: str) -> Optional[float]:
         return None
 
 
+def _mean(value: Any) -> Optional[float]:
+    """
+    A measurement that may come back as one number or as one number per
+    core, averaged into the single figure the metric holds. The CPU usage
+    of a worker is the second kind
+    """
+    if isinstance(value, (list, tuple)):
+        numbers = [
+            float(item) for item in value
+            if isinstance(item, (int, float)) and not isinstance(item, bool)
+        ]
+        return sum(numbers) / len(numbers) if numbers else None
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def _delta(
     status: Dict[str, Any], end_key: str, start_key: str
 ) -> Optional[float]:
@@ -180,8 +200,6 @@ class BoundTelemetry:
         """
         try:
             self._exporter.observe(M.CALLS_STARTED, 1, self._labels(future))
-            if call_status.get('worker_cold_start'):
-                self._exporter.observe(M.COLD_STARTS, 1, self._labels(future))
         except Exception as exc:
             logger.debug(f'Telemetry: could not record the call start: {exc}')
 
@@ -220,6 +238,13 @@ class BoundTelemetry:
         observe = self._exporter.observe
         observe(M.CALLS_COMPLETED, 1, dict(labels, outcome=outcome))
 
+        # Counted here rather than when the call started: the status that
+        # says a call is running is synthesised by the storage backend from
+        # a listing, and carries nothing the worker measured. The status
+        # that says it finished always comes from the worker itself
+        if status.get('worker_cold_start'):
+            observe(M.COLD_STARTS, 1, labels)
+
         observations = (
             (M.CALL_DURATION, _delta(
                 status, 'worker_func_end_tstamp', 'worker_func_start_tstamp'
@@ -238,7 +263,7 @@ class BoundTelemetry:
             )),
             (M.CALL_RESULT_SIZE, _number(status, 'func_result_size')),
             (M.CALL_RESULT_UPLOAD, _number(status, 'worker_result_upload_time')),
-            (M.WORKER_CPU_UTILIZATION, _number(status, 'worker_func_cpu_usage')),
+            (M.WORKER_CPU_UTILIZATION, _mean(status.get('worker_func_cpu_usage'))),
             # Kept by the client, not by the worker: how many times it had
             # to ask the storage backend before this call reported in
             (M.CALL_STATUS_QUERIES, getattr(future, '_status_query_count', None)),

@@ -213,6 +213,97 @@ expires and has to be reasoned about; a push straight into Prometheus is
 written to the TSDB and that is the end of it. The metric names Lithops
 exports are already in Prometheus form, so they arrive unchanged.
 
+Trying it end to end, locally
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Grafana publishes a single container that is an entire OpenTelemetry backend —
+collector, Prometheus, Loki, Tempo and Grafana — meant for exactly this. It is
+a development image, not a production one.
+
+.. code:: yaml
+
+    # docker-compose.yml
+    services:
+      lgtm:
+        image: grafana/otel-lgtm
+        ports:
+          - "4318:4318"   # OTLP/HTTP, where Lithops pushes
+          - "3000:3000"   # Grafana
+
+.. code::
+
+    pip install lithops[telemetry]
+    docker compose up -d
+
+Point a localhost executor at it, so that nothing leaves the machine:
+
+.. code:: yaml
+
+    lithops:
+        backend: localhost
+        storage: localhost
+        telemetry: otlp
+        telemetry_interval: 5
+
+    otlp:
+        endpoint: http://localhost:4318
+
+.. code:: python
+
+    import lithops
+
+    def double(x):
+        return x * 2
+
+    with lithops.FunctionExecutor() as fexec:
+        fexec.map(double, range(20))
+        print(fexec.get_result())
+
+Open Grafana on http://localhost:3000, pick the Prometheus datasource, and the
+metrics are there within a ``telemetry_interval``. ``lithops_calls_completed_total``
+is the one to check first; ``lithops_worker_info`` shows the runtime the calls
+ran in.
+
+Prometheus on its own
+~~~~~~~~~~~~~~~~~~~~~
+
+Leaner, if the dashboards are not the point yet:
+
+.. code:: yaml
+
+    # docker-compose.yml
+    services:
+      prometheus:
+        image: prom/prometheus
+        command:
+          - --config.file=/etc/prometheus/prometheus.yml
+          - --web.enable-otlp-receiver
+        ports: ["9090:9090"]
+        volumes: ["./prometheus.yml:/etc/prometheus/prometheus.yml"]
+
+.. code:: yaml
+
+    # prometheus.yml
+    storage:
+      tsdb:
+        # Pushed metrics do not arrive in the order Prometheus scrapes in
+        out_of_order_time_window: 30m
+    otlp:
+      promote_resource_attributes:
+        - service.instance.id
+        - service.name
+
+.. code:: yaml
+
+    lithops:
+        telemetry: otlp
+    otlp:
+        endpoint: http://localhost:9090/api/v1/otlp
+
+Lithops sets ``service.name`` and ``service.instance.id``, which Prometheus
+turns into the ``job`` and ``instance`` labels — the same identity the metrics
+would have had through the Pushgateway.
+
 Through a collector
 ~~~~~~~~~~~~~~~~~~~
 

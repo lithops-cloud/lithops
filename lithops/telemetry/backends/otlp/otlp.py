@@ -77,8 +77,14 @@ class MetricsBackend(BaseMetricsBackend):
                 '"pip install lithops[telemetry]"'
             ) from exc
 
+        # service.name and service.instance.id are what a collector, and
+        # Prometheus' own OTLP receiver, turn into the job and instance
+        # labels. Setting both is what makes the metrics land under the
+        # same identity they would have had through the Pushgateway
         resource = Resource.create({
             'service.name': config['service_name'],
+            'service.namespace': 'lithops',
+            'service.instance.id': config['instance'],
             'service.version': __version__,
             'host.name': config['instance'],
         })

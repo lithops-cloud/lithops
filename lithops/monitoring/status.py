@@ -25,7 +25,11 @@ from typing import Any, Callable, Hashable
 
 from lithops.monitoring.backends import resolve_backend
 from lithops.storage.utils import create_init_key, create_status_key
-from lithops.utils import monitoring_queue_name, sizeof_fmt
+from lithops.utils import (
+    CURRENT_PY_VERSION,
+    monitoring_queue_name,
+    sizeof_fmt,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -130,7 +134,8 @@ class CallStatus:
         self.status = {
             'exception': False,
             'activation_id': os.environ.get('__LITHOPS_ACTIVATION_ID'),
-            'python_version': os.environ.get("PYTHON_VERSION"),
+            'python_version': os.environ.get('PYTHON_VERSION')
+            or CURRENT_PY_VERSION,
             'worker_start_tstamp': job.start_tstamp,
             'host_submit_tstamp': job.host_submit_tstamp,
             'call_id': job.call_id,

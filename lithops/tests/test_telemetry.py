@@ -291,21 +291,52 @@ class TestRecordingACall:
 
         assert backend.values(M.CALL_STATUS_LATENCY) == [0.75]
 
-    def test_a_started_call_is_counted_once_with_its_cold_start(self, recorder):
+    def test_a_started_call_is_counted_once(self, recorder):
         telemetry, backend = recorder
         telemetry.on_call_started(_future(), _call_status())
 
         assert backend.values(M.CALLS_STARTED) == [1]
+
+    def test_a_cold_start_is_counted_when_the_call_finishes(self, recorder):
+        # Not when it starts: the status that says a call is running is
+        # synthesised by the storage backend from a listing, and carries
+        # nothing the worker measured
+        telemetry, backend = recorder
+        telemetry.on_call_started(_future(), _call_status())
+
+        assert backend.values(M.COLD_STARTS) == []
+
+        telemetry.on_call_finished(_future(), _call_status())
+
         assert backend.values(M.COLD_STARTS) == [1]
 
     def test_a_warm_call_is_not_a_cold_start(self, recorder):
         telemetry, backend = recorder
-        telemetry.on_call_started(
+        telemetry.on_call_finished(
             _future(), _call_status(worker_cold_start=False)
         )
 
-        assert backend.values(M.CALLS_STARTED) == [1]
+        assert backend.values(M.CALLS_COMPLETED) == [1]
         assert backend.values(M.COLD_STARTS) == []
+
+    def test_the_cpu_usage_of_every_core_is_averaged(self, recorder):
+        # psutil reports one figure per core, and the metric holds one
+        telemetry, backend = recorder
+        telemetry.on_call_finished(
+            _future(), _call_status(
+                worker_func_cpu_usage=[10.0, 30.0, 50.0, 10.0]
+            )
+        )
+
+        assert backend.values(M.WORKER_CPU_UTILIZATION) == [25.0]
+
+    def test_a_worker_that_reports_no_cpu_usage_is_skipped(self, recorder):
+        telemetry, backend = recorder
+        telemetry.on_call_finished(
+            _future(), _call_status(worker_func_cpu_usage=[])
+        )
+
+        assert backend.values(M.WORKER_CPU_UTILIZATION) == []
 
     def test_a_job_records_its_size(self, recorder):
         telemetry, backend = recorder
