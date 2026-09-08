@@ -105,6 +105,19 @@ class TestConstants:
         assert constants.LITHOPS_DEFAULT_CONFIG_KEYS['telemetry'] is False
         assert constants.LITHOPS_DEFAULT_CONFIG_KEYS['telemetry_interval'] == 10
 
+    def test_executor_environment_variable_names(self):
+        """
+        These names are read by runtimes built from earlier Lithops
+        versions, so changing one is a breaking change and not a rename.
+        Pinned here, in the one place that does not go through the
+        constant, so that changing a value fails rather than passing
+        """
+        assert constants.SESSION_ID_ENV == '__LITHOPS_SESSION_ID'
+        assert constants.TOTAL_EXECUTORS_ENV == '__LITHOPS_TOTAL_EXECUTORS'
+        assert constants.MONITORING_QUEUES_ENV == '__LITHOPS_MONITORING_QUEUES'
+        assert constants.WORKER_ENV == 'LITHOPS_WORKER'
+        assert constants.REDUCE_JOB_ENV == '__LITHOPS_REDUCE_JOB'
+
     def test_get_mode_and_default_backend_round_trip(self):
         assert get_mode(constants.LOCALHOST) == constants.LOCALHOST
         assert get_mode(constants.SERVERLESS_BACKEND_DEFAULT) == constants.SERVERLESS

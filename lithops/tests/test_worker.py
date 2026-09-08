@@ -28,7 +28,14 @@ import signal
 import pytest
 
 import lithops.worker.handler as handler_module
-from lithops.constants import JOBS_PREFIX, MODULES_DIR
+from lithops.constants import (
+    JOBS_PREFIX,
+    MODULES_DIR,
+    REDUCE_JOB_ENV,
+    SESSION_ID_ENV,
+    TOTAL_EXECUTORS_ENV,
+    WORKER_ENV,
+)
 from lithops.storage.utils import CloudObject, CloudObjectLocal, CloudObjectUrl
 from lithops.utils import bytes_to_b64str, is_unix_system
 from lithops.worker import function_handler, function_invoker
@@ -354,18 +361,18 @@ class TestFunctionHandler:
         job = _task(worker_processes=1, call_ids=['00000'], data=[b'd'])
         module_path = os.path.join(MODULES_DIR, job.job_key)
         sys.path.append(module_path)
-        os.environ['__LITHOPS_TOTAL_EXECUTORS'] = '2'
+        os.environ[TOTAL_EXECUTORS_ENV] = '2'
         try:
             with patch('lithops.worker.handler.create_job', return_value=job):
                 with patch('lithops.worker.handler.setup_lithops_logger'):
                     with patch('lithops.worker.handler.task_consumer'):
                         function_handler({})
             assert module_path not in sys.path
-            assert '__LITHOPS_TOTAL_EXECUTORS' not in os.environ
+            assert TOTAL_EXECUTORS_ENV not in os.environ
         finally:
             if module_path in sys.path:
                 sys.path.remove(module_path)
-            os.environ.pop('__LITHOPS_TOTAL_EXECUTORS', None)
+            os.environ.pop(TOTAL_EXECUTORS_ENV, None)
 
 
 class TestPrepareAndRunTask:
@@ -382,7 +389,7 @@ class TestPrepareAndRunTask:
         with patch('lithops.worker.handler.run_task') as run:
             prepare_and_run_task(task)
         run.assert_called_once_with(task)
-        assert os.environ['LITHOPS_WORKER'] == 'True'
+        assert os.environ[WORKER_ENV] == 'True'
         assert os.environ['PYTHONUNBUFFERED'] == 'True'
         assert 'FOO' not in os.environ
         assert os.path.isdir(task.task_dir)
@@ -592,7 +599,7 @@ class TestRunTask:
         conn.poll.return_value = True
         self._patch_run(task, jrp, conn)
         assert extra == {}
-        assert '__LITHOPS_SESSION_ID' not in extra
+        assert SESSION_ID_ENV not in extra
         assert 'LITHOPS_CONFIG' not in extra
 
 
@@ -1128,7 +1135,7 @@ class TestJobRunner:
 
     @pytest.fixture(autouse=True)
     def _session_id(self, monkeypatch, tmp_path):
-        monkeypatch.setenv('__LITHOPS_SESSION_ID', 'sid-1')
+        monkeypatch.setenv(SESSION_ID_ENV, 'sid-1')
         self.stats = str(tmp_path / 'stats.txt')
 
     def _runner(self, func, data, **job_kwargs):
@@ -1298,7 +1305,7 @@ class TestJobRunner:
         jr.internal_storage.put_data.assert_not_called()
 
     def test_reduce_job_waits_for_futures(self, monkeypatch):
-        monkeypatch.setenv('__LITHOPS_REDUCE_JOB', 'True')
+        monkeypatch.setenv(REDUCE_JOB_ENV, 'True')
         jr = self._runner(_reduce_fn, {'results': []})
         with patch.object(jr, '_wait_futures') as wait_f:
             jr.run()
@@ -1345,7 +1352,7 @@ class TestJobRunner:
 class TestFunctionInvoker:
 
     def test_function_invoker_wires_handlers(self, monkeypatch):
-        monkeypatch.delenv('LITHOPS_WORKER', raising=False)
+        monkeypatch.delenv(WORKER_ENV, raising=False)
         payload = {
             'config': _job_config(
                 monitoring='storage', backend='aws_lambda'
@@ -1375,7 +1382,7 @@ class TestFunctionInvoker:
                             ):
                                 function_invoker(payload)
         invoker.run_job.assert_called_once()
-        assert os.environ['LITHOPS_WORKER'] == 'True'
+        assert os.environ[WORKER_ENV] == 'True'
         assert payload['config']['aws_lambda']['invoke_pool_threads'] == 128
 
     def test_the_remote_invoker_takes_a_queue_of_its_own(self, monkeypatch):
@@ -1384,14 +1391,14 @@ class TestFunctionInvoker:
         the client's queue: the statuses it took would never reach the
         client. It reads its own, and the calls report to both
         """
+        from lithops.constants import MONITORING_QUEUES_ENV
         from lithops.utils import (
-            MONITORING_QUEUES_ENV,
             monitoring_queue_name,
             monitoring_queues,
             remote_invoker_queue_name,
         )
 
-        monkeypatch.delenv('LITHOPS_WORKER', raising=False)
+        monkeypatch.delenv(WORKER_ENV, raising=False)
         monkeypatch.delenv(MONITORING_QUEUES_ENV, raising=False)
         payload = {
             'config': _job_config(

@@ -18,6 +18,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from lithops.constants import WORKER_ENV
 from lithops.telemetry import metrics as M
 from lithops.telemetry.backend import MetricsBackend
 from lithops.telemetry.backends import DEFAULT_BACKEND, resolve_backend
@@ -727,7 +728,7 @@ class TestExporterLifecycle:
     def test_a_worker_exports_nothing(self, monkeypatch):
         # Workers get the client's whole config, and the remote invoker
         # builds a JobMonitor of its own
-        monkeypatch.setenv('LITHOPS_WORKER', 'True')
+        monkeypatch.setenv(WORKER_ENV, 'True')
         config = {'lithops': {'telemetry': 'prometheus'}}
 
         assert get_telemetry(config) is NOOP

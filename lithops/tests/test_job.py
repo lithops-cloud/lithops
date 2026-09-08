@@ -22,7 +22,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from lithops.constants import LOCALHOST, MAX_AGG_DATA_SIZE, SERVERLESS, STANDALONE
+from lithops.constants import (
+    LOCALHOST,
+    MAX_AGG_DATA_SIZE,
+    REDUCE_JOB_ENV,
+    SERVERLESS,
+    STANDALONE,
+)
 from lithops.job import create_map_job, create_reduce_job
 from lithops.job.job import (
     FUNCTION_CACHE,
@@ -397,7 +403,7 @@ class TestCreateReduceJob:
         )
         assert job.job_id == 'r0'
         assert job.total_calls == 1
-        assert job.extra_env['__LITHOPS_REDUCE_JOB'] == 'True'
+        assert job.extra_env[REDUCE_JOB_ENV] == 'True'
         _, _, objs = _CapturingSerializer.last
         assert objs[1]['results'] == list(range(6))
 
@@ -419,7 +425,7 @@ class TestCreateReduceJob:
         )
         assert job.total_calls == 3
         assert job.extra_env['K'] == 'False'
-        assert job.extra_env['__LITHOPS_REDUCE_JOB'] == 'True'
+        assert job.extra_env[REDUCE_JOB_ENV] == 'True'
         _, _, objs = _CapturingSerializer.last
         assert [o['results'] for o in objs[1:]] == [
             ['a', 'b'], ['c', 'd', 'e'], ['f']

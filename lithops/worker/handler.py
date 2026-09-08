@@ -43,9 +43,16 @@ from lithops.worker.utils import (
     LogStream, custom_redirection, get_function_and_modules,
     get_function_data, SystemMonitor
 )
-from lithops.constants import JOBS_PREFIX, LITHOPS_TEMP_DIR, MODULES_DIR
-from lithops.utils import (
+from lithops.constants import (
+    JOBS_PREFIX,
+    LITHOPS_TEMP_DIR,
+    MODULES_DIR,
     MONITORING_QUEUES_ENV,
+    SESSION_ID_ENV,
+    TOTAL_EXECUTORS_ENV,
+    WORKER_ENV,
+)
+from lithops.utils import (
     setup_lithops_logger,
     is_unix_system,
 )
@@ -237,7 +244,7 @@ def function_handler(payload: Dict[str, Any]) -> None:
     if module_path in sys.path:
         sys.path.remove(module_path)
 
-    os.environ.pop('__LITHOPS_TOTAL_EXECUTORS', None)
+    os.environ.pop(TOTAL_EXECUTORS_ENV, None)
 
 
 def task_consumer(
@@ -296,7 +303,7 @@ def prepare_and_run_task(task: SimpleNamespace) -> None:
         act_id = str(uuid.uuid4()).replace('-', '')[:12]
         os.environ['__LITHOPS_ACTIVATION_ID'] = act_id
 
-    os.environ['LITHOPS_WORKER'] = 'True'
+    os.environ[WORKER_ENV] = 'True'
     os.environ['PYTHONUNBUFFERED'] = 'True'
     os.environ.update(task.extra_env)
 
@@ -461,7 +468,7 @@ def run_task(task: SimpleNamespace) -> None:
 
     injected_env = {
         'LITHOPS_CONFIG': json.dumps(task.config),
-        '__LITHOPS_SESSION_ID': '-'.join([task.job_key, task.call_id]),
+        SESSION_ID_ENV: '-'.join([task.job_key, task.call_id]),
         # An executor created by the user function reports to these queues as
         # well as to its own, which is how a nested job reaches the client
         MONITORING_QUEUES_ENV: json.dumps(

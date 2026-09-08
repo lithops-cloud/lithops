@@ -78,81 +78,49 @@ def _future_id(fut):
     return (fut.executor_id, fut.job_id, fut.call_id)
 
 
-#: The session this process belongs to, and how many executors it has
-#: created. Held here rather than only in the environment: the counter is
-#: what makes two executor IDs of one process different, and an
-#: environment can be rewritten under a running process
+# The session this process belongs to, and how many executors it has created.
+# Kept here and not only in the environment, which can be reset under a
+# running process
 _SESSION_LOCK = threading.Lock()
 _SESSION_ID = None
 _EXECUTOR_COUNT = 0
 
-SESSION_ID_ENV = '__LITHOPS_SESSION_ID'
-TOTAL_EXECUTORS_ENV = '__LITHOPS_TOTAL_EXECUTORS'
-
-
-def _inherited_executor_count():
-    """
-    The number the session that this process joined had reached, so that
-    the executors created here carry on from it instead of repeating it
-    """
-    try:
-        return int(os.environ[TOTAL_EXECUTORS_ENV]) + 1
-    except (KeyError, TypeError, ValueError):
-        return 0
-
 
 def create_executor_id(lenght=6):
     """
-    Creates the ID of a new executor. Executors of the same session share
-    the session ID and are told apart by a counter.
+    Creates the ID of a new executor. Executors of the same session share the
+    session ID and are told apart by a counter.
 
-    Both are exported to the environment, so that a process spawned from
-    this one joins the same session, and a worker can put a session of its
-    own there for the task it is about to run. They are *read* back only
-    when the environment names a session other than the one this process
-    is already in.
-
-    That last part is the difference between an ID that is unique and one
-    that is merely unlikely to repeat. The counter is what tells two
-    executors of the same process apart; a process that lost the variable
-    -- anything that saves and restores ``os.environ`` does that -- used
-    to start counting from zero again, which left the six characters of
-    the session ID as the only thing keeping its storage keys apart from
-    those of every executor it had already created.
+    Both are exported, so that a process spawned from this one joins the same
+    session and a worker can name a session for the task it runs. The counter
+    is also kept in the process: an environment that is restored under a
+    running process used to restart it, and two executors then shared an ID,
+    and with it their storage keys.
     """
     global _SESSION_ID, _EXECUTOR_COUNT
 
     with _SESSION_LOCK:
-        env_session = os.environ.get(SESSION_ID_ENV)
-        if _SESSION_ID is None:
-            # The first executor of this process. It joins the session the
-            # process that spawned this one left in the environment,
-            # carrying on from wherever that had got to, or starts one
-            if env_session:
-                _SESSION_ID = env_session
-                _EXECUTOR_COUNT = _inherited_executor_count()
-            else:
-                _SESSION_ID = uuid_str().replace('/', '')[:lenght]
+        session_id = os.environ.get(constants.SESSION_ID_ENV)
+        if session_id and session_id != _SESSION_ID:
+            # A session named for this process, by the one that spawned it or
+            # by a worker about to run a task. Carry on from where it got to
+            _SESSION_ID = session_id
+            try:
+                _EXECUTOR_COUNT = int(
+                    os.environ[constants.TOTAL_EXECUTORS_ENV]
+                ) + 1
+            except (KeyError, ValueError):
                 _EXECUTOR_COUNT = 0
-        elif env_session and env_session != _SESSION_ID:
-            # The process has been put in a different session, which is
-            # what a worker does before each task it runs. The count of
-            # the session it left does not carry over
-            _SESSION_ID = env_session
-            _EXECUTOR_COUNT = 0
+        elif _SESSION_ID is None:
+            _SESSION_ID = uuid_str().replace('/', '')[:lenght]
 
         exec_num = _EXECUTOR_COUNT
         _EXECUTOR_COUNT += 1
 
-        os.environ[SESSION_ID_ENV] = _SESSION_ID
-        os.environ[TOTAL_EXECUTORS_ENV] = str(exec_num)
+        os.environ[constants.SESSION_ID_ENV] = _SESSION_ID
+        os.environ[constants.TOTAL_EXECUTORS_ENV] = str(exec_num)
 
         return f'{_SESSION_ID}-{exec_num}'
-
-
-# Carries the monitoring queues of an executor down to the workers, so that an
-# executor created inside one of them can extend the chain
-MONITORING_QUEUES_ENV = '__LITHOPS_MONITORING_QUEUES'
 
 
 def monitoring_queue_name(executor_id: str) -> str:
@@ -182,13 +150,14 @@ def monitoring_queues(executor_id: str) -> List[str]:
     job, so the same number of tokens can stand for different chains
     """
     parent_queues = []
-    raw_queues = os.environ.get(MONITORING_QUEUES_ENV)
+    raw_queues = os.environ.get(constants.MONITORING_QUEUES_ENV)
     if raw_queues:
         try:
             parent_queues = list(json.loads(raw_queues))
         except ValueError:
             logger.warning(
-                f'Ignoring a malformed {MONITORING_QUEUES_ENV}: {raw_queues}'
+                'Ignoring a malformed '
+                f'{constants.MONITORING_QUEUES_ENV}: {raw_queues}'
             )
 
     queue = monitoring_queue_name(executor_id)
@@ -201,18 +170,10 @@ def monitoring_queues(executor_id: str) -> List[str]:
 
 
 def get_executor_id():
-    """
-    Returns the ID of the last executor created in this session.
-
-    Read from this process rather than from the environment, so that it
-    still answers after something has rewritten the environment, and
-    raises the same KeyError as it always did when no executor has been
-    created at all
-    """
-    with _SESSION_LOCK:
-        if _SESSION_ID is None:
-            raise KeyError(SESSION_ID_ENV)
-        return f'{_SESSION_ID}-{_EXECUTOR_COUNT - 1}'
+    """Returns the ID of the last executor created in this session"""
+    if _SESSION_ID is None:
+        raise KeyError(constants.SESSION_ID_ENV)
+    return f'{_SESSION_ID}-{_EXECUTOR_COUNT - 1}'
 
 
 def iterchunks(lst, n):
@@ -565,7 +526,7 @@ def is_linux_system() -> bool:
 
 def is_lithops_worker() -> bool:
     """Checks if the current execution is within a lithops worker"""
-    return 'LITHOPS_WORKER' in os.environ
+    return constants.WORKER_ENV in os.environ
 
 
 def is_object_processing_function(map_function) -> bool:

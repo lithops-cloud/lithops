@@ -39,6 +39,7 @@ try:
 except ModuleNotFoundError:
     pass
 
+from lithops.constants import REDUCE_JOB_ENV
 from lithops.storage import Storage
 from lithops.wait import wait
 from lithops.future import ResponseFuture
@@ -364,7 +365,7 @@ class JobRunner:
             func = pickle.loads(self.job.func)
             data = pickle.loads(self.job.data)
 
-            if ast.literal_eval(os.environ.get('__LITHOPS_REDUCE_JOB', 'False')):
+            if ast.literal_eval(os.environ.get(REDUCE_JOB_ENV, 'False')):
                 self._wait_futures(data)
             elif is_object_processing_function(func):
                 self._load_object(data)

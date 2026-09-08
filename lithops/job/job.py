@@ -35,7 +35,12 @@ from lithops.job.serialize import (
     SerializeIndependent, create_module_data, write_module_data
 )
 from lithops.constants import (
-    MAX_AGG_DATA_SIZE, SERVERLESS, STANDALONE, CUSTOM_RUNTIME_DIR, JOBS_PREFIX
+    MAX_AGG_DATA_SIZE,
+    SERVERLESS,
+    STANDALONE,
+    CUSTOM_RUNTIME_DIR,
+    JOBS_PREFIX,
+    REDUCE_JOB_ENV
 )
 
 
@@ -233,7 +238,7 @@ def create_reduce_job(
             offset = end
 
     ext_env = {} if extra_env is None else extra_env.copy()
-    ext_env['__LITHOPS_REDUCE_JOB'] = True
+    ext_env[REDUCE_JOB_ENV] = True
 
     iterdata = utils.verify_args(reduce_function, iterdata, extra_args)
 

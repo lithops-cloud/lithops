@@ -35,6 +35,7 @@ import threading
 from typing import Any, Dict, Optional
 
 from lithops.telemetry import metrics as M
+from lithops.constants import WORKER_ENV
 from lithops.version import __version__
 from lithops.telemetry.backends import (
     import_backend_module,
@@ -548,7 +549,7 @@ def get_telemetry(
     if backend_name is None:
         return NOOP
 
-    if 'LITHOPS_WORKER' in os.environ:
+    if WORKER_ENV in os.environ:
         # Metrics are a client concern, and a worker gets the client's
         # whole config. Without this, every worker would try to reach a
         # metrics system it most likely has no route to. The remote
