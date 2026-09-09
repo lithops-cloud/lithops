@@ -424,9 +424,11 @@ class InternalStorage:
         status_key = utils.create_status_key(executor_id, job_id, call_id)
         try:
             data = self.storage.get_object(self.bucket, status_key)
-            return json.loads(data.decode('ascii'))
         except utils.StorageNoSuchKeyError:
             return None
+        if not data:
+            return None
+        return json.loads(data.decode('ascii'))
 
     def get_call_output(self, executor_id, job_id, call_id):
         """

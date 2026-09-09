@@ -275,6 +275,16 @@ class TestInternalStorage:
         internal.storage.get_object.return_value = b'{"ok": true}'
         assert internal.get_call_status('e', 'M000', '00000') == {'ok': True}
 
+    def test_get_call_status_reads_a_half_written_status_as_missing(self):
+        """
+        The localhost backend fills an object after truncating it, so a poll
+        can read an empty one. That is a status not written yet, and used to
+        come back as a JSONDecodeError that failed the call
+        """
+        internal = _bare_internal()
+        internal.storage.get_object.return_value = b''
+        assert internal.get_call_status('e', 'M000', '00000') is None
+
     def test_runtime_meta_memory_cache(self):
         RUNTIME_META_CACHE.clear()
         internal = _bare_internal()
