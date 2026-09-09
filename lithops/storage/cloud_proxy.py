@@ -281,19 +281,29 @@ def cloud_open(filename, mode='r', cloud_storage=None):
     raise ValueError(f"Unsupported mode '{mode}': only 'r' and 'w' are")
 
 
-if not is_lithops_worker():
-    try:
-        _storage = CloudStorage()
-    except FileNotFoundError:
-        # should never happen unless we are using
-        # this module classes for other purposes
-        os = None
-        open = None
+def __getattr__(name):
+    """
+    Builds the ``os`` and ``open`` stand-ins the first time one is read.
+
+    Building them while this module was imported reached the default storage
+    backend from the import itself, so a backend that is not configured, not
+    installed or not reachable broke ``import`` for everything defined here.
+    Whatever the backend has to say is now raised where the stand-in is
+    asked for, rather than turning into a ``None`` that fails later on
+    """
+    if name not in ('os', 'open'):
+        raise AttributeError(f'module {__name__!r} has no attribute {name!r}')
+
+    if is_lithops_worker():
+        # should never be used unless we explicitly import
+        # inside a function, which is not a good practice
+        value = None
     else:
-        os = CloudFileProxy(_storage)
-        open = partial(cloud_open, cloud_storage=_storage)
-else:
-    # should never be used unless we explicitly import
-    # inside a function, which is not a good practice
-    os = None
-    open = None
+        storage = CloudStorage()
+        value = (
+            CloudFileProxy(storage) if name == 'os'
+            else partial(cloud_open, cloud_storage=storage)
+        )
+
+    globals()[name] = value
+    return value
