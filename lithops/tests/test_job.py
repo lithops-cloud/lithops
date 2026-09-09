@@ -812,6 +812,37 @@ class TestCreatePartitions:
             [],
         )
 
+    @pytest.mark.parametrize('path', [
+        r'C:\\data\\a.txt', 'C:/data/a.txt', r'\\\\server\\share\\a.txt',
+    ])
+    def test_a_windows_path_is_read_as_a_local_file(self, path):
+        """
+        Nothing starts with a separator on Windows, so a drive letter or a
+        UNC share used to fall through to the Object Storage branch and the
+        local file was looked for in a bucket
+        """
+        with patch(
+            'lithops.job.partitioner._split_objects_from_paths',
+            return_value=([{'obj': path}], [1]),
+        ) as split_paths:
+            parts, ppo = create_partitions(
+                {}, _storage(), [{'obj': path}], None, None, None
+            )
+        split_paths.assert_called_once()
+        assert [entry['obj'] for entry in split_paths.call_args.args[0]] == [path]
+        assert (parts, ppo) == ([{'obj': path}], [1])
+
+    @pytest.mark.parametrize('key', [
+        'bucket/key.csv', 'C:relative', 'bucket/a:b', 's3://bucket/key',
+    ])
+    def test_a_storage_key_is_not_read_as_a_windows_path(self, key):
+        with patch(
+            'lithops.job.partitioner._split_objects_from_object_storage',
+            return_value=([], []),
+        ) as split_objects:
+            create_partitions({}, _storage(), [{'obj': key}], None, None, None)
+        split_objects.assert_called_once()
+
     def test_http_takes_precedence_over_paths(self, tmp_path):
         f = tmp_path / 'f.txt'
         f.write_bytes(b'hello world!!')

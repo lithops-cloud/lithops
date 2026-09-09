@@ -22,9 +22,11 @@ what was submitted. Nothing in this file needs a Redis server or a backend.
 """
 
 import ctypes
+import functools
 import gc
 import pickle
 import queue
+import socket
 import sys
 import threading
 import time
@@ -67,6 +69,31 @@ def redis():
     return server
 
 
+REDIS_HOST = 'localhost'
+REDIS_PORT = 6379
+
+
+@functools.cache
+def _redis_reachable():
+    """
+    Whether a server answers, asked once for the whole session.
+
+    Every test that wants one used to open its own connection to find out,
+    and there are dozens of them. The socket is tried before the client
+    because a refused connection comes back at once, while the client
+    spends seconds on its own retries before it gives up
+    """
+    try:
+        socket.create_connection((REDIS_HOST, REDIS_PORT), timeout=1).close()
+    except OSError:
+        return False
+    try:
+        mp_util.PicklableRedis(host=REDIS_HOST, port=REDIS_PORT).ping()
+        return True
+    except Exception:
+        return False
+
+
 @pytest.fixture
 def real_redis():
     """
@@ -77,16 +104,14 @@ def real_redis():
     meant to check in the same pass proves nothing. Skipped where no server
     is reachable; every key the test makes is dropped afterwards
     """
+    if not _redis_reachable():
+        pytest.skip('no Redis reachable on localhost')
+
     # The picklable wrapper, which is what get_redis_client() builds. A plain
     # redis.Redis carries a connection pool with a lock in it, so a proxy
     # holding one cannot be sent to a worker -- a difference the tests must
     # not paper over
-    client = mp_util.PicklableRedis(host='localhost')
-    try:
-        client.ping()
-    except Exception:
-        pytest.skip('no Redis reachable on localhost')
-
+    client = mp_util.PicklableRedis(host=REDIS_HOST, port=REDIS_PORT)
     before = set(client.keys('*'))
     saved_client, saved_config = mp_util.REDIS_CLIENT, mp_util.LITHOPS_CONFIG
     mp_util.REDIS_CLIENT = client
@@ -1285,21 +1310,60 @@ class TestConnectionPolling:
         assert self._connection(queue.Queue())._poll(0.0) is False
 
     def test_poll_returns_as_soon_as_a_message_lands(self):
+        """
+        A message that lands mid-wait is picked up on the very next check,
+        and the waits leading up to it are the first small steps of the
+        backoff rather than the flat 0.1s this used to sleep.
+
+        The waits are counted instead of timed: a wall clock here also
+        measures how late the runner got round to landing the message,
+        which is not what the poll is being held to
+        """
+        from lithops.multiprocessing import connection as conn_mod
+
         buff = queue.Queue()
-        timer = threading.Timer(0.01, lambda: buff.put(b'x'))
-        timer.start()
-        try:
-            started = time.monotonic()
+        waits = []
+
+        def wait_and_land(duration):
+            waits.append(duration)
+            if len(waits) == 3:
+                buff.put(b'x')
+
+        with patch.object(conn_mod.time, 'sleep', side_effect=wait_and_land):
             assert self._connection(buff)._poll(5.0) is True
-            assert time.monotonic() - started < 0.09
-        finally:
-            timer.cancel()
+
+        assert len(waits) == 3
+        assert waits == [
+            conn_mod.POLL_MIN_SLEEP,
+            conn_mod.POLL_MIN_SLEEP * 2,
+            conn_mod.POLL_MIN_SLEEP * 4,
+        ]
+        assert sum(waits) < conn_mod.POLL_MAX_SLEEP
 
     def test_poll_does_not_overshoot_its_timeout(self):
-        started = time.monotonic()
-        assert self._connection(queue.Queue())._poll(0.05) is False
-        # The flat 0.1s step used to sleep past the deadline it was given
-        assert 0.05 <= time.monotonic() - started < 0.12
+        """
+        The waits add up to exactly the timeout, the last one being clipped
+        to what is left of it. The flat 0.1s step used to sleep past the
+        deadline it was given.
+
+        Driven off a fake clock: a real one also measures how far the OS
+        overshot each sleep, which the poll cannot be held to
+        """
+        from lithops.multiprocessing import connection as conn_mod
+
+        waits = []
+        clock = [0.0]
+
+        def sleep(duration):
+            waits.append(duration)
+            clock[0] += duration
+
+        with patch.object(conn_mod.time, 'sleep', side_effect=sleep), \
+                patch.object(conn_mod.time, 'monotonic', side_effect=lambda: clock[0]):
+            assert self._connection(queue.Queue())._poll(0.05) is False
+
+        assert sum(waits) == pytest.approx(0.05)
+        assert waits[-1] < conn_mod.POLL_MAX_SLEEP
 
     def test_poll_until_always_checks_once(self):
         from lithops.multiprocessing.connection import _poll_until

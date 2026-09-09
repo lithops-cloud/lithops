@@ -39,7 +39,7 @@ from lithops.localhost.utils import (
 from lithops.storage.backends.localhost.localhost import LocalhostStorageBackend
 from lithops.storage.utils import StorageNoSuchKeyError
 from lithops.tests.functions import simple_map_function, sleep_seconds
-from lithops.utils import BackendType, CountDownLatch
+from lithops.utils import BackendType, CountDownLatch, is_unix_system
 from lithops.version import __version__
 
 
@@ -469,8 +469,8 @@ class TestV2Environment:
         env.task_processes['sess-0-M000-00000'] = proc
         env.jobs = {'sess-0-M000': CountDownLatch(0)}
         env.is_unix_system = True
-        with patch('lithops.localhost.utils.os.getpgid', return_value=9), \
-                patch('lithops.localhost.utils.os.killpg') as killpg, \
+        with patch('lithops.localhost.utils.os.getpgid', return_value=9, create=True), \
+                patch('lithops.localhost.utils.os.killpg', create=True) as killpg, \
                 patch.object(v2.ExecutionEnvironment, '_teardown'):
             env.stop(['sess-0-M000'])
         killpg.assert_called_once_with(9, signal.SIGKILL)
@@ -525,7 +525,7 @@ class TestV2Environment:
         env.task_processes['sess-0-M000-00000'] = proc
         env.jobs = {'sess-0-M000': CountDownLatch(0)}
         env.consumer_threads = [MagicMock()]
-        with patch('lithops.localhost.utils.os.killpg') as killpg:
+        with patch('lithops.localhost.utils.os.killpg', create=True) as killpg:
             env.finish(['sess-0-M000'])
         killpg.assert_not_called()
         assert 'sess-0-M000-00000' in env.task_processes
@@ -774,8 +774,8 @@ class TestV1Environment:
         proc.pid = 77
         env.jobs['sess-0-M000'] = proc
         env.is_unix_system = True
-        with patch('lithops.localhost.utils.os.getpgid', return_value=5), \
-                patch('lithops.localhost.utils.os.killpg') as killpg:
+        with patch('lithops.localhost.utils.os.getpgid', return_value=5, create=True), \
+                patch('lithops.localhost.utils.os.killpg', create=True) as killpg:
             env.stop(['sess-0-M000'])
         killpg.assert_called_once_with(5, signal.SIGKILL)
         assert 'sess-0-M000' not in env.jobs
@@ -1213,6 +1213,10 @@ def _ensure_localhost_python_image():
 @pytest.mark.skipif(
     not _docker_daemon_available(),
     reason='docker/podman is not installed or the daemon is not running',
+)
+@pytest.mark.skipif(
+    not is_unix_system(),
+    reason='pulling the Linux image does not fit the timeout on Windows',
 )
 class TestLocalhostContainerLive:
     """Live localhost jobs inside a Docker Hub python:X.Y container."""
