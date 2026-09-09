@@ -6,7 +6,6 @@
 
 - [API] Added `lithops.concurrent.futures`, a `concurrent.futures`-compatible executor interface backed by Lithops.
 - [Monitoring] Added Redis, AWS SQS, GCP Pub/Sub and Azure Queue Storage monitoring backends.
-- [Core] Added a cache of serialized functions to avoid re-uploading the same function.
 - [Core] Added `clean_jobs` to `wait()`, to keep the temporary data until the results are read.
 - [AWS Batch] Added the `instance_types` config option for EC2/SPOT compute environments.
 - [Multiprocessing] Added `timeout` to `acquire()`, and `_getvalue()`, `_callmethod()` and `copy_proxy()` to the manager proxies.
@@ -32,6 +31,7 @@
 
 ### Fixed
 
+- [Core] Fixed a repeated submission reusing the first serialization of a callable, freezing its captured state and the dependencies of the first runtime it ran on.
 - [Core] Fixed executor IDs repeating in a process whose environment is reset between executors.
 - [Core] Fixed `wait()` watching futures of another executor with a monitor that never sees them, leaving behind the monitors it started, and raising `TypeError` from `signal.alarm()` on a fractional timeout.
 - [Core] Fixed `result()` returning `None` instead of re-raising when the call had already failed.
@@ -41,10 +41,11 @@
 - [Core] Fixed `chunksize=0` and `execution_timeout=0` falling back to the config value.
 - [Core] Fixed a second Ctrl+C after a failed call turning into `Error in sys.excepthook`, and logging at interpreter shutdown raising on an already closed stream.
 - [Core] Fixed the function package carrying `.pytest_cache` directories and stale zips, a failed build leaving a partial zip behind, and `runtime_include_function` leaving the process in the build directory when the build failed.
-- [Chaining] Fixed a list or a slice of futures of a previous job not being recognised as a chain, and `extra_args` failing every activation of the chained job instead of raising at submit time.
+- [Chaining] Fixed a plain list, tuple or slice of futures not being recognised as a chain, leaving its consumed results in `get_result()`, and `extra_args` failing every activation instead of raising at submit time.
+- [Concurrent] Fixed `shutdown()` returning before a submission already in progress had been registered.
 - [Job] Fixed a glob pattern in the object name raising `TypeError` instead of listing the objects, and a `head_object()` without `content-length` raising a bare `KeyError`.
 - [Job] Fixed the last byte of an object being left out of its partitions, and folder markers being counted as objects, returning empty partitions.
-- [Monitoring] Fixed a status message lost in transit turning into a bogus timeout, or hanging `wait()` for ever.
+- [Monitoring] Fixed a lost status message or an unread stored status turning into a bogus timeout, hanging `wait()` for ever, or one storage error being enough to declare a timeout.
 - [Monitoring] Fixed a nested executor publishing statuses to a queue nobody declares, and failed RabbitMQ publishes being dropped with nothing in the log.
 - [Redis] Fixed `put_object()` rejecting file-like objects, which made `upload_file()` always fail, and `head_object()` reporting every key as missing on Redis 7 and up, where the `DEBUG OBJECT` command it relied on is disabled.
 - [Redis] Fixed `list_objects()` returning the object bodies instead of their keys and sizes and not skipping keys whose value is gone, `head_bucket()` returning a bool instead of the bucket metadata, and `delete_objects()` raising on an empty list.
@@ -59,7 +60,7 @@
 - [Multiprocessing] Fixed shared list writes being dropped or misplaced through slices, `remove()`, `index()`, `pop()` and `del`, and a slice of a shared array returning one element too many.
 - [Multiprocessing] Fixed manager proxies not raising the `KeyError`, `ValueError` and `IndexError` the standard library raises.
 - [Multiprocessing] Fixed concurrent updates to a shared object overwriting each other, and a shared object being deleted while on its way to a worker.
-- [Multiprocessing] Fixed `Condition.wait()` never reporting a notify, so every wait looked like a timeout.
+- [Multiprocessing] Fixed `Condition.wait()` never reporting a notify, keeping a recursively acquired lock so nobody could notify it, and not giving the lock back after a Redis error.
 - [Multiprocessing] Fixed over-releasing a lock or bounded semaphore passing silently, and a re-entrant `RLock` giving back a token it never took.
 - [Multiprocessing] Fixed `Value()` and `Array()` ignoring their `lock` argument.
 - [Multiprocessing] Fixed `lithops.multiprocessing.context` being shadowed by a context instance, which broke every `mp.context.<name>`.
@@ -84,6 +85,7 @@
 - [Storage] Fixed `CloudFileProxy.listdir()` returning nothing for its default argument.
 - [Worker] Fixed the remote invoker returning before its invocations in flight were done.
 - [Worker] Fixed the function process being aborted on macOS from the second call on, by setting Apple's fork-safety flag, and one killed by the OOM killer, or by any signal, being reported as a missing result.
+- [Worker] Fixed the non-Unix worker pool sharing one task object across its calls, mixing up their ids, data and logs, by spawning a process per worker.
 - [Azure] Fixed the `az` CLI calls deadlocking when a command filled the stderr pipe.
 - [Azure Containers] Fixed a deploy racing a provisioning operation already in progress, and a container app left in `Failed` state never being recreated.
 - [CLI] Fixed `job list` and `worker list` crashing when there was nothing to list.

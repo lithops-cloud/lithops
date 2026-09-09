@@ -29,6 +29,7 @@ from lithops.monitoring.backends.storage import StorageMonitor
 from lithops.monitoring.backends import resolve_backend
 from lithops.monitoring.monitor import (
     LOG_INTERVAL,
+    MAX_TIMEOUT_STATUS_QUERIES,
     Monitor,
     PollingMessageMonitor,
     _is_finished,
@@ -571,6 +572,85 @@ class TestMonitorHelpers:
 
 
 class TestTimeoutAndStatusLog:
+
+    @pytest.mark.parametrize('channel', ['storage', 'message'])
+    @pytest.mark.parametrize('failed', [False, True])
+    def test_stored_completion_wins_over_an_expired_timeout(self, monkeypatch, channel, failed):
+        storage = MagicMock()
+        cls = StorageMonitor if channel == 'storage' else PollingMessageMonitor
+        monitor = cls('sess-0', storage, queue.Queue(), {'M000': 1}, True, {'monitoring_interval': 1})
+        future = FakeFuture('M000', running=True, execution_timeout=10, activation_id='act-1')
+        future._call_status = {'type': '__init__', 'worker_start_tstamp': 100}
+        monitor.add_futures([future])
+        status = {
+            'type': '__end__', 'executor_id': 'sess-0', 'job_id': 'M000',
+            'call_id': '00000', 'activation_id': 'act-1', 'chunksize': 1,
+            'worker_start_tstamp': 100, 'worker_end_tstamp': 102,
+            'exception': failed, 'result': 'worker result',
+        }
+        storage.get_job_status.return_value = (set(), {('sess-0', 'M000', '00000')})
+        storage.get_call_status.return_value = status
+        monkeypatch.setattr('lithops.monitoring.monitor.time.time', lambda: 116)
+        if channel == 'storage':
+            monitor._poll_and_process_job_status()
+        else:
+            monitor._last_message_tstamp = 100
+            monkeypatch.setattr(monitor, '_poll_once', monitor.stop)
+            monitor.run()
+            assert monitor.token_bucket_q.get_nowait() == '#'
+            assert monitor.token_bucket_q.empty()
+        assert future._call_status == status
+
+    def test_timeout_waits_for_storage_to_recover(self):
+        monitor = _monitor()
+        monitor.internal_storage = MagicMock()
+        monitor.internal_storage.get_call_status.side_effect = OSError('storage unavailable')
+        future = FakeFuture('M000', running=True, activation_id='act-1')
+        future._call_status = {'worker_start_tstamp': time.time() - 100}
+        monitor._future_timeout_checker([future])
+        assert not future.ready
+
+        monitor.internal_storage.get_call_status.side_effect = None
+        monitor.internal_storage.get_call_status.return_value = None
+        monitor._future_timeout_checker([future])
+        assert future.ready
+        assert future._call_status['exception'] is True
+
+    def test_timeout_is_reported_when_storage_stays_unreachable(self):
+        monitor = _monitor()
+        monitor.internal_storage = MagicMock()
+        monitor.internal_storage.get_call_status.side_effect = OSError('storage unavailable')
+        future = FakeFuture('M000', running=True, activation_id='act-1')
+        future._call_status = {'worker_start_tstamp': time.time() - 100}
+        for _ in range(MAX_TIMEOUT_STATUS_QUERIES - 1):
+            monitor._future_timeout_checker([future])
+            assert not future.ready
+        monitor._future_timeout_checker([future])
+        assert future.ready
+        assert future._call_status['exception'] is True
+
+    def test_the_failure_budget_is_counted_per_call(self):
+        monitor = _monitor()
+        monitor.internal_storage = MagicMock()
+        monitor.internal_storage.get_call_status.side_effect = OSError('storage unavailable')
+        futures = [
+            FakeFuture('M000', call_id=f'{i:05}', running=True, activation_id='act-1')
+            for i in range(MAX_TIMEOUT_STATUS_QUERIES)
+        ]
+        for future in futures:
+            future._call_status = {'worker_start_tstamp': time.time() - 100}
+        # One round over several calls is one failure each, not a shared
+        # budget that the last call in the round exhausts
+        monitor._future_timeout_checker(futures)
+        assert not any(future.ready for future in futures)
+
+    def test_unexpired_calls_do_not_query_storage(self):
+        monitor = _monitor()
+        monitor.internal_storage = MagicMock()
+        future = FakeFuture('M000', running=True, activation_id='act-1')
+        future._call_status = {'worker_start_tstamp': time.time()}
+        monitor._future_timeout_checker([future])
+        monitor.internal_storage.get_call_status.assert_not_called()
 
     @pytest.fixture(autouse=True)
     def _propagate_monitor_logs(self):

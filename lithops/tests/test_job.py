@@ -33,7 +33,6 @@ from lithops.job import create_map_job, create_reduce_job
 from lithops.job.job import (
     FUNCTION_CACHE,
     MAX_DATA_IN_PAYLOAD,
-    _FUNC_SERIALIZE_CACHE,
     _store_func_and_modules,
     invalidate_function_cache,
 )
@@ -124,14 +123,10 @@ def _storage():
 @pytest.fixture
 def fresh_function_cache():
     saved = set(FUNCTION_CACHE)
-    saved_serialize = {func: dict(entries) for func, entries in _FUNC_SERIALIZE_CACHE.items()}
     FUNCTION_CACHE.clear()
-    _FUNC_SERIALIZE_CACHE.clear()
     yield FUNCTION_CACHE
     FUNCTION_CACHE.clear()
     FUNCTION_CACHE.update(saved)
-    _FUNC_SERIALIZE_CACHE.clear()
-    _FUNC_SERIALIZE_CACHE.update(saved_serialize)
 
 
 @pytest.fixture
@@ -481,9 +476,55 @@ class TestLargePayloadAndCache:
         assert job.data_key is not None
 
 
-class TestFuncSerializeCache:
+class TestFunctionSerialization:
 
-    def test_second_map_skips_cloudpickle_of_same_function(
+    @pytest.mark.parametrize('callable_kind', ['closure', 'instance'])
+    def test_changed_callable_state_is_uploaded_again(self, fresh_function_cache, callable_kind):
+        state = {'multiplier': 2}
+
+        def compute(x):
+            return x * state['multiplier']
+
+        class Multiply:
+            multiplier = 2
+
+            def __call__(self, x):
+                return x * self.multiplier
+
+        func = compute if callable_kind == 'closure' else Multiply()
+        storage = _storage()
+        first = _make_map_job(func=func, internal_storage=storage, include_modules=None)
+        first_payload = pickle.loads(storage.put_func.call_args.args[1])
+        assert pickle.loads(first_payload['func'])(10) == 20
+
+        state['multiplier'] = 3
+        if callable_kind == 'instance':
+            func.multiplier = 3
+        second = _make_map_job(func=func, internal_storage=storage, include_modules=None)
+        second_payload = pickle.loads(storage.put_func.call_args.args[1])
+        assert pickle.loads(second_payload['func'])(10) == 30
+        assert second.func_key != first.func_key
+
+    def test_dependency_payload_matches_the_target_runtime(self, fresh_function_cache):
+        import yaml
+
+        def compute(value):
+            return yaml.safe_load(value)
+
+        storage = _storage()
+        _make_map_job(
+            func=compute, iterdata=['a: 1'], internal_storage=storage,
+            include_modules=['yaml'], runtime_meta=_runtime_meta(preinstalls=[['yaml', True]]),
+        )
+        assert not pickle.loads(storage.put_func.call_args.args[1])['module_data']
+        _make_map_job(
+            func=compute, iterdata=['a: 1'], internal_storage=storage,
+            include_modules=['yaml'], runtime_meta=_runtime_meta(preinstalls=[]),
+        )
+        payload = pickle.loads(storage.put_func.call_args.args[1])
+        assert 'yaml/__init__.py' in payload['module_data']
+
+    def test_second_map_refreshes_serialization_but_deduplicates_upload(
         self, monkeypatch, fresh_function_cache
     ):
         dumped = []
@@ -508,9 +549,10 @@ class TestFuncSerializeCache:
         _make_map_job(
             internal_storage=storage, func=_echo, iterdata=[3, 4]
         )
-        assert dumped.count(_echo) == 1
+        assert dumped.count(_echo) == 2
         data_dumps = [obj for obj in dumped if obj is not _echo]
         assert len(data_dumps) == 4
+        storage.put_func.assert_called_once()
 
 
 class TestInvalidateFunctionCache:

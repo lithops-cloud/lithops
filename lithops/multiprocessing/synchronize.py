@@ -206,6 +206,12 @@ class Lock(SemLock):
         self.owned = False
         super().release()
 
+    def _release_save(self):
+        self.release()
+
+    def _acquire_restore(self, state):
+        self.acquire()
+
 
 #
 # Recursive lock
@@ -248,6 +254,17 @@ class RLock(Lock):
         if self._count == 0:
             super().release()
 
+    def _release_save(self):
+        """Release all acquisitions while a condition waits."""
+        count = self._count
+        self._count = 0
+        super().release()
+        return count
+
+    def _acquire_restore(self, count):
+        self.acquire()
+        self._count = count
+
 
 #
 # Condition variable
@@ -274,6 +291,25 @@ class Condition:
     def release(self):
         self._lock.release()
 
+    def _release_save(self):
+        """
+        Hands the lock over while waiting. A lock that keeps no recursion
+        depth, such as a plain Semaphore, is simply released, which is what
+        threading.Condition does for the same case
+        """
+        release_save = getattr(self._lock, '_release_save', None)
+        if release_save is None:
+            self._lock.release()
+            return None
+        return release_save()
+
+    def _acquire_restore(self, state):
+        acquire_restore = getattr(self._lock, '_acquire_restore', None)
+        if acquire_restore is None:
+            self._lock.acquire()
+        else:
+            acquire_restore(state)
+
     def __enter__(self):
         return self._lock.__enter__()
 
@@ -290,16 +326,19 @@ class Condition:
         if not res:
             raise Exception('Condition ({}) could not enqueue waiting key'.format(self._notify_handle))
 
-        # Release lock, wait to get notified, acquire lock
-        self.release()
-        logger.debug('Waiting for token %s on condition %s', wait_handle, self._notify_handle)
-        if timeout is not None and timeout <= 0:
-            # BLPOP reads a zero timeout as "block for ever"
-            notified = self._client.lpop(wait_handle) is not None
-        else:
-            notified = _blpop(self._client, wait_handle, timeout) is not None
-        self._client.expire(wait_handle, mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
-        self.acquire()
+        # A notifier needs the lock even when the waiter acquired it more
+        # than once. Restore ownership on errors as well as on notification.
+        state = self._release_save()
+        try:
+            logger.debug('Waiting for token %s on condition %s', wait_handle, self._notify_handle)
+            if timeout is not None and timeout <= 0:
+                # BLPOP reads a zero timeout as "block for ever"
+                notified = self._client.lpop(wait_handle) is not None
+            else:
+                notified = _blpop(self._client, wait_handle, timeout) is not None
+            self._client.expire(wait_handle, mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
+        finally:
+            self._acquire_restore(state)
         # Whether a notify arrived, rather than the timeout expiring, which
         # is what the standard library returns and callers branch on
         return notified

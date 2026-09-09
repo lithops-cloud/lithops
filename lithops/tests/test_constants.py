@@ -12,7 +12,11 @@
 # limitations under the License.
 #
 
+import importlib
 import os
+import pathlib
+
+import pytest
 
 from lithops import constants
 from lithops.utils import get_default_backend, get_mode
@@ -31,6 +35,27 @@ class TestConstants:
         assert constants.STANDALONE_BACKEND_DEFAULT in constants.STANDALONE_BACKENDS
         assert constants.LOCALHOST not in constants.SERVERLESS_BACKENDS
         assert constants.LOCALHOST not in constants.STANDALONE_BACKENDS
+
+    @pytest.mark.parametrize('backends, package', [
+        ('SERVERLESS_BACKENDS', 'lithops.serverless.backends'),
+        ('STANDALONE_BACKENDS', 'lithops.standalone.backends'),
+    ])
+    def test_the_known_backends_are_the_ones_that_exist(self, backends, package):
+        """
+        The tuples name the backends, and the packages under
+        lithops/*/backends are what they resolve to. A name in the tuple
+        with no package behind it turns a clear "Unknown compute backend"
+        into a ModuleNotFoundError further down; a package nobody listed
+        is a backend get_mode() refuses
+        """
+        module = importlib.import_module(package)
+        root = pathlib.Path(module.__file__).parent
+        on_disk = {
+            entry.name for entry in root.iterdir()
+            if entry.is_dir() and not entry.name.startswith(('_', '.'))
+        }
+
+        assert set(getattr(constants, backends)) == on_disk
 
     def test_backend_collections_are_immutable(self):
         assert isinstance(constants.SERVERLESS_BACKENDS, tuple)

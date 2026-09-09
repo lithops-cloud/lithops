@@ -373,6 +373,9 @@ class FunctionExecutor(_CfExecutor):
         self._inner = executor
 
         self._lock = threading.RLock()
+        # Native submission can block on runtime deployment or storage. Keep
+        # it separate from the lock used to resolve already submitted calls.
+        self._submission_lock = threading.RLock()
         self._is_shutdown = False
         self._broken = None
         self._torn_down = False
@@ -632,17 +635,20 @@ class FunctionExecutor(_CfExecutor):
     # -- concurrent.futures.Executor ----------------------------------------
 
     def submit(self, fn, /, *args, **kwargs):
-        with self._lock:
-            self._check_running()
-        payload = (fn, args, kwargs)
-        job_kwargs = self._job_kwargs()
-        call_async = getattr(self._inner, 'call_async', None)
-        if call_async is not None:
-            lf = call_async(_call, payload, **job_kwargs)
-        else:
-            # A duck-typed executor may only expose map()
-            lf = self._inner.map(_call, [payload], **job_kwargs)[0]
-        return self._track([lf])[0]
+        # Shutdown must see every accepted submission in _pending before it
+        # can release the native executor, including while submission blocks.
+        with self._submission_lock:
+            with self._lock:
+                self._check_running()
+            payload = (fn, args, kwargs)
+            job_kwargs = self._job_kwargs()
+            call_async = getattr(self._inner, 'call_async', None)
+            if call_async is not None:
+                lf = call_async(_call, payload, **job_kwargs)
+            else:
+                # A duck-typed executor may only expose map()
+                lf = self._inner.map(_call, [payload], **job_kwargs)[0]
+            return self._track([lf])[0]
 
     def map(
         self,
@@ -683,15 +689,16 @@ class FunctionExecutor(_CfExecutor):
         def submit_batch(items):
             if not items:
                 return []
-            with self._lock:
-                self._check_running()
-            lfs = self._inner.map(
-                _call,
-                [(fn, args, {}) for args in items],
-                chunksize=chunksize,
-                **self._job_kwargs()
-            )
-            return self._track(lfs)
+            with self._submission_lock:
+                with self._lock:
+                    self._check_running()
+                lfs = self._inner.map(
+                    _call,
+                    [(fn, args, {}) for args in items],
+                    chunksize=chunksize,
+                    **self._job_kwargs()
+                )
+                return self._track(lfs)
 
         fs = collections.deque(
             submit_batch(take(buffersize if buffersize else None))
@@ -714,9 +721,10 @@ class FunctionExecutor(_CfExecutor):
         return result_iterator()
 
     def shutdown(self, wait=True, *, cancel_futures=False):
-        with self._lock:
-            self._is_shutdown = True
-            pending = list(self._pending)
+        with self._submission_lock:
+            with self._lock:
+                self._is_shutdown = True
+                pending = list(self._pending)
         if cancel_futures:
             # Lithops cannot recall an activation it already dispatched, so
             # every future here is running and declines. Kept so that callers

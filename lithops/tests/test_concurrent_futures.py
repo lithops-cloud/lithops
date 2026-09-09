@@ -743,6 +743,110 @@ class TestWaitAndAsCompleted:
 
 class TestLifecycle:
 
+    @pytest.mark.parametrize('method', ['submit', 'map'])
+    @pytest.mark.parametrize('wait_for_results', [True, False])
+    def test_shutdown_includes_a_submission_in_progress(self, method, wait_for_results):
+        entered = threading.Event()
+        release = threading.Event()
+        shutdown_done = threading.Event()
+        outcomes, errors = [], []
+        lf = FakeLithopsFuture(value=42)
+        inner = FakeInnerExecutor(lf, map_results=[lf])
+        ex = _adapter(inner)
+        ex._owns_executor = True
+        native_method = inner.call_async if method == 'submit' else inner.map
+
+        def blocked(*args, **kwargs):
+            entered.set()
+            if not release.wait(timeout=5):
+                raise TimeoutError('test submission was not released')
+            return native_method(*args, **kwargs)
+
+        setattr(inner, 'call_async' if method == 'submit' else 'map', blocked)
+
+        def submit():
+            try:
+                outcomes.append(ex.submit(abs, -42) if method == 'submit' else ex.map(abs, [-42]))
+            except BaseException as exc:
+                errors.append(exc)
+
+        def shutdown():
+            try:
+                ex.shutdown(wait=wait_for_results)
+                shutdown_done.set()
+            except BaseException as exc:
+                errors.append(exc)
+
+        submitter = threading.Thread(target=submit)
+        closer = threading.Thread(target=shutdown)
+        submitter.start()
+        assert entered.wait(timeout=5)
+        closer.start()
+        try:
+            returned_early = shutdown_done.wait(timeout=0.1)
+            exited_early = inner.exited
+        finally:
+            release.set()
+            submitter.join(timeout=5)
+            closer.join(timeout=5)
+            ex.shutdown(wait=True)
+            # wait=False can already have handed teardown to the reaper.
+            if ex._reaper is not None:
+                ex._reaper.join(timeout=5)
+        assert not errors
+        assert not returned_early and not exited_early
+        assert inner.exited
+        if method == 'submit':
+            assert outcomes[0].result(timeout=5) == 42
+        else:
+            assert list(outcomes[0]) == [42]
+
+    def test_slow_submission_does_not_block_an_earlier_result(self):
+        entered, release, resolved = threading.Event(), threading.Event(), threading.Event()
+        lf = FakeLithopsFuture(finished=False)
+        inner = FakeInnerExecutor(lf)
+        ex = _adapter(inner)
+        first = ex.submit(abs, -42)
+        errors, results = [], []
+
+        def blocked(*args, **kwargs):
+            entered.set()
+            if not release.wait(timeout=5):
+                raise TimeoutError('test submission was not released')
+            return FakeLithopsFuture(value=1)
+
+        inner.call_async = blocked
+
+        def submit():
+            try:
+                ex.submit(abs, -1)
+            except BaseException as exc:
+                errors.append(exc)
+
+        def resolve():
+            try:
+                results.append(first.result(timeout=1))
+                resolved.set()
+            except BaseException as exc:
+                errors.append(exc)
+
+        submitter = threading.Thread(target=submit)
+        reader = threading.Thread(target=resolve)
+        submitter.start()
+        assert entered.wait(timeout=5)
+        lf.finish(value=42)
+        reader.start()
+        try:
+            finished_while_submitting = resolved.wait(timeout=2)
+        finally:
+            release.set()
+            submitter.join(timeout=5)
+            reader.join(timeout=5)
+            ex.shutdown(wait=True)
+        assert not errors
+        assert finished_while_submitting
+        assert results == [42]
+
     def test_submit_after_shutdown_raises(self):
         ex = _adapter()
         ex.shutdown(wait=False)

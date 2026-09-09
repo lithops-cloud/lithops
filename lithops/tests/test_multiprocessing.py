@@ -1585,6 +1585,61 @@ class TestBlpopTimeoutFallback:
 
 class TestConditionContract:
 
+    def test_wait_fully_releases_a_recursive_lock(self, redis):
+        import copy
+        from lithops.multiprocessing import Condition, RLock
+
+        lock = RLock()
+        cond = Condition(lock)
+        # A remote worker has its own ownership state for the same Redis key.
+        peer_lock = copy.copy(lock)
+        peer_cond = copy.copy(cond)
+        peer_cond._lock = peer_lock
+        acquired = []
+
+        def notify():
+            acquired.append(peer_lock.acquire(timeout=1))
+            if acquired[-1]:
+                try:
+                    peer_cond.notify()
+                finally:
+                    peer_lock.release()
+
+        lock.acquire()
+        lock.acquire()
+        thread = threading.Thread(target=notify)
+        thread.start()
+        try:
+            notified = cond.wait(timeout=2)
+            assert lock.owned and lock._count == 2
+        finally:
+            lock.release()
+            lock.release()
+            thread.join(timeout=3)
+        assert acquired == [True]
+        assert notified is True
+
+    @pytest.mark.parametrize('recursive', [False, True])
+    def test_wait_restores_the_lock_after_a_redis_error(self, redis, recursive):
+        from lithops.multiprocessing import Condition, Lock, RLock
+
+        lock = RLock() if recursive else Lock()
+        cond = Condition(lock)
+        depth = 2 if recursive else 1
+        for _ in range(depth):
+            lock.acquire()
+        try:
+            with patch('lithops.multiprocessing.synchronize._blpop', side_effect=OSError('connection lost')):
+                with pytest.raises(OSError, match='connection lost'):
+                    cond.wait(timeout=1)
+            assert lock.owned
+            if recursive:
+                assert lock._count == depth
+        finally:
+            if lock.owned:
+                for _ in range(depth):
+                    lock.release()
+
     def test_wait_says_whether_it_was_notified(self, redis):
         """
         The standard library returns False on a timeout and True on a

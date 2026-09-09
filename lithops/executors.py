@@ -55,6 +55,7 @@ from lithops.utils import (
     create_futures_list,
     FuturesList,
     _as_future_list as wrap_as_future_list,
+    _chained_futures,
     log_prefix,
 )
 from lithops.localhost import LocalhostHandlerV1, LocalhostHandlerV2
@@ -330,9 +331,8 @@ class FunctionExecutor:
         Marks the futures used as input as consumed, so that get_result()
         returns the output of this job only
         """
-        if isinstance(iterdata, FuturesList):
-            for fut in iterdata:
-                fut._produce_output = False
+        for fut in _chained_futures(iterdata) or ():
+            fut._produce_output = False
 
     def _invoke(self, job):
         """

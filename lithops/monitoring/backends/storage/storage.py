@@ -260,8 +260,8 @@ class StorageMonitor(Monitor):
         )
 
         self._generate_tokens(callids_running, callids_done)
-        self._tag_future_as_running(callids_running)
         self._tag_future_as_ready(callids_done)
+        self._tag_future_as_running(callids_running)
 
         self._print_status_log()
 

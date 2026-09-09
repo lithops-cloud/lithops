@@ -159,15 +159,21 @@ def create_job(payload: Dict[str, Any]) -> SimpleNamespace:
     return job
 
 
-def _fill_queue(job: SimpleNamespace, worker_processes: int) -> Queue:
+def _fill_queue(job: SimpleNamespace, worker_processes: int, work_queue=None):
     """
     Loads every task of the job in a queue, followed by one sentinel per
     worker. Every task is known upfront, so nothing is queued afterwards
     """
-    work_queue = Queue()
+    if work_queue is None:
+        work_queue = Queue()
 
     for call_id, data in zip(job.call_ids, job.data):
-        work_queue.put((job, call_id, data))
+        task = SimpleNamespace(**vars(job))
+        # Keep only this call in the queued task. Besides isolating mutable
+        # state, this avoids pickling the whole input list once per call.
+        task.call_ids = [call_id]
+        task.data = data
+        work_queue.put((task, call_id, data))
 
     for _ in range(worker_processes):
         work_queue.put(ShutdownSentinel())
@@ -203,21 +209,34 @@ def _run_process_pool(job: SimpleNamespace, worker_processes: int) -> None:
         worker.join()
 
 
-def _run_thread_pool(job: SimpleNamespace, worker_processes: int) -> None:
+def _run_spawn_pool(job: SimpleNamespace, worker_processes: int) -> None:
     """
-    Runs the tasks of the job in threads. Used where there is no fork, so
-    tasks share this interpreter instead of getting a process each
+    Runs workers in separate interpreters where fork is unavailable.
+
+    The multiprocessing queue gives each call its own deserialized task.
+    Threads would share the task namespace, cwd, environment and log streams.
     """
-    work_queue = _fill_queue(job, worker_processes)
+    ctx = mp.get_context('spawn')
+    work_queue = ctx.Queue()
     workers = []
-
-    for pid in range(worker_processes):
-        worker = Thread(target=task_consumer, args=(pid, work_queue))
-        workers.append(worker)
-        worker.start()
-
-    for worker in workers:
-        worker.join()
+    try:
+        for pid in range(worker_processes):
+            worker = ctx.Process(target=task_consumer, args=(pid, work_queue))
+            worker.start()
+            workers.append(worker)
+        _fill_queue(job, worker_processes, work_queue)
+        for worker in workers:
+            worker.join()
+            if worker.exitcode != 0:
+                raise RuntimeError(f'Worker process {worker.pid} exited with code {worker.exitcode}')
+    finally:
+        for worker in workers:
+            if worker.is_alive():
+                worker.terminate()
+                worker.join()
+        # If consumers died, the feeder may still hold data nobody can read.
+        work_queue.cancel_join_thread()
+        work_queue.close()
 
 
 def function_handler(payload: Dict[str, Any]) -> None:
@@ -238,7 +257,7 @@ def function_handler(payload: Dict[str, Any]) -> None:
     elif is_unix_system():
         _run_process_pool(job, worker_processes)
     else:
-        _run_thread_pool(job, worker_processes)
+        _run_spawn_pool(job, worker_processes)
 
     module_path = os.path.join(MODULES_DIR, job.job_key)
     if module_path in sys.path:

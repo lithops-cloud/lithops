@@ -145,7 +145,6 @@ SERVERLESS_BACKENDS = (
     'aws_batch',
     'gcp_cloudrun',
     'gcp_functions',
-    'cloudrun',
     'azure_functions',
     'azure_containers',
     'aliyun_fc',

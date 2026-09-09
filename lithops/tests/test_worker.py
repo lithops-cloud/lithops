@@ -131,6 +131,11 @@ def _record_task(task):
         fid.write(str(os.getpid()))
 
 
+def _record_spawned_call(value, out_dir, id):
+    with open(os.path.join(out_dir, f'{id:05}-{value}'), 'w') as fid:
+        fid.write(str(os.getpid()))
+
+
 def _task(**kwargs):
     values = dict(
         extra_env={},
@@ -188,6 +193,25 @@ class TestCreateJob:
 
 
 class TestTaskConsumer:
+
+    def test_queued_calls_keep_distinct_state(self):
+        job = _task(call_ids=['00000', '00001'], data=[b'first', b'second'])
+        work_queue = handler_module._fill_queue(job, 2)
+        rendezvous = threading.Barrier(2)
+        seen = []
+
+        def observe(task):
+            rendezvous.wait(timeout=5)
+            seen.append((task.call_id, task.data))
+
+        threads = [threading.Thread(target=task_consumer, args=(i, work_queue)) for i in range(2)]
+        with patch.object(handler_module, 'prepare_and_run_task', side_effect=observe):
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join(timeout=5)
+        assert sorted(seen) == [('00000', b'first'), ('00001', b'second')]
+        assert job.data == [b'first', b'second']
 
     def test_runs_tasks_then_stops_on_sentinel(self):
         q = Queue()
@@ -302,37 +326,42 @@ class TestFunctionHandler:
         ctx.Process.return_value = proc
         with patch('lithops.worker.handler.create_job', return_value=job):
             with patch('lithops.worker.handler.setup_lithops_logger'):
-                with patch('lithops.worker.handler._MP_CTX', ctx):
+                with patch('lithops.worker.handler._MP_CTX', ctx), \
+                        patch('lithops.worker.handler.is_unix_system', return_value=True):
                     function_handler({})
         ctx.Manager.assert_not_called()
         assert ctx.Process.call_count == 2
         assert proc.start.call_count == 2
         assert proc.join.call_count == 2
 
-    def test_multi_worker_runs_every_task_once(self):
-        n_tasks = 6
+    def test_non_unix_workers_use_process_isolation(self):
         job = _task(
-            worker_processes=3,
-            call_ids=[f'{i:05}' for i in range(n_tasks)],
-            data=[f'd{i}'.encode() for i in range(n_tasks)],
+            worker_processes=2, call_ids=['00000', '00001'], data=[b'a', b'b']
         )
-        seen = []
-        with patch('lithops.worker.handler.create_job', return_value=job):
-            with patch('lithops.worker.handler.setup_lithops_logger'):
-                with patch(
-                    'lithops.worker.handler.prepare_and_run_task',
-                    side_effect=lambda task: seen.append(
-                        (task.call_id, task.data)
-                    ),
-                ):
-                    with patch(
-                        'lithops.worker.handler._run_process_pool',
-                        new=handler_module._run_thread_pool,
-                    ):
-                        function_handler({})
-        assert sorted(seen) == [
-            (f'{i:05}', f'd{i}'.encode()) for i in range(n_tasks)
-        ]
+        with patch.object(handler_module, 'create_job', return_value=job), \
+                patch.object(handler_module, 'is_unix_system', return_value=False), \
+                patch.object(handler_module, '_run_spawn_pool') as spawned:
+            function_handler({})
+        spawned.assert_called_once_with(job, 2)
+
+    def test_spawn_pool_runs_every_task_in_a_child(self, tmp_path):
+        from lithops.config import default_config
+
+        n_tasks = 6
+        config = default_config(config_data={
+            'lithops': {'backend': 'localhost', 'storage': 'localhost'},
+            'localhost': {'storage_bucket': str(tmp_path / 'storage')},
+        })
+        job = _task(
+            config=config, worker_processes=2,
+            call_ids=[f'{i:05}' for i in range(n_tasks)],
+            data=[pickle.dumps({'value': f'd{i}', 'out_dir': str(tmp_path)}) for i in range(n_tasks)],
+            func=pickle.dumps(_record_spawned_call),
+        )
+        handler_module._run_spawn_pool(job, job.worker_processes)
+        done = sorted(p for p in tmp_path.iterdir() if p.is_file())
+        assert [p.name for p in done] == [f'{i:05}-d{i}' for i in range(n_tasks)]
+        assert all(p.read_text() != str(os.getpid()) for p in done)
 
     @pytest.mark.skipif(
         not is_unix_system(), reason='the process pool needs fork'

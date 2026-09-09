@@ -185,3 +185,16 @@ class TestMap:
         fexec = lithops.FunctionExecutor(config=pytest.lithops_config)
         result = fexec.map(add_one, [1, 2, 3]).map(mul_two).get_result()
         assert result == [4, 6, 8]
+
+    @pytest.mark.parametrize('container', [list, tuple, lambda fs: fs[:]])
+    def test_chaining_plain_futures_hides_consumed_outputs(self, container):
+        with lithops.FunctionExecutor(config=pytest.lithops_config) as fexec:
+            first = fexec.map(lambda x: x * x, [1, 2])
+            fexec.map(lambda x: x * 2, container(first))
+            assert fexec.get_result() == [2, 8]
+
+    def test_chaining_a_slice_keeps_unconsumed_outputs(self):
+        with lithops.FunctionExecutor(config=pytest.lithops_config) as fexec:
+            first = fexec.map(lambda x: x * x, [1, 2])
+            fexec.map(lambda x: x * 2, first[:1])
+            assert fexec.get_result() == [4, 2]
