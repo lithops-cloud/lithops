@@ -26,7 +26,7 @@ from lithops.standalone.utils import (
     is_container_runtime,
     lithops_pip_spec_from_config,
 )
-from lithops.utils import BackendType
+from lithops.utils import BackendType, is_unix_system
 from lithops.version import __version__
 
 
@@ -145,6 +145,10 @@ class TestStandaloneUtils:
         assert '/usr/bin/python3' in script
         assert 'docker run --rm --name lithops_worker' not in script
 
+    @pytest.mark.skipif(
+        not is_unix_system(),
+        reason='the docker worker script is built from the client uid/gid',
+    )
     def test_worker_setup_script_uses_docker_for_tagged_python(self):
         script = get_worker_setup_script(
             {

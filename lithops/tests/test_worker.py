@@ -284,6 +284,10 @@ class TestTaskJar:
         assert jar.get()[1:] == ('00001', b'd1')
         jar.close_reader()
 
+    @pytest.mark.skipif(
+        not is_unix_system(),
+        reason='only a POSIX pipe reports a dead reader as a broken pipe',
+    )
     def test_dispatch_survives_workers_that_died(self):
         jar = self._jar(2)
         jar.close_reader()
@@ -317,6 +321,9 @@ class TestFunctionHandler:
         consumer.assert_called_once()
         assert consumer.call_args[0][0] == 0
 
+    @pytest.mark.skipif(
+        not is_unix_system(), reason='the process pool needs fork'
+    )
     def test_multi_worker_starts_processes_and_joins(self):
         job = _task(
             worker_processes=2, call_ids=['00000', '00001'], data=[b'a', b'b']
@@ -539,6 +546,9 @@ class TestRunTask:
         }['exc_info']
         return pickle.loads(ast.literal_eval(pickled))[0]
 
+    @pytest.mark.skipif(
+        not is_unix_system(), reason='there is no SIGKILL on Windows'
+    )
     def test_a_sigkilled_jobrunner_is_reported_as_memory(self, tmp_path):
         task = _task()
         task.log_stream = MagicMock()
@@ -639,6 +649,9 @@ class TestJobRunnerDeathReason:
     error looking in the wrong place
     """
 
+    @pytest.mark.skipif(
+        not is_unix_system(), reason='there is no SIGKILL on Windows'
+    )
     def test_sigkill_reads_as_memory(self):
         from lithops.worker.handler import _jobrunner_death_reason
         reason = _jobrunner_death_reason(-signal.SIGKILL)
@@ -911,10 +924,14 @@ class TestWorkerUtils:
     def test_peak_memory_and_disk(self, tmp_path):
         mem = peak_memory()
         assert mem is None or mem >= 0
-        assert free_disk_space(str(tmp_path)) > 0
+        if is_unix_system():
+            # free_disk_space() reads statvfs, which Windows has no equivalent of
+            assert free_disk_space(str(tmp_path)) > 0
 
     def test_get_memory_usage_non_root_returns_none(self):
-        if os.geteuid() != 0:
+        # ps_mem needs both a Unix system and root, and it is the system
+        # that is checked first: os.geteuid() does not exist on Windows
+        if not is_unix_system() or os.geteuid() != 0:
             assert get_memory_usage() is None
 
     def test_memory_monitor_sends_peak_on_poll(self):

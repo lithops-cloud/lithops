@@ -78,6 +78,13 @@ class TestLocalhostConfig:
             'python3.12',
             '/usr/bin/python3',
             r'C:\Python\python.exe',
+            # A forward-slash drive path and a UNC share are local too, and
+            # a basename that does not look like an interpreter used to send
+            # both of them off to be pulled as a container image
+            'C:/Python/python.exe',
+            r'C:\tools\my-interpreter.exe',
+            'C:/tools/my-interpreter.exe',
+            r'\\server\share\my-interpreter.exe',
         ):
             assert localhost_config.get_environment(runtime) is (
                 localhost_config.LocalhostEnvironment.DEFAULT
@@ -461,6 +468,9 @@ class TestV2Environment:
         log_fail.assert_not_called()
         assert 'sess-0-M000-00000' not in env.task_processes
 
+    @pytest.mark.skipif(
+        not is_unix_system(), reason='there is no SIGKILL on Windows'
+    )
     def test_default_stop_kills_matching_process_group(self):
         env = v2.DefaultEnvironment(_config(worker_processes=1))
         proc = MagicMock()
@@ -767,6 +777,9 @@ class TestV1Environment:
         runner_src = copy_pkg.call_args[0][1]
         assert runner_src.endswith(os.path.join('localhost', 'v1', 'runner.py'))
 
+    @pytest.mark.skipif(
+        not is_unix_system(), reason='there is no SIGKILL on Windows'
+    )
     def test_stop_kills_process_group(self):
         env = v1.DefaultEnvironment(_config())
         proc = MagicMock()

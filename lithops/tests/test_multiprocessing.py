@@ -36,6 +36,7 @@ import cloudpickle
 import pytest
 from unittest.mock import MagicMock, patch
 
+from lithops.utils import is_unix_system
 from lithops.multiprocessing import config as mp_config
 from lithops.multiprocessing import util as mp_util
 from lithops.tests.mp_fakeredis import FakeRedis
@@ -1746,6 +1747,9 @@ class TestWaitAlarm:
     seconds
     """
 
+    @pytest.mark.skipif(
+        not is_unix_system(), reason='wait() only arms an alarm on POSIX'
+    )
     def test_a_fractional_timeout_is_rounded_up(self):
         lw = sys.modules['lithops.wait']
 
@@ -1764,6 +1768,9 @@ class TestWaitAlarm:
         with pytest.raises(TimeoutError, match='Timeout of 0 seconds'):
             lw._set_wait_alarm(0)
 
+    @pytest.mark.skipif(
+        not is_unix_system(), reason='wait() only arms an alarm on POSIX'
+    )
     def test_pool_get_with_a_fractional_timeout_raises_timeout_error(self):
         """
         Pool.AsyncResult.get(0.2) reached signal.alarm() through wait() and
