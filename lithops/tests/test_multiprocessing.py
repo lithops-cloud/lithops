@@ -85,7 +85,7 @@ def _redis_reachable():
     spends seconds on its own retries before it gives up
     """
     try:
-        socket.create_connection((REDIS_HOST, REDIS_PORT), timeout=1).close()
+        socket.create_connection((REDIS_HOST, REDIS_PORT), timeout=0.25).close()
     except OSError:
         return False
     try:
