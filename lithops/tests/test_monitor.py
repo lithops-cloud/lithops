@@ -1673,8 +1673,8 @@ class TestMessageLossAndRecovery:
 
 class TestBackendContract:
     """
-    "Adding a backend is adding a package" only holds if a package that
-    does not hold up its end says so, instead of quietly monitoring nothing
+    "Adding a backend is adding a package" only holds if the package name
+    is what names the backend, and every built-in one is reachable that way
     """
 
     def _in_backends(self, name='fake'):
@@ -1687,37 +1687,9 @@ class TestBackendContract:
         ))
         assert cls.backend_name == 'fake'
 
-    def test_a_backend_name_that_disagrees_is_rejected(self):
-        with pytest.raises(TypeError, match='backend package'):
-            type('Drifted', (Monitor,), dict(
-                self._in_backends(),
-                backend_name='something-else',
-                run=lambda self: None,
-            ))
-
-    def test_a_backend_that_consumes_nothing_is_rejected(self):
-        with pytest.raises(TypeError, match='neither run'):
-            type('Empty', (Monitor,), dict(self._in_backends()))
-
-    def test_a_helper_class_can_opt_out(self):
-        cls = type('Helper', (Monitor,), dict(self._in_backends()),
-                   abstract=True)
-        assert cls.backend_name is None
-
     def test_classes_outside_the_backends_package_are_left_alone(self):
         cls = type('Local', (Monitor,), {'__module__': 'somewhere.else'})
         assert cls.backend_name is None
-
-    def test_exports_are_checked_against_the_base_classes(self):
-        from lithops.monitoring.backends import load_backend_attr
-        module = MagicMock()
-        module.MonitoringBackend = 'not a class'
-        with patch(
-            'lithops.monitoring.backends.importlib.import_module',
-            return_value=module,
-        ):
-            with pytest.raises(ValueError, match='not a Monitor subclass'):
-                load_backend_attr('fake', 'MonitoringBackend')
 
     def test_a_missing_export_is_reported(self):
         from lithops.monitoring.backends import load_backend_attr

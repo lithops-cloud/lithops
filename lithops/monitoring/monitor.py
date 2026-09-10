@@ -112,40 +112,16 @@ class Monitor(threading.Thread):
     #: not turn into an AttributeError on the first status
     telemetry = NOOP_TELEMETRY
 
-    def __init_subclass__(cls, abstract: bool = False, **kwargs):
+    def __init_subclass__(cls, **kwargs):
         """
-        Checks the backend contract as soon as the class is defined, so that
-        a backend that does not hold up its end fails at import rather than
-        halfway through a job.
-
-        ``abstract=True`` opts a helper class out of the check
+        Names the backend after the package it is defined in, so that a
+        backend does not have to repeat the name it already has and the two
+        cannot drift apart. Classes outside the backends package, such as
+        the abstract helpers below, keep a backend_name of None
         """
         super().__init_subclass__(**kwargs)
-
-        package = _backend_package_of(cls)
-        if abstract or package is None:
-            return
-
         if cls.backend_name is None:
-            cls.backend_name = package
-        elif cls.backend_name != package:
-            raise TypeError(
-                f"{cls.__name__}.backend_name is '{cls.backend_name}' but the "
-                f"backend package is '{package}'. The two name the same "
-                f"thing: the config section, and the value of 'monitoring:'"
-            )
-
-        polling = globals().get('PollingMessageMonitor')
-        implements_run = cls.run is not threading.Thread.run
-        implements_receive = polling is not None and issubclass(
-            cls, polling
-        ) and cls._receive_messages is not polling._receive_messages
-        if not implements_run and not implements_receive:
-            raise TypeError(
-                f'{cls.__name__} implements neither run() nor '
-                f'_receive_messages(). A monitoring backend has to consume '
-                f'statuses one way or the other'
-            )
+            cls.backend_name = _backend_package_of(cls)
 
     def __init__(self, executor_id,
                  internal_storage,
@@ -519,7 +495,7 @@ class Monitor(threading.Thread):
         )
 
 
-class MessageMonitor(Monitor, abstract=True):
+class MessageMonitor(Monitor):
     """
     Monitor for backends that receive one call-status message at a time
     (RabbitMQ, SQS, Pub/Sub, ...).
@@ -735,7 +711,7 @@ class MessageMonitor(Monitor, abstract=True):
         return recovered
 
 
-class PollingMessageMonitor(MessageMonitor, abstract=True):
+class PollingMessageMonitor(MessageMonitor):
     """
     Pulls status messages with a timeout so the same loop can expire
     futures and notice stop(). Redis, SQS, Pub/Sub and Azure Queue use
