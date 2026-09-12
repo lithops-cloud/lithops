@@ -47,6 +47,8 @@ class TestPlotDestination:
 
     def test_expands_user_home_when_tilde_present(self, tmp_path, monkeypatch):
         monkeypatch.setenv('HOME', str(tmp_path))
+        # expanduser() reads USERPROFILE on Windows and ignores HOME
+        monkeypatch.setenv('USERPROFILE', str(tmp_path))
         path = _plot_destination(os.path.join('~', 'out'), 'timeline.png')
         expected = '{}_{}'.format(
             os.path.realpath(os.path.join(str(tmp_path), 'out')),

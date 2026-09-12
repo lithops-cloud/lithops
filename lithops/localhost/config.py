@@ -29,7 +29,7 @@ DEFAULT_CONFIG_KEYS = {
 
 LOCALHOST_EXECUTION_TIMEOUT = 3600
 
-_WINDOWS_PATH = re.compile(r'^[A-Za-z]:\\.*$')
+_WINDOWS_PATH = re.compile(r'^(?:[A-Za-z]:[\\/]|\\\\)')
 # Interpreters like python, python3, python3.12, python.exe — not docker tags
 # such as python:3.12.
 _PYTHON_INTERPRETER = re.compile(

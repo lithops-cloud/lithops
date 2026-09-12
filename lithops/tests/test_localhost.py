@@ -39,7 +39,7 @@ from lithops.localhost.utils import (
 from lithops.storage.backends.localhost.localhost import LocalhostStorageBackend
 from lithops.storage.utils import StorageNoSuchKeyError
 from lithops.tests.functions import simple_map_function, sleep_seconds
-from lithops.utils import BackendType, CountDownLatch
+from lithops.utils import BackendType, CountDownLatch, is_unix_system
 from lithops.version import __version__
 
 
@@ -78,6 +78,13 @@ class TestLocalhostConfig:
             'python3.12',
             '/usr/bin/python3',
             r'C:\Python\python.exe',
+            # A forward-slash drive path and a UNC share are local too, and
+            # a basename that does not look like an interpreter used to send
+            # both of them off to be pulled as a container image
+            'C:/Python/python.exe',
+            r'C:\tools\my-interpreter.exe',
+            'C:/tools/my-interpreter.exe',
+            r'\\server\share\my-interpreter.exe',
         ):
             assert localhost_config.get_environment(runtime) is (
                 localhost_config.LocalhostEnvironment.DEFAULT
@@ -461,6 +468,9 @@ class TestV2Environment:
         log_fail.assert_not_called()
         assert 'sess-0-M000-00000' not in env.task_processes
 
+    @pytest.mark.skipif(
+        not is_unix_system(), reason='there is no SIGKILL on Windows'
+    )
     def test_default_stop_kills_matching_process_group(self):
         env = v2.DefaultEnvironment(_config(worker_processes=1))
         proc = MagicMock()
@@ -469,8 +479,8 @@ class TestV2Environment:
         env.task_processes['sess-0-M000-00000'] = proc
         env.jobs = {'sess-0-M000': CountDownLatch(0)}
         env.is_unix_system = True
-        with patch('lithops.localhost.utils.os.getpgid', return_value=9), \
-                patch('lithops.localhost.utils.os.killpg') as killpg, \
+        with patch('lithops.localhost.utils.os.getpgid', return_value=9, create=True), \
+                patch('lithops.localhost.utils.os.killpg', create=True) as killpg, \
                 patch.object(v2.ExecutionEnvironment, '_teardown'):
             env.stop(['sess-0-M000'])
         killpg.assert_called_once_with(9, signal.SIGKILL)
@@ -525,7 +535,7 @@ class TestV2Environment:
         env.task_processes['sess-0-M000-00000'] = proc
         env.jobs = {'sess-0-M000': CountDownLatch(0)}
         env.consumer_threads = [MagicMock()]
-        with patch('lithops.localhost.utils.os.killpg') as killpg:
+        with patch('lithops.localhost.utils.os.killpg', create=True) as killpg:
             env.finish(['sess-0-M000'])
         killpg.assert_not_called()
         assert 'sess-0-M000-00000' in env.task_processes
@@ -767,6 +777,9 @@ class TestV1Environment:
         runner_src = copy_pkg.call_args[0][1]
         assert runner_src.endswith(os.path.join('localhost', 'v1', 'runner.py'))
 
+    @pytest.mark.skipif(
+        not is_unix_system(), reason='there is no SIGKILL on Windows'
+    )
     def test_stop_kills_process_group(self):
         env = v1.DefaultEnvironment(_config())
         proc = MagicMock()
@@ -774,8 +787,8 @@ class TestV1Environment:
         proc.pid = 77
         env.jobs['sess-0-M000'] = proc
         env.is_unix_system = True
-        with patch('lithops.localhost.utils.os.getpgid', return_value=5), \
-                patch('lithops.localhost.utils.os.killpg') as killpg:
+        with patch('lithops.localhost.utils.os.getpgid', return_value=5, create=True), \
+                patch('lithops.localhost.utils.os.killpg', create=True) as killpg:
             env.stop(['sess-0-M000'])
         killpg.assert_called_once_with(5, signal.SIGKILL)
         assert 'sess-0-M000' not in env.jobs
@@ -1213,6 +1226,10 @@ def _ensure_localhost_python_image():
 @pytest.mark.skipif(
     not _docker_daemon_available(),
     reason='docker/podman is not installed or the daemon is not running',
+)
+@pytest.mark.skipif(
+    not is_unix_system(),
+    reason='pulling the Linux image does not fit the timeout on Windows',
 )
 class TestLocalhostContainerLive:
     """Live localhost jobs inside a Docker Hub python:X.Y container."""

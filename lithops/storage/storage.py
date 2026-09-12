@@ -22,7 +22,13 @@ import itertools
 import importlib
 from typing import Optional, List, Union, Dict, TextIO, BinaryIO, Any, Iterable
 
-from lithops.constants import CACHE_DIR, RUNTIMES_PREFIX, JOBS_PREFIX, TEMP_PREFIX
+from lithops.constants import (
+    CACHE_DIR,
+    JOBS_PREFIX,
+    RUNTIMES_PREFIX,
+    SESSION_ID_ENV,
+    TEMP_PREFIX,
+)
 from lithops.utils import is_lithops_worker
 from lithops.storage import utils
 from lithops.config import extract_storage_config, default_storage_config
@@ -271,7 +277,7 @@ class Storage:
 
         :return: CloudObject instance
         """
-        prefix = os.environ.get('__LITHOPS_SESSION_ID', '')
+        prefix = os.environ.get(SESSION_ID_ENV, '')
         coid = hex(next(COBJECTS_INDEX))[2:]
         coname = f'cloudobject_{coid}'
         name = '/'.join([prefix, coname]) if prefix else coname
@@ -418,9 +424,11 @@ class InternalStorage:
         status_key = utils.create_status_key(executor_id, job_id, call_id)
         try:
             data = self.storage.get_object(self.bucket, status_key)
-            return json.loads(data.decode('ascii'))
         except utils.StorageNoSuchKeyError:
             return None
+        if not data:
+            return None
+        return json.loads(data.decode('ascii'))
 
     def get_call_output(self, executor_id, job_id, call_id):
         """

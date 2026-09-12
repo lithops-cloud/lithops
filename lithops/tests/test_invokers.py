@@ -23,7 +23,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from lithops.constants import LOCALHOST, SERVERLESS
+from lithops.constants import LOCALHOST, SERVERLESS, WORKER_ENV
 from lithops.future import ResponseFuture
 from lithops.invokers import (
     BatchInvoker,
@@ -608,7 +608,7 @@ class TestFaaSInvokerInit:
             inv.executor.shutdown(wait=False)
 
     def test_init_disables_remote_invoker_inside_worker(self, monkeypatch):
-        monkeypatch.setenv('LITHOPS_WORKER', '1')
+        monkeypatch.setenv(WORKER_ENV, '1')
         inv = FaaSInvoker(
             self._config(remote_invoker=True),
             'sess-0',

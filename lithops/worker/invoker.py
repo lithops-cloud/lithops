@@ -20,13 +20,17 @@ import logging
 from types import SimpleNamespace
 from typing import Any, Dict
 
+from lithops.constants import (
+    MONITORING_QUEUES_ENV,
+    SESSION_ID_ENV,
+    WORKER_ENV,
+)
 from lithops.serverless import ServerlessHandler
 from lithops.monitoring import JobMonitor
 from lithops.storage import InternalStorage
 from lithops.config import extract_serverless_config, extract_storage_config
 from lithops.invokers import FaaSInvoker
 from lithops.utils import (
-    MONITORING_QUEUES_ENV,
     monitoring_queues,
     remote_invoker_queue_name,
 )
@@ -50,9 +54,9 @@ def function_invoker(job_payload: Dict[str, Any]) -> None:
     invoker_queue = remote_invoker_queue_name(job.executor_id)
 
     os.environ.update({
-        'LITHOPS_WORKER': 'True',
+        WORKER_ENV: 'True',
         'PYTHONUNBUFFERED': 'True',
-        '__LITHOPS_SESSION_ID': job.job_key,
+        SESSION_ID_ENV: job.job_key,
         # The job this invoker spawns reports to the queues of the client and
         # to this invoker's own, and an executor created here extends that
         # chain rather than replacing it

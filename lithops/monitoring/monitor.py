@@ -36,6 +36,8 @@ logger = logging.getLogger(__name__)
 
 LOG_INTERVAL = 30  # Print monitor debug every LOG_INTERVAL seconds
 
+MAX_TIMEOUT_STATUS_QUERIES = 3
+
 # Package every monitoring backend lives under. A Monitor subclass defined
 # there is a backend, and the contract is checked against it
 BACKENDS_PACKAGE = 'lithops.monitoring.backends'
@@ -110,40 +112,16 @@ class Monitor(threading.Thread):
     #: not turn into an AttributeError on the first status
     telemetry = NOOP_TELEMETRY
 
-    def __init_subclass__(cls, abstract: bool = False, **kwargs):
+    def __init_subclass__(cls, **kwargs):
         """
-        Checks the backend contract as soon as the class is defined, so that
-        a backend that does not hold up its end fails at import rather than
-        halfway through a job.
-
-        ``abstract=True`` opts a helper class out of the check
+        Names the backend after the package it is defined in, so that a
+        backend does not have to repeat the name it already has and the two
+        cannot drift apart. Classes outside the backends package, such as
+        the abstract helpers below, keep a backend_name of None
         """
         super().__init_subclass__(**kwargs)
-
-        package = _backend_package_of(cls)
-        if abstract or package is None:
-            return
-
         if cls.backend_name is None:
-            cls.backend_name = package
-        elif cls.backend_name != package:
-            raise TypeError(
-                f"{cls.__name__}.backend_name is '{cls.backend_name}' but the "
-                f"backend package is '{package}'. The two name the same "
-                f"thing: the config section, and the value of 'monitoring:'"
-            )
-
-        polling = globals().get('PollingMessageMonitor')
-        implements_run = cls.run is not threading.Thread.run
-        implements_receive = polling is not None and issubclass(
-            cls, polling
-        ) and cls._receive_messages is not polling._receive_messages
-        if not implements_run and not implements_receive:
-            raise TypeError(
-                f'{cls.__name__} implements neither run() nor '
-                f'_receive_messages(). A monitoring backend has to consume '
-                f'statuses one way or the other'
-            )
+            cls.backend_name = _backend_package_of(cls)
 
     def __init__(self, executor_id,
                  internal_storage,
@@ -173,6 +151,7 @@ class Monitor(threading.Thread):
         self._futures_lock = threading.RLock()
         self.futures = set()
         self._futures_by_id = {}
+        self._timeout_query_failures = {}
         self.present_jobs = set()
 
         # vars for _generate_tokens
@@ -391,6 +370,14 @@ class Monitor(threading.Thread):
 
         return True
 
+    def _apply_recovered_status(self, future, call_status):
+        """Apply a stored completion unless another reader already did."""
+        if _is_finished(future):
+            return False
+        if not self._check_new_futures(call_status, future):
+            self._mark_ready(future, call_status)
+        return True
+
     def _future_timeout_checker(self, futures=None):
         """
         Checks if running futures exceeded the timeout
@@ -400,15 +387,51 @@ class Monitor(threading.Thread):
             futures = self.tracked_futures()
         futures_running = [f for f in futures if f.running and f._call_status]
         for fut in futures_running:
-            try:
-                start_tstamp = fut._call_status['worker_start_tstamp']
-                fut_timeout = start_tstamp + fut.execution_timeout + 5
-                if current_time > fut_timeout:
-                    msg = (
-                        'The function exceeded the execution timeout '
-                        f'of {fut.execution_timeout} seconds.'
+            start_tstamp = fut._call_status['worker_start_tstamp']
+            fut_timeout = start_tstamp + fut.execution_timeout + 5
+            if current_time <= fut_timeout:
+                continue
+
+            # A lost message or delayed poll is not proof the worker timed
+            # out. Check its terminal status directly, regardless of the
+            # message channel's sweep interval or storage listing latency.
+            fut_id = _future_id(fut)
+            if self.internal_storage is not None:
+                try:
+                    call_status = self.internal_storage.get_call_status(*fut_id)
+                    fut._status_query_count += 1
+                except Exception:
+                    failures = self._timeout_query_failures.get(fut_id, 0) + 1
+                    self._timeout_query_failures[fut_id] = failures
+                    if failures < MAX_TIMEOUT_STATUS_QUERIES:
+                        logger.debug(
+                            f'{log_prefix(self.executor_id)} - Could not '
+                            f'verify the timeout of call {fut.call_id}; '
+                            f'retrying ({failures}/'
+                            f'{MAX_TIMEOUT_STATUS_QUERIES})',
+                            exc_info=True,
+                        )
+                        continue
+                    logger.warning(
+                        f'{log_prefix(self.executor_id)} - Could not verify '
+                        f'the timeout of call {fut.call_id} in '
+                        f'{failures} attempts; reporting the timeout',
+                        exc_info=True,
                     )
-                    raise TimeoutError('HANDLER', msg)
+                    call_status = None
+                self._timeout_query_failures.pop(fut_id, None)
+                if _is_finished(fut):
+                    continue
+                if call_status:
+                    self._apply_recovered_status(fut, call_status)
+                    continue
+
+            try:
+                msg = (
+                    'The function exceeded the execution timeout '
+                    f'of {fut.execution_timeout} seconds.'
+                )
+                raise TimeoutError('HANDLER', msg)
             except TimeoutError:
                 # Raising and catching the error right away is what fills
                 # sys.exc_info(), so that the client re-raises a real
@@ -472,7 +495,7 @@ class Monitor(threading.Thread):
         )
 
 
-class MessageMonitor(Monitor, abstract=True):
+class MessageMonitor(Monitor):
     """
     Monitor for backends that receive one call-status message at a time
     (RabbitMQ, SQS, Pub/Sub, ...).
@@ -636,6 +659,13 @@ class MessageMonitor(Monitor, abstract=True):
             else:
                 self._hold_status(call_status)
 
+    def _apply_recovered_status(self, future, call_status):
+        if not super()._apply_recovered_status(future, call_status):
+            return False
+        if self.generate_tokens and 'activation_id' in call_status:
+            self._generate_tokens(call_status)
+        return True
+
     def _storage_sweep(self):
         """
         Picks up from the Object Storage the statuses whose message never
@@ -670,11 +700,7 @@ class MessageMonitor(Monitor, abstract=True):
             future._status_query_count += 1
             if not call_status:
                 continue
-            if not self._check_new_futures(call_status, future):
-                self._mark_ready(future, call_status)
-            recovered += 1
-            if self.generate_tokens and 'activation_id' in call_status:
-                self._generate_tokens(call_status)
+            recovered += self._apply_recovered_status(future, call_status)
 
         if recovered:
             logger.debug(
@@ -685,7 +711,7 @@ class MessageMonitor(Monitor, abstract=True):
         return recovered
 
 
-class PollingMessageMonitor(MessageMonitor, abstract=True):
+class PollingMessageMonitor(MessageMonitor):
     """
     Pulls status messages with a timeout so the same loop can expire
     futures and notice stop(). Redis, SQS, Pub/Sub and Azure Queue use

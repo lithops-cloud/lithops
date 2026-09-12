@@ -6,138 +6,100 @@
 
 - [API] Added `lithops.concurrent.futures`, a `concurrent.futures`-compatible executor interface backed by Lithops.
 - [Monitoring] Added Redis, AWS SQS, GCP Pub/Sub and Azure Queue Storage monitoring backends.
-- [Core] Added a cache of serialized functions to avoid re-uploading the same function.
 - [Core] Added `clean_jobs` to `wait()`, to keep the temporary data until the results are read.
 - [AWS Batch] Added the `instance_types` config option for EC2/SPOT compute environments.
 - [Multiprocessing] Added `timeout` to `acquire()`, and `_getvalue()`, `_callmethod()` and `copy_proxy()` to the manager proxies.
-- [Multiprocessing] Added `ThreadPool`, `Manager`, the standard error classes and the module-level helpers (`freeze_support()`, `get_logger()`, `log_to_stderr()`).
+- [Multiprocessing] Added `ThreadPool`, the standard error classes and the module-level helpers (`freeze_support()`, `get_logger()`, `log_to_stderr()`).
 - [Telemetry] Added `lithops.telemetry`, which turns the call statuses the monitor reads into 29 Prometheus or OpenTelemetry metrics.
 - [Tests] Added a unit test suite for all non-backend modules.
 
 ### Changed
 
-- [Monitoring] Reorganised job monitoring as pluggable backends.
-- [Monitoring] The message backends now delete their queue on cleanup instead of on every `stop()`, so a later `map()` can reuse it.
-- [Monitoring] The queue, topic or subscription an executor creates is now deleted on exit even with `data_cleaner: False`.
-- [Monitoring] The storage backend now lists only the prefixes of the jobs it still watches.
+- [Core] `wait()` now returns two empty lists instead of `None` for empty input and reuses a single thread pool across polls, and `get_result()` deletes the temporary data once the results are in, not during the wait.
+- [Core] Stopping an executor now waits for the invocations already in flight instead of returning while its invoker threads still run.
+- [Monitoring] Reorganised job monitoring as pluggable backends: the message backends now delete their queue on cleanup instead of on every `stop()`, so a later `map()` can reuse it, and the storage backend lists only the prefixes of the jobs it still watches.
 - [Monitoring] Status lines (Pending/Running/Done) are now logged every 30s instead of on every activation.
-- [Core] Results under 8KB now travel in the call status instead of a separate storage object.
-- [Core] `wait()` now returns two empty lists for empty input instead of `None`.
-- [Core] `wait()` now reuses a single thread pool instead of creating one per poll.
-- [Core] `get_result()` now deletes the temporary data once the results are in, not during the wait.
-- [Core] Stopping an executor now waits for the invocations already in flight instead of sleeping five seconds.
-- [Worker] Replaced the `multiprocessing` Manager queue of the worker pool with a POSIX pipe.
-- [Worker] A failed task or job process now logs its output instead of only its return code.
-- [CLI] `job list`, `worker list`, `image delete` and `image list` now reject unknown flags.
-- [Storage] `CloudFileProxy.walk()` now yields nothing for a missing path, like `os.walk`.
-- [Storage] `cloud_open()` now raises `ValueError` on an unsupported mode.
-- [Joblib] `lithops_args` is now applied to the pool that runs the batches.
-- [Joblib] Capped the shared-argument upload and download pools at 32 threads.
-- [Standalone] `docker login` now reads the password from stdin and quotes its arguments.
-- [Localhost] A job that ended cleanly is no longer killed on cleanup, so its runner log is kept.
-- [Multiprocessing] Manager proxies now follow the standard library API more closely.
-- [Multiprocessing] Shared objects now refresh their expiry when read, not only when written.
-- [Multiprocessing] Connection polling now backs off from 1ms instead of waiting a fixed 100ms.
+- [Multiprocessing] Manager proxies now follow the standard library API more closely, and `Manager()` returns a started manager instead of the class itself.
+- [Multiprocessing] Shared objects now refresh their expiry when read, not only when written, and connection polling backs off from 1ms instead of waiting a fixed 100ms.
 - [Multiprocessing] `imap()` and `imap_unordered()` now default to the configured chunksize.
+- [Localhost] A job that ended cleanly is no longer killed on cleanup, so its runner log is kept.
+- [Standalone] `docker login` now reads the password from stdin and quotes its arguments.
+- [Storage] `CloudFileProxy.walk()` now yields nothing for a missing path, like `os.walk`, and `cloud_open()` raises `ValueError` on an unsupported mode.
+- [Worker] Replaced the `multiprocessing` Manager queue of the worker pool with a POSIX pipe, and a failed task or job process now logs its output instead of only its return code.
+- [CLI] `job list`, `worker list`, `image delete` and `image list` now reject unknown flags.
+- [Joblib] `lithops_args` is now applied to the pool that runs the batches, and the shared-argument upload and download pools are capped at 32 threads.
 
 ### Fixed
 
-- [Redis] Fixed `put_object()` rejecting file-like objects, which also made `upload_file()` and `download_file()` always fail.
-- [Redis] Fixed `head_object()`, which reported every key as missing on Redis 7 and up because it relied on the now-disabled `DEBUG OBJECT` command.
-- [Redis] Fixed `list_objects()` returning the object bodies instead of their keys and sizes, and skip keys whose value is gone.
-- [Redis] Fixed `head_bucket()` returning a bool instead of the bucket metadata, and `delete_objects()` raising on an empty list.
-- [Redis] Fixed the `bytes=L-` and `bytes=-N` forms of the `Range` argument raising `ValueError`, and a ranged read of a missing key returning an empty result instead of raising.
+- [Core] Fixed a repeated submission reusing the first serialization of a callable, freezing its captured state and the dependencies of the first runtime it ran on.
+- [Core] Fixed executor IDs repeating in a process whose environment is reset between executors.
+- [Core] Fixed `wait()` watching futures of another executor with a monitor that never sees them, leaving behind the monitors it started, and raising `TypeError` from `signal.alarm()` on a fractional timeout.
+- [Core] Fixed `result()` returning `None` instead of re-raising when the call had already failed.
+- [Core] Fixed module inspection crashing on a function whose `__module__` is `None`, and `SerializeIndependent` appending `lithops` to the preinstalled module list on every job.
+- [Core] Fixed a hand-built `FuturesList` raising `AttributeError` instead of creating its executor, and pickling one detaching it from the executor it has.
+- [Core] Fixed `find_free_port()` setting `SO_REUSEADDR` after the bind.
+- [Core] Fixed `chunksize=0` and `execution_timeout=0` falling back to the config value.
+- [Core] Fixed a second Ctrl+C after a failed call turning into `Error in sys.excepthook`, and logging at interpreter shutdown raising on an already closed stream.
+- [Core] Fixed the function package carrying `.pytest_cache` directories and stale zips, a failed build leaving a partial zip behind, and `runtime_include_function` leaving the process in the build directory when the build failed.
+- [Chaining] Fixed a plain list, tuple or slice of futures not being recognised as a chain, leaving its consumed results in `get_result()`, and `extra_args` failing every activation instead of raising at submit time.
+- [Concurrent] Fixed `shutdown()` returning before a submission already in progress had been registered.
+- [Job] Fixed a glob pattern in the object name raising `TypeError` instead of listing the objects, and a `head_object()` without `content-length` raising a bare `KeyError`.
+- [Job] Fixed the last byte of an object being left out of its partitions, and folder markers being counted as objects, returning empty partitions.
+- [Monitoring] Fixed a lost status message or an unread stored status turning into a bogus timeout, hanging `wait()` for ever, or one storage error being enough to declare a timeout.
+- [Monitoring] Fixed a nested executor publishing statuses to a queue nobody declares, and failed RabbitMQ publishes being dropped with nothing in the log.
+- [Redis] Fixed `put_object()` rejecting file-like objects, which made `upload_file()` always fail, and `head_object()` reporting every key as missing on Redis 7 and up, where the `DEBUG OBJECT` command it relied on is disabled.
+- [Redis] Fixed `list_objects()` returning the object bodies instead of their keys and sizes and not skipping keys whose value is gone, `head_bucket()` returning a bool instead of the bucket metadata, and `delete_objects()` raising on an empty list.
+- [Redis] Fixed the `bytes=L-` form of the `Range` argument raising `ValueError` and `bytes=-N` returning a single byte instead of the last N, and a ranged read of a missing key returning an empty result instead of raising.
 - [Redis] `list_keys()` now walks the key space one pipelined round trip per level instead of one per directory, which cost a round trip per activation when listing a job.
-- [Infinispan] Fixed an empty object being reported as a missing key, which also made `list_objects()` fail for the whole bucket.
+- [Infinispan] Fixed `list_objects()` failing for the whole bucket when one of its objects was empty, since an empty object was reported as a missing key, and reading every value one after the other, at one round trip per key.
 - [Infinispan] Fixed the `bytes=L-` and `bytes=-N` forms of the `Range` argument raising `ValueError`.
 - [Infinispan] Fixed `head_bucket()` raising `NotImplementedError`, and `put_object()` ignoring a failed request.
 - [Infinispan] Fixed the documented `mech` config key being ignored, so `mech: BASIC` silently authenticated with DIGEST.
-- [Infinispan] Fixed `list_objects()` reading every value one after the other, which made a listing cost one round trip per key.
-- [Core] Fixed `wait()` on futures another executor invoked, which crashed instead of waiting for them.
-- [Core] Fixed `wait()` leaving behind the monitors it started for futures of other executors.
-- [Core] Fixed `wait()` with a fractional timeout raising `TypeError` from `signal.alarm()` instead of waiting.
-- [Core] Fixed `result()` returning `None` instead of re-raising when the call had already failed.
-- [Core] Fixed module inspection crashing on a function whose `__module__` is `None`.
-- [Core] Fixed `SerializeIndependent` appending `lithops` to the preinstalled module list on every job.
-- [Core] Fixed a hand-built `FuturesList` raising `AttributeError` instead of creating its executor.
-- [Core] Fixed `find_free_port()` setting `SO_REUSEADDR` after the bind.
-- [Core] Fixed `chunksize=0` and `execution_timeout=0` falling back to the config value.
-- [Core] Fixed a second Ctrl+C after a failed call turning into `Error in sys.excepthook`.
-- [Core] Fixed logging at interpreter shutdown raising on an already closed stream.
-- [Core] Fixed `runtime_include_function` leaving the process in the build directory when the build failed.
-- [Core] Fixed the function package carrying `.pytest_cache` directories and stale zips.
-- [Core] Fixed a failed function package build leaving a partial zip behind.
-- [Core] Fixed the Prometheus exporter raising `KeyError` when `__LITHOPS_SESSION_ID` is not set.
-- [Chaining] Fixed pickling a `FuturesList` detaching the list from its executor.
-- [Chaining] Fixed a list or a slice of futures of a previous job not being recognised as a chain.
-- [Chaining] `extra_args` now raises at submit time instead of failing every activation of the chained job.
-- [Job] Fixed a glob pattern in the object name raising `TypeError` instead of listing the objects.
-- [Job] Fixed the last byte of an object being left out of its partitions.
-- [Job] Fixed folder markers being counted as objects, returning empty partitions.
-- [Job] Fixed a `head_object()` without `content-length` raising a bare `KeyError`.
-- [Monitoring] Fixed a status message lost in transit turning into a bogus timeout, or hanging `wait()` for ever.
-- [Monitoring] Fixed a nested executor publishing statuses to a queue nobody declares.
-- [Monitoring] Fixed failed RabbitMQ publishes being dropped with nothing in the log.
 - [Multiprocessing] Fixed `error_callback` never being called by `apply_async()`, `map_async()` and `starmap_async()`.
-- [Multiprocessing] Fixed a full bounded `Queue` silently discarding what was put on it. It now waits, and raises `Full`.
-- [Multiprocessing] Fixed shared list writes being dropped or misplaced through slices, `remove()`, `index()`, `pop()` and `del`.
+- [Multiprocessing] Fixed a full bounded `Queue` silently discarding what was put on it, which now waits and raises `Full`, and `Queue.empty()` always saying True over a pynng connection.
+- [Multiprocessing] Fixed shared list writes being dropped or misplaced through slices, `remove()`, `index()`, `pop()` and `del`, and a slice of a shared array returning one element too many.
 - [Multiprocessing] Fixed manager proxies not raising the `KeyError`, `ValueError` and `IndexError` the standard library raises.
-- [Multiprocessing] Fixed concurrent updates to a shared object overwriting each other.
-- [Multiprocessing] Fixed `Condition.wait()` never reporting a notify, so every wait looked like a timeout.
-- [Multiprocessing] Fixed over-releasing a lock or bounded semaphore passing silently.
-- [Multiprocessing] Fixed a re-entrant `RLock` giving back a token it never took.
-- [Multiprocessing] Fixed `Queue.empty()` always saying True over a pynng connection.
-- [Multiprocessing] Fixed a shared object being deleted while on its way to a worker.
+- [Multiprocessing] Fixed concurrent updates to a shared object overwriting each other, and a shared object being deleted while on its way to a worker.
+- [Multiprocessing] Fixed `Condition.wait()` never reporting a notify, keeping a recursively acquired lock so nobody could notify it, and not giving the lock back after a Redis error.
+- [Multiprocessing] Fixed over-releasing a lock or bounded semaphore passing silently, and a re-entrant `RLock` giving back a token it never took.
 - [Multiprocessing] Fixed `Value()` and `Array()` ignoring their `lock` argument.
-- [Multiprocessing] Fixed a slice of a shared array returning one element too many.
 - [Multiprocessing] Fixed `lithops.multiprocessing.context` being shadowed by a context instance, which broke every `mp.context.<name>`.
 - [Multiprocessing] Fixed closing one connection closing the Redis client the whole process shares.
-- [Multiprocessing] Fixed a closed `Pool` leaving the monitor and invoker threads of its executor running.
+- [Multiprocessing] Fixed a closed `Pool` leaving the monitor and invoker threads of its executor running, and the remote log feed keeping the interpreter alive at exit.
 - [Multiprocessing] Fixed `AsyncResult.get()` raising the builtin `TimeoutError` instead of `multiprocessing.TimeoutError`.
-- [Multiprocessing] Fixed `current_process()` in a worker creating an executor and a Redis client just to read a name.
-- [Multiprocessing] Fixed `set_parameter()` rewriting the defaults it falls back to.
-- [Multiprocessing] Fixed the remote log feed keeping the interpreter alive at exit.
-- [Localhost] Fixed a job cleared mid-task leaving a latch closed, spinning the v2 job manager on a full core.
+- [Multiprocessing] Fixed `current_process()` in a worker creating an executor and a Redis client just to read a name, and `set_parameter()` rewriting the defaults it falls back to.
+- [Localhost] Fixed the v2 job manager spinning a full core: on a job cleared mid-task that left a latch closed, and while an invocation was queueing.
 - [Localhost] Fixed a partial `clear()` tearing down the consumers, tasks and latches of other jobs.
-- [Localhost] Fixed a task starting after `stop()`, leaving a process nobody kills.
-- [Localhost] Fixed the v2 job manager spinning a core while an invocation was queueing.
-- [Localhost] Fixed two concurrent `invoke()` calls clearing each other's in-progress flag.
+- [Localhost] Fixed a task starting after `stop()`, leaving a process nobody kills, and two concurrent `invoke()` calls clearing each other's in-progress flag.
 - [Localhost] Fixed the v2 container being removed while other jobs were still running in it.
-- [Localhost] Fixed v1 and v2 sharing one runner file, so a job could run under the other version's runner.
+- [Localhost] Fixed v1 and v2 sharing one runner file, so a job could run under the other version's runner, and the runner exiting with success on an unknown command or a crash.
 - [Localhost] Fixed a container image whose name starts with `python`, such as `python:3.12`, being run as a local interpreter.
-- [Localhost] Fixed the runner exiting with success on an unknown command or a crash.
 - [Standalone] Fixed a dict race that killed the budget keeper and left the VM running.
 - [Standalone] Fixed a file descriptor leak of the runner log, one per task.
-- [Standalone] Fixed the worker `/stop` endpoint iterating the process map while it changed.
-- [Standalone] Fixed `cancel_job_process()` raising on an emptied queue or a job with no queue.
-- [Standalone] Fixed the master dropping the errors of its parallel worker and job requests.
-- [Standalone] Fixed the SSH client keeping a client that failed to connect.
-- [Standalone] Fixed the SSH client rejecting every private key that is not RSA.
+- [Standalone] Fixed the worker `/stop` endpoint iterating the process map while it changed, and `cancel_job_process()` raising on an emptied queue or a job with no queue.
+- [Standalone] Fixed the master dropping the errors of its parallel worker and job requests, and a failed consume-mode worker setup script passing unnoticed.
+- [Standalone] Fixed the SSH client keeping a client that failed to connect, and rejecting every private key that is not RSA.
 - [Standalone] Fixed a reuse-mode worker blocking for ever on a stale queue connection instead of taking the next job.
-- [Standalone] Fixed a failed consume-mode worker setup script passing unnoticed.
 - [Standalone] Fixed the worker service running a `python:*` container image with the local interpreter.
-- [Storage] Fixed `delete_cloudobjects()` deleting part of the list before rejecting a foreign object.
-- [Storage] Fixed `delete_cloudobjects()` deleting the keys of one bucket from another when the objects spanned several.
+- [Storage] Fixed `delete_cloudobjects()` deleting the keys of one bucket from another when the objects spanned several, and deleting part of the list before rejecting a foreign object.
 - [Storage] Fixed `CloudFileProxy.listdir()` returning nothing for its default argument.
-- [Worker] Fixed the memory monitor reporting a peak of zero where usage cannot be read.
 - [Worker] Fixed the remote invoker returning before its invocations in flight were done.
-- [Worker] Fixed the function process being aborted on macOS from the second call on, by setting Apple's fork-safety flag.
-- [Worker] Fixed a function process killed by the OOM killer, or by any signal, being reported as a missing result.
+- [Worker] Fixed the function process being aborted on macOS from the second call on, by setting Apple's fork-safety flag, and one killed by the OOM killer, or by any signal, being reported as a missing result.
+- [Worker] Fixed the non-Unix worker pool sharing one task object across its calls, mixing up their ids, data and logs, by spawning a process per worker.
 - [Azure] Fixed the `az` CLI calls deadlocking when a command filled the stderr pipe.
-- [Azure Containers] Fixed a deploy racing a provisioning operation already in progress.
-- [Azure Containers] Fixed a container app left in `Failed` state never being recreated.
+- [Azure Containers] Fixed a deploy racing a provisioning operation already in progress, and a container app left in `Failed` state never being recreated.
 - [CLI] Fixed `job list` and `worker list` crashing when there was nothing to list.
 - [CLI] Fixed `lithops clean` deleting the local temp directory of the jobs running at the same time on the same machine.
-- [Cleaner] Fixed two cleaners racing for the pid file.
-- [Cleaner] Fixed the cleaner skipping the requests it was started for.
-- [Cleaner] Fixed the cleaner reading a request another process was still writing.
-- [Cleaner] Fixed the cleaner looping forever on a request it could not read or classify.
+- [Cleaner] Fixed two cleaners racing for the pid file, and the cleaner skipping the requests it was started for.
+- [Cleaner] Fixed the cleaner reading a request another process was still writing, and looping forever on one it could not read or classify.
 - [Joblib] Fixed the backend being unused with joblib 1.4+, which renamed `apply_async` to `submit`.
-- [Joblib] Fixed a `KeyError` on shared arguments over 32KB, from a check-then-read on the disk cache.
-- [Joblib] Fixed shared arguments going to the default storage instead of the configured one.
-- [Joblib] Fixed a race losing one of two shared arguments proxied in the same call.
+- [Joblib] Fixed shared arguments going to the default storage instead of the configured one, a `KeyError` on those over 32KB from a check-then-read on the disk cache, and a race losing one of two proxied in the same call.
 - [Joblib] Fixed `lithops[joblib]` missing `redis`, needed to import the backend.
 - [IBM] Fixed the COS token manager raising if `ibm_botocore` hides the private expiry attribute.
+
+### Removed
+
+- [Storage] Removed the `infinispan_hotrod` storage backend.
 
 ## [v3.7.0]
 

@@ -78,30 +78,49 @@ def _future_id(fut):
     return (fut.executor_id, fut.job_id, fut.call_id)
 
 
+# The session this process belongs to, and how many executors it has created.
+# Kept here and not only in the environment, which can be reset under a
+# running process
+_SESSION_LOCK = threading.Lock()
+_SESSION_ID = None
+_EXECUTOR_COUNT = 0
+
+
 def create_executor_id(lenght=6):
     """
     Creates the ID of a new executor. Executors of the same session share the
-    session ID and are told apart by a counter, both kept in the environment
-    so that they survive across processes
+    session ID and are told apart by a counter.
+
+    Both are exported, so that a process spawned from this one joins the same
+    session and a worker can name a session for the task it runs. The counter
+    is also kept in the process: an environment that is restored under a
+    running process used to restart it, and two executors then shared an ID,
+    and with it their storage keys.
     """
-    if '__LITHOPS_SESSION_ID' in os.environ:
-        session_id = os.environ['__LITHOPS_SESSION_ID']
-    else:
-        session_id = uuid_str().replace('/', '')[:lenght]
-        os.environ['__LITHOPS_SESSION_ID'] = session_id
+    global _SESSION_ID, _EXECUTOR_COUNT
 
-    if '__LITHOPS_TOTAL_EXECUTORS' in os.environ:
-        exec_num = int(os.environ['__LITHOPS_TOTAL_EXECUTORS']) + 1
-    else:
-        exec_num = 0
-    os.environ['__LITHOPS_TOTAL_EXECUTORS'] = str(exec_num)
+    with _SESSION_LOCK:
+        session_id = os.environ.get(constants.SESSION_ID_ENV)
+        if session_id and session_id != _SESSION_ID:
+            # A session named for this process, by the one that spawned it or
+            # by a worker about to run a task. Carry on from where it got to
+            _SESSION_ID = session_id
+            try:
+                _EXECUTOR_COUNT = int(
+                    os.environ[constants.TOTAL_EXECUTORS_ENV]
+                ) + 1
+            except (KeyError, ValueError):
+                _EXECUTOR_COUNT = 0
+        elif _SESSION_ID is None:
+            _SESSION_ID = uuid_str().replace('/', '')[:lenght]
 
-    return f'{session_id}-{exec_num}'
+        exec_num = _EXECUTOR_COUNT
+        _EXECUTOR_COUNT += 1
 
+        os.environ[constants.SESSION_ID_ENV] = _SESSION_ID
+        os.environ[constants.TOTAL_EXECUTORS_ENV] = str(exec_num)
 
-# Carries the monitoring queues of an executor down to the workers, so that an
-# executor created inside one of them can extend the chain
-MONITORING_QUEUES_ENV = '__LITHOPS_MONITORING_QUEUES'
+        return f'{_SESSION_ID}-{exec_num}'
 
 
 def monitoring_queue_name(executor_id: str) -> str:
@@ -131,13 +150,14 @@ def monitoring_queues(executor_id: str) -> List[str]:
     job, so the same number of tokens can stand for different chains
     """
     parent_queues = []
-    raw_queues = os.environ.get(MONITORING_QUEUES_ENV)
+    raw_queues = os.environ.get(constants.MONITORING_QUEUES_ENV)
     if raw_queues:
         try:
             parent_queues = list(json.loads(raw_queues))
         except ValueError:
             logger.warning(
-                f'Ignoring a malformed {MONITORING_QUEUES_ENV}: {raw_queues}'
+                'Ignoring a malformed '
+                f'{constants.MONITORING_QUEUES_ENV}: {raw_queues}'
             )
 
     queue = monitoring_queue_name(executor_id)
@@ -151,9 +171,9 @@ def monitoring_queues(executor_id: str) -> List[str]:
 
 def get_executor_id():
     """Returns the ID of the last executor created in this session"""
-    session_id = os.environ['__LITHOPS_SESSION_ID']
-    exec_num = os.environ['__LITHOPS_TOTAL_EXECUTORS']
-    return f'{session_id}-{exec_num}'
+    if _SESSION_ID is None:
+        raise KeyError(constants.SESSION_ID_ENV)
+    return f'{_SESSION_ID}-{_EXECUTOR_COUNT - 1}'
 
 
 def iterchunks(lst, n):
@@ -506,7 +526,7 @@ def is_linux_system() -> bool:
 
 def is_lithops_worker() -> bool:
     """Checks if the current execution is within a lithops worker"""
-    return 'LITHOPS_WORKER' in os.environ
+    return constants.WORKER_ENV in os.environ
 
 
 def is_object_processing_function(map_function) -> bool:

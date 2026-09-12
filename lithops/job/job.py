@@ -22,7 +22,6 @@ import hashlib
 import inspect
 import pickle
 import logging
-import weakref
 from collections.abc import Callable, Iterable, Mapping
 from types import SimpleNamespace
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -35,14 +34,18 @@ from lithops.job.serialize import (
     SerializeIndependent, create_module_data, write_module_data
 )
 from lithops.constants import (
-    MAX_AGG_DATA_SIZE, SERVERLESS, STANDALONE, CUSTOM_RUNTIME_DIR, JOBS_PREFIX
+    MAX_AGG_DATA_SIZE,
+    SERVERLESS,
+    STANDALONE,
+    CUSTOM_RUNTIME_DIR,
+    JOBS_PREFIX,
+    REDUCE_JOB_ENV
 )
 
 
 logger = logging.getLogger(__name__)
 
 FUNCTION_CACHE = set()
-_FUNC_SERIALIZE_CACHE = weakref.WeakKeyDictionary()
 MAX_DATA_IN_PAYLOAD = 8 * 1024  # Per invocation. 8KB
 
 
@@ -57,51 +60,6 @@ def invalidate_function_cache(executor_id: str) -> None:
     )
 
 
-def _freeze_module_set(mods: Optional[Set[str]]) -> Optional[Tuple[str, ...]]:
-    if mods is None:
-        return None
-    return tuple(sorted(mods))
-
-
-def _cached_func_serialize(
-    serializer: Any,
-    func: Callable,
-    inc_modules: Optional[Set[str]],
-    exc_modules: Set[str]
-) -> Tuple[bytes, Set[str]]:
-    """
-    Serializes a function and resolves its modules, reusing the result of a
-    previous job that ran the same function with the same module filters
-    """
-    subkey = (
-        _freeze_module_set(inc_modules),
-        _freeze_module_set(exc_modules),
-    )
-    try:
-        per_func = _FUNC_SERIALIZE_CACHE[func]
-    except TypeError:
-        # Not every callable can be weak referenced, so caching is best effort
-        per_func = None
-    except KeyError:
-        per_func = {}
-        try:
-            _FUNC_SERIALIZE_CACHE[func] = per_func
-        except TypeError:
-            per_func = None
-
-    if per_func is not None:
-        cached = per_func.get(subkey)
-        if cached is not None:
-            return cached
-
-    func_str = serializer.dumps([func])[0]
-    func_paths = serializer.module_paths([func], inc_modules, exc_modules)
-    cached = (func_str, func_paths)
-    if per_func is not None:
-        per_func[subkey] = cached
-    return cached
-
-
 def _serialize_func_and_data(
     serializer: Any,
     func: Callable,
@@ -110,9 +68,10 @@ def _serialize_func_and_data(
     exc_modules: Set[str]
 ) -> Tuple[bytes, List[bytes], Set[str]]:
     """
-    Serializes the function apart from its data, so that the function can be
-    cached across jobs. Falls back to serializing everything in one go for
-    serializers that only expose a call interface
+    Serializes the function and data with the current callable state and
+    target runtime's dependencies. Identical payloads are deduplicated at
+    upload time; callable identity alone cannot detect changed captured state.
+    Falls back to serializers that only expose a call interface
     """
     dumps = getattr(serializer, 'dumps', None)
     module_paths = getattr(serializer, 'module_paths', None)
@@ -122,9 +81,8 @@ def _serialize_func_and_data(
         )
         return ser[0], ser[1:], paths
 
-    func_str, func_paths = _cached_func_serialize(
-        serializer, func, inc_modules, exc_modules
-    )
+    func_str = dumps([func])[0]
+    func_paths = module_paths([func], inc_modules, exc_modules)
     data_strs = dumps(iterdata)
     # The data is only inspected for modules when the module manager is on
     # and no explicit include list was given
@@ -233,7 +191,7 @@ def create_reduce_job(
             offset = end
 
     ext_env = {} if extra_env is None else extra_env.copy()
-    ext_env['__LITHOPS_REDUCE_JOB'] = True
+    ext_env[REDUCE_JOB_ENV] = True
 
     iterdata = utils.verify_args(reduce_function, iterdata, extra_args)
 

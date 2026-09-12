@@ -603,7 +603,10 @@ class TestExecutorLocalhost:
     def test_map_local_file_partitions(self, tmp_path):
         path = tmp_path / 'data.txt'
         text = 'alpha beta gamma delta\n' * 20
-        path.write_text(text)
+        # newline='' keeps the bytes on disk as written: the default
+        # translates every \n to \r\n on Windows, and the worker hands
+        # back what it read
+        path.write_text(text, newline='')
         fexec = lithops.FunctionExecutor(config=pytest.lithops_config)
         futures = fexec.map(
             echo_object, str(path), obj_chunk_number=2, obj_newline=None

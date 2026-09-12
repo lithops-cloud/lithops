@@ -194,6 +194,8 @@ class TestLoadConfig:
         cfg = tmp_path / 'home.yml'
         cfg.write_text(yaml.dump({'lithops': {'mode': 'localhost'}}))
         monkeypatch.setenv('HOME', str(tmp_path))
+        # expanduser() reads USERPROFILE on Windows and ignores HOME
+        monkeypatch.setenv('USERPROFILE', str(tmp_path))
         loaded = load_config('~/home.yml', log=False)
         assert loaded['lithops']['mode'] == 'localhost'
 

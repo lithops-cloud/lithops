@@ -29,6 +29,7 @@ from lithops.monitoring.backends.storage import StorageMonitor
 from lithops.monitoring.backends import resolve_backend
 from lithops.monitoring.monitor import (
     LOG_INTERVAL,
+    MAX_TIMEOUT_STATUS_QUERIES,
     Monitor,
     PollingMessageMonitor,
     _is_finished,
@@ -571,6 +572,85 @@ class TestMonitorHelpers:
 
 
 class TestTimeoutAndStatusLog:
+
+    @pytest.mark.parametrize('channel', ['storage', 'message'])
+    @pytest.mark.parametrize('failed', [False, True])
+    def test_stored_completion_wins_over_an_expired_timeout(self, monkeypatch, channel, failed):
+        storage = MagicMock()
+        cls = StorageMonitor if channel == 'storage' else PollingMessageMonitor
+        monitor = cls('sess-0', storage, queue.Queue(), {'M000': 1}, True, {'monitoring_interval': 1})
+        future = FakeFuture('M000', running=True, execution_timeout=10, activation_id='act-1')
+        future._call_status = {'type': '__init__', 'worker_start_tstamp': 100}
+        monitor.add_futures([future])
+        status = {
+            'type': '__end__', 'executor_id': 'sess-0', 'job_id': 'M000',
+            'call_id': '00000', 'activation_id': 'act-1', 'chunksize': 1,
+            'worker_start_tstamp': 100, 'worker_end_tstamp': 102,
+            'exception': failed, 'result': 'worker result',
+        }
+        storage.get_job_status.return_value = (set(), {('sess-0', 'M000', '00000')})
+        storage.get_call_status.return_value = status
+        monkeypatch.setattr('lithops.monitoring.monitor.time.time', lambda: 116)
+        if channel == 'storage':
+            monitor._poll_and_process_job_status()
+        else:
+            monitor._last_message_tstamp = 100
+            monkeypatch.setattr(monitor, '_poll_once', monitor.stop)
+            monitor.run()
+            assert monitor.token_bucket_q.get_nowait() == '#'
+            assert monitor.token_bucket_q.empty()
+        assert future._call_status == status
+
+    def test_timeout_waits_for_storage_to_recover(self):
+        monitor = _monitor()
+        monitor.internal_storage = MagicMock()
+        monitor.internal_storage.get_call_status.side_effect = OSError('storage unavailable')
+        future = FakeFuture('M000', running=True, activation_id='act-1')
+        future._call_status = {'worker_start_tstamp': time.time() - 100}
+        monitor._future_timeout_checker([future])
+        assert not future.ready
+
+        monitor.internal_storage.get_call_status.side_effect = None
+        monitor.internal_storage.get_call_status.return_value = None
+        monitor._future_timeout_checker([future])
+        assert future.ready
+        assert future._call_status['exception'] is True
+
+    def test_timeout_is_reported_when_storage_stays_unreachable(self):
+        monitor = _monitor()
+        monitor.internal_storage = MagicMock()
+        monitor.internal_storage.get_call_status.side_effect = OSError('storage unavailable')
+        future = FakeFuture('M000', running=True, activation_id='act-1')
+        future._call_status = {'worker_start_tstamp': time.time() - 100}
+        for _ in range(MAX_TIMEOUT_STATUS_QUERIES - 1):
+            monitor._future_timeout_checker([future])
+            assert not future.ready
+        monitor._future_timeout_checker([future])
+        assert future.ready
+        assert future._call_status['exception'] is True
+
+    def test_the_failure_budget_is_counted_per_call(self):
+        monitor = _monitor()
+        monitor.internal_storage = MagicMock()
+        monitor.internal_storage.get_call_status.side_effect = OSError('storage unavailable')
+        futures = [
+            FakeFuture('M000', call_id=f'{i:05}', running=True, activation_id='act-1')
+            for i in range(MAX_TIMEOUT_STATUS_QUERIES)
+        ]
+        for future in futures:
+            future._call_status = {'worker_start_tstamp': time.time() - 100}
+        # One round over several calls is one failure each, not a shared
+        # budget that the last call in the round exhausts
+        monitor._future_timeout_checker(futures)
+        assert not any(future.ready for future in futures)
+
+    def test_unexpired_calls_do_not_query_storage(self):
+        monitor = _monitor()
+        monitor.internal_storage = MagicMock()
+        future = FakeFuture('M000', running=True, activation_id='act-1')
+        future._call_status = {'worker_start_tstamp': time.time()}
+        monitor._future_timeout_checker([future])
+        monitor.internal_storage.get_call_status.assert_not_called()
 
     @pytest.fixture(autouse=True)
     def _propagate_monitor_logs(self):
@@ -1593,8 +1673,8 @@ class TestMessageLossAndRecovery:
 
 class TestBackendContract:
     """
-    "Adding a backend is adding a package" only holds if a package that
-    does not hold up its end says so, instead of quietly monitoring nothing
+    "Adding a backend is adding a package" only holds if the package name
+    is what names the backend, and every built-in one is reachable that way
     """
 
     def _in_backends(self, name='fake'):
@@ -1607,37 +1687,9 @@ class TestBackendContract:
         ))
         assert cls.backend_name == 'fake'
 
-    def test_a_backend_name_that_disagrees_is_rejected(self):
-        with pytest.raises(TypeError, match='backend package'):
-            type('Drifted', (Monitor,), dict(
-                self._in_backends(),
-                backend_name='something-else',
-                run=lambda self: None,
-            ))
-
-    def test_a_backend_that_consumes_nothing_is_rejected(self):
-        with pytest.raises(TypeError, match='neither run'):
-            type('Empty', (Monitor,), dict(self._in_backends()))
-
-    def test_a_helper_class_can_opt_out(self):
-        cls = type('Helper', (Monitor,), dict(self._in_backends()),
-                   abstract=True)
-        assert cls.backend_name is None
-
     def test_classes_outside_the_backends_package_are_left_alone(self):
         cls = type('Local', (Monitor,), {'__module__': 'somewhere.else'})
         assert cls.backend_name is None
-
-    def test_exports_are_checked_against_the_base_classes(self):
-        from lithops.monitoring.backends import load_backend_attr
-        module = MagicMock()
-        module.MonitoringBackend = 'not a class'
-        with patch(
-            'lithops.monitoring.backends.importlib.import_module',
-            return_value=module,
-        ):
-            with pytest.raises(ValueError, match='not a Monitor subclass'):
-                load_backend_attr('fake', 'MonitoringBackend')
 
     def test_a_missing_export_is_reported(self):
         from lithops.monitoring.backends import load_backend_attr

@@ -15,6 +15,7 @@
 import io
 import logging
 import pickle
+import os
 import threading
 import zipfile
 from collections import namedtuple
@@ -23,6 +24,13 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from lithops import constants
+from lithops.constants import (
+    MONITORING_QUEUES_ENV,
+    SESSION_ID_ENV,
+    TOTAL_EXECUTORS_ENV,
+    WORKER_ENV,
+)
+from lithops import utils as lithops_utils
 from lithops.utils import (
     CountDownLatch,
     CURRENT_PY_VERSION,
@@ -54,7 +62,6 @@ from lithops.utils import (
     is_podman,
     is_unix_system,
     iterchunks,
-    MONITORING_QUEUES_ENV,
     monitoring_queue_name,
     monitoring_queues,
     log_prefix,
@@ -250,9 +257,9 @@ class TestMiscUtils:
         assert env == {'flag': 'True', 'count': 1, 'name': 'x'}
 
     def test_is_lithops_worker(self, monkeypatch):
-        monkeypatch.delenv('LITHOPS_WORKER', raising=False)
+        monkeypatch.delenv(WORKER_ENV, raising=False)
         assert is_lithops_worker() is False
-        monkeypatch.setenv('LITHOPS_WORKER', '1')
+        monkeypatch.setenv(WORKER_ENV, '1')
         assert is_lithops_worker() is True
 
     def test_version_str_and_current_py_version(self):
@@ -356,9 +363,16 @@ class TestMiscUtils:
         assert _as_future_list(plain) is plain
         assert _future_id(future) == ('e', 'j', 'c')
 
+    @staticmethod
+    def _fresh_session(monkeypatch):
+        """A process that has not created an executor yet"""
+        monkeypatch.setattr(lithops_utils, '_SESSION_ID', None)
+        monkeypatch.setattr(lithops_utils, '_EXECUTOR_COUNT', 0)
+        monkeypatch.delenv(SESSION_ID_ENV, raising=False)
+        monkeypatch.delenv(TOTAL_EXECUTORS_ENV, raising=False)
+
     def test_create_executor_id_reuses_session_and_increments(self, monkeypatch):
-        monkeypatch.delenv('__LITHOPS_SESSION_ID', raising=False)
-        monkeypatch.delenv('__LITHOPS_TOTAL_EXECUTORS', raising=False)
+        self._fresh_session(monkeypatch)
         first = create_executor_id(lenght=4)
         second = create_executor_id(lenght=4)
         session, num = first.rsplit('-', 1)
@@ -366,6 +380,73 @@ class TestMiscUtils:
         assert num == '0'
         assert second == f'{session}-1'
         assert get_executor_id() == second
+        # Exported so a process spawned from this one joins the session
+        assert os.environ[SESSION_ID_ENV] == session
+        assert os.environ[TOTAL_EXECUTORS_ENV] == '1'
+
+    def test_create_executor_id_survives_a_reset_environment(self, monkeypatch):
+        # The counter tells two executors of one process apart and used to
+        # live only in the environment. Anything that saves and restores
+        # os.environ -- this suite does, between every test -- put it back to
+        # zero, and the executor IDs repeated
+        self._fresh_session(monkeypatch)
+        ids = []
+        for _ in range(4):
+            ids.append(create_executor_id())
+            os.environ.pop(SESSION_ID_ENV, None)
+            os.environ.pop(TOTAL_EXECUTORS_ENV, None)
+
+        sessions = {executor_id.rsplit('-', 1)[0] for executor_id in ids}
+        assert len(sessions) == 1
+        assert [i.rsplit('-', 1)[1] for i in ids] == ['0', '1', '2', '3']
+
+    def test_create_executor_id_joins_a_session_it_is_given(self, monkeypatch):
+        # What a worker does before running a task: name a session and clear
+        # the count, as function_handler() does
+        self._fresh_session(monkeypatch)
+        monkeypatch.setenv(SESSION_ID_ENV, 'job-key-00000')
+
+        assert create_executor_id() == 'job-key-00000-0'
+
+        monkeypatch.setenv(SESSION_ID_ENV, 'job-key-00001')
+        monkeypatch.delenv(TOTAL_EXECUTORS_ENV)
+        assert create_executor_id() == 'job-key-00001-0'
+
+    def test_create_executor_id_continues_the_count_it_inherits(self, monkeypatch):
+        # A process spawned by one that had already created eight executors
+        self._fresh_session(monkeypatch)
+        monkeypatch.setenv(SESSION_ID_ENV, 'parent')
+        monkeypatch.setenv(TOTAL_EXECUTORS_ENV, '7')
+        assert create_executor_id() == 'parent-8'
+
+        # A count that cannot be read is no count at all
+        self._fresh_session(monkeypatch)
+        monkeypatch.setenv(SESSION_ID_ENV, 'parent')
+        monkeypatch.setenv(TOTAL_EXECUTORS_ENV, 'not-a-number')
+        assert create_executor_id() == 'parent-0'
+
+    def test_create_executor_id_is_unique_under_concurrency(self, monkeypatch):
+        self._fresh_session(monkeypatch)
+        ids = []
+        lock = threading.Lock()
+
+        def make():
+            executor_id = create_executor_id()
+            with lock:
+                ids.append(executor_id)
+
+        threads = [threading.Thread(target=make) for _ in range(32)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+
+        assert len(set(ids)) == 32
+
+    def test_get_executor_id_without_an_executor(self, monkeypatch):
+        self._fresh_session(monkeypatch)
+        with pytest.raises(KeyError):
+            get_executor_id()
 
     def test_monitoring_queue_chain_matches_the_shapes_in_use(self, monkeypatch):
         # These are the chains the id-derived formula produced, and every id

@@ -19,7 +19,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from lithops.constants import JOBS_PREFIX, RUNTIMES_PREFIX, TEMP_PREFIX
+from lithops.constants import (
+    JOBS_PREFIX,
+    RUNTIMES_PREFIX,
+    SESSION_ID_ENV,
+    TEMP_PREFIX,
+)
 from lithops.storage.cloud_proxy import (
     CloudFileProxy,
     CloudStorage,
@@ -165,7 +170,7 @@ class TestStorageUtils:
 class TestStorageCloudObjects:
 
     def test_put_cloudobject_uses_temp_prefix_and_hex_id(self, monkeypatch):
-        monkeypatch.delenv('__LITHOPS_SESSION_ID', raising=False)
+        monkeypatch.delenv(SESSION_ID_ENV, raising=False)
         storage = _bare_storage()
         cloudobject = storage.put_cloudobject(b'data')
         key = storage.storage_handler.put_object.call_args[0][1]
@@ -175,7 +180,7 @@ class TestStorageCloudObjects:
         assert cloudobject.bucket == 'storage'
 
     def test_put_cloudobject_prefixes_session_id(self, monkeypatch):
-        monkeypatch.setenv('__LITHOPS_SESSION_ID', 'sess')
+        monkeypatch.setenv(SESSION_ID_ENV, 'sess')
         storage = _bare_storage()
         cloudobject = storage.put_cloudobject(b'data')
         key = storage.storage_handler.put_object.call_args[0][1]
@@ -269,6 +274,16 @@ class TestInternalStorage:
         internal = _bare_internal()
         internal.storage.get_object.return_value = b'{"ok": true}'
         assert internal.get_call_status('e', 'M000', '00000') == {'ok': True}
+
+    def test_get_call_status_reads_a_half_written_status_as_missing(self):
+        """
+        The localhost backend fills an object after truncating it, so a poll
+        can read an empty one. That is a status not written yet, and used to
+        come back as a JSONDecodeError that failed the call
+        """
+        internal = _bare_internal()
+        internal.storage.get_object.return_value = b''
+        assert internal.get_call_status('e', 'M000', '00000') is None
 
     def test_runtime_meta_memory_cache(self):
         RUNTIME_META_CACHE.clear()

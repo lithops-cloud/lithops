@@ -28,6 +28,9 @@ jobs:
           cache-dependency-path: setup.py
 
       - name: Install Redis
+        # There is no Redis build for Windows. The tests that need a server
+        # skip themselves where none is reachable
+        if: runner.os != 'Windows'
         uses: shogo82148/actions-setup-redis@v1
         with:
           redis-version: '7.x'
@@ -35,16 +38,6 @@ jobs:
       - name: Install Lithops
         run: |
           pip3 install -U .[tests]
-
-      - name: Create Lithops config file
-        run: |
-          mkdir -p $HOME/.lithops
-          echo "lithops:" >> $HOME/.lithops/config
-          echo "    monitoring_interval: 0.1" >> $HOME/.lithops/config
-          echo "    log_level: DEBUG" >> $HOME/.lithops/config
-          echo "    include_modules: None" >> $HOME/.lithops/config
-          echo "localhost:" >> $HOME/.lithops/config
-          echo "    version: 2" >> $HOME/.lithops/config
 
       - name: Run Lithops tests
         run: |
@@ -56,9 +49,12 @@ jobs:
         shell: bash
         run: |
           if [ "$RUNNER_OS" == "Linux" ]; then
-            tail -n 500 /tmp/lithops-runner/localhost-runner.log
+            log=/tmp/lithops-runner/localhost-runner.log
           elif [ "$RUNNER_OS" == "macOS" ]; then
-            tail -n 500 $TMPDIR/lithops-runner/localhost-runner.log
-          elif [ "$RUNNER_OS" == "Windows" ]; then
-            tail -n 500 "C:\Users\RUNNER~1\AppData\Local\Temp\lithops-root\localhost-runner.log"
+            log=$TMPDIR/lithops-runner/localhost-runner.log
+          else
+            log="C:\Users\RUNNER~1\AppData\Local\Temp\lithops-root\localhost-runner.log"
           fi
+          # A job that failed before running anything leaves no log, which
+          # should not fail this step on top of the failure being reported
+          tail -n 500 "$log" || echo "No runner log at $log"

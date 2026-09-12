@@ -22,9 +22,11 @@ what was submitted. Nothing in this file needs a Redis server or a backend.
 """
 
 import ctypes
+import functools
 import gc
 import pickle
 import queue
+import socket
 import sys
 import threading
 import time
@@ -34,6 +36,7 @@ import cloudpickle
 import pytest
 from unittest.mock import MagicMock, patch
 
+from lithops.utils import is_unix_system
 from lithops.multiprocessing import config as mp_config
 from lithops.multiprocessing import util as mp_util
 from lithops.tests.mp_fakeredis import FakeRedis
@@ -67,6 +70,31 @@ def redis():
     return server
 
 
+REDIS_HOST = 'localhost'
+REDIS_PORT = 6379
+
+
+@functools.cache
+def _redis_reachable():
+    """
+    Whether a server answers, asked once for the whole session.
+
+    Every test that wants one used to open its own connection to find out,
+    and there are dozens of them. The socket is tried before the client
+    because a refused connection comes back at once, while the client
+    spends seconds on its own retries before it gives up
+    """
+    try:
+        socket.create_connection((REDIS_HOST, REDIS_PORT), timeout=0.25).close()
+    except OSError:
+        return False
+    try:
+        mp_util.PicklableRedis(host=REDIS_HOST, port=REDIS_PORT).ping()
+        return True
+    except Exception:
+        return False
+
+
 @pytest.fixture
 def real_redis():
     """
@@ -77,16 +105,14 @@ def real_redis():
     meant to check in the same pass proves nothing. Skipped where no server
     is reachable; every key the test makes is dropped afterwards
     """
+    if not _redis_reachable():
+        pytest.skip('no Redis reachable on localhost')
+
     # The picklable wrapper, which is what get_redis_client() builds. A plain
     # redis.Redis carries a connection pool with a lock in it, so a proxy
     # holding one cannot be sent to a worker -- a difference the tests must
     # not paper over
-    client = mp_util.PicklableRedis(host='localhost')
-    try:
-        client.ping()
-    except Exception:
-        pytest.skip('no Redis reachable on localhost')
-
+    client = mp_util.PicklableRedis(host=REDIS_HOST, port=REDIS_PORT)
     before = set(client.keys('*'))
     saved_client, saved_config = mp_util.REDIS_CLIENT, mp_util.LITHOPS_CONFIG
     mp_util.REDIS_CLIENT = client
@@ -1285,21 +1311,60 @@ class TestConnectionPolling:
         assert self._connection(queue.Queue())._poll(0.0) is False
 
     def test_poll_returns_as_soon_as_a_message_lands(self):
+        """
+        A message that lands mid-wait is picked up on the very next check,
+        and the waits leading up to it are the first small steps of the
+        backoff rather than the flat 0.1s this used to sleep.
+
+        The waits are counted instead of timed: a wall clock here also
+        measures how late the runner got round to landing the message,
+        which is not what the poll is being held to
+        """
+        from lithops.multiprocessing import connection as conn_mod
+
         buff = queue.Queue()
-        timer = threading.Timer(0.01, lambda: buff.put(b'x'))
-        timer.start()
-        try:
-            started = time.monotonic()
+        waits = []
+
+        def wait_and_land(duration):
+            waits.append(duration)
+            if len(waits) == 3:
+                buff.put(b'x')
+
+        with patch.object(conn_mod.time, 'sleep', side_effect=wait_and_land):
             assert self._connection(buff)._poll(5.0) is True
-            assert time.monotonic() - started < 0.09
-        finally:
-            timer.cancel()
+
+        assert len(waits) == 3
+        assert waits == [
+            conn_mod.POLL_MIN_SLEEP,
+            conn_mod.POLL_MIN_SLEEP * 2,
+            conn_mod.POLL_MIN_SLEEP * 4,
+        ]
+        assert sum(waits) < conn_mod.POLL_MAX_SLEEP
 
     def test_poll_does_not_overshoot_its_timeout(self):
-        started = time.monotonic()
-        assert self._connection(queue.Queue())._poll(0.05) is False
-        # The flat 0.1s step used to sleep past the deadline it was given
-        assert 0.05 <= time.monotonic() - started < 0.12
+        """
+        The waits add up to exactly the timeout, the last one being clipped
+        to what is left of it. The flat 0.1s step used to sleep past the
+        deadline it was given.
+
+        Driven off a fake clock: a real one also measures how far the OS
+        overshot each sleep, which the poll cannot be held to
+        """
+        from lithops.multiprocessing import connection as conn_mod
+
+        waits = []
+        clock = [0.0]
+
+        def sleep(duration):
+            waits.append(duration)
+            clock[0] += duration
+
+        with patch.object(conn_mod.time, 'sleep', side_effect=sleep), \
+                patch.object(conn_mod.time, 'monotonic', side_effect=lambda: clock[0]):
+            assert self._connection(queue.Queue())._poll(0.05) is False
+
+        assert sum(waits) == pytest.approx(0.05)
+        assert waits[-1] < conn_mod.POLL_MAX_SLEEP
 
     def test_poll_until_always_checks_once(self):
         from lithops.multiprocessing.connection import _poll_until
@@ -1585,6 +1650,61 @@ class TestBlpopTimeoutFallback:
 
 class TestConditionContract:
 
+    def test_wait_fully_releases_a_recursive_lock(self, redis):
+        import copy
+        from lithops.multiprocessing import Condition, RLock
+
+        lock = RLock()
+        cond = Condition(lock)
+        # A remote worker has its own ownership state for the same Redis key.
+        peer_lock = copy.copy(lock)
+        peer_cond = copy.copy(cond)
+        peer_cond._lock = peer_lock
+        acquired = []
+
+        def notify():
+            acquired.append(peer_lock.acquire(timeout=1))
+            if acquired[-1]:
+                try:
+                    peer_cond.notify()
+                finally:
+                    peer_lock.release()
+
+        lock.acquire()
+        lock.acquire()
+        thread = threading.Thread(target=notify)
+        thread.start()
+        try:
+            notified = cond.wait(timeout=2)
+            assert lock.owned and lock._count == 2
+        finally:
+            lock.release()
+            lock.release()
+            thread.join(timeout=3)
+        assert acquired == [True]
+        assert notified is True
+
+    @pytest.mark.parametrize('recursive', [False, True])
+    def test_wait_restores_the_lock_after_a_redis_error(self, redis, recursive):
+        from lithops.multiprocessing import Condition, Lock, RLock
+
+        lock = RLock() if recursive else Lock()
+        cond = Condition(lock)
+        depth = 2 if recursive else 1
+        for _ in range(depth):
+            lock.acquire()
+        try:
+            with patch('lithops.multiprocessing.synchronize._blpop', side_effect=OSError('connection lost')):
+                with pytest.raises(OSError, match='connection lost'):
+                    cond.wait(timeout=1)
+            assert lock.owned
+            if recursive:
+                assert lock._count == depth
+        finally:
+            if lock.owned:
+                for _ in range(depth):
+                    lock.release()
+
     def test_wait_says_whether_it_was_notified(self, redis):
         """
         The standard library returns False on a timeout and True on a
@@ -1627,6 +1747,9 @@ class TestWaitAlarm:
     seconds
     """
 
+    @pytest.mark.skipif(
+        not is_unix_system(), reason='wait() only arms an alarm on POSIX'
+    )
     def test_a_fractional_timeout_is_rounded_up(self):
         lw = sys.modules['lithops.wait']
 
@@ -1645,6 +1768,9 @@ class TestWaitAlarm:
         with pytest.raises(TimeoutError, match='Timeout of 0 seconds'):
             lw._set_wait_alarm(0)
 
+    @pytest.mark.skipif(
+        not is_unix_system(), reason='wait() only arms an alarm on POSIX'
+    )
     def test_pool_get_with_a_fractional_timeout_raises_timeout_error(self):
         """
         Pool.AsyncResult.get(0.2) reached signal.alarm() through wait() and

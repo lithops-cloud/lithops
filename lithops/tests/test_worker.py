@@ -28,7 +28,14 @@ import signal
 import pytest
 
 import lithops.worker.handler as handler_module
-from lithops.constants import JOBS_PREFIX, MODULES_DIR
+from lithops.constants import (
+    JOBS_PREFIX,
+    MODULES_DIR,
+    REDUCE_JOB_ENV,
+    SESSION_ID_ENV,
+    TOTAL_EXECUTORS_ENV,
+    WORKER_ENV,
+)
 from lithops.storage.utils import CloudObject, CloudObjectLocal, CloudObjectUrl
 from lithops.utils import bytes_to_b64str, is_unix_system
 from lithops.worker import function_handler, function_invoker
@@ -124,6 +131,11 @@ def _record_task(task):
         fid.write(str(os.getpid()))
 
 
+def _record_spawned_call(value, out_dir, id):
+    with open(os.path.join(out_dir, f'{id:05}-{value}'), 'w') as fid:
+        fid.write(str(os.getpid()))
+
+
 def _task(**kwargs):
     values = dict(
         extra_env={},
@@ -181,6 +193,25 @@ class TestCreateJob:
 
 
 class TestTaskConsumer:
+
+    def test_queued_calls_keep_distinct_state(self):
+        job = _task(call_ids=['00000', '00001'], data=[b'first', b'second'])
+        work_queue = handler_module._fill_queue(job, 2)
+        rendezvous = threading.Barrier(2)
+        seen = []
+
+        def observe(task):
+            rendezvous.wait(timeout=5)
+            seen.append((task.call_id, task.data))
+
+        threads = [threading.Thread(target=task_consumer, args=(i, work_queue)) for i in range(2)]
+        with patch.object(handler_module, 'prepare_and_run_task', side_effect=observe):
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join(timeout=5)
+        assert sorted(seen) == [('00000', b'first'), ('00001', b'second')]
+        assert job.data == [b'first', b'second']
 
     def test_runs_tasks_then_stops_on_sentinel(self):
         q = Queue()
@@ -253,6 +284,10 @@ class TestTaskJar:
         assert jar.get()[1:] == ('00001', b'd1')
         jar.close_reader()
 
+    @pytest.mark.skipif(
+        not is_unix_system(),
+        reason='only a POSIX pipe reports a dead reader as a broken pipe',
+    )
     def test_dispatch_survives_workers_that_died(self):
         jar = self._jar(2)
         jar.close_reader()
@@ -286,6 +321,9 @@ class TestFunctionHandler:
         consumer.assert_called_once()
         assert consumer.call_args[0][0] == 0
 
+    @pytest.mark.skipif(
+        not is_unix_system(), reason='the process pool needs fork'
+    )
     def test_multi_worker_starts_processes_and_joins(self):
         job = _task(
             worker_processes=2, call_ids=['00000', '00001'], data=[b'a', b'b']
@@ -295,37 +333,42 @@ class TestFunctionHandler:
         ctx.Process.return_value = proc
         with patch('lithops.worker.handler.create_job', return_value=job):
             with patch('lithops.worker.handler.setup_lithops_logger'):
-                with patch('lithops.worker.handler._MP_CTX', ctx):
+                with patch('lithops.worker.handler._MP_CTX', ctx), \
+                        patch('lithops.worker.handler.is_unix_system', return_value=True):
                     function_handler({})
         ctx.Manager.assert_not_called()
         assert ctx.Process.call_count == 2
         assert proc.start.call_count == 2
         assert proc.join.call_count == 2
 
-    def test_multi_worker_runs_every_task_once(self):
-        n_tasks = 6
+    def test_non_unix_workers_use_process_isolation(self):
         job = _task(
-            worker_processes=3,
-            call_ids=[f'{i:05}' for i in range(n_tasks)],
-            data=[f'd{i}'.encode() for i in range(n_tasks)],
+            worker_processes=2, call_ids=['00000', '00001'], data=[b'a', b'b']
         )
-        seen = []
-        with patch('lithops.worker.handler.create_job', return_value=job):
-            with patch('lithops.worker.handler.setup_lithops_logger'):
-                with patch(
-                    'lithops.worker.handler.prepare_and_run_task',
-                    side_effect=lambda task: seen.append(
-                        (task.call_id, task.data)
-                    ),
-                ):
-                    with patch(
-                        'lithops.worker.handler._run_process_pool',
-                        new=handler_module._run_thread_pool,
-                    ):
-                        function_handler({})
-        assert sorted(seen) == [
-            (f'{i:05}', f'd{i}'.encode()) for i in range(n_tasks)
-        ]
+        with patch.object(handler_module, 'create_job', return_value=job), \
+                patch.object(handler_module, 'is_unix_system', return_value=False), \
+                patch.object(handler_module, '_run_spawn_pool') as spawned:
+            function_handler({})
+        spawned.assert_called_once_with(job, 2)
+
+    def test_spawn_pool_runs_every_task_in_a_child(self, tmp_path):
+        from lithops.config import default_config
+
+        n_tasks = 6
+        config = default_config(config_data={
+            'lithops': {'backend': 'localhost', 'storage': 'localhost'},
+            'localhost': {'storage_bucket': str(tmp_path / 'storage')},
+        })
+        job = _task(
+            config=config, worker_processes=2,
+            call_ids=[f'{i:05}' for i in range(n_tasks)],
+            data=[pickle.dumps({'value': f'd{i}', 'out_dir': str(tmp_path)}) for i in range(n_tasks)],
+            func=pickle.dumps(_record_spawned_call),
+        )
+        handler_module._run_spawn_pool(job, job.worker_processes)
+        done = sorted(p for p in tmp_path.iterdir() if p.is_file())
+        assert [p.name for p in done] == [f'{i:05}-d{i}' for i in range(n_tasks)]
+        assert all(p.read_text() != str(os.getpid()) for p in done)
 
     @pytest.mark.skipif(
         not is_unix_system(), reason='the process pool needs fork'
@@ -354,18 +397,18 @@ class TestFunctionHandler:
         job = _task(worker_processes=1, call_ids=['00000'], data=[b'd'])
         module_path = os.path.join(MODULES_DIR, job.job_key)
         sys.path.append(module_path)
-        os.environ['__LITHOPS_TOTAL_EXECUTORS'] = '2'
+        os.environ[TOTAL_EXECUTORS_ENV] = '2'
         try:
             with patch('lithops.worker.handler.create_job', return_value=job):
                 with patch('lithops.worker.handler.setup_lithops_logger'):
                     with patch('lithops.worker.handler.task_consumer'):
                         function_handler({})
             assert module_path not in sys.path
-            assert '__LITHOPS_TOTAL_EXECUTORS' not in os.environ
+            assert TOTAL_EXECUTORS_ENV not in os.environ
         finally:
             if module_path in sys.path:
                 sys.path.remove(module_path)
-            os.environ.pop('__LITHOPS_TOTAL_EXECUTORS', None)
+            os.environ.pop(TOTAL_EXECUTORS_ENV, None)
 
 
 class TestPrepareAndRunTask:
@@ -382,7 +425,7 @@ class TestPrepareAndRunTask:
         with patch('lithops.worker.handler.run_task') as run:
             prepare_and_run_task(task)
         run.assert_called_once_with(task)
-        assert os.environ['LITHOPS_WORKER'] == 'True'
+        assert os.environ[WORKER_ENV] == 'True'
         assert os.environ['PYTHONUNBUFFERED'] == 'True'
         assert 'FOO' not in os.environ
         assert os.path.isdir(task.task_dir)
@@ -503,6 +546,9 @@ class TestRunTask:
         }['exc_info']
         return pickle.loads(ast.literal_eval(pickled))[0]
 
+    @pytest.mark.skipif(
+        not is_unix_system(), reason='there is no SIGKILL on Windows'
+    )
     def test_a_sigkilled_jobrunner_is_reported_as_memory(self, tmp_path):
         task = _task()
         task.log_stream = MagicMock()
@@ -592,7 +638,7 @@ class TestRunTask:
         conn.poll.return_value = True
         self._patch_run(task, jrp, conn)
         assert extra == {}
-        assert '__LITHOPS_SESSION_ID' not in extra
+        assert SESSION_ID_ENV not in extra
         assert 'LITHOPS_CONFIG' not in extra
 
 
@@ -603,6 +649,9 @@ class TestJobRunnerDeathReason:
     error looking in the wrong place
     """
 
+    @pytest.mark.skipif(
+        not is_unix_system(), reason='there is no SIGKILL on Windows'
+    )
     def test_sigkill_reads_as_memory(self):
         from lithops.worker.handler import _jobrunner_death_reason
         reason = _jobrunner_death_reason(-signal.SIGKILL)
@@ -875,10 +924,14 @@ class TestWorkerUtils:
     def test_peak_memory_and_disk(self, tmp_path):
         mem = peak_memory()
         assert mem is None or mem >= 0
-        assert free_disk_space(str(tmp_path)) > 0
+        if is_unix_system():
+            # free_disk_space() reads statvfs, which Windows has no equivalent of
+            assert free_disk_space(str(tmp_path)) > 0
 
     def test_get_memory_usage_non_root_returns_none(self):
-        if os.geteuid() != 0:
+        # ps_mem needs both a Unix system and root, and it is the system
+        # that is checked first: os.geteuid() does not exist on Windows
+        if not is_unix_system() or os.geteuid() != 0:
             assert get_memory_usage() is None
 
     def test_memory_monitor_sends_peak_on_poll(self):
@@ -1128,7 +1181,7 @@ class TestJobRunner:
 
     @pytest.fixture(autouse=True)
     def _session_id(self, monkeypatch, tmp_path):
-        monkeypatch.setenv('__LITHOPS_SESSION_ID', 'sid-1')
+        monkeypatch.setenv(SESSION_ID_ENV, 'sid-1')
         self.stats = str(tmp_path / 'stats.txt')
 
     def _runner(self, func, data, **job_kwargs):
@@ -1298,7 +1351,7 @@ class TestJobRunner:
         jr.internal_storage.put_data.assert_not_called()
 
     def test_reduce_job_waits_for_futures(self, monkeypatch):
-        monkeypatch.setenv('__LITHOPS_REDUCE_JOB', 'True')
+        monkeypatch.setenv(REDUCE_JOB_ENV, 'True')
         jr = self._runner(_reduce_fn, {'results': []})
         with patch.object(jr, '_wait_futures') as wait_f:
             jr.run()
@@ -1345,7 +1398,7 @@ class TestJobRunner:
 class TestFunctionInvoker:
 
     def test_function_invoker_wires_handlers(self, monkeypatch):
-        monkeypatch.delenv('LITHOPS_WORKER', raising=False)
+        monkeypatch.delenv(WORKER_ENV, raising=False)
         payload = {
             'config': _job_config(
                 monitoring='storage', backend='aws_lambda'
@@ -1375,7 +1428,7 @@ class TestFunctionInvoker:
                             ):
                                 function_invoker(payload)
         invoker.run_job.assert_called_once()
-        assert os.environ['LITHOPS_WORKER'] == 'True'
+        assert os.environ[WORKER_ENV] == 'True'
         assert payload['config']['aws_lambda']['invoke_pool_threads'] == 128
 
     def test_the_remote_invoker_takes_a_queue_of_its_own(self, monkeypatch):
@@ -1384,14 +1437,14 @@ class TestFunctionInvoker:
         the client's queue: the statuses it took would never reach the
         client. It reads its own, and the calls report to both
         """
+        from lithops.constants import MONITORING_QUEUES_ENV
         from lithops.utils import (
-            MONITORING_QUEUES_ENV,
             monitoring_queue_name,
             monitoring_queues,
             remote_invoker_queue_name,
         )
 
-        monkeypatch.delenv('LITHOPS_WORKER', raising=False)
+        monkeypatch.delenv(WORKER_ENV, raising=False)
         monkeypatch.delenv(MONITORING_QUEUES_ENV, raising=False)
         payload = {
             'config': _job_config(

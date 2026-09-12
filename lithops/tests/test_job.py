@@ -22,12 +22,17 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from lithops.constants import LOCALHOST, MAX_AGG_DATA_SIZE, SERVERLESS, STANDALONE
+from lithops.constants import (
+    LOCALHOST,
+    MAX_AGG_DATA_SIZE,
+    REDUCE_JOB_ENV,
+    SERVERLESS,
+    STANDALONE,
+)
 from lithops.job import create_map_job, create_reduce_job
 from lithops.job.job import (
     FUNCTION_CACHE,
     MAX_DATA_IN_PAYLOAD,
-    _FUNC_SERIALIZE_CACHE,
     _store_func_and_modules,
     invalidate_function_cache,
 )
@@ -118,14 +123,10 @@ def _storage():
 @pytest.fixture
 def fresh_function_cache():
     saved = set(FUNCTION_CACHE)
-    saved_serialize = {func: dict(entries) for func, entries in _FUNC_SERIALIZE_CACHE.items()}
     FUNCTION_CACHE.clear()
-    _FUNC_SERIALIZE_CACHE.clear()
     yield FUNCTION_CACHE
     FUNCTION_CACHE.clear()
     FUNCTION_CACHE.update(saved)
-    _FUNC_SERIALIZE_CACHE.clear()
-    _FUNC_SERIALIZE_CACHE.update(saved_serialize)
 
 
 @pytest.fixture
@@ -397,7 +398,7 @@ class TestCreateReduceJob:
         )
         assert job.job_id == 'r0'
         assert job.total_calls == 1
-        assert job.extra_env['__LITHOPS_REDUCE_JOB'] == 'True'
+        assert job.extra_env[REDUCE_JOB_ENV] == 'True'
         _, _, objs = _CapturingSerializer.last
         assert objs[1]['results'] == list(range(6))
 
@@ -419,7 +420,7 @@ class TestCreateReduceJob:
         )
         assert job.total_calls == 3
         assert job.extra_env['K'] == 'False'
-        assert job.extra_env['__LITHOPS_REDUCE_JOB'] == 'True'
+        assert job.extra_env[REDUCE_JOB_ENV] == 'True'
         _, _, objs = _CapturingSerializer.last
         assert [o['results'] for o in objs[1:]] == [
             ['a', 'b'], ['c', 'd', 'e'], ['f']
@@ -475,9 +476,55 @@ class TestLargePayloadAndCache:
         assert job.data_key is not None
 
 
-class TestFuncSerializeCache:
+class TestFunctionSerialization:
 
-    def test_second_map_skips_cloudpickle_of_same_function(
+    @pytest.mark.parametrize('callable_kind', ['closure', 'instance'])
+    def test_changed_callable_state_is_uploaded_again(self, fresh_function_cache, callable_kind):
+        state = {'multiplier': 2}
+
+        def compute(x):
+            return x * state['multiplier']
+
+        class Multiply:
+            multiplier = 2
+
+            def __call__(self, x):
+                return x * self.multiplier
+
+        func = compute if callable_kind == 'closure' else Multiply()
+        storage = _storage()
+        first = _make_map_job(func=func, internal_storage=storage, include_modules=None)
+        first_payload = pickle.loads(storage.put_func.call_args.args[1])
+        assert pickle.loads(first_payload['func'])(10) == 20
+
+        state['multiplier'] = 3
+        if callable_kind == 'instance':
+            func.multiplier = 3
+        second = _make_map_job(func=func, internal_storage=storage, include_modules=None)
+        second_payload = pickle.loads(storage.put_func.call_args.args[1])
+        assert pickle.loads(second_payload['func'])(10) == 30
+        assert second.func_key != first.func_key
+
+    def test_dependency_payload_matches_the_target_runtime(self, fresh_function_cache):
+        import yaml
+
+        def compute(value):
+            return yaml.safe_load(value)
+
+        storage = _storage()
+        _make_map_job(
+            func=compute, iterdata=['a: 1'], internal_storage=storage,
+            include_modules=['yaml'], runtime_meta=_runtime_meta(preinstalls=[['yaml', True]]),
+        )
+        assert not pickle.loads(storage.put_func.call_args.args[1])['module_data']
+        _make_map_job(
+            func=compute, iterdata=['a: 1'], internal_storage=storage,
+            include_modules=['yaml'], runtime_meta=_runtime_meta(preinstalls=[]),
+        )
+        payload = pickle.loads(storage.put_func.call_args.args[1])
+        assert 'yaml/__init__.py' in payload['module_data']
+
+    def test_second_map_refreshes_serialization_but_deduplicates_upload(
         self, monkeypatch, fresh_function_cache
     ):
         dumped = []
@@ -502,9 +549,10 @@ class TestFuncSerializeCache:
         _make_map_job(
             internal_storage=storage, func=_echo, iterdata=[3, 4]
         )
-        assert dumped.count(_echo) == 1
+        assert dumped.count(_echo) == 2
         data_dumps = [obj for obj in dumped if obj is not _echo]
         assert len(data_dumps) == 4
+        storage.put_func.assert_called_once()
 
 
 class TestInvalidateFunctionCache:
@@ -763,6 +811,37 @@ class TestCreatePartitions:
             [],
             [],
         )
+
+    @pytest.mark.parametrize('path', [
+        r'C:\\data\\a.txt', 'C:/data/a.txt', r'\\\\server\\share\\a.txt',
+    ])
+    def test_a_windows_path_is_read_as_a_local_file(self, path):
+        """
+        Nothing starts with a separator on Windows, so a drive letter or a
+        UNC share used to fall through to the Object Storage branch and the
+        local file was looked for in a bucket
+        """
+        with patch(
+            'lithops.job.partitioner._split_objects_from_paths',
+            return_value=([{'obj': path}], [1]),
+        ) as split_paths:
+            parts, ppo = create_partitions(
+                {}, _storage(), [{'obj': path}], None, None, None
+            )
+        split_paths.assert_called_once()
+        assert [entry['obj'] for entry in split_paths.call_args.args[0]] == [path]
+        assert (parts, ppo) == ([{'obj': path}], [1])
+
+    @pytest.mark.parametrize('key', [
+        'bucket/key.csv', 'C:relative', 'bucket/a:b', 's3://bucket/key',
+    ])
+    def test_a_storage_key_is_not_read_as_a_windows_path(self, key):
+        with patch(
+            'lithops.job.partitioner._split_objects_from_object_storage',
+            return_value=([], []),
+        ) as split_objects:
+            create_partitions({}, _storage(), [{'obj': key}], None, None, None)
+        split_objects.assert_called_once()
 
     def test_http_takes_precedence_over_paths(self, tmp_path):
         f = tmp_path / 'f.txt'

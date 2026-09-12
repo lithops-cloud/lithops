@@ -43,9 +43,16 @@ from lithops.worker.utils import (
     LogStream, custom_redirection, get_function_and_modules,
     get_function_data, SystemMonitor
 )
-from lithops.constants import JOBS_PREFIX, LITHOPS_TEMP_DIR, MODULES_DIR
-from lithops.utils import (
+from lithops.constants import (
+    JOBS_PREFIX,
+    LITHOPS_TEMP_DIR,
+    MODULES_DIR,
     MONITORING_QUEUES_ENV,
+    SESSION_ID_ENV,
+    TOTAL_EXECUTORS_ENV,
+    WORKER_ENV,
+)
+from lithops.utils import (
     setup_lithops_logger,
     is_unix_system,
 )
@@ -152,15 +159,21 @@ def create_job(payload: Dict[str, Any]) -> SimpleNamespace:
     return job
 
 
-def _fill_queue(job: SimpleNamespace, worker_processes: int) -> Queue:
+def _fill_queue(job: SimpleNamespace, worker_processes: int, work_queue=None):
     """
     Loads every task of the job in a queue, followed by one sentinel per
     worker. Every task is known upfront, so nothing is queued afterwards
     """
-    work_queue = Queue()
+    if work_queue is None:
+        work_queue = Queue()
 
     for call_id, data in zip(job.call_ids, job.data):
-        work_queue.put((job, call_id, data))
+        task = SimpleNamespace(**vars(job))
+        # Keep only this call in the queued task. Besides isolating mutable
+        # state, this avoids pickling the whole input list once per call.
+        task.call_ids = [call_id]
+        task.data = data
+        work_queue.put((task, call_id, data))
 
     for _ in range(worker_processes):
         work_queue.put(ShutdownSentinel())
@@ -196,21 +209,34 @@ def _run_process_pool(job: SimpleNamespace, worker_processes: int) -> None:
         worker.join()
 
 
-def _run_thread_pool(job: SimpleNamespace, worker_processes: int) -> None:
+def _run_spawn_pool(job: SimpleNamespace, worker_processes: int) -> None:
     """
-    Runs the tasks of the job in threads. Used where there is no fork, so
-    tasks share this interpreter instead of getting a process each
+    Runs workers in separate interpreters where fork is unavailable.
+
+    The multiprocessing queue gives each call its own deserialized task.
+    Threads would share the task namespace, cwd, environment and log streams.
     """
-    work_queue = _fill_queue(job, worker_processes)
+    ctx = mp.get_context('spawn')
+    work_queue = ctx.Queue()
     workers = []
-
-    for pid in range(worker_processes):
-        worker = Thread(target=task_consumer, args=(pid, work_queue))
-        workers.append(worker)
-        worker.start()
-
-    for worker in workers:
-        worker.join()
+    try:
+        for pid in range(worker_processes):
+            worker = ctx.Process(target=task_consumer, args=(pid, work_queue))
+            worker.start()
+            workers.append(worker)
+        _fill_queue(job, worker_processes, work_queue)
+        for worker in workers:
+            worker.join()
+            if worker.exitcode != 0:
+                raise RuntimeError(f'Worker process {worker.pid} exited with code {worker.exitcode}')
+    finally:
+        for worker in workers:
+            if worker.is_alive():
+                worker.terminate()
+                worker.join()
+        # If consumers died, the feeder may still hold data nobody can read.
+        work_queue.cancel_join_thread()
+        work_queue.close()
 
 
 def function_handler(payload: Dict[str, Any]) -> None:
@@ -231,13 +257,13 @@ def function_handler(payload: Dict[str, Any]) -> None:
     elif is_unix_system():
         _run_process_pool(job, worker_processes)
     else:
-        _run_thread_pool(job, worker_processes)
+        _run_spawn_pool(job, worker_processes)
 
     module_path = os.path.join(MODULES_DIR, job.job_key)
     if module_path in sys.path:
         sys.path.remove(module_path)
 
-    os.environ.pop('__LITHOPS_TOTAL_EXECUTORS', None)
+    os.environ.pop(TOTAL_EXECUTORS_ENV, None)
 
 
 def task_consumer(
@@ -296,7 +322,7 @@ def prepare_and_run_task(task: SimpleNamespace) -> None:
         act_id = str(uuid.uuid4()).replace('-', '')[:12]
         os.environ['__LITHOPS_ACTIVATION_ID'] = act_id
 
-    os.environ['LITHOPS_WORKER'] = 'True'
+    os.environ[WORKER_ENV] = 'True'
     os.environ['PYTHONUNBUFFERED'] = 'True'
     os.environ.update(task.extra_env)
 
@@ -461,7 +487,7 @@ def run_task(task: SimpleNamespace) -> None:
 
     injected_env = {
         'LITHOPS_CONFIG': json.dumps(task.config),
-        '__LITHOPS_SESSION_ID': '-'.join([task.job_key, task.call_id]),
+        SESSION_ID_ENV: '-'.join([task.job_key, task.call_id]),
         # An executor created by the user function reports to these queues as
         # well as to its own, which is how a nested job reaches the client
         MONITORING_QUEUES_ENV: json.dumps(

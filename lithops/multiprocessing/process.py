@@ -20,6 +20,7 @@ import logging
 import multiprocessing as _mp
 
 from lithops import FunctionExecutor
+from lithops.constants import SESSION_ID_ENV
 from lithops.utils import is_lithops_worker
 from . import config as mp_config
 from . import util
@@ -77,7 +78,7 @@ def current_process():
     if is_lithops_worker():
         return _CurrentProcess(
             name=os.environ.get('LITHOPS_MP_WORKER_NAME'),
-            pid=os.environ.get('__LITHOPS_SESSION_ID', '-1'),
+            pid=os.environ.get(SESSION_ID_ENV, '-1'),
         )
     else:
         return _mp.current_process()
@@ -130,7 +131,7 @@ def cloud_process_wrapper(data, func, initializer=None, initargs=(), name=None, 
         # Print exception stack trace to remote logging buffer
         header = "---------- {} at {} ({}) ----------".format(e.__class__.__name__,
                                                               os.environ.get('LITHOPS_MP_WORKER_NAME'),
-                                                              os.environ.get('__LITHOPS_SESSION_ID'))
+                                                              os.environ.get(SESSION_ID_ENV))
         exception_body = traceback.format_exc()
         footer = '-' * len(header)
         if remote_log_buff:

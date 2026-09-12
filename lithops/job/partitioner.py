@@ -16,6 +16,7 @@
 #
 
 import os
+import re
 import posixpath
 import logging
 import requests
@@ -28,6 +29,11 @@ from lithops.storage.utils import CloudObject, CloudObjectUrl, CloudObjectLocal
 from lithops.utils import sizeof_fmt
 
 logger = logging.getLogger(__name__)
+
+#: A local path on Windows, where nothing starts with a separator: a drive
+#: letter followed by one, or a UNC share. The separator is required, so
+#: that a storage key is not read as a path just for holding a colon
+_WINDOWS_PATH = re.compile(r'^(?:[A-Za-z]:[\\/]|\\\\)')
 
 CHUNK_THRESHOLD = 128 * 1024  # 128KB
 
@@ -58,9 +64,10 @@ def create_partitions(
     logger.debug("Parsing input data")
 
     for elem in map_iterdata:
-        if str(elem['obj']).startswith('http'):
+        obj = str(elem['obj'])
+        if obj.startswith('http'):
             urls.append(elem)
-        elif str(elem['obj']).startswith('/'):
+        elif obj.startswith('/') or _WINDOWS_PATH.match(obj):
             paths.append(elem)
         else:
             objects.append(elem)

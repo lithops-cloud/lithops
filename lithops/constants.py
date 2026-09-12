@@ -58,6 +58,15 @@ LOGS_PREFIX = "lithops.logs"
 RUNTIMES_PREFIX = "lithops.runtimes"
 
 # ---------------------------------------------------------------------------
+# Executor environment variables
+# ---------------------------------------------------------------------------
+SESSION_ID_ENV = '__LITHOPS_SESSION_ID'
+TOTAL_EXECUTORS_ENV = '__LITHOPS_TOTAL_EXECUTORS'
+MONITORING_QUEUES_ENV = '__LITHOPS_MONITORING_QUEUES'
+WORKER_ENV = 'LITHOPS_WORKER'
+REDUCE_JOB_ENV = '__LITHOPS_REDUCE_JOB'
+
+# ---------------------------------------------------------------------------
 # Local filesystem
 # ---------------------------------------------------------------------------
 TEMP_DIR = os.path.realpath(tempfile.gettempdir())
@@ -136,7 +145,6 @@ SERVERLESS_BACKENDS = (
     'aws_batch',
     'gcp_cloudrun',
     'gcp_functions',
-    'cloudrun',
     'azure_functions',
     'azure_containers',
     'aliyun_fc',

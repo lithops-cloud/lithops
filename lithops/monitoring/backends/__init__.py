@@ -33,8 +33,8 @@ and :func:`~lithops.monitoring.create_call_status` load it with::
     lithops.monitoring.backends.<name>
 
 The name of the package is also the name of the config section the backend
-reads and the value ``monitoring:`` selects it by; ``Monitor`` checks that
-its ``backend_name`` agrees with the package it is defined in.
+reads and the value ``monitoring:`` selects it by; ``Monitor`` takes its
+``backend_name`` from the package it is defined in.
 """
 
 import importlib
@@ -43,14 +43,6 @@ from typing import Any, Dict, Optional
 #: Backend used when the configuration does not name one. Every storage
 #: backend can act as a monitoring channel, so this always works
 DEFAULT_BACKEND = 'storage'
-
-#: Attribute name each backend package exports, and the base class it has
-#: to be a subclass of. Loaded lazily so that importing this module does
-#: not pull the whole monitoring package in
-_CONTRACT = {
-    'MonitoringBackend': ('lithops.monitoring.monitor', 'Monitor'),
-    'CallStatus': ('lithops.monitoring.status', 'CallStatus'),
-}
 
 
 def resolve_backend(
@@ -95,28 +87,13 @@ def import_backend_module(backend: str, submodule: Optional[str] = None):
 
 def load_backend_attr(backend: str, attr: str):
     """
-    Returns ``attr`` of ``lithops.monitoring.backends.<backend>``, checked
-    against the backend contract so that a package that exports the wrong
-    thing fails here rather than halfway through a job
+    Returns ``attr`` of ``lithops.monitoring.backends.<backend>``, naming
+    the backend when the package does not export it
     """
     module = import_backend_module(backend)
-
     try:
-        value = getattr(module, attr)
+        return getattr(module, attr)
     except AttributeError as exc:
         raise ValueError(
             f"Monitoring backend '{backend}' exports no {attr}"
         ) from exc
-
-    expected = _CONTRACT.get(attr)
-    if expected is None:
-        return value
-
-    base_module, base_name = expected
-    base = getattr(importlib.import_module(base_module), base_name)
-    if not (isinstance(value, type) and issubclass(value, base)):
-        raise ValueError(
-            f"Monitoring backend '{backend}' exports {attr}="
-            f"{value!r}, which is not a {base_name} subclass"
-        )
-    return value
