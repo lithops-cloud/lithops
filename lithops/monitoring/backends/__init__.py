@@ -44,6 +44,7 @@ from typing import Any, Dict, Optional
 #: backend can act as a monitoring channel, so this always works
 DEFAULT_BACKEND = 'storage'
 
+
 def resolve_backend(
         config: Optional[Dict[str, Any]] = None,
         backend: Optional[str] = None,
