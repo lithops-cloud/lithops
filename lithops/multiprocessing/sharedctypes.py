@@ -12,6 +12,7 @@
 import ctypes
 import cloudpickle
 import logging
+import redis
 
 from . import util
 from . import get_context
@@ -73,7 +74,9 @@ class RawValueProxy(SharedCTypeProxy):
         if key == 'value':
             obj = cloudpickle.dumps(value)
             logger.debug('Set raw value %s of size %i B', self._oid, len(obj))
-            self._client.set(self._oid, obj, ex=mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
+            pipeline = self._ref.pipeline()
+            pipeline.set(self._oid, obj, ex=mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
+            pipeline.execute()
         else:
             super().__setattr__(key, value)
 
@@ -132,10 +135,13 @@ class RawArrayProxy(SharedCTypeProxy):
             stop -= 1
             logger.debug('Requested get list slice from %i to %i', start, stop)
             objl = self._client.lrange(self._oid, start, stop)
-            self._client.expire(self._oid, mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
+            self._refresh_expiry()
             return [cloudpickle.loads(obj) for obj in objl]
         else:
             obj = self._client.lindex(self._oid, i)
+            if obj is None:
+                # LINDEX answers nil past either end, as ctypes raises
+                raise IndexError('invalid index')
             logger.debug('Requested get list index %i of size %i B', i, len(obj))
             return cloudpickle.loads(obj)
 
@@ -151,8 +157,17 @@ class RawArrayProxy(SharedCTypeProxy):
         else:
             obj = cloudpickle.dumps(value)
             logger.debug('Requested set list index %i of size %i B', i, len(obj))
-            self._client.lset(self._oid, i, obj)
-            self._client.expire(self._oid, mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
+            try:
+                self._client.lset(self._oid, i, obj)
+            except redis.exceptions.ResponseError:
+                # LSET refuses an index past either end
+                raise IndexError('invalid index')
+            self._refresh_expiry()
+
+    def _refresh_expiry(self):
+        pipeline = self._ref.pipeline()
+        pipeline.expire(self._oid, mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
+        pipeline.execute()
 
 
 class SynchronizedArrayProxy(RawArrayProxy, SynchronizedSharedCTypeProxy):
@@ -173,7 +188,7 @@ class SynchronizedStringProxy(SynchronizedArrayProxy):
                 obj = cloudpickle.dumps(elem)
                 logger.debug('Requested set string index %i of size %i B', i, len(obj))
                 self._client.lset(self._oid, i, obj)
-                self._client.expire(self._oid, mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
+                self._refresh_expiry()
         else:
             super().__setattr__(key, value)
 
@@ -189,11 +204,13 @@ class SynchronizedStringProxy(SynchronizedArrayProxy):
             stop -= 1  # lrange is inclusive on both ends
             logger.debug('Requested get string slice from %i to %i', start, stop)
             objl = self._client.lrange(self._oid, start, stop)
-            self._client.expire(self._oid, mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
+            self._refresh_expiry()
             return bytes([cloudpickle.loads(obj) for obj in objl])
         else:
             obj = self._client.lindex(self._oid, i)
-            self._client.expire(self._oid, mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
+            if obj is None:
+                raise IndexError('invalid index')
+            self._refresh_expiry()
             return bytes([cloudpickle.loads(obj)])
 
 

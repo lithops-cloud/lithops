@@ -241,14 +241,23 @@ class CloudProcess:
 
     def join(self, timeout=None):
         """
-        Wait until child process terminates
+        Wait until child process terminates.
+
+        A timeout that runs out returns None and leaves the process running,
+        as in the standard library, so it can be joined again. A process
+        whose target raised re-raises it here
         """
         assert self._parent_pid == os.getpid(), 'can only join a child process'
         assert self._pid, 'can only join a started process'
 
+        try:
+            util.wait_futures(self._executor, [self._future], timeout=timeout)
+        except TimeoutError:
+            return None
+
         exception = None
         try:
-            self._executor.wait(fs=[self._future], timeout=timeout)
+            self._future.status(internal_storage=self._executor.internal_storage)
         except Exception as e:
             exception = e
         finally:

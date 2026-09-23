@@ -309,6 +309,13 @@ class Invoker:
         """
         pass
 
+    def discard_pending(self, job_keys):
+        """
+        Drops the calls of the given jobs not invoked yet. Only an invoker
+        that queues calls has any
+        """
+        pass
+
 
 class BatchInvoker(Invoker):
     """
@@ -540,6 +547,30 @@ class FaaSInvoker(Invoker):
             return
         raise Exception('Unable to spawn remote invoker')
 
+    def _empty_token_bucket(self):
+        while True:
+            try:
+                self.job_monitor.token_bucket_q.get(block=False)
+            except queue.Empty:
+                return
+
+    def discard_pending(self, job_keys):
+        """
+        Drops the calls of the given jobs that are still waiting for a
+        worker, leaving the queued calls of every other job in place
+        """
+        kept = []
+        while True:
+            try:
+                item = self.pending_calls_q.get(block=False)
+            except queue.Empty:
+                break
+            job, _ = item
+            if job is None or job.job_key not in job_keys:
+                kept.append(item)
+        for item in kept:
+            self.pending_calls_q.put(item)
+
     def _drain_token_bucket(self):
         """
         Takes back the tokens left over by previous jobs, one per worker that
@@ -595,6 +626,10 @@ class FaaSInvoker(Invoker):
         prefix = log_prefix(job.executor_id, job.job_id)
 
         if not self.should_run:
+            # Tokens a monitor handed back after the stop belong to workers
+            # this restart no longer counts, and would each invoke one more
+            # worker than max_workers allows
+            self._empty_token_bucket()
             self.running_workers = 0
             self.should_run = True
             self._start_async_invokers()

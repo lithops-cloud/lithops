@@ -30,12 +30,10 @@ DEFAULT_CONFIG_KEYS = {
 LOCALHOST_EXECUTION_TIMEOUT = 3600
 
 _WINDOWS_PATH = re.compile(r'^(?:[A-Za-z]:[\\/]|\\\\)')
-# Interpreters like python, python3, python3.12, python.exe — not docker tags
-# such as python:3.12.
-_PYTHON_INTERPRETER = re.compile(
-    r'^python(\d+(\.\d+)*)?(\.exe)?$',
-    re.IGNORECASE,
-)
+# Interpreters like python3.12, python3.13t, python3-intel64 or pythonw.exe.
+# Docker tags and repositories such as python:3.12 or registry/python always
+# carry a ':' or a '/', which an interpreter name never does.
+_PYTHON_INTERPRETER = re.compile(r'^python[^:/\\]*$', re.IGNORECASE)
 
 
 class LocalhostEnvironment(Enum):
@@ -53,7 +51,10 @@ def get_environment(runtime_name: str) -> LocalhostEnvironment:
     if (
         runtime_name.startswith('/')
         or _WINDOWS_PATH.match(runtime_name) is not None
-        or _PYTHON_INTERPRETER.match(basename) is not None
+        or (
+            '/' not in runtime_name
+            and _PYTHON_INTERPRETER.match(basename) is not None
+        )
     ):
         return LocalhostEnvironment.DEFAULT
     return LocalhostEnvironment.CONTAINER

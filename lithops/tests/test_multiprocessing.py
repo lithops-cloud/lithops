@@ -127,19 +127,66 @@ def real_redis():
 
 
 class FakeFuture:
-    def __init__(self, value=None, error=False):
+    """
+    A call. Finished unless built ``running``, in which case it finishes
+    when finish() says so, or when something waits on it without a timeout
+    """
+
+    def __init__(self, value=None, error=False, exception=None, running=False):
         self.executor_id = 'sess-0'
         self.job_id = 'A000'
         self.call_id = '00000'
-        self.done = True
-        self.error = error
-        self.success = not error
-        self.ready = True
         self.stats = {'worker_exec_time': 0.5}
         self._value = value
+        self._exception = exception
+        self._fails = error or exception is not None
+        self.done = self.error = self.success = self.ready = False
+        if not running:
+            self.finish()
+
+    def finish(self):
+        self.done = self.ready = True
+        self.error = self._fails
+        self.success = not self._fails
+
+    def _set_exception(self):
+        """
+        What FunctionExecutor.wait() does to the futures it gives up on: done,
+        with no status and no result
+        """
+        self.done = True
+        self.ready = self.success = self.error = False
+        self._value = self._exception = None
+
+    def status(self, throw_except=True, internal_storage=None, check_only=False):
+        if not (self.done or self.success):
+            assert check_only, 'a real future would block here'
+            return None
+        if self.error and throw_except and self._exception is not None:
+            raise self._exception
+        return {}
 
     def result(self, throw_except=True, internal_storage=None):
+        self.status(throw_except=throw_except)
         return self._value
+
+
+def _fake_wait(futures, timeout=None, throw_except=True, **kwargs):
+    """
+    lithops.wait.wait on fake futures: the calls still running finish while
+    it waits, unless it was given a timeout, which then runs out
+    """
+    running = [f for f in futures if not (f.success or f.done)]
+    if running and timeout is not None:
+        raise TimeoutError(
+            'Timeout of {} seconds exceeded waiting for function '
+            'activations to finish'.format(timeout)
+        )
+    for fut in running:
+        fut.finish()
+    for fut in futures:
+        fut.status(throw_except=throw_except)
+    return list(futures), []
 
 
 class FakeExecutor:
@@ -149,10 +196,15 @@ class FakeExecutor:
         self.kwargs = kwargs
         self.executor_id = 'sess-0'
         self.invoker = type('I', (), {'max_workers': 7})()
+        # What lithops.wait.wait is handed, which the fake one reads the
+        # executor back from
+        self.internal_storage = types.SimpleNamespace(executor=self)
         self.futures = []
+        self.next_futures = []
         self.call_async_calls = []
         self.map_calls = []
         self.wait_calls = []
+        self.lithops_wait_calls = []
         self.get_result_calls = []
         self.exited = False
         self.results = None
@@ -161,11 +213,18 @@ class FakeExecutor:
 
     def call_async(self, func, data, **kwargs):
         self.call_async_calls.append((func, data, kwargs))
-        return FakeFuture(self._next_value())
+        future = self.next_futures.pop(0) if self.next_futures else FakeFuture(self._next_value())
+        self.futures.append(future)
+        return future
 
     def map(self, func, iterdata, **kwargs):
         self.map_calls.append((func, list(iterdata), kwargs))
-        return [FakeFuture(self._next_value()) for _ in iterdata]
+        futures = [FakeFuture(self._next_value()) for _ in iterdata]
+        self.futures.extend(futures)
+        return futures
+
+    def _monitor_of(self, futures):
+        return None
 
     def _next_value(self):
         """Hands out `results` one call at a time, in order"""
@@ -175,11 +234,25 @@ class FakeExecutor:
         self._result_index += 1
         return value
 
-    def wait(self, fs=None, **kwargs):
-        self.wait_calls.append((fs, kwargs))
-        if self.wait_error is not None:
-            raise self.wait_error
-        return list(fs or []), []
+    def wait(self, fs=None, throw_except=True, timeout=None, **kwargs):
+        """
+        FunctionExecutor.wait(), which takes any exception as the end of the
+        job: it marks the futures it waited on failed and force-cleans the
+        data of every job of the executor, results not read yet included
+        """
+        self.wait_calls.append((fs, dict(kwargs, throw_except=throw_except, timeout=timeout)))
+        futures = list(fs or self.futures)
+        try:
+            if self.wait_error is not None:
+                raise self.wait_error
+            return _fake_wait(futures, timeout=timeout, throw_except=throw_except)
+        except Exception:
+            for fut in futures:
+                fut._set_exception()
+            for fut in self.futures:
+                if not fut.done:
+                    fut._set_exception()
+            raise
 
     def get_result(self, fs=None, **kwargs):
         self.get_result_calls.append((fs, kwargs))
@@ -189,6 +262,18 @@ class FakeExecutor:
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.exited = True
+
+
+def _fake_lithops_wait(fs, internal_storage, job_monitor=None, download_results=False,
+                       throw_except=True, timeout=None, **kwargs):
+    """lithops.wait.wait, for the futures of a FakeExecutor"""
+    executor = internal_storage.executor
+    executor.lithops_wait_calls.append((fs, dict(
+        kwargs, download_results=download_results, throw_except=throw_except, timeout=timeout,
+    )))
+    if executor.wait_error is not None:
+        raise executor.wait_error
+    return _fake_wait(fs, timeout=timeout, throw_except=throw_except)
 
 
 @pytest.fixture
@@ -203,6 +288,7 @@ def executor(monkeypatch):
 
     monkeypatch.setattr('lithops.multiprocessing.pool.FunctionExecutor', factory)
     monkeypatch.setattr('lithops.multiprocessing.process.FunctionExecutor', factory)
+    monkeypatch.setattr(mp_util, 'lithops_wait', _fake_lithops_wait)
     return built
 
 
@@ -295,6 +381,53 @@ class TestRemoteReference:
     def test_a_reference_must_be_a_key_or_a_list_of_keys(self, redis):
         with pytest.raises(TypeError, match='referenced must be'):
             mp_util.RemoteReference(42, client=redis)
+
+    def test_an_expired_counter_does_not_take_the_object_with_it(self, redis):
+        """
+        Once the counter had expired, the next owner to go away decremented
+        it to -1, took itself for the last one and deleted the object under
+        everybody still using it
+        """
+        from lithops.multiprocessing import Lock
+        lock = Lock()
+        in_worker = pickle.loads(pickle.dumps(lock))
+        # What the server does once the counter's expiry runs out
+        redis.delete(lock._ref._rck)
+        del in_worker
+        gc.collect()
+        assert lock.acquire(block=False) is True
+
+    def test_the_counter_lives_as_long_as_the_object_is_used(self, redis):
+        """
+        The object's keys are refreshed on every use but the counter only
+        when an owner came or went, so a lock in use for longer than
+        REDIS_EXPIRY_TIME lost its count, and the owners going away could no
+        longer tell when the last one had
+        """
+        from lithops.multiprocessing import Lock
+        mp_config.set_parameter(mp_config.REDIS_EXPIRY_TIME, 10)
+        lock = Lock()
+        in_worker = pickle.loads(pickle.dumps(lock))
+        for _ in range(10):
+            redis.advance(4)
+            with in_worker:
+                pass
+        assert lock._ref.refcount() == 2
+        del in_worker
+        gc.collect()
+        assert lock._ref.refcount() == 1
+        assert lock.acquire(block=False) is True
+
+    def test_a_queue_in_use_keeps_its_counter(self, redis):
+        from lithops.multiprocessing import Queue
+        mp_config.set_parameter(mp_config.REDIS_EXPIRY_TIME, 10)
+        queue = Queue()
+        in_worker = pickle.loads(pickle.dumps(queue))
+        for n in range(10):
+            redis.advance(4)
+            in_worker.put(n)
+            assert queue.get() == n
+        assert queue._ref.refcount() == 2
 
 
 class TestContext:
@@ -487,6 +620,45 @@ class TestPool:
             pass
         assert executor[0].exited
 
+    def test_close_and_join_run_the_callbacks(self, executor):
+        """
+        The standard library idiom: submit with a callback, close(), join(),
+        and read what the callbacks collected. They used to run only from
+        get(), so nothing was collected, and every get() ran them again
+        """
+        from lithops.multiprocessing import Pool
+        pool = Pool(processes=2)
+        executor[0].results = [3, 5]
+        collected = []
+
+        def slow_append(value):
+            time.sleep(0.2)
+            collected.append(value)
+
+        applied = pool.apply_async(abs, (-3,), callback=slow_append)
+        mapped = pool.map_async(abs, [-5], callback=slow_append)
+        pool.close()
+        pool.join()
+        assert sorted(collected, key=repr) == [3, [5]]
+        assert applied.get() == 3
+        assert mapped.get() == [5]
+        assert len(collected) == 2
+
+    def test_close_and_join_run_the_error_callback(self, executor):
+        from lithops.multiprocessing import Pool
+        pool = Pool(processes=1)
+        error = ValueError('bad input')
+        executor[0].next_futures.append(FakeFuture(exception=error))
+        errors = []
+        result = pool.apply_async(int, ('x',), error_callback=errors.append)
+        pool.close()
+        pool.join()
+        assert errors == [error]
+        for _ in range(2):
+            with pytest.raises(ValueError, match='bad input'):
+                result.get()
+        assert errors == [error]
+
 
 class TestApplyResult:
 
@@ -558,7 +730,7 @@ class TestApplyResult:
     def test_wait_forwards_the_timeout(self, executor):
         result = self._result(FakeExecutor())
         result.wait(timeout=5)
-        assert result._executor.wait_calls[0][1]['timeout'] == 5
+        assert result._executor.lithops_wait_calls[0][1]['timeout'] == 5
 
     def test_a_timeout_raises_the_multiprocessing_error(self, executor):
         """
@@ -583,6 +755,52 @@ class TestApplyResult:
         result.wait(timeout=0.01)
         fake.wait_error = None
         assert result.get() == 7
+
+    def test_a_get_that_timed_out_leaves_the_call_to_finish(self, executor):
+        """
+        FunctionExecutor.wait() takes a timeout as the end of the job and
+        marks the call failed: the result then said it was ready, and the
+        get() made once the call had finished came back with None
+        """
+        from lithops.multiprocessing import Pool, TimeoutError as MpTimeoutError
+        pool = Pool(processes=1)
+        running = FakeFuture(42, running=True)
+        executor[0].next_futures.append(running)
+        result = pool.apply_async(abs, (-42,))
+        with pytest.raises(MpTimeoutError):
+            result.get(timeout=5)
+        assert result.ready() is False
+        running.finish()
+        assert result.ready() is True
+        assert result.get() == 42
+
+    def test_a_call_that_fails_leaves_the_other_results_alone(self, executor):
+        """
+        FunctionExecutor.wait() force-cleans the data of every job of the
+        executor when a call raises, so the results still on their way were
+        lost along with the one that failed
+        """
+        from lithops.multiprocessing import Pool
+        pool = Pool(processes=2)
+        other_call = FakeFuture(7, running=True)
+        executor[0].next_futures += [FakeFuture(exception=ValueError('bad input')), other_call]
+        failing = pool.apply_async(int, ('x',))
+        other = pool.apply_async(abs, (-7,))
+        with pytest.raises(ValueError, match='bad input'):
+            failing.get()
+        assert other.ready() is False
+        other_call.finish()
+        assert other.get() == 7
+
+    def test_the_callback_runs_once_whatever_get_is_called(self, executor):
+        from lithops.multiprocessing import Pool
+        pool = Pool(processes=1)
+        executor[0].results = [4]
+        seen = []
+        result = pool.apply_async(abs, (-4,), callback=seen.append)
+        assert result.get(timeout=5) == 4
+        assert result.get() == 4
+        assert seen == [4]
 
 
 class TestIMapIterator:
@@ -718,14 +936,42 @@ class TestCloudProcess:
         proc = Process(target=_double, args=(1,))
         proc.start()
         proc.join()
-        assert executor[0].wait_calls
+        assert executor[0].lithops_wait_calls
 
     def test_join_forwards_the_timeout(self, executor, redis):
         from lithops.multiprocessing import Process
         proc = Process(target=_double, args=(1,))
         proc.start()
         proc.join(timeout=5)
-        assert executor[0].wait_calls[0][1].get('timeout') == 5
+        assert executor[0].lithops_wait_calls[0][1].get('timeout') == 5
+
+    def test_join_with_a_timeout_leaves_a_running_process_alone(self, executor, redis, monkeypatch):
+        """
+        The standard library's join(timeout) returns None once the timeout
+        is up, and the process carries on. FunctionExecutor.wait() took the
+        timeout as the end of the job instead: join() raised TimeoutError
+        and the call was marked failed, so the next join() had nothing left
+        to wait for
+        """
+        from lithops.multiprocessing import Process
+        running = FakeFuture(42, running=True)
+        monkeypatch.setattr(FakeExecutor, 'call_async', lambda self, func, data, **kwargs: running)
+        proc = Process(target=_double, args=(21,))
+        proc.start()
+        assert proc.join(timeout=5) is None
+        assert not running.done
+        assert proc.join() is None
+        assert running.done and not running.error
+        assert [kwargs['timeout'] for _, kwargs in executor[0].lithops_wait_calls] == [5, None]
+
+    def test_join_raises_what_the_target_raised(self, executor, redis, monkeypatch):
+        from lithops.multiprocessing import Process
+        failed = FakeFuture(exception=ValueError('bad input'))
+        monkeypatch.setattr(FakeExecutor, 'call_async', lambda self, func, data, **kwargs: failed)
+        proc = Process(target=_double, args=('x',))
+        proc.start()
+        with pytest.raises(ValueError, match='bad input'):
+            proc.join()
 
     def test_the_unsupported_api_says_so(self, executor, redis):
         from lithops.multiprocessing import Process
@@ -820,6 +1066,49 @@ class TestQueue:
         restored.put('from the worker')
         assert queue.get() == 'from the worker'
         assert restored._maxsize == 3
+
+    @pytest.mark.parametrize('queue_type', ['Queue', 'SimpleQueue'])
+    @pytest.mark.parametrize('get', [
+        pytest.param(lambda q: q.get_nowait(), id='get_nowait'),
+        pytest.param(lambda q: q.get(timeout=0.5), id='get_with_timeout'),
+    ])
+    def test_a_get_that_loses_the_last_item_to_another_consumer_does_not_block(
+            self, redis, monkeypatch, queue_type, get):
+        """
+        Two consumers could both see the last item before either took it,
+        and the one that lost the race blocked in BLPOP for ever instead of
+        raising Empty. Here the other consumer, a worker holding a copy of
+        the queue, takes the item right after this one has looked
+        """
+        import lithops.multiprocessing as mp
+        from queue import Empty
+        queue = getattr(mp, queue_type)()
+        in_worker = pickle.loads(pickle.dumps(queue))
+        queue.put('last')
+
+        taken_by_worker = []
+        llen = redis.llen
+
+        def worker_takes_it_after_a_look(key):
+            length = llen(key)
+            if length and not taken_by_worker:
+                taken_by_worker.append(in_worker.get())
+            return length
+
+        monkeypatch.setattr(redis, 'llen', worker_takes_it_after_a_look)
+        outcome = []
+
+        def consume():
+            try:
+                outcome.append(get(queue))
+            except Empty:
+                outcome.append(Empty)
+
+        consumer = threading.Thread(target=consume, daemon=True)
+        consumer.start()
+        consumer.join(2)
+        assert not consumer.is_alive(), 'the get blocked'
+        assert (outcome + taken_by_worker).count('last') == 1
 
 
 class TestSimpleQueue:
@@ -962,6 +1251,38 @@ class TestConnection:
         other_left.send('still working')
         assert other_right.recv() == 'still working'
 
+    def test_closing_a_listener_leaves_the_shared_client_usable(self, redis):
+        """
+        The listener closed the process-wide client as well as its own
+        subscription, which broke every other connection of the process
+        """
+        from lithops.multiprocessing import Pipe
+        from lithops.multiprocessing.connection import Listener
+        left, right = Pipe()
+        listener = Listener(('127.0.0.1', 6000))
+        listener.close()
+        assert redis.closed is False
+        left.send('still working')
+        assert right.recv() == 'still working'
+        Pipe()
+
+    def test_the_message_list_of_a_pipe_expires(self, redis):
+        """
+        The expiry was set once, before the first push, when the list did
+        not exist yet and EXPIRE does nothing: the messages of a pipe that
+        was dropped half read stayed in Redis for ever. Redis also deletes
+        the list, expiry and all, every time the reader drains it
+        """
+        from lithops.multiprocessing import Pipe
+        expiry = mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME)
+        left, right = Pipe()
+        left.send('first')
+        assert redis.expiries.get(right._handle) == expiry
+        assert right.recv() == 'first'
+        assert right._handle not in redis.expiries
+        left.send('second')
+        assert redis.expiries.get(right._handle) == expiry
+
 
 class TestSemLock:
 
@@ -1080,6 +1401,38 @@ class TestCondition:
         cond = Condition()
         restored = pickle.loads(pickle.dumps(cond))
         assert restored._notify_handle == cond._notify_handle
+
+    def test_notify_wakes_as_many_waiters_as_asked(self, redis):
+        """threading.Condition.notify(n) wakes up to n waiters"""
+        from lithops.multiprocessing import Condition
+        cond = Condition()
+        woken = []
+
+        def waiter(name):
+            with cond:
+                if cond.wait(timeout=5):
+                    woken.append(name)
+
+        waiters = [threading.Thread(target=waiter, args=(n,), daemon=True) for n in range(3)]
+        for thread in waiters:
+            thread.start()
+        deadline = time.monotonic() + 5
+        while redis.llen(cond._notify_handle) < 3 and time.monotonic() < deadline:
+            time.sleep(0.01)
+
+        with cond:
+            cond.notify(2)
+        deadline = time.monotonic() + 5
+        while len(woken) < 2 and time.monotonic() < deadline:
+            time.sleep(0.01)
+        time.sleep(0.1)
+        assert len(woken) == 2
+
+        with cond:
+            cond.notify()
+        for thread in waiters:
+            thread.join(5)
+        assert sorted(woken) == [0, 1, 2]
 
     def test_a_timed_out_wait_does_not_consume_the_next_notify(self, redis):
         """
@@ -1221,6 +1574,39 @@ class TestSharedCTypes:
         from lithops.multiprocessing import sharedctypes
         assert sharedctypes.typecode_to_type['i'] is ctypes.c_int
         assert sharedctypes.typecode_to_type['d'] is ctypes.c_double
+
+    def test_indexing_past_either_end_raises_index_error(self, redis):
+        """
+        What a ctypes array raises, and what code that walks an array by
+        index until IndexError relies on. It used to be a TypeError from
+        taking the length of the nil LINDEX answers with
+        """
+        from lithops.multiprocessing import Array, RawArray
+        native = (ctypes.c_int * 3)(1, 2, 3)
+        for shared in (RawArray('i', [1, 2, 3]), Array('i', [1, 2, 3])):
+            assert shared[-1] == native[-1] == 3
+            for index in (3, -4):
+                with pytest.raises(IndexError):
+                    native[index]
+                with pytest.raises(IndexError):
+                    shared[index]
+                with pytest.raises(IndexError):
+                    native[index] = 0
+                with pytest.raises(IndexError):
+                    shared[index] = 0
+        with pytest.raises(IndexError):
+            Array('c', b'abc')[3]
+
+    def test_a_value_in_use_keeps_its_reference_count(self, redis):
+        """The count lives as long as the value is written, which refreshes it"""
+        from lithops.multiprocessing import Value
+        mp_config.set_parameter(mp_config.REDIS_EXPIRY_TIME, 10)
+        value = Value('i', 0)
+        in_worker = pickle.loads(pickle.dumps(value))
+        for n in range(10):
+            redis.advance(4)
+            in_worker.value = n
+        assert value._ref.refcount() == 2
 
 
 class TestPackageSurface:
@@ -2074,6 +2460,38 @@ class TestListProxy:
         proxy = self._list([1, 2])
         proxy *= 2
         assert proxy.tolist() == [1, 2, 1, 2]
+
+    def test_a_long_list_can_be_repeated_copied_and_extended_with(self, real_redis):
+        """
+        The server-side extend unpacked every value onto the Lua stack, which
+        holds about 8000, so past that l *= n, copying a list and extending
+        one with another raised "too many results to unpack"
+        """
+        plain = list(range(10000))
+        proxy = self._list(plain)
+        proxy *= 2
+        assert len(proxy) == 20000
+        assert self._list(proxy).tolist() == plain * 2
+        other = self._list([-1])
+        other.extend(proxy)
+        assert len(other) == 20001
+        assert proxy.copy_proxy()[-1] == plain[-1]
+
+    def test_using_a_list_refreshes_its_reference_count(self, real_redis):
+        """
+        The object's keys are refreshed on every use, and the count has to
+        live as long as they do: an owner going away after it had expired
+        took the list with it
+        """
+        proxy = self._list([1])
+        rck = proxy._ref._rck
+        real_redis.expire(rck, 5)
+        proxy.append(2)
+        assert real_redis.ttl(rck) > 5
+        real_redis.expire(rck, 5)
+        proxy.insert(0, 0)
+        assert real_redis.ttl(rck) > 5
+        assert proxy.tolist() == [0, 1, 2]
 
     def test_a_list_built_from_another_proxy_gets_an_expiry(self, real_redis):
         """The Lua extend only RPUSHed, so the key never expired"""

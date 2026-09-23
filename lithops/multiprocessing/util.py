@@ -21,6 +21,7 @@ import os
 import json
 import socket
 from lithops.config import load_config
+from lithops.wait import wait as lithops_wait
 
 from . import config as mp_config
 
@@ -118,6 +119,26 @@ def get_network_ip():
 #
 
 class RemoteReference:
+    # KEYS[1] - reference counter
+    # KEYS[2..n] - keys of the shared object, the counter among them
+    # ARGV[1] - expiry time
+    # Gives back one reference and deletes the object once none is left.
+    # A counter that is gone -- it expired, or the object was already
+    # collected -- says nothing about who still holds the object, so it is
+    # left alone rather than decremented to -1 and taken for the last owner
+    LUA_DECREF_SCRIPT = """
+        if redis.call('exists', KEYS[1]) == 0 then
+            return nil
+        end
+        local count = redis.call('decr', KEYS[1])
+        if count <= 0 then
+            redis.call('del', unpack(KEYS))
+        else
+            redis.call('expire', KEYS[1], ARGV[1])
+        end
+        return count
+    """
+
     def __init__(self, referenced, managed=False, client=None):
         if isinstance(referenced, str):
             referenced = [referenced]
@@ -191,11 +212,27 @@ class RemoteReference:
 
     def decref(self):
         if not self.managed:
-            pipeline = self._client.pipeline()
-            pipeline.decr(self._rck, 1)
-            pipeline.expire(self._rck, mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
-            counter, _ = pipeline.execute()
-            return int(counter)
+            counter = self._release(self._client, self._rck, self._referenced)
+            return None if counter is None else int(counter)
+
+    def refresh(self, pipeline=None):
+        """
+        Pushes the counter's deadline out along with the object's.
+
+        The counter is only written when an owner comes or goes, while the
+        object's keys are refreshed on every use, so an object in use for
+        longer than REDIS_EXPIRY_TIME lost its counter. Queued on
+        ``pipeline`` when one is given. Returns whether anything was sent
+        """
+        if self.managed:
+            return False
+        target = self._client if pipeline is None else pipeline
+        target.expire(self._rck, mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
+        return True
+
+    def pipeline(self):
+        """A pipeline of the object's client that also refreshes the counter"""
+        return _RefreshingPipeline(self._client.pipeline(), self)
 
     def refcount(self):
         count = self._client.get(self._rck)
@@ -215,9 +252,59 @@ class RemoteReference:
         zero is what says nobody is left; it used to have to go negative,
         which is one owner too many
         """
-        count = int(client.decr(rck, 1))
-        if count <= 0 and len(referenced) > 0:
-            client.delete(*referenced)
+        RemoteReference._release(client, rck, referenced)
+
+    @staticmethod
+    def _release(client, rck, referenced):
+        script = client.register_script(RemoteReference.LUA_DECREF_SCRIPT)
+        return script(keys=[rck] + list(referenced),
+                      args=[mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME)],
+                      client=client)
+
+
+class _RefreshingPipeline:
+    """
+    A pipeline that refreshes the reference counter of the object as it runs.
+
+    The counter's EXPIRE is queued last and its reply dropped, so callers
+    unpack the replies of the commands they queued, as before
+    """
+
+    def __init__(self, pipeline, ref):
+        self._pipeline = pipeline
+        self._ref = ref
+
+    def __getattr__(self, name):
+        return getattr(self._pipeline, name)
+
+    def execute(self):
+        queued = self._ref.refresh(self._pipeline)
+        results = self._pipeline.execute()
+        return results[:-1] if queued else results
+
+
+def wait_futures(executor, futures, download_results=False, timeout=None):
+    """
+    Waits for some calls of ``executor``, leaving them and the executor as
+    they are.
+
+    FunctionExecutor.wait() takes any exception, a timeout included, as the
+    end of the job: it stops the invoker, marks the futures failed and
+    deletes the job data, so a pool result or a process that was only waited
+    on with a timeout could never be waited on again. A call that raised is
+    not reported here either; reading its status or result raises it.
+
+    Runs out with the builtin TimeoutError, from the SIGALRM lithops.wait
+    arms, so a timeout only works from the main thread
+    """
+    lithops_wait(
+        fs=futures,
+        internal_storage=executor.internal_storage,
+        job_monitor=executor._monitor_of(futures),
+        download_results=download_results,
+        throw_except=False,
+        timeout=timeout,
+    )
 
 
 #

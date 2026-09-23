@@ -392,7 +392,11 @@ class JobRunner:
             )
             pending_output = self._write_result(result)
 
-        except Exception:
+        except (Exception, SystemExit, KeyboardInterrupt):
+            # A sys.exit() or a KeyboardInterrupt raised by the function ends
+            # the function, not the worker, so it is reported like any other
+            # exception, as concurrent.futures does. Otherwise the call looks
+            # successful but has no result and no stats to read it from
             self._write_exception()
 
         finally:

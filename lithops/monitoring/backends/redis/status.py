@@ -28,6 +28,11 @@ class RedisCallStatus(MessageCallStatus):
 
     service_name = 'Redis'
 
+    #: How long a list that only best-effort publishes feed outlives the
+    #: last of them. A push onto a list that was deleted creates it again,
+    #: and nothing would come back to delete that one
+    BEST_EFFORT_TTL = 3600
+
     @cached_property
     def client(self):
         """
@@ -41,6 +46,11 @@ class RedisCallStatus(MessageCallStatus):
             lambda: redis_backend.redis_client(self.config.get('redis') or {}),
         )
 
-    def _publish(self, payload: str) -> None:
-        for queue in self._targets():
-            self.client.rpush(queue, payload)
+    def _publish_to(self, target: str, payload: str) -> None:
+        self.client.rpush(target, payload)
+
+    def _publish_best_effort(self, target: str, payload: str) -> None:
+        pipe = self.client.pipeline()
+        pipe.rpush(target, payload)
+        pipe.expire(target, self.BEST_EFFORT_TTL)
+        pipe.execute()

@@ -163,9 +163,11 @@ class SemLock:
         used once never expires. A semaphore with tokens left keeps its
         key, and the deadline set at creation would take those tokens
         """
-        self._client.expire(
+        pipeline = self._ref.pipeline()
+        pipeline.expire(
             self._name, mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME)
         )
+        pipeline.execute()
 
     def __repr__(self):
         try:
@@ -383,12 +385,14 @@ class Condition:
         # is what the standard library returns and callers branch on
         return notified
 
-    def notify(self):
+    def notify(self, n=1):
         assert self._lock.owned
 
         logger.debug('Notify condition %s', self._notify_handle)
-        wait_handle = self._client.lpop(self._notify_handle)
-        if wait_handle is not None:
+        for _ in range(n):
+            wait_handle = self._client.lpop(self._notify_handle)
+            if wait_handle is None:
+                break
             res = self._client.rpush(wait_handle, '')
 
             if not res:
@@ -494,7 +498,9 @@ class Barrier(threading.Barrier):
 
     @_state.setter
     def _state(self, value):
-        self._client.set(self._state_handle, value, ex=mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
+        pipeline = self._ref.pipeline()
+        pipeline.set(self._state_handle, value, ex=mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
+        pipeline.execute()
 
     @property
     def _count(self):
@@ -502,4 +508,6 @@ class Barrier(threading.Barrier):
 
     @_count.setter
     def _count(self, value):
-        self._client.set(self._count_handle, value, ex=mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
+        pipeline = self._ref.pipeline()
+        pipeline.set(self._count_handle, value, ex=mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
+        pipeline.execute()

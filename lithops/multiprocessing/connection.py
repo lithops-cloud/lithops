@@ -25,6 +25,7 @@ except ModuleNotFoundError:
 from . import util
 from . import config as mp_config
 from .errors import BufferTooShort
+from .synchronize import _blpop
 from queue import Queue
 
 logger = logging.getLogger(__name__)
@@ -280,6 +281,9 @@ class _RedisConnection(_ConnectionBase):
     """
     _write = None
     _read = None
+    #: The reference of the queue this connection carries, if any, whose
+    #: counter is refreshed along with the list on every write
+    _ref = None
 
     def __init__(self, handle, readable=True, writable=True):
         super().__init__(handle, readable, writable)
@@ -326,11 +330,6 @@ class _RedisConnection(_ConnectionBase):
     def __len__(self):
         return self._client.llen(self._handle)
 
-    def _set_expiry(self, key):
-        logger.debug('Set key %s expiry time', key)
-        self._client.expire(key, mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
-        self._set_expiry = lambda key: None
-
     def _close(self, _close=None):
         # Only the subscription belongs to this connection. The client is the
         # one every shared object of the process talks through, so closing it
@@ -340,12 +339,40 @@ class _RedisConnection(_ConnectionBase):
             self._pubsub = None
 
     def _listwrite(self, handle, buf):
-        self._set_expiry(handle)
-        return self._client.rpush(handle, buf)
+        # The expiry goes after the push, on every write: EXPIRE does nothing
+        # on a list that does not exist yet, and Redis deletes the list,
+        # expiry and all, whenever the reader drains it
+        pipeline = self._client.pipeline()
+        pipeline.rpush(handle, buf)
+        pipeline.expire(handle, mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
+        if self._ref is not None:
+            self._ref.refresh(pipeline)
+        return pipeline.execute()[0]
 
     def _listread(self, handle):
         _, v = self._client.blpop([handle])
         return v
+
+    def recv_bytes_within(self, timeout):
+        """
+        The next message, waiting at most ``timeout`` seconds for one, or
+        None if none came. Zero or less does not wait at all.
+
+        On a list, looking and taking are one step. With several readers,
+        poll() followed by a read let two of them see the same last message,
+        and the one that lost the race blocked in BLPOP for ever
+        """
+        self._check_closed()
+        self._check_readable()
+        if self._pubsub is not None:
+            # A subscriber is the only reader of its messages
+            if not self._poll(max(timeout, 0)):
+                return None
+            return self._read(self._handle)
+        if timeout <= 0:
+            return self._client.lpop(self._handle)
+        popped = _blpop(self._client, self._handle, timeout)
+        return None if popped is None else popped[1]
 
     def _channelwrite(self, handle, buf):
         return self._client.publish(handle, buf)
@@ -649,13 +676,13 @@ class _RedisListener:
         return c
 
     def close(self):
+        # Only the subscription belongs to the listener. The client is the
+        # one the whole process shares, and closing it broke every other
+        # connection, blocking reads on other threads included
         try:
             self._pubsub.close()
             self._pubsub = None
             self._gen = None
-            if hasattr(self._client, 'close'):
-                self._client.close()
-                self._client = None
         finally:
             unlink = self._unlink
             if unlink is not None:

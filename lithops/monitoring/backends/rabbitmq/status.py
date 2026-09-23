@@ -95,15 +95,15 @@ class RabbitmqCallStatus(MessageCallStatus):
             self._drop_channel()
         self._amqp = None
 
-    def _publish(self, payload: str) -> None:
+    def _publish_to(self, target: str, payload: str) -> None:
+        # Through the default exchange, which drops a message for a queue
+        # that is not there rather than creating it
         try:
-            channel = self._channel()
-            for queue in self._targets():
-                channel.basic_publish(
-                    exchange='',
-                    routing_key=queue,
-                    body=payload
-                )
+            self._channel().basic_publish(
+                exchange='',
+                routing_key=target,
+                body=payload
+            )
         except Exception:
             # The connection is broken, or was never opened. Dropped here so
             # that the retry of _send(), and the next call of this worker,

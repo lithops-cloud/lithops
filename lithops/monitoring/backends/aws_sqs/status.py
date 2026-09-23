@@ -12,14 +12,10 @@
 # limitations under the License.
 #
 
-import logging
 from functools import cached_property
 
 from lithops.monitoring.backends.aws_sqs import aws_sqs as sqs_backend
-from lithops.monitoring.monitor import is_named_error
 from lithops.monitoring.status import MessageCallStatus
-
-logger = logging.getLogger(__name__)
 
 
 class SqsCallStatus(MessageCallStatus):
@@ -29,6 +25,7 @@ class SqsCallStatus(MessageCallStatus):
     """
 
     service_name = 'SQS'
+    MAX_MESSAGE_SIZE = 256 * 1024
 
     def __init__(self, job, internal_storage):
         super().__init__(job, internal_storage)
@@ -51,23 +48,14 @@ class SqsCallStatus(MessageCallStatus):
         """
         The URL of a queue by name, looked up once per call.
 
-        The monitor of the executor created the queue before any worker was
-        invoked, so this normally just resolves it; it is created here only
-        when it is really not there, which is what a status published to an
-        executor further up the chain can run into
+        The monitor that reads the queue created it before any worker was
+        invoked. One that is not there belongs to a reader that is gone, and
+        creating it again would leave a queue nobody deletes
         """
         url = self._urls.get(name)
         if url:
             return url
-        try:
-            url = self.client.get_queue_url(QueueName=name)['QueueUrl']
-        except Exception as exc:
-            if not is_named_error(
-                exc, 'QueueDoesNotExist', 'NonExistentQueue'
-            ):
-                raise
-            logger.debug(f'The SQS queue {name} is not there; creating it')
-            url = self.client.create_queue(QueueName=name)['QueueUrl']
+        url = self.client.get_queue_url(QueueName=name)['QueueUrl']
         self._urls[name] = url
         return url
 
@@ -75,9 +63,8 @@ class SqsCallStatus(MessageCallStatus):
         self._urls.clear()
         super().close()
 
-    def _publish(self, payload: str) -> None:
-        for name in self._targets():
-            self.client.send_message(
-                QueueUrl=self._queue_url(name),
-                MessageBody=payload,
-            )
+    def _publish_to(self, target: str, payload: str) -> None:
+        self.client.send_message(
+            QueueUrl=self._queue_url(target),
+            MessageBody=payload,
+        )

@@ -290,7 +290,7 @@ class GenericProxy(BaseProxy):
         else:
             shared = obj.__shared__
 
-        pipeline = self._client.pipeline()
+        pipeline = self._ref.pipeline()
         for attr_name in shared:
             attr = getattr(obj, attr_name)
             attr_bin = self._pickler.dumps(attr)
@@ -364,7 +364,7 @@ class MethodWrapper:
         else:
             shared = self._shared_object.__shared__
 
-        pipeline = self._proxy._client.pipeline()
+        pipeline = self._proxy._ref.pipeline()
         for attr_name in shared:
             attr = getattr(self._shared_object, attr_name)
             attr_bin = self._proxy._pickler.dumps(attr)
@@ -402,13 +402,15 @@ class ListProxy(BaseProxy):
     # KEYS[2] - key to extend with
     # ARGV[1] - number of repetitions
     # A = A + B * C
+    # Pushed a thousand values at a time: unpack() puts every value on the
+    # Lua stack, which holds about 8000, so a longer list raised
+    # "too many results to unpack"
     LUA_EXTEND_LIST_SCRIPT = """
         local values = redis.call('LRANGE', KEYS[2], 0, -1)
-        if #values == 0 then
-            return
-        else
-            for i=1,tonumber(ARGV[1]) do
-                redis.call('RPUSH', KEYS[1], unpack(values))
+        local n = #values
+        for i=1,tonumber(ARGV[1]) do
+            for j=1,n,1000 do
+                redis.call('RPUSH', KEYS[1], unpack(values, j, math.min(j + 999, n)))
             end
         end
     """
@@ -449,6 +451,7 @@ class ListProxy(BaseProxy):
                     self._oid, *[self._pickler.dumps(v) for v in new_items]
                 )
                 pipe.expire(self._oid, self._expiry())
+                self._ref.refresh(pipe)
 
         self._client.transaction(apply, self._oid)
         return answer['value']
@@ -458,7 +461,7 @@ class ListProxy(BaseProxy):
             idx = i.__index__()
             serialized = self._pickler.dumps(obj)
             try:
-                pipeline = self._client.pipeline()
+                pipeline = self._ref.pipeline()
                 pipeline.lset(self._oid, idx, serialized)
                 pipeline.expire(self._oid, self._expiry())
                 pipeline.execute()
@@ -484,7 +487,7 @@ class ListProxy(BaseProxy):
     def __getitem__(self, i):
         if isinstance(i, int) or hasattr(i, '__index__'):
             idx = i.__index__()
-            pipeline = self._client.pipeline()
+            pipeline = self._ref.pipeline()
             pipeline.lindex(self._oid, idx)
             pipeline.expire(self._oid, mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
             serialized, _ = pipeline.execute()
@@ -501,7 +504,7 @@ class ListProxy(BaseProxy):
                 return self.tolist()[i]
             if start is None:
                 return []
-            pipeline = self._client.pipeline()
+            pipeline = self._ref.pipeline()
             pipeline.lrange(self._oid, start, end)
             pipeline.expire(self._oid, self._expiry())
             serialized, _ = pipeline.execute()
@@ -523,7 +526,7 @@ class ListProxy(BaseProxy):
         values = [self._pickler.dumps(obj) for obj in iterable]
         if not values:
             return
-        pipeline = self._client.pipeline()
+        pipeline = self._ref.pipeline()
         pipeline.rpush(self._oid, *values)
         pipeline.expire(self._oid, self._expiry())
         pipeline.execute()
@@ -536,18 +539,20 @@ class ListProxy(BaseProxy):
         # proxy -- ListProxy(other), a deepcopy, an in-place multiply --
         # got a key that never expired, while one built from a plain list
         # got one that did
-        self._client.expire(self._oid, self._expiry())
+        pipeline = self._ref.pipeline()
+        pipeline.expire(self._oid, self._expiry())
+        pipeline.execute()
 
     def append(self, obj):
         serialized = self._pickler.dumps(obj)
-        pipeline = self._client.pipeline()
+        pipeline = self._ref.pipeline()
         pipeline.rpush(self._oid, serialized)
         pipeline.expire(self._oid, mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
         pipeline.execute()
 
     def pop(self, index=None):
         if index is None:
-            pipeline = self._client.pipeline()
+            pipeline = self._ref.pipeline()
             pipeline.rpop(self._oid)
             pipeline.expire(self._oid, self._expiry())
             serialized, _ = pipeline.execute()
@@ -625,7 +630,7 @@ class ListProxy(BaseProxy):
         return self
 
     def __len__(self):
-        pipeline = self._client.pipeline()
+        pipeline = self._ref.pipeline()
         pipeline.llen(self._oid)
         pipeline.expire(self._oid, self._expiry())
         length, _ = pipeline.execute()
@@ -659,7 +664,7 @@ class ListProxy(BaseProxy):
         self._mutate(change)
 
     def tolist(self):
-        pipeline = self._client.pipeline()
+        pipeline = self._ref.pipeline()
         pipeline.lrange(self._oid, 0, -1)
         pipeline.expire(self._oid, self._expiry())
         serialized, _ = pipeline.execute()
@@ -710,13 +715,13 @@ class DictProxy(BaseProxy):
 
     def __setitem__(self, k, v):
         serialized = self._pickler.dumps(v)
-        pipeline = self._client.pipeline()
+        pipeline = self._ref.pipeline()
         pipeline.hset(self._oid, self._field(k), serialized)
         pipeline.expire(self._oid, self._expiry())
         pipeline.execute()
 
     def __getitem__(self, k):
-        pipeline = self._client.pipeline()
+        pipeline = self._ref.pipeline()
         pipeline.hget(self._oid, self._field(k))
         pipeline.expire(self._oid, self._expiry())
         serialized, _ = pipeline.execute()
@@ -726,7 +731,7 @@ class DictProxy(BaseProxy):
         return self._pickler.loads(serialized)
 
     def __delitem__(self, k):
-        pipeline = self._client.pipeline()
+        pipeline = self._ref.pipeline()
         pipeline.hdel(self._oid, self._field(k))
         pipeline.expire(self._oid, self._expiry())
         res, _ = pipeline.execute()
@@ -735,14 +740,14 @@ class DictProxy(BaseProxy):
             raise KeyError(k)
 
     def __contains__(self, k):
-        pipeline = self._client.pipeline()
+        pipeline = self._ref.pipeline()
         pipeline.hexists(self._oid, self._field(k))
         pipeline.expire(self._oid, self._expiry())
         exists, _ = pipeline.execute()
         return bool(exists)
 
     def __len__(self):
-        pipeline = self._client.pipeline()
+        pipeline = self._ref.pipeline()
         pipeline.hlen(self._oid)
         pipeline.expire(self._oid, self._expiry())
         length, _ = pipeline.execute()
@@ -770,7 +775,7 @@ class DictProxy(BaseProxy):
                 'pop expected at most 2 arguments, got {}'.format(1 + len(args))
             )
         field = self._field(k)
-        pipeline = self._client.pipeline()
+        pipeline = self._ref.pipeline()
         pipeline.hget(self._oid, field)
         pipeline.hdel(self._oid, field)
         pipeline.expire(self._oid, self._expiry())
@@ -804,13 +809,14 @@ class DictProxy(BaseProxy):
             pipe.multi()
             pipe.hdel(self._oid, field)
             pipe.expire(self._oid, self._expiry())
+            self._ref.refresh(pipe)
 
         self._client.transaction(apply, self._oid)
         return answer['value']
 
     def setdefault(self, k, default=None):
         serialized = self._pickler.dumps(default)
-        pipeline = self._client.pipeline()
+        pipeline = self._ref.pipeline()
         pipeline.hsetnx(self._oid, self._field(k), serialized)
         # Every other writer refreshes the expiry. A dict only ever written
         # through setdefault used to get a key that outlived the job
@@ -843,20 +849,20 @@ class DictProxy(BaseProxy):
         if items:
             # One pipelined HSET rather than the deprecated HMSET and a
             # separate round trip for the expiry
-            pipeline = self._client.pipeline()
+            pipeline = self._ref.pipeline()
             pipeline.hset(self._oid, mapping=items)
             pipeline.expire(self._oid, self._expiry())
             pipeline.execute()
 
     def keys(self):
-        pipeline = self._client.pipeline()
+        pipeline = self._ref.pipeline()
         pipeline.hkeys(self._oid)
         pipeline.expire(self._oid, self._expiry())
         fields, _ = pipeline.execute()
         return [self._pickler.loads(k) for k in fields]
 
     def values(self):
-        pipeline = self._client.pipeline()
+        pipeline = self._ref.pipeline()
         pipeline.hvals(self._oid)
         pipeline.expire(self._oid, self._expiry())
         values, _ = pipeline.execute()
@@ -876,7 +882,7 @@ class DictProxy(BaseProxy):
         return self.todict()
 
     def todict(self):
-        pipeline = self._client.pipeline()
+        pipeline = self._ref.pipeline()
         pipeline.hgetall(self._oid)
         pipeline.expire(self._oid, self._expiry())
         raw_dict, _ = pipeline.execute()
@@ -932,7 +938,7 @@ class ValueProxy(BaseProxy):
         return self.get()
 
     def get(self):
-        pipeline = self._client.pipeline()
+        pipeline = self._ref.pipeline()
         pipeline.get(self._oid)
         # Read without refreshing, a value that is polled and never written
         # disappears once REDIS_EXPIRY_TIME is up, mid-job
@@ -944,7 +950,9 @@ class ValueProxy(BaseProxy):
 
     def set(self, value):
         serialized = self._pickler.dumps(value)
-        self._client.set(self._oid, serialized, ex=mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
+        pipeline = self._ref.pipeline()
+        pipeline.set(self._oid, serialized, ex=mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
+        pipeline.execute()
 
     value = property(get, set)
 

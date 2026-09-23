@@ -277,6 +277,14 @@ class ResponseFuture:
                 except Exception:
                     pass
                 fn_exc.args = (fn_exc.args[1],)
+            # tblib rebuilds a SystemExit from its args and leaves code at
+            # None, which would end the client with status 0 whatever the
+            # function passed to sys.exit()
+            if isinstance(fn_exc, SystemExit) and fn_exc.code is None \
+                    and fn_exc.args:
+                fn_exc.code = (
+                    fn_exc.args[0] if len(fn_exc.args) == 1 else fn_exc.args
+                )
         else:
             fn_exctype = Exception
             fn_exc = Exception(self._exception['exc_value'])
@@ -452,7 +460,7 @@ class ResponseFuture:
 
         if 'new_futures' in self._call_status and not self._new_futures:
             self._resolve_new_futures()
-        elif self._call_status['func_result_size'] == 0:
+        elif self._call_status.get('func_result_size', 0) == 0:
             self._produce_output = False
 
         if 'result' in self._call_status:

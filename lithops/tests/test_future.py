@@ -14,6 +14,7 @@
 
 import base64
 import pickle
+import sys
 import zlib
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -317,6 +318,47 @@ class TestResponseFutureStatusAndResult:
         with pytest.raises(Exception, match='inner'):
             future.status(internal_storage=storage)
         assert future._handler_exception is True
+
+    def test_a_status_without_result_size_does_not_crash(self):
+        """
+        A worker that died before writing its function stats sends a
+        finished status with no func_result_size. Reading it used to raise
+        KeyError in the wait thread pool, which crashed get_result() even
+        with throw_except=False
+        """
+        future = _future()
+        future._set_invoked()
+        storage = MagicMock()
+        storage.get_storage_config.return_value = STORAGE_CONFIG
+        status = _end_status()
+        del status['func_result_size']
+        storage.get_call_status.return_value = status
+        future.status(internal_storage=storage, throw_except=False)
+        assert future.done
+        assert future.result(internal_storage=storage) is None
+
+    def test_a_remote_sys_exit_keeps_its_exit_code(self):
+        """
+        tblib, which the worker installs, rebuilds a SystemExit with code
+        None. Re-raised on the client, sys.exit(3) in the function would
+        end the client program with status 0
+        """
+        from tblib import pickling_support
+        pickling_support.install()
+        try:
+            sys.exit(3)
+        except SystemExit:
+            exc_info = sys.exc_info()
+        future = _future()
+        future._set_invoked()
+        storage = MagicMock()
+        storage.get_storage_config.return_value = STORAGE_CONFIG
+        storage.get_call_status.return_value = _end_status(
+            exception=True, exc_info=_encode(exc_info),
+        )
+        with pytest.raises(SystemExit) as raised:
+            future.status(internal_storage=storage)
+        assert raised.value.code == 3
 
     def test_pickle_fail_wraps_exception_dict(self):
         future = _future()

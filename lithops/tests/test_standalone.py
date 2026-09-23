@@ -137,6 +137,11 @@ class TestStandaloneUtils:
         assert is_container_runtime('python:3.12') is True
         assert is_container_runtime('lithops/python:3.12') is True
 
+    def test_container_runtime_keeps_suffixed_interpreters_native(self):
+        for runtime in ('python3.13t', 'python3.12d', 'python3-intel64'):
+            assert is_container_runtime(runtime) is False, runtime
+        assert is_container_runtime('registry/python') is True
+
     def test_worker_setup_script_uses_native_python(self):
         script = get_worker_setup_script(
             {'backend': 'vm', 'runtime': 'python3', 'use_gpu': False, 'vm': {}},

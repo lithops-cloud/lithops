@@ -19,6 +19,11 @@
 - [Core] Stopping an executor now waits for the invocations already in flight instead of returning while its invoker threads still run.
 - [Monitoring] Reorganised job monitoring as pluggable backends: the message backends now delete their queue on cleanup instead of on every `stop()`, so a later `map()` can reuse it, and the storage backend lists only the prefixes of the jobs it still watches.
 - [Monitoring] Status lines (Pending/Running/Done) are now logged every 30s instead of on every activation.
+- [Monitoring] The RabbitMQ queue is no longer auto-deleted when its consumer goes away. It is deleted on cleanup, and expires after 24 hours unused if the client dies first.
+- [Monitoring] A status message too big for the service (Azure Queue 64 KiB, SQS 256 KiB) leaves the task log out, and the rest of the status is then read from storage if it still does not fit. The logs of nested executors are not kept by the client either.
+- [Core] `wait()` with a zero or negative `timeout` now raises `TimeoutError` right away if there are calls left, instead of waiting for ever, and only ends the jobs it waited on.
+- [Core] A plain list or tuple of futures passed as `iterdata`, or as the data of `call_async()`, is now a chain: the function receives their results, not the `ResponseFuture` objects.
+- [Worker] A function that raises `SystemExit` or `KeyboardInterrupt` now has it reported as its exception and re-raised by the client, as `concurrent.futures` does.
 - [Multiprocessing] Manager proxies now follow the standard library API more closely, and `Manager()` returns a started manager instead of the class itself.
 - [Multiprocessing] Shared objects now refresh their expiry when read, not only when written, and connection polling backs off from 1ms instead of waiting a fixed 100ms.
 - [Multiprocessing] `imap()` and `imap_unordered()` now default to the configured chunksize.
@@ -35,6 +40,10 @@
 - [Core] Fixed executor IDs repeating in a process whose environment is reset between executors.
 - [Core] Fixed `wait()` watching futures of another executor with a monitor that never sees them, leaving behind the monitors it started, and raising `TypeError` from `signal.alarm()` on a fractional timeout.
 - [Core] Fixed `result()` returning `None` instead of re-raising when the call had already failed.
+- [Core] Fixed `wait()` deleting a job's temporary data as soon as one of its calls was done, losing the results of the others still in storage.
+- [Core] Fixed a failed or timed-out `wait()` deleting the data and dropping the queued calls of every job of the executor instead of the ones it waited on, and ignoring `clean_jobs`.
+- [Core] Fixed `get_result()` raising `TypeError` when given a single future.
+- [Core] Fixed a function's `sys.exit()` code being lost on the client, which then exited with status 0.
 - [Core] Fixed module inspection crashing on a function whose `__module__` is `None`, and `SerializeIndependent` appending `lithops` to the preinstalled module list on every job.
 - [Core] Fixed a hand-built `FuturesList` raising `AttributeError` instead of creating its executor, and pickling one detaching it from the executor it has.
 - [Core] Fixed `find_free_port()` setting `SO_REUSEADDR` after the bind.
@@ -47,6 +56,12 @@
 - [Job] Fixed the last byte of an object being left out of its partitions, and folder markers being counted as objects, returning empty partitions.
 - [Monitoring] Fixed a lost status message or an unread stored status turning into a bogus timeout, hanging `wait()` for ever, or one storage error being enough to declare a timeout.
 - [Monitoring] Fixed a nested executor publishing statuses to a queue nobody declares, and failed RabbitMQ publishes being dropped with nothing in the log.
+- [Monitoring] Fixed the first statuses of a `map()` issued after a `wait()` being lost: RabbitMQ had deleted the queue, and the SQS, Pub/Sub and Azure long poll of the stopped monitor swallowed them, leaving the calls to the storage sweep.
+- [Monitoring] Fixed worker tokens leaking on the last, partial chunk of a job, on a timed-out call, on a call listed as done before its start mark, and on the final storage sweep, which could leave a later `map()` waiting for ever with a small `max_workers`.
+- [Monitoring] Fixed two threads applying statuses at once handing back two tokens for one worker, or putting a finished call back to running.
+- [Monitoring] Fixed the remote invoker deleting its queue while its calls still published to it, which retried every status five times and recreated queues and topics from the workers.
+- [Monitoring] Fixed Azure Queue statuses over 64 KiB, such as those carrying a long log, always failing, and Pub/Sub making an admin request per call.
+- [Monitoring] Fixed the statuses of nested executors piling up in the client, logs included, until 100k of them.
 - [Redis] Fixed `put_object()` rejecting file-like objects, which made `upload_file()` always fail, and `head_object()` reporting every key as missing on Redis 7 and up, where the `DEBUG OBJECT` command it relied on is disabled.
 - [Redis] Fixed `list_objects()` returning the object bodies instead of their keys and sizes and not skipping keys whose value is gone, `head_bucket()` returning a bool instead of the bucket metadata, and `delete_objects()` raising on an empty list.
 - [Redis] Fixed the `bytes=L-` form of the `Range` argument raising `ValueError` and `bytes=-N` returning a single byte instead of the last N, and a ranged read of a missing key returning an empty result instead of raising.
@@ -68,12 +83,20 @@
 - [Multiprocessing] Fixed a closed `Pool` leaving the monitor and invoker threads of its executor running, and the remote log feed keeping the interpreter alive at exit.
 - [Multiprocessing] Fixed `AsyncResult.get()` raising the builtin `TimeoutError` instead of `multiprocessing.TimeoutError`.
 - [Multiprocessing] Fixed `current_process()` in a worker creating an executor and a Redis client just to read a name, and `set_parameter()` rewriting the defaults it falls back to.
+- [Multiprocessing] Fixed a `Pool` result that timed out or failed breaking the pool: it marked the calls failed and deleted the data of the other pending results.
+- [Multiprocessing] Fixed `Pool` callbacks only running from `get()`, and again on every `get()`, instead of once when the task completes.
+- [Multiprocessing] Fixed `Queue.get_nowait()` and `get(timeout=...)` blocking for ever when another consumer took the last item.
+- [Multiprocessing] Fixed `Process.join(timeout)` raising and marking the process failed instead of returning.
+- [Multiprocessing] Fixed shared objects being deleted in use after an hour, when their reference count expired, and pipe and queue messages never expiring.
+- [Multiprocessing] Fixed another thread re-entering an `RLock` held by a different thread, a timed-out `Condition.wait()` taking the next `notify()`, and locks losing their expiry after the first release.
+- [Multiprocessing] Fixed extending or repeating a shared list past about 8000 items failing, `Listener.close()` closing the shared Redis client, and an out-of-range `Array` index raising `TypeError`.
+- [Multiprocessing] Added the `n` argument of `Condition.notify()`.
 - [Localhost] Fixed the v2 job manager spinning a full core: on a job cleared mid-task that left a latch closed, and while an invocation was queueing.
 - [Localhost] Fixed a partial `clear()` tearing down the consumers, tasks and latches of other jobs.
 - [Localhost] Fixed a task starting after `stop()`, leaving a process nobody kills, and two concurrent `invoke()` calls clearing each other's in-progress flag.
 - [Localhost] Fixed the v2 container being removed while other jobs were still running in it.
 - [Localhost] Fixed v1 and v2 sharing one runner file, so a job could run under the other version's runner, and the runner exiting with success on an unknown command or a crash.
-- [Localhost] Fixed a container image whose name starts with `python`, such as `python:3.12`, being run as a local interpreter.
+- [Localhost] Fixed a container image whose name starts with `python`, such as `python:3.12`, being run as a local interpreter, without taking free-threaded, debug or `pythonw` interpreters for images.
 - [Standalone] Fixed a dict race that killed the budget keeper and left the VM running.
 - [Standalone] Fixed a file descriptor leak of the runner log, one per task.
 - [Standalone] Fixed the worker `/stop` endpoint iterating the process map while it changed, and `cancel_job_process()` raising on an emptied queue or a job with no queue.
@@ -84,6 +107,8 @@
 - [Storage] Fixed `delete_cloudobjects()` deleting the keys of one bucket from another when the objects spanned several, and deleting part of the list before rejecting a foreign object.
 - [Storage] Fixed `CloudFileProxy.listdir()` returning nothing for its default argument.
 - [Worker] Fixed the remote invoker returning before its invocations in flight were done.
+- [Worker] Fixed an exception that does not pickle being reported as a success with no result, and `sys.exit()` in a function crashing `get_result()` with a `KeyError`.
+- [Worker] Fixed timeouts and out-of-memory kills showing an internal traceback, and a failed start report leaving the function running while the call was reported failed.
 - [Worker] Fixed the function process being aborted on macOS from the second call on, by setting Apple's fork-safety flag, and one killed by the OOM killer, or by any signal, being reported as a missing result.
 - [Worker] Fixed the non-Unix worker pool sharing one task object across its calls, mixing up their ids, data and logs, by spawning a process per worker.
 - [Azure] Fixed the `az` CLI calls deadlocking when a command filled the stderr pipe.
