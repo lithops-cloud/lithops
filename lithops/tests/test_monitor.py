@@ -831,6 +831,23 @@ class TestStorageMonitorTokensAndTags:
         monitor._generate_tokens(running, all_done)
         assert monitor.token_bucket_q.empty()
 
+    def test_generate_tokens_emits_when_done_is_listed_before_running(self):
+        """
+        A listing can return the status object before the init mark: the
+        init write failed, or the list is not read-after-write consistent.
+        Treating that completion as already accounted leaves the worker
+        token unissued, and the calls still queued never start
+        """
+        monitor = self._storage(chunksize=1)
+        monitor.present_jobs.add('M000')
+        done = {('sess-0', 'M000', '00000')}
+        monitor._generate_tokens(set(), done)
+        assert monitor.token_bucket_q.empty()
+
+        running = {(('sess-0', 'M000', '00000'), 'w1')}
+        monitor._generate_tokens(running, done)
+        assert monitor.token_bucket_q.get_nowait() == '#'
+
     def test_generate_tokens_one_per_worker(self):
         monitor = self._storage(chunksize=1)
         running = {
@@ -1507,6 +1524,109 @@ class TestMessageLossAndRecovery:
         assert tokens.qsize() == 1
         monitor._apply_status_message(dict(second))
         assert tokens.qsize() == 1
+
+    def test_two_threads_finishing_one_chunk_release_one_token(self):
+        """
+        The submitter thread applies a status that was held, while the
+        monitor thread applies the one that just arrived. Both can see the
+        chunk cross its size and each hand a token back
+        """
+        tokens = queue.Queue()
+        monitor = self._monitor(tokens=tokens, chunksize={'M000': 2})
+        monitor.add_futures([
+            FakeFuture('M000', invoked=True, call_id='00000'),
+            FakeFuture('M000', invoked=True, call_id='00001'),
+        ])
+
+        class StaleMembership(set):
+            """
+            Reports the membership it saw, then waits. Both threads can
+            observe "not done yet" before either records the worker
+            """
+
+            def __contains__(self, item):
+                found = super().__contains__(item)
+                time.sleep(0.05)
+                return found
+
+        monitor.workers_done = StaleMembership()
+        start = threading.Barrier(2)
+        errors = []
+
+        def apply(call_id):
+            try:
+                start.wait(timeout=2)
+                payload, _raw = _status(
+                    call_id=call_id, kind='__end__', chunksize=2
+                )
+                payload['activation_id'] = 'w1'
+                monitor._generate_tokens(payload)
+            except Exception as exc:  # noqa: BLE001 - recorded, not handled
+                errors.append(exc)
+
+        threads = [
+            threading.Thread(target=apply, args=('00000',)),
+            threading.Thread(target=apply, args=('00001',)),
+        ]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=5)
+
+        assert not errors
+        assert all(not thread.is_alive() for thread in threads)
+        assert tokens.qsize() == 1
+
+    def test_an_init_cannot_overwrite_an_end_applied_at_the_same_time(self):
+        """
+        The check that a future is not finished and the write that marks it
+        running are separate. An __init__ that passes the check can land
+        after the __end__ and put a finished call back to running
+        """
+        monitor = self._monitor()
+        entered_running = threading.Event()
+
+        class SlowRunning(FakeFuture):
+            def _set_running(self, call_status):
+                entered_running.set()
+                time.sleep(0.05)
+                self.ready = False
+                super()._set_running(call_status)
+
+        future = SlowRunning('M000', invoked=True, call_id='00000')
+        monitor.add_futures([future])
+        init, _raw = _status(kind='__init__')
+        end, _raw = _status(kind='__end__')
+        errors = []
+
+        def apply_init():
+            try:
+                monitor._apply_status_message(init)
+            except Exception as exc:  # noqa: BLE001 - recorded, not handled
+                errors.append(exc)
+
+        def apply_end():
+            try:
+                # Only once the init has passed its "not started" check and
+                # is inside the transition, so the end cannot simply win
+                # the race by running first
+                assert entered_running.wait(timeout=2)
+                monitor._apply_status_message(end)
+            except Exception as exc:  # noqa: BLE001 - recorded, not handled
+                errors.append(exc)
+
+        threads = [
+            threading.Thread(target=apply_init),
+            threading.Thread(target=apply_end),
+        ]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=5)
+
+        assert not errors
+        assert future.ready is True
+        assert future.running is False
 
     def test_a_status_of_a_tracked_future_is_never_held(self):
         """

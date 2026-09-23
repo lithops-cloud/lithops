@@ -514,6 +514,8 @@ def run_task(task: SimpleNamespace) -> None:
         )
 
     job_interrupted = False
+    handler_conn = None
+    jobrunner_conn = None
 
     try:
         handler_conn, jobrunner_conn = _MP_CTX.Pipe()
@@ -589,10 +591,24 @@ def run_task(task: SimpleNamespace) -> None:
         for key in injected_env:
             os.environ.pop(key, None)
 
-        # An interrupted job is not reported: the client is gone anyway
-        if not job_interrupted:
-            call_status.add('worker_end_tstamp', time.time())
-            _add_logs(call_status, task)
-            call_status.send_finish_event()
+        try:
+            # An interrupted job is not reported: the client is gone anyway
+            if not job_interrupted:
+                call_status.add('worker_end_tstamp', time.time())
+                _add_logs(call_status, task)
+                call_status.send_finish_event()
+        finally:
+            # One worker process runs every call of the chunk, each with a
+            # pipe of its own. Closed here rather than whenever the garbage
+            # collector reaches them, which a reference cycle can delay
+            for conn in (handler_conn, jobrunner_conn):
+                if conn is None:
+                    continue
+                try:
+                    conn.close()
+                except Exception:
+                    logger.debug(
+                        'Could not close a JobRunner pipe', exc_info=True
+                    )
 
         logger.info("Finished")

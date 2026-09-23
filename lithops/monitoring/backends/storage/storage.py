@@ -217,10 +217,16 @@ class StorageMonitor(Monitor):
         for call_id, worker_id in running_new:
             self.callids_running_worker[call_id] = worker_id
 
+        # A completion whose init mark is not in this listing yet has no
+        # worker to charge it to. Leaving it out of the processed set means
+        # the next listing, which may carry the init, still counts it.
+        # Marking it processed here drops the token for good
+        attributed = set()
         for callid_done in done_new:
             worker_id = self.callids_running_worker.get(callid_done)
             if worker_id is None:
                 continue
+            attributed.add(callid_done)
             self.callids_done_worker.setdefault(worker_id, set()).add(
                 callid_done
             )
@@ -244,7 +250,7 @@ class StorageMonitor(Monitor):
             self.token_bucket_q.put('#')
 
         self.callids_running_processed.update(running_new)
-        self.callids_done_processed.update(done_new)
+        self.callids_done_processed.update(attributed)
 
     def _poll_and_process_job_status(self):
         """

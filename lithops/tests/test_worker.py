@@ -102,6 +102,17 @@ def _boom(x):
     raise ValueError('nope')
 
 
+class _UnpickleableError(Exception):
+    """An exception instance cloudpickle cannot round-trip"""
+
+    def __reduce__(self):
+        raise TypeError('cannot pickle')
+
+
+def _raise_unpickleable(x):
+    raise _UnpickleableError('lost')
+
+
 def _obj_fn(obj):
     return 1
 
@@ -452,11 +463,15 @@ _MISSING_EXITCODE = object()
 
 class TestRunTask:
 
-    def _patch_run(self, task, jrp, handler_conn, stats_text=None):
+    def _patch_run(self, task, jrp, handler_conn, stats_text=None,
+                   jobrunner_conn=None, status=None):
+        if jobrunner_conn is None:
+            jobrunner_conn = MagicMock()
         if stats_text is not None:
             with open(task.stats_file, 'w') as f:
                 f.write(stats_text)
-        status = MagicMock()
+        if status is None:
+            status = MagicMock()
         cpu = {'usage': [1], 'system': 0.1, 'user': 0.2}
         net = {'sent': 3, 'recv': 4}
         mem = {'rss': 5, 'vms': 6, 'uss': 7}
@@ -465,7 +480,7 @@ class TestRunTask:
         monitor.get_network_io.return_value = net
         monitor.get_memory_info.return_value = mem
         ctx = MagicMock()
-        ctx.Pipe.return_value = (handler_conn, MagicMock())
+        ctx.Pipe.return_value = (handler_conn, jobrunner_conn)
         ctx.Process.return_value = jrp
         with patch('lithops.worker.handler.setup_lithops_logger'):
             with patch(
@@ -640,6 +655,51 @@ class TestRunTask:
         assert extra == {}
         assert SESSION_ID_ENV not in extra
         assert 'LITHOPS_CONFIG' not in extra
+
+    def test_closes_both_ends_of_the_jobrunner_pipe(self, tmp_path):
+        """
+        One worker process runs every call of its chunk. The pipe opened
+        for each JobRunner is closed when the call ends, not left to the
+        garbage collector
+        """
+        task = _task()
+        task.log_stream = MagicMock()
+        task.log_file = str(tmp_path / 'execution.log')
+        task.stats_file = str(tmp_path / 'job_stats.txt')
+        (tmp_path / 'execution.log').write_bytes(b'log')
+        jrp = MagicMock()
+        jrp.is_alive.return_value = False
+        handler_conn = MagicMock()
+        handler_conn.poll.return_value = True
+        jobrunner_conn = MagicMock()
+        self._patch_run(task, jrp, handler_conn, jobrunner_conn=jobrunner_conn)
+        handler_conn.close.assert_called_once()
+        jobrunner_conn.close.assert_called_once()
+
+    def test_closes_the_pipe_when_the_finish_event_fails(self, tmp_path):
+        """
+        Reporting the finish goes over the network and can raise. The pipe
+        is closed all the same
+        """
+        task = _task()
+        task.log_stream = MagicMock()
+        task.log_file = str(tmp_path / 'execution.log')
+        task.stats_file = str(tmp_path / 'job_stats.txt')
+        (tmp_path / 'execution.log').write_bytes(b'log')
+        jrp = MagicMock()
+        jrp.is_alive.return_value = False
+        handler_conn = MagicMock()
+        handler_conn.poll.return_value = True
+        jobrunner_conn = MagicMock()
+        status = MagicMock()
+        status.send_finish_event.side_effect = ConnectionError('broker gone')
+        with pytest.raises(ConnectionError):
+            self._patch_run(
+                task, jrp, handler_conn,
+                jobrunner_conn=jobrunner_conn, status=status,
+            )
+        handler_conn.close.assert_called_once()
+        jobrunner_conn.close.assert_called_once()
 
 
 class TestJobRunnerDeathReason:
@@ -1224,6 +1284,20 @@ class TestJobRunner:
         jr.run()
         text = open(self.stats).read()
         assert 'exception True' in text
+        assert 'exc_info' in text
+        jr.jobrunner_conn.send.assert_called_with('Finished')
+
+    def test_an_unpickleable_exception_is_still_reported(self):
+        """
+        The fallback for an exception that will not pickle has to pickle.
+        Putting the traceback object in that payload raises again, run()
+        dies, and the call is reported as a success with no result
+        """
+        jr = self._runner(_raise_unpickleable, {'x': 1})
+        jr.run()
+        text = open(self.stats).read()
+        assert 'exception True' in text
+        assert 'exc_pickle_fail True' in text
         assert 'exc_info' in text
         jr.jobrunner_conn.send.assert_called_with('Finished')
 

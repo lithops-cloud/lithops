@@ -1081,6 +1081,36 @@ class TestCondition:
         restored = pickle.loads(pickle.dumps(cond))
         assert restored._notify_handle == cond._notify_handle
 
+    def test_a_timed_out_wait_does_not_consume_the_next_notify(self, redis):
+        """
+        A waiter that gives up has to leave the notify list. The next
+        notify pops the oldest handle, and a dead one spends that wakeup
+        on a list nobody is blocked on
+        """
+        from lithops.multiprocessing import Condition
+
+        cond = Condition()
+        with cond:
+            assert cond.wait(timeout=0.05) is False
+            assert redis.llen(cond._notify_handle) == 0
+
+        woken = threading.Event()
+
+        def waiter():
+            with cond:
+                if cond.wait(timeout=2):
+                    woken.set()
+
+        thread = threading.Thread(target=waiter)
+        thread.start()
+        deadline = time.monotonic() + 2
+        while time.monotonic() < deadline and redis.llen(cond._notify_handle) == 0:
+            time.sleep(0.01)
+        with cond:
+            cond.notify()
+        thread.join(timeout=2)
+        assert woken.is_set()
+
 
 def _notify(cond):
     with cond:
@@ -1514,6 +1544,29 @@ class TestSemLockContract:
         with pytest.raises(AssertionError, match='not owned'):
             RLock().release()
 
+    def test_another_thread_cannot_reenter_an_rlock(self, redis):
+        """
+        Re-entry is the thread that already holds the lock, not whichever
+        thread in the process looks at it. A second thread that walks in
+        shares the critical section with the holder
+        """
+        from lithops.multiprocessing import RLock
+
+        lock = RLock()
+        assert lock.acquire() is True
+        other = {}
+
+        def try_acquire():
+            other['got'] = lock.acquire(timeout=0.2)
+
+        thread = threading.Thread(target=try_acquire)
+        thread.start()
+        thread.join(timeout=2)
+        try:
+            assert other['got'] is False
+        finally:
+            lock.release()
+
     def test_a_bounded_semaphore_rejects_an_extra_release(self, redis):
         """
         A bounded semaphore that silently swallows an over-release is not
@@ -1540,6 +1593,40 @@ class TestSemLockContract:
 
         with pytest.raises(ValueError, match='released too many times'):
             Lock().release()
+
+    def test_a_released_lock_keeps_an_expiry(self, redis):
+        """
+        Taking the only token empties the list, and Redis deletes an empty
+        list together with its expiry. The release pushes the token into a
+        new key that has none, so every lock used once stayed on the server
+        for ever
+        """
+        from lithops.multiprocessing import Lock
+        from lithops.multiprocessing import config as mp_config
+
+        lock = Lock()
+        lock.acquire()
+        assert lock._name not in redis.lists
+        lock.release()
+        assert redis.expiries.get(lock._name) == mp_config.get_parameter(
+            mp_config.REDIS_EXPIRY_TIME
+        )
+
+    def test_acquire_refreshes_the_expiry_of_a_semaphore(self, redis):
+        """
+        A semaphore with tokens left keeps its key while some are taken.
+        Its expiry, set once at creation, has to move with use, or a
+        semaphore in use past it loses the tokens still in the list
+        """
+        from lithops.multiprocessing import Semaphore
+        from lithops.multiprocessing import config as mp_config
+
+        sem = Semaphore(2)
+        redis.expire(sem._name, 10)
+        assert sem.acquire() is True
+        assert redis.expiries[sem._name] == mp_config.get_parameter(
+            mp_config.REDIS_EXPIRY_TIME
+        )
 
 
 class TestBlpopTimeoutFallback:

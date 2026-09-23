@@ -149,6 +149,11 @@ class Monitor(threading.Thread):
         # read from the monitor thread. One lock covers the set, the index
         # that finds a future by its call id, and the set of live job ids
         self._futures_lock = threading.RLock()
+        # State changes and token accounting run on the monitor thread and
+        # on the thread that submits a job (it applies statuses that arrived
+        # early). One lock, re-entrant because applying one status can
+        # reveal the futures whose own statuses were held
+        self._apply_lock = threading.RLock()
         self.futures = set()
         self._futures_by_id = {}
         self._timeout_query_failures = {}
@@ -329,8 +334,14 @@ class Monitor(threading.Thread):
         service that redelivers a status, or a storage sweep that reads
         one the channel already delivered, therefore counts once
         """
-        future._set_running(call_status)
-        self.telemetry.on_call_started(future, call_status)
+        with self._apply_lock:
+            # Checked again under the lock. The caller checked too, but an
+            # __end__ on the other thread can land between that check and
+            # here, and this write would put the call back to running
+            if _is_started(future):
+                return
+            future._set_running(call_status)
+            self.telemetry.on_call_started(future, call_status)
 
     def _mark_ready(self, future, call_status, outcome=None):
         """
@@ -340,8 +351,11 @@ class Monitor(threading.Thread):
         Measured after the transition, so that the timestamp the future
         records for the arrival of the status is part of what is measured
         """
-        future._set_ready(call_status)
-        self.telemetry.on_call_finished(future, call_status, outcome)
+        with self._apply_lock:
+            if _is_finished(future):
+                return
+            future._set_ready(call_status)
+            self.telemetry.on_call_finished(future, call_status, outcome)
 
     def _all_ready(self):
         """
@@ -631,16 +645,22 @@ class MessageMonitor(Monitor):
 
         call_id = _status_id(call_status)
         worker_id = call_status['activation_id']
-        done_for_worker = self.callids_done_worker.setdefault(worker_id, set())
-        done_for_worker.add(call_id)
+        # The two threads that apply statuses both get here. The read of
+        # the count and the decision to hand a token back have to be one
+        # step, or each of them hands one back
+        with self._apply_lock:
+            done_for_worker = self.callids_done_worker.setdefault(
+                worker_id, set()
+            )
+            done_for_worker.add(call_id)
 
-        if (
-            worker_id not in self.workers_done
-            and len(done_for_worker) >= chunksize
-        ):
-            self.workers_done.add(worker_id)
-            if self.should_run:
-                self.token_bucket_q.put('#')
+            if (
+                worker_id not in self.workers_done
+                and len(done_for_worker) >= chunksize
+            ):
+                self.workers_done.add(worker_id)
+                if self.should_run:
+                    self.token_bucket_q.put('#')
 
     def _apply_status_message(self, call_status):
         """

@@ -148,13 +148,21 @@ class FakeRedis:
             self._cond.notify_all()
             return len(items)
 
+    def _drop_if_empty(self, key):
+        """The server deletes a list, and its expiry, once it is empty"""
+        if key in self.lists and not self.lists[key]:
+            del self.lists[key]
+            self.expiries.pop(key, None)
+
     def lpop(self, key):
         key = _key(key)
         with self._cond:
             items = self.lists.get(key)
             if not items:
                 return None
-            return items.pop(0)
+            item = items.pop(0)
+            self._drop_if_empty(key)
+            return item
 
     def blpop(self, keys, timeout=0):
         """Blocks until one of the keys has an element, as the server does"""
@@ -167,7 +175,9 @@ class FakeRedis:
                 for key in keys:
                     items = self.lists.get(key)
                     if items:
-                        return key, items.pop(0)
+                        item = items.pop(0)
+                        self._drop_if_empty(key)
+                        return key, item
                 remaining = None if end is None else end - time.monotonic()
                 if remaining is not None and remaining <= 0:
                     return None
@@ -176,6 +186,34 @@ class FakeRedis:
     def llen(self, key):
         key = _key(key)
         return len(self.lists.get(key, []))
+
+    def lrem(self, key, count, value):
+        """Removes up to ``count`` occurrences of ``value``. Zero removes all"""
+        key = _key(key)
+        value = _to_bytes(value)
+        with self._cond:
+            items = self.lists.get(key)
+            if not items:
+                return 0
+            removed = 0
+            if count >= 0:
+                kept = []
+                for item in items:
+                    if item == value and (count == 0 or removed < count):
+                        removed += 1
+                        continue
+                    kept.append(item)
+            else:
+                kept = []
+                for item in reversed(items):
+                    if item == value and removed < -count:
+                        removed += 1
+                        continue
+                    kept.append(item)
+                kept.reverse()
+            self.lists[key] = kept
+            self._drop_if_empty(key)
+            return removed
 
     def lrange(self, key, start, end):
         key = _key(key)

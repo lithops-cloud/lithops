@@ -320,14 +320,19 @@ class JobRunner:
         except Exception as pickle_exception:
             # Shockingly often, modules like subprocess don't properly call
             # the base Exception.__init__, which results in them being
-            # unpickleable. Report the pieces that do pickle instead of
-            # losing the exception altogether
+            # unpickleable. The traceback object holds that same exception,
+            # so it does not pickle either. The text of the stack is what
+            # the client can keep
             self.stats.write("exc_pickle_fail", True)
+            message = str(exc_value)
+            frames = ''.join(traceback.format_tb(exc_traceback))
+            if frames:
+                message = f'{message}\n{frames}'
             pickled_exc = pickle.dumps({
                 'exc_type': str(exc_type),
-                'exc_value': str(exc_value),
-                'exc_traceback': exc_traceback,
-                'pickle_exception': pickle_exception,
+                'exc_value': message,
+                'exc_traceback': None,
+                'pickle_exception': str(pickle_exception),
             })
             pickle.loads(pickled_exc)
 
