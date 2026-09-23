@@ -935,6 +935,7 @@ class TestStorageMonitorTokensAndTags:
 
     def test_poll_and_process_returns_new_done_ids_and_tags(self):
         monitor = self._storage()
+        monitor.add_futures([FakeFuture('M000', invoked=True, call_id='00000')])
         monitor._generate_tokens = MagicMock()
         monitor._tag_future_as_running = MagicMock()
         monitor._tag_future_as_ready = MagicMock()
@@ -945,12 +946,28 @@ class TestStorageMonitorTokensAndTags:
         new = monitor._poll_and_process_job_status()
         assert new == done
         monitor.internal_storage.get_job_status.assert_called_once_with(
-            'sess-0', job_ids=set()
+            'sess-0', job_ids={'M000'}
         )
         monitor._generate_tokens.assert_called_once_with(running, done)
         monitor._tag_future_as_running.assert_called_once_with(running)
         monitor._tag_future_as_ready.assert_called_once_with(done)
         monitor._print_status_log.assert_called_once_with()
+
+    def test_poll_and_process_does_not_list_storage_when_idle(self):
+        """
+        The monitor stays up after wait() with no futures left. A LIST of
+        the executor prefix then is a paid object-storage call for nothing
+        """
+        monitor = self._storage()
+        monitor._generate_tokens = MagicMock()
+        monitor._tag_future_as_running = MagicMock()
+        monitor._tag_future_as_ready = MagicMock()
+        new = monitor._poll_and_process_job_status()
+        assert new == set()
+        monitor.internal_storage.get_job_status.assert_not_called()
+        monitor._generate_tokens.assert_not_called()
+        monitor._tag_future_as_running.assert_not_called()
+        monitor._tag_future_as_ready.assert_not_called()
 
     def test_poll_and_process_emits_token_when_chunk_completes(self):
         monitor = self._storage()

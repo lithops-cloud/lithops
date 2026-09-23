@@ -298,8 +298,15 @@ class StorageMonitor(Monitor):
         Reads the job status from storage and applies it to the futures.
         Returns the call ids that are newly done
         """
+        # Nothing tracked: do not list. An empty job_ids used to list the
+        # whole executor prefix, which on S3 is a LIST of every leftover
+        # job key and the function pickle, once per monitoring_interval,
+        # for as long as the monitor stays up after wait()
+        job_ids = self.job_ids()
+        if not job_ids:
+            return set()
         status = self.internal_storage.get_job_status(
-            self.executor_id, job_ids=self.job_ids()
+            self.executor_id, job_ids=job_ids
         )
         callids_running, callids_done = status
         new_callids_done = (
