@@ -268,6 +268,19 @@ class _ConnectionBase:
         self._check_readable()
         return self._poll(timeout)
 
+    def recv_bytes_within(self, timeout):
+        """
+        The next message, waiting at most ``timeout`` seconds, or None
+        if none came. Zero or less does not wait at all.
+
+        Redis overrides this so looking and taking are one step
+        """
+        self._check_closed()
+        self._check_readable()
+        if not self._poll(max(timeout, 0)):
+            return None
+        return self._recv_bytes()
+
     def __enter__(self):
         return self
 

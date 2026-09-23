@@ -176,6 +176,11 @@ class Monitor(threading.Thread):
         # vars for _generate_tokens
         self.workers_done = set()
         self.callids_done_worker = {}
+        # Jobs whose capacity the invoker already forgot. A late __end__
+        # of theirs must not put another token in the bucket
+        self._token_closed_jobs = set()
+        # Jobs wait() dropped, whose workers still have to free a token
+        self._dropped_jobs = set()
         # vars for MessageMonitor._hold_status
         self._held_status = {}
         self._held_lock = threading.Lock()
@@ -277,7 +282,19 @@ class Monitor(threading.Thread):
                 future_id = _future_id(future)
                 if self._futures_by_id.get(future_id) is future:
                     del self._futures_by_id[future_id]
-            self.present_jobs = {future.job_id for future in self.futures}
+            remaining = {future.job_id for future in self.futures}
+            self.present_jobs = remaining
+            self._dropped_jobs.update(
+                future.job_id for future in fs if future.job_id not in remaining
+            )
+
+    def close_jobs(self, job_ids):
+        """
+        Marks jobs whose remaining worker tokens the invoker already
+        wrote off, so a late status does not hand one back again
+        """
+        with self._apply_lock:
+            self._token_closed_jobs.update(job_ids)
 
     def tracked_futures(self):
         """
@@ -712,6 +729,8 @@ class MessageMonitor(Monitor):
         # workers were never counted by the invoker of this one
         if call_status['executor_id'] != self.executor_id:
             return
+        if call_status.get('job_id') in self._token_closed_jobs:
+            return
 
         call_id = _status_id(call_status)
         worker_calls = call_status.get('worker_calls')
@@ -758,6 +777,11 @@ class MessageMonitor(Monitor):
                 if call_status is None:
                     return
             if self._tag_future_as_ready(call_status):
+                self._generate_tokens(call_status)
+            elif call_status.get('job_id') in self._dropped_jobs:
+                # wait() dropped the futures, but the worker is still
+                # this executor's and must free its token, unless the
+                # invoker already wrote the job off
                 self._generate_tokens(call_status)
             else:
                 self._hold_status(call_status)

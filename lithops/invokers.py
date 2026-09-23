@@ -309,7 +309,7 @@ class Invoker:
         """
         pass
 
-    def discard_pending(self, job_keys):
+    def discard_pending(self, job_keys, job_ids=None):
         """
         Drops the calls of the given jobs not invoked yet. Only an invoker
         that queues calls has any
@@ -554,10 +554,15 @@ class FaaSInvoker(Invoker):
             except queue.Empty:
                 return
 
-    def discard_pending(self, job_keys):
+    def discard_pending(self, job_keys, job_ids=None):
         """
         Drops the calls of the given jobs that are still waiting for a
-        worker, leaving the queued calls of every other job in place
+        worker, leaving the queued calls of every other job in place.
+
+        The monitor also stops tracking those jobs, so their workers will
+        not hand tokens back. When no other job is still queued, the count
+        of running workers is forgotten; otherwise a later map() of the
+        same executor stays capped by workers that never free
         """
         kept = []
         while True:
@@ -568,8 +573,18 @@ class FaaSInvoker(Invoker):
             job, _ = item
             if job is None or job.job_key not in job_keys:
                 kept.append(item)
+        other_jobs = False
         for item in kept:
+            job, _ = item
+            if job is not None:
+                other_jobs = True
             self.pending_calls_q.put(item)
+        if other_jobs:
+            return
+        self._empty_token_bucket()
+        self.running_workers = 0
+        if job_ids and self.job_monitor is not None:
+            self.job_monitor.close_jobs(job_ids)
 
     def _drain_token_bucket(self):
         """

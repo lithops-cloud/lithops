@@ -253,6 +253,8 @@ class CloudProcess:
         try:
             util.wait_futures(self._executor, [self._future], timeout=timeout)
         except TimeoutError:
+            if timeout is None:
+                raise
             return None
 
         exception = None

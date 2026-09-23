@@ -1355,6 +1355,52 @@ class TestPollingMessageMonitor:
         monitor._apply_status_message(second)
         assert tokens.qsize() == 1
 
+    def test_a_removed_job_still_hands_its_token_back(self):
+        """
+        wait() drops the futures of a failed job so they are no longer
+        tagged ready. The worker that ran them is still this executor's
+        and must free its token, or a later map() stays short of workers
+        """
+        class FakePoll(PollingMessageMonitor):
+            backend_name = 'fake'
+
+            def _receive_messages(self, timeout):
+                return []
+
+        tokens = queue.Queue()
+        monitor = FakePoll(
+            'sess-0', None, tokens, {'M000': 1}, True, {}
+        )
+        future = FakeFuture('M000', invoked=True)
+        monitor.add_futures([future])
+        monitor.remove_futures([future])
+        payload, _raw = _status(kind='__end__')
+        monitor._apply_status_message(payload)
+        assert tokens.qsize() == 1
+
+    def test_a_closed_job_does_not_hand_a_late_token_back(self):
+        """
+        The invoker already forgot this job's workers. A late __end__
+        must not put another token in the bucket
+        """
+        class FakePoll(PollingMessageMonitor):
+            backend_name = 'fake'
+
+            def _receive_messages(self, timeout):
+                return []
+
+        tokens = queue.Queue()
+        monitor = FakePoll(
+            'sess-0', None, tokens, {'M000': 1}, True, {}
+        )
+        future = FakeFuture('M000', invoked=True)
+        monitor.add_futures([future])
+        monitor.remove_futures([future])
+        monitor.close_jobs({'M000'})
+        payload, _raw = _status(kind='__end__')
+        monitor._apply_status_message(payload)
+        assert tokens.qsize() == 0
+
     def test_stop_does_not_delete_cleanup_does_once(self):
         class FakePoll(PollingMessageMonitor):
             backend_name = 'fake'

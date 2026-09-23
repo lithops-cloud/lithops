@@ -690,7 +690,8 @@ class TestApplyResult:
         fake = FakeExecutor()
         finished = FakeFuture()
         finished.done = False
-        finished.success = True
+        finished.success = False
+        finished.ready = True
         result = self._result(fake, [finished])
         assert result.ready() is True
 
@@ -755,6 +756,67 @@ class TestApplyResult:
         result.wait(timeout=0.01)
         fake.wait_error = None
         assert result.get() == 7
+
+    def test_get_raises_when_the_result_cannot_be_downloaded(self, executor, monkeypatch):
+        """
+        wait(..., download_results=True, throw_except=False) used to mark a
+        missing output as Error and hand None back, so get() returned None
+        with successful() False and no exception
+        """
+        from lithops.multiprocessing.pool import ApplyResult
+
+        class MissingOutput:
+            def __init__(self):
+                self.success = self.done = self.ready = self.error = False
+                self._output = None
+
+            def result(self, throw_except=True, internal_storage=None, **kwargs):
+                if self.done:
+                    return self._output
+                if not throw_except:
+                    self.error = self.success = self.done = True
+                    return None
+                raise Exception('Unable to get the result from call 0')
+
+            def status(self, throw_except=True, internal_storage=None, **kwargs):
+                return {}
+
+        def wait(fs, internal_storage, job_monitor, download_results,
+                 throw_except, timeout):
+            for item in fs:
+                if download_results:
+                    item.result(
+                        throw_except=throw_except,
+                        internal_storage=internal_storage,
+                    )
+
+        monkeypatch.setattr('lithops.multiprocessing.util.lithops_wait', wait)
+        executor_fake = types.SimpleNamespace(internal_storage=None)
+        executor_fake._monitor_of = lambda fs: None
+        result = ApplyResult(executor_fake, [MissingOutput()], None, None)
+        with pytest.raises(Exception, match='Unable to get the result'):
+            result.get()
+
+    def test_get_after_terminate_does_not_block_a_callback_result(self, executor):
+        """
+        terminate() used to return from the handler before the event was
+        set, so get() with a callback blocked forever
+        """
+        from lithops.multiprocessing import TimeoutError as MpTimeoutError
+        from lithops.multiprocessing.pool import ApplyResult
+
+        pending = FakeFuture(running=True)
+        cancelled = threading.Event()
+        cancelled.set()
+        result = ApplyResult(
+            FakeExecutor(), [pending], lambda value: None, None,
+            cancelled=cancelled,
+        )
+        result._handler.join(3)
+        assert not result._handler.is_alive()
+        assert result.ready()
+        with pytest.raises(MpTimeoutError, match='terminated'):
+            result.get()
 
     def test_a_get_that_timed_out_leaves_the_call_to_finish(self, executor):
         """
@@ -964,6 +1026,26 @@ class TestCloudProcess:
         assert running.done and not running.error
         assert [kwargs['timeout'] for _, kwargs in executor[0].lithops_wait_calls] == [5, None]
 
+    def test_join_does_not_treat_a_storage_timeout_as_finished(
+        self, executor, redis, monkeypatch
+    ):
+        """
+        socket.timeout is a TimeoutError. join() with no timeout used to
+        catch it and return, as if the process had finished
+        """
+        from lithops.multiprocessing import Process
+        running = FakeFuture(running=True)
+        monkeypatch.setattr(
+            FakeExecutor, 'call_async',
+            lambda self, func, data, **kwargs: running,
+        )
+        proc = Process(target=_double, args=(21,))
+        proc.start()
+        executor[0].wait_error = TimeoutError('socket timed out')
+        with pytest.raises(TimeoutError, match='socket timed out'):
+            proc.join()
+        assert not running.done
+
     def test_join_raises_what_the_target_raised(self, executor, redis, monkeypatch):
         from lithops.multiprocessing import Process
         failed = FakeFuture(exception=ValueError('bad input'))
@@ -1171,6 +1253,40 @@ class TestConnection:
         a, b = connection.get_handle_pair(connection.REDIS_LIST_CONN)
         assert connection.get_subhandle(a) == b
         assert connection.get_subhandle(b) == a
+
+    def test_recv_bytes_within_returns_none_when_nothing_is_ready(self):
+        from lithops.multiprocessing.connection import _ConnectionBase
+
+        class Conn(_ConnectionBase):
+            def _poll(self, timeout):
+                return False
+
+            def _recv_bytes(self, maxlength=None):
+                raise AssertionError('must not read')
+
+            def _close(self, _close=None):
+                self._handle = None
+
+        conn = Conn(1, readable=True, writable=False)
+        assert conn.recv_bytes_within(0) is None
+        conn.close()
+
+    def test_recv_bytes_within_reads_when_ready(self):
+        from lithops.multiprocessing.connection import _ConnectionBase
+
+        class Conn(_ConnectionBase):
+            def _poll(self, timeout):
+                return True
+
+            def _recv_bytes(self, maxlength=None):
+                return b'x'
+
+            def _close(self, _close=None):
+                self._handle = None
+
+        conn = Conn(1, readable=True, writable=False)
+        assert conn.recv_bytes_within(1) == b'x'
+        conn.close()
 
     def test_an_unknown_connection_type_is_rejected(self):
         from lithops.multiprocessing import connection

@@ -255,7 +255,9 @@ class StorageMonitor(Monitor):
             if worker_id in self.workers_done:
                 continue
             job_id = self.worker_job.get(worker_id)
-            if job_id is None or job_id not in present_jobs:
+            if job_id is None or job_id in self._token_closed_jobs:
+                continue
+            if job_id not in present_jobs:
                 continue
             chunksize = self.job_chunksize.get(job_id)
             if chunksize is None:

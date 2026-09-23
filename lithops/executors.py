@@ -783,7 +783,10 @@ class FunctionExecutor:
             else:
                 # Only the jobs waited on end here. Another job of this
                 # executor may still have calls queued for a free worker
-                self.invoker.discard_pending({f.job_key for f in futures})
+                self.invoker.discard_pending(
+                    {f.job_key for f in futures},
+                    {f.job_id for f in futures},
+                )
             self.job_monitor.remove(futures)
             for future in futures:
                 future._set_exception()
@@ -975,7 +978,9 @@ class FunctionExecutor:
             })
 
         futures = self._as_future_list(fs or self.futures)
-        if force:
+        if force or on_exit:
+            # On exit nothing will read the leftover results, so a job
+            # that still has one unread call would otherwise stay forever
             present_jobs = {
                 create_job_key(f.executor_id, f.job_id) for f in futures
             }

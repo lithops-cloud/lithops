@@ -186,6 +186,15 @@ class JobMonitor:
         if self.monitor and self.monitor.is_alive():
             self.monitor.remove_futures(fs)
 
+    def close_jobs(self, job_ids):
+        """
+        The invoker will no longer wait for these jobs. Later statuses of
+        theirs must not hand another token back: the capacity they held
+        was already forgotten
+        """
+        if self.monitor is not None:
+            self.monitor.close_jobs(job_ids)
+
     def stop(self):
         """
         Asks the monitor thread to exit, without waiting for it.

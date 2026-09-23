@@ -259,6 +259,26 @@ class TestSubmitAndCleanup:
             executor.clean(fs=[read, unread], clean_cloudobjects=False)
         assert create_job_key('abc-0', 'M000') in executor.cleaned_jobs
 
+    def test_clean_on_exit_deletes_a_job_with_unread_results(self):
+        """
+        After the process exits nothing will read the leftover result, so
+        keeping the prefix would leak it for the rest of the bucket's life
+        """
+        read = FakeFuture(executor_id='abc-0', job_id='M000', done=True)
+        unread = FakeFuture(
+            executor_id='abc-0', job_id='M000', done=False, success=True
+        )
+        executor = _bare_executor(
+            cleaned_jobs=set(), executor_id='abc-0', futures=[read, unread]
+        )
+        with patch('lithops.executors._dump_cleaner_data') as dump, \
+                patch('lithops.executors.sp.Popen'):
+            executor.clean(
+                fs=[read, unread], clean_cloudobjects=False, on_exit=True
+            )
+        assert create_job_key('abc-0', 'M000') in executor.cleaned_jobs
+        dump.assert_called_once()
+
     def test_clean_does_not_wrap_futures_list(self):
         future = FakeFuture(executor_id='abc-0', job_id='M000', done=True)
         futures = FuturesList([future])
@@ -461,7 +481,7 @@ class TestWaitAndGetResult:
 
         executor.invoker.stop.assert_not_called()
         executor.invoker.discard_pending.assert_called_once_with(
-            {future.job_key}
+            {future.job_key}, {future.job_id}
         )
         executor.job_monitor.remove.assert_called_once()
         assert future._exception_set is True

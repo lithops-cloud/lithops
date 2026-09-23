@@ -325,11 +325,33 @@ class TestFaaSInvokerHelpers:
         other.job_key = 'sess-0/M001'
         inv._queue_call_ranges(failed, range(4))
         inv._queue_call_ranges(other, range(3))
+        inv.running_workers = 4
+        inv.job_monitor.token_bucket_q.put('#')
         inv.discard_pending({'sess-0/M000'})
         left = []
         while not inv.pending_calls_q.empty():
             left.append(inv.pending_calls_q.get()[0])
         assert left == [other, other]
+        assert inv.running_workers == 4
+        inv.job_monitor.close_jobs.assert_not_called()
+
+    def test_discard_pending_forgets_workers_when_no_other_job_is_queued(self):
+        """
+        wait() also drops those jobs from the monitor, so their workers
+        never put a token back. Without forgetting them, the next map()
+        of this executor stays capped by a count that never comes down
+        """
+        inv = self._faas()
+        inv.running_workers = 4
+        inv.job_monitor.token_bucket_q.put('#')
+        failed = _job(chunksize=1)
+        failed.job_key = 'sess-0/M000'
+        inv._queue_call_ranges(failed, range(2))
+        inv.discard_pending({'sess-0/M000'}, {'M000'})
+        assert inv.running_workers == 0
+        assert inv.pending_calls_q.empty()
+        assert inv.job_monitor.token_bucket_q.empty()
+        inv.job_monitor.close_jobs.assert_called_once_with({'M000'})
 
     def test_a_restart_forgets_tokens_handed_back_after_the_stop(self):
         """

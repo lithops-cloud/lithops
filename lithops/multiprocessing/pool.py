@@ -338,7 +338,8 @@ class ApplyResult(object):
         # A call whose status has arrived is finished as far as the caller is
         # concerned; `done` only turns true once its result was downloaded
         return all(
-            fut.success or fut.done or fut.error for fut in self._futures
+            fut.ready or fut.success or fut.done or fut.error
+            for fut in self._futures
         )
 
     def successful(self):
@@ -364,6 +365,8 @@ class ApplyResult(object):
             util.wait_futures(self._executor, self._futures,
                               download_results=download_results, timeout=timeout)
         except TimeoutError as exc:
+            if timeout is None:
+                raise
             # Lithops reports it as the builtin, which is an OSError and so
             # not what `except multiprocessing.TimeoutError` catches
             raise ProcessTimeoutError(str(exc)) from exc
@@ -403,9 +406,8 @@ class ApplyResult(object):
         what bounds a get(timeout) the main thread may be running meanwhile
         """
         try:
-            if not self._wait_in_thread():
-                return
-            self._collect()
+            if self._wait_in_thread():
+                self._collect()
         except Exception as exc:
             self._exception = exc
         try:
@@ -464,10 +466,15 @@ class ApplyResult(object):
                     'Timeout of {} seconds exceeded waiting for the result'.format(timeout)
                 )
         elif not self._collected:
-            self._wait(timeout, download_results=True)
+            # Download in _collect, which reraises. wait() with
+            # download_results=True and throw_except=False would mark a
+            # missing result as Error and hand None back
+            self._wait(timeout, download_results=False)
             self._collect()
         if self._exception is not None:
             raise self._exception
+        if self._cancelled.is_set() and not self._collected:
+            raise ProcessTimeoutError('the pool was terminated')
         return self._value
 
 
