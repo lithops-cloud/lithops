@@ -16,7 +16,7 @@
 - [Core] `get_result()` cleans after the results are in; stopping an executor waits for in-flight invocations.
 - [Core] A list or tuple of futures as `iterdata` or `call_async()` data is now a chain.
 - [Monitoring] Pluggable backends; queues live until cleanup (RabbitMQ expires after 24h); status lines every 30s.
-- [Monitoring] Oversized status messages drop logs and fall back to storage.
+- [Monitoring] The job monitor stays up across `map()`/`wait()` of the same executor, so the next job is not delayed by joining and replacing it.
 - [Multiprocessing] Closer stdlib API: started `Manager()`, default `imap` chunksize, expiry refresh on read.
 - [Worker] POSIX pipe instead of a Manager queue; `SystemExit`/`KeyboardInterrupt` reported as the function's exception.
 - [Localhost] A clean job is no longer killed on cleanup, so its runner log is kept.

@@ -389,29 +389,37 @@ class TestWaitAndGetResult:
         assert cleanup.call_args.kwargs.get('exception') is None
 
     @patch('lithops.executors.wait')
-    def test_wait_stops_monitor_when_all_tracked_futures_are_done(self, mock_wait):
+    def test_wait_keeps_the_monitor_for_the_next_map(self, mock_wait):
+        """
+        The monitor belongs to the executor. Stopping it after every wait()
+        made the next map() join that thread and spawn another, which is
+        what made a tight map/wait loop (Cubed) slower, and lost the first
+        statuses of the new job on a message backend
+        """
         future = FakeFuture(done=True, success=True)
         executor = _bare_executor(futures=[future])
         executor.wait([future], return_when=ALL_COMPLETED, show_progressbar=False)
-        executor.job_monitor.stop.assert_called_once()
+        executor.job_monitor.stop.assert_not_called()
+        executor.job_monitor.remove.assert_called_once_with([future])
 
     @patch('lithops.executors.wait')
-    def test_wait_stops_monitor_before_cleaning(self, mock_wait):
+    def test_wait_drops_finished_futures_before_cleaning(self, mock_wait):
         future = FakeFuture(done=True, success=True)
         executor = _bare_executor(data_cleaner=True, futures=[future])
         order = []
-        executor._stop_monitor_if_idle = lambda *a, **k: order.append('stop')
+        executor._release_finished_from_monitor = lambda *a, **k: order.append('release')
         executor._cleanup_jobs = lambda *a, **k: order.append('clean')
         executor.wait([future], return_when=ALL_COMPLETED, show_progressbar=False)
-        assert order == ['stop', 'clean']
+        assert order == ['release', 'clean']
 
     @patch('lithops.executors.wait')
-    def test_wait_keeps_monitor_when_other_futures_are_pending(self, mock_wait):
+    def test_wait_does_not_drop_pending_futures_from_the_monitor(self, mock_wait):
         done = FakeFuture(done=True, success=True)
         pending = FakeFuture(done=False, success=False)
         executor = _bare_executor(futures=[done, pending])
-        executor.wait([done], return_when=ALL_COMPLETED, show_progressbar=False)
+        executor.wait([done, pending], return_when=ALL_COMPLETED, show_progressbar=False)
         executor.job_monitor.stop.assert_not_called()
+        executor.job_monitor.remove.assert_called_once_with([done])
 
     def test_exit_waits_for_the_invoker_threads(self):
         """

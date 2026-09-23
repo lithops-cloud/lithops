@@ -99,10 +99,10 @@ class JobMonitor:
         Creates backend resources (queues, keys) before workers are
         invoked, so the first status is not published into nowhere.
 
-        A monitor a wait() stopped is replaced here too, and not in start(),
-        which runs once the workers are already reporting: its thread may
-        still be in a read that takes the first statuses of the new job to
-        the grave, and RabbitMQ may already have deleted its queue
+        A monitor a failed wait() or the executor exit stopped is replaced
+        here, and not in start(), which runs once the workers are already
+        reporting: its thread may still be in a read that takes the first
+        statuses of the new job to the grave
         """
         if self.monitor is None or self._thread_finished():
             self._spawn_monitor(generate_tokens=False)

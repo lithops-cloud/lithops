@@ -460,6 +460,20 @@ class FunctionExecutor:
             self.compute_handler.clear(present_jobs, exception=exception)
         self.clean(fs=futures, clean_cloudobjects=False, force=force)
 
+    def _release_finished_from_monitor(self, futures):
+        """
+        Drops futures that have already reported back, so the monitor does
+        not keep listing their prefixes. The thread stays up: the next
+        map() of this executor adds to it instead of joining a stopped
+        one and spawning another
+        """
+        finished = [
+            f for f in futures
+            if getattr(f, 'ready', False) or f.success or f.done
+        ]
+        if finished:
+            self.job_monitor.remove(finished)
+
     def _stop_monitor_if_idle(self, extra_fs=None):
         """
         Stops the job monitor once there is no future left to watch, counting
@@ -773,7 +787,7 @@ class FunctionExecutor:
                 futures_from_executor_wait=not fs,
             )
 
-            self._stop_monitor_if_idle(futures)
+            self._release_finished_from_monitor(futures)
             if do_clean and return_when == ALL_COMPLETED:
                 self._cleanup_jobs(futures)
 
