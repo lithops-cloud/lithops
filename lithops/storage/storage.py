@@ -381,8 +381,16 @@ class InternalStorage:
         have finished, as two sets.
 
         Listing the prefix of each given job keeps finished jobs out of the
-        listing; without job_ids the whole executor prefix is listed
+        listing. ``job_ids=None`` still lists the whole executor prefix, for
+        callers that do not know the jobs. An empty collection means there
+        is nothing to watch: no list is issued. An empty set must not fall
+        through to the executor prefix, because that prefix is also a prefix
+        of every job key (``executor_id-job_id``) and of the function
+        pickle, and a LIST of it on object storage is both wide and
+        expensive
         """
+        if job_ids is not None and not job_ids:
+            return set(), set()
         if job_ids:
             keys = []
             # Copied first: a caller may pass a set that its own threads

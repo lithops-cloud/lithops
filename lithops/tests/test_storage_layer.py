@@ -264,6 +264,18 @@ class TestInternalStorage:
             'storage', f'{JOBS_PREFIX}/{create_job_key("sess-0", "M000")}'
         )
 
+    def test_get_job_status_does_not_list_when_job_ids_is_empty(self):
+        """
+        After wait() drops the finished futures the monitor stays up with
+        no jobs. Falling through to the executor prefix would LIST every
+        leftover job and the function pickle on every poll
+        """
+        internal = _bare_internal()
+        running, done = internal.get_job_status('sess-0', job_ids=set())
+        assert running == set()
+        assert done == set()
+        internal.storage.list_keys.assert_not_called()
+
     def test_get_call_status_and_output_missing_are_none(self):
         internal = _bare_internal()
         internal.storage.get_object.side_effect = StorageNoSuchKeyError('b', 'k')

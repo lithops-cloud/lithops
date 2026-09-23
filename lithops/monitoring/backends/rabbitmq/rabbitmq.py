@@ -37,6 +37,11 @@ class RabbitmqMonitor(PollingMessageMonitor):
     cost a round trip per message.
     """
 
+    #: How long the broker keeps the queue once nothing consumes from or
+    #: declares it, in seconds. cleanup() deletes it; this is only for a
+    #: client that died before getting there
+    QUEUE_EXPIRES = 24 * 3600
+
     def __init__(
             self,
             executor_id,
@@ -70,22 +75,30 @@ class RabbitmqMonitor(PollingMessageMonitor):
 
     def _create_resources(self):
         """
-        Opens the connection and declares the queue the workers publish to
+        Opens the connection and declares the queue the workers publish to.
+
+        Not an auto-delete queue: the broker would delete it as soon as a
+        stopped monitor cancels its consumer, and whatever the workers still
+        running publish before the next monitor declares it again would be
+        dropped. cleanup() deletes it instead
         """
         logger.debug(
             f'{log_prefix(self.executor_id)} - Creating RabbitMQ queue {self.queue}'
         )
         self.connection = pika.BlockingConnection(self.pikaparams)
         channel = self.connection.channel()
-        channel.queue_declare(queue=self.queue, auto_delete=True)
+        channel.queue_declare(
+            queue=self.queue,
+            auto_delete=False,
+            arguments={'x-expires': self.QUEUE_EXPIRES * 1000},
+        )
         channel.close()
 
     def _consume(self, timeout):
         """
         Returns the consumer generator, opening it on the first call and
-        after a connection has been lost. The queue is declared again on
-        the way, since an auto-delete queue is gone once its last consumer
-        has left
+        after a connection has been lost, in which case the queue is
+        declared again on the way
         """
         if self.consumer is None:
             if self.connection is None or self.connection.is_closed:

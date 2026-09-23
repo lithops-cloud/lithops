@@ -94,6 +94,10 @@ def _future(**attrs):
         runtime_memory=512,
         _host_status_done_tstamp=None,
         _status_query_count=3,
+        running=False,
+        ready=False,
+        success=False,
+        done=False,
     )
     defaults.update(attrs)
     return SimpleNamespace(**defaults)
@@ -788,7 +792,7 @@ class TestMonitorFunnel:
         )
         assert monitor.telemetry is NOOP
 
-        future = MagicMock()
+        future = MagicMock(running=True, ready=False, success=False, done=False)
         monitor._mark_ready(future, {})
         future._set_ready.assert_called_once()
 

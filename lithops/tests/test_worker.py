@@ -102,6 +102,25 @@ def _boom(x):
     raise ValueError('nope')
 
 
+def _exits(x):
+    sys.exit(3)
+
+
+def _interrupted(x):
+    raise KeyboardInterrupt()
+
+
+class _UnpickleableError(Exception):
+    """An exception instance cloudpickle cannot round-trip"""
+
+    def __reduce__(self):
+        raise TypeError('cannot pickle')
+
+
+def _raise_unpickleable(x):
+    raise _UnpickleableError('lost')
+
+
 def _obj_fn(obj):
     return 1
 
@@ -452,11 +471,15 @@ _MISSING_EXITCODE = object()
 
 class TestRunTask:
 
-    def _patch_run(self, task, jrp, handler_conn, stats_text=None):
+    def _patch_run(self, task, jrp, handler_conn, stats_text=None,
+                   jobrunner_conn=None, status=None):
+        if jobrunner_conn is None:
+            jobrunner_conn = MagicMock()
         if stats_text is not None:
             with open(task.stats_file, 'w') as f:
                 f.write(stats_text)
-        status = MagicMock()
+        if status is None:
+            status = MagicMock()
         cpu = {'usage': [1], 'system': 0.1, 'user': 0.2}
         net = {'sent': 3, 'recv': 4}
         mem = {'rss': 5, 'vms': 6, 'uss': 7}
@@ -465,7 +488,7 @@ class TestRunTask:
         monitor.get_network_io.return_value = net
         monitor.get_memory_info.return_value = mem
         ctx = MagicMock()
-        ctx.Pipe.return_value = (handler_conn, MagicMock())
+        ctx.Pipe.return_value = (handler_conn, jobrunner_conn)
         ctx.Process.return_value = jrp
         with patch('lithops.worker.handler.setup_lithops_logger'):
             with patch(
@@ -540,11 +563,73 @@ class TestRunTask:
         conn.poll.return_value = False
         return self._patch_run(task, jrp, conn)
 
-    def _exc_of(self, status):
+    def _exc_info_of(self, status):
         pickled = {
             c.args[0]: c.args[1] for c in status.add.call_args_list
         }['exc_info']
-        return pickle.loads(ast.literal_eval(pickled))[0]
+        return pickle.loads(ast.literal_eval(pickled))
+
+    def _exc_of(self, status):
+        return self._exc_info_of(status)[0]
+
+    def test_worker_failures_carry_the_handler_marker(self, tmp_path):
+        """
+        The client drops the traceback of an exception whose first argument
+        is 'HANDLER' and prints its message on one line. Without the marker
+        a timed out call prints a traceback into the handler instead
+        """
+        task = _task(execution_timeout=7)
+        task.log_stream = MagicMock()
+        task.log_file = str(tmp_path / 'execution.log')
+        task.stats_file = str(tmp_path / 'missing.txt')
+        jrp = MagicMock()
+        jrp.is_alive.return_value = True
+        timeout = self._exc_info_of(self._patch_run(task, jrp, MagicMock()))
+        assert timeout[0] is TimeoutError
+        assert timeout[1].args == (
+            'HANDLER',
+            'Function exceeded maximum time of 7 seconds and was killed',
+        )
+
+        exitcodes = [3]
+        if is_unix_system():
+            exitcodes.append(-signal.SIGKILL)
+        for exitcode in exitcodes:
+            exc = self._exc_info_of(
+                self._run_without_completion(task, exitcode)
+            )[1]
+            assert exc.args[0] == 'HANDLER', exitcode
+            assert exc.args[1] == handler_module._jobrunner_death_reason(
+                exitcode
+            )
+
+    def test_a_failed_start_report_still_waits_for_the_function(
+        self, tmp_path
+    ):
+        """
+        The init event is sent once the JobRunner runs. When sending it
+        fails, say the status object cannot be written to storage, the call
+        used to be reported as failed while the JobRunner kept running,
+        never joined, next to the following task of the worker
+        """
+        task = _task()
+        task.log_stream = MagicMock()
+        task.log_file = str(tmp_path / 'execution.log')
+        task.stats_file = str(tmp_path / 'job_stats.txt')
+        jrp = MagicMock()
+        jrp.is_alive.return_value = False
+        conn = MagicMock()
+        conn.poll.return_value = True
+        status = MagicMock()
+        status.send_init_event.side_effect = OSError('No space left on device')
+        self._patch_run(
+            task, jrp, conn, 'func_result_size 0\n', status=status
+        )
+        jrp.join.assert_called_once_with(task.execution_timeout)
+        added = {c.args[0]: c.args[1] for c in status.add.call_args_list}
+        assert 'exception' not in added
+        assert added['func_result_size'] == 0
+        status.send_finish_event.assert_called_once()
 
     @pytest.mark.skipif(
         not is_unix_system(), reason='there is no SIGKILL on Windows'
@@ -640,6 +725,51 @@ class TestRunTask:
         assert extra == {}
         assert SESSION_ID_ENV not in extra
         assert 'LITHOPS_CONFIG' not in extra
+
+    def test_closes_both_ends_of_the_jobrunner_pipe(self, tmp_path):
+        """
+        One worker process runs every call of its chunk. The pipe opened
+        for each JobRunner is closed when the call ends, not left to the
+        garbage collector
+        """
+        task = _task()
+        task.log_stream = MagicMock()
+        task.log_file = str(tmp_path / 'execution.log')
+        task.stats_file = str(tmp_path / 'job_stats.txt')
+        (tmp_path / 'execution.log').write_bytes(b'log')
+        jrp = MagicMock()
+        jrp.is_alive.return_value = False
+        handler_conn = MagicMock()
+        handler_conn.poll.return_value = True
+        jobrunner_conn = MagicMock()
+        self._patch_run(task, jrp, handler_conn, jobrunner_conn=jobrunner_conn)
+        handler_conn.close.assert_called_once()
+        jobrunner_conn.close.assert_called_once()
+
+    def test_closes_the_pipe_when_the_finish_event_fails(self, tmp_path):
+        """
+        Reporting the finish goes over the network and can raise. The pipe
+        is closed all the same
+        """
+        task = _task()
+        task.log_stream = MagicMock()
+        task.log_file = str(tmp_path / 'execution.log')
+        task.stats_file = str(tmp_path / 'job_stats.txt')
+        (tmp_path / 'execution.log').write_bytes(b'log')
+        jrp = MagicMock()
+        jrp.is_alive.return_value = False
+        handler_conn = MagicMock()
+        handler_conn.poll.return_value = True
+        jobrunner_conn = MagicMock()
+        status = MagicMock()
+        status.send_finish_event.side_effect = ConnectionError('broker gone')
+        with pytest.raises(ConnectionError):
+            self._patch_run(
+                task, jrp, handler_conn,
+                jobrunner_conn=jobrunner_conn, status=status,
+            )
+        handler_conn.close.assert_called_once()
+        jobrunner_conn.close.assert_called_once()
 
 
 class TestJobRunnerDeathReason:
@@ -1224,6 +1354,47 @@ class TestJobRunner:
         jr.run()
         text = open(self.stats).read()
         assert 'exception True' in text
+        assert 'exc_info' in text
+        jr.jobrunner_conn.send.assert_called_with('Finished')
+
+    def _reported_exception(self):
+        stats = {}
+        for line in open(self.stats).read().splitlines():
+            key, value = line.split(' ', 1)
+            stats[key] = value
+        assert stats.get('exception') == 'True'
+        return pickle.loads(ast.literal_eval(stats['exc_info']))[1]
+
+    def test_sys_exit_in_the_function_is_reported_as_its_exception(self):
+        """
+        A SystemExit used to escape run(): the call was reported as done
+        with no func_result_size, and the client crashed on a KeyError
+        instead of re-raising what the function did
+        """
+        jr = self._runner(_exits, {'x': 1})
+        jr.run()
+        exc = self._reported_exception()
+        assert isinstance(exc, SystemExit)
+        assert exc.args == (3,)
+        jr.jobrunner_conn.send.assert_called_with('Finished')
+
+    def test_keyboard_interrupt_in_the_function_is_reported(self):
+        jr = self._runner(_interrupted, {'x': 1})
+        jr.run()
+        assert isinstance(self._reported_exception(), KeyboardInterrupt)
+        jr.jobrunner_conn.send.assert_called_with('Finished')
+
+    def test_an_unpickleable_exception_is_still_reported(self):
+        """
+        The fallback for an exception that will not pickle has to pickle.
+        Putting the traceback object in that payload raises again, run()
+        dies, and the call is reported as a success with no result
+        """
+        jr = self._runner(_raise_unpickleable, {'x': 1})
+        jr.run()
+        text = open(self.stats).read()
+        assert 'exception True' in text
+        assert 'exc_pickle_fail True' in text
         assert 'exc_info' in text
         jr.jobrunner_conn.send.assert_called_with('Finished')
 

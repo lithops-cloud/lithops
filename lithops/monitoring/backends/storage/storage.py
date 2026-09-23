@@ -23,6 +23,7 @@ from lithops.monitoring.monitor import (
     _future_id,
     _is_finished,
     _is_started,
+    _status_id,
 )
 from lithops.utils import log_prefix
 
@@ -80,6 +81,7 @@ class StorageMonitor(Monitor):
         self.callids_done_processed_status = set()
         self._ready_pool = None
         self._last_blind_sweep = time.time()
+        self._final_sweep = False
 
     @classmethod
     def prepare_config(cls, config, internal_storage):
@@ -206,7 +208,7 @@ class StorageMonitor(Monitor):
         Hands a token back to the invoker for every worker that finished the
         whole chunk of calls it was given
         """
-        if not self.generate_tokens or not self.should_run:
+        if not self.generate_tokens or not self._releases_tokens():
             return
 
         running_new = (
@@ -217,10 +219,16 @@ class StorageMonitor(Monitor):
         for call_id, worker_id in running_new:
             self.callids_running_worker[call_id] = worker_id
 
+        # A completion whose init mark is not in this listing yet has no
+        # worker to charge it to. Leaving it out of the processed set means
+        # the next listing, which may carry the init, still counts it.
+        # Marking it processed here drops the token for good
+        attributed = set()
         for callid_done in done_new:
             worker_id = self.callids_running_worker.get(callid_done)
             if worker_id is None:
                 continue
+            attributed.add(callid_done)
             self.callids_done_worker.setdefault(worker_id, set()).add(
                 callid_done
             )
@@ -228,31 +236,77 @@ class StorageMonitor(Monitor):
             # can be looked up without picking a call id back out of the set
             self.worker_job.setdefault(worker_id, callid_done[1])
 
+        self._release_free_workers()
+
+        self.callids_running_processed.update(running_new)
+        self.callids_done_processed.update(attributed)
+
+    def _release_free_workers(self):
+        """
+        Hands a token back for every worker whose calls are all done.
+
+        A listing carries no status, so how many calls a worker was given
+        is worked out from any one of them: the invoker hands the calls out
+        in consecutive chunks from call 0, so the chunk a call falls in, and
+        the number of calls of the job, say how long that chunk is
+        """
         present_jobs = self.present_jobs
         for worker_id, done_calls in self.callids_done_worker.items():
             if worker_id in self.workers_done:
                 continue
             job_id = self.worker_job.get(worker_id)
-            if job_id is None or job_id not in present_jobs:
+            if job_id is None or job_id in self._token_closed_jobs:
+                continue
+            if job_id not in present_jobs:
                 continue
             chunksize = self.job_chunksize.get(job_id)
-            if chunksize is None or len(done_calls) < chunksize:
+            if chunksize is None:
+                continue
+            worker_calls = self._worker_calls(
+                *next(iter(done_calls)), chunksize
+            )
+            if len(done_calls) < worker_calls:
                 continue
             self.workers_done.add(worker_id)
-            if not self.should_run:
+            if not self._releases_tokens():
                 break
             self.token_bucket_q.put('#')
 
-        self.callids_running_processed.update(running_new)
-        self.callids_done_processed.update(done_new)
+    def _releases_tokens(self):
+        """
+        Whether a worker found free is handed back to the invoker. The final
+        sweep runs once the monitor is stopped and still counts: a worker it
+        finds free belongs to a job no later monitor watches, and its token
+        would otherwise be gone for the rest of the session
+        """
+        return self.should_run or self._final_sweep
+
+    def _release_timed_out_worker(self, call_status):
+        worker_id = call_status.get('activation_id')
+        if not self.generate_tokens or worker_id is None:
+            return
+        if call_status['executor_id'] != self.executor_id:
+            return
+        self.callids_done_worker.setdefault(worker_id, set()).add(
+            _status_id(call_status)
+        )
+        self.worker_job.setdefault(worker_id, call_status['job_id'])
+        self._release_free_workers()
 
     def _poll_and_process_job_status(self):
         """
         Reads the job status from storage and applies it to the futures.
         Returns the call ids that are newly done
         """
+        # Nothing tracked: do not list. An empty job_ids used to list the
+        # whole executor prefix, which on S3 is a LIST of every leftover
+        # job key and the function pickle, once per monitoring_interval,
+        # for as long as the monitor stays up after wait()
+        job_ids = self.job_ids()
+        if not job_ids:
+            return set()
         status = self.internal_storage.get_job_status(
-            self.executor_id, job_ids=self.job_ids()
+            self.executor_id, job_ids=job_ids
         )
         callids_running, callids_done = status
         new_callids_done = (
@@ -298,6 +352,7 @@ class StorageMonitor(Monitor):
 
         # One last sweep, so that statuses written between the final poll
         # and the stop are not lost. The storage may already be gone
+        self._final_sweep = True
         try:
             self._poll_and_process_job_status()
         except Exception as e:
@@ -305,6 +360,8 @@ class StorageMonitor(Monitor):
                 f'{log_prefix(self.executor_id)} - The final status sweep '
                 f'did not go through: {e}'
             )
+        finally:
+            self._final_sweep = False
 
         self._print_status_log(force=True)
         self._shutdown_ready_pool()

@@ -62,6 +62,7 @@ class Queue:
         self._send_bytes = self._writer.send_bytes
         self._recv_bytes = self._reader.recv_bytes
         self._poll = self._reader.poll
+        self._writer._ref = self._ref
 
     def put(self, obj, block=True, timeout=None):
         """
@@ -91,12 +92,9 @@ class Queue:
         if block and timeout is None:
             res = self._recv_bytes()
         else:
-            if block:
-                if not self._poll(timeout):
-                    raise Empty
-            elif not self._poll():
+            res = self._reader.recv_bytes_within(timeout if block else 0)
+            if res is None:
                 raise Empty
-            res = self._recv_bytes()
 
         return cloudpickle.loads(res)
 
@@ -148,6 +146,11 @@ class SimpleQueue:
         self._ref = util.RemoteReference(referenced=[self._reader._handle, self._reader._subhandle],
                                          client=self._reader._client)
         self._poll = self._reader.poll
+        self._writer._ref = self._ref
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self._writer._ref = self._ref
 
     def put(self, obj, block=True, timeout=None):
         assert not self._closed
@@ -158,12 +161,9 @@ class SimpleQueue:
         if block and timeout is None:
             res = self._reader.recv_bytes()
         else:
-            if block:
-                if not self._poll(timeout):
-                    raise Empty
-            elif not self._poll():
+            res = self._reader.recv_bytes_within(timeout if block else 0)
+            if res is None:
                 raise Empty
-            res = self._reader.recv_bytes()
 
         return cloudpickle.loads(res)
 

@@ -62,6 +62,7 @@ class JobMonitor:
         self.token_bucket_q = queue.Queue()
         self.monitor = None
         self.job_chunksize = {}
+        self.job_total_calls = {}
 
         # Metrics are produced from the statuses the monitor reads, so the
         # telemetry of the executor is resolved here and handed to every
@@ -79,7 +80,10 @@ class JobMonitor:
         """
         if job_id:
             self.job_chunksize[job_id] = chunksize
+            self.job_total_calls[job_id] = len(fs)
 
+        # A monitor prepare() just built has not started yet, and is the one
+        # the workers of this job already report to
         if not self.monitor or self._thread_finished():
             self._spawn_monitor(generate_tokens)
         elif generate_tokens:
@@ -94,8 +98,13 @@ class JobMonitor:
         """
         Creates backend resources (queues, keys) before workers are
         invoked, so the first status is not published into nowhere.
+
+        A monitor a failed wait() or the executor exit stopped is replaced
+        here, and not in start(), which runs once the workers are already
+        reporting: its thread may still be in a read that takes the first
+        statuses of the new job to the grave
         """
-        if self.monitor is None:
+        if self.monitor is None or self._thread_finished():
             self._spawn_monitor(generate_tokens=False)
 
     def _spawn_monitor(self, generate_tokens):
@@ -103,6 +112,7 @@ class JobMonitor:
         # thread is waited for first: two threads reading the same queue
         # would split the statuses between them, and the one on its way out
         # takes what it reads to the grave
+        previous = self.monitor
         self._join_monitor()
         monitor_config = self.MonitorClass.prepare_config(
             self.config, self.internal_storage
@@ -120,9 +130,12 @@ class JobMonitor:
             generate_tokens=generate_tokens,
             config=monitor_config
         )
+        self.monitor.job_total_calls = self.job_total_calls
         # Attached before the caller adds any future, so that no status
         # can reach the monitor while it is still pointing at the no-op
         self.monitor.attach_telemetry(self.telemetry)
+        if previous is not None:
+            self.monitor.adopt_held_status(previous)
 
     def _thread_finished(self):
         """
@@ -172,6 +185,15 @@ class JobMonitor:
         """
         if self.monitor and self.monitor.is_alive():
             self.monitor.remove_futures(fs)
+
+    def close_jobs(self, job_ids):
+        """
+        The invoker will no longer wait for these jobs. Later statuses of
+        theirs must not hand another token back: the capacity they held
+        was already forgotten
+        """
+        if self.monitor is not None:
+            self.monitor.close_jobs(job_ids)
 
     def stop(self):
         """

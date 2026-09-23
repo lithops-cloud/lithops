@@ -27,6 +27,11 @@ class AzureQueueCallStatus(MessageCallStatus):
     """
 
     service_name = 'Azure Queue'
+    #: The service takes 64 KiB per message, measured once the SDK has
+    #: encoded it: XML-escaped text by default, base64 when the queue client
+    #: is configured so, which is 4/3 of the text. Three quarters of the
+    #: limit fits either way
+    MAX_MESSAGE_SIZE = 48 * 1024
 
     def __init__(self, job, internal_storage):
         super().__init__(job, internal_storage)
@@ -46,9 +51,6 @@ class AzureQueueCallStatus(MessageCallStatus):
                 self.config.get('azure_queue') or {}
             ),
         )
-
-    def _targets(self):
-        return [azure_queue_name(name) for name in super()._targets()]
 
     def _queue(self, name):
         name = azure_queue_name(name)
@@ -71,6 +73,5 @@ class AzureQueueCallStatus(MessageCallStatus):
         self._queues.clear()
         super().close()
 
-    def _publish(self, payload: str) -> None:
-        for name in self._targets():
-            self._queue(name).send_message(payload)
+    def _publish_to(self, target: str, payload: str) -> None:
+        self._queue(target).send_message(payload)

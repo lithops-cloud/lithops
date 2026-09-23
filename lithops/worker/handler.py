@@ -514,6 +514,8 @@ def run_task(task: SimpleNamespace) -> None:
         )
 
     job_interrupted = False
+    handler_conn = None
+    jobrunner_conn = None
 
     try:
         handler_conn, jobrunner_conn = _MP_CTX.Pipe()
@@ -538,8 +540,14 @@ def run_task(task: SimpleNamespace) -> None:
         # keeps the one-off cost of opening the monitoring client off the
         # critical path: the first call of a worker pays for a connection
         # (some 13 ms for AMQP, then kept for the whole process) while the
-        # function is already running, instead of delaying its start
-        call_status.send_init_event()
+        # function is already running, instead of delaying its start.
+        # The event is informational and the finish event reports the call
+        # all the same, so failing to send it must not abandon a JobRunner
+        # that is already running
+        try:
+            call_status.send_init_event()
+        except Exception as e:
+            logger.warning(f'Could not report the start of the call: {e}')
         jrp.join(task.execution_timeout)
 
         sys_monitor.stop()
@@ -555,6 +563,7 @@ def run_task(task: SimpleNamespace) -> None:
                 # cannot be terminated. It is left behind on purpose
                 pass
             raise TimeoutError(
+                'HANDLER',
                 f'Function exceeded maximum time of {task.execution_timeout} '
                 f'seconds and was killed'
             )
@@ -573,8 +582,8 @@ def run_task(task: SimpleNamespace) -> None:
                 f'process, which exited with code {exitcode}: {reason}'
             )
             if _SIGKILL is not None and exitcode == -_SIGKILL:
-                raise MemoryError(reason)
-            raise RuntimeError(reason)
+                raise MemoryError('HANDLER', reason)
+            raise RuntimeError('HANDLER', reason)
 
         _add_task_stats(call_status, task.stats_file)
 
@@ -589,10 +598,24 @@ def run_task(task: SimpleNamespace) -> None:
         for key in injected_env:
             os.environ.pop(key, None)
 
-        # An interrupted job is not reported: the client is gone anyway
-        if not job_interrupted:
-            call_status.add('worker_end_tstamp', time.time())
-            _add_logs(call_status, task)
-            call_status.send_finish_event()
+        try:
+            # An interrupted job is not reported: the client is gone anyway
+            if not job_interrupted:
+                call_status.add('worker_end_tstamp', time.time())
+                _add_logs(call_status, task)
+                call_status.send_finish_event()
+        finally:
+            # One worker process runs every call of the chunk, each with a
+            # pipe of its own. Closed here rather than whenever the garbage
+            # collector reaches them, which a reference cycle can delay
+            for conn in (handler_conn, jobrunner_conn):
+                if conn is None:
+                    continue
+                try:
+                    conn.close()
+                except Exception:
+                    logger.debug(
+                        'Could not close a JobRunner pipe', exc_info=True
+                    )
 
         logger.info("Finished")

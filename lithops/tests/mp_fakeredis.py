@@ -26,6 +26,8 @@ import fnmatch
 import threading
 import time
 
+from redis.exceptions import ResponseError
+
 
 def _to_bytes(value):
     """What the server stores: every value becomes bytes"""
@@ -86,15 +88,33 @@ class FakeRedis:
     def _record(self, name, *args):
         self.commands.append((name,) + args)
 
+    def advance(self, seconds):
+        """
+        Lets ``seconds`` go by: every expiry counts down, and a key whose
+        expiry runs out is deleted, as the server does
+        """
+        with self._cond:
+            for key, ttl in list(self.expiries.items()):
+                ttl -= seconds
+                if ttl <= 0:
+                    self.strings.pop(key, None)
+                    self.lists.pop(key, None)
+                    del self.expiries[key]
+                else:
+                    self.expiries[key] = ttl
+
     # -- strings -----------------------------------------------------------
 
     def set(self, key, value, ex=None):
+        """Without ``ex``, SET drops whatever expiry the key had"""
         key = _key(key)
         self._record('set', key)
         with self._cond:
             self.strings[key] = _to_bytes(value)
             if ex is not None:
                 self.expiries[key] = ex
+            else:
+                self.expiries.pop(key, None)
         return True
 
     def get(self, key):
@@ -148,13 +168,21 @@ class FakeRedis:
             self._cond.notify_all()
             return len(items)
 
+    def _drop_if_empty(self, key):
+        """The server deletes a list, and its expiry, once it is empty"""
+        if key in self.lists and not self.lists[key]:
+            del self.lists[key]
+            self.expiries.pop(key, None)
+
     def lpop(self, key):
         key = _key(key)
         with self._cond:
             items = self.lists.get(key)
             if not items:
                 return None
-            return items.pop(0)
+            item = items.pop(0)
+            self._drop_if_empty(key)
+            return item
 
     def blpop(self, keys, timeout=0):
         """Blocks until one of the keys has an element, as the server does"""
@@ -167,7 +195,9 @@ class FakeRedis:
                 for key in keys:
                     items = self.lists.get(key)
                     if items:
-                        return key, items.pop(0)
+                        item = items.pop(0)
+                        self._drop_if_empty(key)
+                        return key, item
                 remaining = None if end is None else end - time.monotonic()
                 if remaining is not None and remaining <= 0:
                     return None
@@ -176,6 +206,34 @@ class FakeRedis:
     def llen(self, key):
         key = _key(key)
         return len(self.lists.get(key, []))
+
+    def lrem(self, key, count, value):
+        """Removes up to ``count`` occurrences of ``value``. Zero removes all"""
+        key = _key(key)
+        value = _to_bytes(value)
+        with self._cond:
+            items = self.lists.get(key)
+            if not items:
+                return 0
+            removed = 0
+            if count >= 0:
+                kept = []
+                for item in items:
+                    if item == value and (count == 0 or removed < count):
+                        removed += 1
+                        continue
+                    kept.append(item)
+            else:
+                kept = []
+                for item in reversed(items):
+                    if item == value and removed < -count:
+                        removed += 1
+                        continue
+                    kept.append(item)
+                kept.reverse()
+            self.lists[key] = kept
+            self._drop_if_empty(key)
+            return removed
 
     def lrange(self, key, start, end):
         key = _key(key)
@@ -193,10 +251,13 @@ class FakeRedis:
             return None
 
     def lset(self, key, index, value):
+        """The server refuses a missing key and an index past either end"""
         key = _key(key)
-        items = self.lists.setdefault(key, [])
-        while len(items) <= index:
-            items.append(b'')
+        items = self.lists.get(key)
+        if items is None:
+            raise ResponseError('no such key')
+        if not -len(items) <= index < len(items):
+            raise ResponseError('index out of range')
         items[index] = _to_bytes(value)
         return True
 
@@ -213,9 +274,16 @@ class FakeRedis:
 
     def register_script(self, script):
         """
-        The only script the package registers is the capped release of
-        SemLock, reimplemented here rather than running Lua
+        The scripts the package registers, reimplemented here rather than
+        running Lua: the capped release of SemLock and the release of a
+        remote reference. Any other one cannot be run
         """
+        from lithops.multiprocessing.synchronize import SemLock
+        from lithops.multiprocessing.util import RemoteReference
+        if script == SemLock.LUA_RELEASE_SCRIPT:
+            return FakeSemLockRelease(self)
+        if script == RemoteReference.LUA_DECREF_SCRIPT:
+            return FakeDecref(self)
         return FakeScript(self)
 
     # -- pipelines ---------------------------------------------------------
@@ -243,6 +311,12 @@ class FakeScript:
         self._server = server
 
     def __call__(self, keys, args, client=None):
+        raise NotImplementedError('the fake server cannot run this script')
+
+
+class FakeSemLockRelease(FakeScript):
+
+    def __call__(self, keys, args, client=None):
         server = client if client is not None else self._server
         name = _key(keys[0])
         max_value = int(args[0])
@@ -255,6 +329,26 @@ class FakeScript:
             server.lists.setdefault(name, []).append(b'')
             server._cond.notify_all()
             return current + 1
+
+
+class FakeDecref(FakeScript):
+    """
+    Decrements a reference counter that exists, deleting the object once it
+    reaches zero and refreshing the counter otherwise
+    """
+
+    def __call__(self, keys, args, client=None):
+        server = client if client is not None else self._server
+        counter = _key(keys[0])
+        with server._cond:
+            if counter not in server.strings:
+                return None
+            count = server.incr(counter, -1)
+            if count <= 0:
+                server.delete(*keys)
+            else:
+                server.expiries[counter] = int(args[0])
+            return count
 
 
 class FakePubSub:

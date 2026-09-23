@@ -9,6 +9,7 @@
 # Modifications Copyright (c) 2020 Cloudlab URV
 #
 
+import os
 import threading
 import math
 import time
@@ -128,17 +129,19 @@ class SemLock:
         """
         if not block or (timeout is not None and timeout <= 0):
             logger.debug('Requested non-blocking acquire for lock %s', self._name)
-            return self._client.lpop(self._name) is not None
-
-        if timeout is None:
+            acquired = self._client.lpop(self._name) is not None
+        elif timeout is None:
             logger.debug('Requested blocking acquire for lock %s', self._name)
             self._client.blpop([self._name])
-            return True
-
-        logger.debug(
-            'Requested acquire for lock %s within %s s', self._name, timeout
-        )
-        return _blpop(self._client, self._name, timeout) is not None
+            acquired = True
+        else:
+            logger.debug(
+                'Requested acquire for lock %s within %s s', self._name, timeout
+            )
+            acquired = _blpop(self._client, self._name, timeout) is not None
+        if acquired:
+            self._refresh_expiry()
+        return acquired
 
     def release(self):
         logger.debug('Requested release for lock %s', self._name)
@@ -149,6 +152,22 @@ class SemLock:
             # What the standard library raises for a lock that was not held
             # and for a bounded semaphore released more often than acquired
             raise ValueError('semaphore or lock released too many times')
+        self._refresh_expiry()
+
+    def _refresh_expiry(self):
+        """
+        Pushes the key's deadline out again.
+
+        Redis deletes a list once its last token is taken, expiry and all,
+        and the release script recreates it with none: without this a lock
+        used once never expires. A semaphore with tokens left keeps its
+        key, and the deadline set at creation would take those tokens
+        """
+        pipeline = self._ref.pipeline()
+        pipeline.expire(
+            self._name, mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME)
+        )
+        pipeline.execute()
 
     def __repr__(self):
         try:
@@ -230,34 +249,46 @@ class RLock(Lock):
     def __init__(self):
         super().__init__()
         self._count = 0
+        self._owner = None
 
     def __setstate__(self, state):
         super().__setstate__(state)
         self._count = 0
+        self._owner = None
+
+    def _holder(self):
+        """The process and thread that may re-enter without a new token"""
+        return (os.getpid(), threading.get_ident())
 
     def acquire(self, block=True, timeout=None):
-        if self.owned:
+        holder = self._holder()
+        # owned is one flag for the whole object. Another thread in this
+        # process would see it and walk in beside the holder
+        if self._owner == holder:
             self._count += 1
             return True
         res = super().acquire(block, timeout)
         if res:
             self._count = 1
+            self._owner = holder
         return res
 
     def release(self):
-        if not self.owned:
+        if self._owner != self._holder():
             # The wording the standard library uses
             raise AssertionError(
                 'attempt to release recursive lock not owned by thread'
             )
         self._count -= 1
         if self._count == 0:
+            self._owner = None
             super().release()
 
     def _release_save(self):
         """Release all acquisitions while a condition waits."""
         count = self._count
         self._count = 0
+        self._owner = None
         super().release()
         return count
 
@@ -336,19 +367,32 @@ class Condition:
                 notified = self._client.lpop(wait_handle) is not None
             else:
                 notified = _blpop(self._client, wait_handle, timeout) is not None
-            self._client.expire(wait_handle, mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
         finally:
             self._acquire_restore(state)
+        if not notified:
+            # A notify that won the race already took our handle off the
+            # list and pushed a token. Take that token. Otherwise take
+            # ourselves off the list: the next notify pops the oldest
+            # handle, and a waiter that has gone spends that wakeup
+            if self._client.lpop(wait_handle) is not None:
+                notified = True
+            else:
+                self._client.lrem(self._notify_handle, 1, wait_handle)
+        self._client.expire(
+            wait_handle, mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME)
+        )
         # Whether a notify arrived, rather than the timeout expiring, which
         # is what the standard library returns and callers branch on
         return notified
 
-    def notify(self):
+    def notify(self, n=1):
         assert self._lock.owned
 
         logger.debug('Notify condition %s', self._notify_handle)
-        wait_handle = self._client.lpop(self._notify_handle)
-        if wait_handle is not None:
+        for _ in range(n):
+            wait_handle = self._client.lpop(self._notify_handle)
+            if wait_handle is None:
+                break
             res = self._client.rpush(wait_handle, '')
 
             if not res:
@@ -454,7 +498,9 @@ class Barrier(threading.Barrier):
 
     @_state.setter
     def _state(self, value):
-        self._client.set(self._state_handle, value, ex=mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
+        pipeline = self._ref.pipeline()
+        pipeline.set(self._state_handle, value, ex=mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
+        pipeline.execute()
 
     @property
     def _count(self):
@@ -462,4 +508,6 @@ class Barrier(threading.Barrier):
 
     @_count.setter
     def _count(self, value):
-        self._client.set(self._count_handle, value, ex=mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
+        pipeline = self._ref.pipeline()
+        pipeline.set(self._count_handle, value, ex=mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
+        pipeline.execute()

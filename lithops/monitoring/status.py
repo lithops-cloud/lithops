@@ -28,10 +28,29 @@ from lithops.storage.utils import create_init_key, create_status_key
 from lithops.utils import (
     CURRENT_PY_VERSION,
     monitoring_queue_name,
+    remote_invoker_queue_name,
     sizeof_fmt,
 )
 
 logger = logging.getLogger(__name__)
+
+#: Set on a status message that left out fields the client cannot do without,
+#: because the message service would not take them. The client reads the
+#: full status back from the storage copy, written before the message
+PARTIAL_STATUS_KEY = 'partial_status'
+
+#: Fields a message leaves out, in this order, when it does not fit. The logs
+#: go first and alone, since the client can do without them; the rest carry
+#: the outcome of the call, and dropping them makes the message partial
+LOGS_FIELD = 'logs'
+STORAGE_ONLY_FIELDS = ('result', 'exc_info', 'new_futures')
+
+_PROBE_ID = 'probe'
+#: What the queue of a remote invoker adds to the queue of the executor it
+#: invokes for
+_REMOTE_INVOKER_SUFFIX = remote_invoker_queue_name(_PROBE_ID)[
+    len(monitoring_queue_name(_PROBE_ID)):
+]
 
 #: Set to 0 to build a client per call instead of keeping one for the
 #: process. The escape hatch for a runtime where a client that outlives the
@@ -41,6 +60,33 @@ REUSE_CLIENTS_ENV = 'LITHOPS_REUSE_MONITORING_CLIENTS'
 _SHARED_CLIENTS = {}
 _SHARED_LOCK = threading.RLock()
 _ATEXIT_REGISTERED = False
+
+
+def is_remote_invoker_queue(name: str) -> bool:
+    """
+    Whether a queue of the monitoring chain belongs to a remote invoker.
+
+    The remote invoker deletes its queue once every chunk is invoked, long
+    before the calls finish, so publishing there is best effort
+    """
+    return name.endswith(_REMOTE_INVOKER_SUFFIX)
+
+
+def chunk_call_count(call_id: str, chunksize: int, total_calls: int = None):
+    """
+    How many calls the worker that runs ``call_id`` was given.
+
+    The invoker hands the calls out in consecutive chunks of ``chunksize``
+    starting at call 0, so every chunk is full but the last one of the job.
+    Without the total, the chunksize is the best there is
+    """
+    if not chunksize or not total_calls:
+        return chunksize
+    try:
+        first = int(call_id) // chunksize * chunksize
+    except (TypeError, ValueError):
+        return chunksize
+    return max(1, min(chunksize, total_calls - first))
 
 
 def reuse_clients() -> bool:
@@ -141,7 +187,12 @@ class CallStatus:
             'call_id': job.call_id,
             'job_id': job.job_id,
             'executor_id': job.executor_id,
-            'chunksize': job.chunksize
+            'chunksize': job.chunksize,
+            # What frees the worker for the token bucket of the invoker: the
+            # last chunk of a job is usually shorter than the chunksize
+            'worker_calls': chunk_call_count(
+                job.call_id, job.chunksize, getattr(job, 'total_calls', None)
+            ),
         }
 
         is_warm = os.environ.get('WARM_CONTAINER', '').lower() in {
@@ -201,13 +252,17 @@ class MessageCallStatus(StorageCallStatus):
     which reaches the client faster, and falls back to Object Storage
     at the end.
 
-    Subclasses implement :meth:`_publish`.
+    Subclasses implement :meth:`_publish_to`.
     """
 
     MAX_ATTEMPTS = 5
     RETRY_SLEEP = 0.2
     MAX_RETRY_SLEEP = 5
     service_name = 'message service'
+
+    #: Largest status the service takes in one message, in bytes of the
+    #: serialized JSON. None when there is no practical limit
+    MAX_MESSAGE_SIZE = None
 
     def __init__(self, job: SimpleNamespace, internal_storage):
         super().__init__(job, internal_storage)
@@ -265,38 +320,100 @@ class MessageCallStatus(StorageCallStatus):
 
         The storage copy is what the client reads back when the message is
         lost, which a message service that delivers at most once can do; see
-        MessageMonitor._storage_sweep()
+        MessageMonitor._storage_sweep(). A partial message sends the client
+        there right away, so in that case the copy is written first
         """
-        dmpd_response_status = json.dumps(self.status)
+        payload, partial = self._message_payload()
+        store = self.status['type'] == '__end__'
+
+        if store and partial:
+            super()._send()
+        self._publish_to_chain(payload)
+        if store and not partial:
+            super()._send()
+
+    def _message_payload(self):
+        """
+        The status as the message carries it, and whether it is partial.
+
+        The worker puts the logs of the call in its last status, and those
+        alone go past what Azure Queue takes in a message. They are left
+        out first, since the client can do without them; if the message is
+        still too big, so is what the storage copy holds anyway
+        """
+        payload = json.dumps(self.status)
+        limit = self.MAX_MESSAGE_SIZE
+        if limit is None or len(payload.encode('utf-8')) <= limit:
+            return payload, False
+
+        status = dict(self.status)
+        status.pop(LOGS_FIELD, None)
+        payload = json.dumps(status)
+        if len(payload.encode('utf-8')) <= limit:
+            return payload, False
+
+        for key in STORAGE_ONLY_FIELDS:
+            status.pop(key, None)
+        status[PARTIAL_STATUS_KEY] = True
+        logger.info(
+            f'The execution status does not fit in a {self.service_name} '
+            'message; the client reads it from the storage'
+        )
+        return json.dumps(status), True
+
+    def _publish_to_chain(self, payload: str) -> None:
+        """
+        Publishes the status to every queue of the chain, each one on its own.
+
+        The queues of the executors are retried: a status lost there leaves
+        the client with a call that finishes only through the storage sweep,
+        or, for a nested future, only at its execution timeout. The queue of
+        a remote invoker is tried once: the invoker deletes it as soon as
+        every chunk is invoked, and retrying there would only resend the
+        status to the queues that already have it
+        """
+        targets = self._targets()
+        pending = [t for t in targets if not is_remote_invoker_queue(t)]
         exc = None
 
         for attempt in range(self.MAX_ATTEMPTS):
-            try:
-                self._publish(dmpd_response_status)
-                logger.info(
-                    f"Execution status sent to {self.service_name} - "
-                    f"Size: {sizeof_fmt(len(dmpd_response_status))}"
-                )
-                exc = None
+            failed = []
+            for target in pending:
+                try:
+                    self._publish_to(target, payload)
+                except Exception as e:
+                    exc = e
+                    failed.append(target)
+            pending = failed
+            if not pending or attempt == self.MAX_ATTEMPTS - 1:
                 break
-            except Exception as e:
-                exc = e
-                if attempt == self.MAX_ATTEMPTS - 1:
-                    break
-                # Backed off, so that the attempts span a broker hiccup
-                # instead of being spent within the same second
-                time.sleep(min(
-                    self.RETRY_SLEEP * (2 ** attempt), self.MAX_RETRY_SLEEP
-                ))
+            # Backed off, so that the attempts span a broker hiccup
+            # instead of being spent within the same second
+            time.sleep(min(
+                self.RETRY_SLEEP * (2 ** attempt), self.MAX_RETRY_SLEEP
+            ))
 
-        if exc is not None:
+        if pending:
             logger.error(
                 f"Could not send the execution status to {self.service_name} "
                 f"after {self.MAX_ATTEMPTS} attempts: {exc}"
             )
+        else:
+            logger.info(
+                f"Execution status sent to {self.service_name} - "
+                f"Size: {sizeof_fmt(len(payload))}"
+            )
 
-        if self.status['type'] == '__end__':
-            super()._send()
+        for target in targets:
+            if not is_remote_invoker_queue(target):
+                continue
+            try:
+                self._publish_best_effort(target, payload)
+            except Exception as e:
+                logger.debug(
+                    f'Could not send the execution status to {target}, '
+                    f'which may be gone already: {e}'
+                )
 
     def _targets(self) -> list:
         """
@@ -350,5 +467,17 @@ class MessageCallStatus(StorageCallStatus):
             self._own_clients.discard(name)
             _release_client(client, self.service_name)
 
-    def _publish(self, payload: str) -> None:
+    def _publish_to(self, target: str, payload: str) -> None:
+        """
+        Publishes a status to one queue of the chain. It must not create the
+        queue: the monitor that reads it did, and one that is not there
+        belongs to a reader that is gone
+        """
         raise NotImplementedError
+
+    def _publish_best_effort(self, target: str, payload: str) -> None:
+        """
+        Publishes a status to a queue that may have been deleted already.
+        Override when a publish to a queue that is gone would bring it back
+        """
+        self._publish_to(target, payload)

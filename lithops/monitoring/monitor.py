@@ -24,6 +24,11 @@ from typing import Any, Dict, Optional
 
 from tblib import pickling_support
 
+from lithops.monitoring.status import (
+    LOGS_FIELD,
+    PARTIAL_STATUS_KEY,
+    chunk_call_count,
+)
 from lithops.telemetry import NOOP as NOOP_TELEMETRY
 from lithops.telemetry.metrics import OUTCOME_CHAINED, OUTCOME_TIMEOUT
 from lithops.utils import _future_id, log_prefix, monitoring_queue_name
@@ -106,6 +111,12 @@ class Monitor(threading.Thread):
     #: How many statuses that arrived before their future may be held
     MAX_HELD_STATUS = 100_000
 
+    #: How long a held status may wait for its future beyond the longest
+    #: execution timeout of the tracked futures. The future of a nested call
+    #: comes to light in the status of the call that returned it, which
+    #: finishes within its own execution timeout or is timed out
+    HELD_STATUS_SLACK = 300
+
     #: Where the metrics of every call go. A class attribute, so that a
     #: monitor nobody attached telemetry to is safe rather than broken,
     #: and so that a backend that forgets to call super().__init__() does
@@ -140,6 +151,9 @@ class Monitor(threading.Thread):
         self._stopped = threading.Event()
         self.token_bucket_q = token_bucket_q
         self.job_chunksize = job_chunksize
+        # Calls per job of this executor, which tells the size of the last
+        # chunk of a job. Filled in by JobMonitor, which shares its own
+        self.job_total_calls = {}
         self.generate_tokens = generate_tokens
         self.config = config
         self.daemon = True
@@ -149,6 +163,11 @@ class Monitor(threading.Thread):
         # read from the monitor thread. One lock covers the set, the index
         # that finds a future by its call id, and the set of live job ids
         self._futures_lock = threading.RLock()
+        # State changes and token accounting run on the monitor thread and
+        # on the thread that submits a job (it applies statuses that arrived
+        # early). One lock, re-entrant because applying one status can
+        # reveal the futures whose own statuses were held
+        self._apply_lock = threading.RLock()
         self.futures = set()
         self._futures_by_id = {}
         self._timeout_query_failures = {}
@@ -157,11 +176,17 @@ class Monitor(threading.Thread):
         # vars for _generate_tokens
         self.workers_done = set()
         self.callids_done_worker = {}
+        # Jobs whose capacity the invoker already forgot. A late __end__
+        # of theirs must not put another token in the bucket
+        self._token_closed_jobs = set()
+        # Jobs wait() dropped, whose workers still have to free a token
+        self._dropped_jobs = set()
         # vars for MessageMonitor._hold_status
         self._held_status = {}
         self._held_lock = threading.Lock()
         self._held_overflow_logged = False
         self._held_may_match = False
+        self._max_execution_timeout = 0
         # When a status last arrived. A channel that is delivering has
         # nothing for the storage sweep to recover
         self._last_message_tstamp = time.time()
@@ -239,6 +264,12 @@ class Monitor(threading.Thread):
             self.present_jobs = self.present_jobs | {
                 future.job_id for future in fs
             }
+            self._max_execution_timeout = max(
+                [self._max_execution_timeout] + [
+                    getattr(future, 'execution_timeout', None) or 0
+                    for future in fs
+                ]
+            )
 
     def remove_futures(self, fs):
         """
@@ -251,7 +282,19 @@ class Monitor(threading.Thread):
                 future_id = _future_id(future)
                 if self._futures_by_id.get(future_id) is future:
                     del self._futures_by_id[future_id]
-            self.present_jobs = {future.job_id for future in self.futures}
+            remaining = {future.job_id for future in self.futures}
+            self.present_jobs = remaining
+            self._dropped_jobs.update(
+                future.job_id for future in fs if future.job_id not in remaining
+            )
+
+    def close_jobs(self, job_ids):
+        """
+        Marks jobs whose remaining worker tokens the invoker already
+        wrote off, so a late status does not hand one back again
+        """
+        with self._apply_lock:
+            self._token_closed_jobs.update(job_ids)
 
     def tracked_futures(self):
         """
@@ -311,6 +354,37 @@ class Monitor(threading.Thread):
         self._cleaned = True
         self._delete_resources()
 
+    def adopt_held_status(self, other):
+        """
+        Takes over the statuses another monitor of the same queue was holding
+        for futures it did not track yet. Called on the monitor that replaces
+        it, before any future is added, so they are not lost with the old one
+        """
+        with other._held_lock:
+            held, other._held_status = other._held_status, {}
+        if not held:
+            return
+        with self._held_lock:
+            self._held_status = {**held, **self._held_status}
+            self._held_may_match = True
+
+    def _worker_calls(self, executor_id, job_id, call_id, chunksize):
+        """
+        How many calls the worker that ran ``call_id`` was given, which is
+        the chunksize but for the last chunk of a job whose size is known
+        """
+        total_calls = None
+        if executor_id == self.executor_id:
+            total_calls = self.job_total_calls.get(job_id)
+        return chunk_call_count(call_id, chunksize, total_calls)
+
+    def _release_timed_out_worker(self, call_status):
+        """
+        Counts a call that was timed out as done for the token bucket, so
+        that a worker that never reported back still hands its token back
+        once every other call of its chunk is done
+        """
+
     def attach_telemetry(self, telemetry):
         """
         Points the monitor at the telemetry of its executor. Called by
@@ -329,8 +403,14 @@ class Monitor(threading.Thread):
         service that redelivers a status, or a storage sweep that reads
         one the channel already delivered, therefore counts once
         """
-        future._set_running(call_status)
-        self.telemetry.on_call_started(future, call_status)
+        with self._apply_lock:
+            # Checked again under the lock. The caller checked too, but an
+            # __end__ on the other thread can land between that check and
+            # here, and this write would put the call back to running
+            if _is_started(future):
+                return
+            future._set_running(call_status)
+            self.telemetry.on_call_started(future, call_status)
 
     def _mark_ready(self, future, call_status, outcome=None):
         """
@@ -340,8 +420,11 @@ class Monitor(threading.Thread):
         Measured after the transition, so that the timestamp the future
         records for the arrival of the status is part of what is measured
         """
-        future._set_ready(call_status)
-        self.telemetry.on_call_finished(future, call_status, outcome)
+        with self._apply_lock:
+            if _is_finished(future):
+                return
+            future._set_ready(call_status)
+            self.telemetry.on_call_finished(future, call_status, outcome)
 
     def _all_ready(self):
         """
@@ -449,6 +532,7 @@ class Monitor(threading.Thread):
                     'worker_end_tstamp': time.time(),
                 }
                 self._mark_ready(fut, call_status, OUTCOME_TIMEOUT)
+                self._release_timed_out_worker(call_status)
 
     def _print_status_log(self, force=False):
         """
@@ -514,16 +598,35 @@ class MessageMonitor(Monitor):
         the status that tells this monitor the nested futures exist. A
         message is read once, so dropping it here would leave a future
         running for ever. Held by call id, so an __end__ supersedes the
-        __init__ of the same call
+        __init__ of the same call.
+
+        A worker that waits on an executor of its own sends every status of
+        it here, most of which never match a future of this one. They are
+        held without their logs, which are most of their size and which the
+        future can do without, and they give way once too old to match
         """
+        held = dict(call_status)
+        held.pop(LOGS_FIELD, None)
+        status_id = _status_id(held)
+        now = time.time()
         with self._held_lock:
-            self._held_status[_status_id(call_status)] = call_status
+            # Taken out first, so that the dict stays in order of arrival
+            # and the first key is always the oldest
+            self._held_status.pop(status_id, None)
+            self._held_status[status_id] = (now, held)
             self._held_may_match = True
+
+            oldest = now - self._max_execution_timeout - self.HELD_STATUS_SLACK
+            while self._held_status:
+                first = next(iter(self._held_status))
+                if self._held_status[first][0] >= oldest:
+                    break
+                del self._held_status[first]
+
             if len(self._held_status) <= self.MAX_HELD_STATUS:
                 return
             # A status whose future never shows up would be held for the
-            # whole life of the executor, so the oldest ones give way. A
-            # dict keeps insertion order, so the first key is the oldest
+            # whole life of the executor, so the oldest ones give way
             while len(self._held_status) > self.MAX_HELD_STATUS:
                 del self._held_status[next(iter(self._held_status))]
             if not self._held_overflow_logged:
@@ -550,7 +653,7 @@ class MessageMonitor(Monitor):
                 future = self.future_by_id(future_id)
                 if future is None:
                     continue
-                call_status = self._held_status.pop(future_id)
+                _tstamp, call_status = self._held_status.pop(future_id)
                 if not _is_finished(future):
                     ready.append(call_status)
             return tuple(ready)
@@ -622,25 +725,40 @@ class MessageMonitor(Monitor):
         """
         if not self.generate_tokens or not self.should_run:
             return
-
-        chunksize = call_status.get('chunksize')
-        if chunksize is None:
-            chunksize = self.job_chunksize.get(call_status['job_id'])
-        if chunksize is None:
+        # The statuses of a nested executor come this way too, and its
+        # workers were never counted by the invoker of this one
+        if call_status['executor_id'] != self.executor_id:
+            return
+        if call_status.get('job_id') in self._token_closed_jobs:
             return
 
         call_id = _status_id(call_status)
-        worker_id = call_status['activation_id']
-        done_for_worker = self.callids_done_worker.setdefault(worker_id, set())
-        done_for_worker.add(call_id)
+        worker_calls = call_status.get('worker_calls')
+        if worker_calls is None:
+            chunksize = call_status.get('chunksize')
+            if chunksize is None:
+                chunksize = self.job_chunksize.get(call_status['job_id'])
+            if chunksize is None:
+                return
+            worker_calls = self._worker_calls(*call_id, chunksize)
 
-        if (
-            worker_id not in self.workers_done
-            and len(done_for_worker) >= chunksize
-        ):
-            self.workers_done.add(worker_id)
-            if self.should_run:
-                self.token_bucket_q.put('#')
+        worker_id = call_status['activation_id']
+        # The two threads that apply statuses both get here. The read of
+        # the count and the decision to hand a token back have to be one
+        # step, or each of them hands one back
+        with self._apply_lock:
+            done_for_worker = self.callids_done_worker.setdefault(
+                worker_id, set()
+            )
+            done_for_worker.add(call_id)
+
+            if (
+                worker_id not in self.workers_done
+                and len(done_for_worker) >= worker_calls
+            ):
+                self.workers_done.add(worker_id)
+                if self.should_run:
+                    self.token_bucket_q.put('#')
 
     def _apply_status_message(self, call_status):
         """
@@ -654,10 +772,58 @@ class MessageMonitor(Monitor):
             if not self._tag_future_as_running(call_status):
                 self._hold_status(call_status)
         elif call_status['type'] == '__end__':
+            if call_status.get(PARTIAL_STATUS_KEY):
+                call_status = self._complete_partial_status(call_status)
+                if call_status is None:
+                    return
             if self._tag_future_as_ready(call_status):
+                self._generate_tokens(call_status)
+            elif call_status.get('job_id') in self._dropped_jobs:
+                # wait() dropped the futures, but the worker is still
+                # this executor's and must free its token, unless the
+                # invoker already wrote the job off
                 self._generate_tokens(call_status)
             else:
                 self._hold_status(call_status)
+
+    def _complete_partial_status(self, call_status):
+        """
+        Swaps a status whose message left out what did not fit for the full
+        one the worker wrote to the storage before sending it.
+
+        Only for a future that is tracked and not finished: one that is not
+        tracked yet is held, and comes back here once it is. Returns None
+        when the storage copy cannot be read; the call is then left running,
+        for the storage sweep or the timeout checker to pick up
+        """
+        future = self.future_by_id(_status_id(call_status))
+        if future is None or _is_finished(future):
+            return call_status
+
+        stored = None
+        if self.internal_storage is not None:
+            try:
+                stored = self.internal_storage.get_call_status(
+                    *_status_id(call_status)
+                )
+                future._status_query_count += 1
+            except Exception:
+                logger.debug(
+                    f'{log_prefix(self.executor_id)} - Could not read the '
+                    f'status of call {call_status["call_id"]} from the storage',
+                    exc_info=True,
+                )
+        if stored:
+            return stored
+
+        # As an __init__, since that is all the future can be told
+        if not _is_started(future):
+            self._mark_running(future, dict(call_status, type='__init__'))
+        return None
+
+    def _release_timed_out_worker(self, call_status):
+        if call_status.get('activation_id') is not None:
+            self._generate_tokens(call_status)
 
     def _apply_recovered_status(self, future, call_status):
         if not super()._apply_recovered_status(future, call_status):

@@ -216,7 +216,9 @@ class TestSubmitAndCleanup:
         with patch.object(executor, 'clean') as clean:
             executor._cleanup_jobs([future])
         executor.compute_handler.clear.assert_called_once_with({future.job_key})
-        clean.assert_called_once_with(clean_cloudobjects=False, force=False)
+        clean.assert_called_once_with(
+            fs=[future], clean_cloudobjects=False, force=False
+        )
 
     def test_cleanup_jobs_passes_exception_and_force(self):
         executor = _bare_executor()
@@ -227,7 +229,55 @@ class TestSubmitAndCleanup:
         executor.compute_handler.clear.assert_called_once_with(
             {future.job_key}, exception=error
         )
-        clean.assert_called_once_with(clean_cloudobjects=False, force=True)
+        clean.assert_called_once_with(
+            fs=[future], clean_cloudobjects=False, force=True
+        )
+
+    def test_clean_keeps_a_job_with_results_still_to_read(self):
+        """
+        One job is one storage prefix. A call whose small result came back
+        inside its status is done, while its sibling's result still waits in
+        storage: deleting the prefix then loses it, and a later get_result()
+        fails with 'Unable to get the result'
+        """
+        read = FakeFuture(executor_id='abc-0', job_id='M000', done=True)
+        unread = FakeFuture(
+            executor_id='abc-0', job_id='M000', done=False, success=True
+        )
+        executor = _bare_executor(
+            cleaned_jobs=set(), executor_id='abc-0', futures=[read, unread]
+        )
+        with patch('lithops.executors._dump_cleaner_data') as dump, \
+                patch('lithops.executors.sp.Popen'):
+            executor.clean(fs=[read, unread], clean_cloudobjects=False)
+        dump.assert_not_called()
+        assert executor.cleaned_jobs == set()
+
+        unread.done = True
+        with patch('lithops.executors._dump_cleaner_data') as dump, \
+                patch('lithops.executors.sp.Popen'):
+            executor.clean(fs=[read, unread], clean_cloudobjects=False)
+        assert create_job_key('abc-0', 'M000') in executor.cleaned_jobs
+
+    def test_clean_on_exit_deletes_a_job_with_unread_results(self):
+        """
+        After the process exits nothing will read the leftover result, so
+        keeping the prefix would leak it for the rest of the bucket's life
+        """
+        read = FakeFuture(executor_id='abc-0', job_id='M000', done=True)
+        unread = FakeFuture(
+            executor_id='abc-0', job_id='M000', done=False, success=True
+        )
+        executor = _bare_executor(
+            cleaned_jobs=set(), executor_id='abc-0', futures=[read, unread]
+        )
+        with patch('lithops.executors._dump_cleaner_data') as dump, \
+                patch('lithops.executors.sp.Popen'):
+            executor.clean(
+                fs=[read, unread], clean_cloudobjects=False, on_exit=True
+            )
+        assert create_job_key('abc-0', 'M000') in executor.cleaned_jobs
+        dump.assert_called_once()
 
     def test_clean_does_not_wrap_futures_list(self):
         future = FakeFuture(executor_id='abc-0', job_id='M000', done=True)
@@ -339,29 +389,37 @@ class TestWaitAndGetResult:
         assert cleanup.call_args.kwargs.get('exception') is None
 
     @patch('lithops.executors.wait')
-    def test_wait_stops_monitor_when_all_tracked_futures_are_done(self, mock_wait):
+    def test_wait_keeps_the_monitor_for_the_next_map(self, mock_wait):
+        """
+        The monitor belongs to the executor. Stopping it after every wait()
+        made the next map() join that thread and spawn another, which is
+        what made a tight map/wait loop (Cubed) slower, and lost the first
+        statuses of the new job on a message backend
+        """
         future = FakeFuture(done=True, success=True)
         executor = _bare_executor(futures=[future])
         executor.wait([future], return_when=ALL_COMPLETED, show_progressbar=False)
-        executor.job_monitor.stop.assert_called_once()
+        executor.job_monitor.stop.assert_not_called()
+        executor.job_monitor.remove.assert_called_once_with([future])
 
     @patch('lithops.executors.wait')
-    def test_wait_stops_monitor_before_cleaning(self, mock_wait):
+    def test_wait_drops_finished_futures_before_cleaning(self, mock_wait):
         future = FakeFuture(done=True, success=True)
         executor = _bare_executor(data_cleaner=True, futures=[future])
         order = []
-        executor._stop_monitor_if_idle = lambda *a, **k: order.append('stop')
+        executor._release_finished_from_monitor = lambda *a, **k: order.append('release')
         executor._cleanup_jobs = lambda *a, **k: order.append('clean')
         executor.wait([future], return_when=ALL_COMPLETED, show_progressbar=False)
-        assert order == ['stop', 'clean']
+        assert order == ['release', 'clean']
 
     @patch('lithops.executors.wait')
-    def test_wait_keeps_monitor_when_other_futures_are_pending(self, mock_wait):
+    def test_wait_does_not_drop_pending_futures_from_the_monitor(self, mock_wait):
         done = FakeFuture(done=True, success=True)
         pending = FakeFuture(done=False, success=False)
         executor = _bare_executor(futures=[done, pending])
-        executor.wait([done], return_when=ALL_COMPLETED, show_progressbar=False)
+        executor.wait([done, pending], return_when=ALL_COMPLETED, show_progressbar=False)
         executor.job_monitor.stop.assert_not_called()
+        executor.job_monitor.remove.assert_called_once_with([done])
 
     def test_exit_waits_for_the_invoker_threads(self):
         """
@@ -417,7 +475,11 @@ class TestWaitAndGetResult:
         clean.assert_called_once()
 
     @patch('lithops.executors.wait', side_effect=RuntimeError('boom'))
-    def test_wait_exception_stops_invoker_and_reraises(self, mock_wait):
+    def test_wait_exception_drops_its_queued_calls_and_reraises(self, mock_wait):
+        """
+        Stopping the invoker used to drop the queued calls of every job of
+        the executor, so another job still running never got its workers
+        """
         future = FakeFuture()
         executor = _bare_executor(data_cleaner=True)
 
@@ -425,11 +487,58 @@ class TestWaitAndGetResult:
             with pytest.raises(RuntimeError, match='boom'):
                 executor.wait([future], show_progressbar=False)
 
-        executor.invoker.stop.assert_called_once()
+        executor.invoker.stop.assert_not_called()
+        executor.invoker.discard_pending.assert_called_once_with(
+            {future.job_key}, {future.job_id}
+        )
         executor.job_monitor.remove.assert_called_once()
         assert future._exception_set is True
         assert cleanup.call_args.kwargs['force'] is True
         assert isinstance(cleanup.call_args.kwargs['exception'], RuntimeError)
+
+    @patch('lithops.executors.wait', side_effect=TimeoutError('late'))
+    def test_a_failed_wait_only_cleans_the_jobs_it_waited_on(self, mock_wait):
+        """
+        A timeout waiting on one job used to delete the data of every job
+        of the executor, including one still running that nobody waited on
+        """
+        waited = FakeFuture(executor_id='abc-0', job_id='M000')
+        other = FakeFuture(
+            executor_id='abc-0', job_id='M001', job_key='abc-0/M001'
+        )
+        executor = _bare_executor(
+            data_cleaner=True, executor_id='abc-0', futures=[waited, other]
+        )
+        with patch('lithops.executors._dump_cleaner_data') as dump, \
+                patch('lithops.executors.sp.Popen'):
+            with pytest.raises(TimeoutError):
+                executor.wait([waited], show_progressbar=False)
+        cleaned = dump.call_args[0][0]['jobs_to_clean']
+        assert cleaned == {create_job_key('abc-0', 'M000')}
+
+    @patch('lithops.executors.wait', side_effect=KeyboardInterrupt)
+    def test_ctrl_c_in_wait_stops_every_invocation(self, mock_wait):
+        executor = _bare_executor()
+        with pytest.raises(KeyboardInterrupt):
+            executor.wait([FakeFuture()], show_progressbar=False)
+        executor.invoker.stop.assert_called_once_with(wait=True)
+
+    @patch('lithops.executors.wait', side_effect=TimeoutError('late'))
+    def test_a_failed_wait_honours_clean_jobs(self, mock_wait):
+        future = FakeFuture()
+        executor = _bare_executor(data_cleaner=True)
+        with patch.object(executor, '_cleanup_jobs') as cleanup:
+            with pytest.raises(TimeoutError):
+                executor.wait([future], show_progressbar=False,
+                              clean_jobs=False)
+        cleanup.assert_not_called()
+
+    def test_get_result_takes_a_single_future(self):
+        """The signature takes a ResponseFuture, which has no len()"""
+        future = FakeFuture(_result=42)
+        executor = _bare_executor(last_call='call_async', futures=[future])
+        with patch.object(executor, 'wait', return_value=([future], [])):
+            assert executor.get_result(future) == 42
 
     def test_get_result_unwraps_single_non_map_result(self):
         future = FakeFuture(_result=42)

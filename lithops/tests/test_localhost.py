@@ -104,6 +104,36 @@ class TestLocalhostConfig:
             localhost_config.LocalhostEnvironment.CONTAINER
         )
 
+    def test_environment_default_for_every_interpreter_basename(self):
+        # The default runtime is basename(sys.executable), which is not
+        # always a plain pythonX.Y: free-threaded and debug builds, the
+        # python.org macOS installer and Windows GUI interpreters all have
+        # suffixes of their own, and none of them is a docker image
+        for runtime in (
+            'python3.13t',
+            'python3.14t',
+            'python3.12d',
+            'python3-intel64',
+            'pythonw',
+            'pythonw.exe',
+            'Python.exe',
+        ):
+            assert localhost_config.get_environment(runtime) is (
+                localhost_config.LocalhostEnvironment.DEFAULT
+            ), runtime
+
+    def test_environment_container_for_python_images(self):
+        for runtime in (
+            'python:3.12',
+            'python:3.12-slim',
+            'registry/python',
+            'registry.example.com:5000/python',
+            'docker.io/library/python:3.12',
+        ):
+            assert localhost_config.get_environment(runtime) is (
+                localhost_config.LocalhostEnvironment.CONTAINER
+            ), runtime
+
     def test_environment_enum_values(self):
         assert localhost_config.LocalhostEnvironment.DEFAULT.value == 'default'
         assert localhost_config.LocalhostEnvironment.CONTAINER.value == 'container'

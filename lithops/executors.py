@@ -103,6 +103,15 @@ def _missing_plotting_extra(method_name: str) -> ModuleNotFoundError:
     )
 
 
+def _output_settled(future) -> bool:
+    """
+    Whether nothing is left to read from storage for this call: its result
+    was downloaded or it produced none, it failed, or it handed back
+    futures of its own
+    """
+    return future.done or future.futures
+
+
 def _group_futures_by_job(
     futures: List[Any]
 ) -> List[Tuple[str, str, List[Any], List[Any]]]:
@@ -449,7 +458,21 @@ class FunctionExecutor:
             self.compute_handler.clear(present_jobs)
         else:
             self.compute_handler.clear(present_jobs, exception=exception)
-        self.clean(clean_cloudobjects=False, force=force)
+        self.clean(fs=futures, clean_cloudobjects=False, force=force)
+
+    def _release_finished_from_monitor(self, futures):
+        """
+        Drops futures that have already reported back, so the monitor does
+        not keep listing their prefixes. The thread stays up: the next
+        map() of this executor adds to it instead of joining a stopped
+        one and spawning another
+        """
+        finished = [
+            f for f in futures
+            if getattr(f, 'ready', False) or f.success or f.done
+        ]
+        if finished:
+            self.job_monitor.remove(finished)
 
     def _stop_monitor_if_idle(self, extra_fs=None):
         """
@@ -764,17 +787,25 @@ class FunctionExecutor:
                 futures_from_executor_wait=not fs,
             )
 
-            self._stop_monitor_if_idle(futures)
+            self._release_finished_from_monitor(futures)
             if do_clean and return_when == ALL_COMPLETED:
                 self._cleanup_jobs(futures)
 
         except (KeyboardInterrupt, Exception) as e:
-            self.invoker.stop(wait=True)
+            if isinstance(e, KeyboardInterrupt):
+                self.invoker.stop(wait=True)
+            else:
+                # Only the jobs waited on end here. Another job of this
+                # executor may still have calls queued for a free worker
+                self.invoker.discard_pending(
+                    {f.job_key for f in futures},
+                    {f.job_id for f in futures},
+                )
             self.job_monitor.remove(futures)
             for future in futures:
                 future._set_exception()
             self._stop_monitor_if_idle(futures)
-            if self.data_cleaner:
+            if do_clean:
                 self._cleanup_jobs(futures, exception=e, force=True)
             raise
 
@@ -808,7 +839,7 @@ class FunctionExecutor:
         :return: The result of the future/s
         """
         pending_to_read = (
-            len(fs) if fs
+            len(self._as_future_list(fs)) if fs
             else sum(1 for f in self.futures if not f._read and not f.futures)
         )
 
@@ -961,11 +992,26 @@ class FunctionExecutor:
             })
 
         futures = self._as_future_list(fs or self.futures)
-        present_jobs = {
-            create_job_key(f.executor_id, f.job_id)
-            for f in futures
-            if (f.executor_id.count('-') == 1 and f.done) or force
-        }
+        if force or on_exit:
+            # On exit nothing will read the leftover results, so a job
+            # that still has one unread call would otherwise stay forever
+            present_jobs = {
+                create_job_key(f.executor_id, f.job_id) for f in futures
+            }
+        else:
+            # A job's data is one prefix, so it goes only once no call of
+            # the job, including the ones not passed here, still has a
+            # result to read from it
+            unread_jobs = {
+                create_job_key(f.executor_id, f.job_id)
+                for f in list(self.futures) + list(futures)
+                if not _output_settled(f)
+            }
+            present_jobs = {
+                create_job_key(f.executor_id, f.job_id)
+                for f in futures
+                if f.executor_id.count('-') == 1 and f.done
+            } - unread_jobs
         jobs_to_clean = present_jobs - self.cleaned_jobs
 
         if jobs_to_clean:

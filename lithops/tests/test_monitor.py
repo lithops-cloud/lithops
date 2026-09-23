@@ -831,6 +831,40 @@ class TestStorageMonitorTokensAndTags:
         monitor._generate_tokens(running, all_done)
         assert monitor.token_bucket_q.empty()
 
+    def test_generate_tokens_emits_when_done_is_listed_before_running(self):
+        """
+        A listing can return the status object before the init mark: the
+        init write failed, or the list is not read-after-write consistent.
+        Treating that completion as already accounted leaves the worker
+        token unissued, and the calls still queued never start
+        """
+        monitor = self._storage(chunksize=1)
+        monitor.present_jobs.add('M000')
+        done = {('sess-0', 'M000', '00000')}
+        monitor._generate_tokens(set(), done)
+        assert monitor.token_bucket_q.empty()
+
+        running = {(('sess-0', 'M000', '00000'), 'w1')}
+        monitor._generate_tokens(running, done)
+        assert monitor.token_bucket_q.get_nowait() == '#'
+
+    def test_the_final_sweep_hands_back_the_workers_it_finds_free(self):
+        """
+        wait() stops the monitor once its futures are done, which the blind
+        sweep can find before the listing credits their worker. The sweep
+        run() makes after the stop is then the last chance for that token:
+        the next monitor does not watch this job
+        """
+        monitor = self._storage(chunksize=1)
+        monitor.present_jobs.add('M000')
+        monitor.internal_storage.get_job_status.return_value = (
+            {(('sess-0', 'M000', '00000'), 'w1')},
+            {('sess-0', 'M000', '00000')},
+        )
+        monitor.should_run = False
+        monitor.run()
+        assert monitor.token_bucket_q.get_nowait() == '#'
+
     def test_generate_tokens_one_per_worker(self):
         monitor = self._storage(chunksize=1)
         running = {
@@ -901,6 +935,7 @@ class TestStorageMonitorTokensAndTags:
 
     def test_poll_and_process_returns_new_done_ids_and_tags(self):
         monitor = self._storage()
+        monitor.add_futures([FakeFuture('M000', invoked=True, call_id='00000')])
         monitor._generate_tokens = MagicMock()
         monitor._tag_future_as_running = MagicMock()
         monitor._tag_future_as_ready = MagicMock()
@@ -911,12 +946,28 @@ class TestStorageMonitorTokensAndTags:
         new = monitor._poll_and_process_job_status()
         assert new == done
         monitor.internal_storage.get_job_status.assert_called_once_with(
-            'sess-0', job_ids=set()
+            'sess-0', job_ids={'M000'}
         )
         monitor._generate_tokens.assert_called_once_with(running, done)
         monitor._tag_future_as_running.assert_called_once_with(running)
         monitor._tag_future_as_ready.assert_called_once_with(done)
         monitor._print_status_log.assert_called_once_with()
+
+    def test_poll_and_process_does_not_list_storage_when_idle(self):
+        """
+        The monitor stays up after wait() with no futures left. A LIST of
+        the executor prefix then is a paid object-storage call for nothing
+        """
+        monitor = self._storage()
+        monitor._generate_tokens = MagicMock()
+        monitor._tag_future_as_running = MagicMock()
+        monitor._tag_future_as_ready = MagicMock()
+        new = monitor._poll_and_process_job_status()
+        assert new == set()
+        monitor.internal_storage.get_job_status.assert_not_called()
+        monitor._generate_tokens.assert_not_called()
+        monitor._tag_future_as_running.assert_not_called()
+        monitor._tag_future_as_ready.assert_not_called()
 
     def test_poll_and_process_emits_token_when_chunk_completes(self):
         monitor = self._storage()
@@ -1321,6 +1372,52 @@ class TestPollingMessageMonitor:
         monitor._apply_status_message(second)
         assert tokens.qsize() == 1
 
+    def test_a_removed_job_still_hands_its_token_back(self):
+        """
+        wait() drops the futures of a failed job so they are no longer
+        tagged ready. The worker that ran them is still this executor's
+        and must free its token, or a later map() stays short of workers
+        """
+        class FakePoll(PollingMessageMonitor):
+            backend_name = 'fake'
+
+            def _receive_messages(self, timeout):
+                return []
+
+        tokens = queue.Queue()
+        monitor = FakePoll(
+            'sess-0', None, tokens, {'M000': 1}, True, {}
+        )
+        future = FakeFuture('M000', invoked=True)
+        monitor.add_futures([future])
+        monitor.remove_futures([future])
+        payload, _raw = _status(kind='__end__')
+        monitor._apply_status_message(payload)
+        assert tokens.qsize() == 1
+
+    def test_a_closed_job_does_not_hand_a_late_token_back(self):
+        """
+        The invoker already forgot this job's workers. A late __end__
+        must not put another token in the bucket
+        """
+        class FakePoll(PollingMessageMonitor):
+            backend_name = 'fake'
+
+            def _receive_messages(self, timeout):
+                return []
+
+        tokens = queue.Queue()
+        monitor = FakePoll(
+            'sess-0', None, tokens, {'M000': 1}, True, {}
+        )
+        future = FakeFuture('M000', invoked=True)
+        monitor.add_futures([future])
+        monitor.remove_futures([future])
+        monitor.close_jobs({'M000'})
+        payload, _raw = _status(kind='__end__')
+        monitor._apply_status_message(payload)
+        assert tokens.qsize() == 0
+
     def test_stop_does_not_delete_cleanup_does_once(self):
         class FakePoll(PollingMessageMonitor):
             backend_name = 'fake'
@@ -1507,6 +1604,109 @@ class TestMessageLossAndRecovery:
         assert tokens.qsize() == 1
         monitor._apply_status_message(dict(second))
         assert tokens.qsize() == 1
+
+    def test_two_threads_finishing_one_chunk_release_one_token(self):
+        """
+        The submitter thread applies a status that was held, while the
+        monitor thread applies the one that just arrived. Both can see the
+        chunk cross its size and each hand a token back
+        """
+        tokens = queue.Queue()
+        monitor = self._monitor(tokens=tokens, chunksize={'M000': 2})
+        monitor.add_futures([
+            FakeFuture('M000', invoked=True, call_id='00000'),
+            FakeFuture('M000', invoked=True, call_id='00001'),
+        ])
+
+        class StaleMembership(set):
+            """
+            Reports the membership it saw, then waits. Both threads can
+            observe "not done yet" before either records the worker
+            """
+
+            def __contains__(self, item):
+                found = super().__contains__(item)
+                time.sleep(0.05)
+                return found
+
+        monitor.workers_done = StaleMembership()
+        start = threading.Barrier(2)
+        errors = []
+
+        def apply(call_id):
+            try:
+                start.wait(timeout=2)
+                payload, _raw = _status(
+                    call_id=call_id, kind='__end__', chunksize=2
+                )
+                payload['activation_id'] = 'w1'
+                monitor._generate_tokens(payload)
+            except Exception as exc:  # noqa: BLE001 - recorded, not handled
+                errors.append(exc)
+
+        threads = [
+            threading.Thread(target=apply, args=('00000',)),
+            threading.Thread(target=apply, args=('00001',)),
+        ]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=5)
+
+        assert not errors
+        assert all(not thread.is_alive() for thread in threads)
+        assert tokens.qsize() == 1
+
+    def test_an_init_cannot_overwrite_an_end_applied_at_the_same_time(self):
+        """
+        The check that a future is not finished and the write that marks it
+        running are separate. An __init__ that passes the check can land
+        after the __end__ and put a finished call back to running
+        """
+        monitor = self._monitor()
+        entered_running = threading.Event()
+
+        class SlowRunning(FakeFuture):
+            def _set_running(self, call_status):
+                entered_running.set()
+                time.sleep(0.05)
+                self.ready = False
+                super()._set_running(call_status)
+
+        future = SlowRunning('M000', invoked=True, call_id='00000')
+        monitor.add_futures([future])
+        init, _raw = _status(kind='__init__')
+        end, _raw = _status(kind='__end__')
+        errors = []
+
+        def apply_init():
+            try:
+                monitor._apply_status_message(init)
+            except Exception as exc:  # noqa: BLE001 - recorded, not handled
+                errors.append(exc)
+
+        def apply_end():
+            try:
+                # Only once the init has passed its "not started" check and
+                # is inside the transition, so the end cannot simply win
+                # the race by running first
+                assert entered_running.wait(timeout=2)
+                monitor._apply_status_message(end)
+            except Exception as exc:  # noqa: BLE001 - recorded, not handled
+                errors.append(exc)
+
+        threads = [
+            threading.Thread(target=apply_init),
+            threading.Thread(target=apply_end),
+        ]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=5)
+
+        assert not errors
+        assert future.ready is True
+        assert future.running is False
 
     def test_a_status_of_a_tracked_future_is_never_held(self):
         """
@@ -1763,7 +1963,7 @@ class TestCallStatusPublishing:
             RETRY_SLEEP = 0
             closed = 0
 
-            def _publish(self, payload):
+            def _publish_to(self, target, payload):
                 publish(payload)
 
             def close(self):
@@ -1779,7 +1979,7 @@ class TestCallStatusPublishing:
             service_name = 'plain'
             RETRY_SLEEP = 0
 
-            def _publish(self, payload):
+            def _publish_to(self, target, payload):
                 publish(payload)
 
         return Plain
@@ -2033,6 +2233,224 @@ class TestCallStatusPublishing:
                 cls(self._job(name), MagicMock())
                 assert build.call_count == 0, name
 
+    def _chain_status_cls(self, published, fails):
+        from lithops.monitoring.status import MessageCallStatus
+
+        class Chain(MessageCallStatus):
+            service_name = 'chain'
+            RETRY_SLEEP = 0
+
+            def _publish_to(self, target, payload):
+                published.append(target)
+                if fails(target):
+                    raise ConnectionError(f'{target} is not there')
+
+        return Chain
+
+    def test_a_remote_invoker_queue_that_is_gone_is_tried_once(self):
+        """
+        The remote invoker deletes its queue as soon as every chunk is
+        invoked, long before the calls finish. Every status then went
+        through five attempts with back-off, each one sending it to the
+        client's queue again
+        """
+        invoker_queue = remote_invoker_queue_name('sess-0')
+        job = self._job()
+        job.monitoring_queues = ['lithops-sess-0', invoker_queue]
+        published = []
+        cls = self._chain_status_cls(
+            published, lambda target: target == invoker_queue
+        )
+        with patch('lithops.monitoring.status.time.sleep') as sleep, \
+                patch('lithops.monitoring.status.logger') as log:
+            cls(job, MagicMock()).send_finish_event()
+
+        assert published == ['lithops-sess-0', invoker_queue]
+        sleep.assert_not_called()
+        log.error.assert_not_called()
+
+    def test_only_the_queue_that_failed_is_retried(self):
+        """
+        A nested call reports to its parent's queue as well, which is the
+        only way the parent learns of the futures it is handed back, so
+        that one is retried; the queues that took the status do not get it
+        a second time
+        """
+        job = self._job()
+        job.monitoring_queues = ['lithops-parent', 'lithops-sess-0']
+        published = []
+        failures = iter([True])
+        cls = self._chain_status_cls(
+            published,
+            lambda target: target == 'lithops-parent'
+            and next(failures, False),
+        )
+        cls(job, MagicMock()).send_init_event()
+
+        assert published == [
+            'lithops-parent', 'lithops-sess-0', 'lithops-parent'
+        ]
+
+    def test_redis_does_not_bring_back_a_deleted_invoker_list_for_good(self):
+        """
+        An RPUSH onto a list that was deleted creates it again, and nothing
+        would ever delete that one
+        """
+        from lithops.monitoring.backends.redis.status import RedisCallStatus
+        from lithops.tests.mp_fakeredis import FakeRedis
+
+        client = FakeRedis()
+        invoker_queue = remote_invoker_queue_name('sess-0')
+        job = self._job('redis')
+        job.monitoring_queues = ['lithops-sess-0', invoker_queue]
+        with _client(redis_backend, 'redis_client', client):
+            RedisCallStatus(job, MagicMock()).send_init_event()
+
+        assert client.llen(invoker_queue) == 1
+        client.advance(RedisCallStatus.BEST_EFFORT_TTL)
+        assert client.llen(invoker_queue) == 0
+        assert client.llen('lithops-sess-0') == 1
+
+    def test_sqs_never_creates_a_queue_from_the_worker(self):
+        """
+        Creating the queue of a remote invoker that is gone left an orphan
+        queue behind, one per executor, that nothing deletes
+        """
+        from lithops.monitoring.backends.aws_sqs.status import SqsCallStatus
+
+        class QueueDoesNotExist(Exception):
+            pass
+
+        invoker_queue = remote_invoker_queue_name('sess-0')
+
+        def queue_url(QueueName):
+            if QueueName == invoker_queue:
+                raise QueueDoesNotExist(QueueName)
+            return {'QueueUrl': f'https://sqs/{QueueName}'}
+
+        client = MagicMock()
+        client.get_queue_url.side_effect = queue_url
+        job = self._job('aws_sqs')
+        job.monitoring_queues = ['lithops-sess-0', invoker_queue]
+        with _client(sqs_backend, 'sqs_client', client), \
+                patch('lithops.monitoring.status.time.sleep') as sleep:
+            SqsCallStatus(job, MagicMock()).send_init_event()
+
+        client.create_queue.assert_not_called()
+        sleep.assert_not_called()
+        urls = [
+            c.kwargs['QueueUrl'] for c in client.send_message.call_args_list
+        ]
+        assert urls == ['https://sqs/lithops-sess-0']
+
+    def test_pubsub_makes_no_admin_request_per_call(self):
+        """
+        Every call used to ask for the creation of every topic of its chain,
+        which the monitor had already created, before publishing to it
+        """
+        from lithops.monitoring.backends.gcp_pubsub.status import (
+            GcpPubsubCallStatus,
+        )
+
+        publisher = MagicMock()
+        job = self._job('gcp_pubsub')
+        job.config['gcp_pubsub'] = {'project_name': 'proj'}
+        with patch.object(
+            pubsub_backend, 'pubsub_clients',
+            return_value=(publisher, MagicMock()),
+        ):
+            for call_id in ('00000', '00001', '00002'):
+                job.call_id = call_id
+                status = GcpPubsubCallStatus(job, MagicMock())
+                status.send_init_event()
+                status.send_finish_event()
+
+        publisher.create_topic.assert_not_called()
+        topics = {c.args[0] for c in publisher.publish.call_args_list}
+        assert topics == {'projects/proj/topics/lithops-sess-0'}
+        assert publisher.publish.call_count == 6
+
+    def _azure_status(self, storage, events=None):
+        from lithops.monitoring.backends.azure_queue.status import (
+            AzureQueueCallStatus,
+        )
+
+        queue_client = MagicMock()
+        service = MagicMock()
+        service.get_queue_client.return_value = queue_client
+        if events is not None:
+            storage.put_data.side_effect = \
+                lambda key, data: events.append('storage')
+            queue_client.send_message.side_effect = \
+                lambda body: events.append('message')
+        with _client(azure_backend, 'queue_service', service):
+            status = AzureQueueCallStatus(self._job('azure_queue'), storage)
+            status.service
+        return status, queue_client
+
+    def test_azure_leaves_the_logs_out_of_a_status_that_does_not_fit(self):
+        """
+        The worker puts the logs of the call in its last status, and a
+        chatty function takes that past the 64 KiB Azure Queue takes: the
+        __end__ failed five times and only reached the client through the
+        storage sweep, a minute later
+        """
+        from lithops.monitoring.status import PARTIAL_STATUS_KEY
+
+        storage = MagicMock()
+        status, queue_client = self._azure_status(storage)
+        logs = 'x' * 100_000
+        status.add('logs', logs)
+        status.send_finish_event()
+
+        queue_client.send_message.assert_called_once()
+        body = queue_client.send_message.call_args.args[0]
+        assert len(body.encode('utf-8')) <= status.MAX_MESSAGE_SIZE
+        message = json.loads(body)
+        assert 'logs' not in message
+        assert PARTIAL_STATUS_KEY not in message
+        assert message['type'] == '__end__'
+        stored = json.loads(storage.put_data.call_args.args[1])
+        assert stored['logs'] == logs
+
+    def test_a_status_that_still_does_not_fit_is_sent_partial(self):
+        """
+        What is left once the logs are out can still be too big, a large
+        traceback for one. The message then only tells the client to read
+        the storage copy, which has to be there before the message is
+        """
+        from lithops.monitoring.status import PARTIAL_STATUS_KEY
+
+        storage = MagicMock()
+        events = []
+        status, queue_client = self._azure_status(storage, events)
+        status.add('exception', True)
+        status.add('exc_info', 'x' * 100_000)
+        status.send_finish_event()
+
+        assert events == ['storage', 'message']
+        message = json.loads(queue_client.send_message.call_args.args[0])
+        assert message[PARTIAL_STATUS_KEY] is True
+        assert 'exc_info' not in message
+        assert message['exception'] is True
+        assert message['call_id'] == '00000'
+        stored = json.loads(storage.put_data.call_args.args[1])
+        assert stored['exc_info'] == 'x' * 100_000
+
+    def test_the_worker_reports_how_many_calls_its_chunk_has(self):
+        """
+        The last chunk of a job is usually shorter than the chunksize, and
+        the worker that runs it has to say so, or the client waits for
+        calls that do not exist before handing its token back
+        """
+        cls = self._status_cls(lambda payload: None)
+        job = self._job()
+        job.chunksize = 3
+        job.total_calls = 10
+        for call_id, expected in (('00000', 3), ('00005', 3), ('00009', 1)):
+            job.call_id = call_id
+            assert cls(job, MagicMock()).status['worker_calls'] == expected
+
 
 class TestRedisMonitor:
 
@@ -2088,8 +2506,7 @@ class TestRedisMonitor:
         )
         with _client(redis_backend, 'redis_client', client):
             status = RedisCallStatus(job, MagicMock())
-            status.status['type'] = '__init__'
-            status._publish('{"type": "__init__"}')
+            status.send_init_event()
         assert client.llen('lithops-parent') == 1
         assert client.llen('lithops-sess-0') == 1
 
@@ -2298,7 +2715,7 @@ class TestSqsMonitor:
         )
         with _client(sqs_backend, 'sqs_client', client):
             status = SqsCallStatus(job, MagicMock())
-            status._publish('{"type": "__init__"}')
+            status.send_init_event()
         urls = [c.kwargs['QueueUrl'] for c in client.send_message.call_args_list]
         assert urls == ['https://sqs/parent', 'https://sqs/own']
 
@@ -2405,14 +2822,14 @@ class TestGcpPubsubMonitor:
             return_value=(publisher, MagicMock()),
         ):
             status = GcpPubsubCallStatus(job, MagicMock())
-            status._publish('{"type": "__init__"}')
+            status.send_init_event()
         topics = [c.args[0] for c in publisher.publish.call_args_list]
         assert topics == [
             'projects/proj/topics/lithops-parent',
             'projects/proj/topics/lithops-sess-0',
         ]
         for call in publisher.publish.call_args_list:
-            assert call.args[1] == b'{"type": "__init__"}'
+            assert json.loads(call.args[1])['type'] == '__init__'
 
 
 class TestAzureQueueMonitor:
@@ -2496,9 +2913,11 @@ class TestAzureQueueMonitor:
         )
         with _client(azure_backend, 'queue_service', service):
             status = AzureQueueCallStatus(job, MagicMock())
-            status._publish('{"type": "__init__"}')
-        parent.send_message.assert_called_once_with('{"type": "__init__"}')
-        own.send_message.assert_called_once_with('{"type": "__init__"}')
+            status.send_init_event()
+        for queue_client in (parent, own):
+            queue_client.send_message.assert_called_once()
+            body = queue_client.send_message.call_args.args[0]
+            assert json.loads(body)['type'] == '__init__'
 
 
 class TestAzureQueueNames:
@@ -2558,10 +2977,465 @@ class TestAzureQueueNames:
         )
         with _client(azure_backend, 'queue_service', service):
             status = AzureQueueCallStatus(job, MagicMock())
-            assert status._targets() == [monitor.queue]
+            assert [
+                azure_queue_name(name) for name in status._targets()
+            ] == [monitor.queue]
         assert monitor.queue == azure_queue_name(
             monitoring_queue_name('SESS-0')
         )
+
+
+def _wait_for(predicate, timeout=5):
+    deadline = time.time() + timeout
+    while not predicate() and time.time() < deadline:
+        time.sleep(0.01)
+    return predicate()
+
+
+class TestTheNextMapAfterAWait:
+    """
+    A wait() whose futures are all done stops the monitor, and the next map()
+    is invoked before start() is called for it. Whatever the first workers of
+    that map report in between has to reach the monitor that tracks them
+    """
+
+    def _job_monitor(self, cls, config=None):
+        storage = MagicMock()
+        storage.get_storage_config.return_value = {'monitoring_interval': 2}
+        job_monitor = JobMonitor('sess-0', storage, config=config)
+        if cls is not None:
+            job_monitor.MonitorClass = cls
+        return job_monitor
+
+    def test_the_first_statuses_of_the_next_map_are_not_lost(self):
+        """
+        SQS, Pub/Sub and Azure Queue block in a read that stop() cannot cut
+        short. The monitor the wait() stopped used to be replaced in
+        start(), so its last read took the first statuses of the next map,
+        held them for futures it did not track and went away with them
+        """
+        broker = queue.Queue()
+
+        class LongPoll(PollingMessageMonitor):
+            backend_name = 'long-poll'
+            POLL_TIMEOUT = 0.5
+            STORAGE_SWEEP_INTERVAL = 0
+
+            def _receive_messages(self, timeout):
+                try:
+                    yield broker.get(timeout=timeout)
+                except queue.Empty:
+                    return
+
+        job_monitor = self._job_monitor(LongPoll)
+        with patch.object(LongPoll, 'prepare_config', return_value={}):
+            try:
+                job_monitor.prepare()
+                first = FakeFuture('M000', invoked=True)
+                job_monitor.start([first], job_id='M000', chunksize=1)
+                broker.put(_status(kind='__end__')[1])
+                assert _wait_for(lambda: first.ready)
+                job_monitor.stop()
+                stopped = job_monitor.monitor
+
+                job_monitor.prepare()
+                assert job_monitor.monitor is not stopped
+                assert not stopped.is_alive()
+
+                # The workers of the next map report before start()
+                end, _raw = _status(kind='__end__')
+                end['job_id'] = 'M001'
+                broker.put(json.dumps(end))
+                second = FakeFuture('M001', invoked=True)
+                job_monitor.start([second], job_id='M001', chunksize=1)
+                assert _wait_for(lambda: second.ready)
+                assert not stopped._held_status
+            finally:
+                job_monitor.cleanup()
+
+    def test_rabbitmq_declares_the_queue_again_before_the_next_map(self):
+        """
+        Cancelling the consumer of an auto-delete queue deletes it, so the
+        statuses published before start() declared it again were dropped
+        by the broker. The queue is declared before the workers are
+        invoked, and is no longer auto-delete
+        """
+        config = {
+            'lithops': {'monitoring': 'rabbitmq'},
+            'rabbitmq': {'amqp_url': 'amqp://guest@localhost'},
+        }
+        pika = rabbitmq_backend.pika
+        with patch.object(pika, 'URLParameters'), \
+                patch.object(pika, 'BlockingConnection') as connection:
+            job_monitor = self._job_monitor(None, config)
+            declare = connection.return_value.channel.return_value \
+                .queue_declare
+            job_monitor.prepare()
+            assert declare.call_count == 1
+            job_monitor.stop()
+
+            job_monitor.prepare()
+            assert declare.call_count == 2
+            assert declare.call_args.kwargs['queue'] == 'lithops-sess-0'
+            assert declare.call_args.kwargs['auto_delete'] is False
+            assert declare.call_args.kwargs['arguments']['x-expires'] > 0
+
+    def test_a_status_the_stopped_monitor_held_is_handed_over(self):
+        class Idle(PollingMessageMonitor):
+            backend_name = 'idle'
+
+            def _receive_messages(self, timeout):
+                return []
+
+        job_monitor = self._job_monitor(Idle)
+        with patch.object(Idle, 'prepare_config', return_value={}):
+            try:
+                job_monitor.prepare()
+                stopped = job_monitor.monitor
+                # Read by the last poll of the monitor before it stopped
+                end, _raw = _status(kind='__end__')
+                end['job_id'] = 'M001'
+                stopped._apply_status_message(end)
+                job_monitor.stop()
+
+                future = FakeFuture('M001', invoked=True)
+                job_monitor.start([future], job_id='M001', chunksize=1)
+                assert job_monitor.monitor is not stopped
+                assert future.ready is True
+            finally:
+                job_monitor.cleanup()
+
+
+class TestPartialStatusMessages:
+    """
+    A status that did not fit in a message arrives without what the client
+    needs to finish the call, and the full one is in the storage
+    """
+
+    class FakePoll(PollingMessageMonitor):
+        backend_name = 'fake'
+
+        def _receive_messages(self, timeout):
+            return []
+
+    def _partial(self):
+        from lithops.monitoring.status import PARTIAL_STATUS_KEY
+        payload, _raw = _status(kind='__end__')
+        payload.update({'exception': True, PARTIAL_STATUS_KEY: True})
+        return payload
+
+    def test_the_full_status_is_read_from_the_storage(self):
+        """
+        Applied as it came, the future would re-raise from an exc_info that
+        is not there
+        """
+        storage = MagicMock()
+        full, _raw = _status(kind='__end__')
+        full.update({'exception': True, 'exc_info': 'pickled traceback'})
+        storage.get_call_status.return_value = full
+        monitor = self.FakePoll('sess-0', storage, queue.Queue(), {}, False, {})
+        future = FakeFuture('M000', invoked=True)
+        monitor.add_futures([future])
+
+        monitor._apply_status_message(self._partial())
+
+        assert future.ready is True
+        assert future._call_status['exc_info'] == 'pickled traceback'
+        storage.get_call_status.assert_called_once_with(
+            'sess-0', 'M000', '00000'
+        )
+
+    def test_a_partial_status_that_arrived_early_is_completed_later(self):
+        storage = MagicMock()
+        full, _raw = _status(kind='__end__')
+        full['result'] = 'inline result'
+        storage.get_call_status.return_value = full
+        monitor = self.FakePoll('sess-0', storage, queue.Queue(), {}, False, {})
+
+        monitor._apply_status_message(self._partial())
+        storage.get_call_status.assert_not_called()
+
+        future = FakeFuture('M000', invoked=True)
+        monitor.add_futures([future])
+        assert future.ready is True
+        assert future._call_status['result'] == 'inline result'
+
+    def test_without_the_storage_copy_the_call_is_left_running(self):
+        """
+        For the storage sweep or the timeout checker to finish, rather than
+        finished with a status the future cannot read
+        """
+        storage = MagicMock()
+        storage.get_call_status.return_value = None
+        monitor = self.FakePoll('sess-0', storage, queue.Queue(), {}, False, {})
+        future = FakeFuture('M000', invoked=True)
+        monitor.add_futures([future])
+
+        monitor._apply_status_message(self._partial())
+
+        assert future.ready is False
+        assert future.running is True
+        assert future._call_status['type'] == '__init__'
+
+
+class TestTokensOfTheLastChunk:
+    """
+    The last chunk of a job is usually shorter than the chunksize: 10 calls
+    in chunks of 3 leave a last worker with 1. A token held back for it is
+    a worker the invoker counts as busy for ever, and once they add up to
+    max_workers every chunk still queued waits for good
+    """
+
+    class FakePoll(PollingMessageMonitor):
+        backend_name = 'fake'
+
+        def _receive_messages(self, timeout):
+            return []
+
+    def _futures(self, total=10):
+        return [
+            FakeFuture('M000', invoked=True, call_id=f'{i:05d}')
+            for i in range(total)
+        ]
+
+    def test_the_worker_of_the_last_chunk_frees_its_token(self):
+        tokens = queue.Queue()
+        monitor = self.FakePoll('sess-0', None, tokens, {'M000': 3}, True, {})
+        monitor.add_futures(self._futures())
+        end, _raw = _status(call_id='00009', kind='__end__', chunksize=3)
+        end.update({'activation_id': 'w4', 'worker_calls': 1})
+
+        monitor._apply_status_message(end)
+
+        assert tokens.qsize() == 1
+
+    def test_the_size_of_the_job_frees_it_when_the_worker_does_not_say(self):
+        """
+        A status from a worker that does not report the size of its chunk
+        is sized from the number of calls of the job, which the invoker
+        hands the monitor along with its futures
+        """
+        class NotStarted(self.FakePoll):
+            def start(self):
+                pass
+
+        storage = MagicMock()
+        storage.get_storage_config.return_value = {'monitoring_interval': 2}
+        job_monitor = JobMonitor('sess-0', storage)
+        job_monitor.MonitorClass = NotStarted
+        with patch.object(NotStarted, 'prepare_config', return_value={}):
+            job_monitor.start(
+                self._futures(), job_id='M000', chunksize=3,
+                generate_tokens=True,
+            )
+        monitor = job_monitor.monitor
+        end, _raw = _status(call_id='00009', kind='__end__', chunksize=3)
+        end['activation_id'] = 'w4'
+
+        monitor._apply_status_message(end)
+
+        assert job_monitor.token_bucket_q.get_nowait() == '#'
+        assert monitor.job_total_calls == {'M000': 10}
+
+    def test_a_full_chunk_still_waits_for_all_its_calls(self):
+        tokens = queue.Queue()
+        monitor = self.FakePoll('sess-0', None, tokens, {'M000': 3}, True, {})
+        monitor.job_total_calls = {'M000': 10}
+        monitor.add_futures(self._futures())
+        for call_id in ('00006', '00007'):
+            end, _raw = _status(call_id=call_id, kind='__end__', chunksize=3)
+            end['activation_id'] = 'w3'
+            monitor._apply_status_message(end)
+            assert tokens.qsize() == 0
+        end, _raw = _status(call_id='00008', kind='__end__', chunksize=3)
+        end['activation_id'] = 'w3'
+        monitor._apply_status_message(end)
+        assert tokens.qsize() == 1
+
+    def test_the_storage_monitor_frees_the_worker_of_the_last_chunk(self):
+        tokens = queue.Queue()
+        monitor = StorageMonitor(
+            'sess-0', MagicMock(), tokens, {'M000': 3}, True,
+            {'monitoring_interval': 1},
+        )
+        monitor.job_total_calls = {'M000': 10}
+        monitor.add_futures(self._futures())
+        last = ('sess-0', 'M000', '00009')
+
+        monitor._generate_tokens({(last, 'w4')}, {last})
+
+        assert tokens.get_nowait() == '#'
+        assert tokens.empty()
+
+    def test_a_timed_out_call_hands_its_token_back(self):
+        """
+        A worker that never reports back, because it was killed at the
+        execution timeout, gave no token back either
+        """
+        tokens = queue.Queue()
+        monitor = self.FakePoll('sess-0', None, tokens, {'M000': 1}, True, {})
+        future = FakeFuture(
+            'M000', running=True, execution_timeout=1, activation_id='w1'
+        )
+        future._call_status = {'worker_start_tstamp': time.time() - 100}
+        monitor.add_futures([future])
+
+        monitor._future_timeout_checker()
+
+        assert future.ready is True
+        assert tokens.qsize() == 1
+        # The worker was not dead after all, and its __end__ turns up late
+        end, _raw = _status(kind='__end__')
+        end['activation_id'] = 'w1'
+        monitor._apply_status_message(end)
+        assert tokens.qsize() == 1
+
+    def test_the_storage_monitor_hands_back_the_token_of_a_timed_out_call(
+        self,
+    ):
+        tokens = queue.Queue()
+        storage = MagicMock()
+        storage.get_call_status.return_value = None
+        monitor = StorageMonitor(
+            'sess-0', storage, tokens, {'M000': 2}, True,
+            {'monitoring_interval': 1},
+        )
+        first = FakeFuture('M000', invoked=True, call_id='00000')
+        second = FakeFuture(
+            'M000', running=True, call_id='00001', execution_timeout=1,
+            activation_id='w1',
+        )
+        second._call_status = {'worker_start_tstamp': time.time() - 100}
+        monitor.add_futures([first, second])
+        ids = [('sess-0', 'M000', '00000'), ('sess-0', 'M000', '00001')]
+        monitor.present_jobs = {'M000'}
+
+        # Both calls started in w1; only the first one ever finished
+        monitor._generate_tokens({(i, 'w1') for i in ids}, {ids[0]})
+        assert tokens.empty()
+
+        monitor._future_timeout_checker([second])
+
+        assert second.ready is True
+        assert tokens.get_nowait() == '#'
+        assert tokens.empty()
+
+    def test_a_nested_status_frees_no_token_of_this_executor(self):
+        tokens = queue.Queue()
+        monitor = self.FakePoll('sess-0', None, tokens, {'M000': 1}, True, {})
+        nested_id = 'sess-0-A000-00000-1'
+        monitor.add_futures([
+            FakeFuture('M000', invoked=True, executor_id=nested_id)
+        ])
+        end, _raw = _status(kind='__end__')
+        end['executor_id'] = nested_id
+
+        monitor._apply_status_message(end)
+
+        assert tokens.qsize() == 0
+
+
+class TestNestedStatusesHeldByTheClient:
+    """
+    A worker that waits on an executor of its own publishes every status of
+    it to the queue of the client as well, logs and all, and the client
+    holds them for futures it may never track
+    """
+
+    class FakePoll(PollingMessageMonitor):
+        backend_name = 'fake'
+
+        def _receive_messages(self, timeout):
+            return []
+
+    NESTED = 'sess-0-A000-00000-1'
+
+    def _nested_end(self, call_id='00000', **extra):
+        payload, _raw = _status(call_id=call_id, kind='__end__')
+        payload['executor_id'] = self.NESTED
+        payload.update(extra)
+        return payload
+
+    def _monitor(self):
+        monitor = self.FakePoll('sess-0', None, queue.Queue(), {}, False, {})
+        monitor.add_futures([
+            FakeFuture('A000', running=True, execution_timeout=60)
+        ])
+        return monitor
+
+    def test_a_status_is_held_without_its_logs(self):
+        monitor = self._monitor()
+        monitor._apply_status_message(
+            self._nested_end(logs='x' * 100_000, result='nested result')
+        )
+
+        ((_arrived, held),) = monitor._held_status.values()
+        assert 'logs' not in held
+
+        # ...and still finishes the nested future once it is handed back
+        nested = FakeFuture('M000', running=True, executor_id=self.NESTED)
+        monitor.add_futures([nested])
+        assert nested.ready is True
+        assert nested._call_status['result'] == 'nested result'
+
+    def test_a_status_too_old_to_match_gives_way(self, monkeypatch):
+        """
+        The future of a nested call comes to light in the status of the call
+        that returned it, which finishes within its execution timeout
+        """
+        now = [1000.0]
+        monkeypatch.setattr(
+            'lithops.monitoring.monitor.time.time', lambda: now[0]
+        )
+        monitor = self._monitor()
+        monitor._apply_status_message(self._nested_end('00000'))
+
+        now[0] += 60 + monitor.HELD_STATUS_SLACK + 1
+        monitor._apply_status_message(self._nested_end('00001'))
+
+        assert list(monitor._held_status) == [
+            (self.NESTED, 'M000', '00001')
+        ]
+
+    def test_a_status_within_the_execution_timeout_is_kept(self, monkeypatch):
+        now = [1000.0]
+        monkeypatch.setattr(
+            'lithops.monitoring.monitor.time.time', lambda: now[0]
+        )
+        monitor = self._monitor()
+        monitor._apply_status_message(self._nested_end('00000'))
+        now[0] += 60
+        monitor._apply_status_message(self._nested_end('00001'))
+
+        nested = FakeFuture(
+            'M000', running=True, executor_id=self.NESTED, call_id='00000'
+        )
+        monitor.add_futures([nested])
+        assert nested.ready is True
+
+    def test_a_repeated_status_moves_to_the_back_of_the_line(
+        self, monkeypatch,
+    ):
+        """
+        The oldest status is the first one held, which a second status of
+        the same call must not leave at the front with a new arrival time
+        """
+        now = [1000.0]
+        monkeypatch.setattr(
+            'lithops.monitoring.monitor.time.time', lambda: now[0]
+        )
+        monitor = self._monitor()
+        init = self._nested_end('00000')
+        init['type'] = '__init__'
+        monitor._apply_status_message(init)
+        monitor._apply_status_message(self._nested_end('00001'))
+        now[0] += 30
+        monitor._apply_status_message(self._nested_end('00000'))
+
+        assert list(monitor._held_status) == [
+            (self.NESTED, 'M000', '00001'),
+            (self.NESTED, 'M000', '00000'),
+        ]
 
 
 def _localhost_redis():

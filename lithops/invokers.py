@@ -309,6 +309,13 @@ class Invoker:
         """
         pass
 
+    def discard_pending(self, job_keys, job_ids=None):
+        """
+        Drops the calls of the given jobs not invoked yet. Only an invoker
+        that queues calls has any
+        """
+        pass
+
 
 class BatchInvoker(Invoker):
     """
@@ -540,6 +547,45 @@ class FaaSInvoker(Invoker):
             return
         raise Exception('Unable to spawn remote invoker')
 
+    def _empty_token_bucket(self):
+        while True:
+            try:
+                self.job_monitor.token_bucket_q.get(block=False)
+            except queue.Empty:
+                return
+
+    def discard_pending(self, job_keys, job_ids=None):
+        """
+        Drops the calls of the given jobs that are still waiting for a
+        worker, leaving the queued calls of every other job in place.
+
+        The monitor also stops tracking those jobs, so their workers will
+        not hand tokens back. When no other job is still queued, the count
+        of running workers is forgotten; otherwise a later map() of the
+        same executor stays capped by workers that never free
+        """
+        kept = []
+        while True:
+            try:
+                item = self.pending_calls_q.get(block=False)
+            except queue.Empty:
+                break
+            job, _ = item
+            if job is None or job.job_key not in job_keys:
+                kept.append(item)
+        other_jobs = False
+        for item in kept:
+            job, _ = item
+            if job is not None:
+                other_jobs = True
+            self.pending_calls_q.put(item)
+        if other_jobs:
+            return
+        self._empty_token_bucket()
+        self.running_workers = 0
+        if job_ids and self.job_monitor is not None:
+            self.job_monitor.close_jobs(job_ids)
+
     def _drain_token_bucket(self):
         """
         Takes back the tokens left over by previous jobs, one per worker that
@@ -595,6 +641,10 @@ class FaaSInvoker(Invoker):
         prefix = log_prefix(job.executor_id, job.job_id)
 
         if not self.should_run:
+            # Tokens a monitor handed back after the stop belong to workers
+            # this restart no longer counts, and would each invoke one more
+            # worker than max_workers allows
+            self._empty_token_bucket()
             self.running_workers = 0
             self.should_run = True
             self._start_async_invokers()

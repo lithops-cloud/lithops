@@ -317,6 +317,59 @@ class TestFaaSInvokerHelpers:
         assert inv.running_workers == 0
         assert inv.job_monitor.token_bucket_q.qsize() == 1
 
+    def test_discard_pending_keeps_the_calls_of_other_jobs(self):
+        inv = self._faas()
+        failed = _job(chunksize=2)
+        failed.job_key = 'sess-0/M000'
+        other = _job(chunksize=2)
+        other.job_key = 'sess-0/M001'
+        inv._queue_call_ranges(failed, range(4))
+        inv._queue_call_ranges(other, range(3))
+        inv.running_workers = 4
+        inv.job_monitor.token_bucket_q.put('#')
+        inv.discard_pending({'sess-0/M000'})
+        left = []
+        while not inv.pending_calls_q.empty():
+            left.append(inv.pending_calls_q.get()[0])
+        assert left == [other, other]
+        assert inv.running_workers == 4
+        inv.job_monitor.close_jobs.assert_not_called()
+
+    def test_discard_pending_forgets_workers_when_no_other_job_is_queued(self):
+        """
+        wait() also drops those jobs from the monitor, so their workers
+        never put a token back. Without forgetting them, the next map()
+        of this executor stays capped by a count that never comes down
+        """
+        inv = self._faas()
+        inv.running_workers = 4
+        inv.job_monitor.token_bucket_q.put('#')
+        failed = _job(chunksize=1)
+        failed.job_key = 'sess-0/M000'
+        inv._queue_call_ranges(failed, range(2))
+        inv.discard_pending({'sess-0/M000'}, {'M000'})
+        assert inv.running_workers == 0
+        assert inv.pending_calls_q.empty()
+        assert inv.job_monitor.token_bucket_q.empty()
+        inv.job_monitor.close_jobs.assert_called_once_with({'M000'})
+
+    def test_a_restart_forgets_tokens_handed_back_after_the_stop(self):
+        """
+        A monitor's final sweep can hand tokens back after the invoker
+        stopped. The restart counts no running worker, so each of those
+        tokens would invoke one worker beyond max_workers
+        """
+        inv = self._faas()
+        inv.max_workers = 1
+        inv.ASYNC_INVOKERS = 1
+        for _ in range(3):
+            inv.job_monitor.token_bucket_q.put('#')
+        with patch.object(inv, '_async_invoker_loop'), \
+                patch.object(inv, '_invoke_direct'):
+            inv.compute_handler = MagicMock()
+            inv._invoke_job(_job(chunksize=1, total_calls=2))
+        assert inv.job_monitor.token_bucket_q.qsize() == 1
+
     def test_queue_call_ranges_chunks_ids(self):
         inv = self._faas()
         job = _job(chunksize=2)
