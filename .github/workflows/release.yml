@@ -1,0 +1,244 @@
+name: Release
+
+# Run manually from the Actions tab: Release -> Run workflow -> version (e.g. 3.7.1).
+# It does what the release used to take by hand:
+#   1. sets lithops/version.py to the version and renames the development heading of
+#      CHANGELOG.md to it, commits "Update version to X" and tags it X
+#   2. builds the sdist and wheel and publishes them (trusted publishing, no token)
+#   3. creates the GitHub release "Lithops-X" with the changelog section as notes
+#   4. bumps the branch to the next development version (X.Y.Z+1.dev0)
+# Commits go to the branch the workflow runs on, authored by whoever runs it.
+# With "dry run" checked it only does the edits and the build, and pushes or publishes nothing.
+#
+# In lithops-cloud/lithops it releases from master to PyPI. In a fork it publishes to
+# TestPyPI instead, so the whole release can be tried out from a throwaway branch.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, e.g. 3.7.1"
+        required: true
+      dry_run:
+        description: "Dry run: build and check only, do not push, publish or release"
+        type: boolean
+        default: false
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    outputs:
+      author_name: ${{ steps.author.outputs.name }}
+      author_email: ${{ steps.author.outputs.email }}
+
+    steps:
+      - name: Check the branch
+        if: ${{ github.repository == 'lithops-cloud/lithops' && github.ref_name != 'master' }}
+        run: |
+          echo "Releases of lithops-cloud/lithops are made from master, not ${{ github.ref_name }}"
+          exit 1
+
+      - name: Clone Lithops repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Install Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Get the git identity of who runs the workflow
+        id: author
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LOGIN: ${{ github.actor }}
+          LOGIN_ID: ${{ github.actor_id }}
+        run: |
+          # Their GitHub username, and the email of their latest commit in this repository,
+          # which is the one their own commits use. Someone who never committed here gets
+          # their GitHub noreply address
+          email=$(gh api "repos/$GITHUB_REPOSITORY/commits?author=$LOGIN&per_page=1" \
+                    --jq '.[0].commit.author.email // empty' 2>/dev/null || true)
+          [ -n "$email" ] || email="$LOGIN_ID+$LOGIN@users.noreply.github.com"
+          echo "Committing as $LOGIN <$email>"
+          echo "name=$LOGIN" >> "$GITHUB_OUTPUT"
+          echo "email=$email" >> "$GITHUB_OUTPUT"
+
+      - name: Set the release version
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          python3 - <<'EOF'
+          import os, re, subprocess, sys
+
+          version = os.environ['VERSION'].strip()
+          if not re.fullmatch(r'\d+\.\d+\.\d+', version):
+              sys.exit(f'Version must look like 3.7.1, got {version!r}')
+          if subprocess.run(['git', 'rev-parse', '-q', '--verify', f'refs/tags/{version}'],
+                            capture_output=True).returncode == 0:
+              sys.exit(f'Tag {version} already exists')
+
+          with open('lithops/version.py') as f:
+              source = f.read()
+          source, n = re.subn(r'__version__ = "[^"]+"', f'__version__ = "{version}"', source)
+          if n != 1:
+              sys.exit('Could not find __version__ in lithops/version.py')
+          with open('lithops/version.py', 'w') as f:
+              f.write(source)
+
+          with open('CHANGELOG.md') as f:
+              changelog = f.read()
+          heading = re.search(r'^## \[v?(\d+\.\d+\.\d+)\.dev\d*\][ \t]*$', changelog, re.M)
+          if not heading:
+              sys.exit('The first CHANGELOG.md section must be the development version, e.g. ## [v3.7.1.dev0]')
+          changelog = changelog[:heading.start()] + f'## [v{version}]' + changelog[heading.end():]
+          with open('CHANGELOG.md', 'w') as f:
+              f.write(changelog)
+
+          # the section of this release becomes the notes of the GitHub release
+          body = changelog[heading.start():].split('\n', 1)[1]
+          notes = re.split(r'^## \[', body, maxsplit=1, flags=re.M)[0].strip()
+          if not notes:
+              sys.exit('The CHANGELOG.md section of this release is empty')
+          with open('release-notes.md', 'w') as f:
+              f.write(notes + '\n')
+          EOF
+          git diff
+
+      - name: Build the sdist and wheel
+        run: |
+          pip3 install -U build twine
+          python3 -m build
+          twine check dist/*
+          ls -l dist
+
+      - name: Commit and tag the release
+        env:
+          VERSION: ${{ inputs.version }}
+          AUTHOR_NAME: ${{ steps.author.outputs.name }}
+          AUTHOR_EMAIL: ${{ steps.author.outputs.email }}
+        run: |
+          git config user.name "$AUTHOR_NAME"
+          git config user.email "$AUTHOR_EMAIL"
+          git commit -am "Update version to $VERSION"
+          git tag "$VERSION"
+
+      - name: Push the release commit and tag
+        if: ${{ !inputs.dry_run }}
+        env:
+          VERSION: ${{ inputs.version }}
+        run: git push --atomic origin "HEAD:$GITHUB_REF_NAME" "refs/tags/$VERSION"
+
+      - name: Keep the build for the next jobs
+        uses: actions/upload-artifact@v7
+        with:
+          name: release
+          path: |
+            dist/
+            release-notes.md
+          if-no-files-found: error
+
+  publish:
+    needs: prepare
+    if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Create this environment in the repository settings (optionally with required
+    # reviewers, to approve every upload) and register it as a trusted publisher:
+    # "pypi" on pypi.org for lithops-cloud/lithops, "testpypi" on test.pypi.org for a fork
+    environment:
+      name: ${{ github.repository == 'lithops-cloud/lithops' && 'pypi' || 'testpypi' }}
+      url: ${{ github.repository == 'lithops-cloud/lithops' && 'https://pypi.org' || 'https://test.pypi.org' }}/project/lithops/${{ inputs.version }}/
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Get the build
+        uses: actions/download-artifact@v8
+        with:
+          name: release
+
+      - name: Publish to ${{ github.repository == 'lithops-cloud/lithops' && 'PyPI' || 'TestPyPI' }}
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: ${{ github.repository == 'lithops-cloud/lithops' && 'https://upload.pypi.org/legacy/' || 'https://test.pypi.org/legacy/' }}
+
+  github-release:
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+
+    steps:
+      - name: Get the build
+        uses: actions/download-artifact@v8
+        with:
+          name: release
+
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          gh release create "$VERSION" dist/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Lithops-$VERSION" \
+            --notes-file release-notes.md
+
+  bump-dev:
+    needs: [prepare, publish]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+
+    steps:
+      - name: Clone Lithops repository
+        uses: actions/checkout@v5
+
+      - name: Set the next development version
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          # the checkout is the branch as it was when the workflow started; bring in the
+          # release commit pushed by the prepare job
+          git pull --ff-only origin "$GITHUB_REF_NAME"
+          python3 - <<'EOF'
+          import os, re
+
+          major, minor, patch = os.environ['VERSION'].strip().split('.')
+          dev = f'{major}.{minor}.{int(patch) + 1}.dev0'
+          with open('lithops/version.py') as f:
+              source = f.read()
+          with open('lithops/version.py', 'w') as f:
+              f.write(re.sub(r'__version__ = "[^"]+"', f'__version__ = "{dev}"', source))
+
+          with open('CHANGELOG.md') as f:
+              changelog = f.read()
+          first = re.search(r'^## \[', changelog, re.M)
+          changelog = changelog[:first.start()] + f'## [v{dev}]\n\n' + changelog[first.start():]
+          with open('CHANGELOG.md', 'w') as f:
+              f.write(changelog)
+          with open(os.environ['GITHUB_ENV'], 'a') as f:
+              f.write(f'DEV_VERSION={dev}\n')
+          EOF
+
+      - name: Commit and push
+        env:
+          AUTHOR_NAME: ${{ needs.prepare.outputs.author_name }}
+          AUTHOR_EMAIL: ${{ needs.prepare.outputs.author_email }}
+        run: |
+          git config user.name "$AUTHOR_NAME"
+          git config user.email "$AUTHOR_EMAIL"
+          git commit -am "Bump version to $DEV_VERSION"
+          git push origin "HEAD:$GITHUB_REF_NAME"
