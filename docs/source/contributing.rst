@@ -139,7 +139,7 @@ release notes. The workflow sets the version, tags it, publishes the sdist and w
 creates the GitHub release, publishes the docs to the website repository and bumps ``master``
 to the next development version. Check *dry run* to build and check a release without pushing
 or publishing anything. To republish the docs without a release, run the *Publish docs*
-workflow on ``master``.
+workflow: it builds ``master`` and publishes it as the docs of the latest release.
 
 
 AI coding agents

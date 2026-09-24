@@ -7,10 +7,11 @@ name: Release
 #   2. builds the sdist and wheel and publishes them (trusted publishing, no token)
 #   3. creates the GitHub release "Lithops-X" with the changelog section as notes
 #   4. bumps the branch to the next development version (X.Y.Z+1.dev0)
-#   5. publishes the docs of the release to the GitHub Pages repository as "Update docs to X"
+#   5. at the end, publishes the docs to the GitHub Pages repository as "Update docs to X"
 #      (the Publish docs workflow, docs.yml, which can also be run by hand to republish them)
 # Commits go to the branch the workflow runs on, authored by whoever runs it.
-# With "dry run" checked it only does the edits and the builds, and pushes or publishes nothing.
+# With "dry run" checked it only does the edits and the package build, and pushes or
+# publishes nothing.
 #
 # In lithops-cloud/lithops it releases from master to PyPI. In a fork it publishes to
 # TestPyPI instead, so the whole release can be tried out from a throwaway branch.
@@ -68,8 +69,9 @@ jobs:
           # Their GitHub username, and the email of their latest commit in this repository,
           # which is the one their own commits use. Someone who never committed here gets
           # their GitHub noreply address
+          # (gh prints the error body on stdout when the call fails, so drop it then)
           email=$(gh api "repos/$GITHUB_REPOSITORY/commits?author=$LOGIN&per_page=1" \
-                    --jq '.[0].commit.author.email // empty' 2>/dev/null || true)
+                    --jq '.[0].commit.author.email // empty' 2>/dev/null) || email=""
           [ -n "$email" ] || email="$LOGIN_ID+$LOGIN@users.noreply.github.com"
           echo "Committing as $LOGIN <$email>"
           echo "name=$LOGIN" >> "$GITHUB_OUTPUT"
@@ -174,20 +176,6 @@ jobs:
         with:
           repository-url: ${{ github.repository == 'lithops-cloud/lithops' && 'https://upload.pypi.org/legacy/' || 'https://test.pypi.org/legacy/' }}
 
-  docs:
-    needs: [prepare, publish]
-    # after the upload, or in a dry run just to check that the docs build
-    if: ${{ !cancelled() && needs.prepare.result == 'success' && (inputs.dry_run || needs.publish.result == 'success') }}
-    permissions:
-      contents: read
-    uses: ./.github/workflows/docs.yml
-    with:
-      # the release tag; a dry run pushed no tag, so its branch
-      ref: ${{ inputs.dry_run && github.sha || inputs.version }}
-      version: ${{ inputs.version }}
-      dry_run: ${{ inputs.dry_run }}
-    secrets: inherit
-
   github-release:
     needs: publish
     runs-on: ubuntu-latest
@@ -258,3 +246,12 @@ jobs:
           git config user.email "$AUTHOR_EMAIL"
           git commit -am "Bump version to $DEV_VERSION"
           git push origin "HEAD:$GITHUB_REF_NAME"
+
+  docs:
+    # last, once the release is out and master bumped (so a dry run, which skips those,
+    # does not publish the docs either)
+    needs: [github-release, bump-dev]
+    permissions:
+      contents: read
+    uses: ./.github/workflows/docs.yml
+    secrets: inherit

@@ -3,33 +3,17 @@ name: Publish docs
 # Builds the Sphinx docs and commits them to the docs/ folder of the GitHub Pages
 # repository (<owner>/lithops-cloud.github.io), authored by whoever runs the workflow.
 #
-# The Release workflow calls it for every release ("Update docs to X"). Run it by hand from
-# the Actions tab (Publish docs -> Run workflow -> branch) to republish the docs of that
-# branch without a release, e.g. after fixing them ("Update docs").
+# It always builds master, and names the commit after the latest GitHub release
+# ("Update docs to X"). The Release workflow calls it at the end of every release; run it by
+# hand from the Actions tab (Publish docs -> Run workflow) to republish the docs without a
+# release, e.g. after fixing them.
 #
 # Pushing to the docs repository needs a deploy key with write access: its private key goes
 # in the DOCS_DEPLOY_KEY secret of this repository; without it the docs are only built.
 
 on:
   workflow_dispatch:
-    inputs:
-      dry_run:
-        description: "Dry run: build the docs only, do not publish them"
-        type: boolean
-        default: false
   workflow_call:
-    inputs:
-      ref:
-        description: "Branch, tag or commit to build the docs from (default: the one that triggered the run)"
-        type: string
-        default: ''
-      version:
-        description: "Release the docs belong to, for the commit message"
-        type: string
-        default: ''
-      dry_run:
-        type: boolean
-        default: false
     secrets:
       DOCS_DEPLOY_KEY:
         required: false
@@ -54,11 +38,8 @@ jobs:
         id: key
         env:
           DEPLOY_KEY: ${{ secrets.DOCS_DEPLOY_KEY }}
-          DRY_RUN: ${{ inputs.dry_run }}
         run: |
-          if [ "$DRY_RUN" = "true" ]; then
-            echo "publish=false" >> "$GITHUB_OUTPUT"
-          elif [ -z "$DEPLOY_KEY" ]; then
+          if [ -z "$DEPLOY_KEY" ]; then
             echo "::warning::The DOCS_DEPLOY_KEY secret is not set, the docs are built but not published to $DOCS_REPOSITORY"
             echo "publish=false" >> "$GITHUB_OUTPUT"
           else
@@ -68,7 +49,28 @@ jobs:
       - name: Clone Lithops repository
         uses: actions/checkout@v5
         with:
-          ref: ${{ inputs.ref }}
+          ref: master
+
+      - name: Get the latest release
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # a repository without releases answers 404, and gh prints its body on stdout
+          VERSION=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name 2>/dev/null) || VERSION=""
+          echo "Docs of release ${VERSION:-(none)}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Set the docs to the release version
+        # the docs show lithops.__version__ ("Lithops vX" in the logo), and master carries the
+        # next development version; set before installing, as conf.py imports the installed
+        # package. Without any release the version of master is kept
+        if: ${{ steps.version.outputs.version != '' }}
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          sed -i -E "s/^__version__ = \".*\"/__version__ = \"$VERSION\"/" lithops/version.py
+          grep '^__version__' lithops/version.py
 
       - name: Install Python
         uses: actions/setup-python@v6
@@ -94,8 +96,9 @@ jobs:
           # Their GitHub username, and the email of their latest commit in this repository,
           # which is the one their own commits use. Someone who never committed here gets
           # their GitHub noreply address
+          # (gh prints the error body on stdout when the call fails, so drop it then)
           email=$(gh api "repos/$GITHUB_REPOSITORY/commits?author=$LOGIN&per_page=1" \
-                    --jq '.[0].commit.author.email // empty' 2>/dev/null || true)
+                    --jq '.[0].commit.author.email // empty' 2>/dev/null) || email=""
           [ -n "$email" ] || email="$LOGIN_ID+$LOGIN@users.noreply.github.com"
           echo "Committing as $LOGIN <$email>"
           echo "name=$LOGIN" >> "$GITHUB_OUTPUT"
@@ -112,7 +115,7 @@ jobs:
       - name: Commit and push the docs
         if: ${{ steps.key.outputs.publish == 'true' }}
         env:
-          VERSION: ${{ inputs.version }}
+          VERSION: ${{ steps.version.outputs.version }}
           AUTHOR_NAME: ${{ steps.author.outputs.name }}
           AUTHOR_EMAIL: ${{ steps.author.outputs.email }}
         run: |
