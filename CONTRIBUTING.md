@@ -118,7 +118,8 @@ review the development section at the top of `CHANGELOG.md`, which becomes the r
 The workflow sets the version, tags it, publishes the sdist and wheel to PyPI, creates the
 GitHub release, publishes the docs to the website repository and bumps `master` to the next
 development version. Check *dry run* to build and check a release without pushing or
-publishing anything.
+publishing anything. To republish the docs without a release, run the *Publish docs* workflow
+on `master`.
 
 ## AI coding agents
 
