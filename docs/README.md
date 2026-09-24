@@ -1,5 +1,9 @@
 # Build Lithops documentation
 
+The [Release workflow](../.github/workflows/release.yml) builds these docs and publishes them to
+the website repository on every release. The steps below are for building them locally, or
+publishing them by hand.
+
 1. Install [Sphinx](https://www.sphinx-doc.org/en/master/usage/installation.html) and all plugins:
 
     ```bash
