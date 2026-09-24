@@ -1,0 +1,52 @@
+name: Docs
+
+# Builds the Sphinx docs on pull requests that change them, and fails on any warning, so
+# broken markup, missing pages or bad docstrings are caught before they are merged
+
+on:
+  pull_request:
+    branches:
+      - master
+    paths:
+      - 'docs/**'
+      # the modules whose docstrings are part of the docs (autodoc)
+      - 'lithops/executors.py'
+      - 'lithops/concurrent/futures.py'
+      - 'lithops/retries.py'
+      - 'lithops/storage/storage.py'
+      - 'lithops/utils.py'
+      - 'pyproject.toml'
+      - '.github/workflows/docs-check.yml'
+
+  workflow_dispatch:
+  # this allows to run the workflow manually through the github dashboard
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+
+  sphinx:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Clone Lithops repository
+        uses: actions/checkout@v5
+
+      - name: Install Python 3.12
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: pyproject.toml
+
+      - name: Install the docs dependencies
+        run: |
+          sudo apt-get update && sudo apt-get install --no-install-recommends -y pandoc
+          pip3 install '.[docs]'
+
+      - name: Build the docs
+        # -W turns warnings into errors; --keep-going reports all of them, not just the first
+        run: make -C docs html SPHINXOPTS="-W --keep-going"

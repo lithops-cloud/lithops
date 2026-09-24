@@ -1,9 +1,14 @@
 # Build Lithops documentation
 
-1. Install [Sphinx](https://www.sphinx-doc.org/en/master/usage/installation.html) and all plugins:
+The [Release workflow](../.github/workflows/release.yml) builds these docs and publishes them to
+the website repository on every release. To republish them without a release (e.g. after fixing
+them), run the [Publish docs workflow](../.github/workflows/docs.yml) from the *Actions* tab: it
+builds `master` and publishes it as the docs of the latest release. The steps below are for building them locally.
+
+1. Install Lithops with [Sphinx](https://www.sphinx-doc.org/en/master/usage/installation.html) and all plugins, from the repository root:
 
     ```bash
-    python3 -m pip install sphinx myst-parser sphinx_copybutton jupyter ipykernel nbsphinx sphinx_book_theme 
+    python3 -m pip install -e '.[docs]'
     ```
 
 2. Install [Pandoc](https://pandoc.org/installing.html). For debian/ubuntu:

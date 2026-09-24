@@ -1,3 +1,7 @@
+---
+orphan: true
+---
+
 # IBM Cloud Functions
 
 Lithops with *IBM Cloud Functions* as compute backend.

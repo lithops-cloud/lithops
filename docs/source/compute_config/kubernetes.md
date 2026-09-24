@@ -119,3 +119,9 @@ You can view the function executions logs in your local machine using the *litho
 ```bash
 lithops logs poll
 ```
+
+```{toctree}
+:hidden:
+
+kubernetes_rabbitmq
+```
