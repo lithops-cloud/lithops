@@ -19,8 +19,10 @@ keywords = [
     "map-reduce",
 ]
 authors = [
-    { name = "Gil Vernik", email = "gilv@ibm.com" },
-    { name = "Josep Sampe", email = "josep.sampe@gmail.com" },
+    { name = "Gil Vernik" },
+    { name = "Josep Sampe" },
+    { email = "gilv@ibm.com" },
+    { email = "josep.sampe@gmail.com" },
 ]
 license = "Apache-2.0"
 license-files = ["LICENSE"]

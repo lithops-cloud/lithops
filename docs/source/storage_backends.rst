@@ -1,11 +1,7 @@
 Storage Backends
 ================
 
-.. toctree::
-   :glob:
-   :maxdepth: 1
-
-   compute_config/localhost.md
+* :doc:`compute_config/localhost`
 
 **Object Storage:**
 

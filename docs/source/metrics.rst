@@ -92,7 +92,7 @@ that. Lithops keeps a registry of cumulative metrics and replaces its
 Pushgateway group with it on every push.
 
 Installing Prometheus and the Pushgateway
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The quickest way to get all three services up, including Grafana:
 
@@ -194,7 +194,7 @@ OpenTelemetry
         endpoint: http://localhost:4318
 
 Straight into Prometheus, without a collector
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Prometheus can receive OTLP itself, which means the ``otlp`` backend reaches it
 with no collector and no Pushgateway in between. Start Prometheus with

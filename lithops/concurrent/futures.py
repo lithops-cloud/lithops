@@ -287,10 +287,30 @@ class Future(_CfFuture):
         return super().done()
 
     def result(self, timeout=None):
+        """
+        Returns the result of the call, waiting for it to finish.
+
+        :param timeout: Seconds to wait if the call is not done yet. ``None``
+            waits without limit
+        :return: The value returned by the call
+        :raises concurrent.futures.CancelledError: If the future was cancelled
+        :raises TimeoutError: If the call did not finish within ``timeout``
+        :raises Exception: The exception raised by the call, if it raised one
+        """
         self._sync()
         return super().result(timeout)
 
     def exception(self, timeout=None):
+        """
+        Returns the exception raised by the call, waiting for it to finish.
+
+        :param timeout: Seconds to wait if the call is not done yet. ``None``
+            waits without limit
+        :return: The exception raised by the call, or ``None`` if it returned
+            normally
+        :raises concurrent.futures.CancelledError: If the future was cancelled
+        :raises TimeoutError: If the call did not finish within ``timeout``
+        """
         self._sync()
         return super().exception(timeout)
 
@@ -635,6 +655,17 @@ class FunctionExecutor(_CfExecutor):
     # -- concurrent.futures.Executor ----------------------------------------
 
     def submit(self, fn, /, *args, **kwargs):
+        """
+        Schedules ``fn(*args, **kwargs)`` to run on a Lithops worker.
+
+        :param fn: The callable to run
+        :param args: Positional arguments for ``fn``
+        :param kwargs: Keyword arguments for ``fn``
+        :return: A :class:`Future` representing the call
+        :raises RuntimeError: If the executor has been shut down
+        :raises concurrent.futures.BrokenExecutor: If the executor stopped
+            working and can no longer run calls
+        """
         # Shutdown must see every accepted submission in _pending before it
         # can release the native executor, including while submission blocks.
         with self._submission_lock:
