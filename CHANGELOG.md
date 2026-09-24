@@ -24,6 +24,8 @@
 - [Storage] `CloudFileProxy.walk()` matches `os.walk` on a missing path; `cloud_open()` rejects an unsupported mode.
 - [CLI] `job list`, `worker list`, `image delete` and `image list` reject unknown flags.
 - [Joblib] `lithops_args` applied to the batch pool; upload/download pools capped at 32 threads.
+- [Packaging] Package metadata moved from `setup.py` / `setup.cfg` to `pyproject.toml`; `python_requires` raised to `>=3.10`, matching the tested versions.
+- [Development] Linting moved from flake8 to ruff (`ruff check .`, line length 120); new `dev` extra, pre-commit hooks, `.editorconfig`, `AGENTS.md`, `SECURITY.md` and issue / PR templates.
 
 ### Fixed
 - [Core] Serialization, executor IDs, `FuturesList`, module inspection, `chunksize=0`, packaging, ports, and Ctrl+C/`sys.exit()`.

@@ -101,7 +101,8 @@ class OCIObjectStorageBackend:
 
         try:
             self.os_client.put_object(self.namespace, bucket_name, key, data)
-            logger.debug('OSS Object {} uploaded to bucket {} - Size: {}'.format(key, bucket_name, sizeof_fmt(len(data))))
+            logger.debug('OSS Object {} uploaded to bucket {} - Size: {}'.format(
+                key, bucket_name, sizeof_fmt(len(data))))
         except oci.exceptions.ServiceError as e:
             logger.debug("ServiceError in put_object: %s", str(e))
             raise StorageNoSuchKeyError(bucket_name, key)
@@ -161,7 +162,8 @@ class OCIObjectStorageBackend:
         Download a file from the specified bucket and key in the object storage.
         :param bucket: Name of the bucket
         :param key: The key or path of the file in the object storage
-        :param file_name: (Optional) The name of the file to be saved locally. If not provided, the key is used as the file name
+        :param file_name: (Optional) The name of the file to be saved locally. If not provided,
+            the key is used as the file name
         :param extra_args: (Optional) Additional arguments for the download process.
         :return: True if the file is downloaded successfully, False otherwise.
         :rtype: bool
@@ -189,7 +191,8 @@ class OCIObjectStorageBackend:
 
         :param bucket: Name of the bucket
         :param key: The key under which the file is stored
-        :param (Optional) file_name: The local file path where the downloaded file will be written. If None, the key is used
+        :param (Optional) file_name: The local file path where the downloaded file will be written.
+            If None, the key is used
         :param extra_args: Additional arguments that may be passed to the function
         :return: True if the file was successfully downloaded
         :rtype: bool
@@ -212,7 +215,8 @@ class OCIObjectStorageBackend:
 
     def delete_objects(self, bucket_name, keys_list):
         '''
-        Deletes multiple objects from OCI Object Storage. The objects are identified by a list of keys in a specified bucket.
+        Deletes multiple objects from OCI Object Storage. The objects are identified by a list of keys
+        in a specified bucket.
 
         :param bucket_name: Name of the bucket
         :param keys_list: A list of keys under which the objects are stored
@@ -248,13 +252,16 @@ class OCIObjectStorageBackend:
         :param bucket_name: Name of the bucket
         :param prefix: (Optional) Prefix to filter object names. Default is None
         :param match_pattern: (Optional) Match pattern to further filter object names. Default is None
-        :return: A list of dictionaries containing the keys and sizes of the objects that match the given prefix and match pattern
+        :return: A list of dictionaries containing the keys and sizes of the objects that match the given
+            prefix and match pattern
         :rtype: list of dict
         :raises StorageNoSuchKeyError: If the specified bucket does not exist or there is a service error
         '''
         prefix = '' if prefix is None else prefix
         try:
-            res = self.os_client.list_objects(self.namespace, bucket_name, prefix=prefix, limit=1000, fields="name,size")
+            res = self.os_client.list_objects(
+                self.namespace, bucket_name, prefix=prefix, limit=1000, fields="name,size"
+            )
             obj_list = [{'Key': obj.name, 'Size': obj.size} for obj in res.data.objects]
 
             return obj_list

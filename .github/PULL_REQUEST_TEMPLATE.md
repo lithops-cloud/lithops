@@ -1,6 +1,21 @@
+## What and why
 
+<!-- What does this change and why is it needed? Link the issue if there is one. -->
 
- 
+## How it was tested
+
+- [ ] `ruff check .`
+- [ ] `pytest -v --backend localhost --storage localhost` (in `lithops/tests`)
+- [ ] On a cloud backend: <!-- e.g. aws_lambda + aws_s3 -->
+
+## Checklist
+
+- [ ] Tests cover the new behaviour / the fixed bug (regression test)
+- [ ] Docs updated (`docs/`, `README.md`, `config/config_template.yaml` for new config keys)
+- [ ] `CHANGELOG.md` entry under the development version
+
+---
+
 Developer's Certificate of Origin 1.1
 
        By making a contribution to this project, I certify that:
@@ -25,4 +40,3 @@ Developer's Certificate of Origin 1.1
            personal information I submit with it, including my sign-off) is
            maintained indefinitely and may be redistributed consistent with
            this project or the open source license(s) involved.
-

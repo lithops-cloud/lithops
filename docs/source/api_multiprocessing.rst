@@ -77,11 +77,6 @@ so a few things of it have no counterpart:
    * - ``RLock``
      - Only re-entrant for the object that took it. A copy of it in another
        process, or one restored from a pickle, does not know the lock is held
-   * - ``Semaphore.acquire()``, ``Lock.acquire()``
-     - Take ``block``, but no ``timeout``
-   * - ``Condition.wait(timeout)``
-     - A wait that timed out leaves its token behind, so the next
-       ``notify()`` may wake nobody. ``notify_all()`` is not affected
    * - ``RawArray('c', ...)``
      - Not implemented. Use ``Array('c', ...)``
    * - ``Process.close()``

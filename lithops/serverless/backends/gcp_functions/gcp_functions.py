@@ -288,7 +288,9 @@ class GCPFunctionsBackend:
                 if attempt < self.num_retries - 1:
                     time.sleep(self.retry_sleep)
                 else:
-                    raise Exception(f"Failed to create Cloud Run function (v2) after {self.num_retries} attempts.") from e
+                    raise Exception(
+                        f"Failed to create Cloud Run function (v2) after {self.num_retries} attempts."
+                    ) from e
 
         # Wait until the function is completely deployed
         logger.info('Waiting for the function to be deployed')

@@ -90,8 +90,8 @@ finishes normally. A message backend is a faster path for the same information, 
 
 **Resources are cleaned up on exit.** A message backend creates one queue, topic or list per executor, named after the
 executor id. It is created before the first function is invoked and deleted when the executor shuts down — when the
-``with`` block ends, or on interpreter exit. A process killed hard enough to skip that leaves the resource behind, and
-it has to be removed by hand.
+``with`` block ends, or on interpreter exit. A process killed hard enough to skip that leaves the resource behind.
+A RabbitMQ queue expires on its own after 24 hours; the others have to be removed by hand.
 
 **Nested executors work.** A function may create a ``FunctionExecutor`` of its own. Its call statuses reach every
 executor up the chain, so a client waiting on the outer job still sees the progress of the inner one.

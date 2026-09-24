@@ -1,0 +1,217 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lithops"
+dynamic = ["version"]
+description = "Run unmodified Python code at massive scale on any cloud, with no servers to manage"
+keywords = [
+    "serverless",
+    "distributed-computing",
+    "parallel-computing",
+    "multicloud",
+    "faas",
+    "kubernetes",
+    "hpc",
+    "big-data",
+    "aws-lambda",
+    "map-reduce",
+]
+authors = [
+    { name = "Gil Vernik", email = "gilv@ibm.com" },
+    { name = "Josep Sampe", email = "josep.sampe@gmail.com" },
+]
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Natural Language :: English",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering",
+    "Topic :: System :: Distributed Computing",
+]
+dependencies = [
+    "Click",
+    "tabulate",
+    "six",
+    "PyYAML",
+    "pika",
+    "tqdm",
+    "tblib",
+    "requests",
+    "paramiko",
+    "cloudpickle",
+    "ps-mem",
+    "psutil",
+]
+
+[project.optional-dependencies]
+ibm = [
+    "ibm-cos-sdk",
+    "ibm-code-engine-sdk",
+    "ibm-vpc",
+    "kubernetes",
+]
+aws = [
+    "boto3",
+]
+gcp = [
+    "httplib2",
+    "google-cloud-storage",
+    "google-cloud-pubsub",
+    "google-api-python-client",
+    "google-auth",
+]
+azure = [
+    "azure-mgmt-resource",
+    "azure-mgmt-compute",
+    "azure-mgmt-network",
+    "azure-identity",
+    "azure-storage-blob",
+    "azure-storage-queue",
+]
+aliyun = [
+    "alibabacloud-fc20230330>=4.7.0",
+    "oss2",
+]
+ceph = [
+    "boto3",
+]
+knative = [
+    "kubernetes",
+]
+kubernetes = [
+    "kubernetes",
+]
+minio = [
+    "boto3",
+]
+redis = [
+    "redis",
+]
+multiprocessing = [
+    "redis",
+    "pynng",
+]
+joblib = [
+    "joblib",
+    "diskcache",
+    "numpy",
+    "redis",
+]
+plotting = [
+    "pandas",
+    "matplotlib",
+    "seaborn",
+    "numpy",
+]
+oracle = [
+    "oci",
+]
+tests = [
+    "pytest",
+    "pytest-timeout",
+    "kubernetes",
+    "pika",
+    "ibm-cos-sdk",
+    "ibm-cloud-sdk-core",
+    "joblib",
+    "diskcache",
+    "numpy",
+    "redis",
+    "pandas",
+    "matplotlib",
+    "seaborn",
+    "flask",
+    "gevent",
+    "scikit-learn",
+]
+telemetry = [
+    "prometheus-client",
+    "opentelemetry-sdk",
+    "opentelemetry-exporter-otlp-proto-http",
+]
+dev = [
+    "ruff>=0.16,<0.17",
+    "pre-commit",
+]
+# union of every extra above except dev; keep it in sync when adding a dependency
+all = [
+    "alibabacloud-fc20230330>=4.7.0",
+    "azure-identity",
+    "azure-mgmt-compute",
+    "azure-mgmt-network",
+    "azure-mgmt-resource",
+    "azure-storage-blob",
+    "azure-storage-queue",
+    "boto3",
+    "diskcache",
+    "flask",
+    "gevent",
+    "google-api-python-client",
+    "google-auth",
+    "google-cloud-pubsub",
+    "google-cloud-storage",
+    "httplib2",
+    "ibm-cloud-sdk-core",
+    "ibm-code-engine-sdk",
+    "ibm-cos-sdk",
+    "ibm-vpc",
+    "joblib",
+    "kubernetes",
+    "matplotlib",
+    "numpy",
+    "oci",
+    "opentelemetry-exporter-otlp-proto-http",
+    "opentelemetry-sdk",
+    "oss2",
+    "pandas",
+    "pika",
+    "prometheus-client",
+    "pynng",
+    "pytest",
+    "pytest-timeout",
+    "redis",
+    "scikit-learn",
+    "seaborn",
+]
+
+[project.urls]
+Homepage = "https://github.com/lithops-cloud/lithops"
+Documentation = "https://lithops-cloud.github.io/docs/"
+Source = "https://github.com/lithops-cloud/lithops"
+Issues = "https://github.com/lithops-cloud/lithops/issues"
+Changelog = "https://github.com/lithops-cloud/lithops/blob/master/CHANGELOG.md"
+
+[project.scripts]
+lithops = "lithops.scripts.cli:lithops_cli"
+
+[tool.setuptools.dynamic]
+version = { attr = "lithops.version.__version__" }
+
+[tool.setuptools.packages.find]
+include = ["lithops*"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+# same scope flake8 had: the package only, not the examples, docs or runtime files
+extend-exclude = ["examples", "docs", "runtime", "config"]
+# apply the excludes to files passed explicitly too (pre-commit, editors)
+force-exclude = true
+
+[tool.ruff.lint]
+# the pycodestyle and pyflakes rules flake8 checked
+select = ["E", "W", "F"]
+ignore = [
+    "W605",  # invalid escape sequences in regex / docstring strings
+]

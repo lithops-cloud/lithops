@@ -10,6 +10,10 @@ lithops_*.zip
 *.txt
 *.csv
 *.coverage*
+.pytest_cache/
+
+# Local Lithops config (may hold credentials)
+.lithops_config
 
 # Virtual environments
 .env

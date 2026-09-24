@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Questions and discussions
+    url: https://github.com/lithops-cloud/lithops/discussions
+    about: Usage questions, ideas and general discussion
+  - name: Security vulnerabilities
+    url: https://github.com/lithops-cloud/lithops/security/advisories/new
+    about: Report security issues privately, not as public issues (see SECURITY.md)

@@ -667,7 +667,9 @@ class IBMVPCBackend:
         script = get_host_setup_script(lithops_pip_spec='lithops[ibm,redis]')
         build_vm.get_ssh_client().upload_data_to_file(script, remote_script)
         logger.debug("Executing Lithops installation script. Be patient, this process can take up to 3 minutes")
-        build_vm.get_ssh_client().run_remote_command(f"chmod 777 {remote_script}; sudo {remote_script}; rm {remote_script};")
+        build_vm.get_ssh_client().run_remote_command(
+            f"chmod 777 {remote_script}; sudo {remote_script}; rm {remote_script};"
+        )
         logger.debug("Lithops installation script finsihed")
 
         for src_dst_file in include:
@@ -682,7 +684,9 @@ class IBMVPCBackend:
             remote_script = "/tmp/install_user_lithops.sh"
             build_vm.get_ssh_client().upload_local_file(script, remote_script)
             logger.debug(f"Executing user script '{script_file}'")
-            build_vm.get_ssh_client().run_remote_command(f"chmod 777 {remote_script}; sudo {remote_script}; rm {remote_script};")
+            build_vm.get_ssh_client().run_remote_command(
+                f"chmod 777 {remote_script}; sudo {remote_script}; rm {remote_script};"
+            )
             logger.debug(f"User script '{script_file}' finsihed")
 
         build_vm.stop()
@@ -701,7 +705,9 @@ class IBMVPCBackend:
         logger.debug("Be patient, VM imaging can take up to 6 minutes")
 
         while True:
-            images = self.vpc_cli.list_images(name=image_name, resource_group_id=self.config['resource_group_id']).result['images']
+            images = self.vpc_cli.list_images(
+                name=image_name, resource_group_id=self.config['resource_group_id']
+            ).result['images']
             if len(images) > 0:
                 logger.debug(f"VM Image is being created. Current status: {images[0]['status']}")
                 if images[0]['status'] == 'available':
@@ -1424,7 +1430,9 @@ class IBMVPCInstance:
                 if char != '\n':
                     sockets.add(char)
             if len(sockets) != 1:
-                raise LithopsValidationError(f'Not using single CPU socket as specified, using {len(sockets)} sockets instead')
+                raise LithopsValidationError(
+                    f'Not using single CPU socket as specified, using {len(sockets)} sockets instead'
+                )
 
 
 RETRIABLE = ['list_vpcs',

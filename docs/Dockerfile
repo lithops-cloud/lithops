@@ -11,9 +11,9 @@ RUN pip install --no-cache-dir sphinx myst-parser sphinx_copybutton jupyter ipyk
 
 ADD lithops lithops
 
-COPY setup.py ./
+COPY pyproject.toml LICENSE ./
 
-RUN python setup.py install
+RUN pip install --no-cache-dir .
 
 ADD docs docs
 

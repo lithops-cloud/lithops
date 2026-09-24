@@ -5,7 +5,7 @@ on:
     branches:
       - master
     paths:
-      - 'setup.py'
+      - 'pyproject.toml'
       - 'lithops/**'
       - '.github/workflows/tests.yml'
 
@@ -48,7 +48,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: 'pip'
-          cache-dependency-path: setup.py
+          cache-dependency-path: pyproject.toml
 
       - name: Install Lithops
         run: |
