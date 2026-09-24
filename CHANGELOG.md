@@ -1,6 +1,6 @@
 # Changelog
 
-## [v3.7.1.dev0]
+## [v3.8.0]
 
 ### Added
 - [API] `lithops.concurrent.futures`, a stdlib-compatible executor backed by Lithops.
