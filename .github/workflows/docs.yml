@@ -78,7 +78,7 @@ jobs:
       - name: Install the docs dependencies
         run: |
           sudo apt-get update && sudo apt-get install --no-install-recommends -y pandoc
-          pip3 install . sphinx myst-parser sphinx_copybutton nbsphinx ipykernel sphinx_book_theme sphinxcontrib-mermaid
+          pip3 install '.[docs]'
 
       - name: Build the docs
         run: make -C docs html

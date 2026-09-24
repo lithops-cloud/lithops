@@ -38,7 +38,9 @@ loads the developer's own configuration (`~/.lithops/config`, `.lithops_config`,
 `LITHOPS_CONFIG_FILE`) and runs against whatever cloud account it points to. Some tests need a
 Redis server on `localhost:6379` and skip themselves when none is reachable.
 
-Documentation is built with Sphinx from `docs/` (`make html`, see [docs/README.md](docs/README.md)).
+Documentation is built with Sphinx from `docs/` (`pip3 install -e '.[docs]'`, then
+`make -C docs html SPHINXOPTS="-W --keep-going"`, see [docs/README.md](docs/README.md)). Pull
+requests that touch the docs must build without warnings: CI runs that same command.
 
 ## Repository map
 
@@ -91,7 +93,8 @@ Documentation is built with Sphinx from `docs/` (`make html`, see [docs/README.m
   `ruff check .` clean with line length 120. Do not run `ruff format`: the code base is not
   formatted with it and it would rewrite almost every file.
 - Package metadata, dependencies and extras live in `pyproject.toml`. When adding a
-  dependency to an extra, also add it to the `all` extra.
+  dependency to an extra, also add it to the `all` extra (except the `dev` and `docs` tooling
+  extras).
 - Every bug fix includes a regression test; every feature includes tests of its behaviour.
   Tests must run on the localhost backend and storage; backend-specific code that cannot be
   exercised locally is tested with fakes or mocks.

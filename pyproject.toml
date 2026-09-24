@@ -146,7 +146,17 @@ dev = [
     "ruff>=0.16,<0.17",
     "pre-commit",
 ]
-# union of every extra above except dev; keep it in sync when adding a dependency
+# to build the Sphinx docs (the notebooks also need the pandoc binary)
+docs = [
+    "sphinx",
+    "myst-parser",
+    "sphinx-copybutton",
+    "nbsphinx",
+    "ipykernel",
+    "sphinx-book-theme",
+    "sphinxcontrib-mermaid",
+]
+# union of every extra above except dev and docs; keep it in sync when adding a dependency
 all = [
     "alibabacloud-fc20230330>=4.7.0",
     "azure-identity",
