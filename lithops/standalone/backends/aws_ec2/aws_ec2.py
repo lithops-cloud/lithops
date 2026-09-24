@@ -772,7 +772,9 @@ class AWSEC2Backend:
         script = get_host_setup_script(lithops_pip_spec='lithops[aws,redis]')
         build_vm.get_ssh_client().upload_data_to_file(script, remote_script)
         logger.debug("Executing Lithops installation script. Be patient, this process can take up to 3 minutes")
-        build_vm.get_ssh_client().run_remote_command(f"chmod 777 {remote_script}; sudo {remote_script}; rm {remote_script};")
+        build_vm.get_ssh_client().run_remote_command(
+            f"chmod 777 {remote_script}; sudo {remote_script}; rm {remote_script};"
+        )
         logger.debug("Lithops installation script finsihed")
 
         for src_dst_file in include:
@@ -787,7 +789,9 @@ class AWSEC2Backend:
             remote_script = "/tmp/install_user_lithops.sh"
             build_vm.get_ssh_client().upload_local_file(script, remote_script)
             logger.debug(f"Executing user script '{script_file}'")
-            build_vm.get_ssh_client().run_remote_command(f"chmod 777 {remote_script}; sudo {remote_script}; rm {remote_script};")
+            build_vm.get_ssh_client().run_remote_command(
+                f"chmod 777 {remote_script}; sudo {remote_script}; rm {remote_script};"
+            )
             logger.debug(f"User script '{script_file}' finsihed")
 
         build_vm_id = build_vm.get_instance_id()
@@ -1439,8 +1443,12 @@ class EC2Instance:
 
                 LaunchSpecification['MinCount'] = 1
                 LaunchSpecification['MaxCount'] = 1
-                LaunchSpecification["TagSpecifications"] = [{"ResourceType": "instance", "Tags": [{'Key': 'Name', 'Value': self.name}]}]
-                LaunchSpecification["InstanceInitiatedShutdownBehavior"] = 'terminate' if self.delete_on_dismantle else 'stop'
+                LaunchSpecification["TagSpecifications"] = [
+                    {"ResourceType": "instance", "Tags": [{'Key': 'Name', 'Value': self.name}]}
+                ]
+                LaunchSpecification["InstanceInitiatedShutdownBehavior"] = (
+                    'terminate' if self.delete_on_dismantle else 'stop'
+                )
 
                 if user_data:
                     LaunchSpecification['UserData'] = user_data

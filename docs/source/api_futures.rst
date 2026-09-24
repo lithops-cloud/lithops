@@ -56,7 +56,8 @@ Core API Reference
    :show-inheritance:
 
 ``map()`` and ``map_reduce()`` return a :class:`~lithops.utils.FuturesList`, which
-is a list of futures that can be mapped over again. See
+is a list of futures that can be mapped over again. A plain list or tuple of
+those futures is a chain too, including a slice or a comprehension. See
 :doc:`Function chaining <notebooks/function_chaining>`.
 
 .. autoclass:: lithops.utils.FuturesList

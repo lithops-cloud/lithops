@@ -85,7 +85,8 @@ class SingularityBackend:
             cmd = f'{singularity_path} build ' + ' '.join(extra_args) + f' {singularity_image_path} {singularityfile}'
         else:
             default_singularityfile = self._create_default_runtime()
-            cmd = f'{singularity_path} build ' + ' '.join(extra_args) + f' {singularity_image_path} {default_singularityfile}'
+            cmd = (f'{singularity_path} build ' + ' '.join(extra_args)
+                   + f' {singularity_image_path} {default_singularityfile}')
 
         try:
             entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')

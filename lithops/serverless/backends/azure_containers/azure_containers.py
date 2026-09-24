@@ -282,7 +282,8 @@ class AzureContainerAppBackend:
 
         ca_template['properties']['environmentId'] = self._get_managed_environment_id()
 
-        cmd = f"az storage account show-connection-string -g {self.resource_group} --name {self.storage_account_name} --query connectionString --out json"
+        cmd = (f"az storage account show-connection-string -g {self.resource_group} "
+               f"--name {self.storage_account_name} --query connectionString --out json")
         queueconnection = self._run_az_command(cmd, return_result=True)
         ca_template['properties']['configuration']['secrets'][0]['value'] = queueconnection
 

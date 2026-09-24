@@ -68,7 +68,8 @@ class KubernetesBackend:
             context = None if self.kubecfg_context == 'default' else self.kubecfg_context
             load_kube_config(config_file=self.kubecfg_path, context=context)
             contexts, current_context = list_kube_config_contexts(config_file=self.kubecfg_path)
-            current_context = current_context if context is None else [it for it in contexts if it['name'] == context][0]
+            if context is not None:
+                current_context = [it for it in contexts if it['name'] == context][0]
             ctx_name = current_context.get('name')
             ctx_context = current_context.get('context')
             self.namespace = ctx_context.get('namespace') or self.namespace

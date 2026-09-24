@@ -109,8 +109,9 @@ def load_config(config_data):
                         "vpc/subnet' section".format(type(config_data['aws_lambda']['vpc']['subnets'])))
 
     if not isinstance(config_data['aws_lambda']['vpc']['security_groups'], list):
+        security_groups = config_data['aws_lambda']['vpc']['security_groups']
         raise Exception("Unknown type {} for 'aws_lambda/"
-                        "vpc/security_groups' section".format(type(config_data['aws_lambda']['vpc']['security_groups'])))
+                        "vpc/security_groups' section".format(type(security_groups)))
 
     if not isinstance(config_data['aws_lambda']['efs'], list):
         raise Exception("Unknown type {} for "

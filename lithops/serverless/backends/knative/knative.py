@@ -445,7 +445,8 @@ class KnativeServingBackend:
         svc_res['spec']['template']['spec']['timeoutSeconds'] = timeout
         svc_res['spec']['template']['spec']['containerConcurrency'] = 1
         svc_res['spec']['template']['metadata']['labels']['lithops-version'] = __version__.replace('.', '-')
-        svc_res['spec']['template']['metadata']['annotations']['autoscaling.knative.dev/maxScale'] = str(self.kn_config['max_workers'])
+        annotations = svc_res['spec']['template']['metadata']['annotations']
+        annotations['autoscaling.knative.dev/maxScale'] = str(self.kn_config['max_workers'])
 
         container = svc_res['spec']['template']['spec']['containers'][0]
         container['image'] = runtime_name

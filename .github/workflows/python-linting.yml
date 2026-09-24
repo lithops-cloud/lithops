@@ -5,7 +5,7 @@ on:
     branches:
       - master
     paths:
-      - 'setup.py'
+      - 'pyproject.toml'
       - 'lithops/**'
       - '.github/workflows/python-linting.yml'
 
@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
 
-  flake8:
+  ruff:
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -34,8 +34,8 @@ jobs:
       - name: Install dependencies
         run: |
           python3 -m pip install --upgrade pip
-          pip3 install -U flake8
+          pip3 install ruff==0.16.8  # same version as .pre-commit-config.yaml
 
-      - name: Lint with flake8
+      - name: Lint with ruff
         run: |
-          flake8 lithops --count --statistics
+          ruff check --output-format=github .

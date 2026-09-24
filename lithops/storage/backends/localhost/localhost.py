@@ -72,7 +72,7 @@ class LocalhostStorageBackend:
         file_path = os.path.join(LITHOPS_TEMP_DIR, bucket_name, key)
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
 
-        if data_type == bytes:
+        if data_type is bytes:
             with open(file_path, "wb") as f:
                 f.write(data)
         elif hasattr(data, 'read'):
