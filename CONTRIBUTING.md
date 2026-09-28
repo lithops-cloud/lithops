@@ -120,8 +120,8 @@ without a *Fixed* entry, since the backend is still listed under *Added*.
 
 ## Releasing (maintainers)
 
-Releases are made by the [Release workflow](.github/workflows/release.yml): *Actions* ->
-*Release* -> *Run workflow*, with the version to release (e.g. `3.7.1`). Before running it,
+Releases are made by the [Publish release workflow](.github/workflows/release.yml): *Actions* ->
+*Publish release* -> *Run workflow*, with the version to release (e.g. `3.8.1`). Before running it,
 review the development section at the top of `CHANGELOG.md`, which becomes the release notes.
 The workflow sets the version, tags it, publishes the sdist and wheel to PyPI, creates the
 GitHub release, publishes the docs to the website repository and bumps `master` to the next

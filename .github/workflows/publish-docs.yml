@@ -4,9 +4,9 @@ name: Publish docs
 # repository (<owner>/lithops-cloud.github.io), authored by whoever runs the workflow.
 #
 # It always builds master, and names the commit after the latest GitHub release
-# ("Update docs to X"). The Release workflow calls it at the end of every release; run it by
-# hand from the Actions tab (Publish docs -> Run workflow) to republish the docs without a
-# release, e.g. after fixing them.
+# ("Update docs to X"). The Publish release workflow calls it at the end of every release;
+# run it by hand from the Actions tab (Publish docs -> Run workflow) to republish the docs
+# without a release, e.g. after fixing them.
 #
 # Pushing to the docs repository needs a deploy key with write access: its private key goes
 # in the DOCS_DEPLOY_KEY secret of this repository; without it the docs are only built.
@@ -29,6 +29,11 @@ jobs:
       cancel-in-progress: false
     permissions:
       contents: read
+    # shows every publish in the Deployments section of this repository, linking to the docs
+    # (the GitHub Pages site of the docs repository, e.g. https://lithops-cloud.github.io/docs/)
+    environment:
+      name: github-pages
+      url: https://${{ github.repository_owner }}.github.io/docs/
     env:
       # the GitHub Pages repository of the same owner, e.g. lithops-cloud/lithops-cloud.github.io
       DOCS_REPOSITORY: ${{ github.repository_owner }}/lithops-cloud.github.io

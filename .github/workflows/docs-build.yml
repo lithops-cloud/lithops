@@ -1,4 +1,4 @@
-name: Docs
+name: Docs build
 
 # Builds the Sphinx docs on pull requests that change them, and fails on any warning, so
 # broken markup, missing pages or bad docstrings are caught before they are merged
@@ -16,7 +16,21 @@ on:
       - 'lithops/storage/storage.py'
       - 'lithops/utils.py'
       - 'pyproject.toml'
-      - '.github/workflows/docs-check.yml'
+      - '.github/workflows/docs-build.yml'
+
+  # after a merge too, so master has a status of its own (the README badge shows it)
+  push:
+    branches:
+      - master
+    paths:
+      - 'docs/**'
+      - 'lithops/executors.py'
+      - 'lithops/concurrent/futures.py'
+      - 'lithops/retries.py'
+      - 'lithops/storage/storage.py'
+      - 'lithops/utils.py'
+      - 'pyproject.toml'
+      - '.github/workflows/docs-build.yml'
 
   workflow_dispatch:
   # this allows to run the workflow manually through the github dashboard
