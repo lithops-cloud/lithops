@@ -98,9 +98,15 @@ requests that touch the docs must build without warnings: CI runs that same comm
 - Every bug fix includes a regression test; every feature includes tests of its behaviour.
   Tests must run on the localhost backend and storage; backend-specific code that cannot be
   exercised locally is tested with fakes or mocks.
-- User-visible changes go into `CHANGELOG.md` under the topmost (development) version
-  heading, in the *Added / Changed / Fixed / Removed* section, prefixed with the component,
-  e.g. `- [Monitoring] ...`. Update `docs/` and `README.md` when behaviour changes.
+- Functional changes (API, backends, behaviour, bug fixes in the library) go into
+  `CHANGELOG.md` under the topmost (development) version heading, in the *Added / Changed /
+  Fixed / Removed* section, prefixed with the component, e.g. `- [Monitoring] ...`. Docs
+  fixes, packaging metadata and repository tooling (CI, templates, agent files) get no entry:
+  that section becomes the release notes. Entries describe the difference from the latest
+  release, not the history of the development cycle: a fix or change to something added since
+  that release updates its existing `Added` entry instead of adding a `Fixed` or `Changed` one,
+  and something added and removed again before a release has no entry. Update `docs/` and
+  `README.md` when behaviour changes.
 - `CONTRIBUTING.md` and `docs/source/contributing.rst` carry the same content: change both.
 - Pull requests target `master`. Keep changes small and focused; do not refactor unrelated
   code.

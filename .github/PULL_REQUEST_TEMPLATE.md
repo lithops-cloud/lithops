@@ -12,7 +12,7 @@
 
 - [ ] Tests cover the new behaviour / the fixed bug (regression test)
 - [ ] Docs updated (`docs/`, `README.md`, `config/config_template.yaml` for new config keys)
-- [ ] `CHANGELOG.md` entry under the development version
+- [ ] `CHANGELOG.md` updated for functional changes, compared to the latest release ([what goes in](https://github.com/lithops-cloud/lithops/blob/master/CONTRIBUTING.md#changelog))
 
 ---
 

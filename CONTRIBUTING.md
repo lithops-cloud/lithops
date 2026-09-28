@@ -90,14 +90,22 @@ with any user-visible change.
 
 ## Changelog
 
-Add an entry for every user-visible change to [CHANGELOG.md](CHANGELOG.md), under the topmost
-(development) version, in the *Added*, *Changed*, *Fixed* or *Removed* section, prefixed with
-the component:
+Add an entry for every functional change (API, backends, behaviour, bug fixes in the library)
+to [CHANGELOG.md](CHANGELOG.md), under the topmost (development) version, in the *Added*,
+*Changed*, *Fixed* or *Removed* section, prefixed with the component. Docs fixes, packaging
+metadata and repository tooling need no entry, since that section becomes the release notes:
 
 ```markdown
 ### Fixed
 - [AWS Lambda] Short description of the fix.
 ```
+
+Entries describe what changed compared to the latest release, not the history of the
+development cycle. If you fix or change something that was added after the latest release, update
+its existing *Added* entry instead of adding a *Fixed* or *Changed* one: users of the release
+never had the broken version. Likewise, if something is added and removed again before a
+release, remove its entry. For example, a bug found in a backend added in this cycle is fixed
+without a *Fixed* entry, since the backend is still listed under *Added*.
 
 ## Pull requests
 
@@ -112,8 +120,8 @@ the component:
 
 ## Releasing (maintainers)
 
-Releases are made by the [Release workflow](.github/workflows/release.yml): *Actions* ->
-*Release* -> *Run workflow*, with the version to release (e.g. `3.7.1`). Before running it,
+Releases are made by the [Publish release workflow](.github/workflows/release.yml): *Actions* ->
+*Publish release* -> *Run workflow*, with the version to release (e.g. `3.8.1`). Before running it,
 review the development section at the top of `CHANGELOG.md`, which becomes the release notes.
 The workflow sets the version, tags it, publishes the sdist and wheel to PyPI, creates the
 GitHub release, publishes the docs to the website repository and bumps `master` to the next

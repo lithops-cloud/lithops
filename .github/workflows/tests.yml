@@ -9,6 +9,15 @@ on:
       - 'lithops/**'
       - '.github/workflows/tests.yml'
 
+  # after a merge too, so master has a status of its own (the README badge shows it)
+  push:
+    branches:
+      - master
+    paths:
+      - 'pyproject.toml'
+      - 'lithops/**'
+      - '.github/workflows/tests.yml'
+
   workflow_dispatch: 
   # this allows to run the workflow manually through the github dashboard
 
