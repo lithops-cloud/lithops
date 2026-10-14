@@ -225,6 +225,10 @@ class StorageMonitor(Monitor):
         # Marking it processed here drops the token for good
         attributed = set()
         for callid_done in done_new:
+            if callid_done[1] in self._token_closed_jobs:
+                # Nothing of a closed job counts, nor is kept, any more
+                attributed.add(callid_done)
+                continue
             worker_id = self.callids_running_worker.get(callid_done)
             if worker_id is None:
                 continue
@@ -254,7 +258,9 @@ class StorageMonitor(Monitor):
         # A job wait() dropped still hands its tokens back: the workers
         # are this executor's whether a future waits on them or not
         jobs = self.present_jobs | self._dropped_jobs.keys()
-        for worker_id, done_calls in self.callids_done_worker.items():
+        # A copy: handing the last worker of a job back closes the job, which
+        # forgets its workers
+        for worker_id, done_calls in list(self.callids_done_worker.items()):
             if worker_id in self.workers_done:
                 continue
             job_id = self.worker_job.get(worker_id)
@@ -281,6 +287,11 @@ class StorageMonitor(Monitor):
         """
         return self.should_run or self._final_sweep
 
+    def _forget_workers_of(self, job_ids):
+        super()._forget_workers_of(job_ids)
+        for worker_id in [w for w, job_id in self.worker_job.items() if job_id in job_ids]:
+            del self.worker_job[worker_id]
+
     def _release_timed_out_worker(self, call_status):
         worker_id = call_status.get('activation_id')
         if not self.generate_tokens or worker_id is None:
@@ -288,6 +299,8 @@ class StorageMonitor(Monitor):
         if call_status['executor_id'] != self.executor_id:
             return
         with self._apply_lock:
+            if call_status['job_id'] in self._token_closed_jobs:
+                return
             self.callids_done_worker.setdefault(worker_id, set()).add(
                 _status_id(call_status)
             )

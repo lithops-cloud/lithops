@@ -273,6 +273,10 @@ def default_config(
 # The keys of a storage or monitoring section that hold the address workers connect to
 _ADDRESS_KEYS = ('host', 'endpoint', 'amqp_url')
 
+# Serverless backends whose containers share the network of the host they run
+# on, so that a loopback address is the service itself when that host is this one
+_HOST_NETWORK_BACKENDS = ('singularity',)
+
 
 def _is_loopback(address):
     """Whether a host, host:port or URL names this machine"""
@@ -293,26 +297,31 @@ def _check_loopback_addresses(config_data):
     """
     Refuses a storage or monitoring service at a loopback address for
     serverless workers, which run in containers of their own where that
-    address is the worker itself. Standalone workers only get a warning: an
-    SSH tunnel can bring the service to the loopback address of the VM
+    address is the worker itself. The others only get a warning: an SSH
+    tunnel can bring the service to the loopback address of a standalone VM,
+    and a Singularity container on this machine shares its network
     """
     lithops_cfg = config_data['lithops']
     mode = lithops_cfg.get('mode')
     if mode == c.LOCALHOST:
         return
+    backend = lithops_cfg['backend']
+    refused = mode == c.SERVERLESS and backend not in _HOST_NETWORK_BACKENDS
     for section in (lithops_cfg.get('storage'), lithops_cfg.get('monitoring')):
         for key in _ADDRESS_KEYS:
             address = (config_data.get(section) or {}).get(key)
             if not isinstance(address, str) or not _is_loopback(address):
                 continue
-            msg = (
+            if refused:
+                raise Exception(
+                    f"{section}.{key} '{address}' is a loopback address, which the "
+                    f"{backend} workers cannot reach. Set it to an address they can reach"
+                )
+            logger.warning(
                 f"{section}.{key} '{address}' is a loopback address, which the "
-                f"{lithops_cfg['backend']} workers cannot reach. Set it to an "
-                "address they can reach"
+                f"{backend} workers only reach if the service runs on, or is tunnelled "
+                "to, the machine they run on. Set it to an address they can reach otherwise"
             )
-            if mode == c.SERVERLESS:
-                raise Exception(msg)
-            logger.warning(msg)
 
 
 def _load_monitoring_backend_config(config_data):

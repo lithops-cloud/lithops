@@ -1335,6 +1335,35 @@ class TestStorageMonitorTokensAndTags:
         assert monitor._credited_calls == {}
         assert monitor._discarded_calls == {}
 
+    def test_the_workers_of_a_job_that_owes_nothing_are_forgotten(self):
+        """
+        Every monitor of an executor shares this bookkeeping, so it would
+        otherwise hold every call the executor ever ran
+        """
+        job_monitor, futures = self._job_monitor(calls=2)
+        old = job_monitor.monitor
+        calls = {('sess-0', 'M000', f'{i:05d}') for i in range(2)}
+        running = {(call, f'w{call[2]}') for call in calls}
+        storage = old.internal_storage
+        storage.get_job_status.side_effect = self._listing(running, calls)
+        old._poll_and_process_job_status()
+        assert old.token_bucket_q.qsize() == 2
+        assert old.callids_done_worker == {}
+        assert old.workers_done == set()
+        assert old.worker_job == {}
+        assert 'M000' in old._token_closed_jobs
+
+        # A monitor that lists the job again neither hands a worker back
+        # twice nor keeps anything of it
+        old.stop()
+        job_monitor._spawn_monitor(generate_tokens=True)
+        new = job_monitor.monitor
+        new.add_futures(futures)
+        new._poll_and_process_job_status()
+        assert new.token_bucket_q.qsize() == 2
+        assert new.callids_done_worker == {}
+        assert new.worker_job == {}
+
     def test_a_nested_job_with_the_same_id_does_not_settle_this_one(self):
         """A nested executor numbers its jobs from M000 too"""
         monitor = self._storage(chunksize=1)
@@ -2216,7 +2245,7 @@ class TestMessageLossAndRecovery:
         assert storage.get_job_status.call_count == 1
         assert tokens.qsize() == 1
 
-    def test_a_dropped_job_whose_end_was_counted_is_not_swept(self):
+    def test_a_dropped_job_whose_end_was_counted_is_not_listed(self):
         storage = MagicMock()
         tokens = queue.Queue()
         monitor = self._monitor(storage=storage, tokens=tokens, chunksize={'M000': 1})
@@ -2231,6 +2260,43 @@ class TestMessageLossAndRecovery:
         storage.get_job_status.assert_not_called()
         assert tokens.qsize() == 1
         assert monitor._jobs_owing_tokens() == set()
+
+    def test_the_sweep_reads_only_the_calls_no_end_was_counted_for(self):
+        """The status of a call whose __end__ was counted is not read back"""
+        storage = MagicMock()
+        tokens = queue.Queue()
+        monitor = self._monitor(storage=storage, tokens=tokens, chunksize={'M000': 1})
+        monitor.job_total_calls = {'M000': 2}
+        futures = [FakeFuture('M000', invoked=True, call_id=f'{i:05d}') for i in range(2)]
+        monitor.add_futures(futures)
+        counted, _raw = _status(call_id='00000', kind='__end__')
+        monitor._apply_status_message(counted)
+        monitor.remove_futures(futures)
+
+        lost = ('sess-0', 'M000', '00001')
+        storage.get_job_status.return_value = (set(), {('sess-0', 'M000', '00000'), lost})
+        storage.get_call_status.return_value = {'type': '__end__', 'activation_id': 'act-2'}
+        assert monitor._storage_sweep() == 1
+        storage.get_call_status.assert_called_once_with(*lost)
+        assert tokens.qsize() == 2
+        assert monitor._jobs_owing_tokens() == set()
+
+    def test_a_redelivered_end_of_a_job_that_owes_nothing_is_dropped(self):
+        """Its job is closed, so nothing of it is counted, kept or held again"""
+        tokens = queue.Queue()
+        monitor = self._monitor(tokens=tokens, chunksize={'M000': 1})
+        monitor.job_total_calls = {'M000': 1}
+        monitor.add_futures([FakeFuture('M000', invoked=True, call_id='00000')])
+        end, _raw = _status(kind='__end__')
+        monitor._apply_status_message(end)
+        assert tokens.qsize() == 1
+        assert monitor.callids_done_worker == {}
+        assert monitor.workers_done == set()
+
+        monitor._apply_status_message(dict(end))
+        assert tokens.qsize() == 1
+        assert monitor.callids_done_worker == {}
+        assert monitor._held_status == {}
 
     def test_the_storage_sweep_gives_up_on_a_dropped_job(self, monkeypatch):
         """

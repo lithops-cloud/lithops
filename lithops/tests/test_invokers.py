@@ -281,6 +281,23 @@ class TestBatchInvoker:
         futures = inv.run_job(job)
         inv.job_monitor.start.assert_called_once_with(futures)
 
+    @pytest.mark.parametrize('mode', [LOCALHOST, SERVERLESS])
+    def test_only_the_localhost_mode_takes_an_interpreter_path_as_runtime(self, mode):
+        """The path of a local interpreter can hold any character, such as an @"""
+        interpreter = os.path.join(os.path.abspath(os.sep), 'opt', 'python@3.12', 'bin', 'python3')
+        handler = MagicMock()
+        handler.get_runtime_info.return_value = {'runtime_name': interpreter, 'max_workers': 1}
+        config = {
+            'lithops': {'mode': mode, 'backend': 'localhost', 'storage': 'localhost', 'telemetry': False},
+            'localhost': {'storage_bucket': 'test-bucket'},
+        }
+        if mode == LOCALHOST:
+            inv = BatchInvoker(config, 'sess-0', MagicMock(), handler, MagicMock())
+            assert inv.runtime_name == interpreter
+        else:
+            with pytest.raises(AssertionError, match='not valid'):
+                BatchInvoker(config, 'sess-0', MagicMock(), handler, MagicMock())
+
 
 class TestFaaSInvokerHelpers:
 

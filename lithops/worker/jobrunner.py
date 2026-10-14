@@ -440,9 +440,26 @@ def _prepare_args(
     # the ones before *args by position, the rest by name. Names that are not
     # params go to **kwargs
     sig = inspect.signature(func)
-    bound = inspect.BoundArguments(
-        sig, {name: data[name] for name in sig.parameters if name in data}
-    )
+    params = list(sig.parameters.values())
+    arguments = {}
+    for i, param in enumerate(params):
+        if param.name in data:
+            value = data[param.name]
+            # An empty *args or **kwargs may come as None
+            if value is None and param.kind == param.VAR_POSITIONAL:
+                value = ()
+            elif value is None and param.kind == param.VAR_KEYWORD:
+                value = {}
+            arguments[param.name] = value
+        elif param.default is not param.empty and any(
+            later.name in data and later.kind in (later.POSITIONAL_ONLY, later.VAR_POSITIONAL)
+            for later in params[i + 1:]
+        ):
+            # The data may leave out a param that has a default. Before one
+            # that only goes by position it takes that default, or the
+            # positional ones after it would be passed by name
+            arguments[param.name] = param.default
+    bound = inspect.BoundArguments(sig, arguments)
     kwargs = bound.kwargs
     kwargs.update((k, v) for k, v in data.items() if k not in sig.parameters)
     return bound.args, kwargs

@@ -1,4 +1,6 @@
+import os
 import time
+import uuid
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -409,6 +411,36 @@ def _count_lines(obj):
     return obj.data_stream.read().count(b'\n')
 
 
+def _count_lines_from(obj, skip):
+    return obj.data_stream.read().count(b'\n') - skip
+
+
+def test_a_directory_is_retried_one_file_at_a_time(tmp_path):
+    """Each file is a call of its own, and a retry runs only the one that failed"""
+    data = tmp_path / 'data'
+    data.mkdir()
+    for name, lines in (('a.txt', 1), ('b.txt', 2), ('c.txt', 3)):
+        (data / name).write_text('x\n' * lines)
+    calls = tmp_path / 'calls'
+    calls.mkdir()
+
+    def count_lines(obj):
+        name = os.path.basename(obj.path)
+        first = not any(f.startswith(name) for f in os.listdir(calls))
+        (calls / f'{name}.{uuid.uuid4().hex}').touch()
+        if name == 'b.txt' and first:
+            raise RuntimeError('Deliberately fail on the first read of b.txt')
+        return obj.data_stream.read().count(b'\n')
+
+    fexec = FunctionExecutor(config=pytest.lithops_config)
+    with RetryingFunctionExecutor(fexec) as executor:
+        futures = executor.map(count_lines, [str(data)], retries=1)
+        done, pending = executor.wait(futures)
+    assert pending == []
+    assert sorted(f.result() for f in done) == [1, 2, 3]
+    assert sorted(f.rsplit('.', 1)[0] for f in os.listdir(calls)) == ['a.txt', 'b.txt', 'b.txt', 'c.txt']
+
+
 class TestRetryingThrowExcept:
 
     def test_result_and_status_honour_throw_except_false(self):
@@ -435,10 +467,13 @@ class TestRetryingThrowExcept:
 class TestRetryingMapInputs:
 
     @staticmethod
-    def _inner(n_futures):
+    def _inner(n_futures, objects=()):
+        """An executor whose storage, of the localhost backend, lists ``objects``"""
         inner = MagicMock()
         inner.config = {}
         inner.map.return_value = [FakeResponseFuture() for _ in range(n_futures)]
+        inner.internal_storage = SimpleNamespace(backend='localhost', storage=MagicMock())
+        inner.internal_storage.storage.list_objects.return_value = list(objects)
         return inner
 
     @pytest.mark.parametrize('chunks', [{'obj_chunk_number': 2}, {'obj_chunk_size': 64}])
@@ -450,19 +485,66 @@ class TestRetryingMapInputs:
             )
         inner.map.assert_not_called()
 
-    def test_an_input_that_holds_several_objects_is_an_error(self):
-        """A prefix expands into one call per object, which cannot be retried"""
-        inner = self._inner(3)
-        with pytest.raises(ValueError, match='cannot be retried'):
-            RetryingFunctionExecutor(inner).map(_count_lines, ['localhost://bucket/prefix/'])
+    def test_a_prefix_is_split_into_one_input_per_object(self):
+        """
+        It used to raise once its calls were running, since a retry of one
+        of them would have resubmitted the whole prefix
+        """
+        objects = [
+            {'Key': 'prefix/a.txt', 'Size': 2},
+            {'Key': 'prefix/', 'Size': 0},
+            {'Key': 'prefix/b.txt', 'Size': 4},
+        ]
+        inner = self._inner(2, objects)
+        futures = RetryingFunctionExecutor(inner).map(
+            _count_lines_from, ['localhost://bucket/prefix/'], extra_args={'skip': 1}
+        )
+        expected = [
+            {'obj': 'localhost://bucket/prefix/a.txt', 'skip': 1},
+            {'obj': 'localhost://bucket/prefix/b.txt', 'skip': 1},
+        ]
+        assert [f.input for f in futures] == expected
+        assert inner.map.call_args.args[1] == expected
+        inner.internal_storage.storage.list_objects.assert_called_once_with('bucket', 'prefix/', None)
+        # Merged into every input already, so neither the map nor a retry adds them again
+        assert inner.map.call_args.kwargs['extra_args'] is None
+        assert all(f.map_kwargs['extra_args'] is None for f in futures)
 
-    def test_single_objects_get_one_future_each(self, tmp_path):
+    def test_a_directory_is_split_into_one_input_per_file(self, tmp_path):
+        for name in ('a.txt', 'b.txt'):
+            (tmp_path / name).write_text('x\n')
+        futures = RetryingFunctionExecutor(self._inner(2)).map(_count_lines, [str(tmp_path)])
+        assert sorted(f.input['obj'] for f in futures) == [
+            str(tmp_path / 'a.txt'), str(tmp_path / 'b.txt')
+        ]
+
+    def test_single_objects_are_not_listed(self, tmp_path):
         local_file = tmp_path / 'a.txt'
         local_file.write_text('x\n')
-        iterdata = ['localhost://bucket/a.txt', str(local_file)]
-        inner = self._inner(2)
-        futures = RetryingFunctionExecutor(inner).map(_count_lines, iterdata)
-        assert [f.input for f in futures] == iterdata
+        inner = self._inner(1)
+        futures = RetryingFunctionExecutor(inner).map(_count_lines, ['localhost://bucket/a.txt'])
+        assert [f.input for f in futures] == [{'obj': 'localhost://bucket/a.txt'}]
+        inner.internal_storage.storage.list_objects.assert_not_called()
+        inner.internal_storage.storage.head_object.assert_not_called()
+        futures = RetryingFunctionExecutor(self._inner(1)).map(_count_lines, [str(local_file)])
+        assert [f.input for f in futures] == [{'obj': str(local_file)}]
+
+    def test_a_glob_is_listed_only_where_the_backend_globs(self):
+        inner = self._inner(1, [{'Key': 'data/a.csv', 'Size': 1}])
+        inner.internal_storage.backend = 'aws_s3'
+        futures = RetryingFunctionExecutor(inner).map(_count_lines, ['aws_s3://bucket/data/*.csv'])
+        assert [f.input for f in futures] == [{'obj': 'aws_s3://bucket/data/a.csv'}]
+
+        inner = self._inner(1)
+        futures = RetryingFunctionExecutor(inner).map(_count_lines, ['localhost://bucket/a*.txt'])
+        assert [f.input for f in futures] == [{'obj': 'localhost://bucket/a*.txt'}]
+        inner.internal_storage.storage.list_objects.assert_not_called()
+
+    def test_a_prefix_with_no_objects_is_refused_before_invoking(self):
+        inner = self._inner(0)
+        with pytest.raises(Exception, match='No objects found'):
+            RetryingFunctionExecutor(inner).map(_count_lines, ['localhost://bucket/empty/'])
+        inner.map.assert_not_called()
 
     def test_more_calls_than_inputs_is_an_error(self):
         inner = self._inner(3)

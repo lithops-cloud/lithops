@@ -17,7 +17,8 @@ Primary Executors
 
 * **RetryingFunctionExecutor** (``lithops.RetryingFunctionExecutor()``):
   A robust wrapper around ``FunctionExecutor`` that transparently handles retries on failed tasks.
-  It supports all features of ``FunctionExecutor`` with added automatic retry logic, improving fault tolerance and reliability for unstable or transient-failure-prone environments.
+  It supports the features of ``FunctionExecutor`` with added automatic retry logic, improving fault tolerance and reliability for unstable or transient-failure-prone environments.
+  A failed call is retried with its own input: a bucket, prefix or directory passed to a function that processes objects is retried one object at a time, and splitting objects into chunks (``obj_chunk_size``, ``obj_chunk_number``) is not supported.
 
 Secondary Executors
 -------------------

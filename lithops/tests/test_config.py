@@ -558,10 +558,11 @@ class TestDefaultConfig:
 class TestLoopbackAddresses:
 
     @staticmethod
-    def _config(mode, storage, monitoring, **sections):
-        backend = 'aws_ec2' if mode == 'standalone' else 'aws_lambda'
+    def _config(mode, storage, monitoring, backend=None, **sections):
+        backend = backend or ('aws_ec2' if mode == 'standalone' else 'aws_lambda')
         lithops_cfg = {'mode': mode, 'backend': backend, 'storage': storage, 'monitoring': monitoring}
         return {'lithops': lithops_cfg, **sections}
+
 
     @pytest.mark.parametrize('storage, monitoring, sections', [
         ('aws_s3', 'redis', {'redis': {'host': '127.0.0.1'}}),
@@ -581,7 +582,31 @@ class TestLoopbackAddresses:
         config = self._config('standalone', 'aws_s3', 'redis', redis={'host': '127.0.0.1'})
         with patch('lithops.config.logger') as logger:
             _check_loopback_addresses(config)
-        assert 'is a loopback address, which the aws_ec2 workers cannot reach' in logger.warning.call_args[0][0]
+        assert 'is a loopback address, which the aws_ec2 workers only reach if' in logger.warning.call_args[0][0]
+
+    def test_singularity_workers_only_warn(self):
+        """Its containers share the network of the host, which can be this one"""
+        config = self._config(
+            'serverless', 'aws_s3', 'rabbitmq', backend='singularity',
+            rabbitmq={'amqp_url': 'amqp://guest@localhost:5672'},
+        )
+        with patch('lithops.config.logger') as logger:
+            _check_loopback_addresses(config)
+        assert 'which the singularity workers only reach if' in logger.warning.call_args[0][0]
+
+    def test_default_config_checks_the_addresses(self):
+        # Backends whose modules import no SDK beyond the tests extra
+        def config(redis_host):
+            return {
+                'lithops': {'backend': 'openwhisk', 'storage': 'redis'},
+                'openwhisk': {'endpoint': 'https://openwhisk.example.com', 'namespace': 'ns', 'api_key': 'key'},
+                'redis': {'host': redis_host},
+            }
+
+        with pytest.raises(Exception, match='is a loopback address, which the openwhisk workers cannot reach'):
+            default_config(config_data=config('127.0.0.1'))
+        cfg = default_config(config_data=config('redis.example.com'))
+        assert cfg['lithops']['mode'] == c.SERVERLESS
 
     @pytest.mark.parametrize('mode, host', [
         ('localhost', '127.0.0.1'),

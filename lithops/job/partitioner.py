@@ -57,20 +57,7 @@ def create_partitions(
     Splits the objects referenced by the iterdata into partitions, one task
     each. Only one kind of source is partitioned per call
     """
-    urls = []
-    paths = []
-    objects = []
-
-    logger.debug("Parsing input data")
-
-    for elem in map_iterdata:
-        obj = str(elem['obj'])
-        if obj.startswith('http'):
-            urls.append(elem)
-        elif obj.startswith('/') or _WINDOWS_PATH.match(obj):
-            paths.append(elem)
-        else:
-            objects.append(elem)
+    urls, paths, objects = _sort_sources(map_iterdata)
 
     if urls:
         return _split_objects_from_urls(
@@ -86,6 +73,69 @@ def create_partitions(
             internal_storage, config, obj_newline
         )
     return [], []
+
+
+def _sort_sources(map_iterdata: List[Entry]) -> Tuple[List[Entry], List[Entry], List[Entry]]:
+    """Sorts the entries into URLs, local paths and storage objects"""
+    urls = []
+    paths = []
+    objects = []
+
+    logger.debug("Parsing input data")
+
+    for elem in map_iterdata:
+        obj = str(elem['obj'])
+        if obj.startswith('http'):
+            urls.append(elem)
+        elif obj.startswith('/') or _WINDOWS_PATH.match(obj):
+            paths.append(elem)
+        else:
+            objects.append(elem)
+
+    return urls, paths, objects
+
+
+def split_into_objects(
+    config: Dict[str, Any],
+    internal_storage: Any,
+    map_iterdata: List[Entry]
+) -> List[Entry]:
+    """
+    Turns the iterdata into one entry per object, each one a call of its own
+    once partitioned without chunks. The buckets, prefixes, glob patterns and
+    directories are listed as create_partitions() lists them, and a single
+    object is left as it is, with no request. Only one kind of source is
+    taken, as create_partitions() does
+    """
+    urls, paths, objects = _sort_sources(map_iterdata)
+
+    if urls:
+        return urls
+    if paths:
+        return _expand_paths(paths)
+    if not objects:
+        return []
+
+    # Copies: their objects are rewritten as full storage URLs
+    objects = [dict(elem) for elem in objects]
+    storage = _resolve_object_storage(objects, internal_storage, config)
+
+    entries = []
+    for elem in objects:
+        sb, bucket, prefix, obj_name = utils.split_object_url(elem['obj'])
+        globbed = sb in _GLOBBER_BACKENDS and ('*' in prefix or '*' in obj_name)
+        if obj_name and not globbed:
+            entries.append(elem)
+            continue
+        params = {k: v for k, v in elem.items() if k != 'obj'}
+        for dobj in _list_objects(storage, sb, bucket, prefix, obj_name):
+            # A key that ends in a slash is a folder marker, never partitioned
+            if not dobj['Key'].endswith('/'):
+                entries.append({'obj': f"{sb}://{bucket}/{dobj['Key']}", **params})
+
+    if not entries:
+        raise Exception('No objects found')
+    return entries
 
 
 def _log_chunk_settings(chunk_size: Optional[int], chunk_number: Optional[int]) -> None:

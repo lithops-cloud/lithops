@@ -17,8 +17,9 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from lithops import FunctionExecutor
 from lithops.future import ResponseFuture
+from lithops.job.partitioner import split_into_objects
 from lithops.storage.utils import CloudObject
-from lithops.utils import _as_iterdata_list, _chained_futures, is_object_processing_function
+from lithops.utils import _as_iterdata_list, _chained_futures, is_object_processing_function, verify_args
 from lithops.wait import (
     ALL_COMPLETED,
     ALWAYS,
@@ -216,6 +217,9 @@ class RetryingFunctionExecutor:
 
         :param map_function: The function to map over the data.
         :param map_iterdata: An iterable of input data (e.g., Python list).
+            For a function that processes objects, a bucket, a prefix, a
+            glob pattern or a directory is listed first, so that each of its
+            objects is an input of its own, retried on its own.
         :param chunksize: Split map_iterdata in chunks of this
             size. One worker per chunk.
         :param extra_args: Additional arguments to pass to each
@@ -224,10 +228,10 @@ class RetryingFunctionExecutor:
             the function environment.
         :param runtime_memory: Memory (in MB) to allocate per
             function activation.
-        :param obj_chunk_size: For file processing. Split each
-            object into chunks of this size (in bytes).
-        :param obj_chunk_number: For file processing. Number of
-            chunks to split each object into.
+        :param obj_chunk_size: Not supported: a failed chunk of an
+            object cannot be retried on its own, so ValueError is raised.
+            Use FunctionExecutor to process objects in chunks.
+        :param obj_chunk_number: Not supported, as obj_chunk_size.
         :param obj_newline: Newline character for line integrity
             in file partitioning.
         :param timeout: Max time per function activation
@@ -253,6 +257,27 @@ class RetryingFunctionExecutor:
             )
         retries_to_use = self._retries_to_use(retries)
 
+        # A generator can be read only once, and the inputs are kept to be
+        # resubmitted on a retry
+        if isinstance(map_iterdata, Iterator):
+            map_iterdata = list(map_iterdata)
+        # The future of each call is paired with the input it was made from.
+        # A chain leaves out the futures that produce no input
+        inputs = _chained_futures(map_iterdata)
+        if inputs is None and is_object_processing_function(map_function):
+            # A bucket, a prefix or a directory runs one call per object in
+            # it. Each object is made an input of its own before invoking, so
+            # that a retry resubmits only the one whose call failed
+            map_iterdata = inputs = split_into_objects(
+                self.executor.config,
+                self.executor.internal_storage,
+                verify_args(map_function, map_iterdata, extra_args),
+            )
+            # verify_args merged them into every input already
+            extra_args = None
+        if inputs is None:
+            inputs = _as_iterdata_list(map_iterdata)
+
         map_kwargs = dict(
             chunksize=chunksize,
             extra_args=extra_args,
@@ -266,22 +291,14 @@ class RetryingFunctionExecutor:
             exclude_modules=exclude_modules,
         )
 
-        # A generator can be read only once, and the inputs are kept to be
-        # resubmitted on a retry
-        if isinstance(map_iterdata, Iterator):
-            map_iterdata = list(map_iterdata)
-        # The future of each call is paired with the input it was made from.
-        # A chain leaves out the futures that produce no input
-        inputs = _chained_futures(map_iterdata)
-        if inputs is None:
-            inputs = _as_iterdata_list(map_iterdata)
-
         futures_list = self.executor.map(
             map_function,
             map_iterdata,
             **map_kwargs,
         )
         if len(futures_list) != len(inputs):
+            # Not expected since the objects are split above. Said rather
+            # than pairing a future with the input of another call
             raise ValueError(
                 f'The {len(inputs)} inputs turned into {len(futures_list)} '
                 'calls, which are running now but cannot be retried: a retry '

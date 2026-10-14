@@ -1351,6 +1351,26 @@ class TestJobStatsAndPrepareArgs:
         args, kwargs = _prepare_args(f, {'a': 1, 'b': 2, 'rest': (3,), 'c': 4})
         assert f(*args, **kwargs) == (1, 2, (3,), 4)
 
+    def test_prepare_args_none_varargs_are_empty(self):
+        def f(*args, **kwargs):
+            return args, kwargs
+        args, kwargs = _prepare_args(f, {'args': None, 'kwargs': None, 'x': 1})
+        assert f(*args, **kwargs) == ((), {'x': 1})
+
+    def test_prepare_args_a_param_left_out_before_varargs_takes_its_default(self):
+        """verify_args lets a dict leave out a param that has a default"""
+        def f(a, b=2, *rest, c=0):
+            return a, b, rest, c
+        args, kwargs = _prepare_args(f, {'a': 1, 'rest': (3, 4)})
+        assert f(*args, **kwargs) == (1, 2, (3, 4), 0)
+        args, kwargs = _prepare_args(f, {'a': 1, 'c': 5})
+        assert f(*args, **kwargs) == (1, 2, (), 5)
+
+        def g(a=1, b=2, /):
+            return a, b
+        args, kwargs = _prepare_args(g, {'b': 5})
+        assert g(*args, **kwargs) == (1, 5)
+
 
 class TestJobRunner:
 

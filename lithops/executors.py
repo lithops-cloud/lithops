@@ -771,7 +771,8 @@ class FunctionExecutor:
         used to control the maximum number of seconds to wait
         before returning.
 
-        :param fs: Futures list. Default None
+        :param fs: Futures list. Default None, every future of this
+            executor. An empty list waits on none
         :param throw_except: Re-raise exception if call raised.
             Default True
         :param return_when: Percentage of done futures
@@ -853,7 +854,8 @@ class FunctionExecutor:
         """
         For getting the results from all function activations
 
-        :param fs: Futures list. Default None
+        :param fs: Futures list. Default None, every future of this
+            executor. An empty list has no results
         :param throw_except: Reraise exception if call raised. Default True.
         :param timeout: Timeout for waiting for results.
         :param threadpool_size: Number of threads to use. Default 64
@@ -983,7 +985,8 @@ class FunctionExecutor:
         function invocation results. It can also clean
         cloudobjects.
 
-        :param fs: List of futures to clean
+        :param fs: List of futures to clean. Default None, every future
+            of this executor. An empty list cleans none
         :param cs: List of cloudobjects to clean
         :param clean_cloudobjects: Delete all cloudobjects
             created with this executor

@@ -362,6 +362,22 @@ class Monitor(threading.Thread):
                 self._dropped_jobs.pop(job_id, None)
                 self._credited_calls.pop(job_id, None)
                 self._discarded_calls.pop(job_id, None)
+            self._forget_workers_of(job_ids)
+
+    def _forget_workers_of(self, job_ids):
+        """
+        Drops what is kept about the workers of closed jobs. No status of
+        theirs counts any more, and every monitor of the executor shares
+        this bookkeeping, so it would otherwise hold every call the
+        executor ever ran. Called with the apply lock held
+        """
+        gone = [
+            worker_id for worker_id, calls in self.callids_done_worker.items()
+            if any(status_id[1] in job_ids for status_id in calls)
+        ]
+        for worker_id in gone:
+            del self.callids_done_worker[worker_id]
+            self.workers_done.discard(worker_id)
 
     def discard_calls(self, discarded):
         """
@@ -423,8 +439,12 @@ class Monitor(threading.Thread):
         )
 
     def _settle(self, job_id):
-        """Closes a dropped job, then no longer listed, once it owes no call"""
-        if job_id not in self._dropped_jobs or job_id not in self.job_total_calls:
+        """
+        Closes a job once it owes no call, every one discarded or run by a
+        worker that was handed back. A dropped job is then no longer listed,
+        and the workers of any job are forgotten
+        """
+        if job_id not in self.job_total_calls:
             return
         if self._owed_calls(job_id) <= 0:
             self.close_jobs({job_id})
