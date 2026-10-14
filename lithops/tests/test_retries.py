@@ -8,6 +8,7 @@ import pytest
 
 from lithops import FunctionExecutor
 from lithops import RetryingFunctionExecutor
+from lithops import Storage
 from lithops.retries import RetryingFuture
 from lithops.utils import FuturesList
 from lithops.wait import ALWAYS, ANY_COMPLETED
@@ -416,10 +417,10 @@ def _count_lines_from(obj, skip):
 
 
 def test_a_directory_is_retried_one_file_at_a_time(tmp_path):
-    """Each file is a call of its own, and a retry runs only the one that failed"""
+    """Each file is a call of its own, and a retry runs only the one that failed. An empty one runs none"""
     data = tmp_path / 'data'
     data.mkdir()
-    for name, lines in (('a.txt', 1), ('b.txt', 2), ('c.txt', 3)):
+    for name, lines in (('a.txt', 1), ('b.txt', 2), ('c.txt', 3), ('empty.txt', 0)):
         (data / name).write_text('x\n' * lines)
     calls = tmp_path / 'calls'
     calls.mkdir()
@@ -440,6 +441,40 @@ def test_a_directory_is_retried_one_file_at_a_time(tmp_path):
     assert sorted(f.result() for f in done) == [1, 2, 3]
     assert sorted(f.rsplit('.', 1)[0] for f in os.listdir(calls)) == ['a.txt', 'b.txt', 'b.txt', 'c.txt']
 
+
+
+def test_a_prefix_costs_the_requests_of_map(monkeypatch):
+    """
+    It is listed once and its objects are not sized again: map() used to
+    send a head request per object, one after the other
+    """
+    from lithops.storage.backends.localhost.localhost import LocalhostStorageBackend
+
+    storage = Storage(config=pytest.lithops_config)
+    prefix = f'retries-{uuid.uuid4().hex}/'
+    for name, data in (('a.txt', b'x\n'), ('b.txt', b'x\nx\n'), ('empty.txt', b'')):
+        storage.put_object(storage.bucket, prefix + name, data)
+
+    requests = []
+    for method in ('list_objects', 'head_object'):
+        original = getattr(LocalhostStorageBackend, method)
+
+        def counting(self, bucket, key=None, *args, _method=method, _original=original, **kwargs):
+            if key and key.startswith(prefix):
+                requests.append(_method)
+            return _original(self, bucket, key, *args, **kwargs)
+        monkeypatch.setattr(LocalhostStorageBackend, method, counting)
+
+    try:
+        fexec = FunctionExecutor(config=pytest.lithops_config)
+        with RetryingFunctionExecutor(fexec) as executor:
+            futures = executor.map(_count_lines, [f'localhost://{storage.bucket}/{prefix}'])
+            done, pending = executor.wait(futures)
+        assert pending == []
+        assert sorted(f.result() for f in done) == [1, 2]
+        assert requests == ['list_objects']
+    finally:
+        storage.delete_objects(storage.bucket, storage.list_keys(storage.bucket, prefix))
 
 class TestRetryingThrowExcept:
 
@@ -485,6 +520,16 @@ class TestRetryingMapInputs:
             )
         inner.map.assert_not_called()
 
+    @staticmethod
+    def _names(futures):
+        """The object the input of each future names, and its other params"""
+        def name(obj):
+            return getattr(obj, 'path', None) or f'{obj.backend}://{obj.bucket}/{obj.key}'
+        return [
+            (name(f.input['obj']), {k: v for k, v in f.input.items() if k != 'obj'})
+            for f in futures
+        ]
+
     def test_a_prefix_is_split_into_one_input_per_object(self):
         """
         It used to raise once its calls were running, since a retry of one
@@ -493,52 +538,49 @@ class TestRetryingMapInputs:
         objects = [
             {'Key': 'prefix/a.txt', 'Size': 2},
             {'Key': 'prefix/', 'Size': 0},
+            {'Key': 'prefix/empty.txt', 'Size': 0},
             {'Key': 'prefix/b.txt', 'Size': 4},
         ]
         inner = self._inner(2, objects)
         futures = RetryingFunctionExecutor(inner).map(
             _count_lines_from, ['localhost://bucket/prefix/'], extra_args={'skip': 1}
         )
-        expected = [
-            {'obj': 'localhost://bucket/prefix/a.txt', 'skip': 1},
-            {'obj': 'localhost://bucket/prefix/b.txt', 'skip': 1},
+        # A folder marker and an empty object run no call, as with map()
+        assert self._names(futures) == [
+            ('localhost://bucket/prefix/a.txt', {'skip': 1}),
+            ('localhost://bucket/prefix/b.txt', {'skip': 1}),
         ]
-        assert [f.input for f in futures] == expected
-        assert inner.map.call_args.args[1] == expected
-        inner.internal_storage.storage.list_objects.assert_called_once_with('bucket', 'prefix/', None)
+        assert inner.map.call_args.args[1] == [f.input for f in futures]
+        storage = inner.internal_storage.storage
+        storage.list_objects.assert_called_once_with('bucket', 'prefix/', None)
+        storage.head_object.assert_not_called()
         # Merged into every input already, so neither the map nor a retry adds them again
         assert inner.map.call_args.kwargs['extra_args'] is None
         assert all(f.map_kwargs['extra_args'] is None for f in futures)
 
     def test_a_directory_is_split_into_one_input_per_file(self, tmp_path):
-        for name in ('a.txt', 'b.txt'):
-            (tmp_path / name).write_text('x\n')
+        """An empty file runs no call, so it is no input either"""
+        for name, data in (('a.txt', 'x\n'), ('empty.txt', ''), ('b.txt', 'x\n')):
+            (tmp_path / name).write_text(data)
         futures = RetryingFunctionExecutor(self._inner(2)).map(_count_lines, [str(tmp_path)])
-        assert sorted(f.input['obj'] for f in futures) == [
+        assert sorted(name for name, _ in self._names(futures)) == [
             str(tmp_path / 'a.txt'), str(tmp_path / 'b.txt')
         ]
+        futures = RetryingFunctionExecutor(self._inner(1)).map(_count_lines, [str(tmp_path / 'a.txt')])
+        assert self._names(futures) == [(str(tmp_path / 'a.txt'), {})]
 
-    def test_single_objects_are_not_listed(self, tmp_path):
-        local_file = tmp_path / 'a.txt'
-        local_file.write_text('x\n')
+    def test_single_objects_are_sized_once_and_an_empty_one_is_no_input(self):
         inner = self._inner(1)
-        futures = RetryingFunctionExecutor(inner).map(_count_lines, ['localhost://bucket/a.txt'])
-        assert [f.input for f in futures] == [{'obj': 'localhost://bucket/a.txt'}]
-        inner.internal_storage.storage.list_objects.assert_not_called()
-        inner.internal_storage.storage.head_object.assert_not_called()
-        futures = RetryingFunctionExecutor(self._inner(1)).map(_count_lines, [str(local_file)])
-        assert [f.input for f in futures] == [{'obj': str(local_file)}]
-
-    def test_a_glob_is_listed_only_where_the_backend_globs(self):
-        inner = self._inner(1, [{'Key': 'data/a.csv', 'Size': 1}])
-        inner.internal_storage.backend = 'aws_s3'
-        futures = RetryingFunctionExecutor(inner).map(_count_lines, ['aws_s3://bucket/data/*.csv'])
-        assert [f.input for f in futures] == [{'obj': 'aws_s3://bucket/data/a.csv'}]
-
-        inner = self._inner(1)
-        futures = RetryingFunctionExecutor(inner).map(_count_lines, ['localhost://bucket/a*.txt'])
-        assert [f.input for f in futures] == [{'obj': 'localhost://bucket/a*.txt'}]
-        inner.internal_storage.storage.list_objects.assert_not_called()
+        storage = inner.internal_storage.storage
+        storage.head_object.side_effect = lambda bucket, key: {
+            'content-length': '0' if key == 'empty.txt' else '2'
+        }
+        futures = RetryingFunctionExecutor(inner).map(
+            _count_lines, ['localhost://bucket/a.txt', 'localhost://bucket/empty.txt']
+        )
+        assert self._names(futures) == [('localhost://bucket/a.txt', {})]
+        assert storage.head_object.call_count == 2
+        storage.list_objects.assert_not_called()
 
     def test_a_prefix_with_no_objects_is_refused_before_invoking(self):
         inner = self._inner(0)

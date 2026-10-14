@@ -17,7 +17,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from lithops import FunctionExecutor
 from lithops.future import ResponseFuture
-from lithops.job.partitioner import split_into_objects
+from lithops.job.partitioner import create_partitions
 from lithops.storage.utils import CloudObject
 from lithops.utils import _as_iterdata_list, _chained_futures, is_object_processing_function, verify_args
 from lithops.wait import (
@@ -219,7 +219,9 @@ class RetryingFunctionExecutor:
         :param map_iterdata: An iterable of input data (e.g., Python list).
             For a function that processes objects, a bucket, a prefix, a
             glob pattern or a directory is listed first, so that each of its
-            objects is an input of its own, retried on its own.
+            objects is an input of its own, retried on its own. It costs the
+            same requests as map(), and an empty object is no input, as it
+            runs no call.
         :param chunksize: Split map_iterdata in chunks of this
             size. One worker per chunk.
         :param extra_args: Additional arguments to pass to each
@@ -266,13 +268,17 @@ class RetryingFunctionExecutor:
         inputs = _chained_futures(map_iterdata)
         if inputs is None and is_object_processing_function(map_function):
             # A bucket, a prefix or a directory runs one call per object in
-            # it. Each object is made an input of its own before invoking, so
-            # that a retry resubmits only the one whose call failed
-            map_iterdata = inputs = split_into_objects(
+            # it, and an empty object none. Partitioned here, with the
+            # requests map() would make, each call gets an input of its own,
+            # so that a retry resubmits only the object whose call failed.
+            # map() takes the partitions as they are
+            map_iterdata, _ = create_partitions(
                 self.executor.config,
                 self.executor.internal_storage,
                 verify_args(map_function, map_iterdata, extra_args),
+                None, None, obj_newline,
             )
+            inputs = map_iterdata
             # verify_args merged them into every input already
             extra_args = None
         if inputs is None:
@@ -297,8 +303,8 @@ class RetryingFunctionExecutor:
             **map_kwargs,
         )
         if len(futures_list) != len(inputs):
-            # Not expected since the objects are split above. Said rather
-            # than pairing a future with the input of another call
+            # Not expected, since the objects are partitioned above. Said
+            # rather than pairing a future with the input of another call
             raise ValueError(
                 f'The {len(inputs)} inputs turned into {len(futures_list)} '
                 'calls, which are running now but cannot be retried: a retry '
