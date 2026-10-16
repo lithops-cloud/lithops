@@ -165,7 +165,6 @@
     #min_workers: 0
     #max_workers: 100
     #worker_processes: 1
-    #invoke_pool_threads: 100
     #docker_server: pkg.dev               # Marker for Artifact Registry image names
     #artifact_registry_repository: lithops
     #runtime_include_function: False
@@ -245,7 +244,7 @@
     #ssh_username: ubuntu
     #ssh_password: <RANDOM_IF_NOT_PROVIDED>
     #ssh_key_filename: ~/.ssh/id_rsa
-    #request_spot_instances: True
+    #request_spot_instances: False       # Spot worker VMs; B-series sizes do not support Spot
     #delete_on_dismantle: False           # `True` is not yet supported on Azure
     #max_workers: 100
     #worker_processes: AUTO
@@ -449,7 +448,6 @@
     #runtime_timeout: 600                 # Seconds
     #max_workers: 100
     #worker_processes: 1
-    #invoke_pool_threads: 100
 
 #openwhisk:
     #endpoint: <OW_ENDPOINT>              # Mandatory

@@ -39,6 +39,7 @@ from lithops.utils import (
     log_prefix,
 )
 from lithops.constants import (
+    LOCALHOST,
     LOGGER_LEVEL,
     LOGS_DIR,
     SERVERLESS,
@@ -160,7 +161,7 @@ class Invoker:
         self.max_workers = self.runtime_info['max_workers']
 
         # The localhost mode may run a local interpreter given by its path
-        verify_runtime_name(self.runtime_name, allow_local_path=self.mode == 'localhost')
+        verify_runtime_name(self.runtime_name, allow_local_path=self.mode == LOCALHOST)
 
         logger.debug(
             f'{log_prefix(self.executor_id)} - Invoker initialized. Max workers: {self.max_workers}'

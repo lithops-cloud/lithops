@@ -42,6 +42,11 @@ Documentation is built with Sphinx from `docs/` (`pip3 install -e '.[docs]'`, th
 `make -C docs html SPHINXOPTS="-W --keep-going"`, see [docs/README.md](docs/README.md)). Pull
 requests that touch the docs must build without warnings: CI runs that same command.
 
+Use the Python interpreter that has this checkout installed in editable mode (`pip show
+lithops` shows the *Editable project location*). Before reporting a change as done, run
+`ruff check .` and the localhost test suite. Run long jobs (the full test suite, Docker or
+runtime builds, docs builds) in the background.
+
 ## Repository map
 
 | Path | Content |
@@ -75,6 +80,9 @@ requests that touch the docs must build without warnings: CI runs that same comm
 2. **Every backend looks the same to the core.** Backend-specific code stays in its backend
    package; the executor, invoker, job and worker code must not special-case a backend by
    name when an interface method or a config value can express it.
+   Backends are self-contained: a new backend starts as a copy of a similar one, and logic
+   may be duplicated between backends. Do not refactor backends into shared helpers or base
+   classes to remove that duplication.
 3. **The worker must tolerate the environment it runs in.** Worker code runs in minimal
    runtimes (Lambda, containers, VMs, macOS/Windows localhost). Imports of optional
    dependencies stay lazy, and a failure in the user's function is reported in its status
@@ -114,8 +122,8 @@ requests that touch the docs must build without warnings: CI runs that same comm
 ## Safety
 
 - Do not run tests, examples or `lithops` CLI commands against real cloud backends (AWS, GCP,
-  Azure, IBM Cloud, Aliyun, Oracle, Kubernetes clusters) and do not build or push runtime
-  images without the maintainer's explicit approval: it creates billable resources and uses
-  real credentials.
+  Azure, IBM Cloud, Aliyun, Oracle, Kubernetes clusters), do not build or push runtime images,
+  and do not publish content without the maintainer's explicit approval: it creates billable
+  resources and uses real credentials.
 - Never commit credentials or configuration files (`~/.lithops/config`, `.lithops_config`).
 - Do not commit or push unless asked to.

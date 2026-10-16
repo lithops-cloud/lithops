@@ -217,11 +217,10 @@ class RetryingFunctionExecutor:
 
         :param map_function: The function to map over the data.
         :param map_iterdata: An iterable of input data (e.g., Python list).
-            For a function that processes objects, a bucket, a prefix, a
-            glob pattern or a directory is listed first, so that each of its
-            objects is an input of its own, retried on its own. It costs the
-            same requests as map(), and an empty object is no input, as it
-            runs no call.
+            For a function that processes objects, the objects are
+            partitioned first, with the requests map() makes, so that each
+            object, or chunk of one, is an input of its own, retried on its
+            own. An empty object is no input, as it runs no call.
         :param chunksize: Split map_iterdata in chunks of this
             size. One worker per chunk.
         :param extra_args: Additional arguments to pass to each
@@ -230,10 +229,10 @@ class RetryingFunctionExecutor:
             the function environment.
         :param runtime_memory: Memory (in MB) to allocate per
             function activation.
-        :param obj_chunk_size: Not supported: a failed chunk of an
-            object cannot be retried on its own, so ValueError is raised.
-            Use FunctionExecutor to process objects in chunks.
-        :param obj_chunk_number: Not supported, as obj_chunk_size.
+        :param obj_chunk_size: For file processing. Split each
+            object into chunks of this size (in bytes).
+        :param obj_chunk_number: For file processing. Number of
+            chunks to split each object into.
         :param obj_newline: Newline character for line integrity
             in file partitioning.
         :param timeout: Max time per function activation
@@ -249,14 +248,6 @@ class RetryingFunctionExecutor:
             function activation.
         """
 
-        # A retry resubmits the input of the call that failed, and a single
-        # partition of an object cannot be resubmitted on its own
-        if (obj_chunk_size or obj_chunk_number) and is_object_processing_function(map_function):
-            raise ValueError(
-                'RetryingFunctionExecutor does not support obj_chunk_size or '
-                'obj_chunk_number: a failed partition cannot be retried on its '
-                'own. Use FunctionExecutor to process objects in chunks'
-            )
         retries_to_use = self._retries_to_use(retries)
 
         # A generator can be read only once, and the inputs are kept to be
@@ -268,15 +259,15 @@ class RetryingFunctionExecutor:
         inputs = _chained_futures(map_iterdata)
         if inputs is None and is_object_processing_function(map_function):
             # A bucket, a prefix or a directory runs one call per object in
-            # it, and an empty object none. Partitioned here, with the
-            # requests map() would make, each call gets an input of its own,
-            # so that a retry resubmits only the object whose call failed.
-            # map() takes the partitions as they are
+            # it, or per chunk of one, and an empty object none. Partitioned
+            # here, with the requests map() would make, each call gets an
+            # input of its own, so that a retry resubmits only the partition
+            # whose call failed. map() takes the partitions as they are
             map_iterdata, _ = create_partitions(
                 self.executor.config,
                 self.executor.internal_storage,
                 verify_args(map_function, map_iterdata, extra_args),
-                None, None, obj_newline,
+                obj_chunk_size, obj_chunk_number, obj_newline,
             )
             inputs = map_iterdata
             # verify_args merged them into every input already

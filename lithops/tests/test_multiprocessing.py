@@ -36,7 +36,6 @@ import cloudpickle
 import pytest
 from unittest.mock import MagicMock, patch
 
-from lithops.utils import is_unix_system
 from lithops.multiprocessing import config as mp_config
 from lithops.multiprocessing import util as mp_util
 from lithops.tests.mp_fakeredis import FakeRedis
@@ -2328,49 +2327,6 @@ class TestConditionContract:
             started = time.monotonic()
             assert cond.wait(0) is False
             assert time.monotonic() - started < 1
-
-
-class TestWaitAlarm:
-    """
-    lithops.wait() arms a SIGALRM, and signal.alarm() only takes whole
-    seconds
-    """
-
-    @pytest.mark.skipif(
-        not is_unix_system(), reason='wait() only arms an alarm on POSIX'
-    )
-    def test_a_fractional_timeout_is_rounded_up(self):
-        lw = sys.modules['lithops.wait']
-
-        armed = []
-        with patch.object(lw.signal, 'alarm', side_effect=armed.append), \
-                patch.object(lw.signal, 'signal'):
-            lw._set_wait_alarm(0.2)
-            lw._set_wait_alarm(2.7)
-        # int() would give 0 and 2: the first cancels the alarm outright,
-        # and the second cuts the wait short of what was asked for
-        assert armed == [1, 3]
-
-    def test_a_timeout_that_has_passed_raises_at_once(self):
-        lw = sys.modules['lithops.wait']
-
-        with pytest.raises(TimeoutError, match='Timeout of 0 seconds'):
-            lw._set_wait_alarm(0)
-
-    @pytest.mark.skipif(
-        not is_unix_system(), reason='wait() only arms an alarm on POSIX'
-    )
-    def test_pool_get_with_a_fractional_timeout_raises_timeout_error(self):
-        """
-        Pool.AsyncResult.get(0.2) reached signal.alarm() through wait() and
-        came back as TypeError instead of the multiprocessing TimeoutError
-        """
-        lw = sys.modules['lithops.wait']
-
-        with patch.object(lw.signal, 'alarm') as alarm, \
-                patch.object(lw.signal, 'signal'):
-            lw._set_wait_alarm(0.2)
-        alarm.assert_called_once_with(1)
 
 
 class TestListProxy:

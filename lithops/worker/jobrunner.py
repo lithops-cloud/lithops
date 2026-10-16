@@ -242,9 +242,6 @@ class JobRunner:
         down to the chunk that this task is responsible for
         """
         obj = data['obj']
-        if obj.data_byte_range is not None:
-            first_byte, last_byte = obj.data_byte_range
-
         stream = self._open_object_stream(obj, obj.data_byte_range)
 
         if obj.data_byte_range is None:
@@ -253,14 +250,12 @@ class JobRunner:
             last_byte = obj.chunk_size - 1
             obj.data_byte_range = (first_byte, last_byte)
         else:
+            first_byte, last_byte = obj.data_byte_range
             if obj.newline is None:
                 obj.data_stream = WrappedStreamingBody(stream, obj.chunk_size)
             else:
-                # The partitioner numbers the chunks of an object from 1
-                part = getattr(obj, 'part', None)
                 obj.data_stream = WrappedStreamingBodyPartition(
                     stream, obj.chunk_size, obj.data_byte_range, obj.newline,
-                    first_chunk=None if part is None else part == 1,
                     more=lambda first: self._more_of_object(obj, first)
                 )
             if last_byte - first_byte > obj.chunk_size:
@@ -277,10 +272,9 @@ class JobRunner:
         The next CHUNK_THRESHOLD bytes of the object from first_byte on, for a
         last row longer than the range of its chunk. None past the end
         """
-        total_size = getattr(obj, 'total_size', None)
-        if total_size is None or first_byte >= total_size:
+        if first_byte >= obj.total_size:
             return None
-        last_byte = min(first_byte + CHUNK_THRESHOLD, total_size) - 1
+        last_byte = min(first_byte + CHUNK_THRESHOLD, obj.total_size) - 1
         return self._open_object_stream(obj, (first_byte, last_byte))
 
     def _write_function_stats(

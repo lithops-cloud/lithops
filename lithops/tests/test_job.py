@@ -844,6 +844,18 @@ class TestCreatePartitions:
             [],
         )
 
+    @pytest.mark.parametrize('newline, minimum', [('\n', 2), ('\r\n', 3)])
+    def test_a_chunk_is_longer_than_the_newline(self, tmp_path, newline, minimum):
+        """
+        A chunk reads the newline length early, so only the first one then
+        starts at byte 0, which is how a worker tells the first chunk apart
+        """
+        path = tmp_path / 'data.txt'
+        path.write_bytes(b'x' * 10)
+        parts, _ = create_partitions({}, _storage(), [{'obj': str(path)}], 1, None, newline)
+        assert parts[0]['obj'].chunk_size == minimum
+        assert [p['obj'].data_byte_range[0] == 0 for p in parts] == [True] + [False] * (len(parts) - 1)
+
     def test_partitions_are_taken_back_as_they_are(self):
         """
         The retrying executor partitions before invoking. Partitioned again,

@@ -15,6 +15,7 @@
 import json
 import pickle
 import threading
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -233,6 +234,91 @@ class TestLocalhostStorageKeys:
         backend.put_object('b', 'dir/f', b'x')
         with pytest.raises(StorageNoSuchKeyError):
             backend.get_object('b', 'dir')
+
+
+class TestSwiftBackend:
+
+    def test_generate_bucket_name(self):
+        """It wrote to self.config, which the backend never set"""
+        from lithops.storage.backends.swift.swift import StorageBackend
+        config = {
+            'auth_url': 'http://auth', 'user_id': 'ABCDEF123', 'project_id': 'p',
+            'password': 'x', 'region': 'reg', 'token': 't', 'endpoint': 'http://swift',
+        }
+        backend = StorageBackend(config)
+        assert backend.generate_bucket_name() == 'lithops-reg-abcdef'
+        assert config['storage_bucket'] == 'lithops-reg-abcdef'
+
+
+class TestCloudBackendRanges:
+    """Open ranges work, and the caller's extra_get_args is not modified"""
+
+    def test_gcp_storage(self):
+        from lithops.storage.backends.gcp_storage import StorageBackend
+        backend = StorageBackend.__new__(StorageBackend)
+        backend.client = MagicMock()
+        blob = backend.client.get_bucket.return_value.blob.return_value
+        blob.size = 10
+        backend.get_object('b', 'k', extra_get_args={'Range': 'bytes=4-'})
+        blob.download_as_bytes.assert_called_with(start=4, end=None)
+        backend.get_object('b', 'k', extra_get_args={'Range': 'bytes=-3'})
+        blob.download_as_bytes.assert_called_with(start=7, end=None)
+
+    def test_azure_storage(self):
+        from lithops.storage.backends.azure_storage import StorageBackend
+        backend = StorageBackend.__new__(StorageBackend)
+        backend.blob_client = MagicMock()
+        container = backend.blob_client.get_container_client.return_value
+        container.get_blob_client.return_value.get_blob_properties.return_value.size = 10
+        args = {'Range': 'bytes=2-5'}
+        backend.get_object('b', 'k', extra_get_args=args)
+        container.download_blob.assert_called_with('k', offset=2, length=4)
+        assert args == {'Range': 'bytes=2-5'}
+        backend.get_object('b', 'k', extra_get_args={'Range': 'bytes=4-'})
+        container.download_blob.assert_called_with('k', offset=4, length=None)
+        backend.get_object('b', 'k', extra_get_args={'Range': 'bytes=-3'})
+        container.download_blob.assert_called_with('k', offset=7, length=None)
+
+    def test_aliyun_oss(self):
+        from lithops.storage.backends.aliyun_oss import StorageBackend
+        backend = StorageBackend.__new__(StorageBackend)
+        bucket = MagicMock()
+        bucket.head_object.return_value.content_length = 10
+        backend._connect_bucket = lambda name: bucket
+        args = {'Range': 'bytes=2-50'}
+        backend.get_object('b', 'k', extra_get_args=args)
+        bucket.get_object.assert_called_with(key='k', byte_range=(2, 9))
+        assert args == {'Range': 'bytes=2-50'}
+        backend.get_object('b', 'k', extra_get_args={'Range': 'bytes=-3'})
+        bucket.get_object.assert_called_with(key='k', byte_range=(None, 3))
+
+
+class TestCloudBackendListing:
+    """Listings go past the first page of 1000 objects"""
+
+    def test_aliyun_oss(self):
+        from lithops.storage.backends.aliyun_oss import StorageBackend, aliyun_oss
+        backend = StorageBackend.__new__(StorageBackend)
+        backend._connect_bucket = lambda name: MagicMock()
+        objects = [SimpleNamespace(key=f'k{i}', size=i) for i in range(1500)]
+        with patch.object(aliyun_oss.oss2, 'ObjectIterator', return_value=iter(objects)):
+            assert len(backend.list_objects('b', 'p')) == 1500
+        with patch.object(aliyun_oss.oss2, 'ObjectIterator', return_value=iter(objects)):
+            assert len(backend.list_keys('b', 'p')) == 1500
+
+    def test_oracle_oss(self):
+        from lithops.storage.backends.oracle_oss import StorageBackend
+        backend = StorageBackend.__new__(StorageBackend)
+        backend.namespace = 'ns'
+        backend.os_client = MagicMock()
+
+        def page(names, next_start):
+            objects = [SimpleNamespace(name=n, size=1) for n in names]
+            return SimpleNamespace(data=SimpleNamespace(objects=objects, next_start_with=next_start))
+
+        backend.os_client.list_objects.side_effect = [page(['a', 'b'], 'c'), page(['c'], None)]
+        assert [o['Key'] for o in backend.list_objects('bkt', 'p')] == ['a', 'b', 'c']
+        assert backend.os_client.list_objects.call_args.kwargs['start'] == 'c'
 
 
 class TestStorageCloudObjects:

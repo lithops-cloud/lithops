@@ -294,8 +294,7 @@ def wait_futures(executor, futures, download_results=False, timeout=None):
     on with a timeout could never be waited on again. A call that raised is
     not reported here either; reading its status or result raises it.
 
-    Runs out with the builtin TimeoutError, from the SIGALRM lithops.wait
-    arms, so a timeout only works from the main thread
+    Runs out with the builtin TimeoutError lithops.wait raises
     """
     lithops_wait(
         fs=futures,

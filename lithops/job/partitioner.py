@@ -153,9 +153,9 @@ def _build_partitions(
     obj_partitions = []
     size = obj_total_partitions = 0
     # Every chunk but the first one starts as many bytes early as the newline
-    # has, which the chunk before it must have
+    # has. Longer than the newline, only the first chunk starts at byte 0
     newline_len = len(obj_newline.encode()) if obj_newline is not None else 0
-    obj_chunk_size = max(obj_chunk_size, newline_len)
+    obj_chunk_size = max(obj_chunk_size, newline_len + 1)
 
     parts = obj_size // obj_chunk_size + (obj_size % obj_chunk_size > 0)
     logger.debug(

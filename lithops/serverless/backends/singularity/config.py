@@ -19,6 +19,10 @@ import shutil
 
 FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_singularity.zip')
 
+# The containers share the network of the host they run on, so a service at a
+# loopback address of this machine is reachable from the ones that run here
+SHARES_HOST_NETWORK = True
+
 DEFAULT_CONFIG_KEYS = {
     'runtime_timeout': 600,  # Default: 10 minutes
     'runtime_memory': 512,  # Default memory: 512 MB

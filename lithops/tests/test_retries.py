@@ -443,6 +443,28 @@ def test_a_directory_is_retried_one_file_at_a_time(tmp_path):
 
 
 
+
+def test_a_chunk_is_retried_on_its_own(tmp_path):
+    data = tmp_path / 'data.txt'
+    data.write_text(''.join(f'{i:04d}\n' for i in range(30)))
+    calls = tmp_path / 'calls'
+    calls.mkdir()
+
+    def count_lines(obj):
+        first = not any(f.startswith(f'{obj.part}.') for f in os.listdir(calls))
+        (calls / f'{obj.part}.{uuid.uuid4().hex}').touch()
+        if obj.part == 2 and first:
+            raise RuntimeError('Deliberately fail on the first read of chunk 2')
+        return obj.data_stream.read().count(b'\n')
+
+    fexec = FunctionExecutor(config=pytest.lithops_config)
+    with RetryingFunctionExecutor(fexec) as executor:
+        futures = executor.map(count_lines, [str(data)], obj_chunk_size=50, retries=1)
+        done, pending = executor.wait(futures)
+    assert pending == []
+    assert sum(f.result() for f in done) == 30
+    assert sorted(f.split('.')[0] for f in os.listdir(calls)) == ['1', '2', '2', '3']
+
 def test_a_prefix_costs_the_requests_of_map(monkeypatch):
     """
     It is listed once and its objects are not sized again: map() used to
@@ -511,14 +533,13 @@ class TestRetryingMapInputs:
         inner.internal_storage.storage.list_objects.return_value = list(objects)
         return inner
 
-    @pytest.mark.parametrize('chunks', [{'obj_chunk_number': 2}, {'obj_chunk_size': 64}])
-    def test_object_chunks_are_refused_before_invoking(self, chunks):
-        inner = self._inner(4)
-        with pytest.raises(ValueError, match='obj_chunk'):
-            RetryingFunctionExecutor(inner).map(
-                _count_lines, ['localhost://bucket/a.txt', 'localhost://bucket/b.txt'], **chunks
-            )
-        inner.map.assert_not_called()
+    @pytest.mark.parametrize('chunks', [{'obj_chunk_number': 3}, {'obj_chunk_size': 100}])
+    def test_each_chunk_of_an_object_is_an_input(self, chunks):
+        """Chunks used to be refused, since a retry resubmitted the whole object"""
+        inner = self._inner(3, [{'Key': 'prefix/a.txt', 'Size': 300}])
+        futures = RetryingFunctionExecutor(inner).map(_count_lines, ['localhost://bucket/prefix/'], **chunks)
+        assert [f.input['obj'].part for f in futures] == [1, 2, 3]
+        assert inner.map.call_args.args[1] == [f.input for f in futures]
 
     @staticmethod
     def _names(futures):

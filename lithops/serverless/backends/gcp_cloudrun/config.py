@@ -33,7 +33,6 @@ DEFAULT_CONFIG_KEYS = {
     'max_workers': 100,
     'min_workers': 0,
     'worker_processes': 1,
-    'invoke_pool_threads': 100,
     'trigger': 'https',
     # Substring marker so utils.get_default_container_name() builds an Artifact Registry image name.
     'docker_server': 'pkg.dev',
@@ -181,6 +180,7 @@ def load_config(config_data):
         if key not in config_data['gcp_cloudrun']:
             config_data['gcp_cloudrun'][key] = DEFAULT_CONFIG_KEYS[key]
 
+    # One invocation thread per worker, not a user setting
     config_data['gcp_cloudrun']['invoke_pool_threads'] = config_data['gcp_cloudrun']['max_workers']
 
     if config_data['gcp_cloudrun']['runtime_memory'] > MAX_RUNTIME_MEMORY:

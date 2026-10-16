@@ -1198,7 +1198,6 @@ class EC2Instance:
         self.instance_data = None
         self.private_ip = None
         self.public_ip = '0.0.0.0'
-        self.fast_io = self.config.get('fast_io', False)
         self.home_dir = '/home/ubuntu'
 
         self.runtime_name = None

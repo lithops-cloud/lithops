@@ -201,16 +201,14 @@ class JobMonitor:
         if self.monitor and self.monitor.is_alive():
             self.monitor.remove_futures(fs)
 
-    def close_jobs(self, job_ids=None):
+    def close_jobs(self):
         """
-        The invoker will no longer wait for these jobs, every job started
-        so far when None. Later statuses of theirs must not hand another
-        token back: the capacity they held was already forgotten
+        The invoker will no longer wait for any job started so far. Later
+        statuses of theirs must not hand another token back: the capacity
+        they held was already forgotten
         """
-        if job_ids is None:
-            job_ids = set(self.job_total_calls)
         if self.monitor is not None:
-            self.monitor.close_jobs(job_ids)
+            self.monitor.close_jobs(set(self.job_total_calls))
 
     def discard_calls(self, discarded):
         """The invoker dropped these calls, counted per job, uninvoked"""

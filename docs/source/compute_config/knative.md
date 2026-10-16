@@ -119,7 +119,6 @@ knative:
 |knative | runtime_cpu | 1 |no | CPU limit. Default 1vCPU |
 |knative | runtime_memory | 512 |no | Memory limit in MB. Default 512 |
 |knative | runtime_timeout | 600 |no | Runtime timeout in seconds. Default 600 seconds |
-|knative | invoke_pool_threads | 100 |no | Number of concurrent threads used for invocation |
 
 ### Verify
 

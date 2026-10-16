@@ -192,6 +192,62 @@ class TestStandaloneUtils:
         assert '\\tmp\\lithops_standalone.zip' not in master
 
 
+class TestVMConfig:
+
+    def test_the_documented_config_loads(self):
+        """The vm.md config has no standalone section, and runtime sits under vm"""
+        from lithops.config import default_config
+        config = default_config(
+            config_data={
+                'lithops': {'backend': 'vm'},
+                'vm': {'ip_address': '1.2.3.4', 'ssh_username': 'u', 'runtime': 'img:1'},
+            },
+            load_storage_config=False,
+        )
+        standalone = config['standalone']
+        assert standalone['exec_mode'] == 'consume'
+        assert standalone['runtime'] == 'img:1'
+        assert standalone['start_timeout'] == 300
+        assert standalone['auto_dismantle'] is False
+        assert 'runtime' not in config['vm']
+
+
+class TestAzureSpotWorkers:
+
+    @staticmethod
+    def _created_vm(tmp_path, public, spot):
+        from lithops.standalone.backends.azure_vms.azure_vms import VMInstance
+        key = tmp_path / 'id_rsa'
+        (tmp_path / 'id_rsa.pub').write_text('ssh-rsa AAAA')
+        instance = VMInstance.__new__(VMInstance)
+        instance.name = 'lithops-worker-1'
+        instance.location = 'westeurope'
+        instance.instance_type = 'Standard_D2s_v3'
+        instance.public = public
+        instance.public_ip = '1.2.3.4'
+        instance.spot_instance = spot
+        instance.ssh_credentials = {'username': 'ubuntu', 'key_filename': str(key)}
+        instance.config = {
+            'resource_group': 'rg', 'subnet_id': 's', 'security_group_id': 'sg',
+            'floating_ip_id': 'ip', 'vnet_name': 'vnet',
+        }
+        instance.network_client = MagicMock()
+        instance.compute_client = MagicMock()
+        instance._create_instance()
+        return instance.compute_client.virtual_machines.begin_create_or_update.call_args[0][2]
+
+    def test_workers_are_spot_vms_when_requested(self, tmp_path):
+        vm = self._created_vm(tmp_path, public=False, spot=True)
+        assert vm.priority == 'Spot'
+        assert vm.eviction_policy == 'Deallocate'
+        assert vm.billing_profile.max_price == -1
+
+    @pytest.mark.parametrize('public, spot', [(True, True), (False, False)])
+    def test_the_master_and_unrequested_workers_are_regular_vms(self, tmp_path, public, spot):
+        vm = self._created_vm(tmp_path, public=public, spot=spot)
+        assert vm.priority is None
+
+
 class TestBudgetKeeper:
 
     def test_running_attribute_and_job_tracking(self):

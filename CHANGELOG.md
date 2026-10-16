@@ -4,14 +4,16 @@
 
 ### Changed
 - [Core] A storage or monitoring service at a loopback address is refused for serverless workers, which cannot reach it; standalone and Singularity workers get a warning.
-- [Core] `RetryingFunctionExecutor` lists a bucket, prefix or directory before invoking, so that each object is retried on its own, and rejects `obj_chunk_size` and `obj_chunk_number`.
+- [Core] `wait()` timeouts no longer arm a SIGALRM: they are checked between polls, work from any thread and leave the caller's signal handler and alarm alone.
+- [Core] An `obj_chunk_size` no longer than `obj_newline` is raised to one byte more.
 
 ### Fixed
-- [Core] Chaining, cleanup, invocation errors, generator inputs, empty `fs`, `wait()` timeouts (threads, SIGALRM, `ANY_COMPLETED`), argument binding and `RetryingFunctionExecutor` retries and percentage waits.
+- [Core] Chaining, cleanup, invocation errors, generator inputs, empty `fs`, `wait()` with `ANY_COMPLETED`, argument binding, and `RetryingFunctionExecutor` retries and percentage waits; a failed object, or chunk of one, is retried on its own.
 - [Worker] Partitioned object streams (lost, duplicated or cut rows, rows longer than 128 KB, multi-byte `obj_newline`, `readline()`, iteration), module discovery of nested functions, a parameter named `future`, and `extra_env` restoring the previous environment.
-- [Localhost] Absolute interpreter paths are accepted as runtime; storage listing is a literal prefix match including dotfiles, and open-ended byte ranges are supported.
-- [Storage] `CloudFileProxy` path handling (`isfile`, `listdir`, `exists`, leading `/`), double `close()`, and `r+` mode writing back.
-- [Monitoring] Worker tokens of jobs dropped by `wait()`, replaced monitors and restarted invokers are handed back once, a held `__end__` is no longer replaced by an `__init__`, and the workers of a job that owes no token are forgotten instead of kept for the life of the executor.
+- [Localhost] An absolute interpreter path with any character, such as `@` or a space, is accepted as runtime; storage listing is a literal prefix match including dotfiles, and open-ended byte ranges are supported.
+- [Storage] `CloudFileProxy` path handling (`isfile`, `listdir`, `exists`, leading `/`), double `close()`, and `r+` mode writing back; Swift `generate_bucket_name`, Aliyun and Oracle listings past 1,000 objects, and open-ended byte ranges on GCS, Azure and Aliyun without modifying the caller's `extra_get_args`.
+- [Standalone] The `vm` backend loads its documented configuration, and Azure `request_spot_instances` creates Spot worker VMs (now `False` by default: B-series sizes, like the default worker, do not support Spot).
+- [Monitoring] Worker tokens of jobs dropped by `wait()`, replaced monitors and restarted invokers are handed back once, a held `__end__` is no longer replaced by an `__init__`, and the workers of a job that owes no token are forgotten instead of kept for as long as the job monitor runs.
 - [Concurrent] `wait()` and `as_completed()` accept generators.
 
 ## [v3.8.0]

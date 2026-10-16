@@ -72,7 +72,6 @@ from lithops.utils import (
     sizeof_fmt,
     split_object_url,
     split_path,
-    timeout_handler,
     verify_args,
     verify_runtime_name,
     version_str,
@@ -305,10 +304,6 @@ class TestMiscUtils:
     def test_verify_runtime_name_local_path_must_be_absolute(self):
         with pytest.raises(AssertionError, match='not valid'):
             verify_runtime_name('venv/bin/python@3', allow_local_path=True)
-
-    def test_timeout_handler_raises(self):
-        with pytest.raises(TimeoutError, match='too slow'):
-            timeout_handler('too slow', None, None)
 
     def test_b64_dict_roundtrip(self):
         payload = {'a': 1, 'b': 'x'}
@@ -840,6 +835,20 @@ class TestMiscUtils:
         part = WrappedStreamingBodyPartition(io.BytesIO(b'abc\n'), 4, (0, 3))
         assert list(part) == [b'abc\n']
 
+    def test_reading_a_whole_partition_reads_the_stream_at_once(self):
+        """It took one request of the HTTP stream per 8 KiB buffer"""
+        class Counting(io.BytesIO):
+            reads = 0
+
+            def read(self, n=-1):
+                Counting.reads += 1
+                return super().read(n)
+
+        data = b'row\n' * 100_000
+        part = WrappedStreamingBodyPartition(Counting(data), len(data), (0, len(data) - 1))
+        assert part.read() == data
+        assert Counting.reads <= 2
+
     @staticmethod
     def _partition_streams(path, chunk_size, newline='\n'):
         """The streams the workers read the partitions of a local file from"""
@@ -887,8 +896,7 @@ class TestMiscUtils:
                     return b''.join(pieces)
                 pieces.append(piece)
 
-        # With a chunk size of 1 the second chunk reads from byte 0 too, like
-        # the first one
+        # A chunk size of 1 is raised to one byte more than the newline
         for chunk_size in (1, 2, 3, 5, 16, 20, 64):
             streams = self._partition_streams(path, chunk_size, newline)
             assert len(streams) > 1
@@ -946,8 +954,7 @@ class TestChainedFuturesAfterMapReduce:
 
     @staticmethod
     def _future(mapreduce_map=False, produce_output=True):
-        from lithops.future import ResponseFuture
-        future = ResponseFuture.__new__(ResponseFuture)
+        future = _response_future()
         future._mapreduce_map = mapreduce_map
         future._produce_output = produce_output
         return future

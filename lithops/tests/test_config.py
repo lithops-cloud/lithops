@@ -558,8 +558,8 @@ class TestDefaultConfig:
 class TestLoopbackAddresses:
 
     @staticmethod
-    def _config(mode, storage, monitoring, backend=None, **sections):
-        backend = backend or ('aws_ec2' if mode == 'standalone' else 'aws_lambda')
+    def _config(mode, storage, monitoring, **sections):
+        backend = 'aws_ec2' if mode == 'standalone' else 'aws_lambda'
         lithops_cfg = {'mode': mode, 'backend': backend, 'storage': storage, 'monitoring': monitoring}
         return {'lithops': lithops_cfg, **sections}
 
@@ -586,13 +586,16 @@ class TestLoopbackAddresses:
 
     def test_singularity_workers_only_warn(self):
         """Its containers share the network of the host, which can be this one"""
-        config = self._config(
-            'serverless', 'aws_s3', 'rabbitmq', backend='singularity',
-            rabbitmq={'amqp_url': 'amqp://guest@localhost:5672'},
-        )
         with patch('lithops.config.logger') as logger:
-            _check_loopback_addresses(config)
-        assert 'which the singularity workers only reach if' in logger.warning.call_args[0][0]
+            default_config(config_data={
+                'lithops': {'backend': 'singularity', 'storage': 'redis', 'monitoring': 'rabbitmq'},
+                'rabbitmq': {'amqp_url': 'amqp://guest@localhost:5672'},
+                'redis': {'host': 'redis.example.com'},
+            })
+        assert any(
+            'which the singularity workers only reach if' in call.args[0]
+            for call in logger.warning.call_args_list
+        )
 
     def test_default_config_checks_the_addresses(self):
         # Backends whose modules import no SDK beyond the tests extra

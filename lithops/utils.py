@@ -511,11 +511,6 @@ def verify_runtime_name(runtime_name: str, allow_local_path: bool = False) -> No
     assert valid, f'Runtime name "{runtime_name}" not valid'
 
 
-def timeout_handler(error_msg, signum, frame):
-    """Signal handler that turns an alarm into a TimeoutError"""
-    raise TimeoutError(error_msg)
-
-
 def version_str(version_info) -> str:
     """Formats a sys.version_info tuple as major.minor"""
     return f"{version_info[0]}.{version_info[1]}"
@@ -990,6 +985,16 @@ class _PartitionRows(io.RawIOBase):
         buf[:len(piece)] = piece
         return len(piece)
 
+    def readall(self):
+        # What read() with no size ends in. Without it, RawIOBase reads the
+        # stream one buffer, 8 KiB, at a time
+        pieces = []
+        while True:
+            piece = self._read_rows(None)
+            if not piece:
+                return b''.join(pieces)
+            pieces.append(piece)
+
 
 class WrappedStreamingBodyPartition(WrappedStreamingBody):
     """
@@ -997,7 +1002,7 @@ class WrappedStreamingBodyPartition(WrappedStreamingBody):
     integrity of the partitions based on the newline
     character.
     """
-    def __init__(self, sb, size, byterange, newline='\n', first_chunk=None, more=None):
+    def __init__(self, sb, size, byterange, newline='\n', more=None):
         super().__init__(sb, size)
         # Opens the object again from a byte on, for a last row longer than
         # the range; returns None past the end of the object
@@ -1005,11 +1010,8 @@ class WrappedStreamingBodyPartition(WrappedStreamingBody):
         self.range = byterange
         self.newline_char = newline.encode()
         # Every chunk but the first one reads the newline length early, so that
-        # it can tell whether the previous chunk ended in the middle of a row.
-        # The start of the range cannot always tell: with a chunk size as long
-        # as the newline, the second chunk reads from byte 0 too
-        if first_chunk is None:
-            first_chunk = not self.range or self.range[0] == 0
+        # it can tell whether the previous chunk ended in the middle of a row
+        first_chunk = not self.range or self.range[0] == 0
         self._plusbytes = 0 if first_chunk else len(self.newline_char)
         # Set while the cut row at the start of the chunk, which the previous
         # chunk returns, is being skipped

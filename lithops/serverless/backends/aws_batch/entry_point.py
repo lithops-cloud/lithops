@@ -28,7 +28,6 @@ from lithops.worker.utils import get_runtime_metadata
 logger = logging.getLogger('lithops.worker')
 
 if __name__ == '__main__':
-    print(os.environ)
     action = os.getenv('__LITHOPS_ACTION')
     os.environ['__LITHOPS_BACKEND'] = 'AWS Batch'
 

@@ -29,7 +29,6 @@ DEFAULT_CONFIG_KEYS = {
     'runtime_cpu': 1,  # 1 vCPU
     'max_workers': 100,
     'worker_processes': 1,
-    'invoke_pool_threads': 100,
     'docker_server': 'docker.io',
     'networking_layer': 'kourier'
 }
@@ -216,6 +215,7 @@ def load_config(config_data):
         if key not in config_data['knative']:
             config_data['knative'][key] = DEFAULT_CONFIG_KEYS[key]
 
+    # One invocation thread per worker, not a user setting
     config_data['knative']['invoke_pool_threads'] = config_data['knative']['max_workers']
 
     if 'git_url' not in config_data['knative']:

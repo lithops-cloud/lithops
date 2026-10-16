@@ -33,6 +33,7 @@ class StorageBackend:
 
     def __init__(self, swift_config):
         logger.debug("Creating OpenStack Swift client")
+        self.config = swift_config
         self.auth_url = swift_config['auth_url']
         self.user_id = swift_config['user_id']
         self.project_id = swift_config['project_id']

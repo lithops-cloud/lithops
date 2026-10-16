@@ -24,6 +24,7 @@ from concurrent.futures import ThreadPoolExecutor
 from azure.identity import DefaultAzureCredential
 from azure.mgmt.compute import ComputeManagementClient
 from azure.mgmt.compute.models import (
+    BillingProfile,
     HardwareProfile,
     ImageReference,
     LinuxConfiguration,
@@ -1047,6 +1048,17 @@ class VMInstance:
                 )
             )
 
+            spot_args = {}
+            if self.spot_instance and not self.public:
+                # Workers only, as on AWS. Evicted on lack of capacity, never on
+                # price, and deallocated so that they can be started again
+                logger.debug(f"Creating new VM instance {self.name} (Spot)")
+                spot_args = {
+                    'priority': 'Spot',
+                    'eviction_policy': 'Deallocate',
+                    'billing_profile': BillingProfile(max_price=-1),
+                }
+
             vm = VirtualMachine(
                 location=self.location,
                 tags={
@@ -1085,6 +1097,7 @@ class VMInstance:
                         NetworkInterfaceReference(id=nic_data.id, primary=True)
                     ]
                 ),
+                **spot_args,
             )
 
             poller = self.compute_client.virtual_machines.begin_create_or_update(

@@ -1335,6 +1335,27 @@ class TestStorageMonitorTokensAndTags:
         assert monitor._credited_calls == {}
         assert monitor._discarded_calls == {}
 
+    def test_a_replacing_monitor_frees_a_worker_the_old_one_timed_out(self):
+        """
+        A timed-out call never shows in a listing, so the job of its worker
+        was only known to the monitor that timed it out
+        """
+        job_monitor, futures = self._job_monitor(calls=1)
+        old = job_monitor.monitor
+        old.remove_futures(futures)
+        old.stop()
+        # Stopping, it does not hand the worker back itself
+        old._release_timed_out_worker({
+            'activation_id': 'w1', 'executor_id': 'sess-0', 'job_id': 'M000', 'call_id': '00000',
+        })
+        assert old.token_bucket_q.qsize() == 0
+
+        job_monitor._spawn_monitor(generate_tokens=True)
+        new = job_monitor.monitor
+        new.internal_storage.get_job_status.side_effect = self._listing(set(), set())
+        new._poll_and_process_job_status()
+        assert new.token_bucket_q.qsize() == 1
+
     def test_the_workers_of_a_job_that_owes_nothing_are_forgotten(self):
         """
         Every monitor of an executor shares this bookkeeping, so it would
@@ -1350,7 +1371,6 @@ class TestStorageMonitorTokensAndTags:
         assert old.token_bucket_q.qsize() == 2
         assert old.callids_done_worker == {}
         assert old.workers_done == set()
-        assert old.worker_job == {}
         assert 'M000' in old._token_closed_jobs
 
         # A monitor that lists the job again neither hands a worker back
@@ -1362,7 +1382,6 @@ class TestStorageMonitorTokensAndTags:
         new._poll_and_process_job_status()
         assert new.token_bucket_q.qsize() == 2
         assert new.callids_done_worker == {}
-        assert new.worker_job == {}
 
     def test_a_nested_job_with_the_same_id_does_not_settle_this_one(self):
         """A nested executor numbers its jobs from M000 too"""
@@ -2260,6 +2279,19 @@ class TestMessageLossAndRecovery:
         storage.get_job_status.assert_not_called()
         assert tokens.qsize() == 1
         assert monitor._jobs_owing_tokens() == set()
+
+    def test_the_sweep_lists_no_job_whose_futures_are_all_finished(self):
+        """Only a dropped job owes a token here, and nothing is read from the finished one"""
+        storage = MagicMock()
+        monitor = self._monitor(storage=storage, tokens=queue.Queue(), chunksize={'M000': 1, 'M001': 1})
+        monitor.job_total_calls = {'M000': 1, 'M001': 1}
+        dropped = FakeFuture('M000', invoked=True, call_id='00000')
+        monitor.add_futures([dropped, FakeFuture('M001', ready=True, call_id='00000')])
+        monitor.remove_futures([dropped])
+        storage.get_job_status.return_value = (set(), set())
+
+        monitor._storage_sweep()
+        storage.get_job_status.assert_called_once_with('sess-0', job_ids={'M000'})
 
     def test_the_sweep_reads_only_the_calls_no_end_was_counted_for(self):
         """The status of a call whose __end__ was counted is not read back"""
