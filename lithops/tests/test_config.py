@@ -21,6 +21,7 @@ import yaml
 
 from lithops import constants as c
 from lithops.config import (
+    _check_loopback_addresses,
     _ensure_lithops_section,
     _resolve_mode_and_backend,
     _section_with_user_agent,
@@ -552,6 +553,71 @@ class TestDefaultConfig:
     def test_azure_queue_monitoring_requires_account(self):
         with pytest.raises(Exception, match='storage_account_name'):
             default_config(config_data=_localhost_input(monitoring='azure_queue'))
+
+
+class TestLoopbackAddresses:
+
+    @staticmethod
+    def _config(mode, storage, monitoring, backend=None, **sections):
+        backend = backend or ('aws_ec2' if mode == 'standalone' else 'aws_lambda')
+        lithops_cfg = {'mode': mode, 'backend': backend, 'storage': storage, 'monitoring': monitoring}
+        return {'lithops': lithops_cfg, **sections}
+
+
+    @pytest.mark.parametrize('storage, monitoring, sections', [
+        ('aws_s3', 'redis', {'redis': {'host': '127.0.0.1'}}),
+        ('aws_s3', 'redis', {'redis': {'host': '::1'}}),
+        ('aws_s3', 'rabbitmq', {'rabbitmq': {'amqp_url': 'amqp://user:pass@localhost:5672/vhost'}}),
+        ('minio', 'storage', {'minio': {'endpoint': 'http://127.0.0.1:9000'}}),
+        ('redis', 'storage', {'redis': {'host': 'localhost:6379'}}),
+    ])
+    def test_serverless_workers_refuse_a_loopback_address(self, storage, monitoring, sections):
+        """A serverless worker would reach its own container, so the job cannot work"""
+        config = self._config('serverless', storage, monitoring, **sections)
+        with pytest.raises(Exception, match='is a loopback address, which the aws_lambda workers cannot reach'):
+            _check_loopback_addresses(config)
+
+    def test_standalone_workers_only_warn(self):
+        """An SSH tunnel can bring the service to the loopback address of the VM"""
+        config = self._config('standalone', 'aws_s3', 'redis', redis={'host': '127.0.0.1'})
+        with patch('lithops.config.logger') as logger:
+            _check_loopback_addresses(config)
+        assert 'is a loopback address, which the aws_ec2 workers only reach if' in logger.warning.call_args[0][0]
+
+    def test_singularity_workers_only_warn(self):
+        """Its containers share the network of the host, which can be this one"""
+        config = self._config(
+            'serverless', 'aws_s3', 'rabbitmq', backend='singularity',
+            rabbitmq={'amqp_url': 'amqp://guest@localhost:5672'},
+        )
+        with patch('lithops.config.logger') as logger:
+            _check_loopback_addresses(config)
+        assert 'which the singularity workers only reach if' in logger.warning.call_args[0][0]
+
+    def test_default_config_checks_the_addresses(self):
+        # Backends whose modules import no SDK beyond the tests extra
+        def config(redis_host):
+            return {
+                'lithops': {'backend': 'openwhisk', 'storage': 'redis'},
+                'openwhisk': {'endpoint': 'https://openwhisk.example.com', 'namespace': 'ns', 'api_key': 'key'},
+                'redis': {'host': redis_host},
+            }
+
+        with pytest.raises(Exception, match='is a loopback address, which the openwhisk workers cannot reach'):
+            default_config(config_data=config('127.0.0.1'))
+        cfg = default_config(config_data=config('redis.example.com'))
+        assert cfg['lithops']['mode'] == c.SERVERLESS
+
+    @pytest.mark.parametrize('mode, host', [
+        ('localhost', '127.0.0.1'),
+        ('serverless', '10.0.0.5'),
+        ('standalone', 'redis.example.com'),
+    ])
+    def test_a_reachable_address_is_accepted(self, mode, host):
+        config = self._config(mode, 'aws_s3', 'redis', redis={'host': host})
+        with patch('lithops.config.logger') as logger:
+            _check_loopback_addresses(config)
+        logger.warning.assert_not_called()
 
 
 class TestStorageAndExtract:

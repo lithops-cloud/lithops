@@ -225,6 +225,10 @@ class StorageMonitor(Monitor):
         # Marking it processed here drops the token for good
         attributed = set()
         for callid_done in done_new:
+            if callid_done[1] in self._token_closed_jobs:
+                # Nothing of a closed job counts, nor is kept, any more
+                attributed.add(callid_done)
+                continue
             worker_id = self.callids_running_worker.get(callid_done)
             if worker_id is None:
                 continue
@@ -240,6 +244,7 @@ class StorageMonitor(Monitor):
 
         self.callids_running_processed.update(running_new)
         self.callids_done_processed.update(attributed)
+        self._give_up_dropped_jobs()
 
     def _release_free_workers(self):
         """
@@ -250,14 +255,18 @@ class StorageMonitor(Monitor):
         in consecutive chunks from call 0, so the chunk a call falls in, and
         the number of calls of the job, say how long that chunk is
         """
-        present_jobs = self.present_jobs
-        for worker_id, done_calls in self.callids_done_worker.items():
+        # A job wait() dropped still hands its tokens back: the workers
+        # are this executor's whether a future waits on them or not
+        jobs = self.present_jobs | self._dropped_jobs.keys()
+        # A copy: handing the last worker of a job back closes the job, which
+        # forgets its workers
+        for worker_id, done_calls in list(self.callids_done_worker.items()):
             if worker_id in self.workers_done:
                 continue
             job_id = self.worker_job.get(worker_id)
             if job_id is None or job_id in self._token_closed_jobs:
                 continue
-            if job_id not in present_jobs:
+            if job_id not in jobs:
                 continue
             chunksize = self.job_chunksize.get(job_id)
             if chunksize is None:
@@ -267,10 +276,7 @@ class StorageMonitor(Monitor):
             )
             if len(done_calls) < worker_calls:
                 continue
-            self.workers_done.add(worker_id)
-            if not self._releases_tokens():
-                break
-            self.token_bucket_q.put('#')
+            self._hand_back(job_id, worker_id)
 
     def _releases_tokens(self):
         """
@@ -281,17 +287,25 @@ class StorageMonitor(Monitor):
         """
         return self.should_run or self._final_sweep
 
+    def _forget_workers_of(self, job_ids):
+        super()._forget_workers_of(job_ids)
+        for worker_id in [w for w, job_id in self.worker_job.items() if job_id in job_ids]:
+            del self.worker_job[worker_id]
+
     def _release_timed_out_worker(self, call_status):
         worker_id = call_status.get('activation_id')
         if not self.generate_tokens or worker_id is None:
             return
         if call_status['executor_id'] != self.executor_id:
             return
-        self.callids_done_worker.setdefault(worker_id, set()).add(
-            _status_id(call_status)
-        )
-        self.worker_job.setdefault(worker_id, call_status['job_id'])
-        self._release_free_workers()
+        with self._apply_lock:
+            if call_status['job_id'] in self._token_closed_jobs:
+                return
+            self.callids_done_worker.setdefault(worker_id, set()).add(
+                _status_id(call_status)
+            )
+            self.worker_job.setdefault(worker_id, call_status['job_id'])
+            self._release_free_workers()
 
     def _poll_and_process_job_status(self):
         """
@@ -301,19 +315,31 @@ class StorageMonitor(Monitor):
         # Nothing tracked: do not list. An empty job_ids used to list the
         # whole executor prefix, which on S3 is a LIST of every leftover
         # job key and the function pickle, once per monitoring_interval,
-        # for as long as the monitor stays up after wait()
+        # for as long as the monitor stays up after wait(). The jobs wait()
+        # dropped are listed until their workers have handed their tokens
+        # back, which no future of theirs is left to wait for
         job_ids = self.job_ids()
-        if not job_ids:
+        owing = self._jobs_owing_tokens()
+        if not job_ids and not owing:
             return set()
         status = self.internal_storage.get_job_status(
-            self.executor_id, job_ids=job_ids
+            self.executor_id, job_ids=job_ids | owing
         )
         callids_running, callids_done = status
+        # Shared with the monitor that may replace this one
+        with self._apply_lock:
+            self._generate_tokens(callids_running, callids_done)
+
+        # Only the tracked jobs have futures to tag. The done calls of a
+        # dropped job are never read, and would otherwise count as new on
+        # every round
+        if owing:
+            callids_running = {c for c in callids_running if c[0][1] in job_ids}
+            callids_done = {c for c in callids_done if c[1] in job_ids}
         new_callids_done = (
             callids_done - self.callids_done_processed_status
         )
 
-        self._generate_tokens(callids_running, callids_done)
         self._tag_future_as_ready(callids_done)
         self._tag_future_as_running(callids_running)
 

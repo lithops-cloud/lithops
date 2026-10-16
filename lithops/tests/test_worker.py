@@ -37,7 +37,7 @@ from lithops.constants import (
     WORKER_ENV,
 )
 from lithops.storage.utils import CloudObject, CloudObjectLocal, CloudObjectUrl
-from lithops.utils import bytes_to_b64str, is_unix_system
+from lithops.utils import bytes_to_b64str, is_unix_system, verify_args
 from lithops.worker import function_handler, function_invoker
 from lithops.worker.handler import (
     ShutdownSentinel,
@@ -47,6 +47,7 @@ from lithops.worker.handler import (
     task_consumer,
     run_task,
 )
+from lithops.future import ResponseFuture
 from lithops.worker.jobrunner import JobRunner, JobStats, _prepare_args
 from lithops.monitoring import (
     CallStatus,
@@ -454,6 +455,35 @@ class TestPrepareAndRunTask:
         assert task.log_file == os.path.join(task.task_dir, 'execution.log')
         assert task.stats_file == os.path.join(task.task_dir, 'job_stats.txt')
         assert len(os.environ['__LITHOPS_ACTIVATION_ID']) == 12
+
+    def test_restores_the_variables_extra_env_overrides(
+        self, tmp_path, monkeypatch
+    ):
+        """
+        The worker process runs more tasks after this one: a variable it had
+        before the task must not be lost, even when the task fails
+        """
+        monkeypatch.setattr(
+            'lithops.worker.handler.LITHOPS_TEMP_DIR', str(tmp_path)
+        )
+        monkeypatch.setenv('LITHOPS_TEST_PREVIOUS', 'orig')
+        monkeypatch.delenv('LITHOPS_TEST_NEW', raising=False)
+        task = _task(extra_env={
+            'LITHOPS_TEST_PREVIOUS': 'override', 'LITHOPS_TEST_NEW': 'new'
+        })
+        seen = {}
+
+        def run(task):
+            seen['previous'] = os.environ.get('LITHOPS_TEST_PREVIOUS')
+            seen['new'] = os.environ.get('LITHOPS_TEST_NEW')
+            raise RuntimeError('task failed')
+
+        with patch('lithops.worker.handler.run_task', run):
+            with pytest.raises(RuntimeError):
+                prepare_and_run_task(task)
+        assert seen == {'previous': 'override', 'new': 'new'}
+        assert os.environ['LITHOPS_TEST_PREVIOUS'] == 'orig'
+        assert 'LITHOPS_TEST_NEW' not in os.environ
 
     def test_keeps_existing_activation_id(self, tmp_path, monkeypatch):
         monkeypatch.setattr(
@@ -1286,16 +1316,13 @@ class TestJobStatsAndPrepareArgs:
         def f(a, b=1):
             return a + b
         args, kwargs = _prepare_args(f, {'a': 2, 'b': 3})
-        assert args == ()
-        assert kwargs == {'a': 2, 'b': 3}
         assert f(*args, **kwargs) == 5
 
-    def test_prepare_args_varargs_empty_list_is_kept(self):
+    def test_prepare_args_empty_varargs(self):
         def f(*args, **kwargs):
             return args, kwargs
         args, kwargs = _prepare_args(f, {'args': [], 'kwargs': {}, 'x': 1})
-        assert args == []
-        assert kwargs == {'x': 1}
+        assert f(*args, **kwargs) == ((), {'x': 1})
 
     def test_prepare_args_custom_var_names(self):
         def f(*xs, **kw):
@@ -1305,6 +1332,44 @@ class TestJobStatsAndPrepareArgs:
         )
         assert args == (1, 2)
         assert kwargs == {'a': 3, 'b': 4}
+
+    def test_prepare_args_named_params_before_varargs_stay_positional(self):
+        def f(a, *rest):
+            return a, rest
+        data = verify_args(f, [(1, 2, 3)], None)[0]
+        args, kwargs = _prepare_args(f, data)
+        assert f(*args, **kwargs) == (1, (2, 3))
+
+    def test_prepare_args_positional_only_params(self):
+        data = verify_args(abs, [(-2,)], None)[0]
+        args, kwargs = _prepare_args(abs, data)
+        assert abs(*args, **kwargs) == 2
+
+    def test_prepare_args_keeps_keyword_params_after_positional_ones(self):
+        def f(a, b, *rest, c=0):
+            return a, b, rest, c
+        args, kwargs = _prepare_args(f, {'a': 1, 'b': 2, 'rest': (3,), 'c': 4})
+        assert f(*args, **kwargs) == (1, 2, (3,), 4)
+
+    def test_prepare_args_none_varargs_are_empty(self):
+        def f(*args, **kwargs):
+            return args, kwargs
+        args, kwargs = _prepare_args(f, {'args': None, 'kwargs': None, 'x': 1})
+        assert f(*args, **kwargs) == ((), {'x': 1})
+
+    def test_prepare_args_a_param_left_out_before_varargs_takes_its_default(self):
+        """verify_args lets a dict leave out a param that has a default"""
+        def f(a, b=2, *rest, c=0):
+            return a, b, rest, c
+        args, kwargs = _prepare_args(f, {'a': 1, 'rest': (3, 4)})
+        assert f(*args, **kwargs) == (1, 2, (3, 4), 0)
+        args, kwargs = _prepare_args(f, {'a': 1, 'c': 5})
+        assert f(*args, **kwargs) == (1, 2, (), 5)
+
+        def g(a=1, b=2, /):
+            return a, b
+        args, kwargs = _prepare_args(g, {'b': 5})
+        assert g(*args, **kwargs) == (1, 5)
 
 
 class TestJobRunner:
@@ -1442,12 +1507,21 @@ class TestJobRunner:
 
     def test_fill_optional_args_future_chaining(self):
         jr = self._runner(_echo, {'x': 1})
-        future = MagicMock()
+        future = MagicMock(spec=ResponseFuture)
         future.result.return_value = 9
         data = {'future': future}
         jr._fill_optional_args(_echo, data)
         assert data['x'] == 9
         assert 'future' not in data
+
+    def test_fill_optional_args_param_named_future_is_not_chaining(self):
+        def f(future):
+            return future
+
+        jr = self._runner(_echo, {'x': 1})
+        data = {'future': 5}
+        jr._fill_optional_args(f, data)
+        assert data == {'future': 5}
 
     def test_wait_futures_replaces_first_value(self):
         jr = self._runner(_echo, {'x': 1})

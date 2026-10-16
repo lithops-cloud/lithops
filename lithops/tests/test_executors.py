@@ -71,6 +71,8 @@ class FakeFuture:
         self.success = False
         self.error = False
         self.futures = None
+        self.ready = False
+        self._consumers = []
         self._produce_output = True
         self._read = False
         self.job_id = 'M000'
@@ -133,11 +135,11 @@ class TestExecutorHelpers:
 
     def test_disable_iterdata_output_only_for_futures_list(self):
         future = FakeFuture(_produce_output=True)
-        FunctionExecutor._disable_iterdata_output([future])
+        FunctionExecutor._disable_iterdata_output([future], [])
         assert future._produce_output is True
 
         wrapped = FakeFuture(_produce_output=True)
-        FunctionExecutor._disable_iterdata_output(FuturesList([wrapped]))
+        FunctionExecutor._disable_iterdata_output(FuturesList([wrapped]), [])
         assert wrapped._produce_output is False
 
     def test_create_job_id_increments_and_zero_fills(self):
@@ -258,6 +260,70 @@ class TestSubmitAndCleanup:
                 patch('lithops.executors.sp.Popen'):
             executor.clean(fs=[read, unread], clean_cloudobjects=False)
         assert create_job_key('abc-0', 'M000') in executor.cleaned_jobs
+
+    def test_clean_keeps_a_producer_until_its_chained_consumer_ends(self):
+        """A chained call reads its producer's result from storage, whoever waited on it"""
+        consumer = FakeFuture(executor_id='abc-0', job_id='M001', ready=False)
+        producer = FakeFuture(
+            executor_id='abc-0', job_id='M000', done=True,
+            _produce_output=False, _consumers=[[consumer]],
+        )
+        executor = _bare_executor(
+            cleaned_jobs=set(), executor_id='abc-0', futures=[producer, consumer]
+        )
+        with patch('lithops.executors._dump_cleaner_data') as dump, \
+                patch('lithops.executors.sp.Popen'):
+            executor.clean(fs=[producer], clean_cloudobjects=False)
+        dump.assert_not_called()
+        assert executor.cleaned_jobs == set()
+
+        consumer.ready = True
+        with patch('lithops.executors._dump_cleaner_data'), \
+                patch('lithops.executors.sp.Popen'):
+            executor.clean(fs=[producer], clean_cloudobjects=False)
+        assert create_job_key('abc-0', 'M000') in executor.cleaned_jobs
+
+    def test_clean_of_a_consumer_cleans_the_producer_it_kept(self):
+        consumer = FakeFuture(executor_id='abc-0', job_id='M001')
+        producer = FakeFuture(
+            executor_id='abc-0', job_id='M000', done=True,
+            _produce_output=False, _consumers=[[consumer]],
+        )
+        executor = _bare_executor(
+            cleaned_jobs=set(), executor_id='abc-0', futures=[producer, consumer]
+        )
+        with patch('lithops.executors._dump_cleaner_data'), \
+                patch('lithops.executors.sp.Popen'):
+            executor.clean(fs=[producer], clean_cloudobjects=False)
+            assert executor.cleaned_jobs == set()
+            consumer.done = True
+            executor.clean(fs=[consumer], clean_cloudobjects=False)
+        assert executor.cleaned_jobs == {
+            create_job_key('abc-0', 'M000'), create_job_key('abc-0', 'M001')
+        }
+
+    def test_forced_clean_keeps_a_producer_while_its_consumer_runs(self):
+        """A wait that failed forces the clean of the jobs it waited on"""
+        consumer = FakeFuture(executor_id='abc-0', job_id='M001')
+        producer = FakeFuture(
+            executor_id='abc-0', job_id='M000', done=True,
+            _produce_output=False, _consumers=[[consumer]],
+        )
+        executor = _bare_executor(
+            cleaned_jobs=set(), executor_id='abc-0', futures=[producer, consumer]
+        )
+        with patch('lithops.executors._dump_cleaner_data'), \
+                patch('lithops.executors.sp.Popen'):
+            executor.clean(fs=[producer], clean_cloudobjects=False, force=True)
+            assert executor.cleaned_jobs == set()
+            executor.clean(fs=[producer], clean_cloudobjects=False, on_exit=True)
+        assert executor.cleaned_jobs == {create_job_key('abc-0', 'M000')}
+
+    def test_disable_iterdata_output_records_the_consumers(self):
+        producer = FakeFuture()
+        consumers = [FakeFuture()]
+        FunctionExecutor._disable_iterdata_output(FuturesList([producer]), consumers)
+        assert producer._consumers == [consumers]
 
     def test_clean_on_exit_deletes_a_job_with_unread_results(self):
         """
@@ -488,9 +554,7 @@ class TestWaitAndGetResult:
                 executor.wait([future], show_progressbar=False)
 
         executor.invoker.stop.assert_not_called()
-        executor.invoker.discard_pending.assert_called_once_with(
-            {future.job_key}, {future.job_id}
-        )
+        executor.invoker.discard_pending.assert_called_once_with({future.job_key})
         executor.job_monitor.remove.assert_called_once()
         assert future._exception_set is True
         assert cleanup.call_args.kwargs['force'] is True
@@ -657,6 +721,73 @@ class TestWaitAndGetResult:
         wait.assert_not_called()
         assert map_futures[0]._mapreduce is True
         assert list(result) == map_futures + reduce_futures
+
+    def test_map_reduce_keeps_the_map_job_until_the_reducer_ends(self):
+        executor = _bare_executor(
+            total_jobs=0, cleaned_jobs=set(), executor_id='abc-0', data_cleaner=True
+        )
+        map_futures = [FakeFuture(executor_id='abc-0', job_id='M000', done=True)]
+        reduce_futures = [FakeFuture(executor_id='abc-0', job_id='R000')]
+        executor.futures = map_futures + reduce_futures
+        with patch.object(
+            executor, '_submit_map', return_value=('M000', MagicMock(), map_futures)
+        ), patch('lithops.executors.wait'), patch.object(
+            executor, '_run_reduce_job', return_value=reduce_futures
+        ), patch('lithops.executors._dump_cleaner_data'), patch('lithops.executors.sp.Popen'):
+            executor.map_reduce(lambda x: x, [1], lambda xs: xs, spawn_reducer=ALL_COMPLETED)
+            assert executor.cleaned_jobs == set()
+            executor.wait(map_futures, show_progressbar=False)
+            assert executor.cleaned_jobs == set()
+            reduce_futures[0].done = True
+            executor.wait(reduce_futures, show_progressbar=False)
+        assert executor.cleaned_jobs == {
+            create_job_key('abc-0', 'M000'), create_job_key('abc-0', 'R000')
+        }
+
+
+class TestExplicitEmptyFutures:
+    """An empty fs means no futures at all, only None means every one"""
+
+    @patch('lithops.executors.wait')
+    def test_wait_on_an_empty_list_waits_on_nothing(self, mock_wait):
+        executor = _bare_executor(futures=[FakeFuture()])
+        done, not_done = executor.wait([], show_progressbar=False)
+        assert (list(done), list(not_done)) == ([], [])
+        mock_wait.assert_not_called()
+
+    @patch('lithops.executors.wait')
+    def test_only_no_fs_waits_on_the_executor_futures(self, mock_wait):
+        future = FakeFuture()
+        executor = _bare_executor(futures=[future])
+        executor.wait(show_progressbar=False)
+        assert mock_wait.call_args.kwargs['fs'] == [future]
+        assert mock_wait.call_args.kwargs['futures_from_executor_wait'] is True
+        executor.wait([future], show_progressbar=False)
+        assert mock_wait.call_args.kwargs['futures_from_executor_wait'] is False
+
+    def test_get_result_of_an_empty_list_is_empty(self):
+        future = FakeFuture(done=True, success=True, _result=7)
+        executor = _bare_executor(
+            data_cleaner=True, last_call='map', futures=[future]
+        )
+        with patch.object(executor, '_cleanup_jobs') as cleanup:
+            assert executor.get_result([]) == []
+        cleanup.assert_not_called()
+        assert future._read is False
+        with patch.object(executor, 'wait', return_value=([future], [])), \
+                patch.object(executor, '_cleanup_jobs'):
+            assert executor.get_result() == [7]
+
+    def test_clean_of_an_empty_list_cleans_nothing(self):
+        future = FakeFuture(executor_id='abc-0', job_id='M000', done=True)
+        executor = _bare_executor(
+            cleaned_jobs=set(), executor_id='abc-0', futures=[future]
+        )
+        with patch('lithops.executors._dump_cleaner_data') as dump, \
+                patch('lithops.executors.sp.Popen'):
+            executor.clean(fs=[], clean_cloudobjects=False, force=True)
+        dump.assert_not_called()
+        assert executor.cleaned_jobs == set()
 
 
 class TestExecutorLocalhost:

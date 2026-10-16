@@ -20,6 +20,7 @@ import pickle
 import sys
 import threading
 import time
+from math import ceil
 from typing import Any, Dict, Optional
 
 from tblib import pickling_support
@@ -47,6 +48,11 @@ MAX_TIMEOUT_STATUS_QUERIES = 3
 # there is a backend, and the contract is checked against it
 BACKENDS_PACKAGE = 'lithops.monitoring.backends'
 
+# The token bookkeeping JobMonitor shares with every monitor it spawns, lock
+# included, so that it outlives the monitor that replaces another
+TOKEN_STATE = ('_apply_lock', 'workers_done', 'callids_done_worker', '_token_closed_jobs',
+               '_dropped_jobs', '_credited_calls', '_discarded_calls')
+
 
 def _status_id(call_status):
     return (
@@ -62,6 +68,32 @@ def _is_finished(fut):
 
 def _is_started(fut):
     return fut.running or _is_finished(fut)
+
+
+def _holds_end(held_status, status_id):
+    """Whether the held statuses keep an __end__ for this call"""
+    entry = held_status.get(status_id)
+    return entry is not None and entry[1]['type'] == '__end__'
+
+
+def error_status(executor_id, job_id, call_id, activation_id=None,
+                 start_tstamp=None, exc_info=None):
+    """
+    An __end__ status that ends a call with an error, the one being handled
+    unless ``exc_info`` is given, which the client re-raises
+    """
+    now = time.time()
+    return {
+        'type': '__end__',
+        'exception': True,
+        'exc_info': str(pickle.dumps(exc_info or sys.exc_info())),
+        'executor_id': executor_id,
+        'job_id': job_id,
+        'call_id': call_id,
+        'activation_id': activation_id,
+        'worker_start_tstamp': start_tstamp or now,
+        'worker_end_tstamp': now,
+    }
 
 
 def is_named_error(exc, *names):
@@ -168,6 +200,9 @@ class Monitor(threading.Thread):
         # early). One lock, re-entrant because applying one status can
         # reveal the futures whose own statuses were held
         self._apply_lock = threading.RLock()
+        # Set once another monitor replaced this one: the workers it finds
+        # free from then on are left for that one to hand back
+        self._retired = False
         self.futures = set()
         self._futures_by_id = {}
         self._timeout_query_failures = {}
@@ -179,8 +214,12 @@ class Monitor(threading.Thread):
         # Jobs whose capacity the invoker already forgot. A late __end__
         # of theirs must not put another token in the bucket
         self._token_closed_jobs = set()
-        # Jobs wait() dropped, whose workers still have to free a token
-        self._dropped_jobs = set()
+        # Jobs wait() dropped whose workers still have to free a token, and
+        # when to give up on them. A job is owed tokens for the calls the
+        # invoker did not discard and no free worker ran yet
+        self._dropped_jobs = {}
+        self._credited_calls = {}
+        self._discarded_calls = {}
         # vars for MessageMonitor._hold_status
         self._held_status = {}
         self._held_lock = threading.Lock()
@@ -270,6 +309,12 @@ class Monitor(threading.Thread):
                     for future in fs
                 ]
             )
+        # A job tracked again is owed nothing until it is dropped again
+        if self._dropped_jobs:
+            with self._apply_lock:
+                for future in fs:
+                    if future.executor_id == self.executor_id:
+                        self._dropped_jobs.pop(future.job_id, None)
 
     def remove_futures(self, fs):
         """
@@ -282,19 +327,68 @@ class Monitor(threading.Thread):
                 future_id = _future_id(future)
                 if self._futures_by_id.get(future_id) is future:
                     del self._futures_by_id[future_id]
-            remaining = {future.job_id for future in self.futures}
-            self.present_jobs = remaining
-            self._dropped_jobs.update(
-                future.job_id for future in fs if future.job_id not in remaining
-            )
+            self.present_jobs = {future.job_id for future in self.futures}
+        if self.generate_tokens:
+            self.drop_jobs(fs)
+
+    def drop_jobs(self, fs):
+        """
+        Owes the tokens of the jobs of ``fs`` no future of this monitor
+        tracks any more. Nested executors reuse its job ids, so only its
+        own futures count
+        """
+        own = self.executor_id
+        with self._futures_lock:
+            tracked = {f.job_id for f in self.futures if f.executor_id == own}
+        dropped = {f.job_id for f in fs if f.executor_id == own} - tracked
+        # A worker is gone once past the execution timeout, which the
+        # runtime timeout caps, plus the margin a status gets to show up.
+        # Waiting chunksize times as long kept a job listed for days
+        timeout = max((f.execution_timeout or 0 for f in fs), default=0)
+        deadline = time.time() + timeout + self.HELD_STATUS_SLACK
+        with self._apply_lock:
+            for job_id in dropped - self._token_closed_jobs:
+                self._dropped_jobs.setdefault(job_id, deadline)
+                self._settle(job_id)
 
     def close_jobs(self, job_ids):
         """
         Marks jobs whose remaining worker tokens the invoker already
-        wrote off, so a late status does not hand one back again
+        wrote off, or that owe none, so a late status does not hand one back
         """
         with self._apply_lock:
             self._token_closed_jobs.update(job_ids)
+            for job_id in job_ids:
+                self._dropped_jobs.pop(job_id, None)
+                self._credited_calls.pop(job_id, None)
+                self._discarded_calls.pop(job_id, None)
+            self._forget_workers_of(job_ids)
+
+    def _forget_workers_of(self, job_ids):
+        """
+        Drops what is kept about the workers of closed jobs. No status of
+        theirs counts any more, and every monitor of the executor shares
+        this bookkeeping, so it would otherwise hold every call the
+        executor ever ran. Called with the apply lock held
+        """
+        gone = [
+            worker_id for worker_id, calls in self.callids_done_worker.items()
+            if any(status_id[1] in job_ids for status_id in calls)
+        ]
+        for worker_id in gone:
+            del self.callids_done_worker[worker_id]
+            self.workers_done.discard(worker_id)
+
+    def discard_calls(self, discarded):
+        """
+        Counts the calls per job the invoker dropped before any worker ran
+        them, which no worker frees a token for
+        """
+        with self._apply_lock:
+            for job_id, calls in discarded.items():
+                if job_id not in self._token_closed_jobs:
+                    self._discarded_calls[job_id] = self._discarded_calls.get(job_id, 0) + calls
+                    self._settle(job_id)
 
     def tracked_futures(self):
         """
@@ -310,6 +404,78 @@ class Monitor(threading.Thread):
         """
         with self._futures_lock:
             return set(self.present_jobs)
+
+    def _releases_tokens(self):
+        """Whether a worker found free is handed back to the invoker"""
+        return self.should_run
+
+    def _hand_back(self, job_id, worker_id=None, tokens=1):
+        """
+        Hands back the token of a free worker, or of workers that never
+        reported back, unless another monitor replaced this one. Called
+        with the apply lock held
+        """
+        if (
+            self._retired
+            or job_id in self._token_closed_jobs
+            or not self._releases_tokens()
+        ):
+            return False
+        if worker_id is not None:
+            self.workers_done.add(worker_id)
+            calls = len(self.callids_done_worker.get(worker_id, ()))
+            self._credited_calls[job_id] = self._credited_calls.get(job_id, 0) + calls
+        for _ in range(tokens):
+            self.token_bucket_q.put('#')
+        self._settle(job_id)
+        return True
+
+    def _owed_calls(self, job_id):
+        """The calls of a job neither discarded nor run by a free worker"""
+        return (
+            self.job_total_calls.get(job_id, 0)
+            - self._discarded_calls.get(job_id, 0)
+            - self._credited_calls.get(job_id, 0)
+        )
+
+    def _settle(self, job_id):
+        """
+        Closes a job once it owes no call, every one discarded or run by a
+        worker that was handed back. A dropped job is then no longer listed,
+        and the workers of any job are forgotten
+        """
+        if job_id not in self.job_total_calls:
+            return
+        if self._owed_calls(job_id) <= 0:
+            self.close_jobs({job_id})
+
+    def _give_up_dropped_jobs(self):
+        """
+        Closes the dropped jobs past their deadline, handing back a token per
+        chunk of calls no free worker ran, as a timed-out call does
+        """
+        now = time.time()
+        with self._apply_lock:
+            expired = [
+                job_id for job_id, deadline in self._dropped_jobs.items()
+                if now >= deadline
+            ]
+            for job_id in expired:
+                chunksize = self.job_chunksize.get(job_id) or 1
+                stuck = ceil(max(self._owed_calls(job_id), 0) / chunksize)
+                if self._hand_back(job_id, tokens=stuck):
+                    self.close_jobs({job_id})
+                    logger.debug(
+                        f'{log_prefix(self.executor_id, job_id)} - Gave up waiting '
+                        f'for {stuck} worker(s) of a dropped job to report back'
+                    )
+
+    def _jobs_owing_tokens(self):
+        """A snapshot of the jobs wait() dropped that still owe a token"""
+        if not self.generate_tokens:
+            return set()
+        with self._apply_lock:
+            return set(self._dropped_jobs)
 
     def future_by_id(self, future_id):
         """
@@ -365,7 +531,15 @@ class Monitor(threading.Thread):
         if not held:
             return
         with self._held_lock:
-            self._held_status = {**held, **self._held_status}
+            merged = {**held, **self._held_status}
+            # An __init__ held here does not replace an __end__ the other
+            # monitor was holding for the same call
+            for status_id, entry in held.items():
+                if entry[1]['type'] != '__end__':
+                    continue
+                if not _holds_end(self._held_status, status_id):
+                    merged[status_id] = entry
+            self._held_status = merged
             self._held_may_match = True
 
     def _worker_calls(self, executor_id, job_id, call_id, chunksize):
@@ -519,18 +693,10 @@ class Monitor(threading.Thread):
                 # Raising and catching the error right away is what fills
                 # sys.exc_info(), so that the client re-raises a real
                 # traceback for a worker that never reported back
-                pickled_exception = str(pickle.dumps(sys.exc_info()))
-                call_status = {
-                    'type': '__end__',
-                    'exception': True,
-                    'exc_info': pickled_exception,
-                    'executor_id': fut.executor_id,
-                    'job_id': fut.job_id,
-                    'call_id': fut.call_id,
-                    'activation_id': fut.activation_id,
-                    'worker_start_tstamp': start_tstamp,
-                    'worker_end_tstamp': time.time(),
-                }
+                call_status = error_status(
+                    fut.executor_id, fut.job_id, fut.call_id,
+                    fut.activation_id, start_tstamp,
+                )
                 self._mark_ready(fut, call_status, OUTCOME_TIMEOUT)
                 self._release_timed_out_worker(call_status)
 
@@ -598,7 +764,9 @@ class MessageMonitor(Monitor):
         the status that tells this monitor the nested futures exist. A
         message is read once, so dropping it here would leave a future
         running for ever. Held by call id, so an __end__ supersedes the
-        __init__ of the same call.
+        __init__ of the same call, and never the other way round: a service
+        that does not keep the order, or that redelivers, can hand the
+        __init__ over after the __end__.
 
         A worker that waits on an executor of its own sends every status of
         it here, most of which never match a future of this one. They are
@@ -610,6 +778,10 @@ class MessageMonitor(Monitor):
         status_id = _status_id(held)
         now = time.time()
         with self._held_lock:
+            if held['type'] == '__init__' and _holds_end(
+                self._held_status, status_id
+            ):
+                return
             # Taken out first, so that the dict stays in order of arrival
             # and the first key is always the oldest
             self._held_status.pop(status_id, None)
@@ -756,9 +928,7 @@ class MessageMonitor(Monitor):
                 worker_id not in self.workers_done
                 and len(done_for_worker) >= worker_calls
             ):
-                self.workers_done.add(worker_id)
-                if self.should_run:
-                    self.token_bucket_q.put('#')
+                self._hand_back(call_status['job_id'], worker_id)
 
     def _apply_status_message(self, call_status):
         """
@@ -778,10 +948,13 @@ class MessageMonitor(Monitor):
                     return
             if self._tag_future_as_ready(call_status):
                 self._generate_tokens(call_status)
-            elif call_status.get('job_id') in self._dropped_jobs:
+            elif call_status.get('executor_id') == self.executor_id and (
+                call_status.get('job_id') in self._dropped_jobs
+                or call_status.get('job_id') in self._token_closed_jobs
+            ):
                 # wait() dropped the futures, but the worker is still
                 # this executor's and must free its token, unless the
-                # invoker already wrote the job off
+                # job owes none any more
                 self._generate_tokens(call_status)
             else:
                 self._hold_status(call_status)
@@ -848,16 +1021,20 @@ class MessageMonitor(Monitor):
             return 0
 
         pending = [f for f in self.tracked_futures() if not _is_finished(f)]
-        if not pending:
+        owing = self._jobs_owing_tokens()
+        if not pending and not owing:
             return 0
 
         _running, callids_done = self.internal_storage.get_job_status(
-            self.executor_id, job_ids=self.job_ids()
+            self.executor_id, job_ids=self.job_ids() | owing
         )
-        if not callids_done:
-            return 0
 
         recovered = 0
+        if owing:
+            recovered += self._sweep_dropped_jobs(owing, callids_done)
+        if not callids_done:
+            return recovered
+
         for future in pending:
             future_id = _future_id(future)
             if future_id not in callids_done or _is_finished(future):
@@ -874,6 +1051,31 @@ class MessageMonitor(Monitor):
                 f'call status(es) from the storage, whose {self.backend_name} '
                 'message never arrived'
             )
+        return recovered
+
+    def _sweep_dropped_jobs(self, jobs, callids_done):
+        """
+        Hands back the token of a worker of a job wait() dropped whose
+        __end__ message never arrived, which no future is left to recover.
+        Only the calls no __end__ was counted for are read
+        """
+        with self._apply_lock:
+            counted = set().union(*self.callids_done_worker.values())
+
+        recovered = 0
+        for status_id in callids_done:
+            if status_id[1] not in jobs or status_id in counted:
+                continue
+            call_status = self.internal_storage.get_call_status(*status_id)
+            if not call_status or call_status.get('activation_id') is None:
+                continue
+            executor_id, job_id, call_id = status_id
+            self._generate_tokens(dict(
+                call_status, executor_id=executor_id, job_id=job_id, call_id=call_id,
+            ))
+            recovered += 1
+
+        self._give_up_dropped_jobs()
         return recovered
 
 

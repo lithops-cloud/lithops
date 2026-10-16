@@ -16,6 +16,7 @@
 # limitations under the License.
 #
 
+import io
 import re
 import os
 import sys
@@ -498,10 +499,16 @@ def create_handler_zip(
             os.remove(dst_zip_location)
 
 
-def verify_runtime_name(runtime_name: str) -> None:
-    """Asserts that the runtime name can be used as a container image name"""
-    assert re.match("^[A-Za-z0-9_/.:-]*$", runtime_name), \
-        f'Runtime name "{runtime_name}" not valid'
+def verify_runtime_name(runtime_name: str, allow_local_path: bool = False) -> None:
+    """
+    Asserts that the runtime name can be used as a container image name. With
+    ``allow_local_path`` the absolute path to a local interpreter is valid too:
+    the localhost mode runs it without a shell, so it may hold any character
+    """
+    valid = re.match("^[A-Za-z0-9_/.:-]*$", runtime_name) is not None
+    if not valid and allow_local_path:
+        valid = os.path.isabs(runtime_name)
+    assert valid, f'Runtime name "{runtime_name}" not valid'
 
 
 def timeout_handler(error_msg, signum, frame):
@@ -743,7 +750,9 @@ def split_path(path):
 def format_data(iterdata, extra_args):
     """
     Converts iterdata to a list, appending extra_args to every element. The
-    element decides how: tuples are concatenated, dicts are merged
+    element decides how: tuples are concatenated, dicts are merged. A single
+    value is left alone when extra_args is a dict: only the signature of the
+    function names its param, so verify_args merges the dict when binding it
     """
     data = _as_iterdata_list(iterdata)
     if not extra_args:
@@ -763,6 +772,8 @@ def format_data(iterdata, extra_args):
                     'extra_args must contain kwargs in a dictionary'
                 )
             data_i.update(extra_args)
+            new_iterdata.append(data_i)
+        elif isinstance(extra_args, dict):
             new_iterdata.append(data_i)
         else:
             new_iterdata.append((data_i, *extra_args))
@@ -800,12 +811,25 @@ def _chained_futures(iterdata):
 
     A slice of a FuturesList, or a list built from one, is a chain too: both
     lose the FuturesList type, and binding a future to a parameter as if it
-    were data fails with an error that says nothing about chaining
+    were data fails with an error that says nothing about chaining.
+
+    The map stage of a map_reduce is left out: its reducer already consumed
+    its output, and only the reduce stage produces the output of that job
     """
     from lithops.future import ResponseFuture
 
+    def producing_output(futures):
+        produced = [f for f in futures if not getattr(f, '_mapreduce_map', False)]
+        if futures and not produced:
+            raise ValueError(
+                "The map stage of a map_reduce cannot be chained: its output "
+                "is consumed by the reducer. Chain the whole map_reduce to "
+                "take the reducer output"
+            )
+        return produced
+
     if isinstance(iterdata, FuturesList):
-        return list(iterdata)
+        return producing_output(iterdata)
 
     if not isinstance(iterdata, (list, tuple)) or not iterdata:
         return None
@@ -821,7 +845,7 @@ def _chained_futures(iterdata):
             "Chaining takes the futures of one job as the whole input of "
             "the next one"
         )
-    return list(iterdata)
+    return producing_output(iterdata)
 
 
 def verify_args(func, iterdata, extra_args):
@@ -854,12 +878,18 @@ def verify_args(func, iterdata, extra_args):
         p.kind == inspect.Parameter.VAR_KEYWORD
         for p in func_sig.parameters.values()
     )
+    # A dict element only has to name the params that have no default
+    required = {
+        name for name, p in func_sig.parameters.items()
+        if p.default is inspect.Parameter.empty
+        and p.kind not in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD)
+    }
 
     new_data = []
 
     for elem in data:
         if isinstance(elem, dict):
-            if has_var_keyword or set(func_sig.parameters) <= set(elem):
+            if has_var_keyword or required <= set(elem):
                 new_data.append(elem)
             else:
                 raise ValueError(
@@ -870,8 +900,10 @@ def verify_args(func, iterdata, extra_args):
         elif isinstance(elem, tuple):
             new_data.append(dict(func_sig.bind(*elem).arguments))
         else:
-            # A single value of any other type binds to the first param
-            new_data.append(dict(func_sig.bind(elem).arguments))
+            # A single value of any other type binds to the first param, and
+            # dict extra_args to the params they name
+            extra_kwargs = extra_args if isinstance(extra_args, dict) else {}
+            new_data.append(dict(func_sig.bind(elem, **extra_kwargs).arguments))
 
     return new_data
 
@@ -930,12 +962,33 @@ class WrappedStreamingBody:
         return self
 
     def __next__(self):
-        return self.read(64 * 1024)
+        # An empty read is the end of the stream, whether it gives bytes or str
+        try:
+            chunk = self.read(64 * 1024)
+        except EOFError:
+            raise StopIteration
+        if not chunk:
+            raise StopIteration
+        return chunk
 
     def __getattr__(self, attr):
         # Only reached for the attributes this wrapper does not define, so
         # everything else of the fileobj protocol falls through to boto3
         return getattr(self.sb, attr)
+
+
+class _PartitionRows(io.RawIOBase):
+    """The rows of a partition as a raw stream, for io.BufferedReader to buffer"""
+    def __init__(self, read_rows):
+        self._read_rows = read_rows
+
+    def readable(self):
+        return True
+
+    def readinto(self, buf):
+        piece = self._read_rows(len(buf))
+        buf[:len(piece)] = piece
+        return len(piece)
 
 
 class WrappedStreamingBodyPartition(WrappedStreamingBody):
@@ -944,65 +997,83 @@ class WrappedStreamingBodyPartition(WrappedStreamingBody):
     integrity of the partitions based on the newline
     character.
     """
-    def __init__(self, sb, size, byterange, newline='\n'):
+    def __init__(self, sb, size, byterange, newline='\n', first_chunk=None, more=None):
         super().__init__(sb, size)
+        # Opens the object again from a byte on, for a last row longer than
+        # the range; returns None past the end of the object
+        self._more = more
         self.range = byterange
         self.newline_char = newline.encode()
-        # Every chunk but the first one reads one byte early, so that read()
-        # can tell whether the previous chunk ended in the middle of a row
-        self._plusbytes = 0 if not self.range or self.range[0] == 0 else 1
-        self._first_byte = None
+        # Every chunk but the first one reads the newline length early, so that
+        # it can tell whether the previous chunk ended in the middle of a row.
+        # The start of the range cannot always tell: with a chunk size as long
+        # as the newline, the second chunk reads from byte 0 too
+        if first_chunk is None:
+            first_chunk = not self.range or self.range[0] == 0
+        self._plusbytes = 0 if first_chunk else len(self.newline_char)
+        # Set while the cut row at the start of the chunk, which the previous
+        # chunk returns, is being skipped
+        self._discarding = not first_chunk
+        # The last bytes read, in case a newline is split between two reads
+        self._carry = b''
         self._eof = False
-        self._first_read = True
+        self._rows = io.BufferedReader(_PartitionRows(self._read_rows))
+
+    def _read_rows(self, n):
+        """
+        Reads the next piece of the rows of this chunk, at most n bytes of the
+        stream at a time, and b'' once they are over. The chunk owns the rows
+        that start within its size: the cut row at its start is skipped, and
+        the last one is read past its size until its newline or the end of the
+        stream. The previous chunk ends at the same newline this one skips
+        """
+        newline_len = len(self.newline_char)
+        # The end of the chunk in the stream, which starts _plusbytes early
+        end = self.size + self._plusbytes
+        while not self._eof:
+            data = self.sb.read(n)
+            if not data:
+                if self._more is None or self._discarding or self.pos < end:
+                    break
+                stream = self._more(self.range[0] + self.pos)
+                if stream is None:
+                    break
+                self.sb.close()
+                self.sb = stream
+                continue
+            window = self._carry + data
+            # Position of the first byte of window within the stream
+            offset = self.pos - len(self._carry)
+            self.pos += len(data)
+            self._carry = window[len(window) - newline_len + 1:]
+            begin = len(window) - len(data)
+
+            if self._discarding:
+                idx = window.find(self.newline_char)
+                if idx < 0:
+                    continue
+                logger.debug('Discarding first partial row')
+                self._discarding = False
+                begin = idx + newline_len
+
+            if self.pos >= end:
+                # The last row ends at the first newline that ends from the end
+                # of the chunk on, which is where the next chunk starts
+                idx = window.find(self.newline_char, max(end - offset - newline_len, begin - newline_len, 0))
+                if idx >= 0:
+                    self._eof = True
+                    return window[begin:idx + newline_len]
+
+            if begin < len(window):
+                return window[begin:]
+        self._eof = True
+        return b''
 
     def read(self, n=None):
-        if self._eof:
-            return b''
-
-        if not self._first_byte and self._plusbytes == 1:
-            self._first_byte = self.sb.read(self._plusbytes)
-
-        retval = self.sb.read(n)
-        last_row_end_pos = len(retval)
-        self.pos += last_row_end_pos
-        first_row_start_pos = 0
-
-        if self._first_read and self._first_byte and \
-           self._first_byte != self.newline_char:
-            # The previous chunk did not end in a newline, so the first row of
-            # this one is a cut row that the previous chunk already returned
-            logger.debug('Discarding first partial row')
-            first_row_start_pos = retval.find(self.newline_char) + 1
-            self._first_read = False
-
-        # The last row of a chunk is completed past its own end
-        if self.pos >= self.size:
-            current_end_pos = last_row_end_pos - (self.pos - self.size)
-            last_byte_pos = retval[current_end_pos - 1:].find(self.newline_char)
-            last_row_end_pos = current_end_pos + last_byte_pos
-            self._eof = True
-
-        return retval[first_row_start_pos:last_row_end_pos]
+        return self._rows.read(n)
 
     def readline(self):
-        if self._eof:
-            return b''
-
-        if not self._first_byte and self._plusbytes == 1:
-            self._first_byte = self.sb.read(self._plusbytes)
-            if self._first_byte != self.newline_char:
-                logger.debug('Discarding first partial row')
-                self.sb._raw_stream.readline()
-        try:
-            retval = self.sb._raw_stream.readline()
-        except struct.error:
-            raise EOFError()
-        self.pos += len(retval)
-
-        if self.pos >= self.size:
-            self._eof = True
-
-        return retval
+        return self._rows.readline()
 
 
 def docker_login(docker_user, docker_password, docker_server):

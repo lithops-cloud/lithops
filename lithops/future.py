@@ -93,6 +93,8 @@ class ResponseFuture:
 
         self._storage_config = storage_config
         self._produce_output = True
+        self._mapreduce_map = False
+        self._consumers = []
         self._read = False
         self._state = self.State.New
         self._exception = Exception()
@@ -107,6 +109,14 @@ class ResponseFuture:
 
         self.stats.update(_stats_from_prefixed_keys(job_metadata))
         self._storage_path = get_storage_path(self._storage_config)
+
+    def __getstate__(self):
+        # The chained jobs that read this call are tracked by the client
+        # alone. Pickled into the input of a later job, they would carry
+        # every one of their calls and its result along
+        state = self.__dict__.copy()
+        state['_consumers'] = []
+        return state
 
     def _id_prefix(self) -> str:
         """
@@ -191,6 +201,7 @@ class ResponseFuture:
 
     def _set_mapreduce(self):
         """Set the future as mapreduce map"""
+        self._mapreduce_map = True
         self._read = True
         self._produce_output = False
         if self.success:

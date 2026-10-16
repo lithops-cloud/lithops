@@ -42,6 +42,18 @@ def remove_lithops_keys(keys: Iterable[str]) -> List[str]:
     return [key for key in keys if not key.startswith(_LITHOPS_PREFIXES)]
 
 
+def _to_key(path, as_dir=False):
+    """
+    Turns a path into the key, or key prefix, that matches it: keys have no
+    leading slash, and a trailing one is added when only the contents of a
+    directory should match
+    """
+    key = path[1:] if path.startswith('/') else path
+    if as_dir and key != '' and not key.endswith('/'):
+        key = key + '/'
+    return key
+
+
 #
 # Picklable cloud object storage client
 #
@@ -112,12 +124,7 @@ class CloudFileProxy:
         flat in storage, so a name is the first segment left after the prefix,
         and the ones that stand for a directory can be marked with a slash
         """
-        if path == '':
-            prefix = ''
-        elif path.startswith('/'):
-            prefix = path[1:]
-        else:
-            prefix = path if path.endswith('/') else path + '/'
+        prefix = _to_key(path, as_dir=True)
 
         names = set()
         for p in remove_lithops_keys(self._storage.list_bucket_keys(prefix=prefix)):
@@ -169,7 +176,7 @@ class CloudFileProxy:
 
     def remove(self, path):
         """Deletes the object a path names"""
-        self._storage.delete_data(path)
+        self._storage.delete_data(_to_key(path))
 
     def mkdir(self, *args, **kwargs):
         """Does nothing: storage has no directories to create"""
@@ -193,31 +200,17 @@ class _path:
         # we only reach here if the attr is not defined
         return getattr(base_os.path, name)
 
-    def _prefix(self, path, as_dir=False):
-        """
-        Turns a path into the key prefix that matches it, with a trailing
-        slash when only the contents of a directory should match
-        """
-        prefix = path[1:] if path.startswith('/') else path
-        if as_dir and prefix != '' and not prefix.endswith('/'):
-            prefix = prefix + '/'
-        return prefix
-
     def isfile(self, path):
-        """True when the path names one object and not a prefix of others"""
-        prefix = self._prefix(path)
+        """True when the path names an object"""
+        key = _to_key(path)
         keys = remove_lithops_keys(
-            self._storage.list_bucket_keys(prefix=prefix)
+            self._storage.list_bucket_keys(prefix=key)
         )
-        if len(keys) == 1:
-            key = keys.pop()
-            key = key[len(prefix):]
-            return key == ''
-        return False
+        return key != '' and key in keys
 
     def isdir(self, path):
         """True when there is at least one object under the path"""
-        prefix = self._prefix(path, as_dir=True)
+        prefix = _to_key(path, as_dir=True)
         keys = remove_lithops_keys(
             self._storage.list_bucket_keys(prefix=prefix)
         )
@@ -225,9 +218,12 @@ class _path:
 
     def exists(self, path):
         """True when the path names an object or a directory holding one"""
-        dirpath = path if path.endswith('/') else path + '/'
-        for key in self._storage.list_bucket_keys(prefix=path):
-            if key.startswith(dirpath) or key == path:
+        if path == '':
+            return False
+        key = _to_key(path)
+        dirpath = _to_key(path, as_dir=True)
+        for k in self._storage.list_bucket_keys(prefix=key):
+            if k.startswith(dirpath) or k == key:
                 return True
         return False
 
@@ -239,6 +235,10 @@ class _DelayedClose:
     """
 
     def close(self):
+        # Closing again is a no-op, as for a file, and the buffer stays open
+        # if the upload fails so that it can be retried
+        if self.closed:
+            return
         self._action(self.getvalue())
         super().close()
 
@@ -262,23 +262,31 @@ class DelayedStringBuffer(_DelayedClose, io.StringIO):
 def cloud_open(filename, mode='r', cloud_storage=None):
     """
     Opens an object as a file-like buffer. Reading brings the whole object
-    into memory, and writing uploads it when the buffer is closed
+    into memory, and writing uploads it when the buffer is closed. With
+    'r+' the buffer starts with the object, as a file does, and is uploaded
+    on close
     """
     storage = cloud_storage or CloudStorage()
+    key = _to_key(filename)
     if 'r' in mode:
-        data = storage.get_data(filename)
+        data = storage.get_data(key)
+        if '+' in mode:
+            action = partial(storage.put_data, key)
+            if 'b' in mode:
+                return DelayedBytesBuffer(action, data)
+            return DelayedStringBuffer(action, data.decode())
         if 'b' in mode:
             # we could get_data(stream=True) but some streams are not seekable
             return io.BytesIO(data)
         return io.StringIO(data.decode())
 
     if 'w' in mode:
-        action = partial(storage.put_data, filename)
+        action = partial(storage.put_data, key)
         if 'b' in mode:
             return DelayedBytesBuffer(action)
         return DelayedStringBuffer(action)
 
-    raise ValueError(f"Unsupported mode '{mode}': only 'r' and 'w' are")
+    raise ValueError(f"Unsupported mode '{mode}': only 'r', 'w' and their '+' and 'b' forms are")
 
 
 def __getattr__(name):

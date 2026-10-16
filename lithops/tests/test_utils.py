@@ -224,6 +224,25 @@ class TestVerifyArgs:
 
         assert verify_args(fn, [{'x': 1}], None) == [{'x': 1}]
 
+    def test_dict_may_leave_out_params_with_defaults(self):
+        def fn(a, b=2, *rest):
+            return a + b
+
+        assert verify_args(fn, [{'a': 1}], None) == [{'a': 1}]
+        assert verify_args(fn, [(1,)], None) == [{'a': 1}]
+        with pytest.raises(ValueError, match='Check the args names'):
+            verify_args(fn, [{'b': 1}], None)
+
+    def test_single_values_with_dict_extra_args(self):
+        """The dict names params: its keys are not positional values"""
+        def fn(x, y):
+            return x + y
+
+        assert verify_args(fn, [1, 2], {'y': 10}) == [
+            {'x': 1, 'y': 10},
+            {'x': 2, 'y': 10},
+        ]
+
 
 class TestMiscUtils:
 
@@ -270,6 +289,22 @@ class TestMiscUtils:
         verify_runtime_name('python:3.12')
         with pytest.raises(AssertionError, match='not valid'):
             verify_runtime_name('bad name')
+
+    @pytest.mark.parametrize('path', [
+        pytest.param(path, marks=pytest.mark.skipif(os.name == 'nt', reason='Unix path'))
+        for path in ('/opt/homebrew/opt/python@3.12/bin/python3.12', '/Users/Some User/venv/bin/python')
+    ] + [
+        pytest.param(path, marks=pytest.mark.skipif(os.name != 'nt', reason='Windows path'))
+        for path in ('C:\\Python312\\python.exe', 'C:\\Program Files\\Python312\\python.exe')
+    ])
+    def test_verify_runtime_name_local_interpreter_path(self, path):
+        verify_runtime_name(path, allow_local_path=True)
+        with pytest.raises(AssertionError, match='not valid'):
+            verify_runtime_name(path)
+
+    def test_verify_runtime_name_local_path_must_be_absolute(self):
+        with pytest.raises(AssertionError, match='not valid'):
+            verify_runtime_name('venv/bin/python@3', allow_local_path=True)
 
     def test_timeout_handler_raises(self):
         with pytest.raises(TimeoutError, match='too slow'):
@@ -799,6 +834,81 @@ class TestMiscUtils:
         )
         assert part.readline() == b'bbb\n'
 
+    def test_iterating_wrapped_streams_stops(self):
+        body = WrappedStreamingBody(io.BytesIO(b'abc'), 3)
+        assert list(body) == [b'abc']
+        part = WrappedStreamingBodyPartition(io.BytesIO(b'abc\n'), 4, (0, 3))
+        assert list(part) == [b'abc\n']
+
+    @staticmethod
+    def _partition_streams(path, chunk_size, newline='\n'):
+        """The streams the workers read the partitions of a local file from"""
+        from lithops.job.partitioner import create_partitions
+        from lithops.worker.jobrunner import JobRunner
+
+        parts, _ = create_partitions(
+            {}, None, [{'obj': str(path)}], chunk_size, None, newline
+        )
+        runner = JobRunner.__new__(JobRunner)
+        streams = []
+        for part in parts:
+            data = {'obj': part['obj']}
+            runner._load_object(data)
+            streams.append(data['obj'].data_stream)
+        return streams
+
+    @pytest.mark.parametrize('newline', ['\n', '\r\n'])
+    @pytest.mark.parametrize('trailing_newline', [True, False])
+    @pytest.mark.parametrize('how', ['read', 'small_reads', 'readline', 'iter'])
+    def test_partitions_reassemble_the_object(self, tmp_path, how, trailing_newline, newline):
+        """
+        Every row is returned by exactly one partition, whatever the size of
+        the reads and of the newline, and the last byte of an object without
+        a trailing newline is kept
+        """
+        # The rows hold the bytes of a two byte newline on their own too
+        rows = [b'x' * 30, b'a', b'', b'b\r', b'%04d' % 7, b'\n', b'y' * 25 + b'\r\r']
+        data = newline.encode().join(rows * 6) + newline.encode()
+        if not trailing_newline:
+            data = data[:-len(newline)]
+        path = tmp_path / 'data.txt'
+        path.write_bytes(data)
+
+        def read_all(stream):
+            pieces = []
+            while True:
+                if how == 'readline':
+                    piece = stream.readline()
+                elif how == 'small_reads':
+                    piece = stream.read(7)
+                else:
+                    piece = stream.read()
+                if not piece:
+                    return b''.join(pieces)
+                pieces.append(piece)
+
+        # With a chunk size of 1 the second chunk reads from byte 0 too, like
+        # the first one
+        for chunk_size in (1, 2, 3, 5, 16, 20, 64):
+            streams = self._partition_streams(path, chunk_size, newline)
+            assert len(streams) > 1
+            if how == 'iter':
+                got = b''.join(b''.join(stream) for stream in streams)
+            else:
+                got = b''.join(read_all(stream) for stream in streams)
+            assert got == data
+
+    @pytest.mark.parametrize('trailing_newline', [True, False])
+    def test_partitions_keep_rows_longer_than_the_overshoot(self, tmp_path, trailing_newline):
+        """A row that goes on past the CHUNK_THRESHOLD a chunk reads ahead is not cut"""
+        from lithops.job.partitioner import CHUNK_THRESHOLD
+        rows = [b'a' * 10, b'b' * (2 * CHUNK_THRESHOLD + 7), b'c' * 10, b'd' * (CHUNK_THRESHOLD + 1)]
+        data = b'\n'.join(rows) + (b'\n' if trailing_newline else b'')
+        path = tmp_path / 'data.txt'
+        path.write_bytes(data)
+        streams = self._partition_streams(path, 1000)
+        assert b''.join(stream.read() for stream in streams) == data
+
     def test_create_handler_zip_removes_partial_zip_on_write_error(self, tmp_path):
         from lithops.utils import create_handler_zip
 
@@ -830,3 +940,36 @@ class TestMiscUtils:
             with pytest.raises(KeyboardInterrupt):
                 create_handler_zip(str(dest), [str(entry)])
         assert not dest.exists()
+
+
+class TestChainedFuturesAfterMapReduce:
+
+    @staticmethod
+    def _future(mapreduce_map=False, produce_output=True):
+        from lithops.future import ResponseFuture
+        future = ResponseFuture.__new__(ResponseFuture)
+        future._mapreduce_map = mapreduce_map
+        future._produce_output = produce_output
+        return future
+
+    @pytest.mark.parametrize('container', [FuturesList, list])
+    def test_the_map_stage_of_a_map_reduce_is_not_chained(self, container):
+        from lithops.utils import _chained_futures
+        map_stage = [self._future(mapreduce_map=True) for _ in range(3)]
+        reducer = self._future()
+        assert _chained_futures(container(map_stage + [reducer])) == [reducer]
+
+    def test_a_future_with_no_output_file_is_still_chained(self):
+        """A call that returned None has no output file, but is chained"""
+        from lithops.utils import _chained_futures
+        returned_none = self._future(produce_output=False)
+        assert _chained_futures([returned_none]) == [returned_none]
+
+    @pytest.mark.parametrize('container', [FuturesList, list])
+    def test_the_map_stage_alone_is_refused(self, container):
+        """It used to become a job of no calls, and its result an empty list"""
+        from lithops.utils import _chained_futures
+        map_stage = [self._future(mapreduce_map=True) for _ in range(2)]
+        with pytest.raises(ValueError, match='map stage of a map_reduce'):
+            _chained_futures(container(map_stage))
+        assert _chained_futures(FuturesList()) == []

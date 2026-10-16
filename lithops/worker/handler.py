@@ -324,24 +324,31 @@ def prepare_and_run_task(task: SimpleNamespace) -> None:
 
     os.environ[WORKER_ENV] = 'True'
     os.environ['PYTHONUNBUFFERED'] = 'True'
+    # The worker process runs more tasks after this one, so the variables the
+    # task overrides get their previous values back when it finishes
+    previous_env = {key: os.environ.get(key) for key in task.extra_env}
     os.environ.update(task.extra_env)
 
-    storage_backend = task.config['lithops']['storage']
-    bucket = task.config[storage_backend]['storage_bucket']
-    task.task_dir = os.path.join(
-        LITHOPS_TEMP_DIR, bucket, JOBS_PREFIX, task.job_key, task.call_id
-    )
-    task.log_file = os.path.join(task.task_dir, 'execution.log')
-    task.stats_file = os.path.join(task.task_dir, 'job_stats.txt')
-    os.makedirs(task.task_dir, exist_ok=True)
+    try:
+        storage_backend = task.config['lithops']['storage']
+        bucket = task.config[storage_backend]['storage_bucket']
+        task.task_dir = os.path.join(
+            LITHOPS_TEMP_DIR, bucket, JOBS_PREFIX, task.job_key, task.call_id
+        )
+        task.log_file = os.path.join(task.task_dir, 'execution.log')
+        task.stats_file = os.path.join(task.task_dir, 'job_stats.txt')
+        os.makedirs(task.task_dir, exist_ok=True)
 
-    with open(task.log_file, 'a') as log_stream:
-        task.log_stream = LogStream(log_stream)
-        with custom_redirection(task.log_stream):
-            run_task(task)
-
-    for key in task.extra_env:
-        os.environ.pop(key, None)
+        with open(task.log_file, 'a') as log_stream:
+            task.log_stream = LogStream(log_stream)
+            with custom_redirection(task.log_stream):
+                run_task(task)
+    finally:
+        for key, value in previous_env.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
 
 
 # Windows has no SIGKILL, and no process there is reported as killed by one

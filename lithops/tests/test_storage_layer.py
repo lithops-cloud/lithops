@@ -25,6 +25,7 @@ from lithops.constants import (
     SESSION_ID_ENV,
     TEMP_PREFIX,
 )
+from lithops.storage.backends.localhost.localhost import LocalhostStorageBackend
 from lithops.storage.cloud_proxy import (
     CloudFileProxy,
     CloudStorage,
@@ -165,6 +166,73 @@ class TestStorageUtils:
             clean_bucket(storage, 'bucket', 'pref', sleep=2)
         assert storage.delete_objects.call_count == 2
         assert sleeps == [2, 2]
+
+
+class TestLocalhostStorageKeys:
+
+    @pytest.fixture
+    def backend(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(
+            'lithops.storage.backends.localhost.localhost.LITHOPS_TEMP_DIR',
+            str(tmp_path),
+        )
+        return LocalhostStorageBackend({})
+
+    def test_list_keys_prefix_is_literal(self, backend):
+        # The prefix went to glob, so 'data[1]' matched 'data1.csv' only
+        backend.put_object('b', 'data[1].csv', b'x')
+        backend.put_object('b', 'data1.csv', b'y')
+        backend.put_object('b', 'data[1]/inner', b'z')
+        assert sorted(backend.list_keys('b', 'data[1]')) == ['data[1].csv', 'data[1]/inner']
+        assert backend.list_keys('b', 'data?') == []
+        assert [o['Key'] for o in backend.list_objects('b', 'data[1].')] == ['data[1].csv']
+
+    def test_list_keys_includes_dotfiles(self, backend):
+        # glob skips dotfiles, so clean_bucket never deleted them
+        backend.put_object('b', 'dir/.hidden', b'x')
+        backend.put_object('b', '.top', b'x')
+        backend.put_object('b', 'dir/.sub/f', b'x')
+        backend.put_object('b', 'dir/visible', b'y')
+        assert sorted(backend.list_keys('b')) == ['.top', 'dir/.hidden', 'dir/.sub/f', 'dir/visible']
+        assert sorted(backend.list_keys('b', 'dir/')) == ['dir/.hidden', 'dir/.sub/f', 'dir/visible']
+        assert sorted(backend.list_keys('b', 'dir/.')) == ['dir/.hidden', 'dir/.sub/f']
+        clean_bucket(backend, 'b', 'dir/', sleep=0)
+        assert backend.list_keys('b') == ['.top']
+
+    def test_list_keys_partial_and_missing_prefixes(self, backend):
+        backend.put_object('b', 'a/b/c1', b'x')
+        backend.put_object('b', 'a/b/c2', b'x')
+        backend.put_object('b', 'a/bc', b'x')
+        assert sorted(backend.list_keys('b', 'a/b')) == ['a/b/c1', 'a/b/c2', 'a/bc']
+        assert sorted(backend.list_keys('b', 'a/b/c')) == ['a/b/c1', 'a/b/c2']
+        assert backend.list_keys('b', 'a/b/c1') == ['a/b/c1']
+        assert backend.list_keys('b', 'zz/') == []
+        assert backend.list_keys('b', '/a') == []
+        assert backend.list_keys('missing-bucket') == []
+
+    @pytest.mark.parametrize('byte_range, expected', [
+        ('bytes=2-4', b'234'),
+        ('bytes=5-', b'56789'),
+        ('bytes=-3', b'789'),
+        ('bytes=-30', b'0123456789'),
+    ])
+    def test_get_object_ranges(self, backend, byte_range, expected):
+        # An open-ended range crashed in int('') and was reported as a
+        # missing key
+        backend.put_object('b', 'k', b'0123456789')
+        assert backend.get_object('b', 'k', extra_get_args={'Range': byte_range}) == expected
+
+    def test_get_object_bad_range_is_not_a_missing_key(self, backend):
+        backend.put_object('b', 'k', b'0123456789')
+        with pytest.raises(ValueError):
+            backend.get_object('b', 'k', extra_get_args={'Range': 'bytes=x-'})
+        with pytest.raises(StorageNoSuchKeyError):
+            backend.get_object('b', 'missing', extra_get_args={'Range': 'bytes=5-'})
+        with pytest.raises(StorageNoSuchKeyError):
+            backend.get_object('b', 'k/below-a-file')
+        backend.put_object('b', 'dir/f', b'x')
+        with pytest.raises(StorageNoSuchKeyError):
+            backend.get_object('b', 'dir')
 
 
 class TestStorageCloudObjects:
@@ -379,11 +447,72 @@ class TestCloudProxy:
         assert proxy.path.exists('dir/a.txt') is True
         assert proxy.path.exists('missing') is False
 
-    def test_exists_keeps_leading_slash_on_list_prefix(self):
+    def test_exists_strips_the_leading_slash_like_isfile(self):
+        # isfile and isdir dropped the leading slash and exists did not, so
+        # '/k' was a file that did not exist
+        fake = FakeCloudStorage(keys=['k', 'dir/a'])
+        path = _path(fake)
+        assert path.isfile('/k') is True
+        assert path.exists('/k') is True
+        assert path.exists('/dir') is True
+        assert path.exists('/di') is False
+
+    def test_the_empty_path_does_not_exist(self):
+        # As os.path.exists(''); stripped to the key '', it matched any key
+        path = _path(FakeCloudStorage(keys=['k']))
+        assert path.exists('') is False
+        assert path.isfile('') is False
+
+    def test_isfile_is_an_exact_key_match(self):
+        # A sibling sharing the prefix made the key count as a directory
+        fake = FakeCloudStorage(keys=['foo', 'foo.bak', 'bar/x'])
+        path = _path(fake)
+        assert path.isfile('foo') is True
+        assert path.isfile('/foo') is True
+        assert path.isfile('fo') is False
+        assert path.isfile('bar') is False
+
+    def test_listdir_of_an_absolute_path_stays_in_that_directory(self):
+        # '/foo' asked for the prefix 'foo', which also matches 'foobar/'
+        fake = FakeCloudStorage(keys=['foo/a', 'foobar/b'])
+        proxy = CloudFileProxy(fake)
+        assert proxy.listdir('foo') == ['a']
+        assert proxy.listdir('/foo') == ['a']
+        assert proxy.listdir('/foo/') == ['a']
+
+    def test_open_and_remove_strip_the_leading_slash(self):
+        fake = FakeCloudStorage(data={'k': b'v'})
+        proxy = CloudFileProxy(fake)
+        assert proxy.open('/k', 'rb').read() == b'v'
+        with proxy.open('/out', 'wb') as f:
+            f.write(b'x')
+        assert fake.puts[-1] == ('out', b'x')
+        proxy.remove('/k')
+        assert fake.deleted == ['k']
+
+    def test_delayed_buffers_close_twice_uploads_once(self):
+        # A second close, as after a with block, read the closed buffer and
+        # raised ValueError
         fake = FakeCloudStorage()
-        fake.list_bucket_keys = MagicMock(return_value=[])
-        _path(fake).exists('/foo')
-        fake.list_bucket_keys.assert_called_once_with(prefix='/foo')
+        with cloud_open('t', 'w', cloud_storage=fake) as f:
+            f.write('hello')
+        f.close()
+        b = cloud_open('b', 'wb', cloud_storage=fake)
+        b.write(b'hi')
+        b.close()
+        b.close()
+        assert fake.puts == [('t', 'hello'), ('b', b'hi')]
+
+    @pytest.mark.parametrize('mode', ['r+', 'r+b', 'rb+'])
+    def test_open_read_plus_writes_back_on_close(self, mode):
+        # 'r+' returned a plain buffer, so the writes were silently dropped
+        conv = (lambda s: s.encode()) if 'b' in mode else str
+        fake = FakeCloudStorage(data={'k': b'abc'})
+        with cloud_open('k', mode, cloud_storage=fake) as f:
+            assert f.read(1) == conv('a')
+            f.seek(0)
+            f.write(conv('X'))
+        assert fake.data['k'] == conv('Xbc')
 
     def test_listdir_of_the_root_matches_the_slash_form(self):
         # The empty path is the default argument, and it used to ask for the

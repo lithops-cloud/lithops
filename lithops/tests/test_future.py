@@ -22,7 +22,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 import lithops
+from lithops.executors import FunctionExecutor
 from lithops.future import ResponseFuture, _pickle_from_encoded, _stats_from_prefixed_keys
+from lithops.utils import FuturesList
 
 
 class HasAmbiguousTruthValue:
@@ -202,6 +204,21 @@ class TestResponseFutureState:
         future._set_exception()
         assert future._state == ResponseFuture.State.Done
         assert future._read is True
+
+    def test_pickling_a_producer_leaves_its_consumers_out(self):
+        """
+        A chained job pickles its producers into its input: their consumers,
+        with the results the client downloaded, used to travel along
+        """
+        producer = _future()
+        size = len(pickle.dumps(producer))
+        consumer = _future(job_id='M001')
+        consumer._call_output = b'x' * 10**6
+        FunctionExecutor._disable_iterdata_output(FuturesList([producer]), [consumer])
+
+        assert len(pickle.dumps(producer)) < size + 100
+        assert pickle.loads(pickle.dumps(producer))._consumers == []
+        assert producer._consumers == [[consumer]]
 
     def test_futures_property_tracks_new_futures(self):
         future = _future()

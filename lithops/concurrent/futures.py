@@ -899,11 +899,13 @@ def _sync_all(fs):
 
 def wait(fs, timeout=None, return_when=ALL_COMPLETED):
     """Wait for futures to complete. Same contract as concurrent.futures.wait."""
+    fs = list(fs)
     _sync_all(fs)
     return _cf_wait(fs, timeout=timeout, return_when=return_when)
 
 
 def as_completed(fs, timeout=None):
     """Yield futures as they complete. Same contract as concurrent.futures.as_completed."""
+    fs = list(fs)
     _sync_all(fs)
     return _cf_as_completed(fs, timeout=timeout)

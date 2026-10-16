@@ -14,6 +14,8 @@
 
 import importlib
 import signal
+import threading
+import time
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -353,14 +355,15 @@ class TestWaitPolling:
         handlers = {}
 
         def fake_signal(sig, handler):
-            handlers[sig] = handler
+            # The first one is the wait's own; the last gives the old one back
+            handlers.setdefault(sig, handler)
 
         def get_data(fs, exec_data, **kwargs):
             future.success = True
             return 1
 
         with patch.object(wait_mod.signal, 'signal', side_effect=fake_signal), \
-                patch.object(wait_mod.signal, 'alarm') as alarm, \
+                patch.object(wait_mod.signal, 'alarm', return_value=0) as alarm, \
                 patch.object(wait_mod, '_get_executor_data', side_effect=get_data):
             wait(
                 [future],
@@ -450,3 +453,169 @@ class TestGetResult:
         assert get_result(
             [produced, nested, silent], show_progressbar=False
         ) == [1]
+
+
+def _local_monitor():
+    monitor = MagicMock()
+    monitor.type = 'storage'
+    monitor.storage_backend = 'localhost'
+    monitor.is_alive.return_value = True
+    internal = MagicMock()
+    internal.backend = 'localhost'
+    return monitor, internal
+
+
+def _completing_poll(future):
+    def get_data(fs, exec_data, **kwargs):
+        future.success = True
+        return 1
+    return get_data
+
+
+@pytest.fixture
+def saved_sigalrm():
+    """Gives the test process back its own SIGALRM handler and alarm"""
+    if not hasattr(signal, 'SIGALRM'):
+        pytest.skip('SIGALRM is unix-only')
+    handler = signal.getsignal(signal.SIGALRM)
+    yield
+    signal.alarm(0)
+    signal.signal(signal.SIGALRM, handler)
+
+
+class TestWaitTimeout:
+
+    def test_timeout_off_the_main_thread_raises_timeout_error(self):
+        """signal.signal() raises ValueError anywhere but the main thread"""
+        future = FakeFuture()
+        monitor, internal = _local_monitor()
+        raised = []
+
+        def run():
+            try:
+                wait([future], timeout=0.3, show_progressbar=False,
+                     job_monitor=monitor, internal_storage=internal)
+            except Exception as e:
+                raised.append(e)
+
+        with patch.object(wait_mod, '_get_executor_data', return_value=0):
+            thread = threading.Thread(target=run)
+            start = time.monotonic()
+            thread.start()
+            thread.join(10)
+
+        assert len(raised) == 1
+        assert isinstance(raised[0], TimeoutError)
+        assert 'Timeout of 0.3 seconds exceeded' in str(raised[0])
+        assert time.monotonic() - start < 5
+
+    def test_timeout_off_the_main_thread_returns_when_done(self):
+        future = FakeFuture()
+        monitor, internal = _local_monitor()
+        results = []
+
+        def run():
+            results.append(wait([future], timeout=5, show_progressbar=False,
+                                job_monitor=monitor, internal_storage=internal))
+
+        with patch.object(wait_mod, '_get_executor_data', side_effect=_completing_poll(future)):
+            thread = threading.Thread(target=run)
+            thread.start()
+            thread.join(10)
+
+        assert results == [([future], [])]
+
+    def test_wait_restores_the_callers_alarm_and_handler(self, saved_sigalrm):
+        def user_handler(signum, frame):
+            pass
+
+        future = FakeFuture()
+        monitor, internal = _local_monitor()
+        signal.signal(signal.SIGALRM, user_handler)
+        signal.alarm(60)
+
+        with patch.object(wait_mod, '_get_executor_data', side_effect=_completing_poll(future)):
+            wait([future], timeout=5, show_progressbar=False,
+                 job_monitor=monitor, internal_storage=internal)
+
+        assert signal.getsignal(signal.SIGALRM) is user_handler
+        assert 55 <= signal.alarm(0) <= 60
+
+    def test_a_callers_alarm_due_first_is_left_armed(self, saved_sigalrm):
+        """The wait leaves it alone and enforces its own timeout by polling"""
+        fired = []
+
+        def user_handler(signum, frame):
+            fired.append(signum)
+
+        future = FakeFuture()
+        monitor, internal = _local_monitor()
+        signal.signal(signal.SIGALRM, user_handler)
+        signal.alarm(1)
+
+        with patch.object(wait_mod, '_get_executor_data', return_value=0):
+            with pytest.raises(TimeoutError, match='Timeout of 1.5 seconds'):
+                wait([future], timeout=1.5, show_progressbar=False,
+                     job_monitor=monitor, internal_storage=internal)
+
+        assert fired == [signal.SIGALRM]
+        assert signal.getsignal(signal.SIGALRM) is user_handler
+
+    def test_no_timeout_leaves_the_callers_alarm_alone(self, saved_sigalrm):
+        future = FakeFuture()
+        monitor, internal = _local_monitor()
+        signal.alarm(60)
+
+        with patch.object(wait_mod, '_get_executor_data', side_effect=_completing_poll(future)):
+            wait([future], show_progressbar=False,
+                 job_monitor=monitor, internal_storage=internal)
+
+        assert signal.alarm(0) > 0
+
+
+class TestWaitOnExecutorFutures:
+    """
+    FunctionExecutor.wait() with no fs hands over every future of the
+    executor, including the ones earlier jobs finished
+    """
+
+    def _wait_any(self, futures_from_executor_wait, return_when=ANY_COMPLETED):
+        earlier = FakeFuture(done=True, success=True, job_id='M000')
+        pending = [FakeFuture(job_id='M001', call_id=f'0000{i}') for i in range(2)]
+        monitor, internal = _local_monitor()
+        polls = []
+
+        def get_data(fs, exec_data, **kwargs):
+            polls.append(1)
+            if len(polls) == 2:
+                pending[0].success = True
+            return 1
+
+        with patch.object(wait_mod, '_get_executor_data', side_effect=get_data):
+            done, not_done = wait(
+                [earlier] + pending, return_when=return_when,
+                show_progressbar=False, job_monitor=monitor,
+                internal_storage=internal,
+                futures_from_executor_wait=futures_from_executor_wait,
+            )
+        return len(polls), done, not_done, pending
+
+    def test_any_completed_ignores_futures_done_before_the_wait(self):
+        polls, done, not_done, pending = self._wait_any(True)
+        assert polls == 2
+        assert pending[0] in done
+        assert not_done == [pending[1]]
+
+    def test_percentage_ignores_futures_done_before_the_wait(self):
+        # The one done earlier would make it a third of the three already
+        polls, done, not_done, pending = self._wait_any(True, return_when=25)
+        assert polls == 2
+        assert pending[0] in done
+
+    def test_explicit_futures_count_the_ones_already_done(self):
+        polls, _, _, _ = self._wait_any(False)
+        assert polls == 0
+
+
+def test_get_result_of_no_futures_is_empty():
+    assert get_result([], show_progressbar=False) == []

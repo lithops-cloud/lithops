@@ -18,6 +18,7 @@ import logging
 import queue
 
 from lithops.monitoring.backends import load_backend_attr, resolve_backend
+from lithops.monitoring.monitor import TOKEN_STATE
 from lithops.telemetry import get_telemetry
 from lithops.utils import log_prefix
 
@@ -63,6 +64,9 @@ class JobMonitor:
         self.monitor = None
         self.job_chunksize = {}
         self.job_total_calls = {}
+        # The token bookkeeping every monitor carries on with, so that one
+        # that replaces another neither loses a token nor hands one back twice
+        self.token_state = None
 
         # Metrics are produced from the statuses the monitor reads, so the
         # telemetry of the executor is resolved here and handed to every
@@ -134,8 +138,19 @@ class JobMonitor:
         # Attached before the caller adds any future, so that no status
         # can reach the monitor while it is still pointing at the no-op
         self.monitor.attach_telemetry(self.telemetry)
+        if self.token_state is None:
+            self.token_state = {
+                name: getattr(self.monitor, name) for name in TOKEN_STATE
+            }
+        vars(self.monitor).update(self.token_state)
         if previous is not None:
             self.monitor.adopt_held_status(previous)
+            # A thread that outlived the join hands nothing back any more,
+            # and the jobs it still tracked are owed through this monitor
+            with self.monitor._apply_lock:
+                previous._retired = True
+            if previous.generate_tokens:
+                self.monitor.drop_jobs(previous.tracked_futures())
 
     def _thread_finished(self):
         """
@@ -186,14 +201,21 @@ class JobMonitor:
         if self.monitor and self.monitor.is_alive():
             self.monitor.remove_futures(fs)
 
-    def close_jobs(self, job_ids):
+    def close_jobs(self, job_ids=None):
         """
-        The invoker will no longer wait for these jobs. Later statuses of
-        theirs must not hand another token back: the capacity they held
-        was already forgotten
+        The invoker will no longer wait for these jobs, every job started
+        so far when None. Later statuses of theirs must not hand another
+        token back: the capacity they held was already forgotten
         """
+        if job_ids is None:
+            job_ids = set(self.job_total_calls)
         if self.monitor is not None:
             self.monitor.close_jobs(job_ids)
+
+    def discard_calls(self, discarded):
+        """The invoker dropped these calls, counted per job, uninvoked"""
+        if self.monitor is not None:
+            self.monitor.discard_calls(discarded)
 
     def stop(self):
         """

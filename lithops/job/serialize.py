@@ -289,9 +289,13 @@ class SerializeIndependent:
                 elif hasattr(value, "__module__"):
                     mods.add(value.__module__)
 
+            # The code nested in a function, such as an inner function, reads
+            # its global names from the module of that function
+            fn_globals = getattr(fn, '__globals__', {})
             for block in codeworklist:
                 for kind, value in (
-                    self._inner_module_inspect(inst) for inst in Bytecode(block)
+                    self._inner_module_inspect(inst, fn_globals)
+                    for inst in Bytecode(block)
                 ):
                     if kind is None:
                         continue
@@ -301,23 +305,27 @@ class SerializeIndependent:
                             if hasattr(mod, "__name__")
                         )
                     elif kind == "code" and id(value) not in seen:
+                        # Only followed once: a recursive function names
+                        # itself, and the worklists would never end
                         seen.add(id(value))
                         if hasattr(value, "__module__"):
                             mods.add(value.__module__)
-
-                    if inspect.isfunction(value):
-                        worklist.append(value)
-                    elif inspect.iscode(value):
-                        codeworklist.append(value)
+                        if inspect.isfunction(value):
+                            worklist.append(value)
+                        elif inspect.iscode(value):
+                            codeworklist.append(value)
 
         # Dynamically built functions and code objects can have a
         # __module__ of None, which names no module to ship
         return {mod_name.split(".")[0] for mod_name in mods if mod_name}
 
-    def _inner_module_inspect(self, inst: Any) -> Tuple[Optional[str], Any]:
+    def _inner_module_inspect(
+        self, inst: Any, fn_globals: Dict[str, Any]
+    ) -> Tuple[Optional[str], Any]:
         """
         Reads the module or the code object that a single bytecode
-        instruction refers to
+        instruction refers to. Global names are looked up in fn_globals, the
+        globals of the function the instruction belongs to
         """
         if inst.opname == "IMPORT_NAME":
             try:
@@ -328,7 +336,7 @@ class SerializeIndependent:
             except Exception:
                 return (None, None)
         if inst.opname == "LOAD_GLOBAL":
-            value = globals().get(inst.argval)
+            value = fn_globals.get(inst.argval)
             if isinstance(value, (CodeType, FunctionType)):
                 return ("code", value)
             if isinstance(value, ModuleType):

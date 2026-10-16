@@ -689,6 +689,17 @@ class TestWaitAndAsCompleted:
             assert not not_done
             assert {f.result() for f in as_completed([f1, f2])} == {256, 8}
 
+    def test_wait_and_as_completed_take_a_generator(self):
+        """Reading the futures to sync them used to exhaust it, and leave none"""
+        inner = FakeInnerExecutor()
+        inner._call_results = [FakeLithopsFuture(value=1), FakeLithopsFuture(value=2)]
+        with _adapter(inner) as ex:
+            fs = [ex.submit(str, 1), ex.submit(str, 2)]
+            done, not_done = wait(f for f in fs)
+            assert done == set(fs)
+            assert not not_done
+            assert set(as_completed(f for f in fs)) == set(fs)
+
     def test_wait_first_completed(self):
         pending = FakeLithopsFuture(finished=False)
         inner = FakeInnerExecutor()

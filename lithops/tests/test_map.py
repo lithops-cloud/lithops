@@ -18,6 +18,7 @@ import pytest
 import lithops
 from lithops.tests.functions import (
     simple_map_function,
+    simple_reduce_function,
     hello_world,
     lithops_inside_lithops_map_function,
     lithops_return_futures_map,
@@ -51,6 +52,17 @@ class TestMap:
         fexec.map(hello_world, generator_iterdata)
         result = fexec.get_result()
         assert result == ['Hello World!'] * 2
+
+    def test_generator_iterdata(self):
+        """A generator is one input per element, not a single unpicklable input"""
+        fexec = lithops.FunctionExecutor(config=pytest.lithops_config)
+        fexec.map(simple_map_function, ((x, 1) for x in range(3)))
+        assert fexec.get_result() == [1, 2, 3]
+
+    def test_iterator_iterdata_in_map_reduce(self):
+        fexec = lithops.FunctionExecutor(config=pytest.lithops_config)
+        fexec.map_reduce(simple_map_function, iter([(1, 1), (2, 2)]), simple_reduce_function)
+        assert fexec.get_result() == 6
 
     def test_dict_iterdata(self):
         fexec = lithops.FunctionExecutor(config=pytest.lithops_config)
@@ -198,3 +210,32 @@ class TestMap:
             first = fexec.map(lambda x: x * x, [1, 2])
             fexec.map(lambda x: x * 2, first[:1])
             assert fexec.get_result() == [4, 2]
+
+    def test_chaining_after_map_reduce_maps_the_reduce_output_only(self):
+        """
+        map_reduce returns the futures of both stages, but the map stage
+        output was already consumed by the reducer
+        """
+        with lithops.FunctionExecutor(config=pytest.lithops_config) as fexec:
+            chained = fexec.map_reduce(
+                lambda x: x * 2, [1, 2, 3], lambda results: sum(results)
+            ).map(lambda x: x + 1)
+            assert len(chained) == 1
+            assert chained.get_result() == [13]
+
+    def test_chaining_the_map_stage_of_a_map_reduce_is_refused(self):
+        """It used to run a job of no calls and return an empty result"""
+        with lithops.FunctionExecutor(config=pytest.lithops_config) as fexec:
+            mr = fexec.map_reduce(lambda x: x * 2, [1, 2], lambda results: sum(results))
+            fexec.wait(mr)
+            n_futures = len(fexec.futures)
+            with pytest.raises(ValueError, match='map stage of a map_reduce'):
+                fexec.map(lambda x: x + 1, mr[:-1])
+            assert len(fexec.futures) == n_futures
+
+    def test_chaining_after_a_call_that_returned_none(self):
+        """A call that returns None produces no output file, yet is chained"""
+        with lithops.FunctionExecutor(config=pytest.lithops_config) as fexec:
+            fs = fexec.map(lambda x: None, [1, 2])
+            fexec.wait(fs)
+            assert fs.map(lambda x: x is None).get_result() == [True, True]

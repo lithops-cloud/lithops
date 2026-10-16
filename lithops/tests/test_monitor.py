@@ -308,6 +308,40 @@ class TestJobMonitor:
         instance.add_futures.assert_called_once_with(futures)
         instance.start.assert_called_once()
 
+    def test_a_replacing_monitor_carries_on_with_the_tokens_still_owed(self):
+        storage = MagicMock()
+        storage.get_storage_config.return_value = {'monitoring_interval': 2}
+        storage.backend = 'localhost'
+        job_monitor = JobMonitor('sess-0', storage)
+        job_monitor.job_chunksize.update({'M000': 1, 'M001': 1})
+        job_monitor.job_total_calls.update({'M000': 1, 'M001': 1})
+        job_monitor._spawn_monitor(generate_tokens=True)
+        old = job_monitor.monitor
+        dropped = FakeFuture('M000', invoked=True, call_id='00000')
+        tracked = FakeFuture('M001', invoked=True, call_id='00000')
+        old.add_futures([dropped, tracked])
+        old.remove_futures([dropped])
+        old.workers_done.add('w0')
+        old.stop()
+
+        job_monitor._spawn_monitor(generate_tokens=True)
+
+        new = job_monitor.monitor
+        assert new is not old and old._retired
+        # The job the old one still tracked is no future's any more either
+        assert new._jobs_owing_tokens() == {'M000', 'M001'}
+        assert 'w0' in new.workers_done
+
+    def test_closing_every_job_closes_the_ones_started_so_far(self):
+        storage = MagicMock()
+        storage.get_storage_config.return_value = {'monitoring_interval': 2}
+        storage.backend = 'localhost'
+        job_monitor = JobMonitor('sess-0', storage)
+        job_monitor._spawn_monitor(generate_tokens=True)
+        job_monitor.job_total_calls.update({'M000': 1, 'M001': 1})
+        job_monitor.close_jobs()
+        assert job_monitor.monitor._token_closed_jobs == {'M000', 'M001'}
+
     def test_start_reuses_live_monitor(self):
         storage = MagicMock()
         storage.get_storage_config.return_value = {'monitoring_interval': 2}
@@ -1035,6 +1069,320 @@ class TestStorageMonitorTokensAndTags:
         monitor.run()
         assert sleeps == []
         assert len(polls) == 2
+
+    @staticmethod
+    def _listing(running, done):
+        """A get_job_status that, like the real one, only lists the jobs asked for"""
+        def get_job_status(executor_id, job_ids=None):
+            ids = set(job_ids or ())
+            return (
+                {call for call in running if call[0][1] in ids},
+                {call_id for call_id in done if call_id[1] in ids},
+            )
+        return get_job_status
+
+    def _two_jobs(self):
+        """A monitor with a job about to be dropped and another one still waited on"""
+        monitor = self._storage(chunksize=1)
+        monitor.job_chunksize['M001'] = 1
+        monitor.job_total_calls = {'M000': 1, 'M001': 1}
+        dropped = FakeFuture('M000', invoked=True, call_id='00000')
+        other = FakeFuture('M001', invoked=True, call_id='00000')
+        monitor.add_futures([dropped, other])
+        monitor.internal_storage.get_call_status.return_value = None
+        return monitor, dropped
+
+    def _job_monitor(self, calls):
+        """A JobMonitor whose storage monitor follows a job of ``calls`` calls"""
+        storage = MagicMock()
+        storage.get_storage_config.return_value = {'monitoring_interval': 1}
+        storage.backend = 'localhost'
+        storage.get_call_status.return_value = None
+        job_monitor = JobMonitor('sess-0', storage)
+        job_monitor.job_chunksize['M000'] = 1
+        job_monitor.job_total_calls['M000'] = calls
+        job_monitor._spawn_monitor(generate_tokens=True)
+        futures = [
+            FakeFuture('M000', invoked=True, call_id=f'{i:05d}') for i in range(calls)
+        ]
+        job_monitor.monitor.add_futures(futures)
+        return job_monitor, futures
+
+    def test_a_dropped_job_still_hands_its_token_back(self):
+        """
+        wait() drops the futures of a job whose wait failed while another job
+        still has calls queued, so the invoker does not write it off. Its
+        worker finishes afterwards and must free its token
+        """
+        monitor, dropped = self._two_jobs()
+        worker = (('sess-0', 'M000', '00000'), 'w1')
+        storage = monitor.internal_storage
+        storage.get_job_status.side_effect = self._listing({worker}, set())
+        monitor._poll_and_process_job_status()
+        assert dropped.running is True
+
+        monitor.remove_futures([dropped])
+        storage.get_job_status.side_effect = self._listing(
+            {worker}, {('sess-0', 'M000', '00000')}
+        )
+        new_done = monitor._poll_and_process_job_status()
+
+        assert monitor.token_bucket_q.qsize() == 1
+        # Its done calls are not news for the futures still tracked
+        assert new_done == set()
+        assert storage.get_job_status.call_args.kwargs['job_ids'] == {'M000', 'M001'}
+
+    def test_a_job_dropped_before_the_listing_saw_it_done_hands_its_token_back(self):
+        """
+        The blind sweep can read a status the listing does not show yet, and
+        wait() then drops the job before any listing charged the worker
+        """
+        monitor, dropped = self._two_jobs()
+        monitor._last_blind_sweep = 0
+        worker = (('sess-0', 'M000', '00000'), 'w1')
+        storage = monitor.internal_storage
+        storage.get_job_status.side_effect = self._listing({worker}, set())
+        storage.get_call_status.side_effect = lambda e, j, c: (
+            {'type': '__end__', 'activation_id': 'w1'} if j == 'M000' else None
+        )
+        monitor._poll_and_process_job_status()
+        assert dropped.ready is True
+        monitor.remove_futures([dropped])
+
+        storage.get_job_status.side_effect = self._listing(
+            {worker}, {('sess-0', 'M000', '00000')}
+        )
+        monitor._poll_and_process_job_status()
+        assert monitor.token_bucket_q.qsize() == 1
+
+    def test_a_dropped_job_whose_workers_are_free_is_not_listed_again(self):
+        """Every wait() that returns drops its jobs, which cost a LIST each once more"""
+        monitor = self._storage(chunksize=1)
+        monitor.job_total_calls = {'M000': 1}
+        future = FakeFuture('M000', invoked=True, call_id='00000')
+        monitor.add_futures([future])
+        storage = monitor.internal_storage
+        storage.get_job_status.side_effect = self._listing(
+            {(('sess-0', 'M000', '00000'), 'w1')}, {('sess-0', 'M000', '00000')}
+        )
+        storage.get_call_status.return_value = {'type': '__end__', 'activation_id': 'w1'}
+        monitor._poll_and_process_job_status()
+        assert future.ready is True
+        assert monitor.token_bucket_q.qsize() == 1
+
+        monitor.remove_futures([future])
+        monitor._poll_and_process_job_status()
+        assert storage.get_job_status.call_count == 1
+        assert monitor.token_bucket_q.qsize() == 1
+
+    def test_a_dropped_job_the_invoker_wrote_off_is_not_listed(self):
+        monitor, dropped = self._two_jobs()
+        monitor.remove_futures([dropped])
+        monitor.close_jobs({'M000'})
+        storage = monitor.internal_storage
+        storage.get_job_status.side_effect = self._listing(
+            {(('sess-0', 'M000', '00000'), 'w1')}, {('sess-0', 'M000', '00000')}
+        )
+        monitor._poll_and_process_job_status()
+        assert storage.get_job_status.call_args.kwargs['job_ids'] == {'M001'}
+        assert monitor.token_bucket_q.empty()
+
+    def test_a_monitor_without_tokens_does_not_list_the_jobs_still_owed(self):
+        """It can neither settle nor give up on them, and would list them on every poll"""
+        monitor, dropped = self._two_jobs()
+        monitor.remove_futures([dropped])
+        monitor.generate_tokens = False
+        monitor.remove_futures(monitor.tracked_futures())
+        monitor._poll_and_process_job_status()
+        monitor.internal_storage.get_job_status.assert_not_called()
+
+    def test_a_dropped_job_waits_for_a_worker_the_listing_does_not_show_yet(self):
+        """
+        A worker still on its way when the job was dropped is not in the
+        listing yet, and settling the job on the workers seen so far lost
+        the token of that one
+        """
+        monitor = self._storage(chunksize=1)
+        monitor.job_total_calls = {'M000': 2}
+        futures = [
+            FakeFuture('M000', invoked=True, call_id=f'{i:05d}') for i in range(2)
+        ]
+        monitor.add_futures(futures)
+        monitor.remove_futures(futures)
+        first, second = (('sess-0', 'M000', f'{i:05d}') for i in range(2))
+        storage = monitor.internal_storage
+        storage.get_job_status.side_effect = self._listing({(first, 'w1')}, {first})
+        monitor._poll_and_process_job_status()
+        assert monitor.token_bucket_q.qsize() == 1
+        assert monitor._jobs_owing_tokens() == {'M000'}
+
+        storage.get_job_status.side_effect = self._listing(
+            {(first, 'w1'), (second, 'w2')}, {first, second}
+        )
+        monitor._poll_and_process_job_status()
+        assert monitor.token_bucket_q.qsize() == 2
+        assert monitor._jobs_owing_tokens() == set()
+
+    def test_a_dropped_job_settles_at_once_on_the_calls_the_invoker_discarded(self):
+        """A failed wait() drops the queued calls, which no worker ever frees"""
+        monitor = self._storage(chunksize=1)
+        monitor.job_total_calls = {'M000': 3}
+        futures = [
+            FakeFuture('M000', invoked=True, call_id=f'{i:05d}') for i in range(3)
+        ]
+        monitor.add_futures(futures)
+        call = ('sess-0', 'M000', '00000')
+        monitor.internal_storage.get_call_status.return_value = None
+        monitor.internal_storage.get_job_status.side_effect = self._listing({(call, 'w1')}, {call})
+        monitor._poll_and_process_job_status()
+
+        monitor.discard_calls({'M000': 2})
+        monitor.remove_futures(futures)
+        assert monitor._jobs_owing_tokens() == set()
+        assert monitor.token_bucket_q.qsize() == 1
+
+    def test_a_dropped_job_is_given_up_on_once_its_grace_is_over(self, monkeypatch):
+        """
+        A worker that crashed never reports back, and the job stayed listed
+        for the life of the monitor. Past the execution timeout plus
+        HELD_STATUS_SLACK its worker hands its token back, as a timed-out
+        call does, and a late status hands none back again
+        """
+        now = [1000.0]
+        monkeypatch.setattr('lithops.monitoring.monitor.time.time', lambda: now[0])
+        monitor = self._storage(chunksize=1)
+        monitor.job_total_calls = {'M000': 1}
+        future = FakeFuture('M000', invoked=True, call_id='00000', execution_timeout=60)
+        monitor.add_futures([future])
+        monitor.remove_futures([future])
+
+        call = ('sess-0', 'M000', '00000')
+        storage = monitor.internal_storage
+        storage.get_job_status.side_effect = self._listing({(call, 'w1')}, set())
+        monitor._poll_and_process_job_status()
+        assert monitor.token_bucket_q.empty()
+
+        now[0] += 60 + monitor.HELD_STATUS_SLACK
+        monitor._poll_and_process_job_status()
+        assert monitor.token_bucket_q.qsize() == 1
+        assert monitor._jobs_owing_tokens() == set()
+
+        storage.get_job_status.side_effect = self._listing({(call, 'w1')}, {call})
+        polls = storage.get_job_status.call_count
+        monitor._poll_and_process_job_status()
+        assert storage.get_job_status.call_count == polls
+        assert monitor.token_bucket_q.qsize() == 1
+
+    def test_a_replacing_monitor_takes_over_the_tokens_still_owed(self):
+        """
+        A failed wait() can stop the monitor, and the next job starts a new
+        one. The workers the old one was still waiting for hand their token
+        back through the new one, and the ones it already freed do not
+        """
+        job_monitor, futures = self._job_monitor(calls=2)
+        old = job_monitor.monitor
+        first, second = (('sess-0', 'M000', f'{i:05d}') for i in range(2))
+        running = {(first, 'w1'), (second, 'w2')}
+        storage = old.internal_storage
+        storage.get_job_status.side_effect = self._listing(running, {first})
+        old._poll_and_process_job_status()
+        assert old.token_bucket_q.qsize() == 1
+        old.remove_futures(futures)
+        old.stop()
+
+        job_monitor._spawn_monitor(generate_tokens=True)
+        new = job_monitor.monitor
+        storage.get_job_status.side_effect = self._listing(running, {first, second})
+        new._poll_and_process_job_status()
+        assert new.token_bucket_q.qsize() == 2
+        assert new._jobs_owing_tokens() == set()
+
+    def test_a_monitor_that_did_not_stop_in_time_hands_back_nothing_after_the_takeover(self):
+        """
+        The old thread may outlive the join timeout. The worker it then finds
+        free is handed back by the new monitor only, never by both
+        """
+        job_monitor, futures = self._job_monitor(calls=1)
+        old = job_monitor.monitor
+        call = ('sess-0', 'M000', '00000')
+        running = {(call, 'w1')}
+        storage = old.internal_storage
+        storage.get_job_status.side_effect = self._listing(running, set())
+        old._poll_and_process_job_status()
+        old.remove_futures(futures)
+
+        job_monitor._spawn_monitor(generate_tokens=True)
+        new = job_monitor.monitor
+
+        # The old thread, still alive, now sees the worker finish
+        storage.get_job_status.side_effect = self._listing(running, {call})
+        old._poll_and_process_job_status()
+        assert old.token_bucket_q.qsize() == 0
+
+        new._poll_and_process_job_status()
+        assert new.token_bucket_q.qsize() == 1
+
+    def test_no_token_bookkeeping_grows_when_tokens_are_off(self):
+        """Batch, localhost and standalone jobs kept one entry per call for the session"""
+        monitor = self._storage(generate_tokens=False)
+        for job in range(50):
+            futures = [
+                FakeFuture(f'M{job:03d}', invoked=True, call_id=f'{i:05d}') for i in range(10)
+            ]
+            monitor.add_futures(futures)
+            monitor.remove_futures(futures)
+        assert monitor._dropped_jobs == {}
+        assert monitor._credited_calls == {}
+        assert monitor._discarded_calls == {}
+
+    def test_the_workers_of_a_job_that_owes_nothing_are_forgotten(self):
+        """
+        Every monitor of an executor shares this bookkeeping, so it would
+        otherwise hold every call the executor ever ran
+        """
+        job_monitor, futures = self._job_monitor(calls=2)
+        old = job_monitor.monitor
+        calls = {('sess-0', 'M000', f'{i:05d}') for i in range(2)}
+        running = {(call, f'w{call[2]}') for call in calls}
+        storage = old.internal_storage
+        storage.get_job_status.side_effect = self._listing(running, calls)
+        old._poll_and_process_job_status()
+        assert old.token_bucket_q.qsize() == 2
+        assert old.callids_done_worker == {}
+        assert old.workers_done == set()
+        assert old.worker_job == {}
+        assert 'M000' in old._token_closed_jobs
+
+        # A monitor that lists the job again neither hands a worker back
+        # twice nor keeps anything of it
+        old.stop()
+        job_monitor._spawn_monitor(generate_tokens=True)
+        new = job_monitor.monitor
+        new.add_futures(futures)
+        new._poll_and_process_job_status()
+        assert new.token_bucket_q.qsize() == 2
+        assert new.callids_done_worker == {}
+        assert new.worker_job == {}
+
+    def test_a_nested_job_with_the_same_id_does_not_settle_this_one(self):
+        """A nested executor numbers its jobs from M000 too"""
+        monitor = self._storage(chunksize=1)
+        monitor.job_total_calls = {'M000': 1}
+        nested = FakeFuture('M000', invoked=True, executor_id='sess-1')
+        call = ('sess-0', 'M000', '00000')
+        storage = monitor.internal_storage
+        storage.get_call_status.return_value = None
+        storage.get_job_status.side_effect = self._listing(set(), set())
+        monitor.add_futures([nested])
+        monitor.remove_futures([nested])
+        monitor._poll_and_process_job_status()
+
+        own = FakeFuture('M000', invoked=True, call_id='00000')
+        monitor.add_futures([own])
+        monitor.remove_futures([own])
+        storage.get_job_status.side_effect = self._listing({(call, 'w1')}, {call})
+        monitor._poll_and_process_job_status()
+        assert monitor.token_bucket_q.qsize() == 1
 
 
 class TestRabbitmqMonitorTags:
@@ -1869,6 +2217,139 @@ class TestMessageLossAndRecovery:
         monitor.STORAGE_SWEEP_INTERVAL = 1
         monitor.add_futures([FakeFuture('M000', invoked=True)])
         assert monitor._sweep_storage(0) > 0
+
+    def test_the_storage_sweep_hands_back_the_token_of_a_dropped_job(self):
+        """
+        wait() dropped the job and the __end__ message of its worker was
+        lost: no future is left for the sweep to recover, but the worker
+        still has to free its token
+        """
+        storage = MagicMock()
+        tokens = queue.Queue()
+        monitor = self._monitor(storage=storage, tokens=tokens, chunksize={'M000': 1})
+        monitor.job_total_calls = {'M000': 1}
+        future = FakeFuture('M000', invoked=True, call_id='00000')
+        monitor.add_futures([future])
+        monitor.remove_futures([future])
+
+        storage.get_job_status.return_value = (
+            {(('sess-0', 'M000', '00000'), 'act-1')}, {('sess-0', 'M000', '00000')}
+        )
+        storage.get_call_status.return_value = {'type': '__end__', 'activation_id': 'act-1'}
+        assert monitor._storage_sweep() == 1
+        assert tokens.qsize() == 1
+        storage.get_job_status.assert_called_once_with('sess-0', job_ids={'M000'})
+
+        # The worker is free and every call is counted: nothing left to list
+        assert monitor._storage_sweep() == 0
+        assert storage.get_job_status.call_count == 1
+        assert tokens.qsize() == 1
+
+    def test_a_dropped_job_whose_end_was_counted_is_not_listed(self):
+        storage = MagicMock()
+        tokens = queue.Queue()
+        monitor = self._monitor(storage=storage, tokens=tokens, chunksize={'M000': 1})
+        monitor.job_total_calls = {'M000': 1}
+        future = FakeFuture('M000', invoked=True, call_id='00000')
+        monitor.add_futures([future])
+        payload, _raw = _status(kind='__end__')
+        monitor._apply_status_message(payload)
+        monitor.remove_futures([future])
+
+        assert monitor._storage_sweep() == 0
+        storage.get_job_status.assert_not_called()
+        assert tokens.qsize() == 1
+        assert monitor._jobs_owing_tokens() == set()
+
+    def test_the_sweep_reads_only_the_calls_no_end_was_counted_for(self):
+        """The status of a call whose __end__ was counted is not read back"""
+        storage = MagicMock()
+        tokens = queue.Queue()
+        monitor = self._monitor(storage=storage, tokens=tokens, chunksize={'M000': 1})
+        monitor.job_total_calls = {'M000': 2}
+        futures = [FakeFuture('M000', invoked=True, call_id=f'{i:05d}') for i in range(2)]
+        monitor.add_futures(futures)
+        counted, _raw = _status(call_id='00000', kind='__end__')
+        monitor._apply_status_message(counted)
+        monitor.remove_futures(futures)
+
+        lost = ('sess-0', 'M000', '00001')
+        storage.get_job_status.return_value = (set(), {('sess-0', 'M000', '00000'), lost})
+        storage.get_call_status.return_value = {'type': '__end__', 'activation_id': 'act-2'}
+        assert monitor._storage_sweep() == 1
+        storage.get_call_status.assert_called_once_with(*lost)
+        assert tokens.qsize() == 2
+        assert monitor._jobs_owing_tokens() == set()
+
+    def test_a_redelivered_end_of_a_job_that_owes_nothing_is_dropped(self):
+        """Its job is closed, so nothing of it is counted, kept or held again"""
+        tokens = queue.Queue()
+        monitor = self._monitor(tokens=tokens, chunksize={'M000': 1})
+        monitor.job_total_calls = {'M000': 1}
+        monitor.add_futures([FakeFuture('M000', invoked=True, call_id='00000')])
+        end, _raw = _status(kind='__end__')
+        monitor._apply_status_message(end)
+        assert tokens.qsize() == 1
+        assert monitor.callids_done_worker == {}
+        assert monitor.workers_done == set()
+
+        monitor._apply_status_message(dict(end))
+        assert tokens.qsize() == 1
+        assert monitor.callids_done_worker == {}
+        assert monitor._held_status == {}
+
+    def test_the_storage_sweep_gives_up_on_a_dropped_job(self, monkeypatch):
+        """
+        A dropped job whose worker never reports back used to be listed on
+        every sweep for the life of the monitor
+        """
+        now = [1000.0]
+        monkeypatch.setattr('lithops.monitoring.monitor.time.time', lambda: now[0])
+        storage = MagicMock()
+        tokens = queue.Queue()
+        monitor = self._monitor(storage=storage, tokens=tokens, chunksize={'M000': 1})
+        monitor.job_total_calls = {'M000': 1}
+        future = FakeFuture('M000', invoked=True, call_id='00000', execution_timeout=60)
+        monitor.add_futures([future])
+        monitor.remove_futures([future])
+        storage.get_job_status.return_value = (
+            {(('sess-0', 'M000', '00000'), 'act-1')}, set()
+        )
+
+        monitor._storage_sweep()
+        assert tokens.empty()
+        now[0] += 60 + monitor.HELD_STATUS_SLACK
+        monitor._storage_sweep()
+        assert tokens.qsize() == 1
+
+        monitor._storage_sweep()
+        assert storage.get_job_status.call_count == 2
+        # A late __end__ of the written-off job hands nothing back
+        payload, _raw = _status(kind='__end__')
+        payload['activation_id'] = 'act-2'
+        monitor._apply_status_message(payload)
+        assert tokens.qsize() == 1
+        assert monitor._held_status == {}
+
+    def test_a_stopped_monitor_does_not_give_up_on_a_dropped_job(self, monkeypatch):
+        """It hands no token back, so the job stays owed for the monitor that replaces it"""
+        now = [1000.0]
+        monkeypatch.setattr('lithops.monitoring.monitor.time.time', lambda: now[0])
+        storage = MagicMock()
+        tokens = queue.Queue()
+        monitor = self._monitor(storage=storage, tokens=tokens, chunksize={'M000': 1})
+        monitor.job_total_calls = {'M000': 1}
+        future = FakeFuture('M000', invoked=True, call_id='00000', execution_timeout=60)
+        monitor.add_futures([future])
+        monitor.remove_futures([future])
+        storage.get_job_status.return_value = (
+            {(('sess-0', 'M000', '00000'), 'act-1')}, set()
+        )
+        monitor.stop()
+        now[0] += 60 + monitor.HELD_STATUS_SLACK
+        monitor._storage_sweep()
+        assert tokens.empty()
+        assert monitor._jobs_owing_tokens() == {'M000'}
 
 
 class TestBackendContract:
@@ -3436,6 +3917,38 @@ class TestNestedStatusesHeldByTheClient:
             (self.NESTED, 'M000', '00001'),
             (self.NESTED, 'M000', '00000'),
         ]
+
+    def test_a_later_init_does_not_replace_a_held_end(self):
+        """
+        SQS, Pub/Sub and Azure do not keep the order, and may redeliver: the
+        __init__ of a call can arrive after its __end__. Held by call id, it
+        used to throw the __end__ away and leave the future running
+        """
+        tokens = queue.Queue()
+        monitor = self.FakePoll('sess-0', None, tokens, {'M000': 1}, True, {})
+        end, _raw = _status(kind='__end__')
+        init, _raw = _status(kind='__init__')
+        monitor._apply_status_message(end)
+        monitor._apply_status_message(init)
+
+        future = FakeFuture('M000', invoked=True, call_id='00000')
+        monitor.add_futures([future])
+        assert future.ready is True
+        assert tokens.qsize() == 1
+
+    def test_an_adopted_end_is_not_replaced_by_an_init(self):
+        old = self.FakePoll('sess-0', None, queue.Queue(), {}, False, {})
+        new = self.FakePoll('sess-0', None, queue.Queue(), {}, False, {})
+        old._apply_status_message(self._nested_end())
+        init = self._nested_end()
+        init['type'] = '__init__'
+        new._apply_status_message(init)
+
+        new.adopt_held_status(old)
+
+        nested = FakeFuture('M000', invoked=True, executor_id=self.NESTED)
+        new.add_futures([nested])
+        assert nested.ready is True
 
 
 def _localhost_redis():

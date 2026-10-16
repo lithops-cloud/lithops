@@ -13,6 +13,7 @@
 #
 
 import errno
+import json
 import logging
 import os
 import pickle
@@ -711,6 +712,37 @@ class TestSerializeIndependent:
         mods = ser._module_inspect({'fn': _echo, 'n': 1})
         assert _echo.__module__.split('.')[0] in mods
 
+    def test_module_used_only_by_a_nested_function_is_found(self):
+        """
+        The global names of an inner function belong to the module of the
+        outer one, such as the __main__ of a script, not to the serializer's
+        """
+        namespace = {'__name__': '__main__', 'helper_mod_xyz': json}
+        exec(
+            'def outer():\n'
+            '    def inner():\n'
+            '        return helper_mod_xyz.dumps(1)\n'
+            '    return inner()\n',
+            namespace
+        )
+        ser = SerializeIndependent([['os', True]])
+        assert 'json' in ser._module_inspect(namespace['outer'])
+
+    def test_recursive_functions_are_inspected_once(self):
+        namespace = {'__name__': '__main__', 'helper_mod_xyz': json}
+        exec(
+            'def fact(n):\n'
+            '    return 1 if n < 2 else n * fact(n - 1)\n'
+            'def ping(n):\n'
+            '    return pong(n - 1) if n else helper_mod_xyz.dumps(n)\n'
+            'def pong(n):\n'
+            '    return ping(n - 1) if n else 0\n',
+            namespace
+        )
+        ser = SerializeIndependent([['os', True]])
+        assert ser._module_inspect(namespace['fact']) == {'__main__'}
+        assert 'json' in ser._module_inspect(namespace['pong'])
+
     def test_cython_function_name_inspects_globals(self):
         class cython_function_or_method:
             __globals__ = {'__file__': '/tmp/foo.pyx'}
@@ -811,6 +843,33 @@ class TestCreatePartitions:
             [],
             [],
         )
+
+    def test_partitions_are_taken_back_as_they_are(self):
+        """
+        The retrying executor partitions before invoking. Partitioned again,
+        each of its partitions cost a request to learn its size
+        """
+        storage = _storage()
+        storage.storage.list_objects.return_value = [
+            {'Key': 'p/a.txt', 'Size': 2}, {'Key': 'p/b.txt', 'Size': 300},
+        ]
+        parts, ppo = create_partitions(
+            {}, storage, [{'obj': 'localhost://bucket/p/', 'n': 1}], 100, None, '\n'
+        )
+        assert ppo == [1, 3]
+
+        again = _storage()
+        assert create_partitions({}, again, parts, 100, None, '\n') == (parts, [1, 3])
+        again.storage.list_objects.assert_not_called()
+        again.storage.head_object.assert_not_called()
+
+        # A CloudObject of the user's own is no partition, and is sized
+        again.storage.head_object.return_value = {'content-length': '2'}
+        parts, _ = create_partitions(
+            {}, again, [{'obj': CloudObject('localhost', 'bucket', 'k')}], None, None, '\n'
+        )
+        again.storage.head_object.assert_called_once_with('bucket', 'k')
+        assert parts[0]['obj'].total_size == 2
 
     @pytest.mark.parametrize('path', [
         r'C:\\data\\a.txt', 'C:/data/a.txt', r'\\\\server\\share\\a.txt',

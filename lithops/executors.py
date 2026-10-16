@@ -23,7 +23,7 @@ import pickle
 import tempfile
 import subprocess as sp
 from typing import Any, Dict, List, Optional, Tuple, Union
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from datetime import datetime
 
 from lithops import constants
@@ -103,13 +103,27 @@ def _missing_plotting_extra(method_name: str) -> ModuleNotFoundError:
     )
 
 
-def _output_settled(future) -> bool:
+def _consumers_settled(future, settled_jobs) -> bool:
+    """
+    Whether every chained job that reads the result of this call has ended.
+    _consumers holds the futures of each of those jobs, a list all the
+    producers share, so settled_jobs keeps the answer per list
+    """
+    for consumers in getattr(future, '_consumers', ()):
+        if id(consumers) not in settled_jobs:
+            settled_jobs[id(consumers)] = all(c.ready or c.success or c.done for c in consumers)
+        if not settled_jobs[id(consumers)]:
+            return False
+    return True
+
+
+def _output_settled(future, settled_jobs) -> bool:
     """
     Whether nothing is left to read from storage for this call: its result
     was downloaded or it produced none, it failed, or it handed back
-    futures of its own
+    futures of its own, and no chained call still has to read it
     """
-    return future.done or future.futures
+    return bool(future.done or future.futures) and _consumers_settled(future, settled_jobs)
 
 
 def _group_futures_by_job(
@@ -335,13 +349,16 @@ class FunctionExecutor:
         return None
 
     @staticmethod
-    def _disable_iterdata_output(iterdata):
+    def _disable_iterdata_output(iterdata, consumers):
         """
         Marks the futures used as input as consumed, so that get_result()
-        returns the output of this job only
+        returns the output of this job only. The consumers keep their data
+        in storage until they have read it. All producers share one copy
         """
+        consumers = list(consumers)
         for fut in _chained_futures(iterdata) or ():
             fut._produce_output = False
+            fut._consumers.append(consumers)
 
     def _invoke(self, job):
         """
@@ -429,6 +446,10 @@ class FunctionExecutor:
         """
         Common path of call_async(), map() and the map stage of map_reduce()
         """
+        # A generator or any other one-shot iterator is read once here: the
+        # job is built from it in several passes, and it cannot be pickled
+        if isinstance(iterdata, Iterator):
+            iterdata = list(iterdata)
         job_id = self._create_job_id(job_prefix)
         job, futures = self._run_map_job(
             job_id=job_id,
@@ -445,7 +466,7 @@ class FunctionExecutor:
             obj_chunk_number=obj_chunk_number,
             obj_newline=obj_newline
         )
-        self._disable_iterdata_output(iterdata)
+        self._disable_iterdata_output(iterdata, futures)
         return job_id, job, futures
 
     def _cleanup_jobs(self, futures, exception=None, force=False):
@@ -698,7 +719,8 @@ class FunctionExecutor:
         )
 
         if spawn_reducer != ALWAYS:
-            self.wait(map_futures, return_when=spawn_reducer)
+            # The reducer, not invoked yet, is what reads the map outputs
+            self.wait(map_futures, return_when=spawn_reducer, clean_jobs=False)
             logger.debug(
                 f'{log_prefix(self.executor_id, map_job_id)} - {spawn_reducer}% of map '
                 f'activations done. Spawning reduce stage'
@@ -717,8 +739,10 @@ class FunctionExecutor:
             exclude_modules=exclude_modules
         )
 
+        reducers = list(reduce_futures)
         for future in map_futures:
             future._set_mapreduce()
+            future._consumers.append(reducers)
 
         return create_futures_list(map_futures + reduce_futures, self)
 
@@ -747,7 +771,8 @@ class FunctionExecutor:
         used to control the maximum number of seconds to wait
         before returning.
 
-        :param fs: Futures list. Default None
+        :param fs: Futures list. Default None, every future of this
+            executor. An empty list waits on none
         :param throw_except: Re-raise exception if call raised.
             Default True
         :param return_when: Percentage of done futures
@@ -769,7 +794,10 @@ class FunctionExecutor:
             list of futures that have completed and `fs_notdone`
             is a list of futures that have not completed.
         """
-        futures = self._as_future_list(fs or self.futures)
+        # No fs means every future of this executor; an empty list, none
+        futures = self._as_future_list(self.futures if fs is None else fs)
+        if not futures:
+            return create_futures_list([], self), create_futures_list([], self)
         do_clean = self.data_cleaner if clean_jobs is None else clean_jobs
 
         try:
@@ -784,7 +812,7 @@ class FunctionExecutor:
                 threadpool_size=threadpool_size,
                 wait_dur_sec=wait_dur_sec,
                 show_progressbar=show_progressbar,
-                futures_from_executor_wait=not fs,
+                futures_from_executor_wait=fs is None,
             )
 
             self._release_finished_from_monitor(futures)
@@ -797,10 +825,7 @@ class FunctionExecutor:
             else:
                 # Only the jobs waited on end here. Another job of this
                 # executor may still have calls queued for a free worker
-                self.invoker.discard_pending(
-                    {f.job_key for f in futures},
-                    {f.job_id for f in futures},
-                )
+                self.invoker.discard_pending({f.job_key for f in futures})
             self.job_monitor.remove(futures)
             for future in futures:
                 future._set_exception()
@@ -829,7 +854,8 @@ class FunctionExecutor:
         """
         For getting the results from all function activations
 
-        :param fs: Futures list. Default None
+        :param fs: Futures list. Default None, every future of this
+            executor. An empty list has no results
         :param throw_except: Reraise exception if call raised. Default True.
         :param timeout: Timeout for waiting for results.
         :param threadpool_size: Number of threads to use. Default 64
@@ -839,7 +865,7 @@ class FunctionExecutor:
         :return: The result of the future/s
         """
         pending_to_read = (
-            len(self._as_future_list(fs)) if fs
+            len(self._as_future_list(fs)) if fs is not None
             else sum(1 for f in self.futures if not f._read and not f.futures)
         )
 
@@ -863,21 +889,22 @@ class FunctionExecutor:
         for future in fs_done:
             if future.futures or not future._produce_output:
                 continue
-            if not fs and future._read:
+            if fs is None and future._read:
                 continue
             result.append(future.result(
                 throw_except=throw_except,
                 internal_storage=self.internal_storage
             ))
-            if not fs:
+            if fs is None:
                 future._read = True
 
         logger.debug(
             f'{log_prefix(self.executor_id)} - Finished getting results'
         )
 
-        if self.data_cleaner:
-            self._cleanup_jobs(self._as_future_list(fs or self.futures))
+        to_clean = self._as_future_list(self.futures if fs is None else fs)
+        if self.data_cleaner and to_clean:
+            self._cleanup_jobs(to_clean)
 
         if len(result) == 1 and self.last_call != 'map':
             return result[0]
@@ -958,7 +985,8 @@ class FunctionExecutor:
         function invocation results. It can also clean
         cloudobjects.
 
-        :param fs: List of futures to clean
+        :param fs: List of futures to clean. Default None, every future
+            of this executor. An empty list cleans none
         :param cs: List of cloudobjects to clean
         :param clean_cloudobjects: Delete all cloudobjects
             created with this executor
@@ -991,21 +1019,39 @@ class FunctionExecutor:
                 'storage_config': storage_config
             })
 
-        futures = self._as_future_list(fs or self.futures)
+        futures = self._as_future_list(self.futures if fs is None else fs)
+        settled_jobs = {}
         if force or on_exit:
             # On exit nothing will read the leftover results, so a job
             # that still has one unread call would otherwise stay forever
             present_jobs = {
                 create_job_key(f.executor_id, f.job_id) for f in futures
             }
+            if not on_exit:
+                # A chained job still running reads them, though
+                present_jobs -= {
+                    create_job_key(f.executor_id, f.job_id)
+                    for f in list(self.futures) + list(futures)
+                    if not _consumers_settled(f, settled_jobs)
+                }
         else:
+            # The calls a chained job reads are cleaned along with it: a
+            # clean of theirs skipped them while it ran
+            chained_jobs = {create_job_key(f.executor_id, f.job_id) for f in futures}
+            futures = list(futures) + [
+                f for f in self.futures
+                if any(
+                    create_job_key(c[0].executor_id, c[0].job_id) in chained_jobs
+                    for c in getattr(f, '_consumers', ()) if c
+                )
+            ]
             # A job's data is one prefix, so it goes only once no call of
             # the job, including the ones not passed here, still has a
             # result to read from it
             unread_jobs = {
                 create_job_key(f.executor_id, f.job_id)
                 for f in list(self.futures) + list(futures)
-                if not _output_settled(f)
+                if not _output_settled(f, settled_jobs)
             }
             present_jobs = {
                 create_job_key(f.executor_id, f.job_id)

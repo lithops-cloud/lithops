@@ -16,6 +16,7 @@
 
 import signal
 import logging
+import threading
 import time
 import math
 import concurrent.futures as cf
@@ -94,9 +95,31 @@ def _log_wait_start(prefix: str, return_when: Any, pending: int) -> None:
     )
 
 
-def _set_wait_alarm(timeout: float) -> None:
+def _timeout_error_msg(timeout: float) -> str:
+    return (
+        f'Timeout of {timeout} seconds exceeded waiting for '
+        'function activations to finish'
+    )
+
+
+def _can_use_alarm() -> bool:
     """
-    Arms a SIGALRM that aborts the wait once the timeout is exceeded.
+    SIGALRM only exists on Unix, and Python only lets the main thread set a
+    signal handler: anywhere else signal.signal() raises ValueError
+    """
+    return (
+        is_unix_system()
+        and threading.current_thread() is threading.main_thread()
+    )
+
+
+def _set_wait_alarm(timeout: float) -> Optional[SimpleNamespace]:
+    """
+    Arms a SIGALRM that aborts the wait once the timeout is exceeded, and
+    returns what _clear_wait_alarm() needs to give the caller back the
+    handler and the alarm it had before. Returns None, with the caller's
+    alarm and handler put back, when that alarm goes off first: the timeout
+    of the wait is then checked by the polling loop.
 
     signal.alarm() takes whole seconds and rounds nothing, so a fractional
     timeout used to raise TypeError before the wait even started, which is
@@ -107,17 +130,51 @@ def _set_wait_alarm(timeout: float) -> None:
     A timeout that has already passed raises here, since there is no shorter
     alarm than one second to arm
     """
-    error_msg = (
-        f'Timeout of {timeout} seconds exceeded waiting for '
-        'function activations to finish'
-    )
     if timeout <= 0:
-        raise TimeoutError(error_msg)
+        raise TimeoutError(_timeout_error_msg(timeout))
 
     seconds = math.ceil(timeout)
     logger.debug(f'Setting waiting timeout to {timeout} seconds')
-    signal.signal(signal.SIGALRM, partial(timeout_handler, error_msg))
-    signal.alarm(seconds)
+    previous_handler = signal.signal(
+        signal.SIGALRM, partial(timeout_handler, _timeout_error_msg(timeout))
+    )
+    previous_remaining = signal.alarm(seconds)
+    if not isinstance(previous_remaining, int):
+        # Only a stand-in for signal.alarm returns anything else
+        previous_remaining = 0
+    armed = SimpleNamespace(
+        handler=previous_handler,
+        remaining=previous_remaining,
+        armed_at=time.monotonic(),
+    )
+    if previous_remaining and previous_remaining <= seconds:
+        _clear_wait_alarm(armed)
+        return None
+    return armed
+
+
+def _clear_wait_alarm(armed: SimpleNamespace) -> None:
+    """
+    Cancels the alarm of the wait and restores the handler and the alarm the
+    caller had set, minus the time the wait took
+    """
+    signal.alarm(0)
+    # None stands for a handler not set from Python, which cannot be set back
+    signal.signal(
+        signal.SIGALRM,
+        signal.SIG_DFL if armed.handler is None else armed.handler,
+    )
+    if armed.remaining:
+        elapsed = time.monotonic() - armed.armed_at
+        signal.alarm(max(1, math.ceil(armed.remaining - elapsed)))
+
+
+def _check_deadline(deadline: Optional[float], timeout: Optional[float]) -> None:
+    """
+    Raises the same TimeoutError as the alarm once the deadline has passed
+    """
+    if deadline is not None and time.monotonic() >= deadline:
+        raise TimeoutError(_timeout_error_msg(timeout))
 
 
 def _create_progressbar(total: int, initial: int):
@@ -163,13 +220,25 @@ def _poll_until_done(
     download_results,
     sleep_sec,
     poll_kwargs,
+    already_complete=(),
+    deadline=None,
+    timeout=None,
 ):
     """
     Polls every executor until return_when% of the futures are done. A round
     that fetched something is followed immediately by another one, as more
-    statuses are likely to be waiting already
+    statuses are likely to be waiting already.
+
+    The futures in already_complete do not count: they were done before the
+    wait started. A deadline is the timeout of a wait no alarm can abort
     """
-    while not _check_done(fs, return_when, download_results):
+    def watched():
+        if not already_complete:
+            return fs
+        return [f for f in fs if id(f) not in already_complete]
+
+    while not _check_done(watched(), return_when, download_results):
+        _check_deadline(deadline, timeout)
         # The monitor is a daemon thread that exits on its own once every
         # future it knows about is done, so it may need waking up for the
         # futures that showed up afterwards
@@ -183,7 +252,10 @@ def _poll_until_done(
 
         if new_data:
             continue
-        time.sleep(sleep_sec)
+        if deadline is not None:
+            time.sleep(max(0, min(sleep_sec, deadline - time.monotonic())))
+        else:
+            time.sleep(sleep_sec)
 
 
 def wait(
@@ -243,17 +315,27 @@ def wait(
     fs_to_wait = math.ceil(return_when * len(not_done_futures) / 100)
     _log_wait_start(prefix, return_when, len(not_done_futures))
 
-    if is_unix_system() and timeout is not None:
-        _set_wait_alarm(timeout)
-
+    # Waiting on every future of an executor, the ones some earlier wait saw
+    # finish count for nothing, or ANY_COMPLETED would return right away
+    already_complete = (
+        {id(f) for f in fs_done} if futures_from_executor_wait else ()
+    )
     pbar = (
-        _create_progressbar(fs_to_wait, len(fs_done))
+        _create_progressbar(fs_to_wait, 0 if futures_from_executor_wait else len(fs_done))
         if show_progressbar else None
     )
 
     started_monitors = []
     pool = None
+    armed_alarm = None
+    deadline = None
     try:
+        if timeout is not None:
+            if _can_use_alarm():
+                armed_alarm = _set_wait_alarm(timeout)
+            if armed_alarm is None:
+                deadline = time.monotonic() + timeout
+
         executors_data = _create_executors_data_from_futures(
             fs, internal_storage
         )
@@ -280,7 +362,10 @@ def wait(
         else:
             _poll_until_done(
                 fs, executors_data, job_monitor, return_when,
-                download_results, sleep_sec, poll_kwargs
+                download_results, sleep_sec, poll_kwargs,
+                already_complete=already_complete,
+                deadline=deadline,
+                timeout=timeout,
             )
 
     except KeyboardInterrupt:
@@ -296,8 +381,8 @@ def wait(
             pool.shutdown(wait=True)
         for monitor in started_monitors:
             monitor.stop()
-        if is_unix_system():
-            signal.alarm(0)
+        if armed_alarm is not None:
+            _clear_wait_alarm(armed_alarm)
         if pbar and not pbar.disable:
             pbar.close()
             if not is_notebook():
@@ -333,6 +418,8 @@ def get_result(
     :return: The result of the future/s
     """
     fs = _as_future_list(fs)
+    if not fs:
+        return []
     prefix = log_prefix(fs[0].executor_id)
 
     logger.info(

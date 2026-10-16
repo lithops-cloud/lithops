@@ -57,6 +57,16 @@ def create_partitions(
     Splits the objects referenced by the iterdata into partitions, one task
     each. Only one kind of source is partitioned per call
     """
+    # Partitions made by an earlier call are taken as they are: the retrying
+    # executor makes them before invoking, so that each call has an input of
+    # its own to resubmit, and partitioning them again would cost a request
+    # per object to learn the sizes they already carry
+    if map_iterdata and all(_is_partition(elem['obj']) for elem in map_iterdata):
+        parts_per_object = [
+            elem['obj'].total_parts for elem in map_iterdata if elem['obj'].part == 1
+        ]
+        return map_iterdata, parts_per_object
+
     urls = []
     paths = []
     objects = []
@@ -86,6 +96,11 @@ def create_partitions(
             internal_storage, config, obj_newline
         )
     return [], []
+
+
+def _is_partition(obj: Any) -> bool:
+    """Whether an object is one of the partitions _build_partitions() makes"""
+    return hasattr(obj, 'data_byte_range') and hasattr(obj, 'total_parts')
 
 
 def _log_chunk_settings(chunk_size: Optional[int], chunk_number: Optional[int]) -> None:
@@ -137,6 +152,10 @@ def _build_partitions(
 
     obj_partitions = []
     size = obj_total_partitions = 0
+    # Every chunk but the first one starts as many bytes early as the newline
+    # has, which the chunk before it must have
+    newline_len = len(obj_newline.encode()) if obj_newline is not None else 0
+    obj_chunk_size = max(obj_chunk_size, newline_len)
 
     parts = obj_size // obj_chunk_size + (obj_size % obj_chunk_size > 0)
     logger.debug(
@@ -151,15 +170,15 @@ def _build_partitions(
         elif obj_newline is None:
             brange = (size, size + obj_chunk_size - 1)
         elif size + obj_chunk_size < obj_size:
-            # Records must not be cut in two: a partition starts one byte
+            # Records must not be cut in two: a partition starts a newline
             # early to see whether it begins mid record, and overshoots by
             # CHUNK_THRESHOLD so that it can finish the last record it reads
             brange = (
-                size - 1 if size > 0 else 0,
+                size - newline_len if size > 0 else 0,
                 size + obj_chunk_size + CHUNK_THRESHOLD
             )
         else:
-            brange = (size - 1, obj_size - 1)
+            brange = (size - newline_len, obj_size - 1)
             obj_chunk_size = obj_size - size
 
         obj_total_partitions += 1
@@ -170,6 +189,7 @@ def _build_partitions(
         partition['obj'].chunk_size = obj_chunk_size
         partition['obj'].part = obj_total_partitions
         partition['obj'].newline = obj_newline
+        partition['obj'].total_size = obj_size
         obj_partitions.append(partition)
 
         size += obj_chunk_size

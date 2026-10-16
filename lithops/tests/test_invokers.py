@@ -281,6 +281,23 @@ class TestBatchInvoker:
         futures = inv.run_job(job)
         inv.job_monitor.start.assert_called_once_with(futures)
 
+    @pytest.mark.parametrize('mode', [LOCALHOST, SERVERLESS])
+    def test_only_the_localhost_mode_takes_an_interpreter_path_as_runtime(self, mode):
+        """The path of a local interpreter can hold any character, such as an @"""
+        interpreter = os.path.join(os.path.abspath(os.sep), 'opt', 'python@3.12', 'bin', 'python3')
+        handler = MagicMock()
+        handler.get_runtime_info.return_value = {'runtime_name': interpreter, 'max_workers': 1}
+        config = {
+            'lithops': {'mode': mode, 'backend': 'localhost', 'storage': 'localhost', 'telemetry': False},
+            'localhost': {'storage_bucket': 'test-bucket'},
+        }
+        if mode == LOCALHOST:
+            inv = BatchInvoker(config, 'sess-0', MagicMock(), handler, MagicMock())
+            assert inv.runtime_name == interpreter
+        else:
+            with pytest.raises(AssertionError, match='not valid'):
+                BatchInvoker(config, 'sess-0', MagicMock(), handler, MagicMock())
+
 
 class TestFaaSInvokerHelpers:
 
@@ -334,6 +351,8 @@ class TestFaaSInvokerHelpers:
         assert left == [other, other]
         assert inv.running_workers == 4
         inv.job_monitor.close_jobs.assert_not_called()
+        # The job settles on the calls dropped here, with no grace to wait
+        inv.job_monitor.discard_calls.assert_called_once_with({'M000': 4})
 
     def test_discard_pending_forgets_workers_when_no_other_job_is_queued(self):
         """
@@ -347,11 +366,22 @@ class TestFaaSInvokerHelpers:
         failed = _job(chunksize=1)
         failed.job_key = 'sess-0/M000'
         inv._queue_call_ranges(failed, range(2))
-        inv.discard_pending({'sess-0/M000'}, {'M000'})
+        inv.discard_pending({'sess-0/M000'})
         assert inv.running_workers == 0
         assert inv.pending_calls_q.empty()
         assert inv.job_monitor.token_bucket_q.empty()
-        inv.job_monitor.close_jobs.assert_called_once_with({'M000'})
+        # Every job invoked so far, not only the ones waited on
+        inv.job_monitor.close_jobs.assert_called_once_with()
+
+    def test_discard_pending_closes_the_jobs_before_emptying_the_bucket(self):
+        """A token handed back before the jobs are closed would outlive the reset"""
+        inv = self._faas()
+        inv.running_workers = 4
+        inv.job_monitor.close_jobs.side_effect = (
+            lambda *args: inv.job_monitor.token_bucket_q.put('#')
+        )
+        inv.discard_pending({'sess-0/M000'})
+        assert inv.job_monitor.token_bucket_q.empty()
 
     def test_a_restart_forgets_tokens_handed_back_after_the_stop(self):
         """
@@ -402,6 +432,92 @@ class TestFaaSInvokerHelpers:
         assert queued_job is job
         assert list(ids) == [0, 1]
         assert inv.job_monitor.token_bucket_q.get_nowait() == '#'
+
+    def test_invoke_task_fails_the_calls_when_the_invocation_raises(self):
+        """A raised error must end the wait for the chunk and return its token"""
+        inv = self._faas()
+        inv.compute_handler.invoke.side_effect = RuntimeError('provider rejected request')
+        job = _job()
+        job.futures = [MagicMock(ready=False, success=False, done=False) for _ in range(2)]
+        inv._invoke_task(job, [0])
+        job.futures[0]._set_ready.assert_called_once()
+        status = job.futures[0]._set_ready.call_args[0][0]
+        assert status['exception'] is True
+        assert status['call_id'] == '00000'
+        job.futures[1]._set_ready.assert_not_called()
+        assert inv.pending_calls_q.empty()
+        assert inv.job_monitor.token_bucket_q.get_nowait() == '#'
+        # The invoker returned the token, so no worker of the monitor owes it
+        inv.job_monitor.discard_calls.assert_called_once_with({'M000': 1})
+
+    def test_an_error_that_does_not_pickle_still_reaches_the_future(self):
+        class Unpicklable(Exception):
+            def __reduce__(self):
+                raise TypeError('cannot pickle')
+
+        inv = self._faas()
+        inv.compute_handler.invoke.side_effect = Unpicklable('provider rejected request')
+        job = _job(total_calls=1, metadata={'func_name': 'fn'})
+        futures = inv._build_futures(job)
+        inv._invoke_task(job, [0])
+        with pytest.raises(RuntimeError, match='provider rejected request'):
+            futures[0].status()
+
+    def test_the_remote_invoker_payload_is_json(self):
+        """The futures built before invoking are not part of it: aws_lambda json.dumps it"""
+        import json
+        inv = self._faas()
+        inv.remote_invoker = True
+        inv.compute_handler.invoke.return_value = 'act-1'
+        job = _job()
+        inv._build_futures(job)
+        inv._invoke_job(job)
+        payload = inv.compute_handler.invoke.call_args[0][0]
+        assert 'futures' not in payload['job']
+        json.dumps(payload)
+
+    def test_a_failed_invocation_reaches_the_future_as_its_exception(self):
+        inv = self._faas()
+        inv.compute_handler.invoke.side_effect = RuntimeError('provider rejected request')
+        job = _job(total_calls=1, metadata={'func_name': 'fn'})
+        inv.storage_config = {'backend': 'localhost', 'localhost': {'storage_bucket': 'bkt'}}
+        futures = inv._build_futures(job)
+        inv._invoke_task(job, [0])
+        assert futures[0].ready
+        with pytest.raises(RuntimeError, match='provider rejected request'):
+            futures[0].status()
+
+    def test_a_failed_sync_invocation_reaches_the_returned_futures(self, tmp_path, monkeypatch):
+        """Inside a worker the invoker waits for the invocation, so the futures must exist by then"""
+        from concurrent.futures import ThreadPoolExecutor
+        monkeypatch.setattr('lithops.invokers.LOGS_DIR', str(tmp_path))
+        inv = self._faas()
+        inv.sync = True
+        inv.should_run = True
+        inv.max_workers = 10
+        inv.executor = ThreadPoolExecutor(2)
+        inv.include_function = False
+        inv.telemetry = MagicMock()
+        inv.storage_config = {'backend': 'localhost', 'localhost': {'storage_bucket': 'bkt'}}
+        inv.compute_handler.invoke.side_effect = RuntimeError('provider rejected request')
+        futures = inv._run_job(_job(total_calls=1, data_byte_ranges=[(0, 1)]))
+        inv.executor.shutdown()
+        assert futures[0].ready
+        with pytest.raises(RuntimeError, match='provider rejected request'):
+            futures[0].status()
+
+    def test_a_restart_closes_the_jobs_invoked_before_the_stop(self):
+        """Their workers no longer count, so the monitor must not hand their tokens back"""
+        inv = self._faas(max_workers=10)
+        inv._start_async_invokers = MagicMock()
+        inv._invoke_direct = MagicMock()
+        inv.should_run = True
+        inv._invoke_job(_job(job_id='M000'))
+        inv.job_monitor.close_jobs.assert_not_called()
+
+        inv.should_run = False
+        inv._invoke_job(_job(job_id='M001'))
+        inv.job_monitor.close_jobs.assert_called_once_with()
 
     def test_invoke_job_queues_all_when_at_max_workers(self):
         inv = self._faas()

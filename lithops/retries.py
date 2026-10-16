@@ -12,11 +12,14 @@
 # limitations under the License.
 #
 
+from collections.abc import Iterator
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from lithops import FunctionExecutor
 from lithops.future import ResponseFuture
+from lithops.job.partitioner import create_partitions
 from lithops.storage.utils import CloudObject
+from lithops.utils import _as_iterdata_list, _chained_futures, is_object_processing_function, verify_args
 from lithops.wait import (
     ALL_COMPLETED,
     ALWAYS,
@@ -136,7 +139,8 @@ class RetryingFuture:
             internal_storage=internal_storage,
             check_only=check_only,
         )
-        self._reraise_if_error()
+        if throw_except:
+            self._reraise_if_error()
         return stat
 
     def result(self, throw_except: bool = True, internal_storage: Any = None):
@@ -150,7 +154,8 @@ class RetryingFuture:
         res = self.response_future.result(
             throw_except=throw_except, internal_storage=internal_storage
         )
-        self._reraise_if_error()
+        if throw_except:
+            self._reraise_if_error()
         return res
 
 
@@ -212,6 +217,11 @@ class RetryingFunctionExecutor:
 
         :param map_function: The function to map over the data.
         :param map_iterdata: An iterable of input data (e.g., Python list).
+            For a function that processes objects, a bucket, a prefix, a
+            glob pattern or a directory is listed first, so that each of its
+            objects is an input of its own, retried on its own. It costs the
+            same requests as map(), and an empty object is no input, as it
+            runs no call.
         :param chunksize: Split map_iterdata in chunks of this
             size. One worker per chunk.
         :param extra_args: Additional arguments to pass to each
@@ -220,10 +230,10 @@ class RetryingFunctionExecutor:
             the function environment.
         :param runtime_memory: Memory (in MB) to allocate per
             function activation.
-        :param obj_chunk_size: For file processing. Split each
-            object into chunks of this size (in bytes).
-        :param obj_chunk_number: For file processing. Number of
-            chunks to split each object into.
+        :param obj_chunk_size: Not supported: a failed chunk of an
+            object cannot be retried on its own, so ValueError is raised.
+            Use FunctionExecutor to process objects in chunks.
+        :param obj_chunk_number: Not supported, as obj_chunk_size.
         :param obj_newline: Newline character for line integrity
             in file partitioning.
         :param timeout: Max time per function activation
@@ -239,7 +249,40 @@ class RetryingFunctionExecutor:
             function activation.
         """
 
+        # A retry resubmits the input of the call that failed, and a single
+        # partition of an object cannot be resubmitted on its own
+        if (obj_chunk_size or obj_chunk_number) and is_object_processing_function(map_function):
+            raise ValueError(
+                'RetryingFunctionExecutor does not support obj_chunk_size or '
+                'obj_chunk_number: a failed partition cannot be retried on its '
+                'own. Use FunctionExecutor to process objects in chunks'
+            )
         retries_to_use = self._retries_to_use(retries)
+
+        # A generator can be read only once, and the inputs are kept to be
+        # resubmitted on a retry
+        if isinstance(map_iterdata, Iterator):
+            map_iterdata = list(map_iterdata)
+        # The future of each call is paired with the input it was made from.
+        # A chain leaves out the futures that produce no input
+        inputs = _chained_futures(map_iterdata)
+        if inputs is None and is_object_processing_function(map_function):
+            # A bucket, a prefix or a directory runs one call per object in
+            # it, and an empty object none. Partitioned here, with the
+            # requests map() would make, each call gets an input of its own,
+            # so that a retry resubmits only the object whose call failed.
+            # map() takes the partitions as they are
+            map_iterdata, _ = create_partitions(
+                self.executor.config,
+                self.executor.internal_storage,
+                verify_args(map_function, map_iterdata, extra_args),
+                None, None, obj_newline,
+            )
+            inputs = map_iterdata
+            # verify_args merged them into every input already
+            extra_args = None
+        if inputs is None:
+            inputs = _as_iterdata_list(map_iterdata)
 
         map_kwargs = dict(
             chunksize=chunksize,
@@ -259,6 +302,14 @@ class RetryingFunctionExecutor:
             map_iterdata,
             **map_kwargs,
         )
+        if len(futures_list) != len(inputs):
+            # Not expected, since the objects are partitioned above. Said
+            # rather than pairing a future with the input of another call
+            raise ValueError(
+                f'The {len(inputs)} inputs turned into {len(futures_list)} '
+                'calls, which are running now but cannot be retried: a retry '
+                'resubmits the input of the call that failed'
+            )
         return [
             RetryingFuture(
                 f,
@@ -267,7 +318,7 @@ class RetryingFunctionExecutor:
                 retries=retries_to_use,
                 **map_kwargs,
             )
-            for i, f in zip(map_iterdata, futures_list)
+            for i, f in zip(inputs, futures_list)
         ]
 
     def _split_done_and_retried(self, done, pending, lookup):
@@ -310,7 +361,11 @@ class RetryingFunctionExecutor:
             return bool(retrying_done)
         if return_when == ALL_COMPLETED:
             return not retrying_pending
-        return False
+        # A percentage of the calls, as lithops.wait() takes it
+        total = len(retrying_done) + len(retrying_pending)
+        if not total:
+            return True
+        return len(retrying_done) * 100 / total >= return_when
 
     def wait(
         self,
@@ -338,14 +393,18 @@ class RetryingFunctionExecutor:
 
         :return: A tuple (done, pending) of lists of RetryingFutures.
         """
+        if not fs:
+            return [], []
         lookup = {f.response_future: f for f in fs}
 
         while True:
             # A retry replaces the response future of a RetryingFuture, so
-            # the list has to be rebuilt on every round
+            # the list has to be rebuilt on every round. The inner wait never
+            # raises: a call that failed would end the whole wait there, and
+            # the executor would discard every future instead of retrying it
             done, pending = self.executor.wait(
                 [f.response_future for f in fs],
-                throw_except=throw_except,
+                throw_except=False,
                 return_when=return_when,
                 download_results=download_results,
                 timeout=timeout,
@@ -361,6 +420,10 @@ class RetryingFunctionExecutor:
             if self._wait_is_over(
                 return_when, retrying_done, retrying_pending
             ):
+                if throw_except:
+                    # Only the calls with no retries left are still failed
+                    for retrying_future in retrying_done:
+                        retrying_future._reraise_if_error()
                 return retrying_done, retrying_pending
 
     def clean(
