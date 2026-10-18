@@ -157,15 +157,6 @@ class OpenWhiskClient:
             msg = f'An error occurred creating/updating action {action_name}: {resp_text["error"]}'
             raise Exception(msg)
 
-    def get_action(self, package, action_name):
-        """
-        Get an WSK action
-        """
-        logger.debug(f"Getting cloud function action: {action_name}")
-        url = '/'.join([self.url, self.namespace, 'actions', package, action_name])
-        res = self.session.get(url)
-        return res.json()
-
     def list_actions(self, package):
         """
         List all WSK actions in a package
@@ -189,19 +180,6 @@ class OpenWhiskClient:
 
         if res.status_code != 200:
             logger.debug(f'An error occurred deleting action {action_name}: {resp_text["error"]}')
-
-    def update_memory(self, package, action_name, memory):
-        logger.debug(f'Updating memory of the {action_name} action to {memory}')
-        url = '/'.join([self.url, self.namespace, 'actions', package, action_name + "?overwrite=True"])
-
-        data = {"limits": {"memory": memory}}
-        res = self.session.put(url, json=data)
-        resp_text = res.json()
-
-        if res.status_code != 200:
-            logger.debug(f'An error occurred updating action {action_name}: {resp_text["error"]}')
-        else:
-            logger.debug(f"OK --> Updated action memory {action_name}")
 
     def list_packages(self):
         """

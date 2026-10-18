@@ -58,6 +58,10 @@ _REMOTE_INVOKER_SUFFIX = remote_invoker_queue_name(_PROBE_ID)[
 REUSE_CLIENTS_ENV = 'LITHOPS_REUSE_MONITORING_CLIENTS'
 
 _SHARED_CLIENTS = {}
+#: The process that built each shared client. A forked child inherits the
+#: cache, and closing what it inherited would close the parent's connection:
+#: for AMQP that is a Connection.Close sent down the socket they share
+_SHARED_OWNERS = {}
 _SHARED_LOCK = threading.RLock()
 _ATEXIT_REGISTERED = False
 
@@ -103,8 +107,18 @@ def reuse_clients() -> bool:
 
 
 def _release_client(client: Any, service: str = 'monitoring') -> None:
-    """Closes a client with whichever of close() and stop() its SDK offers"""
+    """
+    Closes a client with whichever of close() and stop() its SDK offers.
+
+    A client kept as a tuple of parts, such as the (connection, channel) of
+    RabbitMQ, has its parts released last to first, each on its own: one
+    that cannot be closed does not keep the others open
+    """
     if client is None:
+        return
+    if isinstance(client, (tuple, list)):
+        for part in reversed(client):
+            _release_client(part, service)
         return
     for method in ('close', 'stop'):
         release = getattr(client, method, None)
@@ -126,6 +140,7 @@ def shared_client(key: Hashable, factory: Callable[[], Any]) -> Any:
         client = _SHARED_CLIENTS.get(key)
         if client is None:
             client = _SHARED_CLIENTS[key] = factory()
+            _SHARED_OWNERS[key] = os.getpid()
             if not _ATEXIT_REGISTERED:
                 _ATEXIT_REGISTERED = True
                 atexit.register(close_shared_clients)
@@ -135,14 +150,25 @@ def shared_client(key: Hashable, factory: Callable[[], Any]) -> Any:
 def drop_shared_client(key: Hashable) -> Any:
     """Forgets the client under ``key``, and returns it so it can be closed"""
     with _SHARED_LOCK:
+        _SHARED_OWNERS.pop(key, None)
         return _SHARED_CLIENTS.pop(key, None)
 
 
 def close_shared_clients() -> None:
-    """Releases every client this process kept. Runs at interpreter exit"""
+    """
+    Releases every client this process kept. Runs at interpreter exit.
+
+    Clients a forked child inherited are forgotten without being closed:
+    they belong to the parent, which is still using them
+    """
+    pid = os.getpid()
     with _SHARED_LOCK:
-        clients = list(_SHARED_CLIENTS.items())
+        clients = [
+            (key, client) for key, client in _SHARED_CLIENTS.items()
+            if _SHARED_OWNERS.get(key, pid) == pid
+        ]
         _SHARED_CLIENTS.clear()
+        _SHARED_OWNERS.clear()
     for key, client in clients:
         _release_client(client, str(key))
 

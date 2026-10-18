@@ -175,7 +175,7 @@ class TestWorkerListing:
             'status': WorkerStatus.IDLE.value,
             'private_ip': '10.0.0.2',
             'instance_id': 'i-1',
-            'ssh_credentials': '{}',
+            'err': '',
         }
         data.update(extra)
         return data
@@ -192,6 +192,15 @@ class TestWorkerListing:
         assert row[0] == 'lithops-worker-1'
         assert row[2] == 'big'
         assert row[-1] == '30s'
+
+    def test_worker_list_shows_why_a_worker_failed(self, client):
+        sa_master.redis_client.keys.return_value = ['worker:lithops-worker-1']
+        sa_master.redis_client.hgetall.return_value = self._worker_data(
+            status=WorkerStatus.ERROR.value, err='Validation error: boom'
+        )
+        with patch.object(sa_master, 'get_worker_ttd', return_value='30'):
+            table = client.get('/worker/list').get_json()
+        assert table[1][table[0].index('Error')] == 'Validation error: boom'
 
     def test_worker_list_leaves_a_ttd_word_unsuffixed(self, client):
         sa_master.redis_client.keys.return_value = ['worker:lithops-worker-1']
@@ -235,39 +244,38 @@ class TestWorkerListing:
         free_workers = resp.get_json()
         assert resp.status_code == 200
         assert [w[0] for w in free_workers] == ['wanted']
-        # name, ip, instance id, ssh credentials, instance type, runtime
-        assert free_workers[0][-1] == 'python3'
+        # name, ip, instance id, instance type, runtime
+        assert free_workers[0] == ['wanted', '10.0.0.2', 'i-1', 'big', 'python3']
 
 
 class TestWorkerRegistration:
 
-    def test_redis_field_flattens_what_a_hash_cannot_hold(self):
-        assert sa_master._redis_field({'a': 1}) == '{"a": 1}'
-        assert sa_master._redis_field([1, 2]) == '[1, 2]'
-        assert sa_master._redis_field(True) == 'True'
-        assert sa_master._redis_field('text') == 'text'
-        assert sa_master._redis_field(7) == 7
-
-    def test_save_worker_keeps_the_backend_section_out_of_redis(self):
+    def test_save_worker_stores_only_what_is_read_back(self):
         worker = _worker_instance()
-        sa_master.save_worker(worker, _standalone_config(), 'wq:sess-0-M000')
+        worker.ssh_credentials = {'username': 'ubuntu', 'password': 'tok'}
+        sa_master.save_worker(worker, _standalone_config())
         mapping = sa_master.redis_client.hset.call_args.kwargs['mapping']
         assert mapping['name'] == worker.name
         assert mapping['status'] == WorkerStatus.STARTING.value
-        assert mapping['queue_name'] == 'wq:sess-0-M000'
         assert mapping['worker_processes'] == 2
-        assert 'vm' not in mapping
+        assert mapping['runtime'] == 'python3'
+        assert mapping['exec_mode'] == StandaloneMode.CREATE.value
+        assert set(mapping) == {
+            'name', 'status', 'private_ip', 'instance_id', 'instance_type',
+            'worker_processes', 'created', 'runtime', 'exec_mode', 'err',
+        }
         assert 'do-not-store' not in json.dumps(mapping)
+        assert 'tok' not in json.dumps(mapping)
 
     def test_save_worker_resolves_auto_worker_processes(self):
         worker = _worker_instance(config={'worker_processes': 'AUTO'})
-        sa_master.save_worker(worker, _standalone_config(), 'wq')
+        sa_master.save_worker(worker, _standalone_config())
         mapping = sa_master.redis_client.hset.call_args.kwargs['mapping']
         assert mapping['worker_processes'] == sa_master.CPU_COUNT
 
     def test_save_worker_tolerates_an_instance_with_no_ip_yet(self):
         worker = _worker_instance(private_ip=None, instance_id=None)
-        sa_master.save_worker(worker, _standalone_config(), 'wq')
+        sa_master.save_worker(worker, _standalone_config())
         mapping = sa_master.redis_client.hset.call_args.kwargs['mapping']
         assert mapping['private_ip'] == ''
         assert mapping['instance_id'] == ''

@@ -51,6 +51,8 @@ az provider register --namespace Microsoft.OperationalInsights --wait
 az containerapp env create --name lithops --resource-group LithopsResourceGroup --location westeurope
 ```
 
+Lithops deploys its container apps in the `region` of the configuration, so create the environment in that same region (or set `region` to the region of the environment). If Lithops cannot find the environment, the runtime deployment fails at once with an error naming the environment, resource group and region it looked for.
+
 ## Configuration
 
 1. Access the [Storage Account](https://portal.azure.com/#view/HubsExtension/BrowseResource/resourceType/Microsoft.Storage%2FStorageAccounts)

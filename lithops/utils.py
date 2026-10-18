@@ -22,7 +22,6 @@ import os
 import sys
 import uuid
 import json
-import socket
 import shutil
 import base64
 import inspect
@@ -34,7 +33,6 @@ import threading
 import logging.config
 import subprocess as sp
 from enum import Enum
-from contextlib import closing
 
 from typing import List
 
@@ -168,13 +166,6 @@ def monitoring_queues(executor_id: str) -> List[str]:
         # this every remotely invoked task would report twice to the client
         return parent_queues
     return parent_queues + [queue]
-
-
-def get_executor_id():
-    """Returns the ID of the last executor created in this session"""
-    if _SESSION_ID is None:
-        raise KeyError(constants.SESSION_ID_ENV)
-    return f'{_SESSION_ID}-{_EXECUTOR_COUNT - 1}'
 
 
 def iterchunks(lst, n):
@@ -566,11 +557,6 @@ def sizeof_fmt(num, suffix='B') -> str:
     return f'{num:.1f}Yi{suffix}'
 
 
-def sdb_to_dict(item):
-    attr = item['Attributes']
-    return {c['Name']: c['Value'] for c in attr}
-
-
 def dict_to_b64str(the_dict):
     bytes_dict = json.dumps(the_dict, default=str).encode()
     b64_dict = base64.b64encode(bytes_dict)
@@ -659,46 +645,6 @@ def get_default_container_name(backend, backend_config, runtime_name):
         return f'{docker_server}/{img}'
 
 
-def _get_docker_desktop_username() -> str:
-    """Reads the registry user out of the Docker Desktop credential helper"""
-    cmd = (
-        "docker-credential-desktop list | jq -r 'to_entries[].key' | while "
-        "read; do docker-credential-desktop get <<<$REPLY; break; done"
-    )
-    try:
-        credentials = sp.check_output(
-            cmd, shell=True, encoding='UTF-8', stderr=sp.STDOUT
-        )
-        return json.loads(credentials)['Username']
-    except Exception:
-        raise Exception('Unable to get the Docker registry user')
-
-
-def get_docker_username():
-    """Returns the user that docker/podman is logged in to the registry as"""
-    docker_path = get_docker_path()
-    docker_info = sp.check_output(
-        f"{docker_path} info", shell=True,
-        encoding='UTF-8', stderr=sp.STDOUT
-    )
-
-    user = None
-    for line in docker_info.splitlines():
-        if 'Username' in line:
-            _, username = line.strip().split(':')
-            user = username.strip()
-
-    return user if user is not None else _get_docker_desktop_username()
-
-
-def find_free_port() -> int:
-    """Returns a port that is free at this instant"""
-    with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        s.bind(('', 0))
-        return s.getsockname()[1]
-
-
 # Schemes that name a Lithops storage backend by its protocol
 _URL_SCHEME_ALIASES = {'cos': 'ibm_cos', 's3': 'aws_s3'}
 
@@ -726,20 +672,6 @@ def split_object_url(obj_url):
         prefix, obj_name = '', full_key
 
     return sb, bucket, prefix, obj_name
-
-
-def split_path(path):
-    """Splits a storage path into its bucket and its key"""
-    if path.startswith("/"):
-        path = path[1:]
-    ind = path.find("/")
-    if ind > 0:
-        bucket_name = path[:ind]
-        key = path[ind + 1:]
-    else:
-        bucket_name = path
-        key = None
-    return bucket_name, key
 
 
 def format_data(iterdata, extra_args):

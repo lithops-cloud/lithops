@@ -159,7 +159,7 @@ class StorageBackend:
             else:
                 raise Exception('{} - {}'.format(res.status_code, key))
         except StorageNoSuchKeyError:
-            raise StorageNoSuchKeyError(bucket_name, key)
+            raise
         except Exception as e:
             print(e)
             raise StorageNoSuchKeyError(bucket_name, key)
@@ -266,14 +266,11 @@ class StorageBackend:
             url = '/'.join([self.endpoint, bucket_name, '?format=json&prefix=' + prefix])
         else:
             url = '/'.join([self.endpoint, bucket_name, '?format=json'])
-        try:
-            res = self.session.get(url)
-            objects = res.json()
+        res = self.session.get(url)
+        objects = res.json()
 
-            # TODO: Adapt to Key and Size
-            return objects
-        except Exception as e:
-            raise e
+        # TODO: Adapt to Key and Size
+        return objects
 
     def list_keys(self, bucket_name, prefix):
         """
@@ -282,9 +279,6 @@ class StorageBackend:
         :return: List of keys in bucket that match the given prefix.
         :rtype: list of str
         """
-        try:
-            objects = self.list_objects(bucket_name, prefix)
-            object_keys = [r['name'] for r in objects]
-            return object_keys
-        except Exception as e:
-            raise e
+        objects = self.list_objects(bucket_name, prefix)
+        object_keys = [r['name'] for r in objects]
+        return object_keys

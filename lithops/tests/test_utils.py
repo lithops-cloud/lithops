@@ -48,12 +48,10 @@ from lithops.utils import (
     create_futures_list,
     dict_to_b64str,
     docker_login,
-    find_free_port,
     format_data,
     get_default_backend,
     get_default_container_name,
     get_docker_path,
-    get_executor_id,
     get_mode,
     is_linux_system,
     is_lithops_worker,
@@ -66,12 +64,10 @@ from lithops.utils import (
     monitoring_queues,
     log_prefix,
     run_command,
-    sdb_to_dict,
     setup_lithops_logger,
     ShutdownSafeStreamHandler,
     sizeof_fmt,
     split_object_url,
-    split_path,
     verify_args,
     verify_runtime_name,
     version_str,
@@ -264,11 +260,6 @@ class TestMiscUtils:
         assert split_object_url('bucket') == (None, 'bucket', '', '')
         assert split_object_url('bucket/key') == (None, 'bucket', '', 'key')
 
-    def test_split_path(self):
-        assert split_path('/bucket/dir/key') == ('bucket', 'dir/key')
-        assert split_path('bucket') == ('bucket', None)
-        assert split_path('bucket/') == ('bucket', '')
-
     def test_convert_bools_to_string_mutates_in_place(self):
         env = {'flag': True, 'count': 1, 'name': 'x'}
         assert convert_bools_to_string(env) is env
@@ -409,7 +400,6 @@ class TestMiscUtils:
         assert len(session) == 4
         assert num == '0'
         assert second == f'{session}-1'
-        assert get_executor_id() == second
         # Exported so a process spawned from this one joins the session
         assert os.environ[SESSION_ID_ENV] == session
         assert os.environ[TOTAL_EXECUTORS_ENV] == '1'
@@ -473,11 +463,6 @@ class TestMiscUtils:
 
         assert len(set(ids)) == 32
 
-    def test_get_executor_id_without_an_executor(self, monkeypatch):
-        self._fresh_session(monkeypatch)
-        with pytest.raises(KeyError):
-            get_executor_id()
-
     def test_monitoring_queue_chain_matches_the_shapes_in_use(self, monkeypatch):
         # These are the chains the id-derived formula produced, and every id
         # shape Lithops builds today. The chain must not change for them
@@ -532,10 +517,6 @@ class TestMiscUtils:
     def test_bytes_b64_roundtrip(self):
         payload = b'hello'
         assert b64str_to_bytes(bytes_to_b64str(payload)) == payload
-
-    def test_sdb_to_dict(self):
-        item = {'Attributes': [{'Name': 'a', 'Value': '1'}, {'Name': 'b', 'Value': 'x'}]}
-        assert sdb_to_dict(item) == {'a': '1', 'b': 'x'}
 
     def test_is_unix_and_linux(self, monkeypatch):
         monkeypatch.setattr('lithops.utils.platform.system', lambda: 'Darwin')
@@ -767,13 +748,6 @@ class TestMiscUtils:
         with patch('lithops.utils.sp.check_output', return_value=b'') as out:
             run_command('cat', input='secret')
         assert out.call_args.kwargs['input'] == b'secret'
-
-    def test_find_free_port_returns_int(self):
-        first = find_free_port()
-        second = find_free_port()
-        assert isinstance(first, int) and isinstance(second, int)
-        assert 0 < first < 65536
-        assert 0 < second < 65536
 
     def test_futures_list_map_wait_get_result_and_pickle(self):
         class Item:

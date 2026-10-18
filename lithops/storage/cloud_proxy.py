@@ -193,8 +193,8 @@ class _path:
     it does not implement is served by os.path itself
     """
 
-    def __init__(self, cloud_storage: Optional[CloudStorage] = None):
-        self._storage = cloud_storage or CloudStorage()
+    def __init__(self, cloud_storage: CloudStorage):
+        self._storage = cloud_storage
 
     def __getattr__(self, name):
         # we only reach here if the attr is not defined

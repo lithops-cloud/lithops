@@ -118,6 +118,7 @@
     #master_instance_type: t3.micro
     #worker_instance_type: t3.medium
     #delete_on_dismantle: True
+    #worker_create_retries: 2             # Attempts to bring up each worker VM (create/reuse modes). Minimum 1
     #max_workers: 100
     #worker_processes: AUTO               # Default: number of CPUs of the worker VM
     #ebs_volumes:                         # Optional list of EBS volume mappings
@@ -191,6 +192,8 @@
     #ssh_key_filename: ~/.ssh/id_rsa
     #request_spot_instances: False
     #delete_on_dismantle: True
+    #worker_create_retries: 2             # Attempts to bring up each worker VM (create/reuse modes). Minimum 1
+    #worker_public_ip: False              # Also give worker VMs an external IP (default: Cloud NAT only)
     #max_workers: 100
     #worker_processes: AUTO               # Default: number of CPUs of the worker VM
 
@@ -246,6 +249,7 @@
     #ssh_key_filename: ~/.ssh/id_rsa
     #request_spot_instances: False       # Spot worker VMs; B-series sizes do not support Spot
     #delete_on_dismantle: False           # `True` is not yet supported on Azure
+    #worker_create_retries: 2             # Attempts to bring up each worker VM (create/reuse modes). Minimum 1
     #max_workers: 100
     #worker_processes: AUTO
 
@@ -318,6 +322,7 @@
     #master_profile_name: cx2-2x4
     #verify_resources: True
     #delete_on_dismantle: True
+    #worker_create_retries: 2             # Attempts to bring up each worker VM (create/reuse modes). Minimum 1
     #max_workers: 100
     #worker_processes: AUTO
     #singlesocket: False

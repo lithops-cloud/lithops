@@ -39,6 +39,8 @@ from lithops.job.job import (
 )
 from lithops.job.partitioner import CHUNK_THRESHOLD, create_partitions
 from lithops.job.serialize import SerializeIndependent, create_module_data
+from lithops.storage.backends.localhost.localhost import LocalhostStorageBackend
+from lithops.storage.storage import Storage
 from lithops.storage.utils import (
     CloudObject,
     CloudObjectLocal,
@@ -1278,9 +1280,11 @@ class TestCreatePartitions:
                 None,
                 None,
             )
+        # the listing prefix is the pattern up to its first wildcard, with
+        # no '/' added: 'dir/foo/' would leave out 'dir/foo1'
         args = fake.list_objects.call_args[0]
         assert args[0] == 'bucket'
-        assert args[1] == 'dir/foo/'
+        assert args[1] == 'dir/foo'
         assert args[2] == 'dir/foo*'
         assert '\\' not in args[2]
         assert len(parts) == 1
@@ -1300,7 +1304,7 @@ class TestCreatePartitions:
             )
         args = fake.list_objects.call_args[0]
         assert args[0] == 'bucket'
-        assert args[1] == 'pre/'
+        assert args[1] == 'pre'
         assert args[2] == 'pre*/file'
         assert '\\' not in args[2]
 
@@ -1317,6 +1321,91 @@ class TestCreatePartitions:
         )
         assert parts == []
         assert ppo == [0]
+
+
+
+class TestPartitionGlobsOnLocalhostStorage:
+    """
+    Glob iterdata used to work on aws_s3 and ibm_cos only: the pattern is now
+    matched by Storage.list_objects, so it works on every storage backend
+    """
+
+    @pytest.fixture
+    def internal(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(
+            'lithops.storage.backends.localhost.localhost.LITHOPS_TEMP_DIR',
+            str(tmp_path),
+        )
+        backend = LocalhostStorageBackend({})
+        for key in [
+            'dir/a.csv', 'dir/b.csv', 'dir/x.txt', 'dir/sub/c.csv',
+            'dir/foo1', 'dir/foo2.txt',
+            'pre1/file', 'pre2/file', 'pre2/other',
+            'data1/x.csv', 'data2/sub/y.csv', 'datafile',
+            'lit[1].csv', 'lit1.csv',
+        ]:
+            backend.put_object('b', key, b'0123456789')
+        storage = Storage.__new__(Storage)
+        storage.backend = 'localhost'
+        storage.storage_handler = backend
+        internal = MagicMock()
+        internal.backend = 'localhost'
+        internal.storage = storage
+        return internal
+
+    @staticmethod
+    def _keys(internal, obj):
+        parts, _ = create_partitions({}, internal, [{'obj': obj}], None, None, None)
+        return sorted(p['obj'].key for p in parts)
+
+    @pytest.mark.parametrize('obj, keys', [
+        ('localhost://b/dir/*.csv', ['dir/a.csv', 'dir/b.csv']),
+        ('localhost://b/dir/foo*', ['dir/foo1', 'dir/foo2.txt']),
+        ('localhost://b/pre*/file', ['pre1/file', 'pre2/file']),
+        ('localhost://b/dir/**/*.csv', ['dir/a.csv', 'dir/b.csv', 'dir/sub/c.csv']),
+        ('b/*.csv', ['lit1.csv', 'lit[1].csv']),
+        # a folder pattern takes everything inside the folders it matches,
+        # but not an object named like them
+        ('localhost://b/data*/', ['data1/x.csv', 'data2/sub/y.csv']),
+    ])
+    def test_glob(self, internal, obj, keys):
+        assert self._keys(internal, obj) == keys
+
+    def test_glob_without_matches(self, internal):
+        with pytest.raises(Exception, match='No objects found'):
+            self._keys(internal, 'localhost://b/dir/*.parquet')
+
+    @pytest.mark.parametrize('obj, keys', [
+        ('localhost://b/dir/a.csv', ['dir/a.csv']),
+        ('localhost://b/dir/', [
+            'dir/a.csv', 'dir/b.csv', 'dir/foo1', 'dir/foo2.txt', 'dir/sub/c.csv', 'dir/x.txt',
+        ]),
+        ('localhost://b/dir/sub/', ['dir/sub/c.csv']),
+        # only a '*' makes a pattern: anything else is a literal key
+        ('localhost://b/lit[1].csv', ['lit[1].csv']),
+    ])
+    def test_no_glob_is_unchanged(self, internal, obj, keys):
+        assert self._keys(internal, obj) == keys
+
+    def test_key_with_question_mark_is_a_literal_key(self):
+        internal = _storage()
+        internal.storage.head_object.return_value = {'content-length': '5'}
+        parts, _ = create_partitions({}, internal, [{'obj': 'localhost://b/dir/a?.csv'}], None, None, None)
+        internal.storage.head_object.assert_called_once_with('b', 'dir/a?.csv')
+        internal.storage.list_objects.assert_not_called()
+        assert parts[0]['obj'].key == 'dir/a?.csv'
+
+    @pytest.mark.parametrize('obj, prefix, pattern', [
+        ('localhost://b/dir/*.csv', 'dir/', 'dir/*.csv'),
+        ('localhost://b/dir/a?b*', 'dir/a', 'dir/a?b*'),
+        ('localhost://b/data*/', 'data', 'data*/*/**'),
+    ])
+    def test_glob_listing_prefix(self, obj, prefix, pattern):
+        """The listing is narrowed to what comes before the first wildcard"""
+        internal = _storage()
+        internal.storage.list_objects.return_value = [{'Key': 'k', 'Size': 1}]
+        create_partitions({}, internal, [{'obj': obj}], None, None, None)
+        internal.storage.list_objects.assert_called_once_with('b', prefix, pattern)
 
 
 class TestJobExports:

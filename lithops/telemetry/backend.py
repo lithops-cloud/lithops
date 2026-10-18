@@ -24,7 +24,7 @@ process. It never decides *what* is measured: that is
 import logging
 import threading
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from lithops.telemetry.metrics import MetricSpec
 
@@ -44,11 +44,6 @@ class MetricsBackend(ABC):
     labels the spec does not declare, and of swallowing whatever a
     backend raises: telemetry never breaks a job.
     """
-
-    #: Config section this backend reads, and the value ``telemetry:``
-    #: selects it by. Derived from the package name in
-    #: :mod:`lithops.telemetry.backends`
-    backend_name: Optional[str] = None
 
     def __init__(self, config: Dict[str, Any]):
         self.config = config

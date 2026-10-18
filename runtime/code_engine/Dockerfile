@@ -11,12 +11,9 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt requirements.txt
-RUN pip install --upgrade pip setuptools six gevent \
+RUN pip install --upgrade pip setuptools six \
     && pip install --no-cache-dir -r requirements.txt
 
-ENV PORT=8080
-ENV CONCURRENCY=1
-ENV TIMEOUT=600
 ENV PYTHONUNBUFFERED=TRUE
 
 ENV APP_HOME=/lithops
@@ -25,5 +22,5 @@ WORKDIR $APP_HOME
 COPY lithops_codeengine.zip .
 RUN unzip lithops_codeengine.zip && rm lithops_codeengine.zip
 
-# CE jobs override the container command. Gunicorn is kept for legacy Knative-style starts.
-CMD ["sh", "-c", "exec gunicorn --bind :$PORT --workers $CONCURRENCY --timeout $TIMEOUT lithopsentry:proxy"]
+# Code Engine job runs override the command with `python /lithops/lithopsentry.py`
+CMD ["python", "lithopsentry.py"]

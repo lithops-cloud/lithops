@@ -509,12 +509,6 @@ class AWSBatchBackend:
                 time.sleep(30)
             logger.info('Compute environment {} deleted'.format(compute_env['computeEnvironmentName']))
 
-        # Delete ECR runtime image
-        # for job_def in job_defs:
-        #     runtime_name, runtime_memory = self._unformat_jobdef_name(jobdef_name=job_def['jobDefinitionName'])
-        #     full_image_name, registry, repo_name = self._get_full_image_name(runtime_name)
-        #     self.ecr_client.delete_repository(repositoryName=repo_name, force=True)
-
     def list_runtimes(self, runtime_name='all'):
         runtimes = []
 

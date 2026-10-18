@@ -200,6 +200,15 @@ class TestLocalhostStorageKeys:
         clean_bucket(backend, 'b', 'dir/', sleep=0)
         assert backend.list_keys('b') == ['.top']
 
+    def test_list_objects_skips_keys_deleted_since_listed(self, backend, monkeypatch):
+        # A job running alongside deletes its files while the bucket is
+        # listed, which made the listing fail
+        backend.put_object('b', 'a', b'x')
+        backend.put_object('b', 'gone', b'y')
+        monkeypatch.setattr(backend, 'list_keys', lambda bucket, prefix=None: ['a', 'gone', 'never'])
+        backend.delete_object('b', 'gone')
+        assert backend.list_objects('b') == [{'Key': 'a', 'Size': 1}]
+
     def test_list_keys_partial_and_missing_prefixes(self, backend):
         backend.put_object('b', 'a/b/c1', b'x')
         backend.put_object('b', 'a/b/c2', b'x')
@@ -248,6 +257,65 @@ class TestSwiftBackend:
         backend = StorageBackend(config)
         assert backend.generate_bucket_name() == 'lithops-reg-abcdef'
         assert config['storage_bucket'] == 'lithops-reg-abcdef'
+
+
+    def test_get_object_missing_key(self):
+        from lithops.storage.backends.swift.swift import StorageBackend
+        backend = StorageBackend.__new__(StorageBackend)
+        backend.endpoint = 'http://swift'
+        backend.token = 't'
+        backend.session = MagicMock()
+        backend.session.get.return_value.status_code = 404
+        with pytest.raises(StorageNoSuchKeyError, match='/b/k'):
+            backend.get_object('b', 'k')
+
+    def test_list_errors_propagate(self):
+        from lithops.storage.backends.swift.swift import StorageBackend
+        backend = StorageBackend.__new__(StorageBackend)
+        backend.endpoint = 'http://swift'
+        backend.session = MagicMock()
+        backend.session.get.return_value.json.return_value = [{'name': 'p/a'}, {'name': 'p/b'}]
+        assert backend.list_keys('b', 'p/') == ['p/a', 'p/b']
+        backend.session.get.side_effect = ValueError('boom')
+        with pytest.raises(ValueError, match='boom'):
+            backend.list_keys('b', 'p/')
+
+
+class TestInfinispanBackendListing:
+
+    @pytest.fixture
+    def backend(self):
+        from lithops.storage.backends.infinispan import StorageBackend
+        backend = StorageBackend.__new__(StorageBackend)
+        backend.endpoint = 'http://ispn'
+        backend.auth = None
+        backend.infinispan_client = MagicMock()
+        backend.infinispan_client.get.return_value.content = json.dumps(
+            ['p/a', '', 'p/bb', 'q/c']
+        ).encode()
+        values = {'p/a': b'1', 'p/bb': b'22', 'q/c': b'333'}
+
+        def get_object(bucket, key, stream=False, extra_get_args={}):
+            if key not in values:
+                raise StorageNoSuchKeyError(bucket, key)
+            return values[key]
+
+        backend.get_object = get_object
+        return backend
+
+    def test_list_keys(self, backend):
+        assert backend.list_keys('b') == ['p/a', 'p/bb', 'q/c']
+        assert backend.list_keys('b', 'p/') == ['p/a', 'p/bb']
+        assert backend.list_keys('b', 'x') == []
+        backend.infinispan_client.get.assert_called_with('http://ispn/rest/v2/caches/b?action=keys', auth=None)
+
+    def test_list_objects(self, backend):
+        assert backend.list_objects('b', 'p/') == [{'Key': 'p/a', 'Size': 1}, {'Key': 'p/bb', 'Size': 2}]
+        assert backend.list_objects('b', 'x') == []
+
+    def test_list_objects_skips_keys_gone_since_listed(self, backend):
+        backend.infinispan_client.get.return_value.content = b'["p/a", "p/gone"]'
+        assert backend.list_objects('b') == [{'Key': 'p/a', 'Size': 1}]
 
 
 class TestCloudBackendRanges:
@@ -319,6 +387,59 @@ class TestCloudBackendListing:
         backend.os_client.list_objects.side_effect = [page(['a', 'b'], 'c'), page(['c'], None)]
         assert [o['Key'] for o in backend.list_objects('bkt', 'p')] == ['a', 'b', 'c']
         assert backend.os_client.list_objects.call_args.kwargs['start'] == 'c'
+
+
+class TestStorageListObjectsGlob:
+    """
+    Storage.list_objects matches the glob pattern itself, on every backend:
+    it used to be passed to the backend, and all but aws_s3 and ibm_cos
+    ignored it
+    """
+
+    @pytest.fixture
+    def storage(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(
+            'lithops.storage.backends.localhost.localhost.LITHOPS_TEMP_DIR',
+            str(tmp_path),
+        )
+        storage = _bare_storage()
+        storage.storage_handler = LocalhostStorageBackend({})
+        for key in ['dir/a.csv', 'dir/b.txt', 'dir/sub/c.csv', 'dir2/d.csv']:
+            storage.put_object('b', key, b'x')
+        return storage
+
+    @pytest.mark.parametrize('prefix, pattern, keys', [
+        ('dir/', None, ['dir/a.csv', 'dir/b.txt', 'dir/sub/c.csv']),
+        ('dir', None, ['dir/a.csv', 'dir/b.txt', 'dir/sub/c.csv', 'dir2/d.csv']),
+        ('dir/', 'dir/*.csv', ['dir/a.csv']),
+        ('dir', 'dir*/*.csv', ['dir/a.csv', 'dir2/d.csv']),
+        (None, '**/*.csv', ['dir/a.csv', 'dir/sub/c.csv', 'dir2/d.csv']),
+        ('dir/', 'dir/?.txt', ['dir/b.txt']),
+        ('dir/', 'other/*', []),
+    ])
+    def test_match_pattern(self, storage, prefix, pattern, keys):
+        objects = storage.list_objects('b', prefix, pattern)
+        assert sorted(o['Key'] for o in objects) == keys
+        assert all(o['Size'] == 1 for o in objects)
+
+    def test_backend_gets_no_pattern(self):
+        storage = _bare_storage()
+        storage.storage_handler.list_objects.return_value = [{'Key': 'a/b', 'Size': 1}, {'Key': 'a/c', 'Size': 1}]
+        assert storage.list_objects('bkt', 'a/', 'a/b') == [{'Key': 'a/b', 'Size': 1}]
+        storage.storage_handler.list_objects.assert_called_once_with('bkt', 'a/')
+
+    @pytest.mark.parametrize('module, client_attr', [('aws_s3', 's3_client'), ('ibm_cos', 'cos_client')])
+    def test_s3_backends_list_every_page(self, module, client_attr):
+        import importlib
+        backend_cls = importlib.import_module(f'lithops.storage.backends.{module}').StorageBackend
+        backend = backend_cls.__new__(backend_cls)
+        client = MagicMock()
+        setattr(backend, client_attr, client)
+        client.get_paginator.return_value.paginate.return_value = [
+            {'Contents': [{'Key': 'p/a', 'Size': 1}]}, {}, {'Contents': [{'Key': 'p/b', 'Size': 2}]},
+        ]
+        assert [o['Key'] for o in backend.list_objects('bkt', 'p/')] == ['p/a', 'p/b']
+        client.get_paginator.return_value.paginate.assert_called_once_with(Bucket='bkt', Prefix='p/')
 
 
 class TestStorageCloudObjects:

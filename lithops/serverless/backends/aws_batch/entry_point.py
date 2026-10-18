@@ -51,7 +51,6 @@ if __name__ == '__main__':
         logger.info("Lithops v{} - Starting AWS Batch execution".format(__version__))
 
         job_index = int(os.environ.get('AWS_BATCH_JOB_ARRAY_INDEX', 0))
-        lithops_payload['JOB_INDEX'] = job_index
         logger.info('Job index {}'.format(job_index))
 
         act_id = str(uuid.uuid4()).replace('-', '')[:12]

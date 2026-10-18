@@ -1,7 +1,7 @@
 import logging
 import os
 from contextlib import contextmanager
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import paramiko
 
@@ -138,14 +138,6 @@ class SSHClient:
         """Uploads a local file to a remote destination"""
         with self._sftp() as ftp_client:
             ftp_client.put(local_src, remote_dst)
-
-    def upload_multiple_local_files(
-        self, file_list: List[Tuple[str, str]]
-    ) -> None:
-        """Uploads several local files reusing a single SFTP connection"""
-        with self._sftp() as ftp_client:
-            for local_src, remote_dst in file_list:
-                ftp_client.put(local_src, remote_dst)
 
     def upload_data_to_file(self, data: str, remote_dst: str) -> None:
         """Writes data into a remote file"""

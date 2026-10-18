@@ -173,3 +173,95 @@ class TestResolveRuntimeArch:
         backend = _make_backend({'runtime_arch': None})
         backend.core_api.list_node.return_value.items = [_node('ppc64le')]
         assert backend._resolve_runtime_arch() == k8s_config.DEFAULT_RUNTIME_ARCH
+
+
+# ---------------------------------------------------------------------------
+# Waiting for the metadata job and the master pod
+# ---------------------------------------------------------------------------
+
+def _pod(phase='Pending', waiting_reason=None):
+    pod = MagicMock()
+    pod.status.phase = phase
+    pod.status.reason = None
+    pod.status.pod_ip = '10.0.0.1'
+    if waiting_reason:
+        status = MagicMock()
+        status.state.waiting.reason = waiting_reason
+        status.state.waiting.message = 'pull access denied'
+        pod.status.container_statuses = [status]
+    else:
+        pod.status.container_statuses = []
+    return pod
+
+
+def _job(succeeded=None, failed=None, conditions=()):
+    job = MagicMock()
+    job.status.succeeded = succeeded
+    job.status.failed = failed
+    job.status.conditions = list(conditions)
+    return job
+
+
+def _condition(type_, reason):
+    condition = MagicMock()
+    condition.type, condition.status = type_, 'True'
+    condition.reason, condition.message = reason, 'Job was active longer than specified deadline'
+    return condition
+
+
+def _meta_backend():
+    backend = _make_backend({'master_timeout': 600})
+    backend.batch_api = MagicMock()
+    backend.namespace = 'default'
+    backend.user = 'u'
+    backend.internal_storage = MagicMock()
+    backend.internal_storage.storage.config = {}
+    return backend
+
+
+class TestMetadataJobWait:
+    """The metadata wait ends when the job cannot succeed, instead of hanging"""
+
+    def test_a_pod_that_cannot_pull_its_image_fails_at_once(self, monkeypatch):
+        backend = _meta_backend()
+        watcher = MagicMock()
+        watcher.stream.return_value = iter([{'object': _job()}])
+        monkeypatch.setattr('lithops.serverless.backends.k8s.k8s.watch.Watch', lambda: watcher)
+        backend.core_api.list_namespaced_pod.return_value.items = [_pod(waiting_reason='ImagePullBackOff')]
+        with pytest.raises(Exception, match='ImagePullBackOff'):
+            backend._generate_runtime_meta('docker.io/me/runtime:1')
+
+    def test_a_job_past_its_deadline_fails(self, monkeypatch):
+        backend = _meta_backend()
+        watcher = MagicMock()
+        failed_job = _job(conditions=[_condition('Failed', 'DeadlineExceeded')])
+        watcher.stream.return_value = iter([{'object': failed_job}])
+        monkeypatch.setattr('lithops.serverless.backends.k8s.k8s.watch.Watch', lambda: watcher)
+        with pytest.raises(Exception, match='DeadlineExceeded'):
+            backend._generate_runtime_meta('docker.io/me/runtime:1')
+
+
+class TestMasterPodWait:
+
+    def _wait(self, monkeypatch, events):
+        backend = _meta_backend()
+        backend.master_name = 'lithops-master-u'
+        backend.core_api.list_namespaced_pod.return_value.items = []
+        watcher = MagicMock()
+        watcher.stream.return_value = iter(events)
+        monkeypatch.setattr('lithops.serverless.backends.k8s.k8s.watch.Watch', lambda: watcher)
+        monkeypatch.setattr('lithops.serverless.backends.k8s.k8s.time.sleep', lambda s: None)
+        return backend._start_master('docker.io/me/runtime:1'), watcher
+
+    def test_returns_the_ip_of_the_running_master(self, monkeypatch):
+        ip, watcher = self._wait(monkeypatch, [{'object': _pod()}, {'object': _pod('Running')}])
+        assert ip == '10.0.0.1'
+        assert watcher.stream.call_args.kwargs['timeout_seconds'] == 600
+
+    def test_a_master_that_cannot_pull_its_image_fails(self, monkeypatch):
+        with pytest.raises(Exception, match='master pod did not start: ErrImagePull'):
+            self._wait(monkeypatch, [{'object': _pod(waiting_reason='ErrImagePull')}])
+
+    def test_a_master_not_running_in_time_fails(self, monkeypatch):
+        with pytest.raises(Exception, match='not running after 600 seconds'):
+            self._wait(monkeypatch, [{'object': _pod()}])

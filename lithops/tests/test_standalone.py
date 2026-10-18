@@ -248,16 +248,42 @@ class TestAzureSpotWorkers:
         assert vm.priority is None
 
 
+class TestIBMVPCRetries:
+
+    @staticmethod
+    def _wrapped(name, side_effect):
+        pytest.importorskip('ibm_vpc')
+        from lithops.standalone.backends.ibm_vpc.ibm_vpc import vpc_retry_on_except
+        func = MagicMock(side_effect=side_effect)
+        func.__name__ = name
+        return func, vpc_retry_on_except(func)
+
+    def test_an_ignored_404_is_not_retried(self):
+        from ibm_cloud_sdk_core import ApiException
+        func, wrapped = self._wrapped('delete_instance', ApiException(404, message='gone'))
+        assert wrapped('i-1') is None
+        func.assert_called_once_with('i-1')
+
+    def test_a_404_on_another_method_is_raised(self):
+        from ibm_cloud_sdk_core import ApiException
+        func, wrapped = self._wrapped('get_instance', ApiException(404, message='gone'))
+        with patch('lithops.standalone.backends.ibm_vpc.ibm_vpc.time.sleep'):
+            with pytest.raises(ApiException):
+                wrapped('i-1')
+        assert func.call_count == 5
+
+
 class TestBudgetKeeper:
 
     def test_running_attribute_and_job_tracking(self):
         keeper, _instance = _make_keeper()
         assert keeper.running is False
         assert not hasattr(keeper, 'runing')
+        assert keeper._all_jobs_done() is False
         keeper.add_job('job-a')
         assert keeper.jobs['job-a'] == JobStatus.RUNNING.value
-        keeper.set_job_done('job-a')
-        assert keeper.jobs['job-a'] == JobStatus.DONE.value
+        assert keeper._all_jobs_done() is False
+        keeper.jobs['job-a'] = JobStatus.DONE.value
         assert keeper._all_jobs_done() is True
 
     def test_mark_finished_jobs_survives_a_concurrent_add(self):

@@ -355,16 +355,21 @@ def _load_telemetry_backend_config(config_data):
     defaults. A no-op when telemetry is off, which is the default: the
     client library of a backend nobody asked for is never imported
     """
-    from lithops.telemetry import load_backend_config, resolve_backend
+    from lithops.telemetry.backends import (
+        import_backend_module,
+        resolve_backend,
+    )
 
     telemetry = resolve_backend(config_data)
     config_data['lithops']['telemetry'] = telemetry or False
     if telemetry is None:
         return
+    logger.debug(f"Loading Telemetry backend module: {telemetry}")
     try:
-        load_backend_config(config_data)
+        module = import_backend_module(telemetry, 'config')
     except ValueError as exc:
         raise Exception(str(exc)) from exc
+    module.load_config(config_data)
 
 
 def default_storage_config(config_file=None, config_data=None, backend=None):

@@ -110,6 +110,4 @@ def load_backend_class(backend: str):
             f"Telemetry backend '{backend}' exports MetricsBackend={cls!r}, "
             f"which is not a MetricsBackend subclass"
         )
-    if cls.backend_name is None:
-        cls.backend_name = backend
     return cls

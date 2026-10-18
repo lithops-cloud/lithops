@@ -92,7 +92,6 @@ class KnativeServingBackend:
                 ip = None
                 ingress = self.core_api.read_namespaced_service(service, namespace)
                 http_port = list(filter(lambda port: port.port == 80, ingress.spec.ports))[0].node_port
-                # https_port = list(filter(lambda port: port.port == 443, ingress.spec.ports))[0].node_port
                 if ingress.status.load_balancer.ingress is not None:
                     # get loadbalancer ip
                     ip = ingress.status.load_balancer.ingress[0].ip
@@ -669,34 +668,31 @@ class KnativeServingBackend:
         job_id = payload.get('job_id')
         route = payload.get("service_route", '/')
 
-        try:
-            parsed_url = urlparse(endpoint)
+        parsed_url = urlparse(endpoint)
 
-            if endpoint.startswith('https'):
-                ctx = ssl._create_unverified_context()
-                conn = http.client.HTTPSConnection(parsed_url.netloc, context=ctx)
-            else:
-                conn = http.client.HTTPConnection(parsed_url.netloc)
+        if endpoint.startswith('https'):
+            ctx = ssl._create_unverified_context()
+            conn = http.client.HTTPSConnection(parsed_url.netloc, context=ctx)
+        else:
+            conn = http.client.HTTPConnection(parsed_url.netloc)
 
-            if exec_id and job_id and call_ids:
-                logger.debug(
-                    f'{utils.log_prefix(exec_id, job_id)} - Invoking function call '
-                    f'{", ".join(call_ids)}'
-                )
-            elif exec_id and job_id:
-                logger.debug(f'{utils.log_prefix(exec_id, job_id)} - Invoking function')
-            else:
-                logger.debug('Invoking function')
+        if exec_id and job_id and call_ids:
+            logger.debug(
+                f'{utils.log_prefix(exec_id, job_id)} - Invoking function call '
+                f'{", ".join(call_ids)}'
+            )
+        elif exec_id and job_id:
+            logger.debug(f'{utils.log_prefix(exec_id, job_id)} - Invoking function')
+        else:
+            logger.debug('Invoking function')
 
-            conn.request("POST", route, body=json.dumps(payload, default=str), headers=headers)
+        conn.request("POST", route, body=json.dumps(payload, default=str), headers=headers)
 
-            resp = conn.getresponse()
-            headers = dict(resp.getheaders())
-            resp_status = resp.status
-            resp_data = resp.read().decode("utf-8")
-            conn.close()
-        except Exception as e:
-            raise e
+        resp = conn.getresponse()
+        headers = dict(resp.getheaders())
+        resp_status = resp.status
+        resp_data = resp.read().decode("utf-8")
+        conn.close()
 
         if resp_status in [200, 202]:
             data = json.loads(resp_data)

@@ -122,7 +122,7 @@ class TestSSHClient:
             client.upload_local_file('/local', '/remote')
         ftp.close.assert_called_once()
 
-    def test_upload_multiple_and_data(self):
+    def test_upload_data_to_file(self):
         client = SSHClient('10.0.0.1', {})
         ftp = MagicMock()
         remote = MagicMock()
@@ -130,8 +130,6 @@ class TestSSHClient:
         ssh = MagicMock()
         ssh.open_sftp.return_value = ftp
         client.ssh_client = ssh
-        client.upload_multiple_local_files([('a', 'b'), ('c', 'd')])
-        assert ftp.put.call_count == 2
         client.upload_data_to_file('hello', '/dst')
         remote.write.assert_called_once_with('hello')
 

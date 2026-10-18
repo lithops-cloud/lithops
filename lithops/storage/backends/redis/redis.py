@@ -31,7 +31,6 @@ class RedisBackend:
     def __init__(self, config):
         logger.debug("Creating Redis storage client")
         self.config = config
-        self.user_agent = self.config['user_agent']
         self.host = self.config['host']
 
         redis_config = copy.deepcopy(config)

@@ -2710,6 +2710,85 @@ class TestCallStatusPublishing:
         nxt = RabbitmqCallStatus(job, MagicMock())
         assert nxt.obtain_client('_amqp', MagicMock) == (live_conn, live_ch)
 
+    class _Closeable:
+        """A client part that records when it is closed, and can refuse to"""
+
+        def __init__(self, name, log, fails=False):
+            self.name, self.log, self.fails = name, log, fails
+            self.is_open = True
+
+        def close(self):
+            self.log.append(self.name)
+            if self.fails:
+                raise RuntimeError(f'{self.name} is already closed')
+            self.is_open = False
+
+    def test_rabbitmq_connection_is_closed_at_exit(self):
+        """
+        The shared client of RabbitMQ is a (connection, channel) tuple, which
+        has no close() of its own, so it used to be left open at exit
+        """
+        from lithops.monitoring.backends.rabbitmq.status import (
+            RabbitmqCallStatus,
+        )
+        from lithops.monitoring.status import (
+            _SHARED_CLIENTS, close_shared_clients,
+        )
+
+        job = self._job('rabbitmq')
+        job.config['rabbitmq'] = {'amqp_url': 'amqp://guest@localhost'}
+        closed = []
+        conn = self._Closeable('connection', closed)
+        channel = self._Closeable('channel', closed)
+
+        status = RabbitmqCallStatus(job, MagicMock())
+        with patch.object(status, '_connect', return_value=(conn, channel)):
+            assert status._channel() is channel
+        status.close()
+        # Kept open for the next call of the chunk...
+        assert closed == []
+        assert _SHARED_CLIENTS
+
+        # ...and closed, channel first, when the process exits
+        close_shared_clients()
+        assert closed == ['channel', 'connection']
+        assert not _SHARED_CLIENTS
+
+    def test_a_part_that_cannot_be_closed_does_not_keep_the_others_open(self):
+        from lithops.monitoring.status import _release_client
+
+        closed = []
+        _release_client((
+            self._Closeable('connection', closed),
+            self._Closeable('channel', closed, fails=True),
+        ))
+        assert closed == ['channel', 'connection']
+
+    def test_a_client_without_close_is_stopped(self):
+        from lithops.monitoring.status import _release_client
+
+        client = SimpleNamespace(stop=MagicMock())
+        _release_client(client)
+        client.stop.assert_called_once()
+
+    def test_a_forked_child_does_not_close_what_it_inherited(self):
+        """
+        Closing an AMQP connection sends Connection.Close down the socket,
+        which a forked child shares with its parent
+        """
+        from lithops.monitoring import status as status_mod
+
+        client = MagicMock()
+        status_mod.shared_client('inherited', lambda: client)
+        with patch.object(
+            status_mod.os, 'getpid',
+            return_value=status_mod._SHARED_OWNERS['inherited'] + 1,
+        ):
+            status_mod.close_shared_clients()
+        client.close.assert_not_called()
+        assert not status_mod._SHARED_CLIENTS
+        assert not status_mod._SHARED_OWNERS
+
     def test_releasing_a_client_that_was_never_built_builds_nothing(self):
         from lithops.monitoring.backends.redis.status import RedisCallStatus
 

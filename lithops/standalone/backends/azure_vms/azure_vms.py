@@ -19,7 +19,6 @@ import re
 import time
 import uuid
 import logging
-import base64
 from concurrent.futures import ThreadPoolExecutor
 from azure.identity import DefaultAzureCredential
 from azure.mgmt.compute import ComputeManagementClient
@@ -57,13 +56,6 @@ logger = logging.getLogger(__name__)
 
 INSTANCE_START_TIMEOUT = 180
 DEFAULT_UBUNTU_IMAGE = 'Canonical:ubuntu-24_04-lts:server:latest'
-
-
-def b64s(string):
-    """
-    Base-64 encode a string and return a string
-    """
-    return base64.b64encode(string.encode('utf-8')).decode('ascii')
 
 
 class AzureVMSBackend:

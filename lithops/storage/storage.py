@@ -30,6 +30,7 @@ from lithops.constants import (
     TEMP_PREFIX,
 )
 from lithops.utils import is_lithops_worker
+from lithops.libs.globber import match
 from lithops.storage import utils
 from lithops.config import extract_storage_config, default_storage_config
 
@@ -239,11 +240,24 @@ class Storage:
 
         :param bucket: Name of the bucket
         :param prefix: Key prefix for filtering
+        :param match_pattern: Glob pattern the whole key must match, with '/'
+            as the separator: '?' and '*' match within one path component,
+            '**' matches any number of components and '\\' escapes the next
+            character
 
         :return: List of dictionaries containing at least 'Key' and 'Size'
             for each object
         """
-        return self.storage_handler.list_objects(bucket, prefix, match_pattern)
+        objects = self.storage_handler.list_objects(bucket, prefix)
+        if match_pattern is None:
+            return objects
+        # match() splits the key on the platform separator, while keys
+        # always use '/'; the trailing one of a folder marker goes first, as
+        # match() strips it only when it is the platform separator
+        return [
+            obj for obj in objects
+            if match(match_pattern, obj['Key'].rstrip('/').replace('/', os.sep))
+        ]
 
     def list_keys(self, bucket, prefix=None) -> List[str]:
         """

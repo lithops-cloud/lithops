@@ -53,7 +53,6 @@ class InfinispanBackend:
 
     def __init__(self, infinispan_config):
         logger.debug("Creating Infinispan storage client")
-        self.infinispan_config = infinispan_config
         # the documented key is 'mech'; 'auth_mech' is what the code used to
         # read, and is kept working for configurations written against it
         self.mech = infinispan_config.get('mech') or \
@@ -81,7 +80,6 @@ class InfinispanBackend:
         self.infinispan_client.mount('https://', adapter)
 
         self.__is_server_version_supported()
-        self.caches = {}
         for cache_name in self.cache_names:
             self.__create_cache(cache_name, self.cache_type)
 
@@ -252,20 +250,9 @@ class InfinispanBackend:
         :return: List of objects in bucket that match the given prefix.
         :rtype: list of str
         """
-        url = self.endpoint + '/rest/v2/caches/' + bucket_name + '?action=keys'
-        res = self.infinispan_client.get(url, auth=self.auth)
-        data = res.content
-        if data is None:
-            return None
-        j = json.loads(data)
-        result = []
-        if prefix is None:
-            pref = ""
-        else:
-            pref = prefix
-        keys = [k for k in j if len(k) > 0 and k.startswith(pref)]
+        keys = self.list_keys(bucket_name, prefix)
         if not keys:
-            return result
+            return []
 
         def size_of(key):
             # a key listed a moment ago may be gone by now, and a listing
@@ -296,18 +283,5 @@ class InfinispanBackend:
         """
         url = self.endpoint + '/rest/v2/caches/' + bucket_name + '?action=keys'
         res = self.infinispan_client.get(url, auth=self.auth)
-        data = res.content
-        if data is None:
-            return None
-        j = json.loads(data)
-        result = []
-        if prefix is None:
-            pref = ""
-        else:
-            pref = prefix
-        for k in j:
-            if len(k) > 0:
-                key = k
-                if key.startswith(pref):
-                    result.append(k)
-        return result
+        pref = prefix or ''
+        return [k for k in json.loads(res.content) if k and k.startswith(pref)]

@@ -504,13 +504,6 @@ class GCPComputeEngineBackend:
                 previous_request=request, previous_response=response
             )
 
-    def _instance_exists(self, instance_name):
-        return self._resource_exists(
-            lambda: self.compute_client.instances().get(
-                project=self.project_name, zone=self.zone, instance=instance_name
-            ).execute()
-        )
-
     def _create_master_instance(self):
         """
         Creates the master VM instance

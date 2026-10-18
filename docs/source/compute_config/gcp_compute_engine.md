@@ -100,6 +100,8 @@ Lithops attaches the service account from `credentials_path` to master and worke
 |gcp_compute_engine | ssh_key_filename | |no | SSH private key for the master VM. If not provided, Lithops creates `~/.ssh/lithops-key-<id>.gcp_ce.id_rsa` |
 |gcp_compute_engine | request_spot_instances | False |no | Use Spot VMs for workers |
 |gcp_compute_engine | delete_on_dismantle | True |no | Delete worker VMs when stopped. Master VM is never deleted when stopped |
+|gcp_compute_engine | worker_create_retries | 2 | no | Attempts to bring up each worker VM in create and reuse modes. A worker VM that is not reachable over SSH in time is deleted and created again until this many attempts have been made; then that worker fails and the job runs on the workers that came up. Minimum 1 |
+|gcp_compute_engine | worker_public_ip | False |no | Also give the worker VMs an ephemeral external IP address. By default only the master VM has one, and the workers reach the internet through the Cloud NAT that Lithops sets up on the subnet |
 |gcp_compute_engine | max_workers | 100 |no | Max number of workers per `FunctionExecutor()` |
 |gcp_compute_engine | worker_processes | AUTO |no | Parallel Lithops processes per worker. Default: CPUs of `worker_instance_type` |
 |gcp_compute_engine | runtime | python3 |no | Runtime name. Default: python3 on the VM |

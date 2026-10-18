@@ -33,7 +33,6 @@ class LocalhostStorageBackend:
 
     def __init__(self, localhost_config):
         logger.debug("Creating Localhost storage client")
-        self.localhost_config = localhost_config
 
         logger.info(STORAGE_CLI_MSG.format('Localhost storage'))
 
@@ -211,11 +210,7 @@ class LocalhostStorageBackend:
         :param bucket: bucket name
         :param key_list: list of keys
         """
-        dirs = set()
         for key in key_list:
-            file_dir = os.path.dirname(key)
-            dirs.add(file_dir)
-            # dirs.add("/".join(file_dir.split("/", 2)[:2]))
             self.delete_object(bucket_name, key)
 
     def head_bucket(self, bucket_name):
@@ -242,7 +237,11 @@ class LocalhostStorageBackend:
 
         for key in self.list_keys(bucket_name, prefix):
             file_name = os.path.join(base_dir, key)
-            size = os.stat(file_name).st_size
+            try:
+                size = os.stat(file_name).st_size
+            except FileNotFoundError:
+                # deleted since it was listed, by a job running alongside
+                continue
             obj_list.append({'Key': key, 'Size': size})
 
         return obj_list

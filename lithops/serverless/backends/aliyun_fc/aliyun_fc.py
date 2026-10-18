@@ -249,8 +249,6 @@ class AliyunFunctionComputeBackend:
             extra_args = []
         image_name = self._format_image_name(runtime_name)
         docker_path = utils.get_docker_path()
-        if not docker_path:
-            raise Exception('Docker is required to build custom-container runtimes for Aliyun FC')
 
         assert os.path.isfile(dockerfile), f'Cannot locate "{dockerfile}"'
 
@@ -357,7 +355,11 @@ class AliyunFunctionComputeBackend:
             cmd = f'{sys.executable} -m pip install -t {build_dir} -r {req_file} --no-deps'
             utils.run_command(cmd)
 
-        docker_path = utils.get_docker_path()
+        try:
+            docker_path = utils.get_docker_path()
+        except Exception:
+            docker_path = None
+
         if docker_path and not utils.is_linux_system():
             cmd = 'python3 -m pip install -U -t . -r requirements.txt'
             cmd = (

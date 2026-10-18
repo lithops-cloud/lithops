@@ -217,6 +217,28 @@ Both keys are mandatory. Add an ``azure_queue`` section only if you need to over
 Azure only accepts lowercase queue names, so Lithops adjusts the name it derives from the executor id.
 
 
+Connections in the functions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+With a message backend, each worker process opens one connection to the message service the first time it reports a
+status, keeps it for all the calls it runs, and closes it when the process exits. A worker that runs several calls, as
+it does with a ``chunksize`` above 1 or in a warm container, would otherwise pay for a new connection on every call,
+which costs much more than publishing the status.
+
+The worker runs each call in a process forked from itself, and the connection is already open when the second call is
+forked. If the client library of your message service cannot survive that in your runtime, for instance a gRPC
+based client such as Pub/Sub's on a platform where a forked child cannot share it, set the environment variable
+``LITHOPS_REUSE_MONITORING_CLIENTS`` to ``0`` in the functions. Each call then opens its own connection and closes it
+after its last status:
+
+.. code:: python
+
+    fexec.map(my_function, iterdata, extra_env={'LITHOPS_REUSE_MONITORING_CLIENTS': '0'})
+
+It can also be set in the runtime image. Reuse is on by default; ``0``, ``false`` and ``no`` (in any case) turn it off,
+and any other value leaves it on. The ``storage`` backend opens no connection of its own and ignores the variable.
+
+
 Metrics
 -------
 

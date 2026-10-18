@@ -289,21 +289,6 @@ class AWSEC2Backend:
             if self._init_created is not None:
                 self._init_created['subnet'] = True
 
-        # if 'private_subnet_id' in self.ec2_data:
-        #     sg_info = self.ec2_client.describe_subnets(
-        #         SubnetIds=[self.ec2_data['private_subnet_id']]
-        #     )
-        #     if len(sg_info) > 0:
-        #         self.config['private_subnet_id'] = self.ec2_data['private_subnet_id']
-        #
-        # if 'private_subnet_id' not in self.config:
-        #     logger.debug(f'Creating new private subnet in VPC {self.vpc_name}')
-        #     response = self.ec2_client.create_subnet(
-        #         CidrBlock='10.0.2.0/24', VpcId=self.config['vpc_id']
-        #     )
-        #     private_subnet_id = response['Subnet']['SubnetId']
-        #     self.config['private_subnet_id'] = private_subnet_id
-
     def _create_internet_gateway(self):
         """
         Creates a new internet gateway
@@ -335,47 +320,6 @@ class AWSEC2Backend:
             self.config['internet_gateway_id'] = internet_gateway_id
             if self._init_created is not None:
                 self._init_created['internet_gateway'] = True
-
-    def _create_nat_gateway(self):
-        """
-        Creates a new internet gateway
-        """
-        if 'nat_gateway_id' in self.config:
-            return
-
-        if 'nat_gateway_id' in self.ec2_data:
-            ig_info = self.ec2_client.describe_nat_gateways(
-                NatGatewayIds=[self.ec2_data['nat_gateway_id']]
-            )
-            if len(ig_info) > 0:
-                self.config['nat_gateway_id'] = self.ec2_data['nat_gateway_id']
-                return
-
-        response = self.ec2_client.describe_nat_gateways()
-        for ng in response['NatGateways']:
-            if ng['SubnetId'] == self.config['public_subnet_id']:
-                self.config['nat_gateway_id'] = ng['NatGatewayId']
-
-        if 'nat_gateway_id' not in self.config:
-            logger.debug(f'Creating NAT Gateway in VPC {self.vpc_name}')
-            # Create an Elastic IP address for the NAT Gateway
-            # Create the NAT gateway can take up to 2 minutes
-            # TODO: Reuse Elastic IP adress if available
-            eip_resp = self.ec2_client.allocate_address(Domain='vpc')
-            allocation_id = eip_resp['AllocationId']
-
-            # Create a NAT Gateway
-            nat_gateway_resp = self.ec2_client.create_nat_gateway(
-                SubnetId=self.config['public_subnet_id'],
-                AllocationId=allocation_id
-            )
-            nat_gateway_id = nat_gateway_resp['NatGateway']['NatGatewayId']
-            self.config['nat_gateway_id'] = nat_gateway_id
-
-            self.ec2_client.get_waiter('nat_gateway_available').wait(
-                NatGatewayIds=[nat_gateway_id],
-                WaiterConfig={'Delay': 5, 'MaxAttempts': 40}
-            )
 
     def _create_routing_tables(self):
         """
@@ -412,35 +356,6 @@ class AWSEC2Backend:
                 GatewayId=self.config['internet_gateway_id']
             )
             self.config['public_rtb_id'] = publ_route_table_id
-
-        # if 'private_rtb_id' in self.ec2_data:
-        #     sg_info = self.ec2_client.describe_route_tables(
-        #         RouteTableIds=[self.ec2_data['private_rtb_id']]
-        #     )
-        #     if len(sg_info) > 0:
-        #         self.config['private_rtb_id'] = self.ec2_data['private_rtb_id']
-        #
-        # if 'private_rtb_id' not in self.config:
-        #     logger.debug(f'Creating private routing table in VPC {self.vpc_name}')
-        #     # Create private RT
-        #     priv_route_table_resp = self.ec2_client.create_route_table(
-        #         VpcId=self.config['vpc_id']
-        #     )
-        #     priv_route_table_id = priv_route_table_resp['RouteTable']['RouteTableId']
-        #     self.ec2_client.create_tags(
-        #         Resources=[priv_route_table_id],
-        #         Tags=[{'Key': 'Name', 'Value': f'{self.vpc_name}-priv'}]
-        #     )
-        #     self.ec2_client.associate_route_table(
-        #         RouteTableId=priv_route_table_id,
-        #         SubnetId=self.config['private_subnet_id']
-        #     )
-        #     self.ec2_client.create_route(
-        #         RouteTableId=priv_route_table_id,
-        #         DestinationCidrBlock='0.0.0.0/0',
-        #         GatewayId=self.config['nat_gateway_id']
-        #     )
-        #     self.config['private_rtb_id'] = priv_route_table_id
 
     def _create_security_group(self):
         """
@@ -682,8 +597,6 @@ class AWSEC2Backend:
                 self._create_subnets()
                 # Create the internet gateway if not exists
                 self._create_internet_gateway()
-                # Create the NAT gateway
-                # self._create_nat_gateway()
                 # Create routing tables
                 self._create_routing_tables()
                 # Create the security group if not exists
@@ -713,11 +626,8 @@ class AWSEC2Backend:
                     'ssh_key_name': self.config['ssh_key_name'],
                     'ssh_key_filename': self.config['ssh_key_filename'],
                     'public_subnet_id': self.config['public_subnet_id'],
-                    # 'private_subnet_id': self.config['private_subnet_id'],
                     'security_group_id': self.config['security_group_id'],
                     'internet_gateway_id': self.config['internet_gateway_id'],
-                    # 'nat_gateway_id': self.config['nat_gateway_id'],
-                    # 'private_rtb_id': self.config['private_rtb_id'],
                     'public_rtb_id': self.config['public_rtb_id'],
                     'instance_types': self.instance_types
                 }
@@ -978,23 +888,6 @@ class AWSEC2Backend:
                 total_correct += 1
             logger.debug(e.response['Error']['Message'])
 
-        # NAT Gateway
-        # try:
-        #     logger.debug(f"Deleting nat gateway {self.ec2_data['nat_gateway_id']}")
-        #     self.ec2_client.delete_nat_gateway(
-        #         NatGatewayId=self.ec2_data['nat_gateway_id']
-        #     )
-        #     self.ec2_client.get_waiter('nat_gateway_deleted').wait(
-        #         NatGatewayIds=[self.ec2_data['nat_gateway_id']],
-        #         WaiterConfig={'Delay': 5, 'MaxAttempts': 40}
-        #     )
-        #     total_correct += 1
-        # except ClientError as e:
-        #     if e.response['ResponseMetadata']['HTTPStatusCode'] == 400 and \
-        #        'does not exist' in e.response['Error']['Message']:
-        #         total_correct += 1
-        #     logger.debug(e.response['Error']['Message'])
-
         # Subnets
         try:
             logger.debug(f"Deleting public {self.ec2_data['public_subnet_id']}")
@@ -1005,15 +898,6 @@ class AWSEC2Backend:
                'does not exist' in e.response['Error']['Message']:
                 total_correct += 1
             logger.debug(e.response['Error']['Message'])
-        # try:
-        #     logger.debug(f"Deleting private {self.ec2_data['private_subnet_id']}")
-        #     self.ec2_client.delete_subnet(SubnetId=self.ec2_data['private_subnet_id'])
-        #     total_correct += 1
-        # except ClientError as e:
-        #     if e.response['ResponseMetadata']['HTTPStatusCode'] == 400 and \
-        #        'does not exist' in e.response['Error']['Message']:
-        #         total_correct += 1
-        #     logger.debug(e.response['Error']['Message'])
 
         # Internet gateway
         try:
@@ -1177,7 +1061,7 @@ class AWSEC2Backend:
 
 class EC2Instance:
 
-    def __init__(self, name, ec2_config, ec2_client=None, public=False):
+    def __init__(self, name, ec2_config, ec2_client, public=False):
         """
         Initialize a EC2Instance instance
         VMs can have master role, this means they will have a public IP address
@@ -1187,10 +1071,9 @@ class EC2Instance:
 
         self.delete_on_dismantle = self.config['delete_on_dismantle']
         self.instance_type = self.config['worker_instance_type']
-        self.region_name = self.config['region']
         self.spot_instance = self.config['request_spot_instances']
 
-        self.ec2_client = ec2_client or self._create_ec2_client()
+        self.ec2_client = ec2_client
         self.public = public
 
         self.ssh_client = None
@@ -1199,8 +1082,6 @@ class EC2Instance:
         self.private_ip = None
         self.public_ip = '0.0.0.0'
         self.home_dir = '/home/ubuntu'
-
-        self.runtime_name = None
 
         self.ssh_credentials = {
             'username': self.config['ssh_username'],
@@ -1215,24 +1096,6 @@ class EC2Instance:
             return f'VM instance {self.name}'
         else:
             return f'VM instance {self.name} ({ip})'
-
-    def _create_ec2_client(self):
-        """
-        Creates an EC2 boto3 instance
-        """
-        client_config = botocore.client.Config(
-            user_agent_extra=self.config['user_agent']
-        )
-
-        ec2_client = boto3.client(
-            'ec2', aws_access_key_id=self.config['access_key_id'],
-            aws_secret_access_key=self.config['secret_access_key'],
-            aws_session_token=self.config.get('session_token'),
-            config=client_config,
-            region_name=self.region_name
-        )
-
-        return ec2_client
 
     def get_ssh_client(self):
         """

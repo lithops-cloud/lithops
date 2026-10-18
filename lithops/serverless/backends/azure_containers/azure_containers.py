@@ -33,6 +33,12 @@ from . import config
 
 logger = logging.getLogger(__name__)
 
+DOCS_URL = 'https://lithops-cloud.github.io/docs/source/compute_config/azure_containers.html#installation'
+
+# Errors of the container app deploy that another attempt cannot fix
+ENV_NOT_FOUND_ERRORS = ('ManagedEnvironmentNotFound',)
+NON_RETRYABLE_DEPLOY_ERRORS = ENV_NOT_FOUND_ERRORS + ('ResourceGroupNotFound', 'AuthorizationFailed', 'az login')
+
 
 class AzureContainerAppBackend:
     """
@@ -84,7 +90,8 @@ class AzureContainerAppBackend:
                 shell=True,
                 encoding='UTF-8',
                 stdout=sp.PIPE if capture else None,
-                stderr=sp.PIPE if capture else None,
+                # Always captured: the error code in it decides whether a deploy is retried
+                stderr=sp.PIPE,
                 stdin=sp.DEVNULL,
                 check=True,
             )
@@ -94,6 +101,9 @@ class AzureContainerAppBackend:
             if detail:
                 err_msg += f'\n{detail}'
             raise Exception(err_msg) from e
+
+        if debug and completed.stderr and completed.stderr.strip():
+            logger.debug(completed.stderr.strip())
 
         if not (return_json or return_result):
             return None
@@ -118,6 +128,15 @@ class AzureContainerAppBackend:
 
         return f'lithops-worker-{version.replace(".", "")}-{name_hash}'[:31]
 
+    def _environment_not_found_msg(self):
+        environment = self.ac_config.get('environment_id') or self.environment
+        return (
+            f"The Azure Container Apps environment '{environment}' was not found in resource group "
+            f"'{self.resource_group}' / region '{self.location}'. Create it as described in the "
+            f"installation steps of {DOCS_URL}, or set 'region' and 'environment_id' in the "
+            "'azure_containers' configuration section to match the existing environment"
+        )
+
     def _get_managed_environment_id(self):
         environment_id = self.ac_config.get('environment_id')
         if environment_id:
@@ -125,7 +144,12 @@ class AzureContainerAppBackend:
 
         cmd = (f'az containerapp env show -g {self.resource_group} -n {self.environment} '
                f'--query id --only-show-errors')
-        return self._run_az_command(cmd, return_result=True)
+        try:
+            return self._run_az_command(cmd, return_result=True)
+        except Exception as e:
+            if any(code in str(e) for code in ('ResourceNotFound',) + ENV_NOT_FOUND_ERRORS):
+                raise Exception(self._environment_not_found_msg()) from e
+            raise
 
     def _get_containerapp_provisioning_state(self, containerapp_name):
         cmd = (f'az containerapp show --name {containerapp_name} '
@@ -333,6 +357,10 @@ class AzureContainerAppBackend:
                 deployed = True
                 break
             except Exception as e:
+                if any(code in str(e) for code in ENV_NOT_FOUND_ERRORS):
+                    raise Exception(self._environment_not_found_msg()) from e
+                if any(code in str(e) for code in NON_RETRYABLE_DEPLOY_ERRORS):
+                    raise Exception(f'The Azure Container App cannot be deployed: {e}') from e
                 last_error = e
                 in_progress = 'ContainerAppOperationInProgress' in str(e)
                 logger.warning(f'Container app deploy attempt {retries + 1} failed: {e}')

@@ -174,7 +174,7 @@ def list_workers():
 
     result = [[
         'Worker Name', 'Created', 'Instance Type', 'Processes',
-        'Runtime', 'Mode', 'Status', 'TTD',
+        'Runtime', 'Mode', 'Status', 'Error', 'TTD',
     ]]
 
     def get_worker(worker):
@@ -193,6 +193,7 @@ def list_workers():
             worker_data['runtime'],
             worker_data['exec_mode'],
             worker_data['status'],
+            worker_data.get('err', ''),
             ttd,
         ))
 
@@ -243,7 +244,6 @@ def get_workers():
                 worker_data['name'],
                 worker_data['private_ip'],
                 worker_data['instance_id'],
-                worker_data['ssh_credentials'],
                 worker_data['instance_type'],
                 runtime_name,
             ))
@@ -256,28 +256,12 @@ def get_workers():
     return response
 
 
-def _redis_field(value):
-    """
-    Returns a config value as something a redis hash accepts, which is only
-    bytes, str, int or float
-    """
-    if isinstance(value, (dict, list)):
-        return json.dumps(value)
-    if isinstance(value, bool):
-        return str(value)
-    return value
-
-
-def save_worker(worker, standalone_config, work_queue_name):
+def save_worker(worker, standalone_config):
     """
     Registers a worker in redis, which is where every listing and every
-    lookup of a free worker reads from. The backend section is left out, as
-    it holds the credentials of the account
+    lookup of a free worker reads from. Only the fields those read are
+    stored: no account or SSH credentials end up in redis
     """
-    config = copy.deepcopy(standalone_config)
-    del config[config['backend']]
-    config = {key: _redis_field(value) for key, value in config.items()}
-
     worker_processes = (
         CPU_COUNT if worker.config['worker_processes'] == 'AUTO'
         else worker.config['worker_processes']
@@ -291,10 +275,9 @@ def save_worker(worker, standalone_config, work_queue_name):
         'instance_type': worker.instance_type,
         'worker_processes': worker_processes,
         'created': str(time.time()),
-        'ssh_credentials': json.dumps(worker.ssh_credentials),
-        'queue_name': work_queue_name,
+        'runtime': standalone_config['runtime'],
+        'exec_mode': standalone_config['exec_mode'],
         'err': "",
-        **config,
     })
 
 
@@ -342,7 +325,7 @@ def setup_worker_create_reuse(standalone_handler, worker_info, work_queue_name):
     if redis_client.hget(_worker_key(worker.name), 'status') == WorkerStatus.ACTIVE.value:
         return
 
-    save_worker(worker, standalone_handler.config, work_queue_name)
+    save_worker(worker, standalone_handler.config)
 
     max_retries = worker.config.get(
         'worker_create_retries', MAX_INSTANCE_CREATE_RETRIES
@@ -432,7 +415,7 @@ def setup_worker_consume(standalone_handler, worker_info, work_queue_name):
     if redis_client.hget(_worker_key(instance.name), 'status') == WorkerStatus.ACTIVE.value:
         return
 
-    save_worker(instance, standalone_handler.config, work_queue_name)
+    save_worker(instance, standalone_handler.config)
 
     try:
         logger.debug(f'Setting up the worker in the current {instance}')

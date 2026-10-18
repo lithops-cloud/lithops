@@ -38,10 +38,9 @@ from typing import Optional, Tuple
 #: Kinds of instrument a backend has to support
 COUNTER = 'counter'
 HISTOGRAM = 'histogram'
-UPDOWN = 'updown'
 GAUGE = 'gauge'
 
-_KINDS = (COUNTER, HISTOGRAM, UPDOWN, GAUGE)
+_KINDS = (COUNTER, HISTOGRAM, GAUGE)
 
 #: Labels every metric carries. All of them are properties of the job, so
 #: the number of series a backend holds is bounded by how many distinct
@@ -91,7 +90,6 @@ class MetricSpec:
     name: str
     kind: str
     documentation: str
-    unit: str = ''
     base_labels: Tuple[str, ...] = BASE_LABELS
     extra_labels: Tuple[str, ...] = ()
     buckets: Optional[Tuple[float, ...]] = None
@@ -214,7 +212,6 @@ WORKER_CPU_SECONDS = MetricSpec(
     name='lithops_worker_cpu_seconds',
     kind=COUNTER,
     documentation='CPU time consumed by the function, by mode (user, system)',
-    unit='seconds',
     extra_labels=('mode',),
 )
 
@@ -222,7 +219,6 @@ WORKER_NETWORK_BYTES = MetricSpec(
     name='lithops_worker_network_bytes',
     kind=COUNTER,
     documentation='Network traffic of the function, by direction (sent, recv)',
-    unit='bytes',
     extra_labels=('direction',),
 )
 
@@ -230,7 +226,6 @@ CALL_DURATION = MetricSpec(
     name='lithops_call_duration_seconds',
     kind=HISTOGRAM,
     documentation='Wall clock time spent inside the user function',
-    unit='seconds',
     buckets=DURATION_BUCKETS,
 )
 
@@ -241,7 +236,6 @@ CALL_TOTAL_DURATION = MetricSpec(
         'Wall clock time the worker spent on the call, including the '
         'Lithops overhead around the user function'
     ),
-    unit='seconds',
     buckets=DURATION_BUCKETS,
 )
 
@@ -252,7 +246,6 @@ CALL_QUEUE_DELAY = MetricSpec(
         'Time between the client submitting the call and the worker '
         'starting it. This is the scheduling latency of the backend'
     ),
-    unit='seconds',
     buckets=DELAY_BUCKETS,
 )
 
@@ -263,7 +256,6 @@ CALL_STATUS_LATENCY = MetricSpec(
         'Time between the worker finishing the call and the client '
         'learning about it. This is the latency of the monitoring channel'
     ),
-    unit='seconds',
     buckets=DELAY_BUCKETS,
 )
 
@@ -271,7 +263,6 @@ CALL_RESULT_SIZE = MetricSpec(
     name='lithops_call_result_size_bytes',
     kind=HISTOGRAM,
     documentation='Size of the value the function returned',
-    unit='bytes',
     buckets=SIZE_BUCKETS,
 )
 
@@ -285,7 +276,6 @@ WORKER_MEMORY = MetricSpec(
         'started, which is what the runtime itself costs. "rss", "vms" and '
         '"uss" are sampled once, as the function returns'
     ),
-    unit='bytes',
     extra_labels=('kind',),
     buckets=MEMORY_BUCKETS,
 )
@@ -310,7 +300,6 @@ CALL_RESULT_UPLOAD = MetricSpec(
         'Time the worker spent writing the result to the storage backend. '
         'Zero for a result small enough to travel in the call status'
     ),
-    unit='seconds',
     buckets=OVERHEAD_BUCKETS,
 )
 
@@ -322,7 +311,6 @@ CALL_WORKER_SETUP = MetricSpec(
         'function: unpacking the job, importing the modules and fetching '
         'the data'
     ),
-    unit='seconds',
     buckets=OVERHEAD_BUCKETS,
 )
 
@@ -333,7 +321,6 @@ CALL_WORKER_TEARDOWN = MetricSpec(
         'Time the worker spent after the user function returned: writing '
         'the result and reporting the status'
     ),
-    unit='seconds',
     buckets=OVERHEAD_BUCKETS,
 )
 
@@ -346,7 +333,6 @@ CALL_RESULT_DOWNLOAD = MetricSpec(
         'have travelled in the call status, so it costs no request at all; '
         '"storage" is one that had to be fetched'
     ),
-    unit='seconds',
     extra_labels=('source',),
     buckets=OVERHEAD_BUCKETS,
 )
@@ -368,7 +354,6 @@ CALL_END_TO_END = MetricSpec(
         'Time from the client submitting a call to the client holding its '
         'result. Everything else is a part of this one'
     ),
-    unit='seconds',
     buckets=DURATION_BUCKETS,
 )
 
@@ -387,7 +372,6 @@ WORKER_CPU_UTILIZATION = MetricSpec(
     name='lithops_worker_cpu_utilization_percent',
     kind=HISTOGRAM,
     documentation='CPU utilisation of the worker while the function ran',
-    unit='percent',
     buckets=PERCENT_BUCKETS,
 )
 
@@ -405,7 +389,6 @@ JOB_CREATE_DURATION = MetricSpec(
         'Time the client spent preparing the job before the first worker '
         'was invoked: partitioning, serialising and uploading'
     ),
-    unit='seconds',
     buckets=OVERHEAD_BUCKETS,
 )
 
@@ -413,7 +396,6 @@ JOB_SERIALIZE_DURATION = MetricSpec(
     name='lithops_job_serialize_seconds',
     kind=HISTOGRAM,
     documentation='Time the client spent serialising the function and its data',
-    unit='seconds',
     buckets=OVERHEAD_BUCKETS,
 )
 
@@ -424,7 +406,6 @@ JOB_PARTITION_DURATION = MetricSpec(
         'Time the client spent partitioning the input data, for a job that '
         'processes objects'
     ),
-    unit='seconds',
     buckets=OVERHEAD_BUCKETS,
 )
 
@@ -435,7 +416,6 @@ JOB_UPLOAD_DURATION = MetricSpec(
         'Time the client spent uploading the job to the storage backend, by '
         'part (function, data). Zero for a function already in the cache'
     ),
-    unit='seconds',
     extra_labels=('part',),
     buckets=OVERHEAD_BUCKETS,
 )
@@ -447,7 +427,6 @@ JOB_PAYLOAD_SIZE = MetricSpec(
         'Size of what the client uploaded for the job, by part (function, '
         'data)'
     ),
-    unit='bytes',
     extra_labels=('part',),
     buckets=JOB_SIZE_BUCKETS,
 )
@@ -464,39 +443,13 @@ WORKER_INFO = MetricSpec(
     extra_labels=('python_version', 'lithops_version'),
 )
 
-#: Every spec, which is what a backend needs in order to declare its
-#: instruments (OpenTelemetry views, for one, have to be registered before
-#: the meter is built)
-ALL_METRICS: Tuple[MetricSpec, ...] = (
-    JOBS_SUBMITTED,
-    CALLS_INVOKED,
-    CALLS_STARTED,
-    CALLS_COMPLETED,
-    COLD_STARTS,
-    WORKER_CPU_SECONDS,
-    WORKER_NETWORK_BYTES,
-    CALL_DURATION,
-    CALL_TOTAL_DURATION,
-    CALL_QUEUE_DELAY,
-    CALL_STATUS_LATENCY,
-    CALL_WORKER_SETUP,
-    CALL_WORKER_TEARDOWN,
-    CALL_RESULT_SIZE,
-    CALL_RESULT_UPLOAD,
-    CALL_RESULT_DOWNLOAD,
-    CALL_RESULT_QUERIES,
-    CALL_END_TO_END,
-    CALL_STATUS_QUERIES,
-    WORKER_MEMORY,
-    WORKER_MEMORY_RATIO,
-    WORKER_CPU_UTILIZATION,
-    WORKER_INFO,
-    JOB_CALLS,
-    JOB_CREATE_DURATION,
-    JOB_SERIALIZE_DURATION,
-    JOB_PARTITION_DURATION,
-    JOB_UPLOAD_DURATION,
-    JOB_PAYLOAD_SIZE,
+#: Every spec declared above, in the order they are declared, which is what
+#: a backend needs in order to declare its instruments (OpenTelemetry views,
+#: for one, have to be registered before the meter is built). Collected
+#: rather than listed, so that a new metric cannot be left out of it
+ALL_METRICS: Tuple[MetricSpec, ...] = tuple(
+    value for value in list(globals().values())
+    if isinstance(value, MetricSpec)
 )
 
 

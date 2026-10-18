@@ -42,6 +42,36 @@ logger = logging.getLogger(__name__)
 urllib3.disable_warnings()
 
 
+# Waiting reasons of a container whose image can never be pulled as it is
+IMAGE_PULL_ERRORS = ('ErrImagePull', 'ImagePullBackOff', 'InvalidImageName')
+
+
+def _image_pull_error(pod):
+    """Whether a container of the pod is stuck because its image cannot be pulled"""
+    for status in pod.status.container_statuses or []:
+        waiting = status.state.waiting if status.state else None
+        if waiting and waiting.reason in IMAGE_PULL_ERRORS:
+            return True
+    return False
+
+
+def _pod_problem(pod):
+    """What keeps a pod from running, for an error message"""
+    for status in pod.status.container_statuses or []:
+        waiting = status.state.waiting if status.state else None
+        if waiting and waiting.reason:
+            return f'{waiting.reason}: {waiting.message or ""}'.strip()
+    return pod.status.reason or pod.status.phase
+
+
+def _job_failure(job):
+    """The reason a job failed, such as DeadlineExceeded, or None while it has not"""
+    for condition in job.status.conditions or []:
+        if condition.type == 'Failed' and condition.status == 'True':
+            return f'{condition.reason}: {condition.message or ""}'.strip()
+    return None
+
+
 class KubernetesBackend:
     """
     A wrap-up around Kubernetes backend.
@@ -76,7 +106,7 @@ class KubernetesBackend:
             self.cluster = ctx_context.get('cluster') or self.cluster
             ctx_user = ctx_context.get('user')
             self.user = hashlib.sha1(ctx_user.encode()).hexdigest()[:10] if ctx_user else self.user
-            logger.debug(f"Using kubeconfig conetxt: {ctx_name} - cluster: {self.cluster}")
+            logger.debug(f"Using kubeconfig context: {ctx_name} - cluster: {self.cluster}")
             self.is_incluster = False
         else:
             logger.debug('kubeconfig file not found, loading incluster config')
@@ -476,6 +506,7 @@ class KubernetesBackend:
 
             if not list_pods.items:
                 break  # All pods are deleted
+            time.sleep(1)
 
         logger.info('All pods are deleted.')
 
@@ -519,22 +550,28 @@ class KubernetesBackend:
         if not all(key in self.k8s_config for key in ["docker_user", "docker_password"]):
             del master_res['spec']['template']['spec']['imagePullSecrets']
 
-        try:
-            self.batch_api.create_namespaced_job(
-                namespace=self.namespace,
-                body=master_res
-            )
-        except ApiException as e:
-            raise e
+        self.batch_api.create_namespaced_job(
+            namespace=self.namespace,
+            body=master_res
+        )
 
         logger.debug('Waiting Lithops master pod to be ready')
         w = watch.Watch()
         for event in w.stream(self.core_api.list_namespaced_pod,
                               namespace=self.namespace,
-                              label_selector=f"job-name={self.master_name}"):
-            if event['object'].status.phase == "Running":
+                              label_selector=f"job-name={self.master_name}",
+                              timeout_seconds=self.k8s_config['master_timeout']):
+            pod = event['object']
+            if pod.status.phase == "Running":
                 w.stop()
-                return event['object'].status.pod_ip
+                return pod.status.pod_ip
+            if pod.status.phase == "Failed" or _image_pull_error(pod):
+                w.stop()
+                raise Exception(f'The Lithops master pod did not start: {_pod_problem(pod)}')
+
+        raise Exception(
+            f"The Lithops master pod was not running after {self.k8s_config['master_timeout']} seconds"
+        )
 
     def convert_memory_units(self, mem_num, mem_uni):
         mem_num = int(mem_num)
@@ -723,13 +760,10 @@ class KubernetesBackend:
             if not all(key in self.k8s_config for key in ["docker_user", "docker_password"]):
                 del job_res['spec']['template']['spec']['imagePullSecrets']
 
-            try:
-                self.batch_api.create_namespaced_job(
-                    namespace=self.namespace,
-                    body=job_res
-                )
-            except ApiException as e:
-                raise e
+            self.batch_api.create_namespaced_job(
+                namespace=self.namespace,
+                body=job_res
+            )
 
         return activation_id
 
@@ -769,13 +803,10 @@ class KubernetesBackend:
         except ApiException:
             pass
 
-        try:
-            self.batch_api.create_namespaced_job(
-                namespace=self.namespace,
-                body=job_res
-            )
-        except ApiException as e:
-            raise e
+        self.batch_api.create_namespaced_job(
+            namespace=self.namespace,
+            body=job_res
+        )
 
         logger.debug("Waiting for runtime metadata")
 
@@ -787,11 +818,20 @@ class KubernetesBackend:
                                       namespace=self.namespace,
                                       field_selector=f"metadata.name={meta_job_name}",
                                       timeout_seconds=10):
-                    failed = event['object'].status.failed
-                    done = event['object'].status.succeeded
+                    job = event['object']
+                    done = job.status.succeeded
+                    # A job past its deadline is failed with no failed pod
+                    failed = job.status.failed or _job_failure(job)
                     logger.debug('...')
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f'Watching the metadata job: {e}')
+            if not (done or failed):
+                # A pod that cannot pull its image waits for ever without
+                # failing the job, so it is looked at directly
+                pods = self.core_api.list_namespaced_pod(
+                    namespace=self.namespace, label_selector=f"job-name={meta_job_name}"
+                )
+                failed = next((_pod_problem(p) for p in pods.items if _image_pull_error(p)), None)
         w.stop()
 
         if done:
@@ -807,7 +847,8 @@ class KubernetesBackend:
             pass
 
         if failed:
-            raise Exception("Unable to extract metadata from the runtime")
+            reason = f': {failed}' if isinstance(failed, str) else ''
+            raise Exception(f"Unable to extract metadata from the runtime{reason}")
 
         data_key = '/'.join([JOBS_PREFIX, runtime_name + '.meta'])
         json_str = self.internal_storage.get_data(key=data_key)

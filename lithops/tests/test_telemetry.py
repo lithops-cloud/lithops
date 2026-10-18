@@ -35,8 +35,6 @@ from lithops.monitoring.monitor import Monitor
 class RecordingBackend(MetricsBackend):
     """A backend that keeps every observation instead of shipping it"""
 
-    backend_name = 'recording'
-
     def __init__(self, config=None):
         super().__init__(config or {})
         self.observations = []
@@ -180,6 +178,26 @@ class TestMetricSpecs:
     def test_metric_names_are_unique(self):
         names = [spec.name for spec in M.ALL_METRICS]
         assert len(names) == len(set(names))
+
+    def test_every_declared_metric_is_in_the_inventory(self):
+        # The OTLP backend pins histogram buckets from ALL_METRICS only, so
+        # a spec missing from it would silently get the SDK default buckets
+        declared = [
+            value for value in vars(M).values()
+            if isinstance(value, M.MetricSpec)
+        ]
+        assert declared
+        assert list(M.ALL_METRICS) == declared
+        assert M.CALL_END_TO_END in M.ALL_METRICS
+        assert M.WORKER_INFO in M.ALL_METRICS
+
+    def test_the_inventory_keeps_the_declaration_order(self):
+        assert M.ALL_METRICS[0] is M.JOBS_SUBMITTED
+        assert M.ALL_METRICS[-1] is M.WORKER_INFO
+
+    def test_an_unknown_kind_is_refused(self):
+        with pytest.raises(ValueError, match='unknown metric kind'):
+            M.MetricSpec(name='lithops_bad', kind='updown', documentation='')
 
 
 class TestResolveBackend:
@@ -761,7 +779,6 @@ class TestExporterLifecycle:
         assert later._backend == 'aws_lambda'
 
     def test_the_noop_records_nothing_and_raises_nothing(self):
-        assert NOOP.enabled is False
         NOOP.on_job_submitted(None)
         NOOP.on_call_started(None, None)
         NOOP.on_call_finished(None, None)
@@ -1036,13 +1053,19 @@ class TestOtlpBackend:
 
     def test_the_temporality_is_pinned_to_cumulative(self):
         pytest.importorskip('opentelemetry.sdk')
+        from opentelemetry.sdk.metrics import Counter, Histogram
         from opentelemetry.sdk.metrics.export import AggregationTemporality
         from lithops.telemetry.backends.otlp import MetricsBackend
 
         temporality = MetricsBackend._cumulative_temporality()
 
-        assert temporality
-        assert set(temporality.values()) == {AggregationTemporality.CUMULATIVE}
+        # The two kinds OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE
+        # can turn into deltas, and the only ones Lithops creates besides
+        # the gauge
+        assert temporality == {
+            Counter: AggregationTemporality.CUMULATIVE,
+            Histogram: AggregationTemporality.CUMULATIVE,
+        }
 
     def test_an_unknown_protocol_is_refused(self):
         pytest.importorskip('opentelemetry.sdk')

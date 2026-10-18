@@ -1052,7 +1052,7 @@ class IBMVPCBackend:
 
 class IBMVPCInstance:
 
-    def __init__(self, name, ibm_vpc_config, ibm_vpc_client=None, public=False):
+    def __init__(self, name, ibm_vpc_config, ibm_vpc_client, public=False):
         """
         Initialize a IBMVPCInstance instance
         VMs can have master role, this means they will have a public IP address
@@ -1063,7 +1063,7 @@ class IBMVPCInstance:
         self.delete_on_dismantle = self.config['delete_on_dismantle']
         self.instance_type = self.config['worker_profile_name']
 
-        self.vpc_cli = ibm_vpc_client or self._create_vpc_client()
+        self.vpc_cli = ibm_vpc_client
         self.public = public
 
         self.ssh_client = None
@@ -1087,19 +1087,6 @@ class IBMVPCInstance:
             return f'VM instance {self.name}'
         else:
             return f'VM instance {self.name} ({ip})'
-
-    def _create_vpc_client(self):
-        """
-        Creates an IBM VPC python-sdk instance
-        """
-        authenticator = IAMAuthenticator(self.config.get('iam_api_key'), url=self.config.get('iam_endpoint'))
-        ibm_vpc_client = VpcV1(VPC_API_VERSION, authenticator=authenticator)
-        ibm_vpc_client.set_service_url(self.config['endpoint'] + '/v1')
-
-        # decorate instance public methods with except/retry logic
-        decorate_instance(self.vpc_cli, vpc_retry_on_except)
-
-        return ibm_vpc_client
 
     def get_ssh_client(self):
         """
@@ -1458,9 +1445,7 @@ RETRIABLE = ['list_vpcs',
              'get_key',
              'create_instance',
              'add_instance_network_interface_floating_ip',
-             'get_instance',
-             'create_instance_action',
-             'delete_instance']
+             'create_instance_action']
 
 
 def decorate_instance(instance, decorator):
@@ -1495,8 +1480,9 @@ def vpc_retry_on_except(func):
                 return func(*args, **kwargs)
             except ApiException as err:
                 if func.__name__ in IGNORED_404_METHODS and err.code == 404:
-                    # logger.debug((f'Got exception {err} when trying to invoke {func.__name__}, ignoring'))
-                    pass
+                    # The resource is already gone (or never existed): there
+                    # is nothing to retry
+                    return None
                 else:
                     sleep_time = _sleep_or_raise(sleep_time, err)
             except Exception as err:

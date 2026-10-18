@@ -17,8 +17,6 @@ import copy
 import os
 
 
-CONNECTION_POOL_SIZE = 300
-
 REQ_PARAMS_1 = ('compartment_id', 'user', 'key_file', 'region', 'tenancy', 'fingerprint')
 
 
