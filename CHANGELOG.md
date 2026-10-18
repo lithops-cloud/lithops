@@ -9,7 +9,8 @@
 - [Storage] Glob patterns in the input objects work on every storage backend: a key with `*` is a pattern, as it already was on AWS S3 and IBM COS, also from a Windows client.
 - [Serverless] The Code Engine runtime image no longer installs Flask, gunicorn and gevent, and the Kubernetes images no longer install `redis-server`; Azure Container Apps stops at the first deploy error that cannot succeed, such as a missing environment, instead of retrying it.
 - [CLI] Times are shown in the local time zone without `pytz` and `tzlocal`, which are no longer used.
-- [Standalone] `lithops worker list` shows the last error of each worker, and the master no longer keeps the workers' SSH credentials and configuration in Redis.
+- [Standalone] `lithops worker list` shows the last error of each worker and how many of its processes are busy, and the master no longer keeps the workers' SSH credentials and configuration in Redis.
+- [Knative] Updated to current Knative Serving (tested with 1.23): one container per call in flight with the current autoscaling annotations, `kubecfg_context`, `namespace` and `runtime_arch` keys, the Contour networking layer, cluster-local calls from inside the cluster, a deploy that updates an existing service and reports why its revision fails, and a default runtime that runs as a non-root user.
 
 ### Fixed
 - [Core] Chaining, cleanup, invocation errors, generator inputs, empty `fs`, `wait()` with `ANY_COMPLETED`, argument binding, and `RetryingFunctionExecutor` retries and percentage waits; a failed object, or chunk of one, is retried on its own.
@@ -21,6 +22,10 @@
 - [Monitoring] Worker tokens of jobs dropped by `wait()`, replaced monitors and restarted invokers are handed back once, a held `__end__` is no longer replaced by an `__init__`, and the workers of a job that owes no token are forgotten instead of kept for as long as the job monitor runs; the shared RabbitMQ connection of a worker is closed at exit.
 - [Concurrent] `wait()` and `as_completed()` accept generators.
 - [Core] An executor that fails to be created no longer logs a misleading `job_monitor` error at exit.
+- [Knative] Calls longer than 5 minutes are no longer cut off by Knative, a load balancer ingress is reached at its own port and may be a hostname, `https` service URLs work, a failed call is reported instead of being invoked again for ever, and a service that never gets ready raises an error.
+
+### Removed
+- [Knative] The `git_url` and `git_rev` keys and the Tekton build of the default runtime from git, which was no longer called.
 
 
 ## [v3.8.0]

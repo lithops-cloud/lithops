@@ -439,18 +439,19 @@
 
 #knative:
     #kubecfg_path: <PATH_TO_KUBECONFIG>
-    #networking_layer: kourier            # One of: kourier, istio
-    #ingress_endpoint: <INGRESS_URL>
+    #kubecfg_context: <CONTEXT_NAME>
+    #namespace: <NAMESPACE>               # Defaults to the namespace of the context, or 'default'
+    #networking_layer: kourier            # One of: kourier, istio, contour
+    #ingress_endpoint: <INGRESS_URL>      # Found automatically when not set
     #docker_server: docker.io
     #docker_user: <REGISTRY_USERNAME>
     #docker_password: <REGISTRY_TOKEN>
     #docker_namespace: <REGISTRY_NAMESPACE>
-    #git_url: <GIT_REPO_URL>
-    #git_rev: <GIT_REVISION>
     #runtime: <RUNTIME_NAME>
     #runtime_cpu: 1                       # vCPU
     #runtime_memory: 512                  # MB
-    #runtime_timeout: 600                 # Seconds
+    #runtime_timeout: 600                 # Seconds; at most Knative's max-revision-timeout-seconds
+    #runtime_arch: <amd64|arm64>          # Defaults to cluster nodes; falls back to amd64
     #max_workers: 100
     #worker_processes: 1
 

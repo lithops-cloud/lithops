@@ -145,6 +145,17 @@ class TestWorkerReachability:
         ):
             assert sa_master.is_worker_free('10.0.0.2') is False
 
+    def test_worker_busy_counts_its_processes(self):
+        with patch.object(sa_master.requests, 'get') as get:
+            get.return_value.json.return_value = {'free': 3, 'busy': 1}
+            assert sa_master.get_worker_busy('10.0.0.2') == '1/4'
+
+    def test_worker_busy_is_unknown_when_it_cannot_be_reached(self):
+        with patch.object(
+            sa_master.requests, 'get', side_effect=OSError('down')
+        ):
+            assert sa_master.get_worker_busy('10.0.0.2') == 'Unknown'
+
     def test_worker_ttd_of_the_master_comes_from_its_own_keeper(self):
         sa_master.budget_keeper.get_time_to_dismantle.return_value = 42
         assert sa_master.get_worker_ttd('10.0.0.1') == '42'
@@ -183,7 +194,8 @@ class TestWorkerListing:
     def test_worker_list_builds_a_table_with_a_header(self, client):
         sa_master.redis_client.keys.return_value = ['worker:lithops-worker-1']
         sa_master.redis_client.hgetall.return_value = self._worker_data()
-        with patch.object(sa_master, 'get_worker_ttd', return_value='30'):
+        with patch.object(sa_master, 'get_worker_ttd', return_value='30'), \
+             patch.object(sa_master, 'get_worker_busy', return_value='1/2'):
             resp = client.get('/worker/list')
         table = resp.get_json()
         assert table[0][0] == 'Worker Name'
@@ -191,6 +203,7 @@ class TestWorkerListing:
         row = table[1]
         assert row[0] == 'lithops-worker-1'
         assert row[2] == 'big'
+        assert row[table[0].index('Busy')] == '1/2'
         assert row[-1] == '30s'
 
     def test_worker_list_shows_why_a_worker_failed(self, client):
@@ -198,14 +211,16 @@ class TestWorkerListing:
         sa_master.redis_client.hgetall.return_value = self._worker_data(
             status=WorkerStatus.ERROR.value, err='Validation error: boom'
         )
-        with patch.object(sa_master, 'get_worker_ttd', return_value='30'):
+        with patch.object(sa_master, 'get_worker_ttd', return_value='30'), \
+             patch.object(sa_master, 'get_worker_busy', return_value='Unknown'):
             table = client.get('/worker/list').get_json()
         assert table[1][table[0].index('Error')] == 'Validation error: boom'
 
     def test_worker_list_leaves_a_ttd_word_unsuffixed(self, client):
         sa_master.redis_client.keys.return_value = ['worker:lithops-worker-1']
         sa_master.redis_client.hgetall.return_value = self._worker_data()
-        with patch.object(sa_master, 'get_worker_ttd', return_value='Disabled'):
+        with patch.object(sa_master, 'get_worker_ttd', return_value='Disabled'), \
+             patch.object(sa_master, 'get_worker_busy', return_value='0/2'):
             resp = client.get('/worker/list')
         assert resp.get_json()[1][-1] == 'Disabled'
 

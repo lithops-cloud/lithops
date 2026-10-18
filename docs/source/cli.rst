@@ -111,7 +111,9 @@ Open an ssh connection to the master VM (Only available for standalone backends)
 ``lithops worker list``
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-Lists the available workers in the master VM (Only available for standalone backends)
+Lists the available workers in the master VM (Only available for standalone backends). For each
+worker it shows its status, how many of its processes are running a task (*Busy*, for example
+``1/4``), the last error it reported, and the time left before it stops itself (*TTD*).
 
 +------------------------+----------------------------------------------------------------+
 | Parameter              | Description                                                    |

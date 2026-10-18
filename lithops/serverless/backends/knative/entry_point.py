@@ -15,7 +15,6 @@
 # limitations under the License.
 #
 
-import sys
 import os
 import uuid
 import flask
@@ -34,20 +33,20 @@ proxy = flask.Flask(__name__)
 
 @proxy.route('/', methods=['POST'])
 def run():
-    def error():
-        response = flask.jsonify({'error': 'The action did not receive a dictionary as an argument.'})
-        response.status_code = 404
-        return complete(response)
-
+    """
+    Runs the calls of the payload, or the remote invoker, and answers once
+    they finish: the open request is what keeps Knative from scaling this
+    container down while it works
+    """
     message = flask.request.get_json(force=True, silent=True)
-    if message and not isinstance(message, dict):
-        return error()
+    if not isinstance(message, dict):
+        return flask.jsonify({'error': 'The request body must be a JSON object'}), 400
 
-    act_id = str(uuid.uuid4()).replace('-', '')[:12]
+    act_id = uuid.uuid4().hex
     os.environ['__LITHOPS_ACTIVATION_ID'] = act_id
     os.environ['__LITHOPS_BACKEND'] = 'Knative'
 
-    setup_lithops_logger(message['log_level'])
+    setup_lithops_logger(message.get('log_level', logging.INFO))
 
     if 'remote_invoker' in message:
         logger.info(f"Lithops v{__version__} - Starting Knative invoker")
@@ -56,10 +55,7 @@ def run():
         logger.info(f"Lithops v{__version__} - Starting Knative execution")
         function_handler(message)
 
-    response = flask.jsonify({"activationId": act_id})
-    response.status_code = 202
-
-    return complete(response)
+    return flask.jsonify({'activationId': act_id}), 202
 
 
 @proxy.route('/metadata', methods=['GET', 'POST'])
@@ -67,24 +63,13 @@ def preinstalls_task():
     setup_lithops_logger(logging.INFO)
     logger.info(f"Lithops v{__version__} - Generating metadata")
     runtime_meta = get_runtime_metadata()
-    response = flask.jsonify(runtime_meta)
-    response.status_code = 200
     logger.info("Done!")
-
-    return complete(response)
-
-
-def complete(response):
-    # Add sentinel to stdout/stderr
-    sys.stdout.write('%s\n' % 'XXX_THE_END_OF_AN_ACTIVATION_XXX')
-    sys.stdout.flush()
-
-    return response
+    return flask.jsonify(runtime_meta), 200
 
 
 def main():
     port = int(os.getenv('PORT', 8080))
-    proxy.run(debug=True, host='0.0.0.0', port=port)
+    proxy.run(host='0.0.0.0', port=port)
 
 
 if __name__ == '__main__':

@@ -218,6 +218,9 @@ class TestAzureSpotWorkers:
 
     @staticmethod
     def _created_vm(tmp_path, public, spot):
+        pytest.importorskip('azure.identity')
+        pytest.importorskip('azure.mgmt.compute')
+        pytest.importorskip('azure.mgmt.network')
         from lithops.standalone.backends.azure_vms.azure_vms import VMInstance
         key = tmp_path / 'id_rsa'
         (tmp_path / 'id_rsa.pub').write_text('ssh-rsa AAAA')
@@ -300,6 +303,7 @@ class TestIBMVPCRetries:
 
 
 def _aws_backend_for_init():
+    pytest.importorskip('boto3')
     from lithops.standalone.backends.aws_ec2.aws_ec2 import AWSEC2Backend
     backend = AWSEC2Backend.__new__(AWSEC2Backend)
     backend.mode = 'create'
@@ -322,6 +326,8 @@ def _aws_backend_for_init():
 
 
 def _gcp_backend_for_init():
+    pytest.importorskip('googleapiclient')
+    pytest.importorskip('google_auth_httplib2')
     from lithops.standalone.backends.gcp_compute_engine.gcp_compute_engine import GCPComputeEngineBackend
     backend = GCPComputeEngineBackend.__new__(GCPComputeEngineBackend)
     backend.mode = 'create'
@@ -349,6 +355,9 @@ def _gcp_backend_for_init():
 
 
 def _azure_backend_for_init():
+    pytest.importorskip('azure.identity')
+    pytest.importorskip('azure.mgmt.compute')
+    pytest.importorskip('azure.mgmt.network')
     from lithops.standalone.backends.azure_vms.azure_vms import AzureVMSBackend
     backend = AzureVMSBackend.__new__(AzureVMSBackend)
     backend.mode = 'create'
@@ -539,6 +548,7 @@ class TestAWSDeleteVPC:
 
     @staticmethod
     def _backend(**errors):
+        pytest.importorskip('boto3')
         from lithops.standalone.backends.aws_ec2.aws_ec2 import AWSEC2Backend
         backend = AWSEC2Backend.__new__(AWSEC2Backend)
         backend.vpc_name = 'lithops-vpc'
@@ -553,6 +563,7 @@ class TestAWSDeleteVPC:
 
     @staticmethod
     def _client_error(message, status=400):
+        pytest.importorskip('botocore')
         from botocore.exceptions import ClientError
         return ClientError(
             {'Error': {'Code': 'Some.Code', 'Message': message}, 'ResponseMetadata': {'HTTPStatusCode': status}},

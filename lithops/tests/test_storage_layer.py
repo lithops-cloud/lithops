@@ -359,6 +359,7 @@ class TestCloudBackendRanges:
     """Open ranges work, and the caller's extra_get_args is not modified"""
 
     def test_gcp_storage(self):
+        pytest.importorskip('google.cloud.storage')
         from lithops.storage.backends.gcp_storage import StorageBackend
         backend = StorageBackend.__new__(StorageBackend)
         backend.client = MagicMock()
@@ -370,6 +371,7 @@ class TestCloudBackendRanges:
         blob.download_as_bytes.assert_called_with(start=7, end=None)
 
     def test_azure_storage(self):
+        pytest.importorskip('azure.storage.blob')
         from lithops.storage.backends.azure_storage import StorageBackend
         backend = StorageBackend.__new__(StorageBackend)
         backend.blob_client = MagicMock()
@@ -385,6 +387,7 @@ class TestCloudBackendRanges:
         container.download_blob.assert_called_with('k', offset=7, length=None)
 
     def test_aliyun_oss(self):
+        pytest.importorskip('oss2')
         from lithops.storage.backends.aliyun_oss import StorageBackend
         backend = StorageBackend.__new__(StorageBackend)
         bucket = MagicMock()
@@ -402,6 +405,7 @@ class TestCloudBackendListing:
     """Listings go past the first page of 1000 objects"""
 
     def test_aliyun_oss(self):
+        pytest.importorskip('oss2')
         from lithops.storage.backends.aliyun_oss import StorageBackend, aliyun_oss
         backend = StorageBackend.__new__(StorageBackend)
         backend._connect_bucket = lambda name: MagicMock()
@@ -412,6 +416,7 @@ class TestCloudBackendListing:
             assert len(backend.list_keys('b', 'p')) == 1500
 
     def test_oracle_oss(self):
+        pytest.importorskip('oci')
         from lithops.storage.backends.oracle_oss import StorageBackend
         backend = StorageBackend.__new__(StorageBackend)
         backend.namespace = 'ns'
@@ -482,6 +487,7 @@ class TestStorageListObjectsGlob:
 
     @pytest.mark.parametrize('module, client_attr', [('aws_s3', 's3_client'), ('ibm_cos', 'cos_client')])
     def test_s3_backends_list_every_page(self, module, client_attr):
+        pytest.importorskip('boto3' if module == 'aws_s3' else 'ibm_boto3')
         import importlib
         backend_cls = importlib.import_module(f'lithops.storage.backends.{module}').StorageBackend
         backend = backend_cls.__new__(backend_cls)

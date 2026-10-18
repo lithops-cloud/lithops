@@ -125,6 +125,7 @@ class TestServerlessHandler:
 class TestCodeEngineEntryPoint:
 
     def _load_entry_point(self):
+        pytest.importorskip('ibm_code_engine_sdk')
         import importlib
         import sys
         # Code Engine runs every call as a job run: the entry point needs no web server
@@ -165,6 +166,7 @@ class TestCodeEngineEntryPoint:
 class TestOracleFunctionsConfig:
 
     def test_missing_oracle_f_section_is_reported(self):
+        pytest.importorskip('oci')
         from lithops.serverless.backends.oracle_f.config import load_config
         config_data = {'oracle': {
             'compartment_id': 'c', 'user': 'u', 'key_file': '/tmp/key.pem',
@@ -174,6 +176,7 @@ class TestOracleFunctionsConfig:
             load_config(config_data)
 
     def test_missing_oracle_section_is_reported(self):
+        pytest.importorskip('oci')
         from lithops.serverless.backends.oracle_f.config import load_config
         with pytest.raises(Exception, match="'oracle' section is mandatory"):
             load_config({'oracle_f': {'subnet_id': 's'}})
