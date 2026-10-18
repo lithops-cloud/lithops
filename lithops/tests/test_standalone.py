@@ -491,8 +491,8 @@ class TestVMInitRollback:
         assert {name: count for name, count in deletes().items() if count} == {'delete_vpc': 1}
 
     def test_aws_deletes_an_internet_gateway_that_could_not_be_attached(self):
-        from botocore.exceptions import ClientError
         backend, load_data, _, _, _, deletes = _aws_backend_for_init()
+        from botocore.exceptions import ClientError
         client = backend.ec2_client
         client.describe_internet_gateways.return_value = {'InternetGateways': []}
         client.create_internet_gateway.return_value = {'InternetGateway': {'InternetGatewayId': 'igw-1'}}

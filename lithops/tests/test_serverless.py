@@ -156,6 +156,8 @@ class TestCodeEngineEntryPoint:
         assert 'JOB_INDEX' not in sent
 
     def test_default_dockerfile_runs_the_job_entry_point(self):
+        # The package imports the backend, and with it the Code Engine SDK
+        pytest.importorskip('ibm_code_engine_sdk')
         from lithops.serverless.backends.code_engine import config
         assert 'CMD ["python", "lithopsentry.py"]' in config.DOCKERFILE_DEFAULT
         for unused in ('gunicorn', 'flask', 'gevent', 'PORT'):

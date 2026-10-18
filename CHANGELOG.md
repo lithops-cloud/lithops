@@ -7,9 +7,8 @@
 - [Core] `wait()` timeouts no longer arm a SIGALRM: they are checked between polls, work from any thread and leave the caller's signal handler and alarm alone.
 - [Core] An `obj_chunk_size` no longer than `obj_newline` is raised to one byte more.
 - [Storage] Glob patterns in the input objects work on every storage backend: a key with `*` is a pattern, as it already was on AWS S3 and IBM COS, also from a Windows client.
-- [Serverless] The Code Engine runtime image no longer installs Flask, gunicorn and gevent, and the Kubernetes images no longer install `redis-server`; Azure Container Apps stops at the first deploy error that cannot succeed, such as a missing environment, instead of retrying it.
 - [CLI] Times are shown in the local time zone without `pytz` and `tzlocal`, which are no longer used.
-- [Standalone] `lithops worker list` shows the last error of each worker and how many of its processes are busy, and the master no longer keeps the workers' SSH credentials and configuration in Redis.
+- [Standalone] `lithops worker list` shows the last error of each worker and how many of its processes are busy.
 - [Knative] Updated to current Knative Serving (tested with 1.23): one container per call in flight with the current autoscaling annotations, `kubecfg_context`, `namespace` and `runtime_arch` keys, the Contour networking layer, cluster-local calls from inside the cluster, a deploy that updates an existing service and reports why its revision fails, and a default runtime that runs as a non-root user.
 
 ### Fixed
@@ -23,10 +22,6 @@
 - [Concurrent] `wait()` and `as_completed()` accept generators.
 - [Core] An executor that fails to be created no longer logs a misleading `job_monitor` error at exit.
 - [Knative] Calls longer than 5 minutes are no longer cut off by Knative, a load balancer ingress is reached at its own port and may be a hostname, `https` service URLs work, a failed call is reported instead of being invoked again for ever, and a service that never gets ready raises an error.
-
-### Removed
-- [Knative] The `git_url` and `git_rev` keys and the Tekton build of the default runtime from git, which was no longer called.
-
 
 ## [v3.8.0]
 
