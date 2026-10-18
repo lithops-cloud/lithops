@@ -24,7 +24,7 @@ import shutil
 import subprocess as sp
 from itertools import cycle
 from tabulate import tabulate
-from datetime import datetime
+from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple, Union
 
@@ -245,26 +245,18 @@ def _standalone_service_ready(handler: StandaloneHandler) -> bool:
     return True
 
 
-def _utc_to_local(utc_timestamp: str, local_tz) -> str:
-    import pytz
+def _utc_to_local(utc_timestamp: str) -> str:
     utc_time = datetime.strptime(utc_timestamp, '%Y-%m-%d %H:%M:%S %Z')
-    utc_time = utc_time.replace(tzinfo=pytz.utc)
-    local_time = utc_time.astimezone(local_tz)
+    local_time = utc_time.replace(tzinfo=timezone.utc).astimezone()
     return local_time.strftime('%Y-%m-%d %H:%M:%S %Z')
 
 
 def _localize_and_sort_rows(rows: List[List], key_index: int) -> List[List]:
     """
-    Sorts the rows by their timestamp column, rewritten to the local time
-    zone. pytz and tzlocal are optional, so without them times stay in UTC
+    Sorts the rows by their timestamp column, rewritten to the local time zone
     """
-    try:
-        from tzlocal import get_localzone
-        local_tz = get_localzone()
-        for row in rows:
-            row[key_index] = _utc_to_local(row[key_index], local_tz)
-    except ModuleNotFoundError:
-        pass
+    for row in rows:
+        row[key_index] = _utc_to_local(row[key_index])
     return sorted(rows, key=lambda row: row[key_index])
 
 
@@ -370,6 +362,20 @@ def _clean_local_temp_data() -> None:
         os.makedirs(temp_dir, exist_ok=True)
 
 
+# Options that most commands take. Each command lists them in its own order,
+# which is the order its --help shows them in
+config_option = click.option(
+    '--config', '-c', default=None,
+    help='path to yaml config file', type=click.Path(exists=True)
+)
+backend_option = click.option('--backend', '-b', default=None, help='compute backend')
+storage_option = click.option('--storage', '-s', default=None, help='storage backend')
+debug_option = click.option('--debug', '-d', is_flag=True, help='debug mode')
+region_option = click.option('--region', '-r', default=None, help='compute backend region')
+# The storage commands take no compute backend, so their -b is the storage one
+storage_backend_option = click.option('--backend', '-b', default=None, help='storage backend')
+
+
 @click.group('lithops_cli')
 @click.version_option()
 def lithops_cli():
@@ -377,14 +383,11 @@ def lithops_cli():
 
 
 @lithops_cli.command('clean')
-@click.option(
-    '--config', '-c', default=None,
-    help='path to yaml config file', type=click.Path(exists=True)
-)
-@click.option('--backend', '-b', default=None, help='compute backend')
-@click.option('--storage', '-s', default=None, help='storage backend')
-@click.option('--debug', '-d', is_flag=True, help='debug mode')
-@click.option('--region', '-r', default=None, help='compute backend region')
+@config_option
+@backend_option
+@storage_option
+@debug_option
+@region_option
 @click.option(
     '--all', '-a', 'delete_all', is_flag=True,
     help='delete all, including master VM in case of standalone'
@@ -422,7 +425,7 @@ def clean(config, backend, storage, debug, region, delete_all):
 @click.option('--backend', '-b', default=None, help='Compute backend')
 @click.option('--storage', '-s', default=None, help='Storage backend')
 @click.option('--debug', '-d', is_flag=True, help='Debug mode')
-@click.option('--region', '-r', default=None, help='compute backend region')
+@region_option
 @click.option(
     '--test', '-t', default=None,
     help=(
@@ -466,14 +469,11 @@ def test(test, config, backend, storage, debug, region, exitfirst):
 
 
 @lithops_cli.command('hello')
-@click.option(
-    '--config', '-c', default=None,
-    help='path to yaml config file', type=click.Path(exists=True)
-)
-@click.option('--backend', '-b', default=None, help='compute backend')
-@click.option('--storage', '-s', default=None, help='storage backend')
-@click.option('--debug', '-d', is_flag=True, help='debug mode')
-@click.option('--region', '-r', default=None, help='compute backend region')
+@config_option
+@backend_option
+@storage_option
+@debug_option
+@region_option
 @click.option(
     '--map', 'map_count', '-m', default=None, type=click.IntRange(min=1),
     help='number of map invocations to run instead of a single call_async'
@@ -521,14 +521,11 @@ def hello(config, backend, storage, debug, region, map_count):
 
 
 @lithops_cli.command('attach')
-@click.option(
-    '--config', '-c', default=None,
-    help='path to yaml config file', type=click.Path(exists=True)
-)
-@click.option('--backend', '-b', default=None, help='compute backend')
+@config_option
+@backend_option
 @click.option("--start", is_flag=True, default=False, help="Start the master VM if needed.")
-@click.option('--debug', '-d', is_flag=True, help='debug mode')
-@click.option('--region', '-r', default=None, help='compute backend region')
+@debug_option
+@region_option
 def attach(config, backend, start, debug, region):
     """Create or attach to a SSH session on Lithops master VM"""
     handler = _prepare_standalone(
@@ -587,12 +584,9 @@ def storage():
 @click.argument('filename', type=click.Path(exists=True))
 @click.argument('bucket')
 @click.option('--key', '-k', default=None, help='object key')
-@click.option('--backend', '-b', default=None, help='storage backend')
-@click.option('--debug', '-d', is_flag=True, help='debug mode')
-@click.option(
-    '--config', '-c', default=None,
-    help='path to yaml config file', type=click.Path(exists=True)
-)
+@storage_backend_option
+@debug_option
+@config_option
 def upload_file(filename, bucket, key, backend, debug, config):
     client = _make_storage(config, backend, debug)
     dest_key = key or filename
@@ -617,12 +611,9 @@ def upload_file(filename, bucket, key, backend, debug, config):
 @click.argument('bucket')
 @click.argument('key')
 @click.option('--out', '-o', default=None, help='output filename')
-@click.option('--backend', '-b', default=None, help='storage backend')
-@click.option('--debug', '-d', is_flag=True, help='debug mode')
-@click.option(
-    '--config', '-c', default=None,
-    help='path to yaml config file', type=click.Path(exists=True)
-)
+@storage_backend_option
+@debug_option
+@config_option
 def download_file(bucket, key, out, backend, debug, config):
     client = _make_storage(config, backend, debug)
     dest = out or key
@@ -646,12 +637,9 @@ def download_file(bucket, key, out, backend, debug, config):
 @click.argument('bucket')
 @click.argument('key', required=False)
 @click.option('--prefix', '-p', default=None, help='key prefix')
-@click.option('--backend', '-b', default=None, help='storage backend')
-@click.option('--debug', '-d', is_flag=True, help='debug mode')
-@click.option(
-    '--config', '-c', default=None,
-    help='path to yaml config file', type=click.Path(exists=True)
-)
+@storage_backend_option
+@debug_option
+@config_option
 def delete_object(bucket, key, prefix, backend, debug, config):
     client = _make_storage(config, backend, debug)
 
@@ -677,12 +665,9 @@ def delete_object(bucket, key, prefix, backend, debug, config):
 @storage.command('list')
 @click.argument('bucket')
 @click.option('--prefix', '-p', default=None, help='key prefix')
-@click.option('--backend', '-b', default=None, help='storage backend')
-@click.option('--debug', '-d', is_flag=True, help='debug mode')
-@click.option(
-    '--config', '-c', default=None,
-    help='path to yaml config file', type=click.Path(exists=True)
-)
+@storage_backend_option
+@debug_option
+@config_option
 def list_bucket(prefix, bucket, backend, debug, config):
     client = _make_storage(config, backend, debug)
     logger.info(f'Listing objects in bucket {bucket}')
@@ -754,12 +739,9 @@ def runtime():
     '--file', '-f', default=None,
     help='file needed to build the runtime', type=click.Path(exists=True)
 )
-@click.option(
-    '--config', '-c', default=None,
-    help='path to yaml config file', type=click.Path(exists=True)
-)
-@click.option('--backend', '-b', default=None, help='compute backend')
-@click.option('--debug', '-d', is_flag=True, help='debug mode')
+@config_option
+@backend_option
+@debug_option
 @click.pass_context
 def build(ctx, name, file, config, backend, debug):
     """ build a serverless runtime. """
@@ -777,15 +759,12 @@ def build(ctx, name, file, config, backend, debug):
 
 @runtime.command('deploy')
 @click.argument('name', required=True)
-@click.option(
-    '--config', '-c', default=None,
-    help='path to yaml config file', type=click.Path(exists=True)
-)
-@click.option('--backend', '-b', default=None, help='compute backend')
-@click.option('--storage', '-s', default=None, help='storage backend')
+@config_option
+@backend_option
+@storage_option
 @click.option('--memory', default=None, help='memory used by the runtime', type=int)
 @click.option('--timeout', default=None, help='runtime timeout', type=int)
-@click.option('--debug', '-d', is_flag=True, help='debug mode')
+@debug_option
 def deploy(name, storage, backend, memory, timeout, config, debug):
     """ deploy a serverless runtime """
     handler, internal_storage = _prepare_serverless(
@@ -811,13 +790,10 @@ def deploy(name, storage, backend, memory, timeout, config, debug):
 
 @runtime.command('list')
 @click.argument('name', default='all', required=False)
-@click.option(
-    '--config', '-c', default=None,
-    help='path to yaml config file', type=click.Path(exists=True)
-)
-@click.option('--backend', '-b', default=None, help='compute backend')
-@click.option('--storage', '-s', default=None, help='storage backend')
-@click.option('--debug', '-d', is_flag=True, help='debug mode')
+@config_option
+@backend_option
+@storage_option
+@debug_option
 def list_runtimes(name, config, backend, storage, debug):
     """ list all deployed serverless runtime. """
     handler, _ = _prepare_serverless(
@@ -832,13 +808,10 @@ def list_runtimes(name, config, backend, storage, debug):
 
 @runtime.command('update')
 @click.argument('name', required=True)
-@click.option(
-    '--config', '-c', default=None,
-    help='path to yaml config file', type=click.Path(exists=True)
-)
-@click.option('--backend', '-b', default=None, help='compute backend')
-@click.option('--storage', '-s', default=None, help='storage backend')
-@click.option('--debug', '-d', is_flag=True, help='debug mode')
+@config_option
+@backend_option
+@storage_option
+@debug_option
 def update(name, config, backend, storage, debug):
     """ Update a serverless runtime """
     handler, internal_storage = _prepare_serverless(
@@ -863,15 +836,12 @@ def update(name, config, backend, storage, debug):
 
 @runtime.command('delete')
 @click.argument('name', required=True)
-@click.option(
-    '--config', '-c', default=None,
-    help='path to yaml config file', type=click.Path(exists=True)
-)
+@config_option
 @click.option('--memory', '-m', default=None, help='runtime memory')
 @click.option('--version', '-v', default=None, help='lithops version')
-@click.option('--backend', '-b', default=None, help='compute backend')
-@click.option('--storage', '-s', default=None, help='storage backend')
-@click.option('--debug', '-d', is_flag=True, help='debug mode')
+@backend_option
+@storage_option
+@debug_option
 def delete(name, config, memory, version, backend, storage, debug):
     """ delete a serverless runtime """
     handler, internal_storage = _prepare_serverless(
@@ -912,13 +882,10 @@ def job():
 
 
 @job.command('list')
-@click.option(
-    '--config', '-c', default=None,
-    help='path to yaml config file', type=click.Path(exists=True)
-)
-@click.option('--backend', '-b', default=None, help='compute backend')
-@click.option('--region', '-r', default=None, help='compute backend region')
-@click.option('--debug', '-d', is_flag=True, help='debug mode')
+@config_option
+@backend_option
+@region_option
+@debug_option
 def list_jobs(config, backend, region, debug):
     """ List Standalone Jobs """
     handler = _prepare_standalone(
@@ -951,13 +918,10 @@ def worker():
 
 
 @worker.command('list')
-@click.option(
-    '--config', '-c', default=None,
-    help='path to yaml config file', type=click.Path(exists=True)
-)
-@click.option('--backend', '-b', default=None, help='compute backend')
-@click.option('--region', '-r', default=None, help='compute backend region')
-@click.option('--debug', '-d', is_flag=True, help='debug mode')
+@config_option
+@backend_option
+@region_option
+@debug_option
 def list_workers(config, backend, region, debug):
     """ List Standalone Workers """
     handler = _prepare_standalone(
@@ -998,13 +962,10 @@ def image():
     '--file', '-f', default=None,
     help='file needed to build the image', type=click.Path(exists=True)
 )
-@click.option(
-    '--config', '-c', default=None,
-    help='path to yaml config file', type=click.Path(exists=True)
-)
-@click.option('--backend', '-b', default=None, help='compute backend')
-@click.option('--region', '-r', default=None, help='compute backend region')
-@click.option('--debug', '-d', is_flag=True, help='debug mode')
+@config_option
+@backend_option
+@region_option
+@debug_option
 @click.option(
     '--overwrite', '-o', is_flag=True,
     help='overwrite the image if it already exists'
@@ -1034,13 +995,10 @@ def build_image(ctx, name, file, config, backend, region, debug, overwrite, incl
 
 @image.command('delete')
 @click.argument('name', required=True)
-@click.option(
-    '--config', '-c', default=None,
-    help='path to yaml config file', type=click.Path(exists=True)
-)
-@click.option('--backend', '-b', default=None, help='compute backend')
-@click.option('--region', '-r', default=None, help='compute backend region')
-@click.option('--debug', '-d', is_flag=True, help='debug mode')
+@config_option
+@backend_option
+@region_option
+@debug_option
 def delete_image(name, config, backend, region, debug):
     """ Delete a VM image """
     if name:
@@ -1054,13 +1012,10 @@ def delete_image(name, config, backend, region, debug):
 
 
 @image.command('list')
-@click.option(
-    '--config', '-c', default=None,
-    help='path to yaml config file', type=click.Path(exists=True)
-)
-@click.option('--backend', '-b', default=None, help='compute backend')
-@click.option('--region', '-r', default=None, help='compute backend region')
-@click.option('--debug', '-d', is_flag=True, help='debug mode')
+@config_option
+@backend_option
+@region_option
+@debug_option
 def list_images(config, backend, region, debug):
     """ List VM images """
     handler = _prepare_standalone(

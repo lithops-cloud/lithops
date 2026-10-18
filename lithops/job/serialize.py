@@ -200,21 +200,6 @@ class SerializeIndependent:
 
         return mod_paths
 
-    def __call__(
-        self,
-        list_of_objs: List,
-        include_modules: Optional[Iterable[str]],
-        exclude_modules: Iterable[str]
-    ) -> Tuple[List[bytes], Set[str]]:
-        """
-        Serializes the objects independently and returns them together with
-        the paths of the modules they depend on
-        """
-        return (
-            self.dumps(list_of_objs),
-            self.module_paths(list_of_objs, include_modules, exclude_modules),
-        )
-
     def _entry_points(self, obj: Any) -> Tuple[List, Set[str]]:
         """
         Returns the user functions to inspect for the given job function, plus

@@ -18,6 +18,31 @@ Reserved parameters are only accessible when using the [Core API](./api_futures.
 
 
 
+Running code before and after each call
+---------------------------------------
+Two environment variables of the worker name a function to run around every call:
+
+- **PRE_RUN**: runs before the function, and before its input is loaded.
+- **POST_RUN**: runs after the function, once its result has been stored.
+
+Each one takes the dotted path of a function that takes no arguments, for example `mypackage.setup.init_client`. It runs in the same process as the function, so it can prepare what the function needs, such as a client, a cache or logging, without changing the function itself. The module must be importable in the runtime: installed in the runtime image, or sent with the function through `include_modules`. If the path cannot be resolved, the call fails.
+
+Set them for a job with `extra_env`:
+
+```python
+import lithops
+
+def my_function(x):
+    return x + 1
+
+fexec = lithops.FunctionExecutor()
+fexec.map(my_function, [1, 2, 3], extra_env={'PRE_RUN': 'mypackage.setup.init_client'})
+print(fexec.get_result())
+```
+
+or in the environment of a custom runtime image, to run them in every job.
+
+
 Parameters in the call_async() method 
 -------------------------------------
 

@@ -304,3 +304,54 @@ class TestAzureContainerAppDeploy:
                 patch.object(azure_containers.sp, 'run', side_effect=fake_run):
             with pytest.raises(Exception, match='ManagedEnvironmentNotFound'):
                 backend._run_az_command('az containerapp create --name app')
+
+
+class TestCloudRunArtifactRegistryPermission:
+
+    IMAGE = 'us-east1-docker.pkg.dev/my-project/lithops/runtime:01'
+    PERMISSION = 'artifactregistry.repositories.uploadArtifacts'
+
+    @pytest.fixture
+    def backend(self):
+        pytest.importorskip('googleapiclient')
+        from lithops.serverless.backends.gcp_cloudrun import cloudrun
+
+        backend = cloudrun.GCPCloudRunBackend.__new__(cloudrun.GCPCloudRunBackend)
+        backend.credentials_path = None
+        backend.service_account = 'lithops@my-project.iam.gserviceaccount.com'
+        backend._ar_resource = MagicMock()
+        return backend
+
+    def _granted(self, backend, permissions):
+        repositories = backend._ar_resource.projects.return_value.locations.return_value.repositories.return_value
+        repositories.testIamPermissions.return_value.execute.return_value = {'permissions': permissions}
+        return repositories.testIamPermissions
+
+    def test_missing_permission_names_the_service_account_and_repository(self, backend):
+        test_permissions = self._granted(backend, [])
+
+        with pytest.raises(Exception) as excinfo:
+            backend._ensure_artifact_registry_upload_permission(self.IMAGE)
+
+        resource = 'projects/my-project/locations/us-east1/repositories/lithops'
+        test_permissions.assert_called_once_with(resource=resource, body={'permissions': [self.PERMISSION]})
+        msg = str(excinfo.value)
+        assert '"lithops@my-project.iam.gserviceaccount.com"' in msg
+        assert f'"{resource}"' in msg
+        assert 'roles/artifactregistry.writer' in msg
+
+    def test_unknown_principal_is_reported_generically(self, backend):
+        self._granted(backend, [])
+        backend.service_account = None
+
+        with pytest.raises(Exception, match='"current credentials principal"'):
+            backend._ensure_artifact_registry_upload_permission(self.IMAGE)
+
+    def test_granted_permission_passes(self, backend):
+        self._granted(backend, [self.PERMISSION])
+        backend._ensure_artifact_registry_upload_permission(self.IMAGE)
+
+    def test_other_registries_are_not_checked(self, backend):
+        test_permissions = self._granted(backend, [])
+        backend._ensure_artifact_registry_upload_permission('docker.io/me/runtime:01')
+        test_permissions.assert_not_called()

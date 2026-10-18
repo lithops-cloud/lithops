@@ -2408,11 +2408,25 @@ class TestBackendContract:
         from lithops.monitoring.backends import load_backend_attr
         module = SimpleNamespace()
         with patch(
-            'lithops.monitoring.backends.importlib.import_module',
+            'lithops.utils.importlib.import_module',
             return_value=module,
         ):
-            with pytest.raises(ValueError, match='exports no CallStatus'):
+            with pytest.raises(ValueError, match="Monitoring backend 'fake' exports no CallStatus"):
                 load_backend_attr('fake', 'CallStatus')
+
+    def test_an_unknown_backend_is_reported_by_name(self):
+        from lithops.monitoring.backends import import_backend_module
+        with pytest.raises(ValueError, match='^Unknown monitoring backend: nope$'):
+            import_backend_module('nope', 'config')
+
+    def test_a_missing_sdk_keeps_its_import_error(self):
+        # The backend exists; what is missing is the package it needs, and
+        # that is what the error has to name
+        from lithops.monitoring.backends import import_backend_module
+        missing = ModuleNotFoundError("No module named 'pika'", name='pika')
+        with patch('lithops.utils.importlib.import_module', side_effect=missing):
+            with pytest.raises(ModuleNotFoundError, match='pika'):
+                import_backend_module('rabbitmq')
 
     def test_every_built_in_backend_holds_up_its_end(self):
         from lithops.monitoring.backends import load_backend_attr

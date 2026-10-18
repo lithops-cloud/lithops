@@ -40,9 +40,8 @@ class MetricsBackend(ABC):
     their ``config.py`` declares.
 
     Implementations only have to build their instruments and push. The
-    exporter above them takes care of never calling into a backend with
-    labels the spec does not declare, and of swallowing whatever a
-    backend raises: telemetry never breaks a job.
+    exporter above them swallows whatever a backend raises: telemetry
+    never breaks a job.
     """
 
     def __init__(self, config: Dict[str, Any]):

@@ -33,7 +33,7 @@ from queue import Queue, Empty
 from threading import Thread
 from tblib import pickling_support
 from types import SimpleNamespace
-from typing import Any, Callable, Dict, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Tuple, Union
 
 from lithops.version import __version__
 from lithops.config import extract_storage_config
@@ -266,12 +266,7 @@ def function_handler(payload: Dict[str, Any]) -> None:
     os.environ.pop(TOTAL_EXECUTORS_ENV, None)
 
 
-def task_consumer(
-    pid: int,
-    work_queue: Union[Queue, TaskJar],
-    initializer: Optional[Callable] = None,
-    callback: Optional[Callable] = None
-) -> None:
+def task_consumer(pid: int, work_queue: Union[Queue, TaskJar]) -> None:
     """
     Runs tasks until the work queue is exhausted.
 
@@ -284,7 +279,7 @@ def task_consumer(
     while True:
         try:
             event = work_queue.get()
-        except (Empty, BrokenPipeError):
+        except Empty:
             break
 
         if isinstance(event, ShutdownSentinel):
@@ -295,13 +290,7 @@ def task_consumer(
         task.data = data
 
         try:
-            if initializer:
-                initializer(pid, task)
-
             prepare_and_run_task(task)
-
-            if callback:
-                callback(pid, task)
         except Exception as e:
             # Do not lose this worker for the tasks that are still pending
             logger.error(f'Worker {pid} failed to run task {call_id}: {e}')
@@ -501,7 +490,7 @@ def run_task(task: SimpleNamespace) -> None:
             getattr(task, 'monitoring_queues', None) or []
         ),
     }
-    os.environ.update(task.extra_env)
+    # task.extra_env is applied, and later restored, by prepare_and_run_task
     os.environ.update(injected_env)
     _allow_fork_after_a_client_exists()
 
@@ -534,10 +523,7 @@ def run_task(task: SimpleNamespace) -> None:
             else Thread(target=jobrunner.run)
         )
 
-        process_id = (
-            os.getpid() if is_unix_system() else mp.current_process().pid
-        )
-        sys_monitor = SystemMonitor(process_id)
+        sys_monitor = SystemMonitor()
         sys_monitor.start()
 
         jrp.start()

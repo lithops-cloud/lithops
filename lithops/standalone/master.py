@@ -331,8 +331,16 @@ def setup_worker_create_reuse(standalone_handler, worker_info, work_queue_name):
         'worker_create_retries', MAX_INSTANCE_CREATE_RETRIES
     )
 
+    def recreate(worker, reason):
+        logger.warning(reason)
+        worker.delete()
+        worker.create()
+
     def wait_worker_ready(worker):
-        """Waits for a worker to boot, recreating it while there are tries left"""
+        """
+        Waits for a worker to boot, recreating it while there are tries left.
+        Each call has its own budget, so every recreated worker gets it whole
+        """
         instance_ready_retries = 1
         while instance_ready_retries <= max_retries:
             try:
@@ -344,9 +352,7 @@ def setup_worker_create_reuse(standalone_handler, worker_info, work_queue_name):
                 if instance_ready_retries == max_retries:
                     logger.debug(f'Readiness probe expired for {worker}')
                     raise
-                logger.warning(f'Timeout Error. Recreating {worker}')
-                worker.delete()
-                worker.create()
+                recreate(worker, f'Timeout Error. Recreating {worker}')
                 instance_ready_retries += 1
 
     wait_worker_ready(worker)
@@ -362,9 +368,7 @@ def setup_worker_create_reuse(standalone_handler, worker_info, work_queue_name):
             if instance_validate_retries == max_retries:
                 logger.debug(f'Validation probe expired for {worker}')
                 raise
-            logger.warning(f'{worker} validation error: {e}')
-            worker.delete()
-            worker.create()
+            recreate(worker, f'{worker} validation error: {e}')
             instance_validate_retries += 1
             wait_worker_ready(worker)
 

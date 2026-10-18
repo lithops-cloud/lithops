@@ -25,6 +25,7 @@ import json
 import shutil
 import base64
 import inspect
+import importlib
 import struct
 import lithops
 import zipfile
@@ -34,7 +35,7 @@ import logging.config
 import subprocess as sp
 from enum import Enum
 
-from typing import List
+from typing import List, Optional
 
 from lithops import constants
 from lithops.version import __version__
@@ -205,7 +206,7 @@ class FuturesList(list):
     """
 
     # Defaults for lists that were not built by create_futures_list, and for
-    # the ones rehydrated by __reduce__, which drops the executor
+    # unpickled ones, whose state leaves the executor out (__getstate__)
     executor = None
     config = None
 
@@ -218,9 +219,8 @@ class FuturesList(list):
         return self.alt_list if hasattr(self, 'alt_list') else self
 
     def _extend_futures(self, fs):
-        # Only the last job of the chain produces the output of the chain
-        for fut in self:
-            fut._produce_output = False
+        # Mapping over this list already marked its futures as consumed,
+        # so only the last job of the chain produces the output of the chain
         if not hasattr(self, 'alt_list'):
             self.alt_list = []
             self.alt_list.extend(self)
@@ -302,18 +302,13 @@ class FuturesList(list):
         self._create_executor()
         return self.executor.get_result(self._all_futures(), **kwargs)
 
-    def __reduce__(self):
+    def __getstate__(self):
         # The executor is not picklable, and a rehydrated list creates its
         # own. Dropped from the pickled state rather than from the object,
         # so that pickling a list does not detach the one being pickled
-        reduced = list(super().__reduce__())
-        # A list that never had an attribute set reduces without a state
-        state = reduced[2] if len(reduced) > 2 else None
-        if isinstance(state, dict) and 'executor' in state:
-            state = dict(state)
-            state.pop('executor')
-            reduced[2] = state
-        return tuple(reduced)
+        state = self.__dict__.copy()
+        state.pop('executor', None)
+        return state
 
 
 _MODE_TO_DEFAULT_BACKEND = {
@@ -365,18 +360,20 @@ def setup_lithops_logger(log_level=constants.LOGGER_LEVEL,
     if log_level is None or str(log_level).lower() == 'none':
         return
 
-    if stream is None:
-        stream = constants.LOGGER_STREAM
-
-    # Both handlers are always declared, so the unused FileHandler is pointed
-    # at os.devnull rather than at a file nobody asked for
-    log_to_file = filename is not None
-    if filename is None:
-        filename = os.devnull
-
     if isinstance(log_level, str):
         log_level = logging.getLevelName(log_level.upper())
 
+    if filename is None:
+        handler_name, handler = 'console_handler', {
+            'class': 'lithops.utils.ShutdownSafeStreamHandler',
+            'stream': constants.LOGGER_STREAM if stream is None else stream,
+        }
+    else:
+        handler_name, handler = 'file_handler', {
+            'class': 'logging.FileHandler',
+            'filename': filename,
+            'mode': 'a',
+        }
     config_dict = {
         'version': 1,
         'disable_existing_loggers': False,
@@ -386,31 +383,16 @@ def setup_lithops_logger(log_level=constants.LOGGER_LEVEL,
             },
         },
         'handlers': {
-            'console_handler': {
-                'level': log_level,
-                'formatter': 'standard',
-                'class': 'lithops.utils.ShutdownSafeStreamHandler',
-                'stream': stream
-            },
-            'file_handler': {
-                'level': log_level,
-                'formatter': 'standard',
-                'class': 'logging.FileHandler',
-                'filename': filename,
-                'mode': 'a',
-            },
+            handler_name: {'level': log_level, 'formatter': 'standard', **handler},
         },
         'loggers': {
             'lithops': {
-                'handlers': ['console_handler'],
+                'handlers': [handler_name],
                 'level': log_level,
                 'propagate': False
             },
         }
     }
-
-    if log_to_file:
-        config_dict['loggers']['lithops']['handlers'] = ['file_handler']
 
     logging.config.dictConfig(config_dict)
 
@@ -1067,6 +1049,42 @@ def is_podman(docker_path) -> bool:
         return True
     except Exception:
         return False
+
+
+def import_backend_module(package: str, kind: str, backend: str, submodule: Optional[str] = None):
+    """
+    Imports ``<package>.<backend>``, a backend package the monitoring and
+    telemetry layers pick by name, or one of its submodules.
+
+    Raises ValueError only when the backend itself is not there. A
+    backend whose SDK is missing keeps its own ImportError, which names
+    the package to install instead of claiming the backend is unknown.
+    ``kind`` names the layer in that message (``monitoring``,
+    ``telemetry``).
+    """
+    module_name = f'{package}.{backend}'
+    if submodule:
+        module_name = f'{module_name}.{submodule}'
+    try:
+        return importlib.import_module(module_name)
+    except ModuleNotFoundError as exc:
+        if exc.name and not module_name.startswith(exc.name):
+            raise
+        raise ValueError(f'Unknown {kind} backend: {backend}') from exc
+
+
+def load_backend_attr(package: str, kind: str, backend: str, attr: str):
+    """
+    Returns ``attr`` of ``<package>.<backend>``, naming the backend when
+    the package does not export it
+    """
+    module = import_backend_module(package, kind, backend)
+    try:
+        return getattr(module, attr)
+    except AttributeError as exc:
+        raise ValueError(
+            f"{kind.capitalize()} backend '{backend}' exports no {attr}"
+        ) from exc
 
 
 class BackendType(Enum):

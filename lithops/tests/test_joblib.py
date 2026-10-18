@@ -242,3 +242,61 @@ class TestSklearnOverJoblib:
 
         assert search.best_params_['classifier__max_depth'] in (2, 4)
         assert 0.0 < search.best_score_ <= 1.0
+
+
+class TestFindSharedObjects:
+    """
+    The batch rewrite that the backend does before submitting it, with the
+    storage faked: what is uploaded, and where the references land
+    """
+
+    def test_every_shared_argument_is_uploaded_once_and_proxied(self):
+        import pickle
+        from unittest.mock import MagicMock, patch
+
+        import numpy as np
+
+        from lithops.util.joblib.lithops_backend import find_shared_objects
+
+        shared_list = [1, 2, 3]
+        shared_array = np.arange(4)
+        unique = [9]
+        calls = [
+            (double, (shared_list, shared_array), {}),
+            (double, (shared_list, unique), {'k': shared_array}),
+            (double, ('not worth sharing',), {}),
+        ]
+        storage = MagicMock()
+        storage.put_cloudobject.side_effect = (
+            lambda obj_bin: f'cloud-{type(pickle.loads(obj_bin)).__name__}'
+        )
+        mp_config.set_parameter(mp_config.LITHOPS_CONFIG, LOCALHOST_ARGS)
+        with patch(
+            'lithops.util.joblib.lithops_backend.Storage', return_value=storage
+        ) as storage_cls:
+            out = find_shared_objects(calls)
+
+        # One client for the whole batch, built from the pool parameters
+        storage_cls.assert_called_once_with(config=None, backend='localhost')
+        assert storage.put_cloudobject.call_count == 2
+        list_ref, array_ref = 'cloud-list', 'cloud-ndarray'
+
+        assert all(isinstance(call, tuple) for call in out)
+        assert out[0][1] == (list_ref, array_ref)
+        assert sorted(out[0][3]) == [0, 1]
+        assert out[1][1] == (list_ref, unique)
+        assert out[1][2] == {'k': array_ref}
+        assert sorted(out[1][3], key=str) == [0, 'k']
+        # A call with nothing shared keeps its three elements
+        assert out[2] == calls[2]
+
+    def test_a_batch_with_nothing_shared_builds_no_storage(self):
+        from unittest.mock import patch
+
+        from lithops.util.joblib.lithops_backend import find_shared_objects
+
+        calls = [(double, ([1],), {}), (double, ('a', 'a'), {})]
+        with patch('lithops.util.joblib.lithops_backend.Storage') as storage_cls:
+            out = find_shared_objects(calls)
+        storage_cls.assert_not_called()
+        assert out == calls

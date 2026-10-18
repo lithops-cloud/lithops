@@ -238,26 +238,23 @@ class TestTaskConsumer:
         task = _task()
         q.put((task, '00001', b'data'))
         q.put(ShutdownSentinel())
-        init = MagicMock()
-        cb = MagicMock()
         with patch('lithops.worker.handler.prepare_and_run_task') as run:
-            task_consumer(3, q, initializer=init, callback=cb)
+            task_consumer(3, q)
         run.assert_called_once_with(task)
         assert task.call_id == '00001'
         assert task.data == b'data'
-        init.assert_called_once_with(3, task)
-        cb.assert_called_once_with(3, task)
 
-    def test_none_initializer_and_callback_are_skipped(self):
+    def test_a_sentinel_alone_stops_the_loop(self):
         q = Queue()
         q.put(ShutdownSentinel())
-        task_consumer(0, q)
+        with patch('lithops.worker.handler.prepare_and_run_task') as run:
+            task_consumer(0, q)
+        run.assert_not_called()
 
-    def test_empty_and_broken_pipe_stop_the_loop(self):
+    def test_empty_stops_the_loop(self):
+        # What a TaskJar raises once its pipe reaches EOF
         q = MagicMock()
         q.get.side_effect = Empty()
-        task_consumer(0, q)
-        q.get.side_effect = BrokenPipeError()
         task_consumer(0, q)
 
     def test_a_failed_task_does_not_stop_the_worker(self):
@@ -1632,6 +1629,14 @@ class TestJobRunner:
         ):
             jr.run()
         assert calls == ['pre', 'post']
+
+    def test_no_prepost_hooks_when_unset(self, monkeypatch):
+        monkeypatch.delenv('PRE_RUN', raising=False)
+        monkeypatch.delenv('POST_RUN', raising=False)
+        jr = self._runner(_echo, {'x': 1})
+        with patch('lithops.worker.jobrunner.locate') as locate:
+            jr.run()
+        locate.assert_not_called()
 
     def test_callable_class_function_name(self):
         jr = self._runner(_Adder(), {'x': 1})

@@ -73,14 +73,24 @@ class _NoCall:
 
 
 class _CapturingSerializer:
+    """
+    Records (inc_modules, exc_modules, [func] + iterdata) of the last job. The
+    function is dumped first and on its own, then the data
+    """
     last = None
 
     def __init__(self, preinstalls):
         self.preinstalls = preinstalls
+        self.objs = []
 
-    def __call__(self, objs, inc_modules, exc_modules):
-        type(self).last = (inc_modules, exc_modules, objs)
-        return ([b'func'] + [b'data'] * (len(objs) - 1), set())
+    def dumps(self, objs):
+        strs = [b'data'] * len(objs) if self.objs else [b'func']
+        self.objs.extend(objs)
+        return strs
+
+    def module_paths(self, objs, inc_modules, exc_modules):
+        type(self).last = (inc_modules, exc_modules, self.objs)
+        return set()
 
 
 def _job_config(
@@ -453,11 +463,16 @@ class TestLargePayloadAndCache:
     def test_large_payload_uploads_data(self, monkeypatch, fresh_function_cache):
         class _Big:
             def __init__(self, preinstalls):
-                pass
+                self.func_dumped = False
 
-            def __call__(self, objs, inc, exc):
-                payload = b'x' * (MAX_DATA_IN_PAYLOAD + 1)
-                return ([b'f'] + [payload] * (len(objs) - 1), set())
+            def dumps(self, objs):
+                if not self.func_dumped:
+                    self.func_dumped = True
+                    return [b'f']
+                return [b'x' * (MAX_DATA_IN_PAYLOAD + 1)] * len(objs)
+
+            def module_paths(self, objs, inc, exc):
+                return set()
 
         monkeypatch.setattr('lithops.job.job.SerializeIndependent', _Big)
         storage = _storage()
@@ -661,37 +676,38 @@ class TestSerializeIndependent:
 
     def test_include_modules_none_skips_manager(self):
         ser = SerializeIndependent([['os', True]])
-        strs, paths = ser([_echo, 1], None, [])
+        strs = ser.dumps([_echo, 1])
+        paths = ser.module_paths([_echo, 1], None, [])
         assert len(strs) == 2
         assert paths == set()
         assert pickle.loads(strs[1]) == 1
 
     def test_explicit_include_skips_missing_file(self):
         ser = SerializeIndependent([['os', True]])
-        _, paths = ser([_echo], ['no-such-module.py'], [])
+        paths = ser.module_paths([_echo], ['no-such-module.py'], [])
         assert paths == set()
 
     def test_explicit_include_existing_py_file(self, tmp_path):
         mod = tmp_path / 'custom.py'
         mod.write_text('x = 1\n')
         ser = SerializeIndependent([['os', True]])
-        _, paths = ser([_echo], [str(mod)], [])
+        paths = ser.module_paths([_echo], [str(mod)], [])
         assert os.path.abspath(str(mod)) in paths
 
     def test_explicit_include_skips_preinstalled(self):
         ser = SerializeIndependent([['json', True]])
-        _, paths = ser([_echo], ['json.decoder'], [])
+        paths = ser.module_paths([_echo], ['json.decoder'], [])
         assert paths == set()
 
     def test_explicit_include_importable_module(self):
         ser = SerializeIndependent([['os', True]])
-        _, paths = ser([_echo], ['json'], [])
+        paths = ser.module_paths([_echo], ['json'], [])
         assert paths
         assert any('json' in p for p in paths)
 
     def test_explicit_include_missing_module(self):
         ser = SerializeIndependent([['os', True]])
-        _, paths = ser([_echo], ['definitely_not_a_module_xyz'], [])
+        paths = ser.module_paths([_echo], ['definitely_not_a_module_xyz'], [])
         assert paths == set()
 
     def test_class_without_call_raises(self):
@@ -755,7 +771,8 @@ class TestSerializeIndependent:
 
     def test_empty_include_inspects_function(self):
         ser = SerializeIndependent([['os', True]])
-        strs, paths = ser([_echo], [], ['lithops'])
+        strs = ser.dumps([_echo])
+        paths = ser.module_paths([_echo], [], ['lithops'])
         assert len(strs) == 1
         assert isinstance(paths, set)
 
@@ -767,7 +784,7 @@ class TestSerializeIndependent:
                 'lithops.job.serialize.ModuleDependencyAnalyzer'
             ) as mda:
                 mda.return_value.get_and_clear_paths.return_value = set()
-                _, paths = ser([_echo], [], [])
+                paths = ser.module_paths([_echo], [], [])
         assert '/opt/ext.so' in paths
 
         with patch('importlib.util.find_spec', return_value=spec):
@@ -775,7 +792,7 @@ class TestSerializeIndependent:
                 'lithops.job.serialize.ModuleDependencyAnalyzer'
             ) as mda:
                 mda.return_value.get_and_clear_paths.return_value = set()
-                _, excluded = ser([_echo], [], ['ext.so'])
+                excluded = ser.module_paths([_echo], [], ['ext.so'])
         assert '/opt/ext.so' not in excluded
 
     def test_find_spec_exception_is_swallowed(self):
@@ -785,7 +802,7 @@ class TestSerializeIndependent:
                 'lithops.job.serialize.ModuleDependencyAnalyzer'
             ) as mda:
                 mda.return_value.get_and_clear_paths.return_value = {'/m'}
-                _, paths = ser([_echo], [], [])
+                paths = ser.module_paths([_echo], [], [])
         assert '/m' in paths
 
 

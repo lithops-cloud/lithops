@@ -25,8 +25,8 @@ Cardinality is the reason this file exists. Every distinct combination of
 label values is a separate time series, and Lithops runs jobs of tens of
 thousands of calls: a ``call_id`` label would mean a series per call, for
 ever. The label set of every metric is therefore bounded by properties of
-the *job* -- never of the call -- and :data:`FORBIDDEN_LABELS` makes a
-spec that breaks the rule fail at import rather than in production.
+the *job* -- never of the call -- which the telemetry tests check for
+every spec and every call site.
 
 Per-call detail is not lost, it is simply not a metric: it lives in the
 call status, which the client already keeps.
@@ -62,19 +62,6 @@ RUNTIME_LABELS: Tuple[str, ...] = (
     'runtime_memory',
 )
 
-#: Labels that identify a single call or a single job. Attaching one of
-#: these to a metric turns a bounded series into an unbounded one, which
-#: is the failure mode this whole module is shaped to prevent
-FORBIDDEN_LABELS = frozenset({
-    'call_id',
-    'job_id',
-    'job_key',
-    'executor_id',
-    'activation_id',
-    'worker_id',
-    'instance_id',
-})
-
 
 @dataclass(frozen=True)
 class MetricSpec:
@@ -106,14 +93,6 @@ class MetricSpec:
             raise ValueError(f'{self.name}: only a histogram takes buckets')
 
         labelnames = tuple(self.base_labels) + tuple(self.extra_labels)
-        forbidden = FORBIDDEN_LABELS.intersection(labelnames)
-        if forbidden:
-            raise ValueError(
-                f"{self.name}: {', '.join(sorted(forbidden))} identifies a "
-                f"single call or job. A label like that gives the metric one "
-                f"time series per call, which no time series database "
-                f"survives. Per-call detail belongs in the call status"
-            )
         # frozen=True, so the derived field is set the long way round
         object.__setattr__(self, 'labelnames', labelnames)
 

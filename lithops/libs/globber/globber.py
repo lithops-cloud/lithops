@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import re
 
 _double_star_after_invalid_regex = re.compile(r'[^/\\]\*\*')
@@ -70,7 +69,8 @@ def match(pattern, file_name):
     character.
 
     :param pattern: The pattern to match. The path separator in patterns is always '/'.
-    :param file_name: The file name to match against. The path separator in file names is the platform separator
+    :param file_name: The file name to match against. The path separator in file names is also '/', as in object
+        storage keys, whatever the platform: a local path must have its separators replaced first
     :return: True if the pattern matches, False otherwise
     """
     if _double_star_after_invalid_regex.search(pattern) is not None or _double_star_first_before_invalid_regex.search(
@@ -81,5 +81,5 @@ def match(pattern, file_name):
     while '**/**' in pattern:
         pattern = pattern.replace('**/**', '**')
     pattern_components = pattern.split('/')
-    file_name_components = file_name.split(os.sep)
+    file_name_components = file_name.split('/')
     return _match_components(pattern_components, file_name_components)

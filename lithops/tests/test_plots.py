@@ -20,7 +20,6 @@ import pytest
 seaborn = pytest.importorskip('seaborn')  # noqa: F401
 
 from lithops.plots import (  # noqa: E402
-    _elapsed,
     _plot_destination,
     _set_call_axis,
     _set_time_axis,
@@ -74,14 +73,9 @@ class TestPlotAxes:
         assert ax.axvline.call_count == len(x_ticks)
 
 
-class TestElapsedAndSpan:
+class TestTimelineSpan:
 
-    def test_elapsed_subtracts_origin(self):
-        import pandas as pd
-        series = pd.Series([10.0, 12.0])
-        assert list(_elapsed(series, 10.0)) == [0.0, 2.0]
-
-    def test_timeline_span_prefers_result_then_status_then_end(self):
+    def test_timeline_span_prefers_result_then_status(self):
         import pandas as pd
         t0 = 100.0
         with_result = pd.DataFrame({
@@ -95,8 +89,6 @@ class TestElapsedAndSpan:
             'end_tstamp': [102.0],
         })
         assert _timeline_span(with_status, t0) == pytest.approx(8.0 * 1.25)
-        with_end = pd.DataFrame({'end_tstamp': [110.0]})
-        assert _timeline_span(with_end, t0) == pytest.approx(10.0 * 1.25)
 
 
 def _stats(t0=1000.0, with_result=True):

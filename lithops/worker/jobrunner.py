@@ -79,7 +79,6 @@ class JobStats:
     """
 
     def __init__(self, stats_filename: str):
-        self.stats_filename = stats_filename
         self.stats_fid = open(stats_filename, 'w')
 
     def write(self, key: str, value: Any) -> None:

@@ -17,10 +17,10 @@
 import logging
 import os
 import pickle
-import threading
-from concurrent.futures import Future, ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor
+from functools import partial
 from multiprocessing.pool import ThreadPool
-from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 import diskcache
 from numpy import ndarray
@@ -151,12 +151,6 @@ class LithopsBackend(MultiprocessingBackend):
     apply_async = submit
 
 
-def _wait_all(futures: Iterable[Future]) -> None:
-    """Waits for every future, re-raising whatever they raised"""
-    for fut in futures:
-        fut.result()
-
-
 def _storage_for_the_pool() -> Storage:
     """
     Builds a storage client from the parameters the pool runs with, so that a
@@ -210,45 +204,30 @@ def find_shared_objects(calls: Sequence[Call]) -> List[Call]:
     """
     logger.info('Optimizing shared data between tasks')
 
-    record = _index_arguments_by_identity(calls)
+    # Only an argument that appears more than once, and is worth the trip
+    # through storage, is uploaded
+    shared = [
+        (entry[0], entry[1:])
+        for entry in _index_arguments_by_identity(calls).values()
+        if len(entry) > 2 and consider_sharing(entry[0])
+    ]
     calls = [list(item) for item in calls]
-    if not record:
+    if not shared:
         return [tuple(item) for item in calls]
 
-    storage = None
-    storage_lock = threading.Lock()
-    # Two shared arguments of the same call are proxied by two threads, and
-    # each one rewrites the args tuple of every call it appears in
-    calls_lock = threading.Lock()
+    storage = _storage_for_the_pool()
 
-    def get_storage():
-        # Created on first use and shared, so that the uploading threads do
-        # not build one client each
-        nonlocal storage
-        with storage_lock:
-            if storage is None:
-                storage = _storage_for_the_pool()
-            return storage
-
-    def put_arg_obj(positions):
-        obj = positions.pop(0)
-        if len(positions) <= 1 or not consider_sharing(obj):
-            return
-
+    def put_arg_obj(obj):
         logger.debug(f'Proxying {type(obj)}')
-        obj_bin = pickle.dumps(obj)
-        cloud_object = get_storage().put_cloudobject(obj_bin)
+        return storage.put_cloudobject(pickle.dumps(obj))
 
-        with calls_lock:
-            for call_n, idx_or_key in positions:
-                _proxy_argument(calls[call_n], idx_or_key, cloud_object)
-
-    workers = min(len(record), MAX_UPLOAD_THREADS)
+    workers = min(len(shared), MAX_UPLOAD_THREADS)
     with ThreadPoolExecutor(max_workers=workers) as thread_pool:
-        _wait_all([
-            thread_pool.submit(put_arg_obj, positions)
-            for positions in record.values()
-        ])
+        cloud_objects = list(thread_pool.map(put_arg_obj, [obj for obj, _ in shared]))
+
+    for (_, positions), cloud_object in zip(shared, cloud_objects):
+        for call_n, idx_or_key in positions:
+            _proxy_argument(calls[call_n], idx_or_key, cloud_object)
 
     return [tuple(item) for item in calls]
 
@@ -311,10 +290,7 @@ def replace_with_values(
     with diskcache.Cache(cache_dir) as cache:
         workers = min(max(1, len(proxy_positions)), MAX_UPLOAD_THREADS)
         with ThreadPoolExecutor(max_workers=workers) as thread_pool:
-            _wait_all([
-                thread_pool.submit(get_arg_obj, idx_or_key, cache)
-                for idx_or_key in proxy_positions
-            ])
+            list(thread_pool.map(partial(get_arg_obj, cache=cache), proxy_positions))
     return args_as_list, kwargs
 
 

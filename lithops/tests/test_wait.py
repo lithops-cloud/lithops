@@ -268,7 +268,7 @@ class TestReadyFuturesAndExecutorData:
 
         fetched = _get_executor_data(
             fs, exec_data, download_results=False, throw_except=True,
-            threadpool_size=2, pbar=pbar,
+            pbar=pbar, pool=SimpleNamespace(map=map),
         )
 
         assert fetched == 1
@@ -283,7 +283,7 @@ class TestReadyFuturesAndExecutorData:
         exec_data = SimpleNamespace(futures=[future], internal_storage=MagicMock())
         fetched = _get_executor_data(
             [future], exec_data, download_results=True, throw_except=True,
-            threadpool_size=1, pbar=None,
+            pbar=None, pool=SimpleNamespace(map=map),
         )
         assert fetched == 1
         assert future.done is True

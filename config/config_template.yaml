@@ -593,7 +593,7 @@
 #prometheus:
     #gateway: http://localhost:9091       # Pushgateway base URL. Default: http://localhost:9091
     #job: lithops                         # Pushgateway job label. Default: lithops
-    #instance: <HOSTNAME>                 # Pushgateway instance label. Default: the hostname
+    #instance: <HOSTNAME>                 # Pushgateway instance label. Default: $LITHOPS_TELEMETRY_INSTANCE, else the hostname
     #username: <USERNAME>                 # Basic auth user, when the gateway needs one
     #password: <PASSWORD>                 # Basic auth password, when the gateway needs one
     #timeout: 10                          # Push timeout in seconds. Default: 10
@@ -606,6 +606,7 @@
     #endpoint: http://localhost:4318      # Collector endpoint. Default: http://localhost:4318
     #protocol: http/protobuf              # One of: http/protobuf, grpc. Default: http/protobuf
     #service_name: lithops                # OTel service.name. Default: lithops
-    #instance: <HOSTNAME>                 # OTel host.name. Default: the hostname
+    #instance: <HOSTNAME>                 # OTel service.instance.id and host.name. Default: $LITHOPS_TELEMETRY_INSTANCE, else the hostname
     #headers: {}                          # Extra headers, e.g. authentication
     #timeout: 10                          # Export timeout in seconds. Default: 10
+    #export_interval: 3600                # Seconds between the OTel SDK's own exports, a fallback to telemetry_interval. Default: 3600

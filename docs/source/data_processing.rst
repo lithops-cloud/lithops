@@ -27,6 +27,7 @@ When processing data from cloud object storage, your input must be one of the fo
 1. A single bucket or a list of buckets  
 2. A bucket prefix (e.g., a folder path)  
 3. A list of specific object keys
+4. A glob pattern over the object keys (see :ref:`glob-patterns`)
 
 Based on your configuration:
 
@@ -85,6 +86,39 @@ Lithops accepts **only one type** of input format per execution. Do not mix form
 
     # This will raise an error
     iterdata = ['my-bucket', 'my-bucket/file2.csv']
+
+.. _glob-patterns:
+
+Glob Patterns
+-------------
+
+An object key can also be a glob pattern, so that only the objects whose keys match it are processed. An entry is a
+pattern only when it contains ``*``: any other entry is a literal key, even if it holds ``?`` or ``\``.
+
+- ``*`` matches any sequence of characters within one path component, never a ``/``.
+- ``?`` matches exactly one character within one path component.
+- ``**``, as a whole path component, matches zero or more components.
+- ``\`` makes the next character literal, e.g. ``\*`` matches a ``*``.
+- Every other character is literal: there are no ``[...]`` classes nor ``{a,b}`` alternatives.
+
+The pattern must match the whole key, with ``/`` as the separator, and the bucket name cannot hold wildcards. A pattern
+ending in ``/`` selects every object, at any depth, inside the folders it matches.
+
+.. code-block:: python
+
+    iterdata = ['my-bucket/data/*.csv']         # the .csv objects directly in data/
+    iterdata = ['my-bucket/data/**/*.csv']      # the .csv objects at any depth in data/
+    iterdata = ['my-bucket/logs/2024-0?-*/']    # every object inside logs/2024-01-01/, logs/2024-02-15/, ...
+
+Lithops lists the objects under the part of the pattern before its first ``*``, ``?`` or ``\`` (``data/`` in the first
+example, the whole bucket for a pattern that starts with a wildcard) and matches their keys itself, so patterns work
+the same on every storage backend. The matching objects are then partitioned like any other input:
+
+.. code-block:: python
+
+    fexec = lithops.FunctionExecutor()
+    fexec.map(my_map_function, ['my-bucket/data/2024-*.csv'], obj_chunk_size=64 * 1024 ** 2)
+    result = fexec.get_result()
 
 Putting It All Together
 ------------------------

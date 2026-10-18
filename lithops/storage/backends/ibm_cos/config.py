@@ -19,6 +19,15 @@ PUBLIC_ENDPOINT = 'https://s3.{}.cloud-object-storage.appdomain.cloud'
 PRIVATE_ENDPOINT = 'https://s3.private.{}.cloud-object-storage.appdomain.cloud'
 DIRECT_ENDPOINT = 'https://s3.direct.{}.cloud-object-storage.appdomain.cloud'
 
+# Compute backends that reach IBM COS through a private endpoint: the word
+# that endpoint must hold, its default for a region, and what the error says
+# when the endpoint given does not hold the word
+PRIVATE_ENDPOINTS = {
+    'ibm_cf': ('private', PRIVATE_ENDPOINT, ''),
+    'code_engine': ('direct', DIRECT_ENDPOINT, ''),
+    'ibm_vpc': ('direct', DIRECT_ENDPOINT, '. You must use the "direct" endpoint'),
+}
+
 
 def load_config(config_data):
 
@@ -36,37 +45,16 @@ def load_config(config_data):
         region = config_data['ibm_cos']['region']
         config_data['ibm_cos']['endpoint'] = PUBLIC_ENDPOINT.format(region)
 
-        if compute_backend == 'ibm_cf':
-            config_data['ibm_cos']['private_endpoint'] = PRIVATE_ENDPOINT.format(region)
+        if compute_backend in PRIVATE_ENDPOINTS:
+            _, private_endpoint, _ = PRIVATE_ENDPOINTS[compute_backend]
+            config_data['ibm_cos']['private_endpoint'] = private_endpoint.format(region)
 
-        elif compute_backend == 'code_engine':
-            config_data['ibm_cos']['private_endpoint'] = DIRECT_ENDPOINT.format(region)
-
-        elif compute_backend == 'ibm_vpc':
-            config_data['ibm_cos']['private_endpoint'] = DIRECT_ENDPOINT.format(region)
-
-    if compute_backend == 'ibm_cf':
+    if compute_backend in PRIVATE_ENDPOINTS:
+        endpoint_kind, _, invalid_hint = PRIVATE_ENDPOINTS[compute_backend]
         if 'private_endpoint' not in config_data['ibm_cos']:
             raise Exception('You must provide the private_endpoint to access to IBM COS')
-        elif 'private' not in config_data['ibm_cos']['private_endpoint']:
-            raise Exception('The private_endpoint you provided to access to IBM COS is not valid')
-        if not config_data['ibm_cos']['private_endpoint'].startswith('http'):
-            raise Exception('IBM COS Private Endpoint must start with http:// or https://')
-
-    elif compute_backend == 'code_engine':
-        if 'private_endpoint' not in config_data['ibm_cos']:
-            raise Exception('You must provide the private_endpoint to access to IBM COS')
-        elif 'direct' not in config_data['ibm_cos']['private_endpoint']:
-            raise Exception('The private_endpoint you provided to access to IBM COS is not valid')
-        if not config_data['ibm_cos']['private_endpoint'].startswith('http'):
-            raise Exception('IBM COS Private Endpoint must start with http:// or https://')
-
-    elif compute_backend == 'ibm_vpc':
-        if 'private_endpoint' not in config_data['ibm_cos']:
-            raise Exception('You must provide the private_endpoint to access to IBM COS')
-        elif 'direct' not in config_data['ibm_cos']['private_endpoint']:
-            raise Exception('The private_endpoint you provided to access to IBM COS is not valid. You must use the '
-                            '"direct" endpoint')
+        elif endpoint_kind not in config_data['ibm_cos']['private_endpoint']:
+            raise Exception('The private_endpoint you provided to access to IBM COS is not valid' + invalid_hint)
         if not config_data['ibm_cos']['private_endpoint'].startswith('http'):
             raise Exception('IBM COS Private Endpoint must start with http:// or https://')
 

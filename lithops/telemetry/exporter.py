@@ -437,21 +437,10 @@ class TelemetryExporter:
         self, spec: M.MetricSpec, value: float, labels: Dict[str, str]
     ) -> None:
         """
-        Records one observation, after checking that the labels are the
-        ones the spec declares.
-
-        The check is what keeps the cardinality rules of
-        :mod:`lithops.telemetry.metrics` true at runtime rather than only
-        at import: a call site that invents a label is dropped and logged,
-        not written to the backend
+        Records one observation. ``labels`` are built by
+        :class:`BoundTelemetry` from fixed keys, which the tests hold to
+        the ones the spec declares
         """
-        if set(labels) != set(spec.labelnames):
-            logger.error(
-                f'Telemetry: {spec.name} takes labels '
-                f'{sorted(spec.labelnames)}, got {sorted(labels)}. '
-                f'The observation was dropped'
-            )
-            return
         try:
             self.backend.observe(spec, value, labels)
         except Exception as exc:

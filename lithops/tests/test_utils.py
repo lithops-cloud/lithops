@@ -700,6 +700,8 @@ class TestMiscUtils:
         assert config['handlers']['console_handler']['class'] == (
             'lithops.utils.ShutdownSafeStreamHandler'
         )
+        # No file handler is declared, so dictConfig opens no file at all
+        assert list(config['handlers']) == ['console_handler']
 
     def test_shutdown_safe_handler_ignores_closed_stream(self, capsys):
         stream = io.StringIO()
@@ -733,6 +735,7 @@ class TestMiscUtils:
         config = cfg.call_args[0][0]
         assert config['loggers']['lithops']['handlers'] == ['file_handler']
         assert config['handlers']['file_handler']['filename'] == log_file
+        assert list(config['handlers']) == ['file_handler']
 
     def test_run_command_check_call_by_default(self):
         with patch('lithops.utils.sp.check_call') as call:
@@ -781,6 +784,22 @@ class TestMiscUtils:
         loaded = pickle.loads(dumped)
         assert list(loaded) == [1, 2]
         assert loaded.executor is None
+
+    def test_futures_list_copies_keep_the_chain_but_not_the_executor(self):
+        import copy
+        fl = FuturesList([1, 2])
+        fl.executor = threading.Lock()
+        fl.config = {'lithops': {'backend': 'localhost'}}
+        fl.alt_list = [0, 1, 2]
+        copies = [pickle.loads(pickle.dumps(fl, protocol=p)) for p in range(pickle.HIGHEST_PROTOCOL + 1)]
+        copies += [copy.copy(fl), copy.deepcopy(fl)]
+        for loaded in copies:
+            assert type(loaded) is FuturesList
+            assert list(loaded) == [1, 2]
+            assert loaded.executor is None
+            assert loaded.config == fl.config
+            assert loaded.alt_list == [0, 1, 2]
+        assert isinstance(fl.executor, type(threading.Lock()))
 
     def test_wrapped_streaming_body_partition_middle_chunk_discards_partial_row(self):
         data = b'aaa\nbbb\nccc\n'

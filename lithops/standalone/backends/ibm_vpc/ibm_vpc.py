@@ -133,19 +133,11 @@ class IBMVPCBackend:
         if os.path.exists(self.cache_file):
             os.remove(self.cache_file)
 
-    def _reset_init_created(self):
-        self._init_created = {
-            'vpc': False,
-            'ssh_key': False,
-            'subnet': False,
-            'gateway': False,
-        }
-
     def _safe_rollback_delete(self, delete_fn, resource_desc):
         try:
             delete_fn()
         except ApiException as err:
-            if err.code not in (404, 400):
+            if _status_code(err) not in (404, 400):
                 logger.warning(f'Rollback: could not delete {resource_desc}: {err}')
         except Exception as err:
             logger.warning(f'Rollback: could not delete {resource_desc}: {err}')
@@ -154,7 +146,7 @@ class IBMVPCBackend:
         """
         Deletes IBM VPC resources created during a failed init().
         """
-        if not self._init_created:
+        if self._init_created is None:
             return
 
         logger.info('Rolling back IBM VPC resources provisioned during failed init')
@@ -163,7 +155,7 @@ class IBMVPCBackend:
             self.config['vpc_id'][-6:] if self.config.get('vpc_id') else ''
         )
 
-        if created.get('gateway') and self.config.get('gateway_id'):
+        if 'gateway' in created and self.config.get('gateway_id'):
             gateway_id = self.config['gateway_id']
             gateway_name = f'lithops-gateway-{vpc_key}'
 
@@ -178,7 +170,7 @@ class IBMVPCBackend:
                 f'public gateway {gateway_name}',
             )
 
-        if created.get('subnet') and self.config.get('subnet_id'):
+        if 'subnet' in created and self.config.get('subnet_id'):
             subnet_name = f'lithops-subnet-{vpc_key}'
             subnet_id = self.config['subnet_id']
             self._safe_rollback_delete(
@@ -186,7 +178,7 @@ class IBMVPCBackend:
                 f'subnet {subnet_name}',
             )
 
-        if created.get('vpc') and self.config.get('vpc_id'):
+        if 'vpc' in created and self.config.get('vpc_id'):
             vpc_name = self.vpc_name or self.config.get('vpc_name', 'lithops-vpc')
             vpc_id = self.config['vpc_id']
             self._safe_rollback_delete(
@@ -194,7 +186,7 @@ class IBMVPCBackend:
                 f'VPC {vpc_name}',
             )
 
-        if created.get('ssh_key'):
+        if 'ssh_key' in created:
             key_filename = self.config.get('ssh_key_filename')
             if key_filename and 'lithops-key-' in key_filename:
                 for path in (key_filename, f'{key_filename}.pub'):
@@ -253,8 +245,7 @@ class IBMVPCBackend:
             vpc_prototype['resource_group'] = {'id': self.config['resource_group_id']}
             response = self.vpc_cli.create_vpc(**vpc_prototype)
             vpc_info = response.result
-            if self._init_created is not None:
-                self._init_created['vpc'] = True
+            self._init_created.add('vpc')
 
         self.config['vpc_id'] = vpc_info['id']
         self.config['security_group_id'] = vpc_info['default_security_group']['id']
@@ -318,12 +309,14 @@ class IBMVPCBackend:
                 if key["name"] == keyname:
                     return key
 
-        ssh_key_created = False
+        # Each part of the key is recorded as soon as it exists, so a failure
+        # from there on deletes it
+        self.config['ssh_key_filename'] = key_filename
         if not os.path.isfile(key_filename):
             logger.debug("Generating new ssh key pair")
             os.system(f'ssh-keygen -b 2048 -t rsa -f {key_filename} -q -N ""')
             logger.debug(f"SHH key pair generated: {key_filename}")
-            ssh_key_created = True
+            self._init_created.add('ssh_key')
         else:
             key_info = _get_ssh_key()
 
@@ -335,7 +328,7 @@ class IBMVPCBackend:
                     public_key=ssh_key_data, name=keyname, type="rsa",
                     resource_group={"id": self.config['resource_group_id']}
                 ).get_result()
-                ssh_key_created = True
+                self._init_created.add('ssh_key')
             except ApiException as e:
                 logger.error(e)
                 if "Key with name already exists" in e.message:
@@ -344,16 +337,13 @@ class IBMVPCBackend:
                         public_key=ssh_key_data, name=keyname, type="rsa",
                         resource_group={"id": self.config['resource_group_id']},
                     ).get_result()
-                    ssh_key_created = True
+                    self._init_created.add('ssh_key')
                 else:
                     if "Key with fingerprint already exists" in e.message:
                         logger.error("Can't register an SSH key with the same fingerprint")
                     raise e  # can't continue the configuration process without a valid ssh key
 
         self.config['ssh_key_id'] = key_info["id"]
-        self.config['ssh_key_filename'] = key_filename
-        if self._init_created is not None and ssh_key_created:
-            self._init_created['ssh_key'] = True
 
     def _create_subnet(self):
         """
@@ -395,8 +385,7 @@ class IBMVPCBackend:
             subnet_prototype['total_ipv4_address_count'] = 8192
             response = self.vpc_cli.create_subnet(subnet_prototype)
             subnet_data = response.result
-            if self._init_created is not None:
-                self._init_created['subnet'] = True
+            self._init_created.add('subnet')
 
         self.config['subnet_id'] = subnet_data['id']
         self.config['zone_name'] = subnet_data['zone']['name']
@@ -436,8 +425,7 @@ class IBMVPCBackend:
             gateway_prototype['floating_ip'] = {'id': fip_id}
             response = self.vpc_cli.create_public_gateway(**gateway_prototype)
             gateway_data = response.result
-            if self._init_created is not None:
-                self._init_created['gateway'] = True
+            self._init_created.add('gateway')
 
         self.config['gateway_id'] = gateway_data['id']
 
@@ -571,7 +559,8 @@ class IBMVPCBackend:
 
         elif self.mode in [StandaloneMode.CREATE.value, StandaloneMode.REUSE.value]:
 
-            self._reset_init_created()
+            # The resources this init() creates, deleted again if it fails
+            self._init_created = set()
             try:
                 # Create the VPC if not exists
                 self._create_vpc()
@@ -824,7 +813,7 @@ class IBMVPCBackend:
                 logger.debug(f'Deleting instance {ins_name}')
                 self.vpc_cli.delete_instance(ins_id)
             except ApiException as err:
-                if err.code == 404:
+                if _status_code(err) == 404:
                     pass
                 else:
                     raise err
@@ -876,7 +865,7 @@ class IBMVPCBackend:
             try:
                 self.vpc_cli.unset_subnet_public_gateway(self.vpc_data['subnet_id'])
             except ApiException as err:
-                if err.code == 404 or err.code == 400:
+                if _status_code(err) in (404, 400):
                     logger.debug(err)
                 else:
                     raise err
@@ -884,7 +873,7 @@ class IBMVPCBackend:
             try:
                 self.vpc_cli.delete_subnet(self.vpc_data['subnet_id'])
             except ApiException as err:
-                if err.code == 404 or err.code == 400:
+                if _status_code(err) in (404, 400):
                     logger.debug(err)
                 else:
                     raise err
@@ -899,7 +888,7 @@ class IBMVPCBackend:
             try:
                 self.vpc_cli.delete_public_gateway(self.vpc_data['gateway_id'])
             except ApiException as err:
-                if err.code == 404 or err.code == 400:
+                if _status_code(err) in (404, 400):
                     logger.debug(err)
                 else:
                     raise err
@@ -922,7 +911,7 @@ class IBMVPCBackend:
             try:
                 self.vpc_cli.delete_vpc(self.vpc_data['vpc_id'])
             except ApiException as err:
-                if err.code == 404 or err.code == 400:
+                if _status_code(err) in (404, 400):
                     logger.debug(err)
                 else:
                     raise err
@@ -947,7 +936,7 @@ class IBMVPCBackend:
             try:
                 self.vpc_cli.delete_key(id=self.vpc_data['ssh_key_id'])
             except ApiException as err:
-                if err.code == 404 or err.code == 400:
+                if _status_code(err) in (404, 400):
                     logger.debug(err)
                 else:
                     raise err
@@ -1189,13 +1178,13 @@ class IBMVPCInstance:
         try:
             resp = self.vpc_cli.create_instance(instance_prototype)
         except ApiException as err:
-            if err.code == 400 and 'already exists' in err.message:
+            if _status_code(err) == 400 and 'already exists' in err.message:
                 return self.get_instance_data()
-            elif err.code == 400 and 'over quota' in err.message:
+            elif _status_code(err) == 400 and 'over quota' in err.message:
                 logger.debug(f"Create VM instance {self.name} failed due to quota limit")
             else:
                 logger.debug("Create VM instance {} failed with status code {}: {}"
-                             .format(self.name, str(err.code), err.message))
+                             .format(self.name, str(_status_code(err)), err.message))
             raise err
 
         self.instance_data = resp.result
@@ -1328,7 +1317,7 @@ class IBMVPCInstance:
         try:
             self.vpc_cli.create_instance_action(self.instance_id, 'start')
         except ApiException as err:
-            if err.code == 404:
+            if _status_code(err) == 404:
                 pass
             else:
                 raise err
@@ -1343,7 +1332,7 @@ class IBMVPCInstance:
         try:
             self.vpc_cli.delete_instance(self.instance_id)
         except ApiException as err:
-            if err.code == 404:
+            if _status_code(err) == 404:
                 pass
             else:
                 raise err
@@ -1385,7 +1374,7 @@ class IBMVPCInstance:
         try:
             self.vpc_cli.create_instance_action(self.instance_id, 'stop')
         except ApiException as err:
-            if err.code == 404:
+            if _status_code(err) == 404:
                 pass
             else:
                 raise err
@@ -1420,6 +1409,15 @@ class IBMVPCInstance:
                 raise LithopsValidationError(
                     f'Not using single CPU socket as specified, using {len(sockets)} sockets instead'
                 )
+
+
+def _status_code(err):
+    """
+    The HTTP status of an ApiException. status_code replaced the deprecated
+    code attribute, which SDK versions older than that still only have
+    """
+    status_code = getattr(err, 'status_code', None)
+    return err.code if status_code is None else status_code
 
 
 RETRIABLE = ['list_vpcs',
@@ -1479,7 +1477,7 @@ def vpc_retry_on_except(func):
             try:
                 return func(*args, **kwargs)
             except ApiException as err:
-                if func.__name__ in IGNORED_404_METHODS and err.code == 404:
+                if func.__name__ in IGNORED_404_METHODS and _status_code(err) == 404:
                     # The resource is already gone (or never existed): there
                     # is nothing to retry
                     return None

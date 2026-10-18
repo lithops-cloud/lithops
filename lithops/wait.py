@@ -271,7 +271,6 @@ def wait(
             pbar=pbar,
             throw_except=throw_except,
             download_results=download_results,
-            threadpool_size=threadpool_size,
             pool=pool,
         )
 
@@ -435,9 +434,8 @@ def _get_executor_data(
     exec_data,
     download_results,
     throw_except,
-    threadpool_size,
     pbar,
-    pool=None,
+    pool,
 ):
     """
     Downloads the status, or the whole result, of every ready future of one
@@ -456,11 +454,7 @@ def _get_executor_data(
         else:
             f.status(throw_except=throw_except, internal_storage=storage)
 
-    if pool is None:
-        with cf.ThreadPoolExecutor(max_workers=threadpool_size) as owned:
-            list(owned.map(fetch, fs_to_wait_on))
-    else:
-        list(pool.map(fetch, fs_to_wait_on))
+    list(pool.map(fetch, fs_to_wait_on))
 
     if pbar:
         for f in fs_to_wait_on:

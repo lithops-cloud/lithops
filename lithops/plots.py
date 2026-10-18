@@ -60,10 +60,6 @@ def _set_time_axis(ax, max_seconds):
     return x_ticks
 
 
-def _elapsed(series, t0):
-    return series - t0
-
-
 def _timeline_span(stats_df, t0):
     """
     Returns how far the time axis has to reach, based on the last milestone
@@ -71,10 +67,8 @@ def _timeline_span(stats_df, t0):
     """
     if 'host_result_done_tstamp' in stats_df:
         col = stats_df.host_result_done_tstamp
-    elif 'host_status_done_tstamp' in stats_df:
-        col = stats_df.host_status_done_tstamp
     else:
-        col = stats_df.end_tstamp
+        col = stats_df.host_status_done_tstamp
     return np.max(col - t0) * 1.25
 
 
@@ -84,15 +78,15 @@ def _timeline_fields(stats_df, t0):
     through. Results are only there when the client downloaded them
     """
     fields = [
-        ('host submit', _elapsed(stats_df.host_submit_tstamp, t0)),
-        ('function start', _elapsed(stats_df.worker_func_start_tstamp, t0)),
-        ('function done', _elapsed(stats_df.worker_func_end_tstamp, t0)),
-        ('status fetched', _elapsed(stats_df.host_status_done_tstamp, t0)),
+        ('host submit', stats_df.host_submit_tstamp - t0),
+        ('function start', stats_df.worker_func_start_tstamp - t0),
+        ('function done', stats_df.worker_func_end_tstamp - t0),
+        ('status fetched', stats_df.host_status_done_tstamp - t0),
     ]
 
     if 'host_result_done_tstamp' in stats_df:
         fields.append(
-            ('results fetched', _elapsed(stats_df.host_result_done_tstamp, t0))
+            ('results fetched', stats_df.host_result_done_tstamp - t0)
         )
 
     return fields

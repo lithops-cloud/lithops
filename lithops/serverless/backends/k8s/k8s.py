@@ -166,6 +166,24 @@ class KubernetesBackend:
         if container_sc:
             pod_spec['containers'][0]['securityContext'] = container_sc
 
+    def _job_resource(self, name, docker_image_name):
+        """A Job resource from JOB_DEFAULT with the parts every lithops job shares: name, labels,
+        security context, image and, only with registry credentials, the pull secret"""
+        job_res = yaml.safe_load(config.JOB_DEFAULT)
+        job_res['metadata']['name'] = name
+        job_res['metadata']['namespace'] = self.namespace
+        job_res['metadata']['labels']['version'] = 'lithops_v' + __version__
+        job_res['metadata']['labels']['user'] = self.user
+
+        self._apply_security_context(job_res)
+
+        job_res['spec']['template']['spec']['containers'][0]['image'] = docker_image_name
+
+        if not all(key in self.k8s_config for key in ["docker_user", "docker_password"]):
+            del job_res['spec']['template']['spec']['imagePullSecrets']
+
+        return job_res
+
     def _detect_cluster_arch(self):
         """Return the dominant node architecture, or None if mixed/unknown."""
         try:
@@ -531,24 +549,14 @@ class KubernetesBackend:
         except ApiException:
             pass
 
-        master_res = yaml.safe_load(config.JOB_DEFAULT)
-        master_res['metadata']['name'] = self.master_name
-        master_res['metadata']['namespace'] = self.namespace
-        master_res['metadata']['labels']['version'] = 'lithops_v' + __version__
-        master_res['metadata']['labels']['user'] = self.user
+        master_res = self._job_resource(self.master_name, docker_image_name)
         master_res['spec']['activeDeadlineSeconds'] = self.k8s_config['master_timeout']
 
-        self._apply_security_context(master_res)
-
         container = master_res['spec']['template']['spec']['containers'][0]
-        container['image'] = docker_image_name
         container['env'][0]['value'] = 'run_master'
 
         payload = {'log_level': 'DEBUG'}
         container['env'][1]['value'] = utils.dict_to_b64str(payload)
-
-        if not all(key in self.k8s_config for key in ["docker_user", "docker_password"]):
-            del master_res['spec']['template']['spec']['imagePullSecrets']
 
         self.batch_api.create_namespaced_job(
             namespace=self.namespace,
@@ -727,19 +735,11 @@ class KubernetesBackend:
 
             activation_id = f'lithops-{job_key.lower()}'
 
-            job_res = yaml.safe_load(config.JOB_DEFAULT)
-            job_res['metadata']['name'] = activation_id
-            job_res['metadata']['namespace'] = self.namespace
-            job_res['metadata']['labels']['version'] = 'lithops_v' + __version__
-            job_res['metadata']['labels']['user'] = self.user
-
+            job_res = self._job_resource(activation_id, docker_image_name)
             job_res['spec']['activeDeadlineSeconds'] = self.k8s_config['runtime_timeout']
             job_res['spec']['parallelism'] = total_workers
 
-            self._apply_security_context(job_res)
-
             container = job_res['spec']['template']['spec']['containers'][0]
-            container['image'] = docker_image_name
             if not docker_image_name.endswith(':latest'):
                 container['imagePullPolicy'] = 'IfNotPresent'
 
@@ -756,9 +756,6 @@ class KubernetesBackend:
                 f'{utils.log_prefix(executor_id, job_id)} - Going '
                 f'to run {total_calls} activations in {total_workers} workers'
             )
-
-            if not all(key in self.k8s_config for key in ["docker_user", "docker_password"]):
-                del job_res['spec']['template']['spec']['imagePullSecrets']
 
             self.batch_api.create_namespaced_job(
                 namespace=self.namespace,
@@ -777,22 +774,12 @@ class KubernetesBackend:
         payload['runtime_name'] = runtime_name
         payload['log_level'] = logger.getEffectiveLevel()
 
-        job_res = yaml.safe_load(config.JOB_DEFAULT)
-        job_res['metadata']['name'] = meta_job_name
-        job_res['metadata']['namespace'] = self.namespace
-        job_res['metadata']['labels']['version'] = 'lithops_v' + __version__
-        job_res['metadata']['labels']['user'] = self.user
-
-        self._apply_security_context(job_res)
+        job_res = self._job_resource(meta_job_name, docker_image_name)
 
         container = job_res['spec']['template']['spec']['containers'][0]
-        container['image'] = docker_image_name
         container['imagePullPolicy'] = 'Always'
         container['env'][0]['value'] = 'get_metadata'
         container['env'][1]['value'] = utils.dict_to_b64str(payload)
-
-        if not all(key in self.k8s_config for key in ["docker_user", "docker_password"]):
-            del job_res['spec']['template']['spec']['imagePullSecrets']
 
         try:
             self.batch_api.delete_namespaced_job(

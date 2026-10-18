@@ -169,16 +169,6 @@ class GCPComputeEngineBackend:
         if os.path.exists(self.cache_file):
             os.remove(self.cache_file)
 
-    def _reset_init_created(self):
-        self._init_created = {
-            'network': False,
-            'subnet': False,
-            'firewall': False,
-            'internal_firewall': False,
-            'router': False,
-            'ssh_key': False,
-        }
-
     def _safe_rollback_delete(self, delete_fn, resource_desc):
         try:
             delete_fn()
@@ -192,16 +182,16 @@ class GCPComputeEngineBackend:
         """
         Deletes GCE resources created during a failed init().
         """
-        if not self._init_created:
+        if self._init_created is None:
             return
 
         logger.info('Rolling back GCP Compute Engine resources provisioned during failed init')
         created = self._init_created
 
         fw_names = []
-        if created.get('firewall') and self.config.get('firewall_name'):
+        if 'firewall' in created and self.config.get('firewall_name'):
             fw_names.append(self.config['firewall_name'])
-        if created.get('internal_firewall') and self.config.get('internal_firewall_name'):
+        if 'internal_firewall' in created and self.config.get('internal_firewall_name'):
             fw_names.append(self.config['internal_firewall_name'])
 
         for fw_name in fw_names:
@@ -215,7 +205,7 @@ class GCPComputeEngineBackend:
                 f'firewall {fw_name}',
             )
 
-        if created.get('router') and self.config.get('router_name'):
+        if 'router' in created and self.config.get('router_name'):
             router_name = self.config['router_name']
             self._safe_rollback_delete(
                 lambda: self._wait_operation(
@@ -229,7 +219,7 @@ class GCPComputeEngineBackend:
                 f'Cloud Router {router_name}',
             )
 
-        if created.get('subnet') and self.config.get('subnet_name'):
+        if 'subnet' in created and self.config.get('subnet_name'):
             subnet_name = self.config['subnet_name']
             self._safe_rollback_delete(
                 lambda: self._wait_operation(
@@ -243,7 +233,7 @@ class GCPComputeEngineBackend:
                 f'subnet {subnet_name}',
             )
 
-        if created.get('network') and self.config.get('network_name'):
+        if 'network' in created and self.config.get('network_name'):
             network_name = self.config['network_name']
             self._safe_rollback_delete(
                 lambda: self._wait_operation(
@@ -255,7 +245,7 @@ class GCPComputeEngineBackend:
                 f'network {network_name}',
             )
 
-        if created.get('ssh_key'):
+        if 'ssh_key' in created:
             key_filename = self.config.get('ssh_key_filename')
             if key_filename and 'lithops-key-' in key_filename:
                 for path in (key_filename, f'{key_filename}.pub'):
@@ -330,8 +320,10 @@ class GCPComputeEngineBackend:
         }
         op = self.compute_client.networks().insert(project=self.project_name, body=body).execute()
         self._wait_operation(op['name'], scope='global')
-        if self._init_created is not None:
-            self._init_created['network'] = True
+        # Each resource is recorded as soon as it exists, so a failure from
+        # there on deletes it
+        self.config['network_name'] = self.network_name
+        self._init_created.add('network')
 
         logger.debug(
             f'Creating subnet {subnet_name} in {self.region} '
@@ -348,8 +340,8 @@ class GCPComputeEngineBackend:
             project=self.project_name, region=self.region, body=body
         ).execute()
         self._wait_operation(op['name'], scope='region')
-        if self._init_created is not None:
-            self._init_created['subnet'] = True
+        self.config['subnet_name'] = subnet_name
+        self._init_created.add('subnet')
 
         logger.debug(f'Creating firewall {firewall_name} (SSH tcp/22 from internet)')
         body = {
@@ -360,8 +352,8 @@ class GCPComputeEngineBackend:
         }
         op = self.compute_client.firewalls().insert(project=self.project_name, body=body).execute()
         self._wait_operation(op['name'], scope='global')
-        if self._init_created is not None:
-            self._init_created['firewall'] = True
+        self.config['firewall_name'] = firewall_name
+        self._init_created.add('firewall')
 
         internal_fw_name = f'{self.network_name}-internal-fw'
         logger.debug(
@@ -376,13 +368,8 @@ class GCPComputeEngineBackend:
         }
         op = self.compute_client.firewalls().insert(project=self.project_name, body=body).execute()
         self._wait_operation(op['name'], scope='global')
-        if self._init_created is not None:
-            self._init_created['internal_firewall'] = True
-
-        self.config['network_name'] = self.network_name
-        self.config['subnet_name'] = subnet_name
-        self.config['firewall_name'] = firewall_name
         self.config['internal_firewall_name'] = internal_fw_name
+        self._init_created.add('internal_firewall')
 
         self._create_cloud_nat()
         logger.debug(
@@ -458,8 +445,7 @@ class GCPComputeEngineBackend:
 
         self.config['router_name'] = router_name
         self.config['nat_name'] = nat_name
-        if self._init_created is not None:
-            self._init_created['router'] = True
+        self._init_created.add('router')
 
     def _create_ssh_key(self):
         """
@@ -482,8 +468,7 @@ class GCPComputeEngineBackend:
             logger.debug("Generating new ssh key pair")
             os.system(f'ssh-keygen -b 2048 -t rsa -f {key_filename} -q -N ""')
             logger.debug(f"SSH key pair generated: {key_filename}")
-            if self._init_created is not None:
-                self._init_created['ssh_key'] = True
+            self._init_created.add('ssh_key')
 
         self.config['ssh_key_filename'] = key_filename
 
@@ -556,7 +541,8 @@ class GCPComputeEngineBackend:
             return
 
         elif self.mode in [StandaloneMode.CREATE.value, StandaloneMode.REUSE.value]:
-            self._reset_init_created()
+            # The resources this init() creates, deleted again if it fails
+            self._init_created = set()
             try:
                 self._create_network()
                 self._create_ssh_key()

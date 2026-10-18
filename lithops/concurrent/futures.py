@@ -38,7 +38,6 @@ with futures from other executors.
 from __future__ import annotations
 
 import collections
-import inspect
 import logging
 import threading
 import time
@@ -133,12 +132,11 @@ def _result_or_cancel(fut, timeout=None):
 
 def _lithops_finished(lf):
     """
-    True once Lithops has a terminal or readable status. ResponseFuture
-    uses properties; duck-typed wrappers (RetryingFuture) expose a subset
+    True once Lithops has a terminal or readable status. A failed call is
+    also done, so it needs no check of its own
     """
     return bool(
         getattr(lf, 'done', False)
-        or getattr(lf, 'error', False)
         or getattr(lf, 'success', False)
         or getattr(lf, 'ready', False)
     )
@@ -151,11 +149,6 @@ def _lithops_unknown(lf):
     for it, but there is no result behind it and no exception either
     """
     return getattr(lf, '_state', None) == _ResponseFuture.State.Unknown
-
-
-def _unwrap(lf):
-    """The ResponseFuture behind a wrapper such as RetryingFuture"""
-    return getattr(lf, 'response_future', lf)
 
 
 def _exception_from_lithops(lf):
@@ -190,46 +183,6 @@ def _unknown_state_error(lf):
         f'Lithops lost track of the activation{where}: it is marked done '
         'but never reported a status, so there is no result to read'
     )
-
-
-def _storage_of(executor):
-    """
-    InternalStorage of a FunctionExecutor, or of an executor that wraps one
-    """
-    inner = getattr(executor, 'executor', executor)
-    return getattr(inner, 'internal_storage', None)
-
-
-# One entry per (class, method) pair, so the signature of a Lithops future is
-# only ever read once however many calls go through it
-_TAKES_STORAGE = {}
-
-
-def _accepts_storage(fn):
-    key = (type(getattr(fn, '__self__', fn)), getattr(fn, '__name__', None))
-    cached = _TAKES_STORAGE.get(key)
-    if cached is None:
-        try:
-            params = inspect.signature(fn).parameters
-        except (TypeError, ValueError):
-            params = {}
-        cached = _TAKES_STORAGE[key] = 'internal_storage' in params or any(
-            param.kind is inspect.Parameter.VAR_KEYWORD
-            for param in params.values()
-        )
-    return cached
-
-
-def _with_storage(fn, storage, **kwargs):
-    """
-    Calls a Lithops future method, handing it the internal storage handler
-    only when its signature takes one. Duck-typed futures do not all accept
-    it, and a blanket ``except TypeError`` would also swallow one raised
-    inside the call and run it a second time
-    """
-    if storage is not None and _accepts_storage(fn):
-        kwargs['internal_storage'] = storage
-    return fn(**kwargs)
 
 
 def _set_result(fut, value):
@@ -412,14 +365,11 @@ class FunctionExecutor(_CfExecutor):
         """The wrapped Lithops FunctionExecutor."""
         return self._inner
 
-    def _lithops_inner(self):
-        """
-        The Lithops FunctionExecutor, unwrapping an executor that holds one
-        """
-        return getattr(self._inner, 'executor', self._inner)
-
     def _job_monitor(self):
-        return getattr(self._lithops_inner(), 'job_monitor', None)
+        return getattr(self._inner, 'job_monitor', None)
+
+    def _storage(self):
+        return getattr(self._inner, 'internal_storage', None)
 
     def _job_kwargs(self):
         kwargs = {}
@@ -496,9 +446,7 @@ class FunctionExecutor(_CfExecutor):
         try:
             if job_monitor.is_alive():
                 return
-            unfinished = [
-                _unwrap(lf) for lf in lfs if not _lithops_finished(lf)
-            ]
+            unfinished = [lf for lf in lfs if not _lithops_finished(lf)]
             if unfinished:
                 job_monitor.start(fs=unfinished)
         except Exception:
@@ -527,10 +475,9 @@ class FunctionExecutor(_CfExecutor):
         if status_fn is None:
             return None
         try:
-            return _with_storage(
-                status_fn,
-                _storage_of(self._inner),
+            return status_fn(
                 throw_except=False,
+                internal_storage=self._storage(),
                 check_only=True,
             )
         except Exception:
@@ -586,11 +533,11 @@ class FunctionExecutor(_CfExecutor):
             self._wake.set()
 
     def _apply_lithops_outcome(self, fut, lf):
-        storage = _storage_of(self._inner)
+        storage = self._storage()
 
         status_fn = getattr(lf, 'status', None)
         if status_fn is not None:
-            _with_storage(status_fn, storage, throw_except=False)
+            status_fn(throw_except=False, internal_storage=storage)
 
         if getattr(lf, 'error', False):
             _set_exception(fut, _exception_from_lithops(lf))
@@ -601,7 +548,7 @@ class FunctionExecutor(_CfExecutor):
             _set_exception(fut, _unknown_state_error(lf))
             return
 
-        value = _with_storage(lf.result, storage, throw_except=False)
+        value = lf.result(throw_except=False, internal_storage=storage)
         # result() marks the future as failed when the output never showed up
         if getattr(lf, 'error', False):
             _set_exception(fut, _exception_from_lithops(lf))
@@ -827,11 +774,10 @@ class FunctionExecutor(_CfExecutor):
         native executor does from wait(). Without it they sit there until the
         atexit hook runs, which in a long-lived process can be a long while
         """
-        inner = self._lithops_inner()
-        if not self._owns_executor or not getattr(inner, 'data_cleaner', False):
+        if not self._owns_executor or not getattr(self._inner, 'data_cleaner', False):
             return
         try:
-            inner.clean(clean_cloudobjects=False)
+            self._inner.clean(clean_cloudobjects=False)
         except Exception:
             logger.debug('Error cleaning temporary job data', exc_info=True)
 

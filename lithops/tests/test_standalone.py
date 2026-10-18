@@ -5,6 +5,8 @@
 import json
 import os
 import sys
+import warnings
+from contextlib import ExitStack
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -271,6 +273,341 @@ class TestIBMVPCRetries:
             with pytest.raises(ApiException):
                 wrapped('i-1')
         assert func.call_count == 5
+
+    def test_the_status_is_read_without_the_deprecated_attribute(self):
+        from ibm_cloud_sdk_core import ApiException
+        func, wrapped = self._wrapped('delete_instance', ApiException(404, message='gone'))
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter('always')
+            assert wrapped('i-1') is None
+        func.assert_called_once_with('i-1')
+        assert not [w for w in caught if issubclass(w.category, DeprecationWarning)]
+
+    def test_an_sdk_without_status_code_still_ignores_the_404(self):
+        from ibm_cloud_sdk_core import ApiException
+
+        class OldApiException(ApiException):
+            # SDK versions before status_code only had a plain code attribute
+            code = None
+
+            def __init__(self, code, message=None):
+                Exception.__init__(self, message)
+                self.code = code
+
+        func, wrapped = self._wrapped('delete_instance', OldApiException(404, message='gone'))
+        assert wrapped('i-1') is None
+        func.assert_called_once_with('i-1')
+
+
+def _aws_backend_for_init():
+    from lithops.standalone.backends.aws_ec2.aws_ec2 import AWSEC2Backend
+    backend = AWSEC2Backend.__new__(AWSEC2Backend)
+    backend.mode = 'create'
+    backend.config = {}
+    backend.ec2_data = {}
+    backend.user_key = 'abcd'
+    backend.vpc_data_type = 'created'
+    backend._init_created = None
+    client = backend.ec2_client = MagicMock()
+    client.describe_vpcs.return_value = {'Vpcs': []}
+    client.create_vpc.return_value = {'Vpc': {'VpcId': 'vpc-0123456789'}}
+
+    def deletes():
+        return {
+            name: getattr(client, name).call_count
+            for name in ('delete_security_group', 'delete_internet_gateway',
+                         'delete_subnet', 'delete_vpc', 'delete_key_pair')
+        }
+    return backend, '_load_ec2_data', '_create_vpc', '_create_subnets', {'delete_vpc': 1}, deletes
+
+
+def _gcp_backend_for_init():
+    from lithops.standalone.backends.gcp_compute_engine.gcp_compute_engine import GCPComputeEngineBackend
+    backend = GCPComputeEngineBackend.__new__(GCPComputeEngineBackend)
+    backend.mode = 'create'
+    backend.config = {'network_cidr': '10.0.0.0/16', 'subnet_cidr': '10.0.0.0/20'}
+    backend.gce_data = {}
+    backend.project_name = 'project'
+    backend.region = 'us-east1'
+    backend.network_name = None
+    backend.network_key = None
+    backend.vpc_data_type = 'created'
+    backend._init_created = None
+    backend._wait_operation = MagicMock()
+    backend._resource_exists = MagicMock(return_value=False)
+    client = backend.compute_client = MagicMock()
+    # The network, its subnet and both firewalls are created, then the Cloud NAT router fails
+    client.routers.return_value.insert.side_effect = Exception('quota')
+
+    def deletes():
+        return {
+            name: getattr(client, name).return_value.delete.call_count
+            for name in ('networks', 'subnetworks', 'firewalls', 'routers')
+        }
+    deleted = {'networks': 1, 'subnetworks': 1, 'firewalls': 2}
+    return backend, '_load_gce_data', '_create_network', '_create_ssh_key', deleted, deletes
+
+
+def _azure_backend_for_init():
+    from lithops.standalone.backends.azure_vms.azure_vms import AzureVMSBackend
+    backend = AzureVMSBackend.__new__(AzureVMSBackend)
+    backend.mode = 'create'
+    backend.config = {'resource_group': 'rg'}
+    backend.azure_data = {}
+    backend.location = 'westeurope'
+    backend.vnet_name = None
+    backend.vnet_key = None
+    backend.vnet_data_type = 'created'
+    backend._init_created = None
+    client = backend.network_client = MagicMock()
+    client.virtual_networks.list.return_value = []
+    vnet = client.virtual_networks.begin_create_or_update.return_value.result.return_value
+    vnet.id = '/vnets/lithops-vnet-abc123'
+    vnet.name = 'lithops-vnet-abc123'
+
+    def deletes():
+        return {
+            name: getattr(client, name).begin_delete.call_count
+            for name in ('public_ip_addresses', 'network_security_groups', 'subnets', 'virtual_networks')
+        }
+    return backend, '_load_azure_vms_data', '_create_vnet', '_create_subnet', {'virtual_networks': 1}, deletes
+
+
+def _ibm_backend_for_init():
+    pytest.importorskip('ibm_vpc')
+    from lithops.standalone.backends.ibm_vpc.ibm_vpc import IBMVPCBackend
+    backend = IBMVPCBackend.__new__(IBMVPCBackend)
+    backend.mode = 'create'
+    backend.config = {'resource_group_id': 'rg'}
+    backend.vpc_data = {}
+    backend.vpc_name = None
+    backend.vpc_key = None
+    backend.iam_api_key = 'abcd'
+    backend.verify_resources = True
+    backend.vpc_data_type = 'created'
+    backend._init_created = None
+    client = backend.vpc_cli = MagicMock()
+    client.list_vpcs.return_value.get_result.return_value = {'vpcs': []}
+    client.create_vpc.return_value.result = {'id': 'r006-vpc123456', 'default_security_group': {'id': 'sg'}}
+    client.get_security_group.return_value.get_result.return_value = {'rules': []}
+
+    def deletes():
+        return {
+            name: getattr(client, name).call_count
+            for name in ('unset_subnet_public_gateway', 'delete_public_gateway',
+                         'delete_subnet', 'delete_vpc', 'delete_key')
+        }
+    return backend, '_load_vpc_data', '_create_vpc', '_create_ssh_key', {'delete_vpc': 1}, deletes
+
+
+class TestVMInitRollback:
+    """
+    A failed init() deletes what that init() created, and only that
+    """
+
+    BACKENDS = [_aws_backend_for_init, _gcp_backend_for_init, _azure_backend_for_init, _ibm_backend_for_init]
+
+    @pytest.mark.parametrize('make_backend', BACKENDS)
+    def test_a_failure_before_creating_anything_only_drops_the_cache(self, make_backend):
+        backend, load_data, first_step, _, _, deletes = make_backend()
+        with patch.object(backend, load_data), \
+                patch.object(backend, '_delete_vpc_data') as delete_vpc_data, \
+                patch.object(backend, first_step, side_effect=Exception('boom')):
+            with pytest.raises(Exception, match='boom'):
+                backend.init()
+        delete_vpc_data.assert_called_once()
+        assert not any(deletes().values())
+        assert backend._init_created is None
+
+    @pytest.mark.parametrize('make_backend', BACKENDS)
+    def test_a_failure_after_creating_network_resources_deletes_them(self, make_backend):
+        backend, load_data, _, next_step, deleted, deletes = make_backend()
+        with patch.object(backend, load_data), \
+                patch.object(backend, '_delete_vpc_data') as delete_vpc_data, \
+                patch.object(backend, next_step, side_effect=Exception('quota')):
+            with pytest.raises(Exception, match='quota'):
+                backend.init()
+        delete_vpc_data.assert_called_once()
+        assert {name: count for name, count in deletes().items() if count} == deleted
+        assert backend._init_created is None
+
+    # A resource is rolled back even when the call that fails comes right after
+    # creating it, in the same step
+
+    @staticmethod
+    def _failed_init(backend, load_data, *skipped_steps):
+        with ExitStack() as stack:
+            stack.enter_context(patch.object(backend, load_data))
+            stack.enter_context(patch.object(backend, '_delete_vpc_data'))
+            for step in skipped_steps:
+                stack.enter_context(patch.object(backend, step))
+            with pytest.raises(Exception, match='quota'):
+                backend.init()
+
+    @staticmethod
+    def _local_ssh_keys(stack, tmp_path):
+        (tmp_path / '.ssh').mkdir()
+
+        def ssh_keygen(cmd):
+            key_filename = cmd.split(' -f ')[1].split(' ')[0]
+            for path in (key_filename, f'{key_filename}.pub'):
+                with open(path, 'w') as f:
+                    f.write('ssh-rsa AAAA')
+            return 0
+        stack.enter_context(patch('os.system', side_effect=ssh_keygen))
+        stack.enter_context(patch('os.path.expanduser', side_effect=lambda p: p.replace('~', str(tmp_path))))
+        return tmp_path / '.ssh'
+
+    @pytest.mark.parametrize('failing, deleted', [
+        ('subnetworks', {'networks': 1}),
+        ('firewall', {'networks': 1, 'subnetworks': 1}),
+        ('internal_firewall', {'networks': 1, 'subnetworks': 1, 'firewalls': 1}),
+    ])
+    def test_gcp_deletes_the_network_resources_created_before_a_failure(self, failing, deleted):
+        backend, load_data, _, _, _, deletes = _gcp_backend_for_init()
+        client = backend.compute_client
+        client.routers.return_value.insert.side_effect = None
+        if failing == 'subnetworks':
+            client.subnetworks.return_value.insert.side_effect = Exception('quota')
+        else:
+            first = Exception('quota') if failing == 'firewall' else MagicMock()
+            client.firewalls.return_value.insert.side_effect = [first, Exception('quota')]
+        self._failed_init(backend, load_data)
+        assert {name: count for name, count in deletes().items() if count} == deleted
+
+    def test_aws_deletes_a_vpc_that_could_not_be_tagged(self):
+        backend, load_data, _, _, _, deletes = _aws_backend_for_init()
+        backend.ec2_client.create_tags.side_effect = Exception('quota')
+        self._failed_init(backend, load_data)
+        assert {name: count for name, count in deletes().items() if count} == {'delete_vpc': 1}
+
+    def test_aws_deletes_an_internet_gateway_that_could_not_be_attached(self):
+        from botocore.exceptions import ClientError
+        backend, load_data, _, _, _, deletes = _aws_backend_for_init()
+        client = backend.ec2_client
+        client.describe_internet_gateways.return_value = {'InternetGateways': []}
+        client.create_internet_gateway.return_value = {'InternetGateway': {'InternetGatewayId': 'igw-1'}}
+        client.attach_internet_gateway.side_effect = Exception('quota')
+        client.detach_internet_gateway.side_effect = ClientError(
+            {'Error': {'Code': 'Gateway.NotAttached', 'Message': 'not attached'}}, 'DetachInternetGateway'
+        )
+        with patch('lithops.standalone.backends.aws_ec2.aws_ec2.logger') as logger:
+            self._failed_init(backend, load_data, '_create_subnets')
+        assert {name: count for name, count in deletes().items() if count} == {
+            'delete_internet_gateway': 1, 'delete_vpc': 1
+        }
+        # A gateway that never got attached is not worth a warning
+        logger.warning.assert_not_called()
+
+    def test_aws_deletes_a_security_group_whose_rules_could_not_be_added(self):
+        backend, load_data, _, _, _, deletes = _aws_backend_for_init()
+        client = backend.ec2_client
+        client.describe_security_groups.return_value = {'SecurityGroups': []}
+        client.create_security_group.return_value = {'GroupId': 'sg-1'}
+        client.authorize_security_group_ingress.side_effect = Exception('quota')
+        self._failed_init(backend, load_data, '_create_subnets', '_create_internet_gateway', '_create_routing_tables')
+        assert {name: count for name, count in deletes().items() if count} == {
+            'delete_security_group': 1, 'delete_vpc': 1
+        }
+
+    def test_aws_deletes_a_local_ssh_key_that_could_not_be_imported(self, tmp_path):
+        backend, load_data, _, _, _, _ = _aws_backend_for_init()
+        backend.name = 'aws_ec2'
+        backend.ec2_client.import_key_pair.side_effect = Exception('quota')
+        with ExitStack() as stack:
+            ssh_dir = self._local_ssh_keys(stack, tmp_path)
+            self._failed_init(
+                backend, load_data, '_create_subnets', '_create_internet_gateway',
+                '_create_routing_tables', '_create_security_group'
+            )
+        assert list(ssh_dir.iterdir()) == []
+
+    def test_ibm_deletes_a_local_ssh_key_that_could_not_be_registered(self, tmp_path):
+        backend, load_data, _, _, _, deletes = _ibm_backend_for_init()
+        from ibm_cloud_sdk_core import ApiException
+        backend.name = 'ibm_vpc'
+        backend.config['vpc_id'] = 'r006-vpc123456'
+        backend.vpc_cli.create_key.side_effect = ApiException(500, message='quota')
+        with ExitStack() as stack:
+            ssh_dir = self._local_ssh_keys(stack, tmp_path)
+            self._failed_init(backend, load_data)
+        assert list(ssh_dir.iterdir()) == []
+        assert not any(deletes().values())
+
+
+class TestAWSDeleteVPC:
+
+    @staticmethod
+    def _backend(**errors):
+        from lithops.standalone.backends.aws_ec2.aws_ec2 import AWSEC2Backend
+        backend = AWSEC2Backend.__new__(AWSEC2Backend)
+        backend.vpc_name = 'lithops-vpc'
+        backend.ec2_data = {
+            'vpc_data_type': 'created', 'security_group_id': 'sg-1', 'public_subnet_id': 'subnet-1',
+            'internet_gateway_id': 'igw-1', 'vpc_id': 'vpc-1',
+        }
+        backend.ec2_client = MagicMock()
+        for method, error in errors.items():
+            getattr(backend.ec2_client, method).side_effect = error
+        return backend
+
+    @staticmethod
+    def _client_error(message, status=400):
+        from botocore.exceptions import ClientError
+        return ClientError(
+            {'Error': {'Code': 'Some.Code', 'Message': message}, 'ResponseMetadata': {'HTTPStatusCode': status}},
+            'Operation'
+        )
+
+    def test_every_resource_is_deleted_in_order(self):
+        backend = self._backend()
+        with patch('lithops.standalone.backends.aws_ec2.aws_ec2.logger') as logger:
+            assert backend._delete_vpc() is True
+        assert [c.args[0] for c in logger.debug.call_args_list] == [
+            'Deleting security group sg-1', 'Deleting public subnet-1', 'Detaching internet gateway igw-1',
+            'Deleting internet gateway igw-1', 'Deleting VPC vpc-1',
+        ]
+        assert backend.ec2_client.method_calls == [
+            ('delete_security_group', (), {'GroupId': 'sg-1'}),
+            ('delete_subnet', (), {'SubnetId': 'subnet-1'}),
+            ('detach_internet_gateway', (), {'InternetGatewayId': 'igw-1', 'VpcId': 'vpc-1'}),
+            ('delete_internet_gateway', (), {'InternetGatewayId': 'igw-1'}),
+            ('delete_vpc', (), {'VpcId': 'vpc-1'}),
+        ]
+
+    def test_a_resource_that_does_not_exist_counts_as_deleted(self):
+        backend = self._backend(delete_subnet=self._client_error("The subnet ID 'subnet-1' does not exist"))
+        assert backend._delete_vpc() is True
+        assert len(backend.ec2_client.method_calls) == 5
+
+    def test_any_other_error_is_reported_and_the_rest_still_deleted(self):
+        backend = self._backend(
+            detach_internet_gateway=self._client_error('Gateway does not exist', status=404),
+            delete_vpc=self._client_error('The vpc has dependencies and cannot be deleted'),
+        )
+        with patch('lithops.standalone.backends.aws_ec2.aws_ec2.logger') as logger:
+            assert backend._delete_vpc() is False
+        assert len(backend.ec2_client.method_calls) == 5
+        logger.error.assert_called_once()
+
+    def test_an_error_that_is_not_a_client_error_is_raised(self):
+        backend = self._backend(delete_subnet=ValueError('bad'))
+        with pytest.raises(ValueError):
+            backend._delete_vpc()
+        assert [c[0] for c in backend.ec2_client.method_calls] == ['delete_security_group', 'delete_subnet']
+
+    def test_a_missing_resource_id_stops_after_the_earlier_deletions(self):
+        backend = self._backend()
+        del backend.ec2_data['internet_gateway_id']
+        with pytest.raises(KeyError):
+            backend._delete_vpc()
+        assert [c[0] for c in backend.ec2_client.method_calls] == ['delete_security_group', 'delete_subnet']
+
+    def test_a_provided_vpc_is_left_alone(self):
+        backend = self._backend()
+        backend.ec2_data['vpc_data_type'] = 'provided'
+        assert backend._delete_vpc() is None
+        assert backend.ec2_client.method_calls == []
 
 
 class TestBudgetKeeper:

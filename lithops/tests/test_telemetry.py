@@ -21,7 +21,12 @@ import pytest
 from lithops.constants import WORKER_ENV
 from lithops.telemetry import metrics as M
 from lithops.telemetry.backend import MetricsBackend
-from lithops.telemetry.backends import DEFAULT_BACKEND, resolve_backend
+from lithops.telemetry.backends import (
+    DEFAULT_BACKEND,
+    import_backend_module,
+    load_backend_class,
+    resolve_backend,
+)
 from lithops.telemetry.exporter import (
     NOOP,
     BoundTelemetry,
@@ -30,6 +35,19 @@ from lithops.telemetry.exporter import (
     shutdown_telemetry,
 )
 from lithops.monitoring.monitor import Monitor
+
+#: Labels that identify a single call or job. On any metric they would give
+#: it one time series per call, which is what lithops.telemetry.metrics is
+#: shaped to prevent
+PER_CALL_LABELS = frozenset({
+    'call_id',
+    'job_id',
+    'job_key',
+    'executor_id',
+    'activation_id',
+    'worker_id',
+    'instance_id',
+})
 
 
 class RecordingBackend(MetricsBackend):
@@ -151,13 +169,6 @@ def _job(**attrs):
 
 class TestMetricSpecs:
 
-    def test_a_per_call_label_is_refused(self):
-        with pytest.raises(ValueError, match='call_id'):
-            M.MetricSpec(
-                name='lithops_bad', kind=M.COUNTER,
-                documentation='', extra_labels=('call_id',),
-            )
-
     def test_a_histogram_needs_buckets(self):
         with pytest.raises(ValueError, match='buckets'):
             M.MetricSpec(
@@ -173,7 +184,7 @@ class TestMetricSpecs:
 
     def test_no_exported_metric_is_identified_by_a_call(self):
         for spec in M.ALL_METRICS:
-            assert not M.FORBIDDEN_LABELS.intersection(spec.labelnames)
+            assert not PER_CALL_LABELS.intersection(spec.labelnames), spec.name
 
     def test_metric_names_are_unique(self):
         names = [spec.name for spec in M.ALL_METRICS]
@@ -223,6 +234,82 @@ class TestResolveBackend:
         assert resolve_backend(None) is None
 
 
+class TestCallSiteLabels:
+    """
+    Nothing checks labels at runtime: every label dict is built here from
+    fixed keys, so a call site or a spec with the wrong labels is caught by
+    driving every hook and comparing what reached the backend with the specs
+    """
+
+    def _drive_every_hook(self, telemetry):
+        telemetry.on_job_submitted(_job())
+        future = _future(_host_status_done_tstamp=1009.0)
+        telemetry.on_call_started(future, _call_status())
+        telemetry.on_call_finished(future, _call_status())
+        telemetry.on_call_finished(future, _call_status(exception=True))
+        telemetry.on_call_finished(future, {}, M.OUTCOME_TIMEOUT)
+        telemetry.on_call_finished(future, {}, M.OUTCOME_CHAINED)
+        future.stats = {
+            'host_submit_tstamp': 1000.0,
+            'host_status_done_tstamp': 1008.0,
+            'host_result_done_tstamp': 1008.5,
+            'host_result_query_count': 2,
+        }
+        telemetry.on_result_read(future, M.SOURCE_STORAGE)
+        telemetry.on_result_read(future, M.SOURCE_INLINE)
+
+    def test_every_observation_carries_exactly_the_labels_of_its_spec(self, recorder):
+        telemetry, backend = recorder
+        self._drive_every_hook(telemetry)
+
+        specs = {spec.name: spec for spec in M.ALL_METRICS}
+        assert backend.observations
+        for name, _, labels in backend.observations:
+            assert name in specs
+            assert sorted(labels) == sorted(specs[name].labelnames), name
+            assert all(isinstance(value, str) for value in labels.values()), name
+            assert not PER_CALL_LABELS.intersection(labels), name
+
+    def test_every_metric_has_a_call_site(self, recorder):
+        # Without this, a spec added with no call site, or a call site
+        # missed by the hooks above, would leave its labels unchecked
+        telemetry, backend = recorder
+        self._drive_every_hook(telemetry)
+
+        assert set(backend.names()) == {spec.name for spec in M.ALL_METRICS}
+
+
+class TestBackendLoader:
+
+    def test_an_unknown_backend_is_reported_by_name(self):
+        with pytest.raises(ValueError, match='^Unknown telemetry backend: graphite$'):
+            load_backend_class('graphite')
+
+    def test_a_missing_client_library_keeps_its_import_error(self):
+        missing = ModuleNotFoundError(
+            "No module named 'prometheus_client'", name='prometheus_client'
+        )
+        with patch('lithops.utils.importlib.import_module', side_effect=missing):
+            with pytest.raises(ModuleNotFoundError, match='prometheus_client'):
+                import_backend_module('prometheus')
+
+    def test_a_missing_export_is_reported(self):
+        with patch(
+            'lithops.utils.importlib.import_module',
+            return_value=SimpleNamespace(),
+        ):
+            with pytest.raises(
+                ValueError, match="Telemetry backend 'fake' exports no MetricsBackend"
+            ):
+                load_backend_class('fake')
+
+    @pytest.mark.parametrize('name', ['prometheus', 'otlp'])
+    def test_every_built_in_backend_holds_up_its_end(self, name):
+        cls = load_backend_class(name)
+        assert issubclass(cls, MetricsBackend)
+        assert callable(import_backend_module(name, 'config').load_config)
+
+
 class TestRecordingACall:
 
     def test_a_finished_call_records_every_measurement(self, recorder):
@@ -249,7 +336,7 @@ class TestRecordingACall:
             assert labels['backend'] == 'aws_lambda'
             assert labels['runtime_name'] == 'python:3.11'
             assert labels['runtime_memory'] == '512'
-            assert not M.FORBIDDEN_LABELS.intersection(labels)
+            assert not PER_CALL_LABELS.intersection(labels)
             if name == M.WORKER_INFO.name:
                 # Says what a runtime is, not what ran on it
                 assert 'function_name' not in labels
@@ -675,16 +762,6 @@ class TestTelemetryNeverBreaksAJob:
         telemetry, backend = recorder
         backend.flush = MagicMock(side_effect=OSError('unreachable'))
         telemetry.flush()
-
-    def test_an_invented_label_is_dropped_rather_than_written(self):
-        backend = RecordingBackend()
-        exporter = TelemetryExporter(backend, flush_interval=3600)
-        try:
-            exporter.observe(M.CALLS_INVOKED, 1, {'backend': 'aws_lambda'})
-        finally:
-            exporter.shutdown()
-
-        assert backend.observations == []
 
 
 class TestExporterLifecycle:

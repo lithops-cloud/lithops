@@ -70,24 +70,15 @@ def _serialize_func_and_data(
     """
     Serializes the function and data with the current callable state and
     target runtime's dependencies. Identical payloads are deduplicated at
-    upload time; callable identity alone cannot detect changed captured state.
-    Falls back to serializers that only expose a call interface
+    upload time; callable identity alone cannot detect changed captured state
     """
-    dumps = getattr(serializer, 'dumps', None)
-    module_paths = getattr(serializer, 'module_paths', None)
-    if dumps is None or module_paths is None:
-        ser, paths = serializer(
-            [func] + list(iterdata), inc_modules, exc_modules
-        )
-        return ser[0], ser[1:], paths
-
-    func_str = dumps([func])[0]
-    func_paths = module_paths([func], inc_modules, exc_modules)
-    data_strs = dumps(iterdata)
+    func_str = serializer.dumps([func])[0]
+    func_paths = serializer.module_paths([func], inc_modules, exc_modules)
+    data_strs = serializer.dumps(iterdata)
     # The data is only inspected for modules when the module manager is on
     # and no explicit include list was given
     if inc_modules is not None and not inc_modules:
-        data_paths = module_paths(iterdata, inc_modules, exc_modules)
+        data_paths = serializer.module_paths(iterdata, inc_modules, exc_modules)
     else:
         data_paths = set()
     return func_str, data_strs, func_paths | data_paths
@@ -238,23 +229,10 @@ def _include_exclude_modules(
                 "'include_modules' parameter in config must be a list"
             )
 
-    exc_modules = set()
-    inc_modules = set()
-
-    if exclude_modules_cfg:
-        exc_modules.update(exclude_modules_cfg)
-    if exclude_modules:
-        exc_modules.update(exclude_modules)
-    if include_modules_cfg is not None:
-        inc_modules.update(include_modules_cfg)
-    if include_modules_cfg is None and not include_modules:
-        inc_modules = None
-    if include_modules is not None and include_modules:
-        inc_modules.update(include_modules)
-    if include_modules is None:
-        inc_modules = None
-
-    return inc_modules, exc_modules
+    exc_modules = set(exclude_modules_cfg or []) | set(exclude_modules or [])
+    if include_modules is None or (include_modules_cfg is None and not include_modules):
+        return None, exc_modules
+    return set(include_modules_cfg or []) | set(include_modules), exc_modules
 
 
 def _apply_mode_limits(

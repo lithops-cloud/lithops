@@ -369,6 +369,27 @@ class TestWorkerSetup:
         worker.create.assert_called_once()
         assert worker.wait_ready.call_count == 2
 
+    def test_setup_counts_readiness_and_validation_retries_separately(self):
+        handler = self._handler()
+        worker = _worker_instance(config={
+            'worker_processes': 2, 'worker_create_retries': 2
+        })
+        # Every recreated worker gets the full readiness budget again
+        worker.wait_ready.side_effect = [TimeoutError('slow'), None, TimeoutError('slow'), None]
+        worker.validate_capabilities.side_effect = [sa_master.LithopsValidationError('2 sockets'), None]
+        handler.backend.get_instance.return_value = worker
+        sa_master.redis_client.hget.return_value = WorkerStatus.STARTING.value
+
+        with patch.object(
+            sa_master, '_worker_setup_script', return_value='SCRIPT'
+        ):
+            sa_master.setup_worker_create_reuse(handler, {'name': 'w'}, 'wq')
+
+        assert worker.delete.call_count == 3
+        assert worker.create.call_count == 3
+        assert worker.wait_ready.call_count == 4
+        assert worker.validate_capabilities.call_count == 2
+
     def test_setup_gives_up_when_the_worker_never_comes_up(self):
         handler = self._handler()
         worker = _worker_instance(config={
