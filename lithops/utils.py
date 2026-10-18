@@ -22,10 +22,10 @@ import os
 import sys
 import uuid
 import json
-import socket
 import shutil
 import base64
 import inspect
+import importlib
 import struct
 import lithops
 import zipfile
@@ -34,9 +34,8 @@ import threading
 import logging.config
 import subprocess as sp
 from enum import Enum
-from contextlib import closing
 
-from typing import List
+from typing import List, Optional
 
 from lithops import constants
 from lithops.version import __version__
@@ -170,13 +169,6 @@ def monitoring_queues(executor_id: str) -> List[str]:
     return parent_queues + [queue]
 
 
-def get_executor_id():
-    """Returns the ID of the last executor created in this session"""
-    if _SESSION_ID is None:
-        raise KeyError(constants.SESSION_ID_ENV)
-    return f'{_SESSION_ID}-{_EXECUTOR_COUNT - 1}'
-
-
 def iterchunks(lst, n):
     """Yield successive n-sized chunks from lst."""
     for i in range(0, len(lst), n):
@@ -214,7 +206,7 @@ class FuturesList(list):
     """
 
     # Defaults for lists that were not built by create_futures_list, and for
-    # the ones rehydrated by __reduce__, which drops the executor
+    # unpickled ones, whose state leaves the executor out (__getstate__)
     executor = None
     config = None
 
@@ -227,9 +219,8 @@ class FuturesList(list):
         return self.alt_list if hasattr(self, 'alt_list') else self
 
     def _extend_futures(self, fs):
-        # Only the last job of the chain produces the output of the chain
-        for fut in self:
-            fut._produce_output = False
+        # Mapping over this list already marked its futures as consumed,
+        # so only the last job of the chain produces the output of the chain
         if not hasattr(self, 'alt_list'):
             self.alt_list = []
             self.alt_list.extend(self)
@@ -311,18 +302,13 @@ class FuturesList(list):
         self._create_executor()
         return self.executor.get_result(self._all_futures(), **kwargs)
 
-    def __reduce__(self):
+    def __getstate__(self):
         # The executor is not picklable, and a rehydrated list creates its
         # own. Dropped from the pickled state rather than from the object,
         # so that pickling a list does not detach the one being pickled
-        reduced = list(super().__reduce__())
-        # A list that never had an attribute set reduces without a state
-        state = reduced[2] if len(reduced) > 2 else None
-        if isinstance(state, dict) and 'executor' in state:
-            state = dict(state)
-            state.pop('executor')
-            reduced[2] = state
-        return tuple(reduced)
+        state = self.__dict__.copy()
+        state.pop('executor', None)
+        return state
 
 
 _MODE_TO_DEFAULT_BACKEND = {
@@ -374,18 +360,20 @@ def setup_lithops_logger(log_level=constants.LOGGER_LEVEL,
     if log_level is None or str(log_level).lower() == 'none':
         return
 
-    if stream is None:
-        stream = constants.LOGGER_STREAM
-
-    # Both handlers are always declared, so the unused FileHandler is pointed
-    # at os.devnull rather than at a file nobody asked for
-    log_to_file = filename is not None
-    if filename is None:
-        filename = os.devnull
-
     if isinstance(log_level, str):
         log_level = logging.getLevelName(log_level.upper())
 
+    if filename is None:
+        handler_name, handler = 'console_handler', {
+            'class': 'lithops.utils.ShutdownSafeStreamHandler',
+            'stream': constants.LOGGER_STREAM if stream is None else stream,
+        }
+    else:
+        handler_name, handler = 'file_handler', {
+            'class': 'logging.FileHandler',
+            'filename': filename,
+            'mode': 'a',
+        }
     config_dict = {
         'version': 1,
         'disable_existing_loggers': False,
@@ -395,31 +383,16 @@ def setup_lithops_logger(log_level=constants.LOGGER_LEVEL,
             },
         },
         'handlers': {
-            'console_handler': {
-                'level': log_level,
-                'formatter': 'standard',
-                'class': 'lithops.utils.ShutdownSafeStreamHandler',
-                'stream': stream
-            },
-            'file_handler': {
-                'level': log_level,
-                'formatter': 'standard',
-                'class': 'logging.FileHandler',
-                'filename': filename,
-                'mode': 'a',
-            },
+            handler_name: {'level': log_level, 'formatter': 'standard', **handler},
         },
         'loggers': {
             'lithops': {
-                'handlers': ['console_handler'],
+                'handlers': [handler_name],
                 'level': log_level,
                 'propagate': False
             },
         }
     }
-
-    if log_to_file:
-        config_dict['loggers']['lithops']['handlers'] = ['file_handler']
 
     logging.config.dictConfig(config_dict)
 
@@ -511,11 +484,6 @@ def verify_runtime_name(runtime_name: str, allow_local_path: bool = False) -> No
     assert valid, f'Runtime name "{runtime_name}" not valid'
 
 
-def timeout_handler(error_msg, signum, frame):
-    """Signal handler that turns an alarm into a TimeoutError"""
-    raise TimeoutError(error_msg)
-
-
 def version_str(version_info) -> str:
     """Formats a sys.version_info tuple as major.minor"""
     return f"{version_info[0]}.{version_info[1]}"
@@ -569,11 +537,6 @@ def sizeof_fmt(num, suffix='B') -> str:
             return f'{num:3.1f}{unit}{suffix}'
         num /= 1024.0
     return f'{num:.1f}Yi{suffix}'
-
-
-def sdb_to_dict(item):
-    attr = item['Attributes']
-    return {c['Name']: c['Value'] for c in attr}
 
 
 def dict_to_b64str(the_dict):
@@ -664,46 +627,6 @@ def get_default_container_name(backend, backend_config, runtime_name):
         return f'{docker_server}/{img}'
 
 
-def _get_docker_desktop_username() -> str:
-    """Reads the registry user out of the Docker Desktop credential helper"""
-    cmd = (
-        "docker-credential-desktop list | jq -r 'to_entries[].key' | while "
-        "read; do docker-credential-desktop get <<<$REPLY; break; done"
-    )
-    try:
-        credentials = sp.check_output(
-            cmd, shell=True, encoding='UTF-8', stderr=sp.STDOUT
-        )
-        return json.loads(credentials)['Username']
-    except Exception:
-        raise Exception('Unable to get the Docker registry user')
-
-
-def get_docker_username():
-    """Returns the user that docker/podman is logged in to the registry as"""
-    docker_path = get_docker_path()
-    docker_info = sp.check_output(
-        f"{docker_path} info", shell=True,
-        encoding='UTF-8', stderr=sp.STDOUT
-    )
-
-    user = None
-    for line in docker_info.splitlines():
-        if 'Username' in line:
-            _, username = line.strip().split(':')
-            user = username.strip()
-
-    return user if user is not None else _get_docker_desktop_username()
-
-
-def find_free_port() -> int:
-    """Returns a port that is free at this instant"""
-    with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        s.bind(('', 0))
-        return s.getsockname()[1]
-
-
 # Schemes that name a Lithops storage backend by its protocol
 _URL_SCHEME_ALIASES = {'cos': 'ibm_cos', 's3': 'aws_s3'}
 
@@ -731,20 +654,6 @@ def split_object_url(obj_url):
         prefix, obj_name = '', full_key
 
     return sb, bucket, prefix, obj_name
-
-
-def split_path(path):
-    """Splits a storage path into its bucket and its key"""
-    if path.startswith("/"):
-        path = path[1:]
-    ind = path.find("/")
-    if ind > 0:
-        bucket_name = path[:ind]
-        key = path[ind + 1:]
-    else:
-        bucket_name = path
-        key = None
-    return bucket_name, key
 
 
 def format_data(iterdata, extra_args):
@@ -990,6 +899,16 @@ class _PartitionRows(io.RawIOBase):
         buf[:len(piece)] = piece
         return len(piece)
 
+    def readall(self):
+        # What read() with no size ends in. Without it, RawIOBase reads the
+        # stream one buffer, 8 KiB, at a time
+        pieces = []
+        while True:
+            piece = self._read_rows(None)
+            if not piece:
+                return b''.join(pieces)
+            pieces.append(piece)
+
 
 class WrappedStreamingBodyPartition(WrappedStreamingBody):
     """
@@ -997,7 +916,7 @@ class WrappedStreamingBodyPartition(WrappedStreamingBody):
     integrity of the partitions based on the newline
     character.
     """
-    def __init__(self, sb, size, byterange, newline='\n', first_chunk=None, more=None):
+    def __init__(self, sb, size, byterange, newline='\n', more=None):
         super().__init__(sb, size)
         # Opens the object again from a byte on, for a last row longer than
         # the range; returns None past the end of the object
@@ -1005,11 +924,8 @@ class WrappedStreamingBodyPartition(WrappedStreamingBody):
         self.range = byterange
         self.newline_char = newline.encode()
         # Every chunk but the first one reads the newline length early, so that
-        # it can tell whether the previous chunk ended in the middle of a row.
-        # The start of the range cannot always tell: with a chunk size as long
-        # as the newline, the second chunk reads from byte 0 too
-        if first_chunk is None:
-            first_chunk = not self.range or self.range[0] == 0
+        # it can tell whether the previous chunk ended in the middle of a row
+        first_chunk = not self.range or self.range[0] == 0
         self._plusbytes = 0 if first_chunk else len(self.newline_char)
         # Set while the cut row at the start of the chunk, which the previous
         # chunk returns, is being skipped
@@ -1133,6 +1049,42 @@ def is_podman(docker_path) -> bool:
         return True
     except Exception:
         return False
+
+
+def import_backend_module(package: str, kind: str, backend: str, submodule: Optional[str] = None):
+    """
+    Imports ``<package>.<backend>``, a backend package the monitoring and
+    telemetry layers pick by name, or one of its submodules.
+
+    Raises ValueError only when the backend itself is not there. A
+    backend whose SDK is missing keeps its own ImportError, which names
+    the package to install instead of claiming the backend is unknown.
+    ``kind`` names the layer in that message (``monitoring``,
+    ``telemetry``).
+    """
+    module_name = f'{package}.{backend}'
+    if submodule:
+        module_name = f'{module_name}.{submodule}'
+    try:
+        return importlib.import_module(module_name)
+    except ModuleNotFoundError as exc:
+        if exc.name and not module_name.startswith(exc.name):
+            raise
+        raise ValueError(f'Unknown {kind} backend: {backend}') from exc
+
+
+def load_backend_attr(package: str, kind: str, backend: str, attr: str):
+    """
+    Returns ``attr`` of ``<package>.<backend>``, naming the backend when
+    the package does not export it
+    """
+    module = import_backend_module(package, kind, backend)
+    try:
+        return getattr(module, attr)
+    except AttributeError as exc:
+        raise ValueError(
+            f"{kind.capitalize()} backend '{backend}' exports no {attr}"
+        ) from exc
 
 
 class BackendType(Enum):

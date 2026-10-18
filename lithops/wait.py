@@ -14,20 +14,15 @@
 # limitations under the License.
 #
 
-import signal
 import logging
-import threading
 import time
 import math
 import concurrent.futures as cf
-from functools import partial
 from types import SimpleNamespace
 from itertools import chain
 from typing import Optional, List, Union, Tuple, Any
 
 from lithops.utils import (
-    is_unix_system,
-    timeout_handler,
     is_notebook,
     is_lithops_worker,
     FuturesList,
@@ -95,86 +90,17 @@ def _log_wait_start(prefix: str, return_when: Any, pending: int) -> None:
     )
 
 
-def _timeout_error_msg(timeout: float) -> str:
-    return (
-        f'Timeout of {timeout} seconds exceeded waiting for '
-        'function activations to finish'
-    )
-
-
-def _can_use_alarm() -> bool:
-    """
-    SIGALRM only exists on Unix, and Python only lets the main thread set a
-    signal handler: anywhere else signal.signal() raises ValueError
-    """
-    return (
-        is_unix_system()
-        and threading.current_thread() is threading.main_thread()
-    )
-
-
-def _set_wait_alarm(timeout: float) -> Optional[SimpleNamespace]:
-    """
-    Arms a SIGALRM that aborts the wait once the timeout is exceeded, and
-    returns what _clear_wait_alarm() needs to give the caller back the
-    handler and the alarm it had before. Returns None, with the caller's
-    alarm and handler put back, when that alarm goes off first: the timeout
-    of the wait is then checked by the polling loop.
-
-    signal.alarm() takes whole seconds and rounds nothing, so a fractional
-    timeout used to raise TypeError before the wait even started, which is
-    what a caller asking for 0.5 s got. Rounded up rather than truncated:
-    int(0.5) is 0, and alarm(0) cancels the alarm instead of setting one, so
-    the wait would have run for ever with no timeout at all.
-
-    A timeout that has already passed raises here, since there is no shorter
-    alarm than one second to arm
-    """
-    if timeout <= 0:
-        raise TimeoutError(_timeout_error_msg(timeout))
-
-    seconds = math.ceil(timeout)
-    logger.debug(f'Setting waiting timeout to {timeout} seconds')
-    previous_handler = signal.signal(
-        signal.SIGALRM, partial(timeout_handler, _timeout_error_msg(timeout))
-    )
-    previous_remaining = signal.alarm(seconds)
-    if not isinstance(previous_remaining, int):
-        # Only a stand-in for signal.alarm returns anything else
-        previous_remaining = 0
-    armed = SimpleNamespace(
-        handler=previous_handler,
-        remaining=previous_remaining,
-        armed_at=time.monotonic(),
-    )
-    if previous_remaining and previous_remaining <= seconds:
-        _clear_wait_alarm(armed)
-        return None
-    return armed
-
-
-def _clear_wait_alarm(armed: SimpleNamespace) -> None:
-    """
-    Cancels the alarm of the wait and restores the handler and the alarm the
-    caller had set, minus the time the wait took
-    """
-    signal.alarm(0)
-    # None stands for a handler not set from Python, which cannot be set back
-    signal.signal(
-        signal.SIGALRM,
-        signal.SIG_DFL if armed.handler is None else armed.handler,
-    )
-    if armed.remaining:
-        elapsed = time.monotonic() - armed.armed_at
-        signal.alarm(max(1, math.ceil(armed.remaining - elapsed)))
-
-
 def _check_deadline(deadline: Optional[float], timeout: Optional[float]) -> None:
     """
-    Raises the same TimeoutError as the alarm once the deadline has passed
+    Raises TimeoutError once the deadline has passed. Checked between polls
+    rather than with a SIGALRM, which only the main thread of a Unix process
+    can arm and which would take the alarm of the caller over
     """
     if deadline is not None and time.monotonic() >= deadline:
-        raise TimeoutError(_timeout_error_msg(timeout))
+        raise TimeoutError(
+            f'Timeout of {timeout} seconds exceeded waiting for '
+            'function activations to finish'
+        )
 
 
 def _create_progressbar(total: int, initial: int):
@@ -230,7 +156,7 @@ def _poll_until_done(
     statuses are likely to be waiting already.
 
     The futures in already_complete do not count: they were done before the
-    wait started. A deadline is the timeout of a wait no alarm can abort
+    wait started. The wait times out at the deadline, when there is one
     """
     def watched():
         if not already_complete:
@@ -327,15 +253,8 @@ def wait(
 
     started_monitors = []
     pool = None
-    armed_alarm = None
-    deadline = None
+    deadline = None if timeout is None else time.monotonic() + timeout
     try:
-        if timeout is not None:
-            if _can_use_alarm():
-                armed_alarm = _set_wait_alarm(timeout)
-            if armed_alarm is None:
-                deadline = time.monotonic() + timeout
-
         executors_data = _create_executors_data_from_futures(
             fs, internal_storage
         )
@@ -352,7 +271,6 @@ def wait(
             pbar=pbar,
             throw_except=throw_except,
             download_results=download_results,
-            threadpool_size=threadpool_size,
             pool=pool,
         )
 
@@ -381,8 +299,6 @@ def wait(
             pool.shutdown(wait=True)
         for monitor in started_monitors:
             monitor.stop()
-        if armed_alarm is not None:
-            _clear_wait_alarm(armed_alarm)
         if pbar and not pbar.disable:
             pbar.close()
             if not is_notebook():
@@ -518,9 +434,8 @@ def _get_executor_data(
     exec_data,
     download_results,
     throw_except,
-    threadpool_size,
     pbar,
-    pool=None,
+    pool,
 ):
     """
     Downloads the status, or the whole result, of every ready future of one
@@ -539,11 +454,7 @@ def _get_executor_data(
         else:
             f.status(throw_except=throw_except, internal_storage=storage)
 
-    if pool is None:
-        with cf.ThreadPoolExecutor(max_workers=threadpool_size) as owned:
-            list(owned.map(fetch, fs_to_wait_on))
-    else:
-        list(pool.map(fetch, fs_to_wait_on))
+    list(pool.map(fetch, fs_to_wait_on))
 
     if pbar:
         for f in fs_to_wait_on:

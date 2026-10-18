@@ -28,12 +28,9 @@ RUN pip install --upgrade pip setuptools six \
         opencv-python-headless \
         && pip install --no-cache-dir -r requirements.txt
 
-ENV PORT=8080
-ENV CONCURRENCY=1
-ENV TIMEOUT=600
 ENV PYTHONUNBUFFERED=TRUE
 
-# Copy Lithops proxy and lib to the container image.
+# Copy the Lithops entry point and lib to the container image.
 ENV APP_HOME=/lithops
 WORKDIR $APP_HOME
 
@@ -41,4 +38,4 @@ COPY lithops_codeengine.zip .
 RUN unzip lithops_codeengine.zip
 RUN rm lithops_codeengine.zip
 
-CMD exec gunicorn --bind :$PORT --workers $CONCURRENCY --timeout $TIMEOUT lithopsentry:proxy
+CMD ["python", "lithopsentry.py"]

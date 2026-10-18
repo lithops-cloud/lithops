@@ -37,11 +37,7 @@ from typing import Any, Dict, Optional
 from lithops.telemetry import metrics as M
 from lithops.constants import WORKER_ENV
 from lithops.version import __version__
-from lithops.telemetry.backends import (
-    import_backend_module,
-    load_backend_class,
-    resolve_backend,
-)
+from lithops.telemetry.backends import load_backend_class, resolve_backend
 
 logger = logging.getLogger(__name__)
 
@@ -121,10 +117,6 @@ class BoundTelemetry:
     def __init__(self, exporter: 'TelemetryExporter', backend: str):
         self._exporter = exporter
         self._backend = backend or _UNKNOWN
-
-    @property
-    def enabled(self) -> bool:
-        return True
 
     def _labels(self, source: Any, **extra: str) -> Dict[str, str]:
         """
@@ -398,10 +390,6 @@ class NoopTelemetry(BoundTelemetry):
     def __init__(self):  # noqa: D107 - deliberately takes no exporter
         pass
 
-    @property
-    def enabled(self) -> bool:
-        return False
-
     def on_job_submitted(self, job):
         pass
 
@@ -449,21 +437,10 @@ class TelemetryExporter:
         self, spec: M.MetricSpec, value: float, labels: Dict[str, str]
     ) -> None:
         """
-        Records one observation, after checking that the labels are the
-        ones the spec declares.
-
-        The check is what keeps the cardinality rules of
-        :mod:`lithops.telemetry.metrics` true at runtime rather than only
-        at import: a call site that invents a label is dropped and logged,
-        not written to the backend
+        Records one observation. ``labels`` are built by
+        :class:`BoundTelemetry` from fixed keys, which the tests hold to
+        the ones the spec declares
         """
-        if set(labels) != set(spec.labelnames):
-            logger.error(
-                f'Telemetry: {spec.name} takes labels '
-                f'{sorted(spec.labelnames)}, got {sorted(labels)}. '
-                f'The observation was dropped'
-            )
-            return
         try:
             self.backend.observe(spec, value, labels)
         except Exception as exc:
@@ -632,15 +609,3 @@ def shutdown_telemetry() -> None:
     if exporter is not None:
         exporter.shutdown()
 
-
-def load_backend_config(config_data: Dict[str, Any]) -> None:
-    """
-    Lets the configured telemetry backend fill in its own defaults, the
-    way the monitoring backends do. A no-op when telemetry is off
-    """
-    backend_name = resolve_backend(config_data)
-    if backend_name is None:
-        return
-    logger.debug(f'Loading Telemetry backend module: {backend_name}')
-    module = import_backend_module(backend_name, 'config')
-    module.load_config(config_data)

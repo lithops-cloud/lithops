@@ -82,10 +82,10 @@ REQ_PARAMS_2 = ('subnet_id', )
 
 
 def load_config(config_data=None):
-    if 'oracle' not in config_data:
+    if not config_data.get('oracle'):
         raise Exception("'oracle' section is mandatory in the configuration")
 
-    if 'oracle' not in config_data:
+    if not config_data.get('oracle_f'):
         raise Exception("'oracle_f' section is mandatory in the configuration")
 
     for param in REQ_PARAMS_1:

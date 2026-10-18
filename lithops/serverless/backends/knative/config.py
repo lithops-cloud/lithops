@@ -16,12 +16,9 @@
 #
 
 import os
-from lithops.version import __version__
 
-DEFAULT_GROUP = "serving.knative.dev"
-DEFAULT_VERSION = "v1"
-
-BUILD_GIT_URL = 'https://github.com/lithops-cloud/lithops'
+KNATIVE_GROUP = 'serving.knative.dev'
+KNATIVE_VERSION = 'v1'
 
 DEFAULT_CONFIG_KEYS = {
     'runtime_timeout': 600,  # Default: 600 seconds => 10 minutes
@@ -29,185 +26,77 @@ DEFAULT_CONFIG_KEYS = {
     'runtime_cpu': 1,  # 1 vCPU
     'max_workers': 100,
     'worker_processes': 1,
-    'invoke_pool_threads': 100,
     'docker_server': 'docker.io',
-    'networking_layer': 'kourier'
+    'networking_layer': 'kourier',
 }
+
+# Namespace and name of the k8s Service that exposes the ingress gateway of
+# each networking layer Knative supports, as their install manifests create it
+INGRESS_GATEWAYS = {
+    'kourier': ('kourier-system', 'kourier'),
+    'istio': ('istio-system', 'istio-ingressgateway'),
+    'contour': ('contour-external', 'envoy'),
+}
+
+SUPPORTED_RUNTIME_ARCHS = {'amd64', 'arm64'}
+DEFAULT_RUNTIME_ARCH = 'amd64'
+
+# How long a new or updated service has to become ready. Longer than the
+# scale-down-delay of the services, so that an update waits until the
+# containers of the previous revision free their place in the cluster
+SERVICE_READY_TIMEOUT = 600
 
 FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_knative.zip')
 
 DEFAULT_DOCKERFILE = """
-RUN apt-get update && apt-get install -y \
-        zip \
+RUN apt-get update && apt-get install -y --no-install-recommends \\
+        zip unzip \\
+        && apt-get clean \\
         && rm -rf /var/lib/apt/lists/*
 
-RUN pip install --upgrade --ignore-installed setuptools six pip \
-    && pip install --upgrade --no-cache-dir --ignore-installed \
-        gunicorn \
-        pika \
-        flask \
-        gevent \
-        ibm-cos-sdk \
-        google-cloud-storage \
-        google-cloud-pubsub \
-        azure-storage-blob \
-        azure-storage-queue \
-        boto3 \
-        redis \
-        requests \
-        PyYAML \
-        kubernetes \
-        numpy \
-        cloudpickle \
-        paramiko \
-        ps-mem \
-        tblib \
+# Pin setuptools<81 (PEP 517 build envs included) so legacy sdists that
+# import pkg_resources still build.
+RUN echo 'setuptools<81' > /tmp/constraints.txt
+ENV PIP_CONSTRAINT=/tmp/constraints.txt
+
+RUN pip install --no-cache-dir 'setuptools<81' six wheel \\
+    && pip install --no-cache-dir \\
+        gunicorn \\
+        flask \\
+        pika \\
+        boto3 \\
+        ibm-cloud-sdk-core \\
+        ibm-cos-sdk \\
+        google-cloud-storage \\
+        google-cloud-pubsub \\
+        azure-storage-blob \\
+        azure-storage-queue \\
+        redis \\
+        requests \\
+        PyYAML \\
+        kubernetes \\
+        numpy \\
+        cloudpickle \\
+        ps-mem \\
+        tblib \\
         psutil
 
 ENV PORT=8080
-ENV CONCURRENCY=1
-ENV TIMEOUT=600
 ENV PYTHONUNBUFFERED=TRUE
-
-# Copy Lithops proxy and lib to the container image.
 ENV APP_HOME=/lithops
+
+RUN groupadd -g 1000 lithops && useradd -m -u 1000 -g 1000 lithops
+
 WORKDIR $APP_HOME
 
 COPY lithops_knative.zip .
-RUN unzip lithops_knative.zip && rm lithops_knative.zip
+RUN unzip lithops_knative.zip && rm lithops_knative.zip && chown -R lithops:lithops $APP_HOME
 
-CMD exec gunicorn --bind :$PORT --workers $CONCURRENCY --timeout $TIMEOUT lithopsproxy:proxy
-"""
+USER 1000:1000
 
-secret_res = """
-apiVersion: v1
-kind: Secret
-metadata:
-  name: dockerhub-user-token
-  annotations:
-    tekton.dev/docker-0: https://index.docker.io
-type: kubernetes.io/basic-auth
-stringData:
-  username: USER
-  password: TOKEN
-"""
-
-account_res = """
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: lithops-build-pipeline
-secrets:
-- name: dockerhub-user-token
-"""
-
-git_res = """
-apiVersion: tekton.dev/v1alpha1
-kind: PipelineResource
-metadata:
-  name: lithops-git
-spec:
-  type: git
-  params:
-    - name: revision
-      value: master
-    - name: url
-      value: https://github.com/lithops-cloud/lithops
-"""
-
-task_def = """
-apiVersion: tekton.dev/v1alpha1
-kind: Task
-metadata:
-  name: git-source-to-image
-spec:
-  inputs:
-    resources:
-      - name: git-source
-        type: git
-    params:
-      - name: pathToContext
-        description: Path to build context, within the workspace used by Kaniko
-        default: /workspace/git-source/
-      - name: pathToDockerFile
-        description: Relative to the context
-        default: Dockerfile
-      - name: imageUrl
-      - name: imageTag
-  steps:
-    - name: build-and-push
-      image: gcr.io/kaniko-project/executor:v0.15.0
-      env:
-        - name: "DOCKER_CONFIG"
-          value: "/tekton/home/.docker/"
-      command:
-        - /kaniko/executor
-      args:
-        - --dockerfile=$(inputs.params.pathToDockerFile)
-        - --destination=$(inputs.params.imageUrl):$(inputs.params.imageTag)
-        - --context=$(inputs.params.pathToContext)
-"""
-
-task_run = """
-apiVersion: tekton.dev/v1alpha1
-kind: TaskRun
-metadata:
-  name: lithops-runtime-from-git
-spec:
-  serviceAccountName: lithops-build-pipeline
-  taskRef:
-    name: git-source-to-image
-  inputs:
-    resources:
-      - name: git-source
-        resourceRef:
-          name: lithops-git
-    params:
-      - name: pathToDockerFile
-        value: lithops/compute/backends/knative/tekton/Dockerfile
-      - name: imageUrl
-        value: docker.io/jsampe/lithops-knative-default-runtime
-      - name: imageTag
-        value: latest
-"""
-
-
-service_res = """
-apiVersion: serving.knative.dev/v1
-kind: Service
-metadata:
-  name: lithops-runtime
-  #namespace: default
-spec:
-  template:
-    metadata:
-      labels:
-        type: lithops-runtime
-        lithops-version: x.y.z
-      annotations:
-        autoscaling.knative.dev/target: "1"
-        autoscaling.knative.dev/minScale: "0"
-        autoscaling.knative.dev/maxScale: "0"
-        autoscaling.knative.dev/scaleDownDelay: "5m"
-    spec:
-      containerConcurrency: 1
-      timeoutSeconds: 600
-      containers:
-        - image: IMAGE
-          env:
-            - name: CONCURRENCY
-              value: "1"
-            - name: TIMEOUT
-              value: "600"
-          resources:
-            limits:
-              memory: "256Mi"
-              cpu: "0.5"
-            requests:
-              memory: "256Mi"
-              cpu: "0.5"
-      imagePullSecrets:
-        - name: lithops-regcred
+# One request at a time, as the service admits one per container. Knative
+# and the Lithops worker enforce the timeout, so gunicorn does not
+CMD ["sh", "-c", "exec gunicorn --bind :$PORT --workers 1 --threads 1 --timeout 0 lithopsproxy:proxy"]
 """
 
 
@@ -216,13 +105,23 @@ def load_config(config_data):
         if key not in config_data['knative']:
             config_data['knative'][key] = DEFAULT_CONFIG_KEYS[key]
 
-    config_data['knative']['invoke_pool_threads'] = config_data['knative']['max_workers']
+    networking_layer = config_data['knative']['networking_layer']
+    if networking_layer not in INGRESS_GATEWAYS:
+        raise Exception(
+            f"'networking_layer' under 'knative' must be one of "
+            f"{sorted(INGRESS_GATEWAYS)}, got '{networking_layer}'"
+        )
 
-    if 'git_url' not in config_data['knative']:
-        config_data['knative']['git_url'] = BUILD_GIT_URL
-    if 'git_rev' not in config_data['knative']:
-        revision = 'master' if 'dev' in __version__ else __version__
-        config_data['knative']['git_rev'] = revision
+    arch = config_data['knative'].get('runtime_arch')
+    if arch is not None and arch not in SUPPORTED_RUNTIME_ARCHS:
+        raise Exception(
+            f"'runtime_arch' under 'knative' must be one of "
+            f"{sorted(SUPPORTED_RUNTIME_ARCHS)} or null, got '{arch}'"
+        )
+
+    # One invocation thread per worker, not a user setting: each call holds
+    # its request open until the function finishes
+    config_data['knative']['invoke_pool_threads'] = config_data['knative']['max_workers']
 
     if 'runtime' in config_data['knative']:
         runtime = config_data['knative']['runtime']

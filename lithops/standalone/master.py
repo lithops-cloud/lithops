@@ -132,20 +132,41 @@ def _job_key_id(job_key):
 # Workers
 # /---------------------------------------------------------------------------/
 
+def _ping_worker(worker_private_ip):
+    """
+    Returns how many processes of a worker are busy and how many free, as
+    its Lithops service reports them, or None when it does not answer
+    """
+    url = f"http://{worker_private_ip}:{SA_WORKER_SERVICE_PORT}/ping"
+    try:
+        resp = requests.get(url, timeout=0.5).json()
+        logger.debug(f'Worker processes status from {worker_private_ip}: {resp}')
+        return resp
+    except Exception as e:
+        logger.debug(f'Worker {worker_private_ip} did not answer: {e}')
+        return None
+
+
 def is_worker_free(worker_private_ip):
     """
     True when the Lithops service of a worker answers and has a free process.
     A worker that cannot be reached counts as not free, as there is no way to
     give it any work
     """
-    url = f"http://{worker_private_ip}:{SA_WORKER_SERVICE_PORT}/ping"
-    try:
-        resp = requests.get(url, timeout=0.5).json()
-        logger.debug(f'Worker processes status from {worker_private_ip}: {resp}')
-        return resp.get('free', 0) > 0
-    except Exception as e:
-        logger.debug(f'Worker {worker_private_ip} did not answer: {e}')
-        return False
+    resp = _ping_worker(worker_private_ip)
+    return resp is not None and resp.get('free', 0) > 0
+
+
+def get_worker_busy(worker_private_ip):
+    """
+    Returns how many processes of a worker are running a task, as busy/total,
+    and Unknown when its Lithops service does not answer
+    """
+    resp = _ping_worker(worker_private_ip)
+    if resp is None:
+        return "Unknown"
+    busy = resp.get('busy', 0)
+    return f"{busy}/{busy + resp.get('free', 0)}"
 
 
 def get_worker_ttd(worker_private_ip):
@@ -174,7 +195,7 @@ def list_workers():
 
     result = [[
         'Worker Name', 'Created', 'Instance Type', 'Processes',
-        'Runtime', 'Mode', 'Status', 'TTD',
+        'Runtime', 'Mode', 'Status', 'Busy', 'Error', 'TTD',
     ]]
 
     def get_worker(worker):
@@ -193,6 +214,8 @@ def list_workers():
             worker_data['runtime'],
             worker_data['exec_mode'],
             worker_data['status'],
+            get_worker_busy(worker_data['private_ip']),
+            worker_data.get('err', ''),
             ttd,
         ))
 
@@ -243,7 +266,6 @@ def get_workers():
                 worker_data['name'],
                 worker_data['private_ip'],
                 worker_data['instance_id'],
-                worker_data['ssh_credentials'],
                 worker_data['instance_type'],
                 runtime_name,
             ))
@@ -256,28 +278,12 @@ def get_workers():
     return response
 
 
-def _redis_field(value):
-    """
-    Returns a config value as something a redis hash accepts, which is only
-    bytes, str, int or float
-    """
-    if isinstance(value, (dict, list)):
-        return json.dumps(value)
-    if isinstance(value, bool):
-        return str(value)
-    return value
-
-
-def save_worker(worker, standalone_config, work_queue_name):
+def save_worker(worker, standalone_config):
     """
     Registers a worker in redis, which is where every listing and every
-    lookup of a free worker reads from. The backend section is left out, as
-    it holds the credentials of the account
+    lookup of a free worker reads from. Only the fields those read are
+    stored: no account or SSH credentials end up in redis
     """
-    config = copy.deepcopy(standalone_config)
-    del config[config['backend']]
-    config = {key: _redis_field(value) for key, value in config.items()}
-
     worker_processes = (
         CPU_COUNT if worker.config['worker_processes'] == 'AUTO'
         else worker.config['worker_processes']
@@ -291,10 +297,9 @@ def save_worker(worker, standalone_config, work_queue_name):
         'instance_type': worker.instance_type,
         'worker_processes': worker_processes,
         'created': str(time.time()),
-        'ssh_credentials': json.dumps(worker.ssh_credentials),
-        'queue_name': work_queue_name,
+        'runtime': standalone_config['runtime'],
+        'exec_mode': standalone_config['exec_mode'],
         'err': "",
-        **config,
     })
 
 
@@ -342,14 +347,22 @@ def setup_worker_create_reuse(standalone_handler, worker_info, work_queue_name):
     if redis_client.hget(_worker_key(worker.name), 'status') == WorkerStatus.ACTIVE.value:
         return
 
-    save_worker(worker, standalone_handler.config, work_queue_name)
+    save_worker(worker, standalone_handler.config)
 
     max_retries = worker.config.get(
         'worker_create_retries', MAX_INSTANCE_CREATE_RETRIES
     )
 
+    def recreate(worker, reason):
+        logger.warning(reason)
+        worker.delete()
+        worker.create()
+
     def wait_worker_ready(worker):
-        """Waits for a worker to boot, recreating it while there are tries left"""
+        """
+        Waits for a worker to boot, recreating it while there are tries left.
+        Each call has its own budget, so every recreated worker gets it whole
+        """
         instance_ready_retries = 1
         while instance_ready_retries <= max_retries:
             try:
@@ -361,9 +374,7 @@ def setup_worker_create_reuse(standalone_handler, worker_info, work_queue_name):
                 if instance_ready_retries == max_retries:
                     logger.debug(f'Readiness probe expired for {worker}')
                     raise
-                logger.warning(f'Timeout Error. Recreating {worker}')
-                worker.delete()
-                worker.create()
+                recreate(worker, f'Timeout Error. Recreating {worker}')
                 instance_ready_retries += 1
 
     wait_worker_ready(worker)
@@ -379,9 +390,7 @@ def setup_worker_create_reuse(standalone_handler, worker_info, work_queue_name):
             if instance_validate_retries == max_retries:
                 logger.debug(f'Validation probe expired for {worker}')
                 raise
-            logger.warning(f'{worker} validation error: {e}')
-            worker.delete()
-            worker.create()
+            recreate(worker, f'{worker} validation error: {e}')
             instance_validate_retries += 1
             wait_worker_ready(worker)
 
@@ -432,7 +441,7 @@ def setup_worker_consume(standalone_handler, worker_info, work_queue_name):
     if redis_client.hget(_worker_key(instance.name), 'status') == WorkerStatus.ACTIVE.value:
         return
 
-    save_worker(instance, standalone_handler.config, work_queue_name)
+    save_worker(instance, standalone_handler.config)
 
     try:
         logger.debug(f'Setting up the worker in the current {instance}')

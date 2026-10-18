@@ -60,7 +60,6 @@ class TestConstants:
     def test_backend_collections_are_immutable(self):
         assert isinstance(constants.SERVERLESS_BACKENDS, tuple)
         assert isinstance(constants.STANDALONE_BACKENDS, tuple)
-        assert isinstance(constants.LOGGER_LEVEL_CHOICES, tuple)
 
     def test_temp_paths_are_under_lithops_temp_dir(self):
         for path in (
@@ -70,7 +69,6 @@ class TestConstants:
             constants.CUSTOM_RUNTIME_DIR,
             constants.CLEANER_DIR,
             constants.RN_LOG_FILE,
-            constants.SV_LOG_FILE,
             constants.FN_LOG_FILE,
             constants.SA_MASTER_LOG_FILE,
             constants.SA_WORKER_LOG_FILE,

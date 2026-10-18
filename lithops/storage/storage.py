@@ -30,6 +30,7 @@ from lithops.constants import (
     TEMP_PREFIX,
 )
 from lithops.utils import is_lithops_worker
+from lithops.libs.globber import match
 from lithops.storage import utils
 from lithops.config import extract_storage_config, default_storage_config
 
@@ -74,8 +75,7 @@ class Storage:
         except Exception:
             logger.error(
                 "There was an error trying to create the "
-                f"'{self.backend}' storage backend",
-                exc_info=True,
+                f"'{self.backend}' storage backend"
             )
             raise
 
@@ -239,11 +239,18 @@ class Storage:
 
         :param bucket: Name of the bucket
         :param prefix: Key prefix for filtering
+        :param match_pattern: Glob pattern the whole key must match, with '/'
+            as the separator: '?' and '*' match within one path component,
+            '**' matches any number of components and '\\' escapes the next
+            character
 
         :return: List of dictionaries containing at least 'Key' and 'Size'
             for each object
         """
-        return self.storage_handler.list_objects(bucket, prefix, match_pattern)
+        objects = self.storage_handler.list_objects(bucket, prefix)
+        if match_pattern is None:
+            return objects
+        return [obj for obj in objects if match(match_pattern, obj['Key'])]
 
     def list_keys(self, bucket, prefix=None) -> List[str]:
         """
@@ -449,20 +456,16 @@ class InternalStorage:
         except utils.StorageNoSuchKeyError:
             return None
 
-    def _runtime_meta_refs(self, key):
+    def _runtime_meta_key(self, key):
         """
-        Returns where the metadata of a runtime lives: the path parts of the
-        local cache file, the key of the in-memory cache, and the storage key,
-        which is posix even when the local path is not
+        Returns the storage key of the metadata of a runtime, also the key of
+        the in-memory cache, which is posix even when the runtime key is not
         """
-        path = [RUNTIMES_PREFIX, key + ".meta.json"]
-        cache_key = '/'.join(path)
-        return path, cache_key, cache_key.replace('\\', '/')
+        return f'{RUNTIMES_PREFIX}/{key}.meta.json'.replace('\\', '/')
 
     def _local_runtime_meta_path(self, key):
         """Returns the path of the local disk cache file of a runtime"""
-        path, _, _ = self._runtime_meta_refs(key)
-        return os.path.join(CACHE_DIR, *path)
+        return os.path.join(CACHE_DIR, RUNTIMES_PREFIX, key + ".meta.json")
 
     def _write_runtime_meta_file(self, filename_local_path, runtime_meta):
         """Writes the metadata of a runtime to the local disk cache"""
@@ -495,10 +498,10 @@ class InternalStorage:
         the disk cache, then storage. Returns None when the runtime has no
         metadata yet, which is what tells the caller to deploy it
         """
-        _, cache_key, obj_key = self._runtime_meta_refs(key)
+        obj_key = self._runtime_meta_key(key)
         filename_local_path = self._local_runtime_meta_path(key)
 
-        runtime_meta = self._cached_runtime_meta(cache_key, filename_local_path)
+        runtime_meta = self._cached_runtime_meta(obj_key, filename_local_path)
         if runtime_meta is not None:
             return runtime_meta
 
@@ -524,7 +527,7 @@ class InternalStorage:
             # A cache that cannot be written only costs the next download
             logger.error(f"Could not save runtime meta to local cache: {e}")
 
-        RUNTIME_META_CACHE[cache_key] = runtime_meta
+        RUNTIME_META_CACHE[obj_key] = runtime_meta
         return runtime_meta
 
     def put_runtime_meta(self, key, runtime_meta):
@@ -532,7 +535,7 @@ class InternalStorage:
         Writes the metadata of a runtime to storage, and to the local disk
         cache unless this is a worker, whose disk nothing else reads
         """
-        _, _, obj_key = self._runtime_meta_refs(key)
+        obj_key = self._runtime_meta_key(key)
         logger.debug(
             f"Uploading runtime metadata to: "
             f"{self.backend}://{self.bucket}/{obj_key}"
@@ -548,7 +551,7 @@ class InternalStorage:
 
     def delete_runtime_meta(self, key):
         """Deletes the metadata of a runtime from storage and from the cache"""
-        _, _, obj_key = self._runtime_meta_refs(key)
+        obj_key = self._runtime_meta_key(key)
         filename_local_path = self._local_runtime_meta_path(key)
         if os.path.exists(filename_local_path):
             os.remove(filename_local_path)

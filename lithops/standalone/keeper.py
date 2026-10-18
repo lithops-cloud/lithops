@@ -52,7 +52,6 @@ class BudgetKeeper(threading.Thread):
         self.auto_dismantle = config['auto_dismantle']
         self.soft_dismantle_timeout = config['soft_dismantle_timeout']
         self.hard_dismantle_timeout = config['hard_dismantle_timeout']
-        self.exec_mode = config['exec_mode']
 
         self.running = False
         self.jobs = {}
@@ -78,11 +77,6 @@ class BudgetKeeper(threading.Thread):
         """Marks a job as running, which pushes the countdown forward"""
         self.last_usage_time = time.time()
         self.jobs[job_key] = JobStatus.RUNNING.value
-
-    def set_job_done(self, job_key):
-        """Marks a job as done, which starts the idle countdown"""
-        self.last_usage_time = time.time()
-        self.jobs[job_key] = JobStatus.DONE.value
 
     def _all_jobs_done(self):
         """True when there has been at least one job and none is running"""

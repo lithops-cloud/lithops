@@ -28,7 +28,6 @@ logger = logging.getLogger(__name__)
 
 func_key_suffix = "func.pickle"
 agg_data_key_suffix = "aggdata.pickle"
-data_key_suffix = "data.pickle"
 output_key_suffix = "output.pickle"
 status_key_suffix = "status.json"
 init_key_suffix = ".init"

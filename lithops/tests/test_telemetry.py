@@ -21,7 +21,12 @@ import pytest
 from lithops.constants import WORKER_ENV
 from lithops.telemetry import metrics as M
 from lithops.telemetry.backend import MetricsBackend
-from lithops.telemetry.backends import DEFAULT_BACKEND, resolve_backend
+from lithops.telemetry.backends import (
+    DEFAULT_BACKEND,
+    import_backend_module,
+    load_backend_class,
+    resolve_backend,
+)
 from lithops.telemetry.exporter import (
     NOOP,
     BoundTelemetry,
@@ -31,11 +36,22 @@ from lithops.telemetry.exporter import (
 )
 from lithops.monitoring.monitor import Monitor
 
+#: Labels that identify a single call or job. On any metric they would give
+#: it one time series per call, which is what lithops.telemetry.metrics is
+#: shaped to prevent
+PER_CALL_LABELS = frozenset({
+    'call_id',
+    'job_id',
+    'job_key',
+    'executor_id',
+    'activation_id',
+    'worker_id',
+    'instance_id',
+})
+
 
 class RecordingBackend(MetricsBackend):
     """A backend that keeps every observation instead of shipping it"""
-
-    backend_name = 'recording'
 
     def __init__(self, config=None):
         super().__init__(config or {})
@@ -153,13 +169,6 @@ def _job(**attrs):
 
 class TestMetricSpecs:
 
-    def test_a_per_call_label_is_refused(self):
-        with pytest.raises(ValueError, match='call_id'):
-            M.MetricSpec(
-                name='lithops_bad', kind=M.COUNTER,
-                documentation='', extra_labels=('call_id',),
-            )
-
     def test_a_histogram_needs_buckets(self):
         with pytest.raises(ValueError, match='buckets'):
             M.MetricSpec(
@@ -175,11 +184,31 @@ class TestMetricSpecs:
 
     def test_no_exported_metric_is_identified_by_a_call(self):
         for spec in M.ALL_METRICS:
-            assert not M.FORBIDDEN_LABELS.intersection(spec.labelnames)
+            assert not PER_CALL_LABELS.intersection(spec.labelnames), spec.name
 
     def test_metric_names_are_unique(self):
         names = [spec.name for spec in M.ALL_METRICS]
         assert len(names) == len(set(names))
+
+    def test_every_declared_metric_is_in_the_inventory(self):
+        # The OTLP backend pins histogram buckets from ALL_METRICS only, so
+        # a spec missing from it would silently get the SDK default buckets
+        declared = [
+            value for value in vars(M).values()
+            if isinstance(value, M.MetricSpec)
+        ]
+        assert declared
+        assert list(M.ALL_METRICS) == declared
+        assert M.CALL_END_TO_END in M.ALL_METRICS
+        assert M.WORKER_INFO in M.ALL_METRICS
+
+    def test_the_inventory_keeps_the_declaration_order(self):
+        assert M.ALL_METRICS[0] is M.JOBS_SUBMITTED
+        assert M.ALL_METRICS[-1] is M.WORKER_INFO
+
+    def test_an_unknown_kind_is_refused(self):
+        with pytest.raises(ValueError, match='unknown metric kind'):
+            M.MetricSpec(name='lithops_bad', kind='updown', documentation='')
 
 
 class TestResolveBackend:
@@ -203,6 +232,82 @@ class TestResolveBackend:
     def test_missing_section(self):
         assert resolve_backend({}) is None
         assert resolve_backend(None) is None
+
+
+class TestCallSiteLabels:
+    """
+    Nothing checks labels at runtime: every label dict is built here from
+    fixed keys, so a call site or a spec with the wrong labels is caught by
+    driving every hook and comparing what reached the backend with the specs
+    """
+
+    def _drive_every_hook(self, telemetry):
+        telemetry.on_job_submitted(_job())
+        future = _future(_host_status_done_tstamp=1009.0)
+        telemetry.on_call_started(future, _call_status())
+        telemetry.on_call_finished(future, _call_status())
+        telemetry.on_call_finished(future, _call_status(exception=True))
+        telemetry.on_call_finished(future, {}, M.OUTCOME_TIMEOUT)
+        telemetry.on_call_finished(future, {}, M.OUTCOME_CHAINED)
+        future.stats = {
+            'host_submit_tstamp': 1000.0,
+            'host_status_done_tstamp': 1008.0,
+            'host_result_done_tstamp': 1008.5,
+            'host_result_query_count': 2,
+        }
+        telemetry.on_result_read(future, M.SOURCE_STORAGE)
+        telemetry.on_result_read(future, M.SOURCE_INLINE)
+
+    def test_every_observation_carries_exactly_the_labels_of_its_spec(self, recorder):
+        telemetry, backend = recorder
+        self._drive_every_hook(telemetry)
+
+        specs = {spec.name: spec for spec in M.ALL_METRICS}
+        assert backend.observations
+        for name, _, labels in backend.observations:
+            assert name in specs
+            assert sorted(labels) == sorted(specs[name].labelnames), name
+            assert all(isinstance(value, str) for value in labels.values()), name
+            assert not PER_CALL_LABELS.intersection(labels), name
+
+    def test_every_metric_has_a_call_site(self, recorder):
+        # Without this, a spec added with no call site, or a call site
+        # missed by the hooks above, would leave its labels unchecked
+        telemetry, backend = recorder
+        self._drive_every_hook(telemetry)
+
+        assert set(backend.names()) == {spec.name for spec in M.ALL_METRICS}
+
+
+class TestBackendLoader:
+
+    def test_an_unknown_backend_is_reported_by_name(self):
+        with pytest.raises(ValueError, match='^Unknown telemetry backend: graphite$'):
+            load_backend_class('graphite')
+
+    def test_a_missing_client_library_keeps_its_import_error(self):
+        missing = ModuleNotFoundError(
+            "No module named 'prometheus_client'", name='prometheus_client'
+        )
+        with patch('lithops.utils.importlib.import_module', side_effect=missing):
+            with pytest.raises(ModuleNotFoundError, match='prometheus_client'):
+                import_backend_module('prometheus')
+
+    def test_a_missing_export_is_reported(self):
+        with patch(
+            'lithops.utils.importlib.import_module',
+            return_value=SimpleNamespace(),
+        ):
+            with pytest.raises(
+                ValueError, match="Telemetry backend 'fake' exports no MetricsBackend"
+            ):
+                load_backend_class('fake')
+
+    @pytest.mark.parametrize('name', ['prometheus', 'otlp'])
+    def test_every_built_in_backend_holds_up_its_end(self, name):
+        cls = load_backend_class(name)
+        assert issubclass(cls, MetricsBackend)
+        assert callable(import_backend_module(name, 'config').load_config)
 
 
 class TestRecordingACall:
@@ -231,7 +336,7 @@ class TestRecordingACall:
             assert labels['backend'] == 'aws_lambda'
             assert labels['runtime_name'] == 'python:3.11'
             assert labels['runtime_memory'] == '512'
-            assert not M.FORBIDDEN_LABELS.intersection(labels)
+            assert not PER_CALL_LABELS.intersection(labels)
             if name == M.WORKER_INFO.name:
                 # Says what a runtime is, not what ran on it
                 assert 'function_name' not in labels
@@ -658,16 +763,6 @@ class TestTelemetryNeverBreaksAJob:
         backend.flush = MagicMock(side_effect=OSError('unreachable'))
         telemetry.flush()
 
-    def test_an_invented_label_is_dropped_rather_than_written(self):
-        backend = RecordingBackend()
-        exporter = TelemetryExporter(backend, flush_interval=3600)
-        try:
-            exporter.observe(M.CALLS_INVOKED, 1, {'backend': 'aws_lambda'})
-        finally:
-            exporter.shutdown()
-
-        assert backend.observations == []
-
 
 class TestExporterLifecycle:
 
@@ -761,7 +856,6 @@ class TestExporterLifecycle:
         assert later._backend == 'aws_lambda'
 
     def test_the_noop_records_nothing_and_raises_nothing(self):
-        assert NOOP.enabled is False
         NOOP.on_job_submitted(None)
         NOOP.on_call_started(None, None)
         NOOP.on_call_finished(None, None)
@@ -1036,13 +1130,19 @@ class TestOtlpBackend:
 
     def test_the_temporality_is_pinned_to_cumulative(self):
         pytest.importorskip('opentelemetry.sdk')
+        from opentelemetry.sdk.metrics import Counter, Histogram
         from opentelemetry.sdk.metrics.export import AggregationTemporality
         from lithops.telemetry.backends.otlp import MetricsBackend
 
         temporality = MetricsBackend._cumulative_temporality()
 
-        assert temporality
-        assert set(temporality.values()) == {AggregationTemporality.CUMULATIVE}
+        # The two kinds OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE
+        # can turn into deltas, and the only ones Lithops creates besides
+        # the gauge
+        assert temporality == {
+            Counter: AggregationTemporality.CUMULATIVE,
+            Histogram: AggregationTemporality.CUMULATIVE,
+        }
 
     def test_an_unknown_protocol_is_refused(self):
         pytest.importorskip('opentelemetry.sdk')

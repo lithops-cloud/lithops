@@ -33,7 +33,6 @@ from lithops.telemetry.metrics import (
     COUNTER,
     GAUGE,
     HISTOGRAM,
-    UPDOWN,
     MetricSpec,
 )
 
@@ -45,8 +44,6 @@ class MetricsBackend(BaseMetricsBackend):
     Aggregates into a ``prometheus_client`` registry and pushes it to a
     Pushgateway
     """
-
-    backend_name = 'prometheus'
 
     def __init__(self, config: Dict[str, Any]):
         super().__init__(config)
@@ -103,11 +100,11 @@ class MetricsBackend(BaseMetricsBackend):
         }
         if spec.kind == COUNTER:
             # The _total suffix is the client's to add, and the unit is
-            # already part of the name, so neither is passed here
+            # part of the name, so neither is passed here
             return Counter(**kwargs)
         if spec.kind == HISTOGRAM:
             return Histogram(buckets=spec.buckets, **kwargs)
-        if spec.kind in (UPDOWN, GAUGE):
+        if spec.kind == GAUGE:
             return Gauge(**kwargs)
         raise ValueError(f'{spec.name}: unsupported kind {spec.kind}')
 

@@ -15,32 +15,84 @@
 #
 
 import os
-import ssl
 import json
 import time
-import yaml
 import base64
 import hashlib
-import urllib3
 import logging
 import requests
-import http.client
+from datetime import datetime, timezone
 from urllib.parse import urlparse
-from kubernetes import client, watch
-from kubernetes.config import load_kube_config, load_incluster_config, list_kube_config_contexts
+from kubernetes import client
+from kubernetes.config import load_kube_config, load_incluster_config, \
+    list_kube_config_contexts, KUBE_CONFIG_DEFAULT_LOCATION
 from kubernetes.client.rest import ApiException
 
 from lithops import utils
 from lithops.version import __version__
-from lithops.config import load_yaml_config, dump_yaml_config
-from lithops.constants import CACHE_DIR
 from lithops.constants import COMPUTE_CLI_MSG
 
 from . import config
 
-urllib3.disable_warnings()
 
 logger = logging.getLogger(__name__)
+
+REGISTRY_SECRET = 'lithops-regcred'
+
+# Answers of the ingress and the activator to a request that never reached a
+# container, so it can be sent again. Any other error may come from a call
+# that already started, and sending it again would run it twice
+RETRY_STATUS_CODES = (429, 503)
+
+# Waiting reasons of a container whose image can never be pulled as it is
+IMAGE_PULL_ERRORS = ('ErrImagePull', 'ImagePullBackOff', 'InvalidImageName')
+
+
+def _api_error(e):
+    """The message of a failed kube API request, such as a webhook rejection"""
+    try:
+        return json.loads(e.body)['message']
+    except Exception:
+        return str(e)
+
+
+def _ready_condition(service):
+    """The Ready condition of a Knative service, or None while it has none"""
+    for condition in service.get('status', {}).get('conditions', []):
+        if condition.get('type') == 'Ready':
+            return condition
+    return None
+
+
+def _service_state(service):
+    """
+    Whether a Knative service serves its latest spec: 'ready', 'failed' or
+    'pending', with the message of its Ready condition
+    """
+    status = service.get('status', {})
+    condition = _ready_condition(service)
+    message = f"{condition.get('reason', '')}: {condition.get('message', '')}" if condition else ''
+
+    # Until the controller has seen the latest spec, the status describes
+    # the previous one
+    if status.get('observedGeneration') != service['metadata'].get('generation'):
+        return 'pending', message
+    if condition is None or condition.get('status') == 'Unknown':
+        return 'pending', message
+    if condition.get('status') == 'False':
+        return 'failed', message
+    if status.get('latestReadyRevisionName') != status.get('latestCreatedRevisionName'):
+        return 'pending', message
+    return 'ready', message
+
+
+def _memory_mb(quantity):
+    """The memory of a k8s quantity such as 512Mi or 2Gi, in MB"""
+    if quantity.endswith('Gi'):
+        return int(float(quantity[:-2]) * 1024)
+    if quantity.endswith('Mi'):
+        return int(quantity[:-2])
+    return int(quantity) // (1024 * 1024)
 
 
 class KnativeServingBackend:
@@ -53,82 +105,78 @@ class KnativeServingBackend:
         self.type = utils.BackendType.FAAS.value
         self.kn_config = knative_config
         self.ingress_endpoint = self.kn_config.get('ingress_endpoint')
-        self.kubecfg_path = self.kn_config.get('kubecfg_path')
-        self.networking_layer = self.kn_config.get('networking_layer')
+        self.networking_layer = self.kn_config.get('networking_layer', 'kourier')
 
-        # k8s config can be incluster, in ~/.kube/config or generate kube-config.yaml file and
-        # set env variable KUBECONFIG=<path-to-kube-confg>
-        try:
-            load_kube_config(config_file=self.kubecfg_path)
-            contexts = list_kube_config_contexts(config_file=self.kubecfg_path)
-            current_context = contexts[1].get('context')
-            self.namespace = current_context.get('namespace', 'default')
-            self.cluster = current_context.get('cluster')
-            self.kn_config['namespace'] = self.namespace
-            self.kn_config['cluster'] = self.cluster
+        self.kubecfg_path = self.kn_config.get('kubecfg_path', os.environ.get("KUBECONFIG"))
+        self.kubecfg_path = os.path.expanduser(self.kubecfg_path or KUBE_CONFIG_DEFAULT_LOCATION)
+        self.kubecfg_context = self.kn_config.get('kubecfg_context', 'default')
+        self.namespace = self.kn_config.get('namespace')
+        self.cluster = self.kn_config.get('cluster', 'default')
+
+        if os.path.exists(self.kubecfg_path):
+            logger.debug(f"Loading kubeconfig file: {self.kubecfg_path}")
+            context = None if self.kubecfg_context == 'default' else self.kubecfg_context
+            load_kube_config(config_file=self.kubecfg_path, context=context)
+            contexts, current_context = list_kube_config_contexts(config_file=self.kubecfg_path)
+            if context is not None:
+                current_context = [it for it in contexts if it['name'] == context][0]
+            ctx_context = current_context.get('context')
+            self.namespace = self.namespace or ctx_context.get('namespace')
+            self.cluster = ctx_context.get('cluster') or self.cluster
+            logger.debug(f"Using kubeconfig context: {current_context.get('name')}")
             self.is_incluster = False
-        except Exception:
-            logger.debug('Loading incluster config')
+        else:
+            logger.debug('kubeconfig file not found, loading incluster config')
             load_incluster_config()
-            self.namespace = self.kn_config.get('namespace', 'default')
-            self.cluster = self.kn_config.get('cluster', 'default')
             self.is_incluster = True
 
-        logger.debug(f"Set namespace to {self.namespace}")
-        logger.debug(f"Set cluster to {self.cluster}")
+        self.namespace = self.namespace or 'default'
+        self.kn_config['namespace'] = self.namespace
+        self.kn_config['cluster'] = self.cluster
 
         self.custom_api = client.CustomObjectsApi()
         self.core_api = client.CoreV1Api()
 
-        if self.ingress_endpoint is None:
-            if self.networking_layer == 'istio':
-                namespace = 'istio-system'
-                service = 'istio-ingressgateway'
-            else:
-                namespace = 'kourier-system'
-                service = 'kourier'
+        # Inside the cluster the services are reached at their cluster-local
+        # address, without going through the ingress
+        if self.ingress_endpoint is None and not self.is_incluster:
+            self.ingress_endpoint = self._detect_ingress_endpoint()
+        if self.ingress_endpoint:
+            self.ingress_endpoint = self.ingress_endpoint.rstrip('/')
+            logger.debug(f"Ingress endpoint: {self.ingress_endpoint}")
 
-            try:
-                ip = None
-                ingress = self.core_api.read_namespaced_service(service, namespace)
-                http_port = list(filter(lambda port: port.port == 80, ingress.spec.ports))[0].node_port
-                # https_port = list(filter(lambda port: port.port == 443, ingress.spec.ports))[0].node_port
-                if ingress.status.load_balancer.ingress is not None:
-                    # get loadbalancer ip
-                    ip = ingress.status.load_balancer.ingress[0].ip
-                else:
-                    # for a single node deployment
-                    node = self.core_api.list_node()
-                    if not ip:
-                        for addr in node.items[0].status.addresses:
-                            if addr.type == "ExternalIP":
-                                ip = addr.address
-                    if not ip:
-                        for addr in node.items[0].status.addresses:
-                            if addr.type == "InternalIP":
-                                ip = addr.address
-                    if not ip:
-                        ip = node.items[0].status.addresses[0].address
-                if ip and http_port:
-                    self.ingress_endpoint = f'http://{ip}:{http_port}'
-                    self.kn_config['ingress_endpoint'] = self.ingress_endpoint
-                    logger.debug(f"Ingress endpoint set to {self.ingress_endpoint}")
-            except Exception:
-                pass
+        self._service_urls = {}
 
-        if 'service_host_suffix' not in self.kn_config:
-            self.serice_host_filename = os.path.join(CACHE_DIR, 'knative', self.cluster, 'service_host')
-            self.service_host_suffix = None
-            if os.path.exists(self.serice_host_filename):
-                serice_host_data = load_yaml_config(self.serice_host_filename)
-                self.service_host_suffix = serice_host_data['service_host_suffix']
-                self.kn_config['service_host_suffix'] = self.service_host_suffix
-        else:
-            self.service_host_suffix = self.kn_config['service_host_suffix']
-        if self.service_host_suffix is not None:
-            logger.debug(f'Loaded service host suffix: {self.service_host_suffix}')
+        logger.info(f'{COMPUTE_CLI_MSG.format("Knative")} - Cluster: {self.cluster} - Namespace: {self.namespace}')
 
-        logger.info(f'{COMPUTE_CLI_MSG.format("Knative")} - Cluster: {self.cluster}')
+    def _detect_ingress_endpoint(self):
+        """
+        Finds the address of the ingress gateway of the networking layer: its
+        load balancer when it has one, or else the node port of the first node
+        """
+        namespace, name = config.INGRESS_GATEWAYS[self.networking_layer]
+        try:
+            gateway = self.core_api.read_namespaced_service(name, namespace)
+        except ApiException as e:
+            logger.debug(f'Could not read the ingress gateway {namespace}/{name}: {_api_error(e)}')
+            return None
+
+        http_port = next((p for p in gateway.spec.ports or [] if p.port == 80), None)
+        if http_port is None:
+            return None
+
+        lb_ingress = gateway.status.load_balancer.ingress if gateway.status.load_balancer else None
+        if lb_ingress and (lb_ingress[0].ip or lb_ingress[0].hostname):
+            return f'http://{lb_ingress[0].ip or lb_ingress[0].hostname}:{http_port.port}'
+
+        if not http_port.node_port:
+            return None
+        nodes = self.core_api.list_node().items
+        if not nodes:
+            return None
+        addresses = {addr.type: addr.address for addr in nodes[0].status.addresses or []}
+        ip = addresses.get('ExternalIP') or addresses.get('InternalIP')
+        return f'http://{ip}:{http_port.node_port}' if ip else None
 
     def _format_service_name(self, runtime_name, runtime_memory, version=__version__):
         name = f'{runtime_name}-{runtime_memory}-{version}'
@@ -144,233 +192,82 @@ class KnativeServingBackend:
             self.name, self.kn_config, 'lithops-knative-default'
         )
 
-    def _get_service_host(self, service_name):
-        """
-        gets the service host needed for the invocation
-        """
-        logger.debug(f'Getting service host for: {service_name}')
-        try:
-            svc = self.custom_api.get_namespaced_custom_object(
-                group=config.DEFAULT_GROUP,
-                version=config.DEFAULT_VERSION,
-                name=service_name,
-                namespace=self.namespace,
-                plural="services"
-            )
-            if svc is not None:
-                service_host = svc['status']['url'][7:]
-            else:
-                raise Exception(f'Unable to get service details from {service_name}')
-        except Exception as e:
-            if json.loads(e.body)['code'] == 404:
-                raise Exception(f'Knative service: resource "{service_name}" Not Found')
-            else:
-                raise (e)
-
-        logger.debug(f'Service host: {service_host}')
-        return service_host
-
-    def _create_account_resources(self):
-        """
-        Creates the secret to access to the docker hub and the ServiceAcount
-        """
-        logger.debug("Creating Tekton account resources: Secret and ServiceAccount")
-        string_data = {'username': self.kn_config['docker_user'],
-                       'password': self.kn_config['docker_password']}
-        secret_res = yaml.safe_load(config.secret_res)
-        secret_res['stringData'] = string_data
-
-        secret_res['metadata']['annotations']['tekton.dev/docker-0'] = "docker.io"
-
-        account_res = yaml.safe_load(config.account_res)
-        secret_res_name = secret_res['metadata']['name']
-        account_res_name = account_res['metadata']['name']
-
-        try:
-            self.core_api.delete_namespaced_secret(secret_res_name, self.namespace)
-        except Exception:
-            # account resource Not Found - Not deleted
-            pass
-
-        try:
-            self.core_api.delete_namespaced_service_account(account_res_name, self.namespace)
-        except Exception:
-            # account resource Not Found - Not deleted
-            pass
-
-        self.core_api.create_namespaced_secret(self.namespace, secret_res)
-        self.core_api.create_namespaced_service_account(self.namespace, account_res)
-
-    def _create_build_resources(self):
-        logger.debug("Creating Tekton build resources: PipelineResource and Task")
-        git_res = yaml.safe_load(config.git_res)
-        git_res_name = git_res['metadata']['name']
-
-        task_def = yaml.safe_load(config.task_def)
-        task_name = task_def['metadata']['name']
-
-        git_url_param = {'name': 'url', 'value': self.kn_config['git_url']}
-        git_rev_param = {'name': 'revision', 'value': self.kn_config['git_rev']}
-        params = [git_url_param, git_rev_param]
-        git_res['spec']['params'] = params
-
-        logger.debug(f'Setting git url to: {self.kn_config["git_url"]}')
-        logger.debug(f'Setting git rev to: {self.kn_config["git_rev"]}')
-
-        try:
-            self.custom_api.delete_namespaced_custom_object(
-                group="tekton.dev",
-                version="v1alpha1",
-                name=task_name,
-                namespace=self.namespace,
-                plural="tasks",
-                body=client.V1DeleteOptions()
-            )
-        except Exception:
-            # ksvc resource Not Found  - Not deleted
-            pass
-
-        try:
-            self.custom_api.delete_namespaced_custom_object(
-                group="tekton.dev",
-                version="v1alpha1",
-                name=git_res_name,
-                namespace=self.namespace,
-                plural="pipelineresources",
-                body=client.V1DeleteOptions()
-            )
-        except Exception:
-            # ksvc resource Not Found - Not deleted
-            pass
-
-        self.custom_api.create_namespaced_custom_object(
-            group="tekton.dev",
-            version="v1alpha1",
+    def _get_service(self, service_name):
+        return self.custom_api.get_namespaced_custom_object(
+            group=config.KNATIVE_GROUP,
+            version=config.KNATIVE_VERSION,
             namespace=self.namespace,
-            plural="pipelineresources",
-            body=git_res
+            plural="services",
+            name=service_name
         )
 
-        self.custom_api.create_namespaced_custom_object(
-            group="tekton.dev",
-            version="v1alpha1",
-            namespace=self.namespace,
-            plural="tasks",
-            body=task_def
-        )
-
-    def _build_default_runtime_from_git(self, runtime_name):
+    def _get_service_url(self, service_name):
         """
-        Builds the default runtime and pushes it to the docker container registry
+        The URL Knative routes a service at, cached for the life of the backend
         """
-        if runtime_name.count('/') > 1:
-            # container registry is in the provided runtime name
-            cr, rn = runtime_name.split('/', 1)
-        else:
-            cr = 'docker.io'
-            rn = runtime_name
+        if service_name not in self._service_urls:
+            try:
+                service = self._get_service(service_name)
+            except ApiException as e:
+                if e.status == 404:
+                    raise Exception(f'Knative service {service_name} not found: the runtime is not deployed')
+                raise Exception(f'Could not get the Knative service {service_name}: {_api_error(e)}')
 
-        image_name, revision = rn.split(':')
+            url = service.get('status', {}).get('url')
+            if not url:
+                raise Exception(f'Knative service {service_name} has no URL yet')
+            if urlparse(url).hostname.endswith('.svc.cluster.local'):
+                raise Exception(
+                    f'Knative service {service_name} is only reachable inside the cluster ({url}). '
+                    'Configure a domain for Knative (config-domain ConfigMap) to reach it from outside'
+                )
+            self._service_urls[service_name] = url
 
-        if cr == 'docker.io' and revision != 'latest':
-            resp = requests.get('https://index.docker.io/v1/repositories/{}/tags/{}'
-                                .format(runtime_name, revision))
-            if resp.status_code == 200:
-                logger.debug('Docker image docker.io/{}:{} already exists in Dockerhub. '
-                             'Skipping build process.'.format(runtime_name, revision))
-                return
+        return self._service_urls[service_name]
 
-        logger.info("Building default Lithops runtime from git with Tekton")
-
-        if not all(key in self.kn_config for key in ["docker_user", "docker_password"]):
-            raise Exception("You must provide 'docker_user' and 'docker_password'"
-                            " to build the default runtime")
-
-        task_run = yaml.safe_load(config.task_run)
-        task_run['spec']['inputs']['params'] = []
-        path_to_dockerfile = {'name': 'pathToDockerFile',
-                              'value': 'lithops/compute/backends/knative/tekton/Dockerfile'}
-        task_run['spec']['inputs']['params'].append(path_to_dockerfile)
-        image_url = {'name': 'imageUrl',
-                     'value': '/'.join([cr, image_name])}
-        task_run['spec']['inputs']['params'].append(image_url)
-        image_tag = {'name': 'imageTag',
-                     'value': revision}
-        task_run['spec']['inputs']['params'].append(image_tag)
-
-        self._create_account_resources()
-        self._create_build_resources()
-
-        task_run_name = task_run['metadata']['name']
+    def _detect_cluster_arch(self):
+        """Return the dominant node architecture, or None if mixed/unknown."""
         try:
-            self.custom_api.delete_namespaced_custom_object(
-                group="tekton.dev",
-                version="v1alpha1",
-                name=task_run_name,
-                namespace=self.namespace,
-                plural="taskruns",
-                body=client.V1DeleteOptions()
+            nodes = self.core_api.list_node()
+        except ApiException as e:
+            logger.warning(f"Could not list cluster nodes for arch detection: {e}")
+            return None
+        archs = {
+            n.status.node_info.architecture for n in nodes.items
+            if n.status and n.status.node_info
+        }
+        if len(archs) == 1:
+            return archs.pop()
+        if len(archs) > 1:
+            logger.warning(
+                f"Cluster has mixed node architectures {sorted(archs)}; "
+                "set 'runtime_arch' in the knative config to pick one explicitly."
             )
-        except Exception:
-            pass
+        return None
 
-        self.custom_api.create_namespaced_custom_object(
-            group="tekton.dev",
-            version="v1alpha1",
-            namespace=self.namespace,
-            plural="taskruns",
-            body=task_run
-        )
-
-        logger.debug("Building runtime")
-        pod_name = None
-        w = watch.Watch()
-        for event in w.stream(self.custom_api.list_namespaced_custom_object, namespace=self.namespace,
-                              group="tekton.dev", version="v1alpha1", plural="taskruns",
-                              field_selector="metadata.name={0}".format(task_run_name)):
-            if event['object'].get('status'):
-                pod_name = event['object']['status']['podName']
-                w.stop()
-
-        if pod_name is None:
-            raise Exception('Unable to get the pod name from the task that is building the runtime')
-
-        w = watch.Watch()
-        for event in w.stream(self.core_api.list_namespaced_pod, namespace=self.namespace,
-                              field_selector=f"metadata.name={pod_name}"):
-            if event['object'].status.phase == "Succeeded":
-                w.stop()
-            if event['object'].status.phase == "Failed":
-                w.stop()
-                logger.debug('Something went wrong building the default Lithops runtime with Tekton')
-                for container in event['object'].status.container_statuses:
-                    if container.state.terminated.reason == 'Error':
-                        logs = self.core_api.read_namespaced_pod_log(
-                            name=pod_name,
-                            container=container.name,
-                            namespace=self.namespace
-                        )
-                        logger.debug("Tekton container '{}' failed: {}".format(container.name, logs.strip()))
-
-                raise Exception('Unable to build the default Lithops runtime with Tekton')
-
-        self.custom_api.delete_namespaced_custom_object(
-            group="tekton.dev",
-            version="v1alpha1",
-            name=task_run_name,
-            namespace=self.namespace,
-            plural="taskruns",
-            body=client.V1DeleteOptions()
-        )
-
-        logger.debug('Default Lithops runtime built from git and uploaded to Dockerhub')
+    def _resolve_runtime_arch(self):
+        """Resolve the platform arch for `docker build --platform=linux/<arch>`."""
+        configured = self.kn_config.get('runtime_arch')
+        if configured:
+            return configured
+        detected = self._detect_cluster_arch()
+        if detected in config.SUPPORTED_RUNTIME_ARCHS:
+            logger.debug(f"Auto-detected cluster arch: {detected}")
+            return detected
+        if detected is not None:
+            logger.warning(
+                f"Auto-detected cluster arch '{detected}' is not supported by Lithops "
+                f"(expected one of {sorted(config.SUPPORTED_RUNTIME_ARCHS)}); "
+                f"falling back to '{config.DEFAULT_RUNTIME_ARCH}'."
+            )
+        return config.DEFAULT_RUNTIME_ARCH
 
     def _build_default_runtime(self, default_runtime_img_name):
         """
         Builds the default runtime
         """
         # Build default runtime using local dokcer
-        dockerfile = "Dockefile.default-kn-runtime"
+        dockerfile = "Dockerfile.default-knative-runtime"
         with open(dockerfile, 'w') as f:
             f.write(f"FROM python:{utils.CURRENT_PY_VERSION}-slim-bookworm\n")
             f.write(config.DEFAULT_DOCKERFILE)
@@ -379,14 +276,15 @@ class KnativeServingBackend:
         finally:
             os.remove(dockerfile)
 
-        # self._build_default_runtime_from_git(default_runtime_img_name)
+    def _has_registry_credentials(self):
+        return all(key in self.kn_config for key in ["docker_user", "docker_password"])
 
     def _create_container_registry_secret(self):
         """
         Create the container registry secret in the cluster
         (only if credentials are present in config)
         """
-        if not all(key in self.kn_config for key in ["docker_user", "docker_password"]):
+        if not self._has_registry_credentials():
             return
 
         logger.debug('Creating container registry secret')
@@ -397,28 +295,23 @@ class KnativeServingBackend:
         cred_payload = {
             "auths": {
                 docker_server: {
-                    "Username": docker_user,
-                    "Password": docker_password
+                    "username": docker_user,
+                    "password": docker_password,
+                    "auth": base64.b64encode(f'{docker_user}:{docker_password}'.encode()).decode()
                 }
             }
         }
 
-        data = {
-            ".dockerconfigjson": base64.b64encode(
-                json.dumps(cred_payload).encode()
-            ).decode()
-        }
-
         secret = client.V1Secret(
             api_version="v1",
-            data=data,
+            data={".dockerconfigjson": base64.b64encode(json.dumps(cred_payload).encode()).decode()},
             kind="Secret",
-            metadata=dict(name="lithops-regcred", namespace=self.namespace),
+            metadata=dict(name=REGISTRY_SECRET, namespace=self.namespace),
             type="kubernetes.io/dockerconfigjson",
         )
 
         try:
-            self.core_api.delete_namespaced_secret("lithops-regcred", self.namespace)
+            self.core_api.delete_namespaced_secret(REGISTRY_SECRET, self.namespace)
         except ApiException:
             pass
 
@@ -428,98 +321,190 @@ class KnativeServingBackend:
             if e.status != 409:
                 raise e
 
-    def _create_service(self, runtime_name, runtime_memory, timeout):
+    def _service_resource(self, service_name, runtime_name, runtime_memory, timeout):
         """
-        Creates a service in knative based on the runtime_name and the memory provided
+        The Knative service that runs a runtime: one call per container at a
+        time, as many containers as max_workers, and none while it is idle
         """
-        logger.debug("Creating Lithops runtime service in Knative")
-        svc_res = yaml.safe_load(config.service_res)
+        cpu = str(self.kn_config['runtime_cpu'])
+        memory = f'{runtime_memory}Mi'
+        labels = {
+            'type': 'lithops-runtime',
+            'lithops-version': __version__.replace('.', '-'),
+        }
 
-        service_name = self._format_service_name(runtime_name, runtime_memory)
-        svc_res['metadata']['name'] = service_name
-        svc_res['metadata']['namespace'] = self.namespace
+        pod_spec = {
+            'containerConcurrency': 1,
+            'timeoutSeconds': timeout,
+            # The answer only starts once the calls finish, and Knative cuts a
+            # request without one after revision-timeout-seconds (300) unless
+            # told otherwise, whatever timeoutSeconds says
+            'responseStartTimeoutSeconds': timeout,
+            'containers': [{
+                'image': runtime_name,
+                # Read by the gunicorn command of the runtimes built from the
+                # Dockerfiles of earlier versions
+                'env': [
+                    {'name': 'CONCURRENCY', 'value': '1'},
+                    {'name': 'TIMEOUT', 'value': str(timeout)},
+                ],
+                'resources': {
+                    'limits': {'memory': memory, 'cpu': cpu},
+                    'requests': {'memory': memory, 'cpu': cpu},
+                },
+                'securityContext': {
+                    'allowPrivilegeEscalation': False,
+                    'capabilities': {'drop': ['ALL']},
+                    'seccompProfile': {'type': 'RuntimeDefault'},
+                },
+            }],
+        }
+        if self._has_registry_credentials():
+            pod_spec['imagePullSecrets'] = [{'name': REGISTRY_SECRET}]
 
-        logger.debug(f"Service name: {service_name}")
-        logger.debug(f"Namespace: {self.namespace}")
+        return {
+            'apiVersion': f'{config.KNATIVE_GROUP}/{config.KNATIVE_VERSION}',
+            'kind': 'Service',
+            'metadata': {
+                'name': service_name,
+                'namespace': self.namespace,
+                'labels': dict(labels),
+            },
+            'spec': {
+                'template': {
+                    'metadata': {
+                        'labels': dict(labels),
+                        'annotations': {
+                            'autoscaling.knative.dev/min-scale': '0',
+                            'autoscaling.knative.dev/max-scale': str(self.kn_config['max_workers']),
+                            # One container per call in flight, not 70% more
+                            'autoscaling.knative.dev/target-utilization-percentage': '100',
+                            'autoscaling.knative.dev/scale-down-delay': '5m',
+                            # A new revision on every deploy, so that it pulls
+                            # the image the tag points to now
+                            'client.knative.dev/updateTimestamp': datetime.now(timezone.utc).isoformat(),
+                        },
+                    },
+                    'spec': pod_spec,
+                },
+            },
+        }
 
-        svc_res['spec']['template']['spec']['timeoutSeconds'] = timeout
-        svc_res['spec']['template']['spec']['containerConcurrency'] = 1
-        svc_res['spec']['template']['metadata']['labels']['lithops-version'] = __version__.replace('.', '-')
-        annotations = svc_res['spec']['template']['metadata']['annotations']
-        annotations['autoscaling.knative.dev/maxScale'] = str(self.kn_config['max_workers'])
-
-        container = svc_res['spec']['template']['spec']['containers'][0]
-        container['image'] = runtime_name
-        container['env'][0] = {'name': 'CONCURRENCY', 'value': '1'}
-        container['env'][1] = {'name': 'TIMEOUT', 'value': str(timeout)}
-        container['resources']['limits']['memory'] = f'{runtime_memory}Mi'
-        container['resources']['limits']['cpu'] = str(self.kn_config['runtime_cpu'])
-        container['resources']['requests']['memory'] = f'{runtime_memory}Mi'
-        container['resources']['requests']['cpu'] = str(self.kn_config['runtime_cpu'])
-
-        if not all(key in self.kn_config for key in ["docker_user", "docker_password"]):
-            del svc_res['spec']['template']['spec']['imagePullSecrets']
-
+    def _revision_unschedulable(self, service):
+        """
+        Whether the latest revision only waits for room in the cluster, which
+        Knative reports as a failure although a node that frees up, or one the
+        cluster autoscaler adds, fixes it
+        """
+        revision_name = service.get('status', {}).get('latestCreatedRevisionName')
+        if not revision_name:
+            return False
         try:
-            # delete the service resource if exists
-            self.custom_api.delete_namespaced_custom_object(
-                group=config.DEFAULT_GROUP,
-                version=config.DEFAULT_VERSION,
-                name=service_name,
+            revision = self.custom_api.get_namespaced_custom_object(
+                group=config.KNATIVE_GROUP,
+                version=config.KNATIVE_VERSION,
                 namespace=self.namespace,
-                plural="services",
-                body=client.V1DeleteOptions()
+                plural="revisions",
+                name=revision_name
             )
-            time.sleep(2)
-        except Exception:
-            pass
+        except ApiException:
+            return False
+        condition = _ready_condition(revision)
+        return condition is not None and condition.get('reason') == 'Unschedulable'
 
-        # create the service resource
-        self.custom_api.create_namespaced_custom_object(
-            group=config.DEFAULT_GROUP,
-            version=config.DEFAULT_VERSION,
-            namespace=self.namespace,
-            plural="services",
-            body=svc_res
+    def _image_pull_error(self, service):
+        """
+        Why the image of the latest revision cannot be pulled, or None. Knative
+        keeps waiting for such a revision until its progress deadline, so the
+        pods are looked at directly
+        """
+        revision_name = service.get('status', {}).get('latestCreatedRevisionName')
+        if not revision_name:
+            return None
+        try:
+            pods = self.core_api.list_namespaced_pod(
+                self.namespace, label_selector=f'serving.knative.dev/revision={revision_name}'
+            )
+        except ApiException:
+            return None
+        for pod in pods.items:
+            for status in pod.status.container_statuses or []:
+                waiting = status.state.waiting if status.state else None
+                if waiting and waiting.reason in IMAGE_PULL_ERRORS:
+                    return f'{waiting.reason}: {waiting.message or ""}'.strip()
+        return None
+
+    def _wait_service_ready(self, service_name):
+        """
+        Waits until the latest revision of the service is ready to serve,
+        raising the reason Knative gives when it cannot be
+        """
+        deadline = time.time() + config.SERVICE_READY_TIMEOUT
+        message = ''
+        while time.time() < deadline:
+            service = self._get_service(service_name)
+            state, message = _service_state(service)
+            if state == 'ready':
+                return service['status']['url']
+            pull_error = self._image_pull_error(service)
+            if pull_error:
+                raise Exception(f'Knative service {service_name} cannot pull its image: {pull_error}')
+            if state == 'failed' and not self._revision_unschedulable(service):
+                raise Exception(f'Knative service {service_name} failed: {message}')
+            time.sleep(2)
+
+        raise Exception(
+            f'Knative service {service_name} not ready after '
+            f'{config.SERVICE_READY_TIMEOUT} seconds: {message}'
         )
 
-        w = watch.Watch()
-        for event in w.stream(self.custom_api.list_namespaced_custom_object,
-                              namespace=self.namespace, group=config.DEFAULT_GROUP,
-                              version=config.DEFAULT_VERSION, plural="services",
-                              field_selector=f"metadata.name={service_name}",
-                              timeout_seconds=300):
-            if event['object'].get('status'):
-                service_url = event['object']['status'].get('url')
-                conditions = event['object']['status']['conditions']
-                if conditions[0]['status'] == 'True' and \
-                   conditions[1]['status'] == 'True' and \
-                   conditions[2]['status'] == 'True':
-                    w.stop()
-                    time.sleep(2)
+    def _create_service(self, runtime_name, runtime_memory, timeout):
+        """
+        Creates the Knative service of a runtime, or updates it if it exists,
+        and waits until it is ready
+        """
+        service_name = self._format_service_name(runtime_name, runtime_memory)
+        logger.debug(f"Creating Knative service {service_name} in namespace {self.namespace}")
+        service = self._service_resource(service_name, runtime_name, runtime_memory, timeout)
 
-        logger.debug(f'Runtime Service created - URL: {service_url}')
+        try:
+            self.custom_api.create_namespaced_custom_object(
+                group=config.KNATIVE_GROUP,
+                version=config.KNATIVE_VERSION,
+                namespace=self.namespace,
+                plural="services",
+                body=service
+            )
+        except ApiException as e:
+            if e.status != 409:
+                raise Exception(f'Could not create the Knative service {service_name}: {_api_error(e)}')
+            logger.debug(f'Knative service {service_name} already exists, updating it')
+            # A patch, as Knative rejects a replace that drops the annotations
+            # it sets on the service, such as its creator
+            try:
+                self.custom_api.patch_namespaced_custom_object(
+                    group=config.KNATIVE_GROUP,
+                    version=config.KNATIVE_VERSION,
+                    namespace=self.namespace,
+                    plural="services",
+                    name=service_name,
+                    body={'metadata': {'labels': service['metadata']['labels']}, 'spec': service['spec']}
+                )
+            except ApiException as e:
+                raise Exception(f'Could not update the Knative service {service_name}: {_api_error(e)}')
 
-        self.service_host_suffix = service_url[7:].replace(service_name, '')
-        # Store service host suffix in local cache
-        serice_host_data = {}
-        serice_host_data['service_host_suffix'] = self.service_host_suffix
-        dump_yaml_config(self.serice_host_filename, serice_host_data)
-        self.kn_config['service_host_suffix'] = self.service_host_suffix
-
-        return service_url
+        self._service_urls.pop(service_name, None)
+        service_url = self._wait_service_ready(service_name)
+        logger.debug(f'Knative service ready - URL: {service_url}')
 
     def _generate_runtime_meta(self, runtime_name, memory):
         """
         Extract installed Python modules from docker image
         """
         logger.info(f"Extracting metadata from: {runtime_name}")
-        payload = {}
-
-        payload['service_route'] = "/metadata"
 
         try:
-            runtime_meta = self.invoke(runtime_name, memory, payload, return_result=True)
+            runtime_meta = self.invoke(runtime_name, memory, {'service_route': '/metadata'}, return_result=True)
         except Exception as e:
             raise Exception(f"Unable to extract metadata from the runtime: {e}")
 
@@ -530,10 +515,8 @@ class KnativeServingBackend:
 
     def deploy_runtime(self, runtime_name, memory, timeout):
         """
-        Deploys a new runtime into the knative default namespace from an already built Docker image.
-        As knative does not have a default image already published in a docker registry, lithops
-        has to build it in the docker hub account provided by the user. So when the runtime docker
-        image name is not provided by the user in the config, lithops will build the default.
+        Deploys a runtime as a Knative service. The default runtime is built
+        and pushed to the configured container registry first
         """
         try:
             default_image_name = self._get_default_runtime_image_name()
@@ -558,11 +541,12 @@ class KnativeServingBackend:
 
         docker_path = utils.get_docker_path()
 
+        platform = f'linux/{self._resolve_runtime_arch()}'
         if dockerfile:
             assert os.path.isfile(dockerfile), f'Cannot locate "{dockerfile}"'
-            cmd = f'{docker_path} build --platform=linux/amd64 -t {runtime_name} -f {dockerfile} . '
+            cmd = f'{docker_path} build --platform={platform} -t {runtime_name} -f {dockerfile} . '
         else:
-            cmd = f'{docker_path} build --platform=linux/amd64 -t {runtime_name} . '
+            cmd = f'{docker_path} build --platform={platform} -t {runtime_name} . '
         cmd = cmd + ' '.join(extra_args)
 
         try:
@@ -592,24 +576,40 @@ class KnativeServingBackend:
     def delete_runtime(self, runtime_name, memory, version=__version__):
         service_name = self._format_service_name(runtime_name, memory, version)
         logger.info(f'Deleting runtime: {service_name}')
+        self._service_urls.pop(service_name, None)
         try:
+            # Foreground, so the service is gone only once its configuration,
+            # route and revisions are: a service created again with the same
+            # name would otherwise find them still there, owned by the old one
             self.custom_api.delete_namespaced_custom_object(
-                group=config.DEFAULT_GROUP,
-                version=config.DEFAULT_VERSION,
-                name=service_name,
+                group=config.KNATIVE_GROUP,
+                version=config.KNATIVE_VERSION,
                 namespace=self.namespace,
                 plural="services",
-                body=client.V1DeleteOptions()
+                name=service_name,
+                body=client.V1DeleteOptions(propagation_policy='Foreground')
             )
-        except Exception:
-            pass
+        except ApiException as e:
+            if e.status == 404:
+                return
+            raise Exception(f'Could not delete the Knative service {service_name}: {_api_error(e)}')
+
+        deadline = time.time() + config.SERVICE_READY_TIMEOUT
+        while time.time() < deadline:
+            try:
+                self._get_service(service_name)
+            except ApiException as e:
+                if e.status == 404:
+                    return
+                raise
+            time.sleep(1)
+        logger.warning(f'Knative service {service_name} is still being deleted')
 
     def clean(self, **kwargs):
         """
         Deletes all runtimes deployed in knative
         """
-        runtimes = self.list_runtimes()
-        for img_name, memory, version, wk_name in runtimes:
+        for img_name, memory, version, _ in self.list_runtimes():
             self.delete_runtime(img_name, memory, version)
 
     def list_runtimes(self, runtime_name='all'):
@@ -618,98 +618,86 @@ class KnativeServingBackend:
         return: list of tuples [runtime_name, memory, version, worker_name]
         """
         knative_services = self.custom_api.list_namespaced_custom_object(
-            group=config.DEFAULT_GROUP,
-            version=config.DEFAULT_VERSION,
+            group=config.KNATIVE_GROUP,
+            version=config.KNATIVE_VERSION,
             namespace=self.namespace,
             plural="services"
         )
         runtimes = []
 
         for service in knative_services['items']:
+            # Earlier versions only label the template, so that is where
+            # the runtimes of every version are recognized
+            template = service['spec']['template']
+            labels = template.get('metadata', {}).get('labels') or {}
+            if labels.get('type') != 'lithops-runtime':
+                continue
             try:
-                template = service['spec']['template']
-                labels = template['metadata']['labels']
-                wk_name = service['metadata']['name']
-                if labels and 'type' in labels and labels['type'] == 'lithops-runtime':
-                    version = labels['lithops-version'].replace('-', '.')
-                    container = template['spec']['containers'][0]
-                    memory = container['resources']['requests']['memory'].replace('Mi', '')
-                    memory = int(memory.replace('Gi', '')) * 1024 if 'Gi' in memory else memory
-                    if runtime_name in container['image'] or runtime_name == 'all':
-                        runtimes.append((container['image'], memory, version, wk_name))
-            except Exception:
-                # It is not a lithops runtime
-                pass
+                version = labels['lithops-version'].replace('-', '.')
+                container = template['spec']['containers'][0]
+                memory = _memory_mb(container['resources']['requests']['memory'])
+            except (KeyError, IndexError, ValueError):
+                logger.debug(f"Skipping Knative service {service['metadata']['name']}: not a Lithops runtime")
+                continue
+            if runtime_name in container['image'] or runtime_name == 'all':
+                runtimes.append((container['image'], memory, version, service['metadata']['name']))
 
         return runtimes
 
     def invoke(self, runtime_name, memory, payload, return_result=False):
         """
-        Invoke -- return information about this invocation
+        Sends the payload to the service of the runtime. The request lasts
+        as long as the calls run, as it is what keeps the container up
         """
         service_name = self._format_service_name(runtime_name, memory)
-        if self.service_host_suffix:
-            service_host = service_name + self.service_host_suffix
+        route = payload.get("service_route", '/')
+        headers = {'Content-Type': 'application/json'}
+
+        if self.is_incluster:
+            url = f'http://{service_name}.{self.namespace}.svc{route}'
         else:
-            service_host = self._get_service_host(service_name)
-
-        headers = {}
-
-        if self.ingress_endpoint:
-            headers['Host'] = service_host
-            endpoint = self.ingress_endpoint
-        else:
-            endpoint = f'http://{service_host}'
-
-        if 'codeengine' in endpoint:
-            endpoint = endpoint.replace('http://', 'https://')
+            service_url = self._get_service_url(service_name)
+            if self.ingress_endpoint:
+                # The ingress routes the request to the service by its host
+                url = f'{self.ingress_endpoint}{route}'
+                headers['Host'] = urlparse(service_url).netloc
+            else:
+                url = f'{service_url}{route}'
 
         exec_id = payload.get('executor_id')
         call_ids = payload.get('call_ids')
         job_id = payload.get('job_id')
-        route = payload.get("service_route", '/')
 
-        try:
-            parsed_url = urlparse(endpoint)
-
-            if endpoint.startswith('https'):
-                ctx = ssl._create_unverified_context()
-                conn = http.client.HTTPSConnection(parsed_url.netloc, context=ctx)
-            else:
-                conn = http.client.HTTPConnection(parsed_url.netloc)
-
-            if exec_id and job_id and call_ids:
-                logger.debug(
-                    f'{utils.log_prefix(exec_id, job_id)} - Invoking function call '
-                    f'{", ".join(call_ids)}'
-                )
-            elif exec_id and job_id:
-                logger.debug(f'{utils.log_prefix(exec_id, job_id)} - Invoking function')
-            else:
-                logger.debug('Invoking function')
-
-            conn.request("POST", route, body=json.dumps(payload, default=str), headers=headers)
-
-            resp = conn.getresponse()
-            headers = dict(resp.getheaders())
-            resp_status = resp.status
-            resp_data = resp.read().decode("utf-8")
-            conn.close()
-        except Exception as e:
-            raise e
-
-        if resp_status in [200, 202]:
-            data = json.loads(resp_data)
-            if return_result:
-                return data
-            return data["activationId"]
-        elif resp_status == 404:
-            raise Exception("Lithops runtime is not deployed in your k8s cluster")
-        else:
+        if exec_id and job_id and call_ids:
             logger.debug(
-                f'{utils.log_prefix(exec_id, job_id)} - Function call {", ".join(call_ids)} '
-                f'failed ({resp_status}). Retrying request'
+                f'{utils.log_prefix(exec_id, job_id)} - Invoking function call '
+                f'{", ".join(call_ids)}'
             )
+        elif exec_id and job_id:
+            logger.debug(f'{utils.log_prefix(exec_id, job_id)} - Invoking function')
+        else:
+            logger.debug('Invoking function')
+
+        # Some margin over the timeout of the service, which ends the request
+        # with an error of its own when the calls take longer
+        read_timeout = self.kn_config['runtime_timeout'] + 60
+        resp = requests.post(
+            url, data=json.dumps(payload, default=str),
+            headers=headers, timeout=(30, read_timeout)
+        )
+
+        if resp.status_code in (200, 202):
+            data = resp.json()
+            return data if return_result else data["activationId"]
+
+        if resp.status_code in RETRY_STATUS_CODES:
+            logger.debug(f'Knative service {service_name} answered {resp.status_code}, retrying the request')
+            return None
+
+        if resp.status_code == 404:
+            raise Exception(f'Knative service {service_name} not found at {url}: the runtime is not deployed')
+
+        raise Exception(f'Knative service {service_name} answered {resp.status_code}: {resp.text.strip()}')
 
     def get_runtime_key(self, runtime_name, runtime_memory, version=__version__):
         """

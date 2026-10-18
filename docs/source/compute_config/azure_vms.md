@@ -89,7 +89,9 @@ Edit your Lithops config and add the relevant keys:
 |azure_vms | ssh_key_filename | ~/.ssh/id_rsa | no | Path to the ssh key file provided to access the VPC. It will use the default path if not provided |
 |azure_vms | master_instance_type | Standard_B1s | no | Profile name for the master VM |
 |azure_vms | worker_instance_type | Standard_B2s | no | Profile name for the worker VMs |
+|azure_vms | request_spot_instances | False | no | Create the worker VMs as Spot VMs. They are evicted when Azure needs the capacity back. B-series sizes, like the default `worker_instance_type`, do not support Spot |
 |azure_vms | delete_on_dismantle | False | no | Delete the worker VMs when they are stopped. Master VM is never deleted when stopped. `True` is NOT YET SUPPORTED |
+|azure_vms | worker_create_retries | 2 | no | Attempts to bring up each worker VM in create and reuse modes. A worker VM that is not reachable over SSH in time is deleted and created again until this many attempts have been made; then that worker fails and the job runs on the workers that came up. Minimum 1 |
 |azure_vms | max_workers | 100 | no | Max number of workers per `FunctionExecutor()`|
 |azure_vms | worker_processes | AUTO | no | Number of parallel Lithops processes in a worker. This is used to parallelize function activations within the worker. By default it detects the amount of CPUs in the `worker_instance_type` VM|
 |azure_vms | runtime | python3 | no | Runtime name to run the functions. Can be a container image name. If not set Lithops will use the default python3 interpreter of the VM |

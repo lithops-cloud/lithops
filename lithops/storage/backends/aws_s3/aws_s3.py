@@ -23,7 +23,6 @@ import botocore
 from lithops.storage.utils import StorageNoSuchKeyError
 from lithops.utils import sizeof_fmt
 from lithops.constants import STORAGE_CLI_MSG
-from lithops.libs.globber import match
 
 logger = logging.getLogger(__name__)
 
@@ -106,18 +105,12 @@ class S3Backend:
         :type data: str/bytes
         :return: None
         """
+        res = self.s3_client.put_object(Bucket=bucket_name, Key=key, Body=data)
+        status = 'OK' if res['ResponseMetadata']['HTTPStatusCode'] == 200 else 'Error'
         try:
-            res = self.s3_client.put_object(Bucket=bucket_name, Key=key, Body=data)
-            status = 'OK' if res['ResponseMetadata']['HTTPStatusCode'] == 200 else 'Error'
-            try:
-                logger.debug('PUT Object {} - Size: {} - {}'.format(key, sizeof_fmt(len(data)), status))
-            except Exception:
-                logger.debug('PUT Object {} {}'.format(key, status))
-        except botocore.exceptions.ClientError as e:
-            if e.response['Error']['Code'] == 'NoSuchKey':
-                raise StorageNoSuchKeyError(bucket_name, key)
-            else:
-                raise e
+            logger.debug('PUT Object {} - Size: {} - {}'.format(key, sizeof_fmt(len(data)), status))
+        except Exception:
+            logger.debug('PUT Object {} {}'.format(key, status))
 
     def get_object(self, bucket_name, key, stream=False, extra_get_args={}):
         """
@@ -250,9 +243,7 @@ class S3Backend:
             object_list = []
             for page in page_iterator:
                 if 'Contents' in page:
-                    for item in page['Contents']:
-                        if match_pattern is None or (match_pattern is not None and match(match_pattern, item['Key'])):
-                            object_list.append(item)
+                    object_list.extend(page['Contents'])
             return object_list
         except botocore.exceptions.ClientError as e:
             if e.response['Error']['Code'] == '404':

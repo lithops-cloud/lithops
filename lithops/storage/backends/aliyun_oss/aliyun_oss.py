@@ -151,21 +151,20 @@ class AliyunObjectStorageServiceBackend:
         try:
             bucket = self._connect_bucket(bucket_name)
 
-            if 'Range' in extra_get_args:   # expected common format: Range='bytes=L-H'
-                bytes_range = extra_get_args.pop('Range')
-                if isinstance(bytes_range, str):
-                    bytes_range = bytes_range[6:]
-                    bytes_range = bytes_range.split('-')
-
-                # Cannot use byte range surpassing the content length
-                if int(bytes_range[0]) != 0:
+            # The caller's dict is left as it is, so that it can be used again
+            get_args = {k: v for k, v in extra_get_args.items() if k != 'Range'}
+            if 'Range' in extra_get_args:
+                # 'bytes=a-b', 'bytes=a-' (to the end) or 'bytes=-n' (the last n bytes)
+                first, last = extra_get_args['Range'].replace('bytes=', '').split('-')
+                first, last = int(first) if first else None, int(last) if last else None
+                # OSS ignores a range that ends past the object and returns all of it
+                if first and last is not None:
                     object_length = bucket.head_object(key).content_length
-                    if int(bytes_range[1]) >= object_length:
-                        bytes_range[1] = object_length - 1
+                    if last >= object_length:
+                        last = object_length - 1
+                get_args['byte_range'] = (first, last)
 
-                extra_get_args['byte_range'] = (int(bytes_range[0]), int(bytes_range[1]))
-
-            data = bucket.get_object(key=key, **extra_get_args)
+            data = bucket.get_object(key=key, **get_args)
             if stream:
                 return data
             else:
@@ -284,9 +283,10 @@ class AliyunObjectStorageServiceBackend:
         # adapted to match ibm_cos method
         prefix = '' if prefix is None else prefix
         try:
-            res = bucket.list_objects(prefix=prefix, max_keys=1000)
-            obj_list = [{'Key': obj.key, 'Size': obj.size} for obj in res.object_list]
-            return obj_list
+            return [
+                {'Key': obj.key, 'Size': obj.size}
+                for obj in oss2.ObjectIterator(bucket, prefix=prefix, max_keys=1000)
+            ]
 
         except (oss2.exceptions.NoSuchKey, oss2.exceptions.NoSuchBucket):
             raise StorageNoSuchKeyError(bucket_name, prefix)
@@ -304,9 +304,7 @@ class AliyunObjectStorageServiceBackend:
         # adapted to match ibm_cos method
         prefix = '' if prefix is None else prefix
         try:
-            res = bucket.list_objects(prefix=prefix, max_keys=1000)
-            keys = [obj.key for obj in res.object_list]
-            return [] if keys is None else keys
+            return [obj.key for obj in oss2.ObjectIterator(bucket, prefix=prefix, max_keys=1000)]
 
         except (oss2.exceptions.NoSuchKey, oss2.exceptions.NoSuchBucket):
             raise StorageNoSuchKeyError(bucket_name, prefix)

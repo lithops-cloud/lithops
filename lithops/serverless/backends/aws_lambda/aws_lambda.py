@@ -324,12 +324,9 @@ class AWSLambdaBackend:
         @param function_name: function name to delete
         """
         logger.info(f'Deleting function: {function_name}')
-        try:
-            response = self.lambda_client.delete_function(
-                FunctionName=function_name
-            )
-        except botocore.exceptions.ClientError as err:
-            raise err
+        response = self.lambda_client.delete_function(
+            FunctionName=function_name
+        )
 
         if response['ResponseMetadata']['HTTPStatusCode'] == 204:
             logger.debug('OK --> Deleted function {}'.format(function_name))
@@ -666,23 +663,6 @@ class AWSLambdaBackend:
         else:
             logger.debug(r.text)
             raise Exception(f'Error {r.status_code}: {r.text}')
-
-        # response = self.lambda_client.invoke(
-        #    FunctionName=function_name,
-        #     InvocationType='Event',
-        #     Payload=json.dumps(payload, default=str)
-        #  )
-
-        # if response['ResponseMetadata']['HTTPStatusCode'] == 202:
-        #     return response['ResponseMetadata']['RequestId']
-        # else:
-        #     logger.debug(response)
-        #     if response['ResponseMetadata']['HTTPStatusCode'] == 401:
-        #         raise Exception('Unauthorized - Invalid API Key')
-        #     elif response['ResponseMetadata']['HTTPStatusCode'] == 404:
-        #         raise Exception('Lithops Runtime: {} not deployed'.format(runtime_name))
-        #     else:
-        #         raise Exception(response)
 
     def get_runtime_key(self, runtime_name, runtime_memory, version=__version__):
         """

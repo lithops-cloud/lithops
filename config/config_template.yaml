@@ -118,6 +118,7 @@
     #master_instance_type: t3.micro
     #worker_instance_type: t3.medium
     #delete_on_dismantle: True
+    #worker_create_retries: 2             # Attempts to bring up each worker VM (create/reuse modes). Minimum 1
     #max_workers: 100
     #worker_processes: AUTO               # Default: number of CPUs of the worker VM
     #ebs_volumes:                         # Optional list of EBS volume mappings
@@ -165,7 +166,6 @@
     #min_workers: 0
     #max_workers: 100
     #worker_processes: 1
-    #invoke_pool_threads: 100
     #docker_server: pkg.dev               # Marker for Artifact Registry image names
     #artifact_registry_repository: lithops
     #runtime_include_function: False
@@ -192,6 +192,8 @@
     #ssh_key_filename: ~/.ssh/id_rsa
     #request_spot_instances: False
     #delete_on_dismantle: True
+    #worker_create_retries: 2             # Attempts to bring up each worker VM (create/reuse modes). Minimum 1
+    #worker_public_ip: False              # Also give worker VMs an external IP (default: Cloud NAT only)
     #max_workers: 100
     #worker_processes: AUTO               # Default: number of CPUs of the worker VM
 
@@ -245,8 +247,9 @@
     #ssh_username: ubuntu
     #ssh_password: <RANDOM_IF_NOT_PROVIDED>
     #ssh_key_filename: ~/.ssh/id_rsa
-    #request_spot_instances: True
+    #request_spot_instances: False       # Spot worker VMs; B-series sizes do not support Spot
     #delete_on_dismantle: False           # `True` is not yet supported on Azure
+    #worker_create_retries: 2             # Attempts to bring up each worker VM (create/reuse modes). Minimum 1
     #max_workers: 100
     #worker_processes: AUTO
 
@@ -319,6 +322,7 @@
     #master_profile_name: cx2-2x4
     #verify_resources: True
     #delete_on_dismantle: True
+    #worker_create_retries: 2             # Attempts to bring up each worker VM (create/reuse modes). Minimum 1
     #max_workers: 100
     #worker_processes: AUTO
     #singlesocket: False
@@ -435,21 +439,21 @@
 
 #knative:
     #kubecfg_path: <PATH_TO_KUBECONFIG>
-    #networking_layer: kourier            # One of: kourier, istio
-    #ingress_endpoint: <INGRESS_URL>
+    #kubecfg_context: <CONTEXT_NAME>
+    #namespace: <NAMESPACE>               # Defaults to the namespace of the context, or 'default'
+    #networking_layer: kourier            # One of: kourier, istio, contour
+    #ingress_endpoint: <INGRESS_URL>      # Found automatically when not set
     #docker_server: docker.io
     #docker_user: <REGISTRY_USERNAME>
     #docker_password: <REGISTRY_TOKEN>
     #docker_namespace: <REGISTRY_NAMESPACE>
-    #git_url: <GIT_REPO_URL>
-    #git_rev: <GIT_REVISION>
     #runtime: <RUNTIME_NAME>
     #runtime_cpu: 1                       # vCPU
     #runtime_memory: 512                  # MB
-    #runtime_timeout: 600                 # Seconds
+    #runtime_timeout: 600                 # Seconds; at most Knative's max-revision-timeout-seconds
+    #runtime_arch: <amd64|arm64>          # Defaults to cluster nodes; falls back to amd64
     #max_workers: 100
     #worker_processes: 1
-    #invoke_pool_threads: 100
 
 #openwhisk:
     #endpoint: <OW_ENDPOINT>              # Mandatory
@@ -590,7 +594,7 @@
 #prometheus:
     #gateway: http://localhost:9091       # Pushgateway base URL. Default: http://localhost:9091
     #job: lithops                         # Pushgateway job label. Default: lithops
-    #instance: <HOSTNAME>                 # Pushgateway instance label. Default: the hostname
+    #instance: <HOSTNAME>                 # Pushgateway instance label. Default: $LITHOPS_TELEMETRY_INSTANCE, else the hostname
     #username: <USERNAME>                 # Basic auth user, when the gateway needs one
     #password: <PASSWORD>                 # Basic auth password, when the gateway needs one
     #timeout: 10                          # Push timeout in seconds. Default: 10
@@ -603,6 +607,7 @@
     #endpoint: http://localhost:4318      # Collector endpoint. Default: http://localhost:4318
     #protocol: http/protobuf              # One of: http/protobuf, grpc. Default: http/protobuf
     #service_name: lithops                # OTel service.name. Default: lithops
-    #instance: <HOSTNAME>                 # OTel host.name. Default: the hostname
+    #instance: <HOSTNAME>                 # OTel service.instance.id and host.name. Default: $LITHOPS_TELEMETRY_INSTANCE, else the hostname
     #headers: {}                          # Extra headers, e.g. authentication
     #timeout: 10                          # Export timeout in seconds. Default: 10
+    #export_interval: 3600                # Seconds between the OTel SDK's own exports, a fallback to telemetry_interval. Default: 3600

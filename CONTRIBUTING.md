@@ -76,6 +76,9 @@ not exercised in CI, so mention in your pull request which backend you tested on
 - **Backends:** backend-specific code stays in its package (`lithops/serverless/backends/`,
   `lithops/standalone/backends/`, `lithops/storage/backends/`). Import the provider SDKs
   there, not in the core modules, so Lithops keeps working without the extras installed.
+  Each backend is self-contained: to implement a new one, start from the code of a similar
+  backend and adapt it. Duplicating logic between backends is fine; do not factor it out into
+  shared modules or base classes, so that a change in one backend cannot break another.
 - **Configuration keys:** document new or changed keys in `config/config_template.yaml` and
   in the backend's page under `docs/source/compute_config/` or `docs/source/storage_config/`
   (general `lithops` keys in `docs/source/lithops_config_keys.csv`).

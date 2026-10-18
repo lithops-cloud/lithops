@@ -23,7 +23,6 @@ from lithops.storage.utils import StorageNoSuchKeyError
 from lithops.utils import sizeof_fmt, is_lithops_worker
 from lithops.util.ibm_token_manager import COSTokenManager, IAMTokenManager
 from lithops.constants import STORAGE_CLI_MSG
-from lithops.libs.globber import match
 
 logger = logging.getLogger(__name__)
 
@@ -125,7 +124,7 @@ class IBMCloudObjectStorageBackend:
             msg = "'storage_bucket' parameter not found in config. You must provide HMAC "
             msg += "Credentials if you want the bucket to be automatically created"
             raise Exception(msg)
-        key = self.config.get('access_key_id') or self.api_key or self.iam_api_key
+        key = self.config['access_key_id']
         self.config['storage_bucket'] = f"lithops-{self.region}-{key[:6].lower()}"
 
         return self.config['storage_bucket']
@@ -162,11 +161,6 @@ class IBMCloudObjectStorageBackend:
                     logger.debug(f'PUT Object {key} - Size: {sizeof_fmt(len(data))} - {status}')
                 except Exception:
                     logger.debug(f'PUT Object {key} {status}')
-            except ibm_botocore.exceptions.ClientError as e:
-                if e.response['Error']['Code'] == "NoSuchKey":
-                    raise StorageNoSuchKeyError(bucket_name, key)
-                else:
-                    raise e
             except ibm_botocore.exceptions.ReadTimeoutError as e:
                 if retries == OBJ_REQ_RETRIES:
                     raise e
@@ -321,9 +315,7 @@ class IBMCloudObjectStorageBackend:
             object_list = []
             for page in page_iterator:
                 if 'Contents' in page:
-                    for item in page['Contents']:
-                        if match_pattern is None or (match_pattern is not None and match(match_pattern, item['Key'])):
-                            object_list.append(item)
+                    object_list.extend(page['Contents'])
             return object_list
         except ibm_botocore.exceptions.ClientError as e:
             if e.response['Error']['Code'] == '404':

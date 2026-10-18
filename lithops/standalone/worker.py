@@ -159,16 +159,6 @@ def notify_worker_active(worker_name):
         )
 
 
-def notify_worker_idle(worker_name):
-    """Tells the master this worker is free to take another job"""
-    with _reported(f'mark worker {worker_name} as idle'):
-        redis_client.hset(f"worker:{worker_name}", mapping={
-            'status': WorkerStatus.IDLE.value,
-            'runtime': '',
-            'worker_processes': '',
-        })
-
-
 def notify_worker_stop(worker_name):
     """Tells the master this worker is stopping"""
     with _reported(f'mark worker {worker_name} as stopped'):
@@ -371,13 +361,9 @@ def run_worker():
                 standalone_config['backend'],
             )
             redis_queue_consumer_futures.append(future)
-            worker_threads[i]['future'] = future
 
         for future in redis_queue_consumer_futures:
             future.result()
-
-    if standalone_config['exec_mode'] == StandaloneMode.CONSUME.value:
-        notify_worker_idle(worker_data['name'])
 
     logger.debug('Worker service finished')
 

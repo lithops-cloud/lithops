@@ -101,13 +101,14 @@ ibm_vpc:
 |ibm_vpc | master_profile_name | cx2-2x4 | no | Profile name for the master VM |
 |ibm_vpc | verify_resources | True | no | Verify the resources that are stored in the local cache, and expected to be already created (VPC, subnet, floating IP, etc.), exist every time a `FunctionExecutor()` is created |
 |ibm_vpc | delete_on_dismantle | True | no | Delete the worker VMs when they are stopped |
+|ibm_vpc | worker_create_retries | 2 | no | Attempts to bring up each worker VM in create and reuse modes. A worker VM that is not reachable over SSH in time, or that fails the `singlesocket` check (each counted separately), is deleted and created again until this many attempts have been made; then that worker fails and the job runs on the workers that came up. Minimum 1 |
 |ibm_vpc | max_workers | 100 | no | Max number of workers per `FunctionExecutor()`|
 |ibm_vpc | worker_processes | AUTO | no | Number of Lithops processes within a given worker. This is used to parallelize function activations within a worker. By default it detects the amount of CPUs in the worker VM|
 |ibm_vpc | auto_dismantle | True |no | If False then the VM is not stopped automatically.|
 |ibm_vpc | soft_dismantle_timeout | 300 |no| Time in seconds to stop the VM instance after a job **completed** its execution |
 |ibm_vpc | hard_dismantle_timeout | 3600 | no | Time in seconds to stop the VM instance after a job **started** its execution |
 |ibm_vpc | exec_mode | reuse | no | One of: **consume**, **create** or **reuse**. If set to **create**, Lithops will automatically create new VMs for each `map()` call based on the number of elements in `iterdata`. If set to **reuse**, Lithops will try to reuse running workers if they exist |
-|ibm_vpc | singlesocket | False | no | Try to allocate workers with a single-socket CPU. If they end up running on multiple sockets, a warning message is printed to the user. If **True**, the standalone **workers_policy** must be set to **strict** to track worker states |
+|ibm_vpc | singlesocket | False | no | Only use workers with a single-socket CPU. A worker that ends up on multiple sockets is deleted and created again, up to `worker_create_retries` attempts in total, after which that worker fails |
 |ibm_vpc | gpu | False | no | If `True`, Docker is started with GPU support. Requires the host to have the necessary hardware and software pre-configured, and a Docker image runtime with GPU support specified |
 |ibm_vpc | extra_apt_packages | [] | no | Extra Debian/Ubuntu packages on master/worker VMs during setup (YAML list or space-separated string) |
 |ibm_vpc | extra_python_packages | [] | no | Extra pip packages on master/worker VMs after Lithops (YAML list or space-separated string) |

@@ -139,14 +139,6 @@ class CloudFileProxy:
             names.add(name)
         return list(names)
 
-    def _walk_children(self, top, dirs, topdown, onerror, followlinks):
-        """Walks each subdirectory of a path, in the requested order"""
-        for dir_name in dirs:
-            yield from self.walk(
-                base_os.path.join(top, dir_name),
-                topdown, onerror, followlinks,
-            )
-
     def walk(self, top, topdown=True, onerror=None, followlinks=False):
         """
         Walks a path yielding (top, dirs, files), as os.walk does, and yields
@@ -165,13 +157,9 @@ class CloudFileProxy:
             return
         if topdown:
             yield top, dirs, files
-            yield from self._walk_children(
-                top, dirs, topdown, onerror, followlinks
-            )
-        else:
-            yield from self._walk_children(
-                top, dirs, topdown, onerror, followlinks
-            )
+        for dir_name in dirs:
+            yield from self.walk(base_os.path.join(top, dir_name), topdown, onerror, followlinks)
+        if not topdown:
             yield top, dirs, files
 
     def remove(self, path):
@@ -193,8 +181,8 @@ class _path:
     it does not implement is served by os.path itself
     """
 
-    def __init__(self, cloud_storage: Optional[CloudStorage] = None):
-        self._storage = cloud_storage or CloudStorage()
+    def __init__(self, cloud_storage: CloudStorage):
+        self._storage = cloud_storage
 
     def __getattr__(self, name):
         # we only reach here if the attr is not defined
@@ -234,6 +222,12 @@ class _DelayedClose:
     storage happen only once the caller is done writing
     """
 
+    def __init__(self, action, *args, **kwargs):
+        # The rest goes to the buffer class, so each subclass keeps its
+        # constructor: (action, initial_bytes) and (action, initial_value)
+        super().__init__(*args, **kwargs)
+        self._action = action
+
     def close(self):
         # Closing again is a no-op, as for a file, and the buffer stays open
         # if the upload fails so that it can be retried
@@ -246,17 +240,9 @@ class _DelayedClose:
 class DelayedBytesBuffer(_DelayedClose, io.BytesIO):
     """Binary buffer that uploads what it holds when it is closed"""
 
-    def __init__(self, action, initial_bytes=None):
-        super().__init__(initial_bytes)
-        self._action = action
-
 
 class DelayedStringBuffer(_DelayedClose, io.StringIO):
     """Text buffer that uploads what it holds when it is closed"""
-
-    def __init__(self, action, initial_value=None):
-        super().__init__(initial_value)
-        self._action = action
 
 
 def cloud_open(filename, mode='r', cloud_storage=None):

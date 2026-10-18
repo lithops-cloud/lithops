@@ -4,15 +4,24 @@
 
 ### Changed
 - [Core] A storage or monitoring service at a loopback address is refused for serverless workers, which cannot reach it; standalone and Singularity workers get a warning.
-- [Core] `RetryingFunctionExecutor` lists a bucket, prefix or directory before invoking, so that each object is retried on its own, and rejects `obj_chunk_size` and `obj_chunk_number`.
+- [Core] `wait()` timeouts no longer arm a SIGALRM: they are checked between polls, work from any thread and leave the caller's signal handler and alarm alone.
+- [Core] An `obj_chunk_size` no longer than `obj_newline` is raised to one byte more.
+- [Storage] Glob patterns in the input objects work on every storage backend: a key with `*` is a pattern, as it already was on AWS S3 and IBM COS, also from a Windows client.
+- [CLI] Times are shown in the local time zone without `pytz` and `tzlocal`, which are no longer used.
+- [Standalone] `lithops worker list` shows the last error of each worker and how many of its processes are busy.
+- [Knative] Updated to current Knative Serving (tested with 1.23): one container per call in flight with the current autoscaling annotations, `kubecfg_context`, `namespace` and `runtime_arch` keys, the Contour networking layer, cluster-local calls from inside the cluster, a deploy that updates an existing service and reports why its revision fails, and a default runtime that runs as a non-root user.
 
 ### Fixed
-- [Core] Chaining, cleanup, invocation errors, generator inputs, empty `fs`, `wait()` timeouts (threads, SIGALRM, `ANY_COMPLETED`), argument binding and `RetryingFunctionExecutor` retries and percentage waits.
+- [Core] Chaining, cleanup, invocation errors, generator inputs, empty `fs`, `wait()` with `ANY_COMPLETED`, argument binding, and `RetryingFunctionExecutor` retries and percentage waits; a failed object, or chunk of one, is retried on its own.
 - [Worker] Partitioned object streams (lost, duplicated or cut rows, rows longer than 128 KB, multi-byte `obj_newline`, `readline()`, iteration), module discovery of nested functions, a parameter named `future`, and `extra_env` restoring the previous environment.
-- [Localhost] Absolute interpreter paths are accepted as runtime; storage listing is a literal prefix match including dotfiles, and open-ended byte ranges are supported.
-- [Storage] `CloudFileProxy` path handling (`isfile`, `listdir`, `exists`, leading `/`), double `close()`, and `r+` mode writing back.
-- [Monitoring] Worker tokens of jobs dropped by `wait()`, replaced monitors and restarted invokers are handed back once, a held `__end__` is no longer replaced by an `__init__`, and the workers of a job that owes no token are forgotten instead of kept for the life of the executor.
+- [Localhost] An absolute interpreter path with any character, such as `@` or a space, is accepted as runtime; storage listing is a literal prefix match including dotfiles, and open-ended byte ranges are supported.
+- [Storage] `CloudFileProxy` path handling (`isfile`, `listdir`, `exists`, leading `/`), double `close()`, and `r+` mode writing back; Swift `generate_bucket_name`, Aliyun and Oracle listings past 1,000 objects, and open-ended byte ranges on GCS, Azure and Aliyun without modifying the caller's `extra_get_args`; glob patterns outside the bucket root on AWS S3 and IBM COS; Swift listings return `Key` and `Size` like the other backends and go past the first page.
+- [Serverless] Oracle Functions reports a missing `oracle_f` section, an Aliyun zip runtime builds without Docker, and Kubernetes no longer waits for ever on a runtime image it cannot pull or a master pod that does not start.
+- [Standalone] A failed `init()` on AWS EC2, GCP Compute Engine and IBM VPC now deletes every resource it created, including those whose tagging, attaching or rules failed; IBM VPC no longer uses the deprecated `code` of SDK errors; the `vm` backend loads its documented configuration, and Azure `request_spot_instances` creates Spot worker VMs (now `False` by default: B-series sizes, like the default worker, do not support Spot).
+- [Monitoring] Worker tokens of jobs dropped by `wait()`, replaced monitors and restarted invokers are handed back once, a held `__end__` is no longer replaced by an `__init__`, and the workers of a job that owes no token are forgotten instead of kept for as long as the job monitor runs; the shared RabbitMQ connection of a worker is closed at exit.
 - [Concurrent] `wait()` and `as_completed()` accept generators.
+- [Core] An executor that fails to be created no longer logs a misleading `job_monitor` error at exit.
+- [Knative] Calls longer than 5 minutes are no longer cut off by Knative, a load balancer ingress is reached at its own port and may be a hostname, `https` service URLs work, a failed call is reported instead of being invoked again for ever, and a service that never gets ready raises an error.
 
 ## [v3.8.0]
 

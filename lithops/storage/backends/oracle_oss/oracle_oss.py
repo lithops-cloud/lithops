@@ -259,12 +259,17 @@ class OCIObjectStorageBackend:
         '''
         prefix = '' if prefix is None else prefix
         try:
-            res = self.os_client.list_objects(
-                self.namespace, bucket_name, prefix=prefix, limit=1000, fields="name,size"
-            )
-            obj_list = [{'Key': obj.name, 'Size': obj.size} for obj in res.data.objects]
-
-            return obj_list
+            obj_list = []
+            next_start = None
+            while True:
+                res = self.os_client.list_objects(
+                    self.namespace, bucket_name, prefix=prefix, start=next_start,
+                    limit=1000, fields="name,size"
+                )
+                obj_list.extend({'Key': obj.name, 'Size': obj.size} for obj in res.data.objects)
+                if res.data.next_start_with is None:
+                    return obj_list
+                next_start = res.data.next_start_with
 
         except oci.exceptions.ServiceError as e:
             logger.debug("ServiceError in list_objects: %s", str(e))

@@ -15,6 +15,7 @@
 import json
 import pickle
 import threading
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -199,6 +200,15 @@ class TestLocalhostStorageKeys:
         clean_bucket(backend, 'b', 'dir/', sleep=0)
         assert backend.list_keys('b') == ['.top']
 
+    def test_list_objects_skips_keys_deleted_since_listed(self, backend, monkeypatch):
+        # A job running alongside deletes its files while the bucket is
+        # listed, which made the listing fail
+        backend.put_object('b', 'a', b'x')
+        backend.put_object('b', 'gone', b'y')
+        monkeypatch.setattr(backend, 'list_keys', lambda bucket, prefix=None: ['a', 'gone', 'never'])
+        backend.delete_object('b', 'gone')
+        assert backend.list_objects('b') == [{'Key': 'a', 'Size': 1}]
+
     def test_list_keys_partial_and_missing_prefixes(self, backend):
         backend.put_object('b', 'a/b/c1', b'x')
         backend.put_object('b', 'a/b/c2', b'x')
@@ -233,6 +243,261 @@ class TestLocalhostStorageKeys:
         backend.put_object('b', 'dir/f', b'x')
         with pytest.raises(StorageNoSuchKeyError):
             backend.get_object('b', 'dir')
+
+
+class TestSwiftBackend:
+
+    def test_generate_bucket_name(self):
+        """It wrote to self.config, which the backend never set"""
+        from lithops.storage.backends.swift.swift import StorageBackend
+        config = {
+            'auth_url': 'http://auth', 'user_id': 'ABCDEF123', 'project_id': 'p',
+            'password': 'x', 'region': 'reg', 'token': 't', 'endpoint': 'http://swift',
+        }
+        backend = StorageBackend(config)
+        assert backend.generate_bucket_name() == 'lithops-reg-abcdef'
+        assert config['storage_bucket'] == 'lithops-reg-abcdef'
+
+
+    def test_get_object_missing_key(self):
+        from lithops.storage.backends.swift.swift import StorageBackend
+        backend = StorageBackend.__new__(StorageBackend)
+        backend.endpoint = 'http://swift'
+        backend.token = 't'
+        backend.session = MagicMock()
+        backend.session.get.return_value.status_code = 404
+        with pytest.raises(StorageNoSuchKeyError, match='/b/k'):
+            backend.get_object('b', 'k')
+
+    def test_list_errors_propagate(self):
+        from lithops.storage.backends.swift.swift import StorageBackend
+        backend = StorageBackend.__new__(StorageBackend)
+        backend.endpoint = 'http://swift'
+        backend.session = MagicMock()
+        page = [{'name': 'p/a', 'bytes': 1}, {'name': 'p/b', 'bytes': 2}]
+        backend.session.get.return_value.json.side_effect = [page, []]
+        assert backend.list_keys('b', 'p/') == ['p/a', 'p/b']
+        backend.session.get.side_effect = ValueError('boom')
+        with pytest.raises(ValueError, match='boom'):
+            backend.list_keys('b', 'p/')
+
+    @staticmethod
+    def _listing_backend():
+        from lithops.storage.backends.swift.swift import StorageBackend
+        backend = StorageBackend.__new__(StorageBackend)
+        backend.endpoint = 'http://swift'
+        backend.session = MagicMock()
+        backend.session.get.return_value.json.side_effect = [[
+            {'name': f'p/{n}', 'bytes': size, 'hash': 'h', 'content_type': 'text/csv',
+             'last_modified': '2024-01-01T00:00:00.000000'}
+            for n, size in [('a.csv', 3), ('b.txt', 5)]
+        ], []]
+        return backend
+
+    def test_list_objects_keys_and_sizes(self):
+        """It returned the raw Swift entries, with 'name' and 'bytes'"""
+        backend = self._listing_backend()
+        assert backend.list_objects('b', 'p/') == [{'Key': 'p/a.csv', 'Size': 3}, {'Key': 'p/b.txt', 'Size': 5}]
+        assert backend.session.get.call_args.args[0] == 'http://swift/b'
+        assert backend.session.get.call_args.kwargs['params']['prefix'] == 'p/'
+
+    def test_list_objects_pages_past_the_listing_limit(self):
+        """Only the first page, at most 10,000 objects by default, was returned"""
+        backend = self._listing_backend()
+        pages = [[{'name': f'k{i}', 'bytes': 1}] for i in range(3)] + [[]]
+        backend.session.get.return_value.json.side_effect = pages
+        assert [o['Key'] for o in backend.list_objects('b')] == ['k0', 'k1', 'k2']
+        # One request per page, the last one past the final name
+        assert backend.session.get.call_count == 4
+        assert backend.session.get.call_args.kwargs['params']['marker'] == 'k2'
+
+    def test_list_objects_match_pattern(self):
+        """The glob pattern failed on the raw entries, which have no 'Key'"""
+        storage = _bare_storage('swift')
+        storage.storage_handler = self._listing_backend()
+        assert storage.list_objects('b', 'p/', 'p/*.csv') == [{'Key': 'p/a.csv', 'Size': 3}]
+
+
+class TestInfinispanBackendListing:
+
+    @pytest.fixture
+    def backend(self):
+        from lithops.storage.backends.infinispan import StorageBackend
+        backend = StorageBackend.__new__(StorageBackend)
+        backend.endpoint = 'http://ispn'
+        backend.auth = None
+        backend.infinispan_client = MagicMock()
+        backend.infinispan_client.get.return_value.content = json.dumps(
+            ['p/a', '', 'p/bb', 'q/c']
+        ).encode()
+        values = {'p/a': b'1', 'p/bb': b'22', 'q/c': b'333'}
+
+        def get_object(bucket, key, stream=False, extra_get_args={}):
+            if key not in values:
+                raise StorageNoSuchKeyError(bucket, key)
+            return values[key]
+
+        backend.get_object = get_object
+        return backend
+
+    def test_list_keys(self, backend):
+        assert backend.list_keys('b') == ['p/a', 'p/bb', 'q/c']
+        assert backend.list_keys('b', 'p/') == ['p/a', 'p/bb']
+        assert backend.list_keys('b', 'x') == []
+        backend.infinispan_client.get.assert_called_with('http://ispn/rest/v2/caches/b?action=keys', auth=None)
+
+    def test_list_objects(self, backend):
+        assert backend.list_objects('b', 'p/') == [{'Key': 'p/a', 'Size': 1}, {'Key': 'p/bb', 'Size': 2}]
+        assert backend.list_objects('b', 'x') == []
+
+    def test_list_objects_skips_keys_gone_since_listed(self, backend):
+        backend.infinispan_client.get.return_value.content = b'["p/a", "p/gone"]'
+        assert backend.list_objects('b') == [{'Key': 'p/a', 'Size': 1}]
+
+
+class TestCloudBackendRanges:
+    """Open ranges work, and the caller's extra_get_args is not modified"""
+
+    def test_gcp_storage(self):
+        pytest.importorskip('google.cloud.storage')
+        from lithops.storage.backends.gcp_storage import StorageBackend
+        backend = StorageBackend.__new__(StorageBackend)
+        backend.client = MagicMock()
+        blob = backend.client.get_bucket.return_value.blob.return_value
+        blob.size = 10
+        backend.get_object('b', 'k', extra_get_args={'Range': 'bytes=4-'})
+        blob.download_as_bytes.assert_called_with(start=4, end=None)
+        backend.get_object('b', 'k', extra_get_args={'Range': 'bytes=-3'})
+        blob.download_as_bytes.assert_called_with(start=7, end=None)
+
+    def test_azure_storage(self):
+        pytest.importorskip('azure.storage.blob')
+        from lithops.storage.backends.azure_storage import StorageBackend
+        backend = StorageBackend.__new__(StorageBackend)
+        backend.blob_client = MagicMock()
+        container = backend.blob_client.get_container_client.return_value
+        container.get_blob_client.return_value.get_blob_properties.return_value.size = 10
+        args = {'Range': 'bytes=2-5'}
+        backend.get_object('b', 'k', extra_get_args=args)
+        container.download_blob.assert_called_with('k', offset=2, length=4)
+        assert args == {'Range': 'bytes=2-5'}
+        backend.get_object('b', 'k', extra_get_args={'Range': 'bytes=4-'})
+        container.download_blob.assert_called_with('k', offset=4, length=None)
+        backend.get_object('b', 'k', extra_get_args={'Range': 'bytes=-3'})
+        container.download_blob.assert_called_with('k', offset=7, length=None)
+
+    def test_aliyun_oss(self):
+        pytest.importorskip('oss2')
+        from lithops.storage.backends.aliyun_oss import StorageBackend
+        backend = StorageBackend.__new__(StorageBackend)
+        bucket = MagicMock()
+        bucket.head_object.return_value.content_length = 10
+        backend._connect_bucket = lambda name: bucket
+        args = {'Range': 'bytes=2-50'}
+        backend.get_object('b', 'k', extra_get_args=args)
+        bucket.get_object.assert_called_with(key='k', byte_range=(2, 9))
+        assert args == {'Range': 'bytes=2-50'}
+        backend.get_object('b', 'k', extra_get_args={'Range': 'bytes=-3'})
+        bucket.get_object.assert_called_with(key='k', byte_range=(None, 3))
+
+
+class TestCloudBackendListing:
+    """Listings go past the first page of 1000 objects"""
+
+    def test_aliyun_oss(self):
+        pytest.importorskip('oss2')
+        from lithops.storage.backends.aliyun_oss import StorageBackend, aliyun_oss
+        backend = StorageBackend.__new__(StorageBackend)
+        backend._connect_bucket = lambda name: MagicMock()
+        objects = [SimpleNamespace(key=f'k{i}', size=i) for i in range(1500)]
+        with patch.object(aliyun_oss.oss2, 'ObjectIterator', return_value=iter(objects)):
+            assert len(backend.list_objects('b', 'p')) == 1500
+        with patch.object(aliyun_oss.oss2, 'ObjectIterator', return_value=iter(objects)):
+            assert len(backend.list_keys('b', 'p')) == 1500
+
+    def test_oracle_oss(self):
+        pytest.importorskip('oci')
+        from lithops.storage.backends.oracle_oss import StorageBackend
+        backend = StorageBackend.__new__(StorageBackend)
+        backend.namespace = 'ns'
+        backend.os_client = MagicMock()
+
+        def page(names, next_start):
+            objects = [SimpleNamespace(name=n, size=1) for n in names]
+            return SimpleNamespace(data=SimpleNamespace(objects=objects, next_start_with=next_start))
+
+        backend.os_client.list_objects.side_effect = [page(['a', 'b'], 'c'), page(['c'], None)]
+        assert [o['Key'] for o in backend.list_objects('bkt', 'p')] == ['a', 'b', 'c']
+        assert backend.os_client.list_objects.call_args.kwargs['start'] == 'c'
+
+
+class TestStorageListObjectsGlob:
+    """
+    Storage.list_objects matches the glob pattern itself, on every backend:
+    it used to be passed to the backend, and all but aws_s3 and ibm_cos
+    ignored it
+    """
+
+    @pytest.fixture
+    def storage(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(
+            'lithops.storage.backends.localhost.localhost.LITHOPS_TEMP_DIR',
+            str(tmp_path),
+        )
+        storage = _bare_storage()
+        storage.storage_handler = LocalhostStorageBackend({})
+        for key in ['dir/a.csv', 'dir/b.txt', 'dir/sub/c.csv', 'dir2/d.csv']:
+            storage.put_object('b', key, b'x')
+        return storage
+
+    @pytest.mark.parametrize('prefix, pattern, keys', [
+        ('dir/', None, ['dir/a.csv', 'dir/b.txt', 'dir/sub/c.csv']),
+        ('dir', None, ['dir/a.csv', 'dir/b.txt', 'dir/sub/c.csv', 'dir2/d.csv']),
+        ('dir/', 'dir/*.csv', ['dir/a.csv']),
+        ('dir', 'dir*/*.csv', ['dir/a.csv', 'dir2/d.csv']),
+        (None, '**/*.csv', ['dir/a.csv', 'dir/sub/c.csv', 'dir2/d.csv']),
+        ('dir/', 'dir/?.txt', ['dir/b.txt']),
+        ('dir/', 'other/*', []),
+    ])
+    def test_match_pattern(self, storage, prefix, pattern, keys):
+        objects = storage.list_objects('b', prefix, pattern)
+        assert sorted(o['Key'] for o in objects) == keys
+        assert all(o['Size'] == 1 for o in objects)
+
+    def test_match_pattern_on_windows(self, monkeypatch):
+        """
+        Keys are split on '/' on Windows too: the separator used to be
+        replaced by the platform one, which split keys holding a '\\'
+        """
+        monkeypatch.setattr('os.sep', '\\')
+        storage = _bare_storage()
+        storage.storage_handler.list_objects.return_value = [
+            {'Key': 'dir/a\\b.csv', 'Size': 1}, {'Key': 'dir/sub/', 'Size': 0}, {'Key': 'dir/sub/c.csv', 'Size': 1},
+        ]
+        assert [o['Key'] for o in storage.list_objects('b', 'dir/', 'dir/*')] == ['dir/a\\b.csv', 'dir/sub/']
+        assert [o['Key'] for o in storage.list_objects('b', 'dir/', 'dir/**/*.csv')] == [
+            'dir/a\\b.csv', 'dir/sub/c.csv',
+        ]
+
+    def test_backend_gets_no_pattern(self):
+        storage = _bare_storage()
+        storage.storage_handler.list_objects.return_value = [{'Key': 'a/b', 'Size': 1}, {'Key': 'a/c', 'Size': 1}]
+        assert storage.list_objects('bkt', 'a/', 'a/b') == [{'Key': 'a/b', 'Size': 1}]
+        storage.storage_handler.list_objects.assert_called_once_with('bkt', 'a/')
+
+    @pytest.mark.parametrize('module, client_attr', [('aws_s3', 's3_client'), ('ibm_cos', 'cos_client')])
+    def test_s3_backends_list_every_page(self, module, client_attr):
+        pytest.importorskip('boto3' if module == 'aws_s3' else 'ibm_boto3')
+        import importlib
+        backend_cls = importlib.import_module(f'lithops.storage.backends.{module}').StorageBackend
+        backend = backend_cls.__new__(backend_cls)
+        client = MagicMock()
+        setattr(backend, client_attr, client)
+        client.get_paginator.return_value.paginate.return_value = [
+            {'Contents': [{'Key': 'p/a', 'Size': 1}]}, {}, {'Contents': [{'Key': 'p/b', 'Size': 2}]},
+        ]
+        assert [o['Key'] for o in backend.list_objects('bkt', 'p/')] == ['p/a', 'p/b']
+        client.get_paginator.return_value.paginate.assert_called_once_with(Bucket='bkt', Prefix='p/')
 
 
 class TestStorageCloudObjects:
@@ -527,6 +792,20 @@ class TestCloudProxy:
         proxy = CloudFileProxy(FakeCloudStorage(keys=[]))
         assert list(proxy.walk('missing')) == []
 
+    def test_walk_orders_and_prunes_like_os_walk(self):
+        fake = FakeCloudStorage(keys=['a/x', 'a/b/y', 'a/b/c/z'])
+        proxy = CloudFileProxy(fake)
+        expected = [('a', ['b'], ['x']), ('a/b', ['c'], ['y']), ('a/b/c', [], ['z'])]
+        assert list(proxy.walk('a')) == expected
+        assert list(proxy.walk('a', topdown=False)) == expected[::-1]
+
+        # Top-down, emptying dirs in place stops the walk going below, as in os.walk
+        walked = []
+        for top, dirs, _ in proxy.walk('a'):
+            walked.append(top)
+            dirs.clear()
+        assert walked == ['a']
+
     def test_open_rejects_unsupported_mode(self):
         fake = FakeCloudStorage(data={'f.txt': b'hello'})
         with pytest.raises(ValueError, match='Unsupported mode'):
@@ -553,7 +832,11 @@ class TestCloudProxy:
         seen = []
         DelayedBytesBuffer(seen.append, b'ab').close()
         DelayedStringBuffer(seen.append, 'cd').close()
-        assert seen == [b'ab', 'cd']
+        DelayedBytesBuffer(seen.append, initial_bytes=b'ef').close()
+        DelayedStringBuffer(seen.append, initial_value='gh').close()
+        DelayedBytesBuffer(seen.append).close()
+        DelayedStringBuffer(seen.append).close()
+        assert seen == [b'ab', 'cd', b'ef', 'gh', b'', '']
 
     def test_remove_delegates_and_mkdir_is_noop(self):
         fake = FakeCloudStorage()
@@ -584,3 +867,50 @@ class TestCloudProxy:
             loaded = pickle.loads(dumped)
         assert loaded._config == cfg
         init.assert_called()
+
+
+class TestStorageInit:
+
+    def test_a_backend_that_fails_is_reraised_with_one_traceback(self):
+        # The error was logged with its traceback and then raised, so the
+        # caller printed the same traceback twice
+        config = {'backend': 'no_such_backend', 'no_such_backend': {}}
+        with patch('lithops.storage.storage.logger') as logger:
+            with pytest.raises(ModuleNotFoundError):
+                Storage(storage_config=config)
+        logger.error.assert_called_once()
+        assert "'no_such_backend' storage backend" in logger.error.call_args.args[0]
+        assert 'exc_info' not in logger.error.call_args.kwargs
+
+
+class TestIbmCosConfig:
+
+    @staticmethod
+    def _load(backend, **ibm_cos):
+        from lithops.storage.backends.ibm_cos.config import load_config
+        config = {'lithops': {'backend': backend}, 'ibm_cos': {'service_instance_id': 'sid', **ibm_cos}}
+        load_config(config)
+        return config['ibm_cos']
+
+    @pytest.mark.parametrize('backend, private_endpoint', [
+        ('ibm_cf', 'https://s3.private.eu-de.cloud-object-storage.appdomain.cloud'),
+        ('code_engine', 'https://s3.direct.eu-de.cloud-object-storage.appdomain.cloud'),
+        ('ibm_vpc', 'https://s3.direct.eu-de.cloud-object-storage.appdomain.cloud'),
+        ('localhost', None),
+    ])
+    def test_region_sets_the_endpoints_of_the_compute_backend(self, backend, private_endpoint):
+        cos = self._load(backend, region='eu-de', private_endpoint='https://s3.private.x')
+        assert cos['endpoint'] == 'https://s3.eu-de.cloud-object-storage.appdomain.cloud'
+        assert cos.get('private_endpoint') == private_endpoint
+
+    @pytest.mark.parametrize('backend, private_endpoint, error', [
+        ('ibm_cf', None, 'You must provide the private_endpoint'),
+        ('ibm_cf', 'https://s3.direct.x', 'is not valid$'),
+        ('code_engine', 'https://s3.private.x', 'is not valid$'),
+        ('ibm_vpc', 'https://s3.private.x', 'is not valid. You must use the "direct" endpoint$'),
+        ('ibm_vpc', 's3.direct.x', 'Private Endpoint must start with http'),
+    ])
+    def test_private_endpoint_is_validated(self, backend, private_endpoint, error):
+        extra = {'private_endpoint': private_endpoint} if private_endpoint else {}
+        with pytest.raises(Exception, match=error):
+            self._load(backend, endpoint='https://s3.eu-de.x', **extra)

@@ -94,10 +94,11 @@ class TestCreateInvoker:
         faas_cls.assert_called_once_with('cfg', 'ex', 'store', handler, 'monitor')
         assert result is faas_cls.return_value
 
-    def test_unknown_backend_type_returns_none(self):
+    def test_unknown_backend_type_raises(self):
         handler = MagicMock()
         handler.get_backend_type.return_value = 'mystery'
-        assert create_invoker('cfg', 'ex', 'store', handler, 'monitor') is None
+        with pytest.raises(KeyError):
+            create_invoker('cfg', 'ex', 'store', handler, 'monitor')
 
 
 def _matching_runtime_meta():

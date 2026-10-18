@@ -72,7 +72,6 @@ class StorageMonitor(Monitor):
         self.callids_running_worker = {}
         self.callids_running_processed = set()
         self.callids_done_processed = set()
-        self.worker_job = {}
 
         # vars for _mark_status_as_running
         self.callids_running_processed_timeout = set()
@@ -236,9 +235,6 @@ class StorageMonitor(Monitor):
             self.callids_done_worker.setdefault(worker_id, set()).add(
                 callid_done
             )
-            # The job the worker belongs to, kept aside so that the chunksize
-            # can be looked up without picking a call id back out of the set
-            self.worker_job.setdefault(worker_id, callid_done[1])
 
         self._release_free_workers()
 
@@ -263,16 +259,15 @@ class StorageMonitor(Monitor):
         for worker_id, done_calls in list(self.callids_done_worker.items()):
             if worker_id in self.workers_done:
                 continue
-            job_id = self.worker_job.get(worker_id)
-            if job_id is None or job_id in self._token_closed_jobs:
-                continue
-            if job_id not in jobs:
+            # A worker runs consecutive calls of a single job
+            executor_id, job_id, call_id = next(iter(done_calls))
+            if job_id in self._token_closed_jobs or job_id not in jobs:
                 continue
             chunksize = self.job_chunksize.get(job_id)
             if chunksize is None:
                 continue
             worker_calls = self._worker_calls(
-                *next(iter(done_calls)), chunksize
+                executor_id, job_id, call_id, chunksize
             )
             if len(done_calls) < worker_calls:
                 continue
@@ -287,11 +282,6 @@ class StorageMonitor(Monitor):
         """
         return self.should_run or self._final_sweep
 
-    def _forget_workers_of(self, job_ids):
-        super()._forget_workers_of(job_ids)
-        for worker_id in [w for w, job_id in self.worker_job.items() if job_id in job_ids]:
-            del self.worker_job[worker_id]
-
     def _release_timed_out_worker(self, call_status):
         worker_id = call_status.get('activation_id')
         if not self.generate_tokens or worker_id is None:
@@ -304,7 +294,6 @@ class StorageMonitor(Monitor):
             self.callids_done_worker.setdefault(worker_id, set()).add(
                 _status_id(call_status)
             )
-            self.worker_job.setdefault(worker_id, call_status['job_id'])
             self._release_free_workers()
 
     def _poll_and_process_job_status(self):

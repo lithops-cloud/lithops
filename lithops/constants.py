@@ -27,7 +27,6 @@ LOGGER_FORMAT = (
     "%(asctime)s [%(levelname)s] %(filename)s:%(lineno)s -- %(message)s"
 )
 LOGGER_FORMAT_SHORT = "[%(levelname)s] %(filename)s:%(lineno)s -- %(message)s"
-LOGGER_LEVEL_CHOICES = ("debug", "info", "warning", "error", "critical")
 
 # ---------------------------------------------------------------------------
 # Execution modes
@@ -43,7 +42,6 @@ STANDALONE_BACKEND_DEFAULT = 'aws_ec2'
 STORAGE_BACKEND_DEFAULT = 'aws_s3'
 
 CPU_COUNT = os.cpu_count()
-WORKER_PROCESSES_DEFAULT = 1
 MAX_AGG_DATA_SIZE = 4  # 4MiB
 
 STORAGE_CLI_MSG = '{} client created'
@@ -84,7 +82,6 @@ MODULES_DIR = _in_temp('modules')
 CUSTOM_RUNTIME_DIR = _in_temp('custom-runtime')
 
 RN_LOG_FILE = _in_temp('localhost-runner.log')
-SV_LOG_FILE = _in_temp('localhost-service.log')
 FN_LOG_FILE = _in_temp('functions.log')
 
 CLEANER_DIR = _in_temp('cleaner')

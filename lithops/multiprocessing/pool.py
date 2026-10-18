@@ -402,8 +402,8 @@ class ApplyResult(object):
         standard library does.
 
         The calls are polled one at a time rather than through lithops.wait,
-        which cancels the process-wide SIGALRM as it returns: that alarm is
-        what bounds a get(timeout) the main thread may be running meanwhile
+        so that terminate() can stop the wait and storage is asked sparingly
+        (see _wait_in_thread)
         """
         try:
             if self._wait_in_thread():

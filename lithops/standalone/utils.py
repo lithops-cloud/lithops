@@ -73,7 +73,6 @@ class JobStatus(Enum):
     """States a job goes through in a standalone run"""
 
     SUBMITTED = "submitted"
-    PENDING = "pending"
     RUNNING = "running"
     DONE = 'done'
     CANCELED = 'canceled'
@@ -207,14 +206,14 @@ def install_script_kwargs_from_config(config=None) -> Dict[str, str]:
     }
 
 
-def lithops_pip_spec_from_config(config=None, default: str = 'lithops') -> str:
+def lithops_pip_spec_from_config(config=None) -> str:
     """
     Returns the pip spec the VMs install, holding only the extras the
     configured backends need. Installing lithops[all] on a VM would pull in
     every cloud SDK, and the redis extra is always needed for the job queue
     """
     if not config:
-        return default
+        return 'lithops'
 
     extras = {'redis'}
     lithops_cfg = config.get('lithops') or {}
@@ -233,14 +232,10 @@ def lithops_pip_spec_from_config(config=None, default: str = 'lithops') -> str:
         elif name in ('oracle', 'oci', 'oracle_storage'):
             extras.add('oracle')
 
-    cloud_extras = extras - {'redis'}
-    if not cloud_extras:
-        return 'lithops[redis]'
     return f"lithops[{','.join(sorted(extras))}]"
 
 
 def get_host_setup_script(
-    docker: bool = True,
     run_install: bool = True,
     lithops_pip_spec: str = 'lithops',
     extra_apt_packages: str = '',
@@ -292,14 +287,13 @@ def get_host_setup_script(
     install_packages(){{
     set -e
     export DEBIAN_FRONTEND=noninteractive
-    export DOCKER_REQUIRED={str(docker).lower()};
     command -v docker >/dev/null 2>&1 || {{
     export INSTALL_DOCKER=true; export INSTALL_LITHOPS_DEPS=true;
     }};
     command -v unzip >/dev/null 2>&1 || {{ export INSTALL_LITHOPS_DEPS=true; }};
     command -v pip3 >/dev/null 2>&1 || {{ export INSTALL_LITHOPS_DEPS=true; }};
 
-    if [ "$INSTALL_DOCKER" = true ] && [ "$DOCKER_REQUIRED" = true ]; then
+    if [ "$INSTALL_DOCKER" = true ]; then
     wait_internet_connection;
     echo "--> Installing Docker repository"
     apt_install update
@@ -316,7 +310,7 @@ def get_host_setup_script(
     echo "--> Installing Lithops system dependencies"
     apt_install update
 
-    if [ "$INSTALL_DOCKER" = true ] && [ "$DOCKER_REQUIRED" = true ]; then
+    if [ "$INSTALL_DOCKER" = true ]; then
     apt_install install -y unzip redis-server python3-pip docker-ce docker-ce-cli containerd.io
     else
     apt_install install -y unzip redis-server python3-pip

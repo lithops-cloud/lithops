@@ -37,8 +37,9 @@ reads and the value ``monitoring:`` selects it by; ``Monitor`` takes its
 ``backend_name`` from the package it is defined in.
 """
 
-import importlib
 from typing import Any, Dict, Optional
+
+from lithops import utils
 
 #: Backend used when the configuration does not name one. Every storage
 #: backend can act as a monitoring channel, so this always works
@@ -68,21 +69,10 @@ def resolve_backend(
 def import_backend_module(backend: str, submodule: Optional[str] = None):
     """
     Imports ``lithops.monitoring.backends.<backend>`` or one of its
-    submodules.
-
-    Raises ValueError only when the backend itself is not there. A
-    backend whose SDK is missing keeps its own ImportError, which names
-    the package to install instead of claiming the backend is unknown.
+    submodules. An unknown backend raises ValueError; one whose SDK is
+    missing keeps its own ImportError
     """
-    module_name = f'lithops.monitoring.backends.{backend}'
-    if submodule:
-        module_name = f'{module_name}.{submodule}'
-    try:
-        return importlib.import_module(module_name)
-    except ModuleNotFoundError as exc:
-        if exc.name and not module_name.startswith(exc.name):
-            raise
-        raise ValueError(f'Unknown monitoring backend: {backend}') from exc
+    return utils.import_backend_module(__name__, 'monitoring', backend, submodule)
 
 
 def load_backend_attr(backend: str, attr: str):
@@ -90,10 +80,4 @@ def load_backend_attr(backend: str, attr: str):
     Returns ``attr`` of ``lithops.monitoring.backends.<backend>``, naming
     the backend when the package does not export it
     """
-    module = import_backend_module(backend)
-    try:
-        return getattr(module, attr)
-    except AttributeError as exc:
-        raise ValueError(
-            f"Monitoring backend '{backend}' exports no {attr}"
-        ) from exc
+    return utils.load_backend_attr(__name__, 'monitoring', backend, attr)

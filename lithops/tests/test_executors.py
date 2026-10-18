@@ -76,7 +76,6 @@ class FakeFuture:
         self._produce_output = True
         self._read = False
         self.job_id = 'M000'
-        self.job_key = 'sess-0/M000'
         self.executor_id = 'sess-0'
         self.function_name = 'fn'
         self.runtime_memory = 256
@@ -86,6 +85,7 @@ class FakeFuture:
         self._mapreduce = False
         for key, value in kwargs.items():
             setattr(self, key, value)
+        self.job_key = create_job_key(self.executor_id, self.job_id)
 
     def result(self, throw_except=True, internal_storage=None):
         return self._result
@@ -122,16 +122,6 @@ class TestExecutorHelpers:
         )
         assert overwrite['lithops'] == {'mode': 'localhost', 'storage': 'localhost'}
         assert overwrite['backend'] == {'runtime': 'python3'}
-
-    def test_as_future_list_keeps_list_and_futures_list(self):
-        plain = [1, 2]
-        futures_list = FuturesList([1, 2])
-        assert FunctionExecutor._as_future_list(plain) is plain
-        assert FunctionExecutor._as_future_list(futures_list) is futures_list
-
-    def test_as_future_list_wraps_single_future(self):
-        future = FakeFuture()
-        assert FunctionExecutor._as_future_list(future) == [future]
 
     def test_disable_iterdata_output_only_for_futures_list(self):
         future = FakeFuture(_produce_output=True)
@@ -212,12 +202,12 @@ class TestSubmitAndCleanup:
         assert run_map.call_args.kwargs['job_id'] == 'A000'
         assert run_map.call_args.kwargs['iterdata'] is iterdata
 
-    def test_cleanup_jobs_omits_exception_kwarg_on_success(self):
+    def test_cleanup_jobs_passes_no_exception_on_success(self):
         executor = _bare_executor()
         future = FakeFuture()
         with patch.object(executor, 'clean') as clean:
             executor._cleanup_jobs([future])
-        executor.compute_handler.clear.assert_called_once_with({future.job_key})
+        executor.compute_handler.clear.assert_called_once_with({future.job_key}, exception=None)
         clean.assert_called_once_with(
             fs=[future], clean_cloudobjects=False, force=False
         )
@@ -533,12 +523,44 @@ class TestWaitAndGetResult:
             executor.job_monitor.cleanup.assert_called_once()
             assert clean.called is data_cleaner
 
+    def test_the_monitor_is_released_once_at_exit(self):
+        executor = _bare_executor(data_cleaner=True)
+        with patch('lithops.executors._dump_cleaner_data'), \
+                patch('lithops.executors.sp.Popen'):
+            executor._clean_at_exit()
+        executor.job_monitor.stop.assert_called_once()
+        executor.job_monitor.cleanup.assert_called_once()
+
     def test_a_failure_at_exit_does_not_stop_the_remaining_hooks(self):
         executor = _bare_executor(data_cleaner=True)
         executor.job_monitor.stop.side_effect = RuntimeError('broker gone')
-        with patch.object(executor, 'clean') as clean:
+        with patch.object(executor, 'clean') as clean, \
+                patch('lithops.executors.logger') as log:
             executor._clean_at_exit()
         clean.assert_called_once()
+        assert any(
+            'Could not release the job monitor' in str(c) for c in log.debug.call_args_list
+        )
+
+    def test_exit_after_a_failed_construction_logs_no_error(self):
+        """
+        The exit hook is registered before the storage handler is built, so
+        when that raises (missing credentials, say) it used to report an
+        AttributeError for a job monitor that never existed
+        """
+        class NoCredentials(Exception):
+            pass
+
+        with patch('lithops.executors.atexit.register') as register, \
+                patch('lithops.executors.InternalStorage', side_effect=NoCredentials()):
+            with pytest.raises(NoCredentials):
+                FunctionExecutor(config={'lithops': {'backend': 'localhost', 'storage': 'localhost'}})
+        register.assert_called_once()
+        clean_at_exit = register.call_args.args[0]
+
+        with patch('lithops.executors.logger') as log:
+            clean_at_exit()
+        assert not any('Could not' in str(c) for c in log.debug.call_args_list)
 
     @patch('lithops.executors.wait', side_effect=RuntimeError('boom'))
     def test_wait_exception_drops_its_queued_calls_and_reraises(self, mock_wait):
@@ -567,9 +589,7 @@ class TestWaitAndGetResult:
         of the executor, including one still running that nobody waited on
         """
         waited = FakeFuture(executor_id='abc-0', job_id='M000')
-        other = FakeFuture(
-            executor_id='abc-0', job_id='M001', job_key='abc-0/M001'
-        )
+        other = FakeFuture(executor_id='abc-0', job_id='M001')
         executor = _bare_executor(
             data_cleaner=True, executor_id='abc-0', futures=[waited, other]
         )

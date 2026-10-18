@@ -169,10 +169,6 @@ class ResponseFuture:
     def futures(self):
         return self._new_futures is not None
 
-    def _set_invoked(self):
-        """Set the future as invoked"""
-        self._set_state(self.State.Invoked)
-
     def _set_running(self, call_status):
         """Set the future as running"""
         self._call_status = call_status

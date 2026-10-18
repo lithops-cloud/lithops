@@ -146,16 +146,6 @@ class GCPCloudRunBackend:
         location = host.replace('-docker.pkg.dev', '')
         return project, location, repository
 
-    def _artifact_registry_uploader_identity(self):
-        if self.credentials_path and os.path.isfile(self.credentials_path):
-            try:
-                with open(self.credentials_path, 'r') as f:
-                    cred_data = json.load(f)
-                return cred_data.get('client_email')
-            except Exception:
-                return None
-        return self.service_account
-
     def _list_docker_repositories(self):
         parent = f'projects/{self.project_name}/locations/{self.region}'
         repos = []
@@ -230,7 +220,7 @@ class GCPCloudRunBackend:
         if 'artifactregistry.repositories.uploadArtifacts' in granted:
             return
 
-        principal = self._artifact_registry_uploader_identity() or 'current credentials principal'
+        principal = self.service_account or 'current credentials principal'
         raise Exception(
             'Missing Artifact Registry permission to push runtime image. '
             f'Principal "{principal}" does not have '

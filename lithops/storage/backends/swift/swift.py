@@ -33,6 +33,7 @@ class StorageBackend:
 
     def __init__(self, swift_config):
         logger.debug("Creating OpenStack Swift client")
+        self.config = swift_config
         self.auth_url = swift_config['auth_url']
         self.user_id = swift_config['user_id']
         self.project_id = swift_config['project_id']
@@ -158,7 +159,7 @@ class StorageBackend:
             else:
                 raise Exception('{} - {}'.format(res.status_code, key))
         except StorageNoSuchKeyError:
-            raise StorageNoSuchKeyError(bucket_name, key)
+            raise
         except Exception as e:
             print(e)
             raise StorageNoSuchKeyError(bucket_name, key)
@@ -256,23 +257,24 @@ class StorageBackend:
 
     def list_objects(self, bucket_name, prefix='', match_pattern=None):
         """
-        Lists the objects in a bucket. Throws StorageNoSuchKeyError if the given bucket does not exist.
-        :param key: key of the object
-        :return: Data of the object
-        :rtype: str/bytes
+        Lists the objects in a bucket.
+        :param bucket_name: name of the bucket
+        :param prefix: prefix to filter object names
+        :return: one dict per object, with its key ('Key') and size in bytes ('Size')
+        :rtype: list of dict
         """
-        if prefix:
-            url = '/'.join([self.endpoint, bucket_name, '?format=json&prefix=' + prefix])
-        else:
-            url = '/'.join([self.endpoint, bucket_name, '?format=json'])
-        try:
-            res = self.session.get(url)
-            objects = res.json()
-
-            # TODO: Adapt to Key and Size
-            return objects
-        except Exception as e:
-            raise e
+        url = '/'.join([self.endpoint, bucket_name])
+        params = {'format': 'json', 'prefix': prefix or ''}
+        objects = []
+        # A listing returns at most one page of objects (10,000 by default),
+        # and the next one starts after the last name of the previous one
+        while True:
+            page = self.session.get(url, params=params).json()
+            if not page:
+                return objects
+            # Swift names the key 'name' and the size 'bytes'
+            objects.extend({'Key': obj['name'], 'Size': obj['bytes']} for obj in page)
+            params['marker'] = page[-1]['name']
 
     def list_keys(self, bucket_name, prefix):
         """
@@ -281,9 +283,6 @@ class StorageBackend:
         :return: List of keys in bucket that match the given prefix.
         :rtype: list of str
         """
-        try:
-            objects = self.list_objects(bucket_name, prefix)
-            object_keys = [r['name'] for r in objects]
-            return object_keys
-        except Exception as e:
-            raise e
+        objects = self.list_objects(bucket_name, prefix)
+        object_keys = [r['Key'] for r in objects]
+        return object_keys

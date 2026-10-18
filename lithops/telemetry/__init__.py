@@ -33,7 +33,6 @@ from lithops.telemetry.exporter import (
     current_telemetry,
     default_instance_id,
     get_telemetry,
-    load_backend_config,
     shutdown_telemetry,
 )
 
@@ -46,7 +45,6 @@ __all__ = [
     'current_telemetry',
     'default_instance_id',
     'get_telemetry',
-    'load_backend_config',
     'resolve_backend',
     'shutdown_telemetry',
 ]

@@ -371,9 +371,10 @@ class Monitor(threading.Thread):
         this bookkeeping, so it would otherwise hold every call the
         executor ever ran. Called with the apply lock held
         """
+        # A worker runs calls of a single job, so any one of them tells which
         gone = [
             worker_id for worker_id, calls in self.callids_done_worker.items()
-            if any(status_id[1] in job_ids for status_id in calls)
+            if next(iter(calls))[1] in job_ids
         ]
         for worker_id in gone:
             del self.callids_done_worker[worker_id]
@@ -1025,8 +1026,10 @@ class MessageMonitor(Monitor):
         if not pending and not owing:
             return 0
 
+        # Only the jobs something is read from: a tracked job whose futures
+        # are all finished has nothing left to recover
         _running, callids_done = self.internal_storage.get_job_status(
-            self.executor_id, job_ids=self.job_ids() | owing
+            self.executor_id, job_ids={f.job_id for f in pending} | owing
         )
 
         recovered = 0

@@ -15,6 +15,7 @@
 import os
 import pickle
 import sys
+import time
 from datetime import datetime
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -124,6 +125,27 @@ class TestCliHelpers:
         ]
         sorted_rows = _localize_and_sort_rows(rows, 1)
         assert sorted_rows[0][0] == 'a'
+
+    @pytest.mark.skipif(not hasattr(time, 'tzset'), reason='time.tzset() is POSIX only')
+    def test_localize_rows_uses_the_local_time_zone(self, monkeypatch):
+        """
+        The times used to stay in UTC unless pytz and tzlocal, which are not
+        dependencies of Lithops, happened to be installed
+        """
+        monkeypatch.setenv('TZ', 'Europe/Madrid')
+        time.tzset()
+        try:
+            rows = _localize_and_sort_rows([
+                ['summer', '2024-07-01 10:00:00 UTC'],
+                ['winter', '2024-01-01 10:00:00 UTC'],
+            ], 1)
+        finally:
+            monkeypatch.undo()
+            time.tzset()
+        assert rows == [
+            ['winter', '2024-01-01 11:00:00 CET'],
+            ['summer', '2024-07-01 12:00:00 CEST'],
+        ]
 
 
 class TestStorageCommands:

@@ -14,6 +14,8 @@
 # limitations under the License.
 #
 
+from lithops.constants import SA_DEFAULT_CONFIG_KEYS
+
 REQ_PARAMETERS = ('ip_address', 'ssh_username')
 
 
@@ -29,4 +31,15 @@ def load_config(config_data):
     if "worker_processes" not in config_data['vm']:
         config_data['vm']['worker_processes'] = "AUTO"
 
+    if 'standalone' not in config_data or config_data['standalone'] is None:
+        config_data['standalone'] = {}
+
+    for key in SA_DEFAULT_CONFIG_KEYS:
+        if key in config_data['vm']:
+            config_data['standalone'][key] = config_data['vm'].pop(key)
+        elif key not in config_data['standalone']:
+            config_data['standalone'][key] = SA_DEFAULT_CONFIG_KEYS[key]
+
+    # A single existing machine is both master and worker
+    config_data['standalone']['exec_mode'] = 'consume'
     config_data['standalone']['auto_dismantle'] = False

@@ -9,8 +9,8 @@ FROM continuumio/miniconda3:23.3.1-0
 # For python 3.11 use "python==3.11.7"
 RUN echo "python==3.10.10" >> /opt/conda/conda-meta/pinned
 
-RUN apt-get update && apt-get install -y \
-        zip \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        zip unzip \
         && rm -rf /var/lib/apt/lists/*
 
 RUN pip install --upgrade setuptools six pip \
@@ -18,7 +18,6 @@ RUN pip install --upgrade setuptools six pip \
         gunicorn \
         pika \
         flask \
-        gevent \
         ibm-cos-sdk \
         google-cloud-storage \
         google-cloud-pubsub \
@@ -39,8 +38,7 @@ RUN pip install --upgrade setuptools six pip \
 # ones in terms of image size. For example:
 #RUN conda install -c conda-forge opencv && conda install sortedcontainers gevent-websocket && conda clean --all
 
-ENV CONCURRENCY=4
-ENV TIMEOUT=600
+ENV PORT=8080
 ENV PYTHONUNBUFFERED=TRUE
 
 # Copy Lithops proxy and lib to the container image.
@@ -50,4 +48,6 @@ WORKDIR $APP_HOME
 COPY lithops_knative.zip .
 RUN unzip lithops_knative.zip && rm lithops_knative.zip
 
-CMD exec gunicorn --bind :$PORT --workers $CONCURRENCY --timeout $TIMEOUT lithopsproxy:proxy
+# One request at a time, as the service admits one per container. Knative
+# and the Lithops worker enforce the timeout, so gunicorn does not
+CMD ["sh", "-c", "exec gunicorn --bind :$PORT --workers 1 --threads 1 --timeout 0 lithopsproxy:proxy"]

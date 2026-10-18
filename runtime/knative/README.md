@@ -2,7 +2,7 @@
 
 The runtime is the place where the functions are executed. In Knative, runtimes are based on Docker images. 
 
-For running Lithops on Knative, you need a runtime built on Docker Hub (or any other container registry), or you need a Docker Hub account for placing the runtimes created by Lithops.
+For running Lithops on Knative, you need a runtime built on Docker Hub (or any other container registry), or a container registry where Lithops pushes the runtimes it builds. Lithops builds them for the architecture of the cluster nodes (`amd64` or `arm64`), unless `runtime_arch` says otherwise.
 
 If you don't have an already built runtime, the default runtime is built the first time you execute a function. Lithops automatically detects the Python version of your environment and deploys the default runtime based on it.
 
@@ -25,14 +25,14 @@ fexec.call_async(my_function, 3)
 result = fexec.get_result()
 ```
 
-By default, Lithops uses 256MB as runtime memory size. However, you can change it in the `config` or when you obtain the executor, for example:
+By default, Lithops uses 512MB as runtime memory size. However, you can change it in the `config` or when you obtain the executor, for example:
 
 ```python
 import lithops
 pw = lithops.FunctionExecutor(runtime_memory=512)
 ```
 
-By default, Lithops uses 0.125vCPU for the default Knative runtimes. However, you can change it in the `config` by setting the appropriate vCPU size:
+By default, Lithops uses 1 vCPU for the Knative runtimes. However, you can change it in the `config` by setting the appropriate vCPU size:
 
 ```yaml
 knative:

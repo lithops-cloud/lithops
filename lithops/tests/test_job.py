@@ -39,6 +39,8 @@ from lithops.job.job import (
 )
 from lithops.job.partitioner import CHUNK_THRESHOLD, create_partitions
 from lithops.job.serialize import SerializeIndependent, create_module_data
+from lithops.storage.backends.localhost.localhost import LocalhostStorageBackend
+from lithops.storage.storage import Storage
 from lithops.storage.utils import (
     CloudObject,
     CloudObjectLocal,
@@ -71,14 +73,24 @@ class _NoCall:
 
 
 class _CapturingSerializer:
+    """
+    Records (inc_modules, exc_modules, [func] + iterdata) of the last job. The
+    function is dumped first and on its own, then the data
+    """
     last = None
 
     def __init__(self, preinstalls):
         self.preinstalls = preinstalls
+        self.objs = []
 
-    def __call__(self, objs, inc_modules, exc_modules):
-        type(self).last = (inc_modules, exc_modules, objs)
-        return ([b'func'] + [b'data'] * (len(objs) - 1), set())
+    def dumps(self, objs):
+        strs = [b'data'] * len(objs) if self.objs else [b'func']
+        self.objs.extend(objs)
+        return strs
+
+    def module_paths(self, objs, inc_modules, exc_modules):
+        type(self).last = (inc_modules, exc_modules, self.objs)
+        return set()
 
 
 def _job_config(
@@ -451,11 +463,16 @@ class TestLargePayloadAndCache:
     def test_large_payload_uploads_data(self, monkeypatch, fresh_function_cache):
         class _Big:
             def __init__(self, preinstalls):
-                pass
+                self.func_dumped = False
 
-            def __call__(self, objs, inc, exc):
-                payload = b'x' * (MAX_DATA_IN_PAYLOAD + 1)
-                return ([b'f'] + [payload] * (len(objs) - 1), set())
+            def dumps(self, objs):
+                if not self.func_dumped:
+                    self.func_dumped = True
+                    return [b'f']
+                return [b'x' * (MAX_DATA_IN_PAYLOAD + 1)] * len(objs)
+
+            def module_paths(self, objs, inc, exc):
+                return set()
 
         monkeypatch.setattr('lithops.job.job.SerializeIndependent', _Big)
         storage = _storage()
@@ -659,37 +676,38 @@ class TestSerializeIndependent:
 
     def test_include_modules_none_skips_manager(self):
         ser = SerializeIndependent([['os', True]])
-        strs, paths = ser([_echo, 1], None, [])
+        strs = ser.dumps([_echo, 1])
+        paths = ser.module_paths([_echo, 1], None, [])
         assert len(strs) == 2
         assert paths == set()
         assert pickle.loads(strs[1]) == 1
 
     def test_explicit_include_skips_missing_file(self):
         ser = SerializeIndependent([['os', True]])
-        _, paths = ser([_echo], ['no-such-module.py'], [])
+        paths = ser.module_paths([_echo], ['no-such-module.py'], [])
         assert paths == set()
 
     def test_explicit_include_existing_py_file(self, tmp_path):
         mod = tmp_path / 'custom.py'
         mod.write_text('x = 1\n')
         ser = SerializeIndependent([['os', True]])
-        _, paths = ser([_echo], [str(mod)], [])
+        paths = ser.module_paths([_echo], [str(mod)], [])
         assert os.path.abspath(str(mod)) in paths
 
     def test_explicit_include_skips_preinstalled(self):
         ser = SerializeIndependent([['json', True]])
-        _, paths = ser([_echo], ['json.decoder'], [])
+        paths = ser.module_paths([_echo], ['json.decoder'], [])
         assert paths == set()
 
     def test_explicit_include_importable_module(self):
         ser = SerializeIndependent([['os', True]])
-        _, paths = ser([_echo], ['json'], [])
+        paths = ser.module_paths([_echo], ['json'], [])
         assert paths
         assert any('json' in p for p in paths)
 
     def test_explicit_include_missing_module(self):
         ser = SerializeIndependent([['os', True]])
-        _, paths = ser([_echo], ['definitely_not_a_module_xyz'], [])
+        paths = ser.module_paths([_echo], ['definitely_not_a_module_xyz'], [])
         assert paths == set()
 
     def test_class_without_call_raises(self):
@@ -753,7 +771,8 @@ class TestSerializeIndependent:
 
     def test_empty_include_inspects_function(self):
         ser = SerializeIndependent([['os', True]])
-        strs, paths = ser([_echo], [], ['lithops'])
+        strs = ser.dumps([_echo])
+        paths = ser.module_paths([_echo], [], ['lithops'])
         assert len(strs) == 1
         assert isinstance(paths, set)
 
@@ -765,7 +784,7 @@ class TestSerializeIndependent:
                 'lithops.job.serialize.ModuleDependencyAnalyzer'
             ) as mda:
                 mda.return_value.get_and_clear_paths.return_value = set()
-                _, paths = ser([_echo], [], [])
+                paths = ser.module_paths([_echo], [], [])
         assert '/opt/ext.so' in paths
 
         with patch('importlib.util.find_spec', return_value=spec):
@@ -773,7 +792,7 @@ class TestSerializeIndependent:
                 'lithops.job.serialize.ModuleDependencyAnalyzer'
             ) as mda:
                 mda.return_value.get_and_clear_paths.return_value = set()
-                _, excluded = ser([_echo], [], ['ext.so'])
+                excluded = ser.module_paths([_echo], [], ['ext.so'])
         assert '/opt/ext.so' not in excluded
 
     def test_find_spec_exception_is_swallowed(self):
@@ -783,7 +802,7 @@ class TestSerializeIndependent:
                 'lithops.job.serialize.ModuleDependencyAnalyzer'
             ) as mda:
                 mda.return_value.get_and_clear_paths.return_value = {'/m'}
-                _, paths = ser([_echo], [], [])
+                paths = ser.module_paths([_echo], [], [])
         assert '/m' in paths
 
 
@@ -843,6 +862,18 @@ class TestCreatePartitions:
             [],
             [],
         )
+
+    @pytest.mark.parametrize('newline, minimum', [('\n', 2), ('\r\n', 3)])
+    def test_a_chunk_is_longer_than_the_newline(self, tmp_path, newline, minimum):
+        """
+        A chunk reads the newline length early, so only the first one then
+        starts at byte 0, which is how a worker tells the first chunk apart
+        """
+        path = tmp_path / 'data.txt'
+        path.write_bytes(b'x' * 10)
+        parts, _ = create_partitions({}, _storage(), [{'obj': str(path)}], 1, None, newline)
+        assert parts[0]['obj'].chunk_size == minimum
+        assert [p['obj'].data_byte_range[0] == 0 for p in parts] == [True] + [False] * (len(parts) - 1)
 
     def test_partitions_are_taken_back_as_they_are(self):
         """
@@ -1266,9 +1297,11 @@ class TestCreatePartitions:
                 None,
                 None,
             )
+        # the listing prefix is the pattern up to its first wildcard, with
+        # no '/' added: 'dir/foo/' would leave out 'dir/foo1'
         args = fake.list_objects.call_args[0]
         assert args[0] == 'bucket'
-        assert args[1] == 'dir/foo/'
+        assert args[1] == 'dir/foo'
         assert args[2] == 'dir/foo*'
         assert '\\' not in args[2]
         assert len(parts) == 1
@@ -1288,7 +1321,7 @@ class TestCreatePartitions:
             )
         args = fake.list_objects.call_args[0]
         assert args[0] == 'bucket'
-        assert args[1] == 'pre/'
+        assert args[1] == 'pre'
         assert args[2] == 'pre*/file'
         assert '\\' not in args[2]
 
@@ -1305,6 +1338,91 @@ class TestCreatePartitions:
         )
         assert parts == []
         assert ppo == [0]
+
+
+
+class TestPartitionGlobsOnLocalhostStorage:
+    """
+    Glob iterdata used to work on aws_s3 and ibm_cos only: the pattern is now
+    matched by Storage.list_objects, so it works on every storage backend
+    """
+
+    @pytest.fixture
+    def internal(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(
+            'lithops.storage.backends.localhost.localhost.LITHOPS_TEMP_DIR',
+            str(tmp_path),
+        )
+        backend = LocalhostStorageBackend({})
+        for key in [
+            'dir/a.csv', 'dir/b.csv', 'dir/x.txt', 'dir/sub/c.csv',
+            'dir/foo1', 'dir/foo2.txt',
+            'pre1/file', 'pre2/file', 'pre2/other',
+            'data1/x.csv', 'data2/sub/y.csv', 'datafile',
+            'lit[1].csv', 'lit1.csv',
+        ]:
+            backend.put_object('b', key, b'0123456789')
+        storage = Storage.__new__(Storage)
+        storage.backend = 'localhost'
+        storage.storage_handler = backend
+        internal = MagicMock()
+        internal.backend = 'localhost'
+        internal.storage = storage
+        return internal
+
+    @staticmethod
+    def _keys(internal, obj):
+        parts, _ = create_partitions({}, internal, [{'obj': obj}], None, None, None)
+        return sorted(p['obj'].key for p in parts)
+
+    @pytest.mark.parametrize('obj, keys', [
+        ('localhost://b/dir/*.csv', ['dir/a.csv', 'dir/b.csv']),
+        ('localhost://b/dir/foo*', ['dir/foo1', 'dir/foo2.txt']),
+        ('localhost://b/pre*/file', ['pre1/file', 'pre2/file']),
+        ('localhost://b/dir/**/*.csv', ['dir/a.csv', 'dir/b.csv', 'dir/sub/c.csv']),
+        ('b/*.csv', ['lit1.csv', 'lit[1].csv']),
+        # a folder pattern takes everything inside the folders it matches,
+        # but not an object named like them
+        ('localhost://b/data*/', ['data1/x.csv', 'data2/sub/y.csv']),
+    ])
+    def test_glob(self, internal, obj, keys):
+        assert self._keys(internal, obj) == keys
+
+    def test_glob_without_matches(self, internal):
+        with pytest.raises(Exception, match='No objects found'):
+            self._keys(internal, 'localhost://b/dir/*.parquet')
+
+    @pytest.mark.parametrize('obj, keys', [
+        ('localhost://b/dir/a.csv', ['dir/a.csv']),
+        ('localhost://b/dir/', [
+            'dir/a.csv', 'dir/b.csv', 'dir/foo1', 'dir/foo2.txt', 'dir/sub/c.csv', 'dir/x.txt',
+        ]),
+        ('localhost://b/dir/sub/', ['dir/sub/c.csv']),
+        # only a '*' makes a pattern: anything else is a literal key
+        ('localhost://b/lit[1].csv', ['lit[1].csv']),
+    ])
+    def test_no_glob_is_unchanged(self, internal, obj, keys):
+        assert self._keys(internal, obj) == keys
+
+    def test_key_with_question_mark_is_a_literal_key(self):
+        internal = _storage()
+        internal.storage.head_object.return_value = {'content-length': '5'}
+        parts, _ = create_partitions({}, internal, [{'obj': 'localhost://b/dir/a?.csv'}], None, None, None)
+        internal.storage.head_object.assert_called_once_with('b', 'dir/a?.csv')
+        internal.storage.list_objects.assert_not_called()
+        assert parts[0]['obj'].key == 'dir/a?.csv'
+
+    @pytest.mark.parametrize('obj, prefix, pattern', [
+        ('localhost://b/dir/*.csv', 'dir/', 'dir/*.csv'),
+        ('localhost://b/dir/a?b*', 'dir/a', 'dir/a?b*'),
+        ('localhost://b/data*/', 'data', 'data*/*/**'),
+    ])
+    def test_glob_listing_prefix(self, obj, prefix, pattern):
+        """The listing is narrowed to what comes before the first wildcard"""
+        internal = _storage()
+        internal.storage.list_objects.return_value = [{'Key': 'k', 'Size': 1}]
+        create_partitions({}, internal, [{'obj': obj}], None, None, None)
+        internal.storage.list_objects.assert_called_once_with('b', prefix, pattern)
 
 
 class TestJobExports:

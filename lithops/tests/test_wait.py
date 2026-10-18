@@ -21,7 +21,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from lithops.utils import FuturesList, is_unix_system
+from lithops.utils import FuturesList
 from lithops.wait import (
     ALL_COMPLETED,
     ALWAYS,
@@ -268,7 +268,7 @@ class TestReadyFuturesAndExecutorData:
 
         fetched = _get_executor_data(
             fs, exec_data, download_results=False, throw_except=True,
-            threadpool_size=2, pbar=pbar,
+            pbar=pbar, pool=SimpleNamespace(map=map),
         )
 
         assert fetched == 1
@@ -283,7 +283,7 @@ class TestReadyFuturesAndExecutorData:
         exec_data = SimpleNamespace(futures=[future], internal_storage=MagicMock())
         fetched = _get_executor_data(
             [future], exec_data, download_results=True, throw_except=True,
-            threadpool_size=1, pbar=None,
+            pbar=None, pool=SimpleNamespace(map=map),
         )
         assert fetched == 1
         assert future.done is True
@@ -341,41 +341,6 @@ class TestWaitPolling:
         cls.assert_called_once()
         monitor.start.assert_called_once()
         monitor.stop.assert_called_once()
-
-    def test_timeout_registers_sigalrm_with_interpolated_message(self):
-        if not is_unix_system():
-            pytest.skip('SIGALRM waiting timeout is unix-only')
-        future = FakeFuture()
-        monitor = MagicMock()
-        monitor.type = 'storage'
-        monitor.storage_backend = 'localhost'
-        monitor.is_alive.return_value = True
-        internal = MagicMock()
-        internal.backend = 'localhost'
-        handlers = {}
-
-        def fake_signal(sig, handler):
-            # The first one is the wait's own; the last gives the old one back
-            handlers.setdefault(sig, handler)
-
-        def get_data(fs, exec_data, **kwargs):
-            future.success = True
-            return 1
-
-        with patch.object(wait_mod.signal, 'signal', side_effect=fake_signal), \
-                patch.object(wait_mod.signal, 'alarm', return_value=0) as alarm, \
-                patch.object(wait_mod, '_get_executor_data', side_effect=get_data):
-            wait(
-                [future],
-                timeout=17,
-                show_progressbar=False,
-                job_monitor=monitor,
-                internal_storage=internal,
-            )
-
-        alarm.assert_any_call(17)
-        alarm.assert_called_with(0)
-        assert 'Timeout of 17 seconds exceeded' in handlers[signal.SIGALRM].args[0]
 
     def test_all_completed_restarts_dead_monitor_and_waits_on_empty_poll(self):
         future = FakeFuture()
@@ -485,8 +450,20 @@ def saved_sigalrm():
 
 class TestWaitTimeout:
 
+    @pytest.mark.parametrize('timeout', [0, 0.3])
+    def test_timeout_raises_timeout_error(self, timeout):
+        """A fractional timeout used to reach signal.alarm() and raise TypeError"""
+        future = FakeFuture()
+        monitor, internal = _local_monitor()
+        start = time.monotonic()
+        with patch.object(wait_mod, '_get_executor_data', return_value=0):
+            with pytest.raises(TimeoutError, match=f'Timeout of {timeout} seconds exceeded'):
+                wait([future], timeout=timeout, show_progressbar=False,
+                     job_monitor=monitor, internal_storage=internal)
+        assert time.monotonic() - start < 5
+
     def test_timeout_off_the_main_thread_raises_timeout_error(self):
-        """signal.signal() raises ValueError anywhere but the main thread"""
+        """It used to arm a SIGALRM, which signal.signal() refuses off the main thread"""
         future = FakeFuture()
         monitor, internal = _local_monitor()
         raised = []
@@ -525,52 +502,26 @@ class TestWaitTimeout:
 
         assert results == [([future], [])]
 
-    def test_wait_restores_the_callers_alarm_and_handler(self, saved_sigalrm):
+    def test_wait_leaves_the_callers_sigalrm_alone(self, saved_sigalrm):
+        """It used to cancel the caller's alarm and keep its own handler"""
         def user_handler(signum, frame):
             pass
 
-        future = FakeFuture()
-        monitor, internal = _local_monitor()
         signal.signal(signal.SIGALRM, user_handler)
         signal.alarm(60)
 
+        future = FakeFuture()
+        monitor, internal = _local_monitor()
         with patch.object(wait_mod, '_get_executor_data', side_effect=_completing_poll(future)):
             wait([future], timeout=5, show_progressbar=False,
                  job_monitor=monitor, internal_storage=internal)
+        with patch.object(wait_mod, '_get_executor_data', return_value=0):
+            with pytest.raises(TimeoutError):
+                wait([FakeFuture()], timeout=0.3, show_progressbar=False,
+                     job_monitor=monitor, internal_storage=internal)
 
         assert signal.getsignal(signal.SIGALRM) is user_handler
         assert 55 <= signal.alarm(0) <= 60
-
-    def test_a_callers_alarm_due_first_is_left_armed(self, saved_sigalrm):
-        """The wait leaves it alone and enforces its own timeout by polling"""
-        fired = []
-
-        def user_handler(signum, frame):
-            fired.append(signum)
-
-        future = FakeFuture()
-        monitor, internal = _local_monitor()
-        signal.signal(signal.SIGALRM, user_handler)
-        signal.alarm(1)
-
-        with patch.object(wait_mod, '_get_executor_data', return_value=0):
-            with pytest.raises(TimeoutError, match='Timeout of 1.5 seconds'):
-                wait([future], timeout=1.5, show_progressbar=False,
-                     job_monitor=monitor, internal_storage=internal)
-
-        assert fired == [signal.SIGALRM]
-        assert signal.getsignal(signal.SIGALRM) is user_handler
-
-    def test_no_timeout_leaves_the_callers_alarm_alone(self, saved_sigalrm):
-        future = FakeFuture()
-        monitor, internal = _local_monitor()
-        signal.alarm(60)
-
-        with patch.object(wait_mod, '_get_executor_data', side_effect=_completing_poll(future)):
-            wait([future], show_progressbar=False,
-                 job_monitor=monitor, internal_storage=internal)
-
-        assert signal.alarm(0) > 0
 
 
 class TestWaitOnExecutorFutures:

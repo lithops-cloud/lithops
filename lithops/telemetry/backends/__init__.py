@@ -25,8 +25,9 @@ The name of the package is the name of that section and the value
 ``lithops.telemetry`` selects it by.
 """
 
-import importlib
 from typing import Any, Dict, Optional
+
+from lithops import utils
 
 #: Backend used when telemetry is switched on without naming one
 DEFAULT_BACKEND = 'prometheus'
@@ -71,45 +72,14 @@ def resolve_backend(
 def import_backend_module(backend: str, submodule: Optional[str] = None):
     """
     Imports ``lithops.telemetry.backends.<backend>`` or one of its
-    submodules.
-
-    Raises ValueError only when the backend itself is not there. A
-    backend whose client library is missing keeps its own ImportError,
-    which names the package to install instead of claiming the backend is
-    unknown.
+    submodules. An unknown backend raises ValueError; one whose client
+    library is missing keeps its own ImportError
     """
-    module_name = f'lithops.telemetry.backends.{backend}'
-    if submodule:
-        module_name = f'{module_name}.{submodule}'
-    try:
-        return importlib.import_module(module_name)
-    except ModuleNotFoundError as exc:
-        if exc.name and not module_name.startswith(exc.name):
-            raise
-        raise ValueError(f'Unknown telemetry backend: {backend}') from exc
+    return utils.import_backend_module(__name__, 'telemetry', backend, submodule)
 
 
 def load_backend_class(backend: str):
     """
-    Returns the ``MetricsBackend`` class of ``backend``, checked against
-    the contract so that a package that exports the wrong thing fails
-    here rather than halfway through a job
+    Returns the ``MetricsBackend`` class of ``backend``
     """
-    from lithops.telemetry.backend import MetricsBackend
-
-    module = import_backend_module(backend)
-    try:
-        cls = module.MetricsBackend
-    except AttributeError as exc:
-        raise ValueError(
-            f"Telemetry backend '{backend}' exports no MetricsBackend"
-        ) from exc
-
-    if not (isinstance(cls, type) and issubclass(cls, MetricsBackend)):
-        raise ValueError(
-            f"Telemetry backend '{backend}' exports MetricsBackend={cls!r}, "
-            f"which is not a MetricsBackend subclass"
-        )
-    if cls.backend_name is None:
-        cls.backend_name = backend
-    return cls
+    return utils.load_backend_attr(__name__, 'telemetry', backend, 'MetricsBackend')

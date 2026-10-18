@@ -157,7 +157,7 @@ Configuration
      - instance
      - the hostname
      - The ``instance`` label of the pushed group. See the note below before
-       changing it.
+       changing it, and :ref:`telemetry-instance` for the default.
    * - prometheus
      - username
      - -
@@ -354,7 +354,8 @@ Prometheus needs ``--web.enable-remote-write-receiver`` for that endpoint.
    * - otlp
      - instance
      - the hostname
-     - The ``host.name`` resource attribute.
+     - The ``service.instance.id`` and ``host.name`` resource attributes. See
+       :ref:`telemetry-instance` for the default.
    * - otlp
      - headers
      - ``{}``
@@ -364,6 +365,35 @@ Prometheus needs ``--web.enable-remote-write-receiver`` for that endpoint.
      - timeout
      - ``10``
      - Export timeout, in seconds.
+   * - otlp
+     - export_interval
+     - ``3600``
+     - Interval, in seconds, of the OpenTelemetry SDK's own periodic export.
+       Lithops already exports every ``telemetry_interval`` seconds and when
+       the process exits, so this is only a fallback and rarely needs
+       changing. A lower value adds exports on top of those.
+
+
+.. _telemetry-instance:
+
+The instance identity
+---------------------
+
+Both backends identify the process by ``instance``: the ``instance`` label of
+the Pushgateway group for ``prometheus``, the ``service.instance.id`` and
+``host.name`` resource attributes for ``otlp``. When the backend's section does
+not set ``instance``, it is filled in when the configuration is loaded from
+the ``LITHOPS_TELEMETRY_INSTANCE`` environment variable or, if that is unset
+or empty, from the hostname. An ``instance`` key in the configuration always
+takes precedence over the variable.
+
+The variable sets the identity without editing the configuration file, for
+example to give two Lithops clients running concurrently on the same host two
+different values:
+
+.. code::
+
+    LITHOPS_TELEMETRY_INSTANCE=nightly-etl python my_job.py
 
 
 What is exported

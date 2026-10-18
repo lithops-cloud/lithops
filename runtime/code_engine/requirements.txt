@@ -1,8 +1,6 @@
 # Requirements.txt contains a list of dependencies for the Python Application #
 
 # Mandatory Lithops packages
-gunicorn
-flask
 pika
 ibm-cloud-sdk-core
 ibm-cos-sdk
@@ -10,7 +8,6 @@ ibm-vpc
 ibm-code-engine-sdk
 kubernetes
 redis
-gevent
 requests
 PyYAML
 numpy

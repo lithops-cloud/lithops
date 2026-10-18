@@ -35,7 +35,6 @@ from lithops.telemetry.metrics import (
     COUNTER,
     GAUGE,
     HISTOGRAM,
-    UPDOWN,
     MetricSpec,
 )
 from lithops.version import __version__
@@ -61,8 +60,6 @@ class MetricsBackend(BaseMetricsBackend):
     """
     Aggregates through an OpenTelemetry meter and exports over OTLP
     """
-
-    backend_name = 'otlp'
 
     def __init__(self, config: Dict[str, Any]):
         super().__init__(config)
@@ -115,28 +112,18 @@ class MetricsBackend(BaseMetricsBackend):
         accepts, whether the metrics reach it through its own OTLP
         receiver or through a collector, and the SDK default is
         overridden by an OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE
-        that may well be in the environment for something else
+        that may well be in the environment for something else.
+
+        Only the counters and histograms are listed: they are the
+        instruments that variable can turn into deltas. The gauge is a
+        last value, which every preference leaves cumulative
         """
-        from opentelemetry.sdk.metrics import (
-            Counter,
-            Histogram,
-            ObservableCounter,
-            ObservableGauge,
-            ObservableUpDownCounter,
-            UpDownCounter,
-        )
+        from opentelemetry.sdk.metrics import Counter, Histogram
         from opentelemetry.sdk.metrics.export import AggregationTemporality
 
         return {
-            instrument: AggregationTemporality.CUMULATIVE
-            for instrument in (
-                Counter,
-                UpDownCounter,
-                Histogram,
-                ObservableCounter,
-                ObservableUpDownCounter,
-                ObservableGauge,
-            )
+            Counter: AggregationTemporality.CUMULATIVE,
+            Histogram: AggregationTemporality.CUMULATIVE,
         }
 
     @classmethod
@@ -211,8 +198,7 @@ class MetricsBackend(BaseMetricsBackend):
         ]
 
     def _create_instrument(self, spec: MetricSpec):
-        # The unit is deliberately not declared: it is already part of
-        # every metric name, and a collector translating to Prometheus
+        # No unit is declared: it is already part of every metric name, and a collector translating to Prometheus
         # appends the unit to the name it is given
         if spec.kind == COUNTER:
             return self._meter.create_counter(
@@ -220,10 +206,6 @@ class MetricsBackend(BaseMetricsBackend):
             )
         if spec.kind == HISTOGRAM:
             return self._meter.create_histogram(
-                spec.name, description=spec.documentation
-            )
-        if spec.kind == UPDOWN:
-            return self._meter.create_up_down_counter(
                 spec.name, description=spec.documentation
             )
         if spec.kind == GAUGE:

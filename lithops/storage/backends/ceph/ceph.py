@@ -112,11 +112,6 @@ class CephStorageBackend:
                     logger.debug('PUT Object {} - Size: {} - {}'.format(key, sizeof_fmt(len(data)), status))
                 except Exception:
                     logger.debug('PUT Object {} {}'.format(key, status))
-            except botocore.exceptions.ClientError as e:
-                if e.response['Error']['Code'] == "NoSuchKey":
-                    raise StorageNoSuchKeyError(bucket_name, key)
-                else:
-                    raise e
             except botocore.exceptions.ReadTimeoutError as e:
                 if retries == OBJ_REQ_RETRIES:
                     raise e

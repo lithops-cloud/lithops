@@ -39,6 +39,7 @@ from lithops.utils import (
     log_prefix,
 )
 from lithops.constants import (
+    LOCALHOST,
     LOGGER_LEVEL,
     LOGS_DIR,
     SERVERLESS,
@@ -63,9 +64,7 @@ def create_invoker(
     invoker_cls = {
         BackendType.BATCH.value: BatchInvoker,
         BackendType.FAAS.value: FaaSInvoker,
-    }.get(compute_handler.get_backend_type())
-    if invoker_cls is None:
-        return None
+    }[compute_handler.get_backend_type()]
     return invoker_cls(
         config,
         executor_id,
@@ -73,6 +72,15 @@ def create_invoker(
         compute_handler,
         job_monitor,
     )
+
+
+def _drain(q):
+    """Takes the items of the queue one by one, until it is empty, without blocking"""
+    while True:
+        try:
+            yield q.get_nowait()
+        except queue.Empty:
+            return
 
 
 def _format_call_id(index: int) -> str:
@@ -135,9 +143,9 @@ class Invoker:
         job_monitor,
     ):
         log_level = logger.getEffectiveLevel()
-        self.log_active = log_level != logging.WARNING
+        log_active = log_level != logging.WARNING
         self.log_level = (
-            LOGGER_LEVEL if not self.log_active else log_level
+            LOGGER_LEVEL if not log_active else log_level
         )
 
         self.config = config
@@ -145,7 +153,6 @@ class Invoker:
         self.storage_config = extract_storage_config(self.config)
         self.internal_storage = internal_storage
         self.compute_handler = compute_handler
-        self.is_lithops_worker = is_lithops_worker()
         self.job_monitor = job_monitor
 
         self.mode = self.config['lithops']['mode']
@@ -160,7 +167,7 @@ class Invoker:
         self.max_workers = self.runtime_info['max_workers']
 
         # The localhost mode may run a local interpreter given by its path
-        verify_runtime_name(self.runtime_name, allow_local_path=self.mode == 'localhost')
+        verify_runtime_name(self.runtime_name, allow_local_path=self.mode == LOCALHOST)
 
         logger.debug(
             f'{log_prefix(self.executor_id)} - Invoker initialized. Max workers: {self.max_workers}'
@@ -431,11 +438,8 @@ class FaaSInvoker(Invoker):
         workers = min(64, self.invoke_pool_threads // 4)
         with ThreadPoolExecutor(max_workers=workers) as pool:
             while self.should_run:
-                try:
-                    self.job_monitor.token_bucket_q.get()
-                    job, call_ids_range = self.pending_calls_q.get()
-                except KeyboardInterrupt:
-                    break
+                self.job_monitor.token_bucket_q.get()
+                job, call_ids_range = self.pending_calls_q.get()
                 if not self.should_run:
                     break
                 pool.submit(self._invoke_task, job, call_ids_range)
@@ -468,11 +472,8 @@ class FaaSInvoker(Invoker):
             )
             self.should_run = False
 
-            while not self.pending_calls_q.empty():
-                try:
-                    self.pending_calls_q.get(block=False)
-                except queue.Empty:
-                    break
+            for _ in _drain(self.pending_calls_q):
+                pass
 
             # One sentinel per invoker, each one preceded by the token it
             # blocks on, so that every loop wakes up and sees should_run
@@ -581,11 +582,8 @@ class FaaSInvoker(Invoker):
         raise Exception('Unable to spawn remote invoker')
 
     def _empty_token_bucket(self):
-        while True:
-            try:
-                self.job_monitor.token_bucket_q.get(block=False)
-            except queue.Empty:
-                return
+        for _ in _drain(self.job_monitor.token_bucket_q):
+            pass
 
     def discard_pending(self, job_keys):
         """
@@ -598,11 +596,7 @@ class FaaSInvoker(Invoker):
         """
         kept = []
         discarded = {}
-        while True:
-            try:
-                item = self.pending_calls_q.get(block=False)
-            except queue.Empty:
-                break
+        for item in _drain(self.pending_calls_q):
             job, call_ids_range = item
             if job is None or job.job_key not in job_keys:
                 kept.append(item)
@@ -642,11 +636,7 @@ class FaaSInvoker(Invoker):
         if self.running_workers <= 0:
             return
 
-        while not self.job_monitor.token_bucket_q.empty():
-            try:
-                self.job_monitor.token_bucket_q.get(block=False)
-            except queue.Empty:
-                break
+        for _ in _drain(self.job_monitor.token_bucket_q):
             self.running_workers -= 1
             if self.running_workers == 0:
                 break

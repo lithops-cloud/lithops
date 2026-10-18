@@ -37,9 +37,6 @@ _WINDOWS_PATH = re.compile(r'^(?:[A-Za-z]:[\\/]|\\\\)')
 
 CHUNK_THRESHOLD = 128 * 1024  # 128KB
 
-# Backends whose listing supports a glob pattern
-_GLOBBER_BACKENDS = ('aws_s3', 'ibm_cos')
-
 # One entry of the map iterdata, and the partitions it was split into
 Entry = Dict[str, Any]
 Partitions = Tuple[List[Entry], int]
@@ -153,9 +150,9 @@ def _build_partitions(
     obj_partitions = []
     size = obj_total_partitions = 0
     # Every chunk but the first one starts as many bytes early as the newline
-    # has, which the chunk before it must have
+    # has. Longer than the newline, only the first chunk starts at byte 0
     newline_len = len(obj_newline.encode()) if obj_newline is not None else 0
-    obj_chunk_size = max(obj_chunk_size, newline_len)
+    obj_chunk_size = max(obj_chunk_size, newline_len + 1)
 
     parts = obj_size // obj_chunk_size + (obj_size % obj_chunk_size > 0)
     logger.debug(
@@ -311,12 +308,13 @@ def _split_objects_from_paths(
     return _collect_partitions(_split, _expand_paths(map_func_args_list))
 
 
-def _glob_list_prefix(prefix: str, obj_name: str) -> str:
-    """Return the listing prefix truncated at the first glob character."""
-    if '*' in prefix:
-        return prefix[:prefix.index('*')]
-    glob_tail = obj_name[:obj_name.index('*')]
-    return f'{prefix}/{glob_tail}' if prefix else glob_tail
+def _glob_list_prefix(pattern: str) -> str:
+    """
+    Returns the part of a glob pattern before its first special character,
+    the longest prefix every key it matches starts with
+    """
+    special = [pattern.index(c) for c in '*?\\' if c in pattern]
+    return pattern[:min(special)]
 
 
 def _resolve_object_storage(
@@ -365,19 +363,16 @@ def _list_objects(
     key, a glob pattern, a prefix or a whole bucket
     """
     if obj_name:
-        match_pattern = None
-        if sb in _GLOBBER_BACKENDS and ('*' in prefix or '*' in obj_name):
+        if '*' in prefix or '*' in obj_name:
             match_pattern = posixpath.join(prefix, obj_name)
-            prefix = _glob_list_prefix(prefix, obj_name)
-
-        prefix = prefix + '/' if prefix else prefix
-        if match_pattern is not None:
+            prefix = _glob_list_prefix(match_pattern)
             logger.debug(
                 f"Listing objects with Globber {match_pattern} "
                 f"in {sb}://{'/'.join([bucket, prefix])}"
             )
             return storage.list_objects(bucket, prefix, match_pattern)
 
+        prefix = prefix + '/' if prefix else prefix
         logger.debug(
             f"Head on object  {sb}://{'/'.join([bucket, prefix, obj_name])}"
         )
@@ -394,20 +389,22 @@ def _list_objects(
         return [head_md]
 
     if prefix:
-        match_pattern = None
-        if sb in _GLOBBER_BACKENDS and '*' in prefix:
-            match_pattern = prefix
-            prefix = prefix[:prefix.index('*')]
+        if '*' in prefix:
+            # a folder: every object, at any depth, inside the folders the
+            # pattern matches, but not an object named like one of them
+            match_pattern = prefix + '/*/**'
+            prefix = _glob_list_prefix(match_pattern)
             logger.debug(
                 f"Listing prefixes with Globber {match_pattern} "
                 f"in {sb}://{'/'.join([bucket, prefix])}"
             )
         else:
+            match_pattern = None
+            prefix = prefix + '/'
             logger.debug(
                 f"Listing prefixes in {sb}://{'/'.join([bucket, prefix])}"
             )
 
-        prefix = prefix + '/' if prefix else prefix
         return storage.list_objects(bucket, prefix, match_pattern)
 
     logger.debug(f"Listing objects in {sb}://{bucket}")

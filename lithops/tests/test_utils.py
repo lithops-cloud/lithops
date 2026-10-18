@@ -48,12 +48,10 @@ from lithops.utils import (
     create_futures_list,
     dict_to_b64str,
     docker_login,
-    find_free_port,
     format_data,
     get_default_backend,
     get_default_container_name,
     get_docker_path,
-    get_executor_id,
     get_mode,
     is_linux_system,
     is_lithops_worker,
@@ -66,13 +64,10 @@ from lithops.utils import (
     monitoring_queues,
     log_prefix,
     run_command,
-    sdb_to_dict,
     setup_lithops_logger,
     ShutdownSafeStreamHandler,
     sizeof_fmt,
     split_object_url,
-    split_path,
-    timeout_handler,
     verify_args,
     verify_runtime_name,
     version_str,
@@ -265,11 +260,6 @@ class TestMiscUtils:
         assert split_object_url('bucket') == (None, 'bucket', '', '')
         assert split_object_url('bucket/key') == (None, 'bucket', '', 'key')
 
-    def test_split_path(self):
-        assert split_path('/bucket/dir/key') == ('bucket', 'dir/key')
-        assert split_path('bucket') == ('bucket', None)
-        assert split_path('bucket/') == ('bucket', '')
-
     def test_convert_bools_to_string_mutates_in_place(self):
         env = {'flag': True, 'count': 1, 'name': 'x'}
         assert convert_bools_to_string(env) is env
@@ -305,10 +295,6 @@ class TestMiscUtils:
     def test_verify_runtime_name_local_path_must_be_absolute(self):
         with pytest.raises(AssertionError, match='not valid'):
             verify_runtime_name('venv/bin/python@3', allow_local_path=True)
-
-    def test_timeout_handler_raises(self):
-        with pytest.raises(TimeoutError, match='too slow'):
-            timeout_handler('too slow', None, None)
 
     def test_b64_dict_roundtrip(self):
         payload = {'a': 1, 'b': 'x'}
@@ -414,7 +400,6 @@ class TestMiscUtils:
         assert len(session) == 4
         assert num == '0'
         assert second == f'{session}-1'
-        assert get_executor_id() == second
         # Exported so a process spawned from this one joins the session
         assert os.environ[SESSION_ID_ENV] == session
         assert os.environ[TOTAL_EXECUTORS_ENV] == '1'
@@ -478,11 +463,6 @@ class TestMiscUtils:
 
         assert len(set(ids)) == 32
 
-    def test_get_executor_id_without_an_executor(self, monkeypatch):
-        self._fresh_session(monkeypatch)
-        with pytest.raises(KeyError):
-            get_executor_id()
-
     def test_monitoring_queue_chain_matches_the_shapes_in_use(self, monkeypatch):
         # These are the chains the id-derived formula produced, and every id
         # shape Lithops builds today. The chain must not change for them
@@ -537,10 +517,6 @@ class TestMiscUtils:
     def test_bytes_b64_roundtrip(self):
         payload = b'hello'
         assert b64str_to_bytes(bytes_to_b64str(payload)) == payload
-
-    def test_sdb_to_dict(self):
-        item = {'Attributes': [{'Name': 'a', 'Value': '1'}, {'Name': 'b', 'Value': 'x'}]}
-        assert sdb_to_dict(item) == {'a': '1', 'b': 'x'}
 
     def test_is_unix_and_linux(self, monkeypatch):
         monkeypatch.setattr('lithops.utils.platform.system', lambda: 'Darwin')
@@ -724,6 +700,8 @@ class TestMiscUtils:
         assert config['handlers']['console_handler']['class'] == (
             'lithops.utils.ShutdownSafeStreamHandler'
         )
+        # No file handler is declared, so dictConfig opens no file at all
+        assert list(config['handlers']) == ['console_handler']
 
     def test_shutdown_safe_handler_ignores_closed_stream(self, capsys):
         stream = io.StringIO()
@@ -757,6 +735,7 @@ class TestMiscUtils:
         config = cfg.call_args[0][0]
         assert config['loggers']['lithops']['handlers'] == ['file_handler']
         assert config['handlers']['file_handler']['filename'] == log_file
+        assert list(config['handlers']) == ['file_handler']
 
     def test_run_command_check_call_by_default(self):
         with patch('lithops.utils.sp.check_call') as call:
@@ -772,13 +751,6 @@ class TestMiscUtils:
         with patch('lithops.utils.sp.check_output', return_value=b'') as out:
             run_command('cat', input='secret')
         assert out.call_args.kwargs['input'] == b'secret'
-
-    def test_find_free_port_returns_int(self):
-        first = find_free_port()
-        second = find_free_port()
-        assert isinstance(first, int) and isinstance(second, int)
-        assert 0 < first < 65536
-        assert 0 < second < 65536
 
     def test_futures_list_map_wait_get_result_and_pickle(self):
         class Item:
@@ -813,6 +785,22 @@ class TestMiscUtils:
         assert list(loaded) == [1, 2]
         assert loaded.executor is None
 
+    def test_futures_list_copies_keep_the_chain_but_not_the_executor(self):
+        import copy
+        fl = FuturesList([1, 2])
+        fl.executor = threading.Lock()
+        fl.config = {'lithops': {'backend': 'localhost'}}
+        fl.alt_list = [0, 1, 2]
+        copies = [pickle.loads(pickle.dumps(fl, protocol=p)) for p in range(pickle.HIGHEST_PROTOCOL + 1)]
+        copies += [copy.copy(fl), copy.deepcopy(fl)]
+        for loaded in copies:
+            assert type(loaded) is FuturesList
+            assert list(loaded) == [1, 2]
+            assert loaded.executor is None
+            assert loaded.config == fl.config
+            assert loaded.alt_list == [0, 1, 2]
+        assert isinstance(fl.executor, type(threading.Lock()))
+
     def test_wrapped_streaming_body_partition_middle_chunk_discards_partial_row(self):
         data = b'aaa\nbbb\nccc\n'
         part = WrappedStreamingBodyPartition(
@@ -839,6 +827,20 @@ class TestMiscUtils:
         assert list(body) == [b'abc']
         part = WrappedStreamingBodyPartition(io.BytesIO(b'abc\n'), 4, (0, 3))
         assert list(part) == [b'abc\n']
+
+    def test_reading_a_whole_partition_reads_the_stream_at_once(self):
+        """It took one request of the HTTP stream per 8 KiB buffer"""
+        class Counting(io.BytesIO):
+            reads = 0
+
+            def read(self, n=-1):
+                Counting.reads += 1
+                return super().read(n)
+
+        data = b'row\n' * 100_000
+        part = WrappedStreamingBodyPartition(Counting(data), len(data), (0, len(data) - 1))
+        assert part.read() == data
+        assert Counting.reads <= 2
 
     @staticmethod
     def _partition_streams(path, chunk_size, newline='\n'):
@@ -887,8 +889,7 @@ class TestMiscUtils:
                     return b''.join(pieces)
                 pieces.append(piece)
 
-        # With a chunk size of 1 the second chunk reads from byte 0 too, like
-        # the first one
+        # A chunk size of 1 is raised to one byte more than the newline
         for chunk_size in (1, 2, 3, 5, 16, 20, 64):
             streams = self._partition_streams(path, chunk_size, newline)
             assert len(streams) > 1
@@ -946,8 +947,7 @@ class TestChainedFuturesAfterMapReduce:
 
     @staticmethod
     def _future(mapreduce_map=False, produce_output=True):
-        from lithops.future import ResponseFuture
-        future = ResponseFuture.__new__(ResponseFuture)
+        future = _response_future()
         future._mapreduce_map = mapreduce_map
         future._produce_output = produce_output
         return future

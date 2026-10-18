@@ -17,78 +17,18 @@
 
 import os
 import uuid
-import sys
 import json
-import flask
 import logging
 from lithops.version import __version__
 from lithops.utils import setup_lithops_logger, b64str_to_dict, \
     iterchunks
 from lithops.worker import function_handler
-from lithops.worker import function_invoker
 from lithops.worker.utils import get_runtime_metadata
 from lithops.constants import JOBS_PREFIX
 from lithops.storage.storage import InternalStorage
 
 
-proxy = flask.Flask(__name__)
-
 logger = logging.getLogger('lithops.worker')
-
-
-@proxy.route('/', methods=['POST'])
-def run():
-    def error():
-        response = flask.jsonify({'error': 'The action did not receive a dictionary as an argument.'})
-        response.status_code = 404
-        return complete(response)
-
-    message = flask.request.get_json(force=True, silent=True)
-    if message and not isinstance(message, dict):
-        return error()
-
-    setup_lithops_logger(message['log_level'])
-
-    act_id = str(uuid.uuid4()).replace('-', '')[:12]
-    os.environ['__LITHOPS_ACTIVATION_ID'] = act_id
-    os.environ['__LITHOPS_BACKEND'] = 'Code Engine (Knative)'
-
-    if 'remote_invoker' in message:
-        logger.info(f"Lithops v{__version__} - Starting Code Engine (Knative) invoker")
-        function_invoker(message)
-    else:
-        logger.info(f"Lithops v{__version__} - Starting Code Engine (Knative) execution")
-        function_handler(message)
-
-    response = flask.jsonify({"activationId": act_id})
-    response.status_code = 202
-
-    return complete(response)
-
-
-@proxy.route('/metadata', methods=['GET', 'POST'])
-def metadata_task():
-    setup_lithops_logger(logging.INFO)
-    logger.info(f"Lithops v{__version__} - Generating metadata")
-    runtime_meta = get_runtime_metadata()
-    response = flask.jsonify(runtime_meta)
-    response.status_code = 200
-    logger.info("Done!")
-
-    return complete(response)
-
-
-def complete(response):
-    # Add sentinel to stdout/stderr
-    sys.stdout.write('%s\n' % 'XXX_THE_END_OF_AN_ACTIVATION_XXX')
-    sys.stdout.flush()
-
-    return response
-
-
-def run_knative_server():
-    port = int(os.getenv('PORT', 8080))
-    proxy.run(debug=True, host='0.0.0.0', port=port)
 
 
 def extract_runtime_metadata(payload):
@@ -114,7 +54,6 @@ def run_ce_job(action, encoded_payload):
         return {"Execution": "Finished"}
 
     job_index = int(os.environ['JOB_INDEX'])
-    payload['JOB_INDEX'] = job_index
     logger.info(f"Action {action}. Job Index {job_index}")
 
     act_id = str(uuid.uuid4()).replace('-', '')[:12]
@@ -135,9 +74,4 @@ def run_ce_job(action, encoded_payload):
 
 
 if __name__ == '__main__':
-    if 'JOB_INDEX' in os.environ:
-        action = os.environ['ACTION']
-        payload = os.environ['PAYLOAD']
-        run_ce_job(action, payload)
-    else:
-        run_knative_server()
+    run_ce_job(os.environ['ACTION'], os.environ['PAYLOAD'])

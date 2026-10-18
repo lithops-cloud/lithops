@@ -145,6 +145,17 @@ class TestWorkerReachability:
         ):
             assert sa_master.is_worker_free('10.0.0.2') is False
 
+    def test_worker_busy_counts_its_processes(self):
+        with patch.object(sa_master.requests, 'get') as get:
+            get.return_value.json.return_value = {'free': 3, 'busy': 1}
+            assert sa_master.get_worker_busy('10.0.0.2') == '1/4'
+
+    def test_worker_busy_is_unknown_when_it_cannot_be_reached(self):
+        with patch.object(
+            sa_master.requests, 'get', side_effect=OSError('down')
+        ):
+            assert sa_master.get_worker_busy('10.0.0.2') == 'Unknown'
+
     def test_worker_ttd_of_the_master_comes_from_its_own_keeper(self):
         sa_master.budget_keeper.get_time_to_dismantle.return_value = 42
         assert sa_master.get_worker_ttd('10.0.0.1') == '42'
@@ -175,7 +186,7 @@ class TestWorkerListing:
             'status': WorkerStatus.IDLE.value,
             'private_ip': '10.0.0.2',
             'instance_id': 'i-1',
-            'ssh_credentials': '{}',
+            'err': '',
         }
         data.update(extra)
         return data
@@ -183,7 +194,8 @@ class TestWorkerListing:
     def test_worker_list_builds_a_table_with_a_header(self, client):
         sa_master.redis_client.keys.return_value = ['worker:lithops-worker-1']
         sa_master.redis_client.hgetall.return_value = self._worker_data()
-        with patch.object(sa_master, 'get_worker_ttd', return_value='30'):
+        with patch.object(sa_master, 'get_worker_ttd', return_value='30'), \
+             patch.object(sa_master, 'get_worker_busy', return_value='1/2'):
             resp = client.get('/worker/list')
         table = resp.get_json()
         assert table[0][0] == 'Worker Name'
@@ -191,12 +203,24 @@ class TestWorkerListing:
         row = table[1]
         assert row[0] == 'lithops-worker-1'
         assert row[2] == 'big'
+        assert row[table[0].index('Busy')] == '1/2'
         assert row[-1] == '30s'
+
+    def test_worker_list_shows_why_a_worker_failed(self, client):
+        sa_master.redis_client.keys.return_value = ['worker:lithops-worker-1']
+        sa_master.redis_client.hgetall.return_value = self._worker_data(
+            status=WorkerStatus.ERROR.value, err='Validation error: boom'
+        )
+        with patch.object(sa_master, 'get_worker_ttd', return_value='30'), \
+             patch.object(sa_master, 'get_worker_busy', return_value='Unknown'):
+            table = client.get('/worker/list').get_json()
+        assert table[1][table[0].index('Error')] == 'Validation error: boom'
 
     def test_worker_list_leaves_a_ttd_word_unsuffixed(self, client):
         sa_master.redis_client.keys.return_value = ['worker:lithops-worker-1']
         sa_master.redis_client.hgetall.return_value = self._worker_data()
-        with patch.object(sa_master, 'get_worker_ttd', return_value='Disabled'):
+        with patch.object(sa_master, 'get_worker_ttd', return_value='Disabled'), \
+             patch.object(sa_master, 'get_worker_busy', return_value='0/2'):
             resp = client.get('/worker/list')
         assert resp.get_json()[1][-1] == 'Disabled'
 
@@ -235,39 +259,38 @@ class TestWorkerListing:
         free_workers = resp.get_json()
         assert resp.status_code == 200
         assert [w[0] for w in free_workers] == ['wanted']
-        # name, ip, instance id, ssh credentials, instance type, runtime
-        assert free_workers[0][-1] == 'python3'
+        # name, ip, instance id, instance type, runtime
+        assert free_workers[0] == ['wanted', '10.0.0.2', 'i-1', 'big', 'python3']
 
 
 class TestWorkerRegistration:
 
-    def test_redis_field_flattens_what_a_hash_cannot_hold(self):
-        assert sa_master._redis_field({'a': 1}) == '{"a": 1}'
-        assert sa_master._redis_field([1, 2]) == '[1, 2]'
-        assert sa_master._redis_field(True) == 'True'
-        assert sa_master._redis_field('text') == 'text'
-        assert sa_master._redis_field(7) == 7
-
-    def test_save_worker_keeps_the_backend_section_out_of_redis(self):
+    def test_save_worker_stores_only_what_is_read_back(self):
         worker = _worker_instance()
-        sa_master.save_worker(worker, _standalone_config(), 'wq:sess-0-M000')
+        worker.ssh_credentials = {'username': 'ubuntu', 'password': 'tok'}
+        sa_master.save_worker(worker, _standalone_config())
         mapping = sa_master.redis_client.hset.call_args.kwargs['mapping']
         assert mapping['name'] == worker.name
         assert mapping['status'] == WorkerStatus.STARTING.value
-        assert mapping['queue_name'] == 'wq:sess-0-M000'
         assert mapping['worker_processes'] == 2
-        assert 'vm' not in mapping
+        assert mapping['runtime'] == 'python3'
+        assert mapping['exec_mode'] == StandaloneMode.CREATE.value
+        assert set(mapping) == {
+            'name', 'status', 'private_ip', 'instance_id', 'instance_type',
+            'worker_processes', 'created', 'runtime', 'exec_mode', 'err',
+        }
         assert 'do-not-store' not in json.dumps(mapping)
+        assert 'tok' not in json.dumps(mapping)
 
     def test_save_worker_resolves_auto_worker_processes(self):
         worker = _worker_instance(config={'worker_processes': 'AUTO'})
-        sa_master.save_worker(worker, _standalone_config(), 'wq')
+        sa_master.save_worker(worker, _standalone_config())
         mapping = sa_master.redis_client.hset.call_args.kwargs['mapping']
         assert mapping['worker_processes'] == sa_master.CPU_COUNT
 
     def test_save_worker_tolerates_an_instance_with_no_ip_yet(self):
         worker = _worker_instance(private_ip=None, instance_id=None)
-        sa_master.save_worker(worker, _standalone_config(), 'wq')
+        sa_master.save_worker(worker, _standalone_config())
         mapping = sa_master.redis_client.hset.call_args.kwargs['mapping']
         assert mapping['private_ip'] == ''
         assert mapping['instance_id'] == ''
@@ -360,6 +383,27 @@ class TestWorkerSetup:
         worker.delete.assert_called_once()
         worker.create.assert_called_once()
         assert worker.wait_ready.call_count == 2
+
+    def test_setup_counts_readiness_and_validation_retries_separately(self):
+        handler = self._handler()
+        worker = _worker_instance(config={
+            'worker_processes': 2, 'worker_create_retries': 2
+        })
+        # Every recreated worker gets the full readiness budget again
+        worker.wait_ready.side_effect = [TimeoutError('slow'), None, TimeoutError('slow'), None]
+        worker.validate_capabilities.side_effect = [sa_master.LithopsValidationError('2 sockets'), None]
+        handler.backend.get_instance.return_value = worker
+        sa_master.redis_client.hget.return_value = WorkerStatus.STARTING.value
+
+        with patch.object(
+            sa_master, '_worker_setup_script', return_value='SCRIPT'
+        ):
+            sa_master.setup_worker_create_reuse(handler, {'name': 'w'}, 'wq')
+
+        assert worker.delete.call_count == 3
+        assert worker.create.call_count == 3
+        assert worker.wait_ready.call_count == 4
+        assert worker.validate_capabilities.call_count == 2
 
     def test_setup_gives_up_when_the_worker_never_comes_up(self):
         handler = self._handler()

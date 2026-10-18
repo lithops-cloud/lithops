@@ -185,6 +185,27 @@ class TestStorage:
 
         assert non_existent_objects == []
 
+
+    def test_list_objects_match_pattern(self):
+        logger.info('Testing Storage.list_objects with a match pattern')
+        prefix = STORAGE_PREFIX + '/glob'
+        test_keys = [
+            prefix + '/a.csv',
+            prefix + '/b.txt',
+            prefix + '/sub/c.csv',
+        ]
+        for key in test_keys:
+            self.storage.put_object(self.bucket, key, key.encode())
+
+        def keys(pattern):
+            objects = self.storage.list_objects(self.bucket, prefix + '/', pattern)
+            return sorted(obj['Key'] for obj in objects)
+
+        assert keys(None) == sorted(test_keys)
+        assert keys(prefix + '/*.csv') == [prefix + '/a.csv']
+        assert keys(prefix + '/**/*.csv') == [prefix + '/a.csv', prefix + '/sub/c.csv']
+        assert keys(prefix + '/*.parquet') == []
+
     def test_list_objects_size(self):
         logger.info('Testing Storage.list_objects_size')
         test_keys = sorted([

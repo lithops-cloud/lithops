@@ -91,20 +91,27 @@ class AzureBlobStorageBackend:
         :return: Data of the object
         :rtype: str/bytes
         """
-        if 'Range' in extra_get_args:   # expected common format: Range='bytes=L-H'
-            bytes_range = extra_get_args.pop('Range')[6:]
-            bytes_range = bytes_range.split('-')
-            extra_get_args['offset'] = int(bytes_range[0])
-            extra_get_args['length'] = int(bytes_range[1]) - int(bytes_range[0]) + 1
+        # The caller's dict is left as it is, so that it can be used again
+        get_args = {k: v for k, v in extra_get_args.items() if k != 'Range'}
         try:
             container_client = self.blob_client.get_container_client(bucket_name)
+            if 'Range' in extra_get_args:
+                # 'bytes=a-b', 'bytes=a-' (to the end) or 'bytes=-n' (the last n bytes)
+                first, last = extra_get_args['Range'].replace('bytes=', '').split('-')
+                first, last = int(first) if first else None, int(last) if last else None
+                if first is None:
+                    # The last bytes of the object
+                    size = container_client.get_blob_client(key).get_blob_properties().size
+                    first, last = max(size - last, 0), None
+                get_args['offset'] = first
+                get_args['length'] = None if last is None else last - first + 1
             if stream:
                 stream_out = BytesIO()
-                container_client.download_blob(key, **extra_get_args).download_to_stream(stream_out)
+                container_client.download_blob(key, **get_args).download_to_stream(stream_out)
                 stream_out.seek(0)
                 return stream_out
             else:
-                data = container_client.download_blob(key, **extra_get_args).content_as_bytes()
+                data = container_client.download_blob(key, **get_args).content_as_bytes()
                 return data
 
         except ResourceNotFoundError:

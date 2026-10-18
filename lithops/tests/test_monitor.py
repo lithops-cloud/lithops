@@ -1335,6 +1335,27 @@ class TestStorageMonitorTokensAndTags:
         assert monitor._credited_calls == {}
         assert monitor._discarded_calls == {}
 
+    def test_a_replacing_monitor_frees_a_worker_the_old_one_timed_out(self):
+        """
+        A timed-out call never shows in a listing, so the job of its worker
+        was only known to the monitor that timed it out
+        """
+        job_monitor, futures = self._job_monitor(calls=1)
+        old = job_monitor.monitor
+        old.remove_futures(futures)
+        old.stop()
+        # Stopping, it does not hand the worker back itself
+        old._release_timed_out_worker({
+            'activation_id': 'w1', 'executor_id': 'sess-0', 'job_id': 'M000', 'call_id': '00000',
+        })
+        assert old.token_bucket_q.qsize() == 0
+
+        job_monitor._spawn_monitor(generate_tokens=True)
+        new = job_monitor.monitor
+        new.internal_storage.get_job_status.side_effect = self._listing(set(), set())
+        new._poll_and_process_job_status()
+        assert new.token_bucket_q.qsize() == 1
+
     def test_the_workers_of_a_job_that_owes_nothing_are_forgotten(self):
         """
         Every monitor of an executor shares this bookkeeping, so it would
@@ -1350,7 +1371,6 @@ class TestStorageMonitorTokensAndTags:
         assert old.token_bucket_q.qsize() == 2
         assert old.callids_done_worker == {}
         assert old.workers_done == set()
-        assert old.worker_job == {}
         assert 'M000' in old._token_closed_jobs
 
         # A monitor that lists the job again neither hands a worker back
@@ -1362,7 +1382,6 @@ class TestStorageMonitorTokensAndTags:
         new._poll_and_process_job_status()
         assert new.token_bucket_q.qsize() == 2
         assert new.callids_done_worker == {}
-        assert new.worker_job == {}
 
     def test_a_nested_job_with_the_same_id_does_not_settle_this_one(self):
         """A nested executor numbers its jobs from M000 too"""
@@ -2261,6 +2280,19 @@ class TestMessageLossAndRecovery:
         assert tokens.qsize() == 1
         assert monitor._jobs_owing_tokens() == set()
 
+    def test_the_sweep_lists_no_job_whose_futures_are_all_finished(self):
+        """Only a dropped job owes a token here, and nothing is read from the finished one"""
+        storage = MagicMock()
+        monitor = self._monitor(storage=storage, tokens=queue.Queue(), chunksize={'M000': 1, 'M001': 1})
+        monitor.job_total_calls = {'M000': 1, 'M001': 1}
+        dropped = FakeFuture('M000', invoked=True, call_id='00000')
+        monitor.add_futures([dropped, FakeFuture('M001', ready=True, call_id='00000')])
+        monitor.remove_futures([dropped])
+        storage.get_job_status.return_value = (set(), set())
+
+        monitor._storage_sweep()
+        storage.get_job_status.assert_called_once_with('sess-0', job_ids={'M000'})
+
     def test_the_sweep_reads_only_the_calls_no_end_was_counted_for(self):
         """The status of a call whose __end__ was counted is not read back"""
         storage = MagicMock()
@@ -2376,11 +2408,25 @@ class TestBackendContract:
         from lithops.monitoring.backends import load_backend_attr
         module = SimpleNamespace()
         with patch(
-            'lithops.monitoring.backends.importlib.import_module',
+            'lithops.utils.importlib.import_module',
             return_value=module,
         ):
-            with pytest.raises(ValueError, match='exports no CallStatus'):
+            with pytest.raises(ValueError, match="Monitoring backend 'fake' exports no CallStatus"):
                 load_backend_attr('fake', 'CallStatus')
+
+    def test_an_unknown_backend_is_reported_by_name(self):
+        from lithops.monitoring.backends import import_backend_module
+        with pytest.raises(ValueError, match='^Unknown monitoring backend: nope$'):
+            import_backend_module('nope', 'config')
+
+    def test_a_missing_sdk_keeps_its_import_error(self):
+        # The backend exists; what is missing is the package it needs, and
+        # that is what the error has to name
+        from lithops.monitoring.backends import import_backend_module
+        missing = ModuleNotFoundError("No module named 'pika'", name='pika')
+        with patch('lithops.utils.importlib.import_module', side_effect=missing):
+            with pytest.raises(ModuleNotFoundError, match='pika'):
+                import_backend_module('rabbitmq')
 
     def test_every_built_in_backend_holds_up_its_end(self):
         from lithops.monitoring.backends import load_backend_attr
@@ -2677,6 +2723,85 @@ class TestCallStatusPublishing:
         # ...and the replacement is what the next call gets
         nxt = RabbitmqCallStatus(job, MagicMock())
         assert nxt.obtain_client('_amqp', MagicMock) == (live_conn, live_ch)
+
+    class _Closeable:
+        """A client part that records when it is closed, and can refuse to"""
+
+        def __init__(self, name, log, fails=False):
+            self.name, self.log, self.fails = name, log, fails
+            self.is_open = True
+
+        def close(self):
+            self.log.append(self.name)
+            if self.fails:
+                raise RuntimeError(f'{self.name} is already closed')
+            self.is_open = False
+
+    def test_rabbitmq_connection_is_closed_at_exit(self):
+        """
+        The shared client of RabbitMQ is a (connection, channel) tuple, which
+        has no close() of its own, so it used to be left open at exit
+        """
+        from lithops.monitoring.backends.rabbitmq.status import (
+            RabbitmqCallStatus,
+        )
+        from lithops.monitoring.status import (
+            _SHARED_CLIENTS, close_shared_clients,
+        )
+
+        job = self._job('rabbitmq')
+        job.config['rabbitmq'] = {'amqp_url': 'amqp://guest@localhost'}
+        closed = []
+        conn = self._Closeable('connection', closed)
+        channel = self._Closeable('channel', closed)
+
+        status = RabbitmqCallStatus(job, MagicMock())
+        with patch.object(status, '_connect', return_value=(conn, channel)):
+            assert status._channel() is channel
+        status.close()
+        # Kept open for the next call of the chunk...
+        assert closed == []
+        assert _SHARED_CLIENTS
+
+        # ...and closed, channel first, when the process exits
+        close_shared_clients()
+        assert closed == ['channel', 'connection']
+        assert not _SHARED_CLIENTS
+
+    def test_a_part_that_cannot_be_closed_does_not_keep_the_others_open(self):
+        from lithops.monitoring.status import _release_client
+
+        closed = []
+        _release_client((
+            self._Closeable('connection', closed),
+            self._Closeable('channel', closed, fails=True),
+        ))
+        assert closed == ['channel', 'connection']
+
+    def test_a_client_without_close_is_stopped(self):
+        from lithops.monitoring.status import _release_client
+
+        client = SimpleNamespace(stop=MagicMock())
+        _release_client(client)
+        client.stop.assert_called_once()
+
+    def test_a_forked_child_does_not_close_what_it_inherited(self):
+        """
+        Closing an AMQP connection sends Connection.Close down the socket,
+        which a forked child shares with its parent
+        """
+        from lithops.monitoring import status as status_mod
+
+        client = MagicMock()
+        status_mod.shared_client('inherited', lambda: client)
+        with patch.object(
+            status_mod.os, 'getpid',
+            return_value=status_mod._SHARED_OWNERS['inherited'] + 1,
+        ):
+            status_mod.close_shared_clients()
+        client.close.assert_not_called()
+        assert not status_mod._SHARED_CLIENTS
+        assert not status_mod._SHARED_OWNERS
 
     def test_releasing_a_client_that_was_never_built_builds_nothing(self):
         from lithops.monitoring.backends.redis.status import RedisCallStatus
