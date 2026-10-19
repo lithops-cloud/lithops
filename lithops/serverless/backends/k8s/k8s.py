@@ -292,8 +292,11 @@ class KubernetesBackend:
         cred_payload = {
             "auths": {
                 docker_server: {
-                    "Username": docker_user,
-                    "Password": docker_password
+                    "username": docker_user,
+                    "password": docker_password,
+                    "auth": base64.b64encode(
+                        f'{docker_user}:{docker_password}'.encode()
+                    ).decode()
                 }
             }
         }

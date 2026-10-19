@@ -5,7 +5,9 @@
 # the backend creates.
 #
 
+import base64
 import copy
+import json
 from unittest.mock import MagicMock
 
 import pytest
@@ -33,6 +35,26 @@ def _node(arch):
 # ---------------------------------------------------------------------------
 # load_config
 # ---------------------------------------------------------------------------
+
+class TestRegistrySecret:
+
+    def test_docker_config_uses_the_keys_kubernetes_reads(self):
+        backend = _make_backend({
+            'docker_user': 'me',
+            'docker_password': 'pw',
+            'docker_server': 'registry.example',
+        })
+        backend.namespace = 'ns'
+        backend.core_api.delete_namespaced_secret.side_effect = ApiException(status=404)
+        backend._create_container_registry_secret()
+        secret = backend.core_api.create_namespaced_secret.call_args.args[1]
+        payload = json.loads(base64.b64decode(secret.data['.dockerconfigjson']))
+        auth = payload['auths']['registry.example']
+        assert auth['username'] == 'me'
+        assert auth['password'] == 'pw'
+        assert auth['auth'] == base64.b64encode(b'me:pw').decode()
+        assert 'Username' not in auth
+
 
 class TestLoadConfig:
 

@@ -531,6 +531,37 @@ class TestVMInitRollback:
             )
         assert list(ssh_dir.iterdir()) == []
 
+    def test_ibm_deletes_a_floating_ip_it_allocated(self):
+        backend, load_data, _, _, _, _ = _ibm_backend_for_init()
+        backend.config['vpc_id'] = 'r006-vpc123456'
+        backend.config['zone_name'] = 'eu-de-1'
+        backend.vpc_cli.list_floating_ips.return_value.get_result.return_value = {
+            'floating_ips': []
+        }
+        backend.vpc_cli.create_floating_ip.return_value.result = {
+            'address': '1.2.3.4', 'id': 'fip-new'
+        }
+        with patch.object(backend, '_request_image_id', side_effect=Exception('quota')):
+            self._failed_init(
+                backend, load_data,
+                '_create_vpc', '_create_ssh_key', '_create_subnet', '_create_gateway',
+            )
+        backend.vpc_cli.delete_floating_ip.assert_called_once_with(id='fip-new')
+
+    def test_aws_spot_price_without_history_raises(self):
+        from lithops.standalone.backends.aws_ec2.aws_ec2 import AWSEC2Backend
+        backend = AWSEC2Backend.__new__(AWSEC2Backend)
+        backend.config = {
+            'request_spot_instances': True,
+            'worker_instance_type': 't2.micro',
+        }
+        backend.ec2_client = MagicMock()
+        backend.ec2_client.describe_spot_price_history.return_value = {
+            'SpotPriceHistory': []
+        }
+        with pytest.raises(ValueError, match='No spot price history for worker instance type t2.micro'):
+            backend._request_spot_price()
+
     def test_ibm_deletes_a_local_ssh_key_that_could_not_be_registered(self, tmp_path):
         backend, load_data, _, _, _, deletes = _ibm_backend_for_init()
         from ibm_cloud_sdk_core import ApiException

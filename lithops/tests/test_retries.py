@@ -293,6 +293,62 @@ class TestRetryingFunctionExecutorUnit:
         assert retrying.response_future is retried
         inner.map.assert_called_once()
 
+    def test_wait_shares_one_timeout_across_retries(self, monkeypatch):
+        """Each retry round used to be given the original timeout again"""
+        clock = {'now': 1000.0}
+        monkeypatch.setattr('lithops.retries.time.monotonic', lambda: clock['now'])
+        failed = FakeResponseFuture(error=True)
+        retried = FakeResponseFuture(error=False, result=1)
+        inner = MagicMock()
+        inner.config = {}
+        recorded = []
+
+        def on_wait(fs, **kwargs):
+            assert kwargs['cancel_on_timeout'] is False
+            recorded.append(kwargs['timeout'])
+            clock['now'] += 4
+            if len(recorded) == 1:
+                return [failed], []
+            return [retried], []
+
+        inner.wait.side_effect = on_wait
+        inner.map.return_value = [retried]
+        retrying = RetryingFuture(failed, map_function=lambda x: x, input=1, retries=1)
+        done, pending = RetryingFunctionExecutor(inner).wait(
+            [retrying], timeout=10, throw_except=False, show_progressbar=False
+        )
+        assert pending == []
+        assert done == [retrying]
+        assert recorded == [10, 6]
+
+    def test_wait_timeout_does_not_retry_past_the_deadline(self, monkeypatch):
+        """
+        A timeout used to cancel every call, so a failure that had already
+        come back was never retried, and the next round started a new budget
+        """
+        clock = {'now': 1000.0}
+        monkeypatch.setattr('lithops.retries.time.monotonic', lambda: clock['now'])
+        failed = FakeResponseFuture(error=True)
+        still_running = FakeResponseFuture()
+        inner = MagicMock()
+        inner.config = {}
+
+        def on_wait(fs, **kwargs):
+            clock['now'] += kwargs['timeout']
+            return [failed], [still_running]
+
+        inner.wait.side_effect = on_wait
+        futures = [
+            RetryingFuture(failed, map_function=lambda x: x, input=1, retries=2),
+            RetryingFuture(still_running, map_function=lambda x: x, input=2, retries=2),
+        ]
+        with pytest.raises(TimeoutError, match='Timeout of 10 seconds'):
+            RetryingFunctionExecutor(inner).wait(
+                futures, timeout=10, throw_except=False, show_progressbar=False
+            )
+        inner.map.assert_not_called()
+        assert inner.wait.call_count == 1
+
     def test_wait_always_returns_after_first_poll(self):
         pending_resp = FakeResponseFuture()
         inner = MagicMock()

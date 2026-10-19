@@ -504,9 +504,15 @@ class AWSEC2Backend:
                 ProductDescriptions=['Linux/UNIX (Amazon VPC)'],
                 StartTime=datetime.today()
             )
-            spot_prices = []
-            for az in response['SpotPriceHistory']:
-                spot_prices.append(float(az['SpotPrice']))
+            spot_prices = [
+                float(az['SpotPrice']) for az in response['SpotPriceHistory']
+            ]
+            if not spot_prices:
+                raise ValueError(
+                    f'No spot price history for worker instance type {wit}. '
+                    'Check the instance type and region, or set '
+                    'request_spot_instances to false'
+                )
             self.config["spot_price"] = max(spot_prices)
             logger.debug(f'Current spot instance price for {wit} is ${self.config["spot_price"]}')
 

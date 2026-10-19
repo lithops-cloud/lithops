@@ -457,7 +457,19 @@ class GCPCloudRunBackend:
         img_name = self._format_image_name(runtime_name)
         logger.info(f"Deploying runtime: {img_name} - Memory: {memory} Timeout: {timeout}")
         self._create_service(runtime_name, memory, timeout)
-        runtime_meta = self._generate_runtime_meta(runtime_name, memory)
+        try:
+            runtime_meta = self._generate_runtime_meta(runtime_name, memory)
+        except Exception:
+            # The service is already live. Leaving it behind makes the next
+            # deploy look like an update of a runtime that has no metadata
+            logger.warning(f'Deleting {runtime_name}: its metadata could not be read')
+            try:
+                self.delete_runtime(runtime_name, memory)
+            except Exception as cleanup_error:
+                logger.warning(
+                    f'Could not delete the Cloud Run service for {runtime_name}: {cleanup_error}'
+                )
+            raise
         return runtime_meta
 
     def delete_runtime(self, runtime_name, runtime_memory, version=__version__):
@@ -468,22 +480,26 @@ class GCPCloudRunBackend:
 
     def _delete_service(self, service_name):
         logger.debug(f'Deleting service {service_name}')
+        name = f'namespaces/{self.project_name}/services/{service_name}'
         try:
-            self._api_resource.namespaces().services().delete(
-                name=f'namespaces/{self.project_name}/services/{service_name}'
-            ).execute()
-            # Wait until the service is completely deleted
-            while True:
-                try:
-                    self._api_resource.namespaces().services().get(
-                        name=f'namespaces/{self.project_name}/services/{service_name}'
-                    ).execute()
-                    time.sleep(1)
-                except Exception:
-                    break
-            logger.debug(f'Ok -- service deleted {service_name}')
-        except Exception:
-            logger.debug(f'Error -- unable to delete service {service_name}')
+            self._api_resource.namespaces().services().delete(name=name).execute()
+        except HttpError as e:
+            if getattr(getattr(e, 'resp', None), 'status', None) == 404:
+                logger.debug(f'Service {service_name} is already gone')
+                return
+            raise
+
+        # Wait until the service is completely deleted. Anything other than
+        # 404 (a blip, a permission error) is not evidence that it is gone
+        while True:
+            try:
+                self._api_resource.namespaces().services().get(name=name).execute()
+                time.sleep(1)
+            except HttpError as e:
+                if getattr(getattr(e, 'resp', None), 'status', None) == 404:
+                    logger.debug(f'Ok -- service deleted {service_name}')
+                    return
+                raise
 
     def clean(self, **kwargs):
         logger.debug('Going to delete all deployed runtimes')

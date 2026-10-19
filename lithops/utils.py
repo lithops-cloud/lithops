@@ -713,6 +713,11 @@ def _user_signature(func) -> inspect.Signature:
     return func_sig.replace(parameters=user_parameters)
 
 
+# call_async() is one activation. A list or tuple of futures is that
+# activation's input, resolved on the worker, not one activation per future
+_CALL_ASYNC_CHAIN = '_lithops_call_async_chain'
+
+
 def _chained_futures(iterdata):
     """
     The futures of a previous job used as the input of this one, or None
@@ -797,6 +802,9 @@ def verify_args(func, iterdata, extra_args):
     new_data = []
 
     for elem in data:
+        if isinstance(elem, dict) and set(elem) == {_CALL_ASYNC_CHAIN}:
+            new_data.append({'future': elem[_CALL_ASYNC_CHAIN]})
+            continue
         if isinstance(elem, dict):
             if has_var_keyword or required <= set(elem):
                 new_data.append(elem)

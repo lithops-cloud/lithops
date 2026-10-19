@@ -617,6 +617,25 @@ class TestWaitAndGetResult:
                               clean_jobs=False)
         cleanup.assert_not_called()
 
+    @patch('lithops.executors.wait', side_effect=TimeoutError('late'))
+    def test_wait_can_return_on_timeout_without_cancelling(self, mock_wait):
+        """A retrying wait has to see what finished, not have it deleted"""
+        future = FakeFuture(done=True, success=True)
+        running = FakeFuture()
+        executor = _bare_executor(data_cleaner=True)
+        with patch.object(executor, '_cleanup_jobs') as cleanup:
+            done, pending = executor.wait(
+                [future, running], show_progressbar=False,
+                cancel_on_timeout=False,
+            )
+        cleanup.assert_not_called()
+        executor.invoker.discard_pending.assert_not_called()
+        executor.job_monitor.remove.assert_called_once_with([future])
+        assert future._exception_set is False
+        assert running._exception_set is False
+        assert done == [future]
+        assert pending == [running]
+
     def test_get_result_takes_a_single_future(self):
         """The signature takes a ResponseFuture, which has no len()"""
         future = FakeFuture(_result=42)

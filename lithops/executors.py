@@ -55,6 +55,7 @@ from lithops.utils import (
     create_futures_list,
     FuturesList,
     _as_future_list,
+    _CALL_ASYNC_CHAIN,
     _chained_futures,
     log_prefix,
 )
@@ -481,6 +482,18 @@ class FunctionExecutor:
         self._disable_iterdata_output(iterdata, futures)
         return job_id, job, futures
 
+    def _cancel_wait(self, futures, do_clean, exception):
+        """
+        Gives up on the futures a wait was blocked on: they are dropped from
+        the monitor, marked unknown and, unless asked not to, cleaned
+        """
+        self.job_monitor.remove(futures)
+        for future in futures:
+            future._set_exception()
+        self._stop_monitor_if_idle(futures)
+        if do_clean:
+            self._cleanup_jobs(futures, exception=exception, force=True)
+
     def _cleanup_jobs(self, futures, exception=None, force=False):
         """
         Releases the backend resources of the given jobs and deletes their
@@ -542,9 +555,15 @@ class FunctionExecutor:
         :return: Response future.
         """
         self.last_call = 'call_async'
+        # A list or tuple of futures is one chained call: map() would make
+        # one activation per future, and this returns a single future
+        if isinstance(data, (list, tuple)) and _chained_futures(data) is not None:
+            submitted = [{_CALL_ASYNC_CHAIN: data}]
+        else:
+            submitted = [data]
         _, _, futures = self._submit_map(
             func,
-            [data],
+            submitted,
             runtime_memory=runtime_memory,
             extra_env=extra_env,
             include_modules=include_modules,
@@ -760,7 +779,8 @@ class FunctionExecutor:
         threadpool_size: Optional[int] = THREADPOOL_SIZE,
         wait_dur_sec: Optional[int] = None,
         show_progressbar: Optional[bool] = True,
-        clean_jobs: Optional[bool] = None
+        clean_jobs: Optional[bool] = None,
+        cancel_on_timeout: bool = True,
     ) -> Tuple[FuturesList, FuturesList]:
         """
         Wait for the Future instances (possibly created by
@@ -791,6 +811,10 @@ class FunctionExecutor:
             future is done. Default is ``data_cleaner``. ``get_result()``
             passes False so it can log that results are in before it
             cleans.
+        :param cancel_on_timeout: On timeout, drop the waited jobs and
+            raise. False returns the calls that finished and leaves the
+            rest running, which is what a retrying wait needs so it can
+            resubmit the failures inside the time it has left.
 
         :return: `(fs_done, fs_notdone)` where `fs_done` is a
             list of futures that have completed and `fs_notdone`
@@ -821,19 +845,30 @@ class FunctionExecutor:
             if do_clean and return_when == ALL_COMPLETED:
                 self._cleanup_jobs(futures)
 
-        except (KeyboardInterrupt, Exception) as e:
-            if isinstance(e, KeyboardInterrupt):
-                self.invoker.stop(wait=True)
-            else:
-                # Only the jobs waited on end here. Another job of this
-                # executor may still have calls queued for a free worker
-                self.invoker.discard_pending({f.job_key for f in futures})
-            self.job_monitor.remove(futures)
-            for future in futures:
-                future._set_exception()
-            self._stop_monitor_if_idle(futures)
-            if do_clean:
-                self._cleanup_jobs(futures, exception=e, force=True)
+        except TimeoutError as e:
+            if not cancel_on_timeout:
+                # The calls keep running, but ones that already reported
+                # back must leave the monitor. A retry replaces them, and
+                # the next wait would never be asked to release the old ones
+                self._release_finished_from_monitor(futures)
+                fs_done, fs_notdone = _partition_futures(
+                    futures, download_results
+                )
+                return (
+                    create_futures_list(fs_done, self),
+                    create_futures_list(fs_notdone, self),
+                )
+            self._cancel_wait(futures, do_clean, e)
+            raise
+        except KeyboardInterrupt as e:
+            self.invoker.stop(wait=True)
+            self._cancel_wait(futures, do_clean, e)
+            raise
+        except Exception as e:
+            # Only the jobs waited on end here. Another job of this
+            # executor may still have calls queued for a free worker
+            self.invoker.discard_pending({f.job_key for f in futures})
+            self._cancel_wait(futures, do_clean, e)
             raise
 
         fs_done, fs_notdone = _partition_futures(futures, download_results)

@@ -187,16 +187,20 @@ class GCPFunctionsBackend:
         return runtimes
 
     def _wait_function_deleted(self, function_location):
-        # Wait until function is completely deleted
+        # Wait until function is completely deleted. Anything other than
+        # 404 (a blip, a permission error) is not evidence that it is gone
         while True:
             try:
                 self._api_resource.projects().locations().functions().get(
                     name=function_location
                 ).execute(num_retries=self.num_retries)
                 time.sleep(self.retry_sleep)
-            except Exception:
-                logger.debug('Function status is DELETED')
-                break
+            except HttpError as e:
+                status = getattr(getattr(e, 'resp', None), 'status', None)
+                if status == 404:
+                    logger.debug('Function status is DELETED')
+                    return
+                raise
 
     def _create_function(self, runtime_name, memory, timeout=60):
         """
@@ -351,9 +355,19 @@ class GCPFunctionsBackend:
             os.remove(runtime_path)
 
         self._create_function(runtime_name, memory, timeout)
-
-        # Get runtime metadata
-        runtime_meta = self._generate_runtime_meta(runtime_name, memory)
+        try:
+            runtime_meta = self._generate_runtime_meta(runtime_name, memory)
+        except Exception:
+            # The function is already live. Leaving it behind makes the next
+            # deploy look like an update of a runtime that has no metadata
+            logger.warning(f'Deleting {runtime_name}: its metadata could not be read')
+            try:
+                self.delete_runtime(runtime_name, memory)
+            except Exception as cleanup_error:
+                logger.warning(
+                    f'Could not delete the function for {runtime_name}: {cleanup_error}'
+                )
+            raise
 
         return runtime_meta
 
@@ -515,9 +529,6 @@ class GCPFunctionsBackend:
             raise Exception(f'Failed getting runtime metadata: {runtime_meta}')
 
         logger.debug(f'Ok -- Extraced modules from {runtime_name}')
-
-        runtime_meta = self.invoke(runtime_name, runtime_memory, payload, True)
-
         return runtime_meta
 
     def get_runtime_key(self, runtime_name, runtime_memory, version=__version__):

@@ -186,6 +186,12 @@ class IBMVPCBackend:
                 f'VPC {vpc_name}',
             )
 
+        for fip_id in list(getattr(self, '_init_created_fips', ())):
+            self._safe_rollback_delete(
+                lambda fid=fip_id: self.vpc_cli.delete_floating_ip(id=fid),
+                f'floating IP {fip_id}',
+            )
+
         if 'ssh_key' in created:
             key_filename = self.config.get('ssh_key_filename')
             if key_filename and 'lithops-key-' in key_filename:
@@ -454,6 +460,11 @@ class IBMVPCBackend:
             floating_ip_prototype['resource_group'] = {'id': self.config['resource_group_id']}
             response = self.vpc_cli.create_floating_ip(floating_ip_prototype)
             fip_data = response.result
+            # Only an address this init() allocated is deleted if init fails.
+            # A recyclable one that was already free is left for the next use
+            created = getattr(self, '_init_created_fips', None)
+            if created is not None:
+                created.add(fip_data['id'])
 
         return fip_data['address'], fip_data['id']
 
@@ -561,6 +572,7 @@ class IBMVPCBackend:
 
             # The resources this init() creates, deleted again if it fails
             self._init_created = set()
+            self._init_created_fips = set()
             try:
                 # Create the VPC if not exists
                 self._create_vpc()
@@ -606,6 +618,7 @@ class IBMVPCBackend:
                 raise
             finally:
                 self._init_created = None
+                self._init_created_fips = None
 
     def build_image(self, image_name, script_file, overwrite, include, extra_args=[]):
         """

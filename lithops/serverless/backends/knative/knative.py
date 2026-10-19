@@ -119,7 +119,14 @@ class KnativeServingBackend:
             load_kube_config(config_file=self.kubecfg_path, context=context)
             contexts, current_context = list_kube_config_contexts(config_file=self.kubecfg_path)
             if context is not None:
-                current_context = [it for it in contexts if it['name'] == context][0]
+                matches = [it for it in contexts if it['name'] == context]
+                if not matches:
+                    known = ', '.join(it['name'] for it in contexts) or '(none)'
+                    raise Exception(
+                        f'Kubernetes context {context!r} was not found in '
+                        f'{self.kubecfg_path}. Known contexts: {known}'
+                    )
+                current_context = matches[0]
             ctx_context = current_context.get('context')
             self.namespace = self.namespace or ctx_context.get('namespace')
             self.cluster = ctx_context.get('cluster') or self.cluster
@@ -529,7 +536,19 @@ class KnativeServingBackend:
         logger.info(f"Deploying runtime: {runtime_name} - Memory: {memory} Timeout: {timeout}")
         self._create_container_registry_secret()
         self._create_service(runtime_name, memory, timeout)
-        runtime_meta = self._generate_runtime_meta(runtime_name, memory)
+        try:
+            runtime_meta = self._generate_runtime_meta(runtime_name, memory)
+        except Exception:
+            # The service is already live. Leaving it behind makes the next
+            # deploy look like an update of a runtime that has no metadata
+            logger.warning(f'Deleting {runtime_name}: its metadata could not be read')
+            try:
+                self.delete_runtime(runtime_name, memory)
+            except Exception as cleanup_error:
+                logger.warning(
+                    f'Could not delete the Knative service for {runtime_name}: {cleanup_error}'
+                )
+            raise
 
         return runtime_meta
 

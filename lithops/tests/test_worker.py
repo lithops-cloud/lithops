@@ -1511,6 +1511,30 @@ class TestJobRunner:
         assert data['x'] == 9
         assert 'future' not in data
 
+    def test_fill_optional_args_list_of_futures_is_one_argument(self):
+        def total(values):
+            return sum(values)
+
+        jr = self._runner(_echo, {'x': 1})
+        first, second = MagicMock(spec=ResponseFuture), MagicMock(spec=ResponseFuture)
+        first.result.return_value = 2
+        second.result.return_value = 3
+        data = {'future': [first, second]}
+        jr._fill_optional_args(total, data)
+        assert data == {'values': [2, 3]}
+
+    def test_fill_optional_args_tuple_of_futures_is_unpacked(self):
+        def mul(x, y):
+            return x * y
+
+        jr = self._runner(_echo, {'x': 1})
+        first, second = MagicMock(spec=ResponseFuture), MagicMock(spec=ResponseFuture)
+        first.result.return_value = 2
+        second.result.return_value = 3
+        data = {'future': (first, second)}
+        jr._fill_optional_args(mul, data)
+        assert data == {'x': 2, 'y': 3}
+
     def test_fill_optional_args_param_named_future_is_not_chaining(self):
         def f(future):
             return future

@@ -333,9 +333,11 @@ def get_result(
 
     :return: The result of the future/s
     """
-    fs = _as_future_list(fs)
+    # None is the default and, like wait(), an empty input. Wrapping it
+    # first made it a one-element list and then crashed on the future
     if not fs:
         return []
+    fs = _as_future_list(fs)
     prefix = log_prefix(fs[0].executor_id)
 
     logger.info(
