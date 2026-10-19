@@ -181,26 +181,31 @@ class AzureFunctionAppBackend:
 
         time.sleep(10)
 
-    def _get_function_identity(self, runtime_name, version=__version__):
+    def _get_function_identity(self, runtime_name, memory, version=__version__):
         """
         Returns a stable hash for a Lithops runtime on Azure Functions.
         """
-        name = f'{self.storage_account_name}-{runtime_name}-{version}-{self.trigger}'
+        instance_memory = config.get_flex_instance_memory(int(memory))
+        name = f'{self.storage_account_name}-{runtime_name}-{version}-{self.trigger}-{instance_memory}'
         return hashlib.sha1(name.encode("utf-8")).hexdigest()[:12]
 
-    def _format_function_name(self, runtime_name, version=__version__):
+    def _format_function_name(self, runtime_name, memory, version=__version__):
         """
         Formats the function app name.
         Host ID collisions are avoided via AzureFunctionsWebHost__hostid.
         """
-        name_hash = self._get_function_identity(runtime_name, version)
+        # The memory is only part of the hash: app names are limited to 60 characters
+        name_hash = self._get_function_identity(runtime_name, memory, version)
         return f'lithops-worker-{runtime_name}-{version.replace(".", "")}-{name_hash}'
 
-    def _format_host_id(self, runtime_name, version=__version__):
+    def _format_host_id(self, runtime_name, memory, version=__version__):
         """
         Unique Functions host ID (must start with a letter, alphanumeric only).
         """
-        return f'l{self._get_function_identity(runtime_name, version)}'
+        return f'l{self._get_function_identity(runtime_name, memory, version)}'
+
+    def _format_build_dir(self, runtime_name, version=__version__):
+        return os.path.join(config.BUILD_DIR, f'lithops-worker-{runtime_name}-{version.replace(".", "")}')
 
     def _format_queue_name(self, function_name, q_type):
         """
@@ -253,9 +258,7 @@ class AzureFunctionAppBackend:
         except Exception:
             pass
 
-        function_name = self._format_function_name(runtime_name)
-
-        build_dir = os.path.join(config.BUILD_DIR, function_name)
+        build_dir = self._format_build_dir(runtime_name)
         os.makedirs(build_dir, exist_ok=True)
 
         action_dir = os.path.join(build_dir, config.ACTION_DIR)
@@ -279,19 +282,6 @@ class AzureFunctionAppBackend:
         with open(host_file, 'w') as hstf:
             hstf.write(config.HOST_FILE)
 
-        fn_file = os.path.join(action_dir, 'function.json')
-        if self.trigger == 'pub/sub':
-            with open(fn_file, 'w') as fnf:
-                in_q_name = self._format_queue_name(function_name, config.IN_QUEUE)
-                config.BINDINGS_QUEUE['bindings'][0]['queueName'] = in_q_name
-                out_q_name = self._format_queue_name(function_name, config.OUT_QUEUE)
-                config.BINDINGS_QUEUE['bindings'][1]['queueName'] = out_q_name
-                fnf.write(json.dumps(config.BINDINGS_QUEUE))
-
-        elif self.trigger == 'https':
-            with open(fn_file, 'w') as fnf:
-                fnf.write(json.dumps(config.BINDINGS_HTTP))
-
         entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
         main_file = os.path.join(action_dir, '__init__.py')
         shutil.copy(entry_point, main_file)
@@ -309,12 +299,29 @@ class AzureFunctionAppBackend:
 
         logger.debug(f'Runtime {runtime_name} built successfully')
 
+    def _write_function_bindings(self, build_dir, function_name):
+        """
+        Writes the function.json of the app, the queue names depend on the app name
+        """
+        fn_file = os.path.join(build_dir, config.ACTION_DIR, 'function.json')
+        if self.trigger == 'pub/sub':
+            with open(fn_file, 'w') as fnf:
+                in_q_name = self._format_queue_name(function_name, config.IN_QUEUE)
+                config.BINDINGS_QUEUE['bindings'][0]['queueName'] = in_q_name
+                out_q_name = self._format_queue_name(function_name, config.OUT_QUEUE)
+                config.BINDINGS_QUEUE['bindings'][1]['queueName'] = out_q_name
+                fnf.write(json.dumps(config.BINDINGS_QUEUE))
+
+        elif self.trigger == 'https':
+            with open(fn_file, 'w') as fnf:
+                fnf.write(json.dumps(config.BINDINGS_HTTP))
+
     def _create_function(self, runtime_name, memory, timeout):
         """
         Create and publish an Azure Functions
         """
         logger.info(f'Creating Azure Function from runtime {runtime_name}')
-        function_name = self._format_function_name(runtime_name)
+        function_name = self._format_function_name(runtime_name, memory)
 
         instance_memory = config.get_flex_instance_memory(memory)
         if instance_memory != memory:
@@ -331,19 +338,21 @@ class AzureFunctionAppBackend:
                f'--runtime-version {utils.CURRENT_PY_VERSION} '
                f'--functions-version {self.functions_version} '
                f'--instance-memory {instance_memory} '
-               f'--tags type=lithops-runtime lithops_version={__version__} runtime_name={runtime_name}')
+               f'--tags type=lithops-runtime lithops_version={__version__} runtime_name={runtime_name} '
+               f'runtime_memory={instance_memory}')
         if not self._function_app_exists(function_name):
             self._run_az_command(cmd)
         else:
             logger.debug(f'Function app {function_name} already exists, skipping create')
 
-        host_id = self._format_host_id(runtime_name)
+        host_id = self._format_host_id(runtime_name, memory)
         cmd = (f'az functionapp config appsettings set --name {function_name} '
                f'--resource-group {self.resource_group} '
                f'--settings AzureFunctionsWebHost__hostid={host_id}')
         self._run_az_command(cmd)
 
-        build_dir = os.path.join(config.BUILD_DIR, function_name)
+        build_dir = self._format_build_dir(runtime_name)
+        self._write_function_bindings(build_dir, function_name)
         self._publish_function(function_name, build_dir)
 
         if self.trigger == 'pub/sub':
@@ -360,7 +369,12 @@ class AzureFunctionAppBackend:
         """
         logger.info(f'Deleting runtime: {runtime_name} - {memory}MB')
         if function_name is None:
-            function_name = self._format_function_name(runtime_name, version)
+            function_name = self._format_function_name(runtime_name, memory, version)
+            # Apps deployed before the memory was part of the name only match through their tags
+            for rt_name, rt_memory, rt_version, wk_name in self.list_runtimes(runtime_name):
+                if rt_version == version and rt_memory == config.get_flex_instance_memory(int(memory)):
+                    function_name = wk_name
+                    break
         cmd = f'az functionapp delete --name {function_name} --resource-group {self.resource_group}'
         self._run_az_command(cmd)
 
@@ -379,7 +393,7 @@ class AzureFunctionAppBackend:
         """
         Invoke function
         """
-        function_name = self._format_function_name(runtime_name)
+        function_name = self._format_function_name(runtime_name, memory)
 
         if self.trigger == 'pub/sub':
             in_q_name = self._format_queue_name(function_name, config.IN_QUEUE)
@@ -390,8 +404,15 @@ class AzureFunctionAppBackend:
             if return_result:
                 out_q_name = self._format_queue_name(function_name, config.OUT_QUEUE)
                 out_queue = self.queue_service.get_queue_client(out_q_name)
+                timeout = self.af_config['runtime_timeout']
+                deadline = time.time() + timeout
                 msg = []
                 while not msg:
+                    if time.time() > deadline:
+                        raise Exception(
+                            f'No response from function {function_name} in queue {out_q_name} '
+                            f'after {timeout} seconds. Review the function logs in the Azure Portal'
+                        )
                     time.sleep(1)
                     msg = out_queue.receive_message()
                 out_queue.clear_messages()
@@ -426,6 +447,8 @@ class AzureFunctionAppBackend:
                 if resp.status == 429:
                     time.sleep(0.2)
                     return None
+                if not 200 <= resp.status < 300:
+                    raise Exception(f'Invocation error: ({resp.status}) {resp.reason} - {resp_text}')
 
             return resp_text
 
@@ -435,7 +458,7 @@ class AzureFunctionAppBackend:
         Runtime keys are used to uniquely identify runtimes within the storage,
         in order to know which runtimes are installed and which not.
         """
-        function_name = self._format_function_name(runtime_name, version)
+        function_name = self._format_function_name(runtime_name, runtime_memory, version)
         runtime_key = os.path.join(self.name, version, function_name)
 
         return runtime_key
@@ -514,8 +537,8 @@ class AzureFunctionAppBackend:
                and functionapp['Tags']['type'] == 'lithops-runtime':
                 version = functionapp['Tags']['lithops_version']
                 name = functionapp['Tags']['runtime_name']
-                memory = config.DEFAULT_CONFIG_KEYS['runtime_memory']
-                if runtime_name == functionapp['Name'] or runtime_name == 'all':
+                memory = int(functionapp['Tags'].get('runtime_memory', config.DEFAULT_CONFIG_KEYS['runtime_memory']))
+                if runtime_name == name or runtime_name == 'all':
                     runtimes.append((name, memory, version, functionapp['Name']))
 
         return runtimes

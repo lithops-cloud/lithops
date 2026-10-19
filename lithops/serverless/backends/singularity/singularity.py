@@ -216,6 +216,7 @@ class SingularityBackend:
 
         logger.debug("Waiting for runtime metadata")
 
+        runtime_meta = None
         for i in range(0, 300):
             try:
                 data_key = '/'.join([JOBS_PREFIX, runtime_name + '.meta'])

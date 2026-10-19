@@ -253,6 +253,192 @@ class TestAzureSpotWorkers:
         assert vm.priority is None
 
 
+class TestAzureVMs:
+
+    @pytest.fixture(autouse=True)
+    def _need_azure(self):
+        pytest.importorskip('azure.identity')
+        pytest.importorskip('azure.mgmt.compute')
+        pytest.importorskip('azure.mgmt.network')
+
+    @staticmethod
+    def _config(**extra):
+        from lithops.standalone.backends.azure_vms.config import load_config
+        config_data = {'azure_vms': {'resource_group': 'rg', 'subscription_id': 's', 'region': 'westeurope'}}
+        config_data['azure_vms'].update(extra)
+        load_config(config_data)
+        return config_data['azure_vms']
+
+    def test_workers_are_not_deleted_on_dismantle_by_default(self):
+        # The docs and the config template say False, as True is not supported
+        assert self._config()['delete_on_dismantle'] is False
+
+    @pytest.mark.parametrize('ssh_username, home_dir', [
+        ('ubuntu', '/home/ubuntu'), ('azureuser', '/home/azureuser'), ('root', '/root'),
+    ])
+    def test_the_home_dir_belongs_to_the_ssh_user(self, ssh_username, home_dir):
+        from lithops.standalone.backends.azure_vms.azure_vms import VMInstance
+        with patch.object(VMInstance, 'create_client'):
+            instance = VMInstance('lithops-master', self._config(ssh_username=ssh_username))
+        assert instance.home_dir == home_dir
+
+    @staticmethod
+    def _stoppable_vm():
+        from lithops.standalone.backends.azure_vms.azure_vms import VMInstance
+        instance = VMInstance.__new__(VMInstance)
+        instance.name = 'lithops-worker-1'
+        instance.public = False
+        instance.private_ip = '10.0.0.4'
+        instance.delete_on_dismantle = False
+        instance.config = {'resource_group': 'rg'}
+        instance.compute_client = MagicMock()
+        return instance
+
+    def test_stop_deallocates_the_vm(self):
+        # A VM that is only powered off is still billed
+        instance = self._stoppable_vm()
+        instance.stop()
+        vms = instance.compute_client.virtual_machines
+        vms.begin_deallocate.assert_called_once_with('rg', 'lithops-worker-1')
+        vms.begin_power_off.assert_not_called()
+
+    def test_stop_inside_the_vm_powers_off_when_it_cannot_deallocate(self):
+        from lithops.standalone.backends.azure_vms import azure_vms
+        instance = self._stoppable_vm()
+        instance.compute_client.virtual_machines.begin_deallocate.side_effect = Exception('no credentials')
+        with patch.object(azure_vms.os.path, 'isfile', return_value=True), \
+                patch.object(azure_vms.os, 'system') as system:
+            instance.stop()
+        system.assert_called_once_with('shutdown -h now')
+
+    def test_stop_from_the_client_reports_a_vm_it_cannot_deallocate(self):
+        from lithops.standalone.backends.azure_vms import azure_vms
+        instance = self._stoppable_vm()
+        instance.compute_client.virtual_machines.begin_deallocate.side_effect = Exception('forbidden')
+        with patch.object(azure_vms.os.path, 'isfile', return_value=False), \
+                patch.object(azure_vms.os, 'system') as system, \
+                patch.object(azure_vms, 'logger') as log:
+            instance.stop()
+        system.assert_not_called()
+        assert 'forbidden' in log.warning.call_args[0][0]
+
+
+class _FakeMasterSSH:
+    """Answers like the master service of a VM that is already set up"""
+
+    def __init__(self, ip_address, ssh_credentials):
+        self.ip_address = ip_address
+        self.ssh_credentials = ssh_credentials
+        self.commands = []
+        self.downloads = []
+
+    def run_remote_command(self, cmd, run_async=False):
+        self.commands.append(cmd)
+        if '/ping' in cmd:
+            return json.dumps({'response': __version__}), ''
+        if '/job/run' in cmd:
+            return json.dumps({'activationId': 'abc'}), ''
+        return '', ''
+
+    def upload_local_file(self, local_src, remote_dst):
+        pass
+
+    def upload_data_to_file(self, data, remote_dst):
+        pass
+
+    def download_remote_file(self, remote_src, local_dst):
+        self.downloads.append((remote_src, local_dst))
+
+    def close(self):
+        pass
+
+
+class TestVMBackend:
+
+    @staticmethod
+    def _config(**vm_extra):
+        from lithops.config import default_config
+        vm = {'ip_address': '1.2.3.4', 'ssh_username': 'alice'}
+        vm.update(vm_extra)
+        config = default_config(
+            config_data={'lithops': {'backend': 'vm'}, 'vm': vm}, load_storage_config=False
+        )
+        return config
+
+    def _handler(self, **vm_extra):
+        from lithops.config import extract_standalone_config
+        config = self._config(**vm_extra)
+        handler = StandaloneHandler(extract_standalone_config(config))
+        return config, handler
+
+    @pytest.mark.parametrize('ssh_username, home_dir', [('alice', '/home/alice'), ('root', '/root')])
+    def test_the_master_uses_the_documented_ssh_username(self, ssh_username, home_dir):
+        _, handler = self._handler(ssh_username=ssh_username)
+        handler.init()
+        master = handler.backend.master
+        assert master.ssh_credentials['username'] == ssh_username
+        assert master.home_dir == home_dir
+        with patch('lithops.standalone.backends.vm.vm.SSHClient', _FakeMasterSSH):
+            assert master.get_ssh_client().ssh_credentials['username'] == ssh_username
+
+    def test_a_job_runs_and_is_cleared_through_the_handler(self):
+        config, handler = self._handler()
+        handler.init()
+        payload = {
+            'executor_id': 'sess-0', 'job_id': 'M000', 'job_key': 'sess-0-M000',
+            'total_calls': 2, 'worker_processes': 'AUTO', 'config': config,
+        }
+        with patch('lithops.standalone.backends.vm.vm.SSHClient', _FakeMasterSSH):
+            handler.invoke(payload)
+            ssh = handler.backend.master.get_ssh_client()
+            handler.clear({'sess-0-M000'})
+            handler.clear()
+        assert payload['worker_instances'][0]['name'] == handler.backend.master.name
+        assert payload['worker_instances'][0]['ssh_credentials']['username'] == 'alice'
+        assert any('/job/run' in cmd for cmd in ssh.commands)
+        assert any('/job/stop' in cmd and 'sess-0-M000' in cmd for cmd in ssh.commands)
+        assert handler.jobs == []
+
+    def test_the_master_service_setup_fetches_the_key_of_the_ssh_user(self, tmp_path):
+        _, handler = self._handler()
+        handler.init()
+
+        def handler_zip(path, files):
+            open(path, 'w').close()
+
+        with patch('lithops.standalone.backends.vm.vm.SSHClient', _FakeMasterSSH), \
+                patch('lithops.standalone.standalone.TEMP_DIR', str(tmp_path)), \
+                patch('lithops.standalone.standalone.create_handler_zip', side_effect=handler_zip):
+            handler._setup_master_service()
+            ssh = handler.backend.master.get_ssh_client()
+        remote, local = ssh.downloads[0]
+        assert remote == '/home/alice/.ssh/lithops_id_rsa.pub'
+        assert local.startswith(handler.backend.cache_dir)
+
+    def test_the_budget_keeper_gets_the_vm_it_runs_on(self):
+        from lithops.config import extract_standalone_config
+        standalone_config = extract_standalone_config(self._config())
+        master_data = {
+            'name': 'lithops-consume', 'instance_id': '0af1', 'private_ip': '1.2.3.4',
+            'delete_on_dismantle': False, 'lithops_version': __version__,
+        }
+        keeper = BudgetKeeper(standalone_config, master_data)
+        assert keeper.instance.name == 'lithops-consume'
+        assert keeper.instance.private_ip == '1.2.3.4'
+        assert keeper.instance.delete_on_dismantle is False
+
+    def test_the_master_gets_the_instance_a_job_runs_on(self):
+        _, handler = self._handler()
+        worker_info = {
+            'name': 'lithops-consume', 'private_ip': '1.2.3.4', 'instance_id': '0af1',
+            'ssh_credentials': {'username': 'alice'}, 'instance_type': 'VM',
+        }
+        instance = handler.backend.get_instance(**worker_info, public=False)
+        assert instance.name == 'lithops-consume'
+        assert instance.instance_type == 'VM'
+        assert instance.config['worker_processes'] == 'AUTO'
+
+
 class TestIBMVPCRetries:
 
     @staticmethod
@@ -930,6 +1116,113 @@ class TestStandaloneHandler:
         assert log.debug.call_args[0][0].startswith(
             'Could not stop the jobs on the master:'
         )
+
+    def test_clear_stops_only_the_given_jobs(self):
+        # get_result(fs1) must not cancel the job of fs2, still running
+        handler = _make_handler('create')
+        handler.jobs = ['sess-0-M000', 'sess-0-M001']
+        handler._make_request = MagicMock(return_value=None)
+        handler.clear({'sess-0-M000'})
+        handler._make_request.assert_called_once_with('POST', 'job/stop', ['sess-0-M000'])
+        assert handler.jobs == ['sess-0-M001']
+        # The workers are still running the other job
+        handler.backend.clear.assert_not_called()
+
+    def test_clear_stops_the_create_mode_workers_once_no_job_is_left(self):
+        handler = _make_handler('create')
+        handler.jobs = ['sess-0-M000', 'sess-0-M001']
+        handler._make_request = MagicMock(return_value=None)
+        handler.clear({'sess-0-M000'})
+        handler.clear({'sess-0-M001'})
+        assert handler._make_request.call_args_list[1][0][2] == ['sess-0-M001']
+        assert handler.jobs == []
+        handler.backend.clear.assert_called_once_with({'sess-0-M001'})
+
+    def test_clear_without_job_keys_stops_every_job_and_the_workers(self):
+        handler = _make_handler('create')
+        handler.jobs = ['sess-0-M000', 'sess-0-M001']
+        handler._make_request = MagicMock(return_value=None)
+        handler.clear()
+        handler._make_request.assert_called_once_with(
+            'POST', 'job/stop', ['sess-0-M000', 'sess-0-M001']
+        )
+        assert handler.jobs == []
+        handler.backend.clear.assert_called_once_with(None)
+
+    def _master_setup_failure(self, **master_errors):
+        handler = self._ready_handler('create')
+        workers = [MagicMock(name='w0'), MagicMock(name='w1')]
+        handler.backend.workers = list(workers)
+        handler._create_workers = MagicMock(return_value=list(workers))
+        handler._is_master_service_ready = MagicMock(return_value=False)
+        for method, error in master_errors.items():
+            getattr(handler.backend.master, method).side_effect = error
+        return handler, workers
+
+    @pytest.mark.parametrize('method', ['create', 'wait_ready'])
+    def test_invoke_stops_its_workers_when_the_master_cannot_be_set_up(self, method):
+        handler, workers = self._master_setup_failure(**{method: Exception('quota')})
+        with pytest.raises(Exception, match='quota'):
+            handler.invoke(self._create_payload())
+        for worker in workers:
+            worker.stop.assert_called_once()
+        assert handler.backend.workers == []
+        assert handler.jobs == []
+
+    def test_invoke_keeps_the_master_error_when_a_worker_cannot_be_stopped(self):
+        handler, workers = self._master_setup_failure(create=Exception('quota'))
+        workers[0].stop.side_effect = Exception('stop failed')
+        with patch('lithops.standalone.standalone.logger') as log:
+            with pytest.raises(Exception, match='quota'):
+                handler.invoke(self._create_payload())
+        workers[1].stop.assert_called_once()
+        assert 'stop failed' in log.error.call_args[0][0]
+
+    def test_invoke_does_not_stop_workers_a_dismantle_already_stopped(self):
+        handler, workers = self._master_setup_failure()
+        handler._validate_master_service_setup = MagicMock()
+
+        def dismantle_and_fail():
+            handler.backend.workers = []
+            raise Exception('readiness probe expired')
+
+        handler._wait_master_service_ready = MagicMock(side_effect=dismantle_and_fail)
+        with pytest.raises(Exception, match='readiness probe expired'):
+            handler.invoke(self._create_payload())
+        for worker in workers:
+            worker.stop.assert_not_called()
+
+    def test_request_from_worker_sends_the_body_of_a_get(self):
+        handler = _make_handler()
+        handler.is_lithops_worker = True
+        payload = {'worker_instance_type': 'big', 'worker_processes': 2, 'runtime_name': 'python3'}
+        with patch('lithops.standalone.standalone.requests.get') as get:
+            get.return_value.json.return_value = []
+            assert handler._make_request('GET', 'worker/get', payload) == []
+        assert json.loads(get.call_args.kwargs['data']) == payload
+
+    def test_request_from_worker_raises_on_an_error_payload(self):
+        handler = _make_handler()
+        handler.is_lithops_worker = True
+        with patch('lithops.standalone.standalone.requests.get') as get:
+            get.return_value.status_code = 404
+            get.return_value.json.return_value = {'error': 'not a dictionary'}
+            with pytest.raises(ValueError, match='not a dictionary'):
+                handler._make_request('GET', 'metadata', {'runtime': 'python3'})
+
+    def test_request_via_ssh_raises_on_an_error_payload(self):
+        handler = _make_handler()
+        ssh = handler.backend.master.get_ssh_client.return_value
+        ssh.run_remote_command.return_value = ('{"error": "not a dictionary"}', '')
+        with pytest.raises(ValueError, match='not a dictionary'):
+            handler._make_request('GET', 'metadata', {'runtime': 'python3'})
+
+    def test_an_error_from_the_master_is_no_free_worker(self):
+        # The error dict used to be counted as one free worker
+        handler = _make_handler('reuse')
+        ssh = handler.backend.master.get_ssh_client.return_value
+        ssh.run_remote_command.return_value = ('{"error": "bad request"}', '')
+        assert handler._get_workers_on_master('big', 2, 'python3') == []
 
 
 class TestStandaloneRunner:

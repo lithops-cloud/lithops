@@ -539,7 +539,6 @@ class AliyunFunctionComputeBackend:
         headers = fc_models.InvokeFunctionHeaders(
             x_fc_invocation_type='Sync',
         )
-        request = fc_models.InvokeFunctionRequest(body=io.BytesIO(payload_bytes))
 
         last_error = None
         runtime_meta = None
@@ -552,6 +551,8 @@ class AliyunFunctionComputeBackend:
                     pass
 
             try:
+                # The body stream is consumed by each attempt
+                request = fc_models.InvokeFunctionRequest(body=io.BytesIO(payload_bytes))
                 res = self.fc_client.invoke_function_with_options(
                     function_name, request, headers, FC_INVOKE_RUNTIME
                 )

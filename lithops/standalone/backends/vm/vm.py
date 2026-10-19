@@ -20,7 +20,7 @@ import time
 
 from lithops.standalone.utils import StandaloneMode
 from lithops.version import __version__
-from lithops.constants import COMPUTE_CLI_MSG
+from lithops.constants import COMPUTE_CLI_MSG, CACHE_DIR
 from lithops.util.ssh_client import SSHClient, ssh_boot_status_message
 from lithops.standalone import LithopsValidationError
 
@@ -37,6 +37,7 @@ class VMBackend:
         self.name = 'vm'
         self.config = vm_config
         self.mode = mode
+        self.cache_dir = os.path.join(CACHE_DIR, self.name)
         self.master = None
 
         logger.info(COMPUTE_CLI_MSG.format('Virtual Machine'))
@@ -66,11 +67,25 @@ class VMBackend:
     def clean(self, **kwargs):
         pass
 
-    def clear(self, **kwargs):
+    def clear(self, job_keys=None):
         pass
 
     def dismantle(self, **kwargs):
         pass
+
+    def get_instance(self, name, **kwargs):
+        """
+        Returns a VM class instance, which is how the master and its budget
+        keeper get hold of the VM they run on
+        """
+        instance = VMInstance(self.config)
+        instance.name = name
+
+        for key in kwargs:
+            if hasattr(instance, key) and kwargs[key] is not None:
+                setattr(instance, key, kwargs[key])
+
+        return instance
 
     def get_worker_instance_type(self):
         return None
@@ -85,8 +100,22 @@ class VMInstance:
 
     def __init__(self, config):
         self.config = config
+        self.name = 'lithops-consume'
+        self.instance_id = '0af1'
+        # Stored in redis by the master, which cannot store None
+        self.instance_type = 'VM'
+        # Lithops never created this machine, so it never deletes it
+        self.delete_on_dismantle = False
         self.public_ip = self.private_ip = self.config['ip_address']
         self.ssh_client = None
+
+        ssh_user = self.config['ssh_username']
+        self.home_dir = '/root' if ssh_user == 'root' else f'/home/{ssh_user}'
+        self.ssh_credentials = {
+            'username': ssh_user,
+            'password': self.config.get('ssh_password', None),
+            'key_filename': self.config.get('ssh_key_filename', '~/.ssh/id_rsa')
+        }
 
         logger.debug(f'{self} created')
 
@@ -98,12 +127,7 @@ class VMInstance:
         Creates an ssh client against the VM only if the Instance is the master
         """
         if self.public_ip and not self.ssh_client:
-            ssh_credentials = {
-                'username': self.config.get('ssh_user', 'root'),
-                'password': self.config.get('ssh_password', None),
-                'key_filename': self.config.get('ssh_key_filename', '~/.ssh/id_rsa')
-            }
-            self.ssh_client = SSHClient(self.public_ip, ssh_credentials)
+            self.ssh_client = SSHClient(self.public_ip, self.ssh_credentials)
         return self.ssh_client
 
     def del_ssh_client(self):
@@ -151,13 +175,13 @@ class VMInstance:
         """
         Returns the instance information
         """
-        return {'id': '0af1', 'public_ip': self.public_ip}
+        return {'id': self.instance_id, 'public_ip': self.public_ip}
 
     def get_instance_id(self):
         """
         Requests the Instance ID
         """
-        return "0af1"
+        return self.instance_id
 
     def get_public_ip(self):
         """

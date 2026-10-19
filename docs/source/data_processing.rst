@@ -15,7 +15,7 @@ Lithops includes an integrated **data partitioner** that allows you to automatic
 Partitioning is supported directly within the :meth:`map()` and :meth:`map_reduce()` APIs and can be controlled via:
 
 - **`obj_chunk_size`**: The size (in bytes) of each chunk to split the object into.
-- **`obj_chunk_number`**: The total number of chunks to split each object into.
+- **`obj_chunk_number`**: The total number of chunks to split each object into. An object with fewer bytes than that is split into fewer chunks, none of them empty (with ``obj_newline`` set, each chunk holds at least one byte more than the newline).
 
 Currently, the partitioner supports **text-based files** where rows are separated by newline characters (`\n`), such as `.txt` and `.csv`. Support for additional data types is planned in future releases.
 
@@ -141,7 +141,7 @@ Processing Data from Public URLs
 
 Lithops also supports processing data directly from **public URLs**. The input can be a single URL or a list of URLs.
 
-If you set ``obj_chunk_size`` or ``obj_chunk_number``, Lithops activates its internal partitioner to split each file into smaller chunks—**provided that the remote server supports HTTP range requests**. If range requests are not supported, each URL is processed as a single object.
+If you set ``obj_chunk_size`` or ``obj_chunk_number``, Lithops activates its internal partitioner to split each file into smaller chunks—**provided that the remote server supports HTTP range requests** (its ``Accept-Ranges`` header is ``bytes``). If range requests are not supported, each URL is processed as a single object. Each URL is sized with a ``HEAD`` request that follows redirects; a URL that answers with an error status raises an error instead of being processed.
 
 As with other backends, the special ``obj`` parameter gives you access to metadata and the content of the chunk being processed.
 
@@ -196,7 +196,7 @@ Lithops can also process files stored on the local filesystem. The input can be:
 - A directory path
 - A list of directory paths
 
-As in other cases, if you set ``obj_chunk_size`` or ``obj_chunk_number``, the file(s) will be split into chunks and processed in parallel. If not set, each file is processed as a single object.
+As in other cases, if you set ``obj_chunk_size`` or ``obj_chunk_number``, the file(s) will be split into chunks and processed in parallel. If not set, each file is processed as a single object. A path that does not exist raises ``FileNotFoundError``, and directories that contain no files raise an error, as an empty bucket or prefix does.
 
 The ``obj`` parameter again exposes the metadata and content of the chunk.
 

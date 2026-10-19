@@ -842,7 +842,8 @@ class VMInstance:
         self.instance_data = None
         self.private_ip = None
         self.public_ip = '0.0.0.0'
-        self.home_dir = '/home/ubuntu'
+        ssh_user = self.config['ssh_username']
+        self.home_dir = '/root' if ssh_user == 'root' else f'/home/{ssh_user}'
 
         self.ssh_credentials = {
             'username': self.config['ssh_username'],
@@ -1233,16 +1234,21 @@ class VMInstance:
 
     def _stop_instance(self):
         """
-        Stops the VM instance
+        Stops the VM instance. Azure keeps billing a VM that is only powered
+        off, so it is deallocated
         """
         logger.debug(f"Stopping VM instance {self.name}")
         try:
-            self.compute_client.virtual_machines.begin_power_off(
+            self.compute_client.virtual_machines.begin_deallocate(
                 self.config['resource_group'], self.name
             )
-        except Exception:
+        except Exception as e:
+            # Inside the VM there may be no credentials allowed to deallocate it
             if os.path.isfile(SA_CONFIG_FILE):
+                logger.debug(f'Could not deallocate {self}, powering it off: {e}')
                 os.system("shutdown -h now")
+            else:
+                logger.warning(f'Could not deallocate {self}: {e}')
 
     def stop(self):
         """

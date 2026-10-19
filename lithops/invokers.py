@@ -450,10 +450,11 @@ class FaaSInvoker(Invoker):
 
     def _start_async_invokers(self):
         """Starts the invoker process responsible to spawn
-        pending calls in background.
+        pending calls in background. They start with no token: the
+        max_workers free workers are invoked directly, and every later
+        one waits for a token handed back by a finished worker
         """
         for inv_id in range(self.ASYNC_INVOKERS):
-            self.job_monitor.token_bucket_q.put('#')
             invoker = threading.Thread(
                 target=self._async_invoker_loop, args=(inv_id,)
             )

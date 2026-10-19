@@ -470,9 +470,9 @@ class AzureContainerAppBackend:
             if containerapp['Tags'] and 'type' in containerapp['Tags'] \
                and containerapp['Tags']['type'] == 'lithops-runtime':
                 name = containerapp['Tags']['runtime_name']
-                memory = containerapp['Tags']['runtime_memory']
+                memory = int(containerapp['Tags']['runtime_memory'])
                 version = containerapp['Tags']['lithops_version']
-                if runtime_name == containerapp['Name'] or runtime_name == 'all':
+                if runtime_name == name or runtime_name == 'all':
                     runtimes.append((name, memory, version, containerapp['Name']))
 
         return runtimes

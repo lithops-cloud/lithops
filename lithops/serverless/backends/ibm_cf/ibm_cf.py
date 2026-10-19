@@ -16,7 +16,7 @@
 
 import os
 import logging
-from threading import Lock
+from threading import RLock
 
 from lithops import utils
 from lithops.util.ibm_token_manager import IAMTokenManager
@@ -28,7 +28,8 @@ from lithops.constants import CACHE_DIR, COMPUTE_CLI_MSG
 from . import config
 
 logger = logging.getLogger(__name__)
-cf_mutex = Lock()
+# Reentrant: invoke() holds it while redeploying and deploy_runtime() refreshes the client under it
+cf_mutex = RLock()
 
 
 class IBMCloudFunctionsBackend:
@@ -95,20 +96,19 @@ class IBMCloudFunctionsBackend:
         Refresh the OW client if necessary
         """
         if not self.is_lithops_worker:
-            cf_mutex.acquire()
-            token, expiry_time = self.token_manager.get_token()
+            with cf_mutex:
+                token, expiry_time = self.token_manager.get_token()
 
-            if expiry_time != self.config['token_expiry_time']:
-                self.config['token'] = token
-                self.config['token_expiry_time'] = expiry_time
+                if expiry_time != self.config['token_expiry_time']:
+                    self.config['token'] = token
+                    self.config['token_expiry_time'] = expiry_time
 
-                self.cf_client = OpenWhiskClient(
-                    endpoint=self.endpoint,
-                    namespace=self.namespace_id,
-                    auth='Bearer ' + token,
-                    user_agent=self.user_agent
-                )
-            cf_mutex.release()
+                    self.cf_client = OpenWhiskClient(
+                        endpoint=self.endpoint,
+                        namespace=self.namespace_id,
+                        auth='Bearer ' + token,
+                        user_agent=self.user_agent
+                    )
 
     def _get_or_create_namespace(self, create=True):
         """
@@ -320,15 +320,14 @@ class IBMCloudFunctionsBackend:
             # Runtime not deployed
             if self.invoke_error is None:
                 self.invoke_error = 404
-            cf_mutex.acquire()
-            if self.invoke_error == 404:
-                logger.debug('Runtime not found')
-                self.deploy_runtime(
-                    docker_image_name, runtime_memory,
-                    self.config['runtime_timeout']
-                )
-                self.invoke_error = None
-            cf_mutex.release()
+            with cf_mutex:
+                if self.invoke_error == 404:
+                    logger.debug('Runtime not found')
+                    self.deploy_runtime(
+                        docker_image_name, runtime_memory,
+                        self.config['runtime_timeout']
+                    )
+                    self.invoke_error = None
             return self.invoke(docker_image_name, runtime_memory, payload)
 
         return activation_id
@@ -377,7 +376,7 @@ class IBMCloudFunctionsBackend:
                 if 'activationId' in runtime_meta:
                     retry_invoke = True
         except Exception as e:
-            raise (f"Unable to extract metadata: {e}")
+            raise Exception(f"Unable to extract metadata: {e}") from e
 
         if not runtime_meta or 'preinstalls' not in runtime_meta:
             raise Exception(runtime_meta)

@@ -137,8 +137,9 @@ def load_config(config_data):
                     "['m5.large','c5.xlarge'], ['m5'], or ['optimal']"
                 )
 
-    config_data['aws_batch']['max_workers'] = config_data['aws_batch']['env_max_cpus'] \
-        // config_data['aws_batch']['runtime_cpu']
+    config_data['aws_batch']['max_workers'] = int(
+        config_data['aws_batch']['env_max_cpus'] // config_data['aws_batch']['runtime_cpu']
+    )
 
     assert isinstance(config_data['aws_batch']['assign_public_ip'], bool)
 

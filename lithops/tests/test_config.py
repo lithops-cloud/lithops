@@ -291,6 +291,13 @@ class TestResolveModeAndBackend:
         assert backend is None
         assert mode == c.SERVERLESS
 
+    def test_an_empty_mode_section_uses_the_default_backend(self):
+        # 'standalone:' with no body in the YAML file loads as None
+        cfg = {'lithops': {'mode': c.STANDALONE}, c.STANDALONE: None}
+        backend, mode = _resolve_mode_and_backend(cfg)
+        assert backend == c.STANDALONE_BACKEND_DEFAULT
+        assert mode == c.STANDALONE
+
     def test_empty_string_backend_is_treated_as_missing(self):
         cfg = {'lithops': {'mode': c.LOCALHOST, 'backend': ''}}
         backend, mode = _resolve_mode_and_backend(cfg)

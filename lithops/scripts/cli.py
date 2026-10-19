@@ -829,6 +829,7 @@ def update(name, config, backend, storage, debug):
             continue
         runtime_key = handler.get_runtime_key(rt[0], rt[1], rt[2])
         runtime_meta = handler.deploy_runtime(rt[0], rt[1], runtime_timeout)
+        runtime_meta['runtime_timeout'] = runtime_timeout
         internal_storage.put_runtime_meta(runtime_key, runtime_meta)
 
     logger.info('Runtime updated')

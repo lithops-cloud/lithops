@@ -101,15 +101,20 @@ class AWSBatchBackend:
 
     def _format_jobdef_name(self, runtime_name, runtime_memory, version=__version__):
         fmt_runtime_name = runtime_name.replace('/', '--').replace(':', '--')
-        package = self.package.replace(__version__.replace(".", "-"), version.replace(".", "-"))
+        package = self.package.replace(
+            f'lithops_v{__version__.replace(".", "")}_', f'lithops_v{version.replace(".", "")}_', 1
+        )
         return f'{package}--{self.env_type}--{fmt_runtime_name}--{runtime_memory}mb'
 
     def _unformat_jobdef_name(self, jobdef_name):
-        # Default jobdef name is "lithops_v2-7-2_WU5O--FARGATE_SPOT--batch-default-runtime-v310--latest--1024mb"
+        # Default jobdef name is "lithops_v381dev0_wu5o--FARGATE_SPOT--batch-default-runtime-v310--latest--1024mb"
         prefix, env_type, runtime = jobdef_name.split('--', 2)
-        version = prefix.replace('lithops_v', '').split('_')[0].replace('-', '.')
+        version = prefix.replace('lithops_v', '', 1).split('_')[0]
+        # Job definition names cannot contain dots, so only the current version can be restored
+        if version == __version__.replace('.', ''):
+            version = __version__
         runtime_name, memory = runtime.rsplit("--", 1)
-        return runtime_name.replace('--', ':'), memory.replace('mb', ''), version
+        return runtime_name.replace('--', ':'), int(memory.replace('mb', '')), version
 
     def _build_default_runtime(self, runtime_name):
         # Build default runtime using local docker
@@ -258,6 +263,14 @@ class AWSBatchBackend:
             platform_capabilities = ['EC2']
         elif self.env_type in {'FARGATE', 'FARGATE_SPOT'}:
             platform_capabilities = ['FARGATE']
+            runtime_cpu = self.aws_batch_config['runtime_cpu']
+            mem_keys = batch_config.AVAILABLE_CPU_MEM_FARGATE.get(runtime_cpu, [])
+            if runtime_memory not in mem_keys:
+                raise Exception(
+                    f"'{runtime_memory}' runtime memory is not valid for {runtime_cpu} "
+                    f"vCPU and the {self.env_type} environment (for {runtime_cpu}vCPU "
+                    f"choose one of {', '.join(map(str, mem_keys))})"
+                )
         else:
             raise Exception(f'Unknown env type {self.env_type}')
 
@@ -276,7 +289,7 @@ class AWSBatchBackend:
                     },
                     {
                         'type': 'MEMORY',
-                        'value': str(self.aws_batch_config['runtime_memory'])
+                        'value': str(runtime_memory)
                     }
                 ],
             }
@@ -303,17 +316,23 @@ class AWSBatchBackend:
             logger.debug('Using existing Job Definition {}'.format(job_def_name))
 
     def _get_job_def(self, jd_name=None):
-        res = self.batch_client.describe_job_definitions(status='ACTIVE')
-
-        if res['ResponseMetadata']['HTTPStatusCode'] != 200:
-            raise Exception(res)
+        all_job_defs = []
+        kwargs = {'status': 'ACTIVE'}
+        while True:
+            res = self.batch_client.describe_job_definitions(**kwargs)
+            if res['ResponseMetadata']['HTTPStatusCode'] != 200:
+                raise Exception(res)
+            all_job_defs.extend(res['jobDefinitions'])
+            if not res.get('nextToken'):
+                break
+            kwargs['nextToken'] = res['nextToken']
 
         if jd_name is None:
-            job_defs = [jd for jd in res['jobDefinitions']
+            job_defs = [jd for jd in all_job_defs
                         if self.package in jd['jobDefinitionName']]
             return job_defs
 
-        job_defs = [jd for jd in res['jobDefinitions'] if jd['jobDefinitionName'] == jd_name]
+        job_defs = [jd for jd in all_job_defs if jd['jobDefinitionName'] == jd_name]
         if len(job_defs) == 0:
             return None
         if len(job_defs) == 1:
@@ -428,6 +447,9 @@ class AWSBatchBackend:
     def delete_runtime(self, runtime_name, runtime_memory, version=__version__):
         jobdef_name = self._format_jobdef_name(runtime_name, runtime_memory, version)
         job_def = self._get_job_def(jobdef_name)
+        if job_def is None:
+            logger.info(f'Job definition {jobdef_name} does not exist')
+            return
 
         logger.info('Deleting job definition with ARN {}'.format(job_def['jobDefinitionArn']))
         res = self.batch_client.deregister_job_definition(jobDefinition=job_def['jobDefinitionArn'])
@@ -527,8 +549,8 @@ class AWSBatchBackend:
         executor_id = payload['executor_id']
         job_id = payload['job_id']
         total_calls = payload['total_calls']
-        max_workers = payload['max_workers']
-        chunksize = payload['chunksize']
+        max_workers = int(payload['max_workers'])
+        chunksize = int(payload['chunksize'])
 
         # Make sure only max_workers are started
         total_workers = total_calls // chunksize + (total_calls % chunksize > 0)

@@ -333,6 +333,24 @@ class TestHelloAndClean:
         assert missing.is_dir()
 
 
+class TestRuntimeUpdate:
+
+    def test_update_caches_the_runtime_timeout_like_deploy(self):
+        # job.py reads runtime_timeout from the cached metadata
+        handler = MagicMock()
+        handler.get_runtime_info.return_value = {'runtime_name': 'rt', 'runtime_timeout': 600}
+        handler.list_runtimes.return_value = [('rt', 256, cli_module.__version__, 'w')]
+        handler.get_runtime_key.return_value = 'key'
+        handler.deploy_runtime.return_value = {'preinstalls': []}
+        internal_storage = MagicMock()
+        with patch('lithops.scripts.cli._prepare_serverless', return_value=(handler, internal_storage)):
+            result = _cli('runtime', 'update', 'rt')
+        assert result.exit_code == 0, result.output
+        internal_storage.put_runtime_meta.assert_called_once_with(
+            'key', {'preinstalls': [], 'runtime_timeout': 600}
+        )
+
+
 class TestJobWorkerList:
 
     def test_job_list_empty_does_not_crash(self):

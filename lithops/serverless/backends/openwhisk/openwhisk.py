@@ -213,6 +213,17 @@ class OpenWhiskBackend:
         activation_id = self.cf_client.invoke(self.package, action_name,
                                               payload, self.is_lithops_worker)
 
+        if activation_id == 401:
+            raise Exception(
+                f"Unauthorized invocation of {self.package}/{action_name} in namespace "
+                f"{self.namespace}: check the openwhisk api_key"
+            )
+        elif activation_id == 404:
+            raise Exception(
+                f"Action {self.package}/{action_name} is not deployed in namespace {self.namespace}. "
+                "Run 'lithops clean -b openwhisk' and try again to redeploy the runtime"
+            )
+
         return activation_id
 
     def get_runtime_key(self, docker_image_name, runtime_memory, version=__version__):
@@ -258,7 +269,7 @@ class OpenWhiskBackend:
                 if 'activationId' in runtime_meta:
                     retry_invoke = True
         except Exception as e:
-            raise (f"Unable to extract metadata: {e}")
+            raise Exception(f"Unable to extract metadata: {e}") from e
 
         if not runtime_meta or 'preinstalls' not in runtime_meta:
             raise Exception(runtime_meta)

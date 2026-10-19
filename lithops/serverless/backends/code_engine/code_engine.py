@@ -465,7 +465,8 @@ class CodeEngineBackend:
         Waits until a job run completes or raises if it fails
         """
         logger.debug(f"Waiting for job run {jobrun_name}")
-        while True:
+        deadline = time.time() + config.JOB_RUN_TIMEOUT
+        while time.time() < deadline:
             try:
                 job_run = self.ce_client.get_job_run(self.project_id, jobrun_name).get_result()
             except ApiException as e:
@@ -484,6 +485,10 @@ class CodeEngineBackend:
                     + (f": {reason}" if reason else '')
                 )
             time.sleep(config.JOB_RUN_POLL_INTERVAL)
+
+        raise Exception(
+            f"Timed out after {config.JOB_RUN_TIMEOUT}s waiting for job run {jobrun_name} to complete"
+        )
 
     @retry_on_except
     def _create_config_map(self, config_map_name, payload):
@@ -504,6 +509,7 @@ class CodeEngineBackend:
                 self.ce_client.replace_config_map(
                     self.project_id,
                     config_map_name,
+                    if_match='*',
                     data=data,
                 )
             else:
@@ -687,7 +693,13 @@ class CodeEngineBackend:
             if e.status_code != 404:
                 raise e
 
+        deadline = time.time() + config.JOB_DEF_DELETE_TIMEOUT
         while self._job_def_exists(jobdef_name):
+            if time.time() >= deadline:
+                raise Exception(
+                    f"Timed out after {config.JOB_DEF_DELETE_TIMEOUT}s waiting for job definition "
+                    f"{jobdef_name} to be deleted"
+                )
             time.sleep(1)
 
         kwargs = {
@@ -791,7 +803,7 @@ class CodeEngineBackend:
             logger.info(f"Project {self.project_name} does not exist")
             return
 
-        for job_key in job_keys or self.jobs:
+        for job_key in list(job_keys or self.jobs):
             jobrun_name = f'lithops-{job_key.lower()}'
             self._delete_job_run(jobrun_name)
             self._delete_config_map(jobrun_name)

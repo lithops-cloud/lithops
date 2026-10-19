@@ -179,7 +179,7 @@ def _resolve_mode_and_backend(config_data):
     mode = lithops_cfg.get('mode')
 
     if mode and not backend:
-        if mode in config_data and 'backend' in config_data[mode]:
+        if 'backend' in (config_data.get(mode) or {}):
             lithops_cfg['backend'] = config_data[mode]['backend']
         else:
             lithops_cfg['backend'] = get_default_backend(mode)
