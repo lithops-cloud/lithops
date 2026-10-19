@@ -242,14 +242,14 @@ class TestCreateMapJob:
         assert job.chunksize == 7
 
     def test_serverless_clamps_timeout(self):
-        cfg = _job_config(mode=SERVERLESS, backend='ibm_cf')
+        cfg = _job_config(mode=SERVERLESS, backend='openwhisk')
         job = _make_map_job(config=cfg, execution_timeout=100)
         assert job.runtime_memory == 256
         assert job.runtime_timeout == 30
         assert job.execution_timeout == 25
 
     def test_serverless_keeps_timeout_below_runtime(self):
-        cfg = _job_config(mode=SERVERLESS, backend='ibm_cf')
+        cfg = _job_config(mode=SERVERLESS, backend='openwhisk')
         job = _make_map_job(config=cfg, execution_timeout=10, runtime_memory=512)
         assert job.runtime_memory == 512
         assert job.execution_timeout == 10

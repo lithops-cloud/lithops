@@ -1235,7 +1235,6 @@ class TestIbmCosConfig:
         return config['ibm_cos']
 
     @pytest.mark.parametrize('backend, private_endpoint', [
-        ('ibm_cf', 'https://s3.private.eu-de.cloud-object-storage.appdomain.cloud'),
         ('code_engine', 'https://s3.direct.eu-de.cloud-object-storage.appdomain.cloud'),
         ('ibm_vpc', 'https://s3.direct.eu-de.cloud-object-storage.appdomain.cloud'),
         ('localhost', None),
@@ -1246,8 +1245,7 @@ class TestIbmCosConfig:
         assert cos.get('private_endpoint') == private_endpoint
 
     @pytest.mark.parametrize('backend, private_endpoint, error', [
-        ('ibm_cf', None, 'You must provide the private_endpoint'),
-        ('ibm_cf', 'https://s3.direct.x', 'is not valid$'),
+        ('code_engine', None, 'You must provide the private_endpoint'),
         ('code_engine', 'https://s3.private.x', 'is not valid$'),
         ('ibm_vpc', 'https://s3.private.x', 'is not valid. You must use the "direct" endpoint$'),
         ('ibm_vpc', 's3.direct.x', 'Private Endpoint must start with http'),

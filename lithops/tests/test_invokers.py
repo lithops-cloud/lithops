@@ -145,8 +145,8 @@ def _bare_invoker(**attrs):
         },
         compute_handler=MagicMock(),
         internal_storage=MagicMock(),
-        config={'lithops': {'mode': SERVERLESS, 'backend': 'ibm_cf'}, 'ibm_cf': {}},
-        backend='ibm_cf',
+        config={'lithops': {'mode': SERVERLESS, 'backend': 'openwhisk'}, 'openwhisk': {}},
+        backend='openwhisk',
         include_function=False,
         telemetry=MagicMock(),
         job_monitor=MagicMock(),
@@ -744,19 +744,19 @@ class TestFaaSInvokerInit:
         return handler
 
     def _config(self, **backend):
-        ibm_cf = {
+        openwhisk = {
             'invoke_pool_threads': 4,
             'remote_invoker': False,
         }
-        ibm_cf.update(backend)
+        openwhisk.update(backend)
         return {
             'lithops': {
                 'mode': SERVERLESS,
-                'backend': 'ibm_cf',
+                'backend': 'openwhisk',
                 'storage': 'localhost',
                 'telemetry': False,
             },
-            'ibm_cf': ibm_cf,
+            'openwhisk': openwhisk,
             'localhost': {'storage_bucket': 'test-bucket'},
         }
 

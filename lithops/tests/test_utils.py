@@ -577,10 +577,10 @@ class TestMiscUtils:
 
     def test_get_default_container_name_variants(self):
         cfg = {'docker_server': 'docker.io', 'docker_user': 'alice'}
-        name = get_default_container_name('ibm_cf', cfg, 'lithops')
+        name = get_default_container_name('openwhisk', cfg, 'lithops')
         assert name.startswith('docker.io/alice/lithops-v')
         cfg = {'docker_server': 'icr.io', 'docker_namespace': 'ns'}
-        name = get_default_container_name('ibm_cf', cfg, 'lithops')
+        name = get_default_container_name('openwhisk', cfg, 'lithops')
         assert name.startswith('icr.io/ns/lithops-v')
         cfg = {
             'docker_server': 'us-docker.pkg.dev',
@@ -595,7 +595,7 @@ class TestMiscUtils:
 
     def test_get_default_container_name_missing_docker_user(self):
         with pytest.raises(Exception, match='docker_user'):
-            get_default_container_name('ibm_cf', {'docker_server': 'docker.io'}, 'r')
+            get_default_container_name('openwhisk', {'docker_server': 'docker.io'}, 'r')
 
     def test_is_podman(self, monkeypatch):
         monkeypatch.setattr(

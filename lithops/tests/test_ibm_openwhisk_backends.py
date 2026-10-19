@@ -1,6 +1,6 @@
 #
-# Unit tests for the IBM Cloud Functions, OpenWhisk, Code Engine and Singularity
-# backend internals. No cloud account required; the clients are mocked.
+# Unit tests for the OpenWhisk, Code Engine and Singularity backend internals.
+# No cloud account required; the clients are mocked.
 #
 
 import threading
@@ -9,9 +9,6 @@ from unittest.mock import MagicMock, create_autospec
 
 import pytest
 
-from lithops.serverless.backends.ibm_cf import config as cf_config
-from lithops.serverless.backends.ibm_cf import ibm_cf
-from lithops.serverless.backends.ibm_cf.ibm_cf import IBMCloudFunctionsBackend
 from lithops.serverless.backends.openwhisk.openwhisk import OpenWhiskBackend
 
 THREAD_TIMEOUT = 10
@@ -34,68 +31,20 @@ def _run_in_thread(target, *args):
     return result
 
 
-def _make_cf_backend():
-    backend = IBMCloudFunctionsBackend.__new__(IBMCloudFunctionsBackend)
-    backend.name = 'ibm_cf'
-    backend.config = {'runtime_timeout': 600, 'token_expiry_time': 'expiry'}
-    backend.is_lithops_worker = False
-    backend.package = 'lithops_abcd'
-    backend.namespace_id = 'ns-id'
-    backend.invoke_error = None
-    backend.token_manager = MagicMock()
-    backend.token_manager.get_token.return_value = ('token', 'expiry')
-    backend.cf_client = MagicMock()
-    return backend
-
-
 def _make_ow_backend():
     backend = OpenWhiskBackend.__new__(OpenWhiskBackend)
     backend.name = 'openwhisk'
     backend.namespace = 'guest'
     backend.package = 'lithops_abcde'
+    backend.user_key = 'abcde'
     backend.is_lithops_worker = False
+    backend.ow_config = {'runtime_timeout': 300}
     backend.cf_client = MagicMock()
     return backend
 
 
-# IBM Cloud Functions
-
-
-def _cf_mutex_is_free():
-    if not ibm_cf.cf_mutex.acquire(timeout=1):
-        return False
-    ibm_cf.cf_mutex.release()
-    return True
-
-
-def test_ibm_cf_redeploy_on_404_does_not_deadlock(monkeypatch, tmp_path):
-    monkeypatch.setattr(cf_config, 'FH_ZIP_LOCATION', str(tmp_path / 'lithops_cf.zip'))
-    backend = _make_cf_backend()
-    backend.cf_client.invoke.side_effect = [404, 'activation-id']
-    backend.cf_client.invoke_with_result.return_value = {'preinstalls': []}
-
-    result = _run_in_thread(backend.invoke, 'lithops-cf-runtime', 256, {})
-
-    assert result == {'value': 'activation-id'}
-    backend.cf_client.create_action.assert_called_once()
-    assert backend.invoke_error is None
-    assert _run_in_thread(_cf_mutex_is_free) == {'value': True}
-
-
-def test_ibm_cf_redeploy_failure_releases_lock(monkeypatch):
-    backend = _make_cf_backend()
-    backend.cf_client.invoke.return_value = 404
-    monkeypatch.setattr(backend, 'deploy_runtime', MagicMock(side_effect=RuntimeError('deploy failed')))
-
-    result = _run_in_thread(backend.invoke, 'lithops-cf-runtime', 256, {})
-    assert isinstance(result.get('error'), RuntimeError)
-
-    assert _run_in_thread(_cf_mutex_is_free) == {'value': True}
-
-
-@pytest.mark.parametrize('make_backend', [_make_cf_backend, _make_ow_backend])
-def test_runtime_meta_error_is_raised_as_exception(make_backend):
-    backend = make_backend()
+def test_runtime_meta_error_is_raised_as_exception():
+    backend = _make_ow_backend()
     backend.cf_client.invoke_with_result.side_effect = ValueError('connection refused')
 
     with pytest.raises(Exception, match='Unable to extract metadata: connection refused') as excinfo:
@@ -128,6 +77,48 @@ def test_openwhisk_invoke_throttled_returns_none():
     backend.cf_client.invoke.return_value = None
 
     assert backend.invoke('lithops-ow-runtime', 256, {}) is None
+
+
+@pytest.mark.parametrize('image, memory', [
+    ('docker.io/lithopscloud/openwhisk-python-v312:latest', 256),
+    ('localhost:5000/ns/img:1.2', 512),
+    ('user/name', 128),
+])
+def test_openwhisk_action_name_round_trip(image, memory):
+    backend = _make_ow_backend()
+    name = backend._format_function_name(image, memory, '3.8.1.dev0')
+    assert backend._unformat_function_name(name) == ('3.8.1.dev0', image, memory)
+
+
+def test_openwhisk_list_runtimes_skips_foreign_actions():
+    backend = _make_ow_backend()
+    good = backend._format_function_name('docker.io/ns/rt:1', 256, '3.8.0')
+    backend.cf_client.list_packages.return_value = [{'name': backend.package}, {'name': 'other'}]
+    backend.cf_client.list_actions.return_value = [{'name': good}, {'name': 'hello'}]
+
+    assert backend.list_runtimes() == [('docker.io/ns/rt:1', 256, '3.8.0', good)]
+
+
+def test_openwhisk_clean_deletes_each_action_once():
+    backend = _make_ow_backend()
+    backend.cf_client.list_packages.return_value = [{'name': backend.package}]
+    backend.cf_client.list_actions.return_value = [{'name': 'a'}, {'name': 'b'}]
+
+    backend.clean()
+
+    assert backend.cf_client.delete_action.call_count == 2
+    backend.cf_client.delete_package.assert_called_once_with(backend.package)
+
+
+def test_openwhisk_runtime_meta_waits_once():
+    backend = _make_ow_backend()
+    backend.cf_client.invoke_with_result.return_value = {'preinstalls': ['requests']}
+
+    assert backend._generate_runtime_meta('ns/rt:1', 256) == {'preinstalls': ['requests']}
+
+    _, kwargs = backend.cf_client.invoke_with_result.call_args
+    assert kwargs['timeout'] == 480
+    assert backend.cf_client.invoke_with_result.call_count == 1
 
 
 # Code Engine
