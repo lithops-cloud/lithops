@@ -1,8 +1,6 @@
-# Python 3.10
-#FROM python:3.10-slim-bookworm
-
-# Python 3.11
-FROM python:3.11-slim-bookworm
+# Python 3.10 to 3.14, for example: --build-arg PYTHON_VERSION=3.13
+ARG PYTHON_VERSION=3.11
+FROM python:${PYTHON_VERSION}-slim-bookworm
 
 ENV FLASK_PROXY_PORT=8080
 
@@ -16,7 +14,7 @@ RUN apt-get update \
     && apt-cache search linux-headers-generic
 
 COPY requirements.txt requirements.txt
-RUN pip install --upgrade pip setuptools six && pip install --no-cache-dir -r requirements.txt
+RUN pip install --upgrade pip setuptools six && pip install --no-cache-dir --prefer-binary -r requirements.txt
 
 # create action working directory
 RUN mkdir -p /action \

@@ -19,7 +19,9 @@ import os
 AVAILABLE_PY_RUNTIMES = {
     '3.10': 'docker.io/lithopscloud/openwhisk-python-v310',
     '3.11': 'docker.io/lithopscloud/openwhisk-python-v311',
-    '3.12': 'docker.io/lithopscloud/openwhisk-python-v312'
+    '3.12': 'docker.io/lithopscloud/openwhisk-python-v312',
+    '3.13': 'docker.io/lithopscloud/openwhisk-python-v313',
+    '3.14': 'docker.io/lithopscloud/openwhisk-python-v314',
 }
 
 DEFAULT_CONFIG_KEYS = {
@@ -27,7 +29,7 @@ DEFAULT_CONFIG_KEYS = {
     'runtime_memory': 256,  # Default memory: 256 MB
     'max_workers': 100,
     'worker_processes': 1,
-    'invoke_pool_threads': 500,
+    'invoke_pool_threads': 100,
     'docker_server': 'docker.io'
 }
 

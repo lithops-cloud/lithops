@@ -51,6 +51,11 @@ logger = logging.getLogger(__name__)
 
 _CURL_BODY_INLINE_LIMIT = 130000
 
+_WORKER_CONNECT_TIMEOUT = 10
+_WORKER_READ_TIMEOUT = 60
+# The master pulls and runs the runtime image before it answers
+_WORKER_SLOW_ENDPOINTS = {'metadata'}
+
 
 class StandaloneHandler:
     """
@@ -127,10 +132,12 @@ class StandaloneHandler:
     def _request_from_worker(self, method: str, endpoint: str, data=None):
         """Calls the master service over HTTP, from inside the network"""
         url = self._master_url(endpoint)
+        read_timeout = None if endpoint in _WORKER_SLOW_ENDPOINTS else _WORKER_READ_TIMEOUT
+        timeout = (_WORKER_CONNECT_TIMEOUT, read_timeout)
         if method == 'GET':
-            resp = requests.get(url, data=json.dumps(data), timeout=1)
+            resp = requests.get(url, data=json.dumps(data), timeout=timeout)
         elif method == 'POST':
-            resp = requests.post(url, data=json.dumps(data))
+            resp = requests.post(url, data=json.dumps(data), timeout=timeout)
         else:
             raise ValueError(f'Unsupported HTTP method: {method}')
         if not resp.content:

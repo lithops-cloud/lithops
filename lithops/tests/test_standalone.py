@@ -1057,6 +1057,21 @@ class TestStandaloneHandler:
             }
         assert 'lithops-master' in get.call_args[0][0]
 
+    def test_request_from_worker_gives_the_master_time_to_answer(self):
+        handler = _make_handler()
+        handler.is_lithops_worker = True
+        with patch('lithops.standalone.standalone.requests.get') as get:
+            get.return_value.json.return_value = []
+            handler._make_request('GET', 'worker/list')
+            assert get.call_args.kwargs['timeout'] == (10, 60)
+            get.return_value.json.return_value = {'preinstalls': []}
+            handler._make_request('GET', 'metadata', {'runtime': 'img'})
+            assert get.call_args.kwargs['timeout'] == (10, None)
+        with patch('lithops.standalone.standalone.requests.post') as post:
+            post.return_value.content = b''
+            handler._make_request('POST', 'clean')
+            assert post.call_args.kwargs['timeout'] == (10, 60)
+
     def test_request_from_worker_accepts_an_empty_post_body(self):
         handler = _make_handler()
         handler.is_lithops_worker = True

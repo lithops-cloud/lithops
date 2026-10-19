@@ -46,10 +46,12 @@ fexec = lithops.FunctionExecutor(runtime_memory=512)
         $ docker login
 
     Navigate to [openwhisk/](openwhisk/) and update the Dockerfile that better fits to your requirements with your required system packages and Python modules.
-    If you need another Python version, for example Python v3.12, you must use this [Dockerfile](openwhisk/Dockerfile) that
-    points to a source image based on Python 3.12. Finally run the build script:
+    The [Dockerfile](Dockerfile) builds on Python 3.11. For another Python version, for example Python 3.13, pass it as a
+    build argument. Finally run the build script:
 
         $ lithops runtime build -b openwhisk docker_username/runtimename:tag
+
+        $ lithops runtime build -b openwhisk docker_username/runtimename:tag --build-arg PYTHON_VERSION=3.13
 
     Note that Docker Hub image names look like *"docker_username/runtimename:tag"* and must be all lower case, for example:
 

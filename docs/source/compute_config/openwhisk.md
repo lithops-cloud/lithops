@@ -99,12 +99,12 @@ Shut it down with `docker exec openwhisk stop`, which also removes the action co
 |openwhisk | namespace | |yes | Namespace |
 |openwhisk | api_key | |yes | API Auth|
 |openwhisk | insecure | False |no | Skip TLS verification. Leave false for an `http://` endpoint |
-|openwhisk | max_workers | 100 | no | Max number of workers per `FunctionExecutor()`|
+|openwhisk | max_workers | 100 | no | Max number of workers per `FunctionExecutor()`. Keep it within the concurrent invocations the namespace allows: the invocations over that limit are rejected and retried |
 |openwhisk | worker_processes | 1 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker |
 |openwhisk | runtime |  |no | Docker image name |
 |openwhisk | runtime_memory | 256 |no | Memory limit in MB. Default 256MB |
 |openwhisk | runtime_timeout | 300 |no | Runtime timeout in seconds. Default 5 minutes |
-|openwhisk | invoke_pool_threads | 500 |no | Number of concurrent threads used for invocation |
+|openwhisk | invoke_pool_threads | 100 |no | Number of concurrent threads used for invocation |
 |openwhisk | runtime_include_function | False | no | If set to true, Lithops will automatically build a new runtime, including the function's code, instead of transferring it through the storage backend at invocation time. This is useful when the function's code size is large (on the order of tens of MB) and the code does not change frequently |
 
 ## Test Lithops
