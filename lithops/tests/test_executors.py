@@ -583,6 +583,18 @@ class TestWaitAndGetResult:
         assert isinstance(cleanup.call_args.kwargs['exception'], RuntimeError)
 
     @patch('lithops.executors.wait', side_effect=TimeoutError('late'))
+    def test_a_timed_out_wait_drops_queued_invocations(self, mock_wait):
+        """
+        Cancelling on timeout used to leave the queued chunks in the
+        invoker, which kept invoking them after the futures were dropped
+        """
+        future = FakeFuture()
+        executor = _bare_executor()
+        with pytest.raises(TimeoutError):
+            executor.wait([future], show_progressbar=False)
+        executor.invoker.discard_pending.assert_called_once_with({future.job_key})
+
+    @patch('lithops.executors.wait', side_effect=TimeoutError('late'))
     def test_a_failed_wait_only_cleans_the_jobs_it_waited_on(self, mock_wait):
         """
         A timeout waiting on one job used to delete the data of every job

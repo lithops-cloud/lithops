@@ -439,6 +439,54 @@ class TestGcpFunctionsDeploy:
         with pytest.raises(Exception, match='metadata down'):
             backend.deploy_runtime('rt', 256, 60)
 
+    def test_https_invoke_waits_as_long_as_the_runtime(self, monkeypatch):
+        backend = self._backend()
+        backend.gcf_config = {'runtime_timeout': 300}
+        backend._format_function_name = lambda runtime_name, memory: 'fn'
+        backend._get_token = lambda function_name: ('https://fn', 'tok')
+        seen = {}
+
+        def post(url, data, headers, timeout):
+            seen['timeout'] = timeout
+            return SimpleNamespace(status_code=202, json=lambda: {'activationId': 'act'})
+
+        monkeypatch.setattr(
+            'lithops.serverless.backends.gcp_functions.gcp_functions.requests.post', post
+        )
+        assert backend.invoke('rt', 256, {}) == 'act'
+        assert seen['timeout'] == 330
+
+    def test_functions_past_the_first_page_are_listed(self):
+        pytest.importorskip('googleapiclient')
+        from lithops.serverless.backends.gcp_functions.gcp_functions import GCPFunctionsBackend
+        backend = GCPFunctionsBackend.__new__(GCPFunctionsBackend)
+        backend.num_retries = 0
+        backend.project_name = 'p'
+        backend.region = 'l'
+        backend._api_resource = MagicMock()
+        list_call = (
+            backend._api_resource.projects.return_value.locations.return_value
+            .functions.return_value.list
+        )
+
+        def fn(name):
+            return {
+                'name': f'projects/p/locations/l/functions/{name}',
+                'labels': {
+                    'type': 'lithops-runtime',
+                    'lithops_version': '3-8-1-dev0',
+                    'runtime_name': 'rt',
+                },
+                'serviceConfig': {'availableMemory': '256M'},
+            }
+
+        list_call.return_value.execute.side_effect = [
+            {'functions': [fn('a')], 'nextPageToken': 'tok'},
+            {'functions': [fn('b')]},
+        ]
+        assert [row[3] for row in backend.list_runtimes()] == ['a', 'b']
+        assert list_call.call_args_list[1].kwargs['pageToken'] == 'tok'
+
 
 class TestCloudRunDeployAndDelete:
 
@@ -502,3 +550,46 @@ class TestCloudRunDeployAndDelete:
         with pytest.raises(Exception):
             backend._delete_service('svc')
         services.get.assert_not_called()
+
+    def test_invoke_waits_as_long_as_the_runtime(self, monkeypatch):
+        backend = self._backend()
+        backend.cr_config = {'runtime_timeout': 300}
+        backend._format_image_name = lambda runtime_name: 'img'
+        backend._format_service_name = lambda img_name, memory: 'svc'
+        backend._get_url_and_token = lambda service_name: ('https://svc', 'tok')
+        seen = {}
+
+        def post(url, data, headers, timeout):
+            seen['timeout'] = timeout
+            return SimpleNamespace(status_code=202, json=lambda: {'activationId': 'act'})
+
+        monkeypatch.setattr(
+            'lithops.serverless.backends.gcp_cloudrun.cloudrun.requests.post', post
+        )
+        assert backend.invoke('rt', 256, {}) == 'act'
+        assert seen['timeout'] == 330
+
+    def test_services_past_the_first_page_are_listed(self):
+        backend = self._backend()
+        services = backend._api_resource.namespaces.return_value.services.return_value
+
+        def item(name):
+            return {
+                'metadata': {'name': name},
+                'spec': {'template': {
+                    'metadata': {'labels': {
+                        'type': 'lithops-runtime', 'lithops-version': '3-8-1-dev0',
+                    }},
+                    'spec': {'containers': [{
+                        'image': f'img-{name}',
+                        'resources': {'limits': {'memory': '256Mi'}},
+                    }]},
+                }},
+            }
+
+        services.list.return_value.execute.side_effect = [
+            {'items': [item('a')], 'metadata': {'continue': 'tok'}},
+            {'items': [item('b')]},
+        ]
+        assert [row[3] for row in backend.list_runtimes()] == ['a', 'b']
+        assert services.list.call_args_list[1].kwargs['continue_'] == 'tok'

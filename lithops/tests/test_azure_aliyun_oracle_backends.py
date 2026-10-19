@@ -308,3 +308,37 @@ def test_oracle_invoke_uses_function_of_its_runtime_memory(monkeypatch):
     backend.invoke_functions.clear()
     assert backend.invoke('rt', 256, {}) == 'call-fn-256'
     assert invoked == [('https://fn-256', 'fn-256'), ('https://fn-1024', 'fn-1024'), ('https://fn-256', 'fn-256')]
+
+
+def test_oracle_lists_functions_past_the_first_page():
+    pytest.importorskip('oci')
+    from lithops.serverless.backends.oracle_f import oracle_f
+
+    backend = oracle_f.OracleCloudFunctionsBackend.__new__(oracle_f.OracleCloudFunctionsBackend)
+    backend.app_id = 'app-id'
+
+    def function(name):
+        return types.SimpleNamespace(
+            display_name=name, memory_in_mbs=256, image=f'img-{name}',
+            freeform_tags={'lithops_version': '3.8.1'},
+        )
+
+    pages = {
+        None: types.SimpleNamespace(
+            data=[function('lithops-worker-a')], next_page='p2'
+        ),
+        'p2': types.SimpleNamespace(
+            data=[function('lithops-worker-b')], next_page=None
+        ),
+    }
+    seen = []
+
+    def list_functions(app_id, page=None):
+        seen.append(page)
+        return pages[page]
+
+    backend.cf_client = types.SimpleNamespace(list_functions=list_functions)
+    assert [row[3] for row in backend.list_runtimes()] == [
+        'lithops-worker-a', 'lithops-worker-b'
+    ]
+    assert seen == [None, 'p2']

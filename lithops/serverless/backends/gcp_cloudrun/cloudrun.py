@@ -316,11 +316,13 @@ class GCPCloudRunBackend:
             "Authorization": f"Bearer {id_token}",
             "Content-Type": "application/json"
         }
+        # The service runs the call inside this request and only then
+        # returns the activation id, so the client has to outlast runtime_timeout
         response = requests.post(
             service_url + route,
             data=json.dumps(payload, default=str),
             headers=headers,
-            timeout=120
+            timeout=self.cr_config.get('runtime_timeout', 300) + 30
         )
 
         if response.status_code in (200, 202):
@@ -501,17 +503,24 @@ class GCPCloudRunBackend:
                     return
                 raise
 
+    def _list_services(self):
+        """Every service in the project, following metadata.continue"""
+        services = []
+        token = None
+        while True:
+            kwargs = {'parent': f'namespaces/{self.project_name}'}
+            if token:
+                kwargs['continue_'] = token
+            res = self._api_resource.namespaces().services().list(**kwargs).execute()
+            services.extend(res.get('items', []))
+            token = (res.get('metadata') or {}).get('continue')
+            if not token:
+                return services
+
     def clean(self, **kwargs):
         logger.debug('Going to delete all deployed runtimes')
 
-        res = self._api_resource.namespaces().services().list(
-            parent=f'namespaces/{self.project_name}',
-        ).execute()
-
-        if 'items' not in res:
-            return
-
-        for item in res['items']:
+        for item in self._list_services():
             labels = item['spec']['template']['metadata']['labels']
             if labels and 'type' in labels and labels['type'] == 'lithops-runtime':
                 container = item['spec']['template']['spec']['containers'][0]
@@ -523,15 +532,8 @@ class GCPCloudRunBackend:
     def list_runtimes(self, runtime_name='all'):
         logger.debug('Listing runtimes')
 
-        res = self._api_resource.namespaces().services().list(
-            parent=f'namespaces/{self.project_name}',
-        ).execute()
-
-        if 'items' not in res:
-            return []
-
         runtimes = []
-        for item in res['items']:
+        for item in self._list_services():
             labels = item['spec']['template']['metadata']['labels']
             wk_name = item['metadata']['name']
             if labels and 'type' in labels and labels['type'] == 'lithops-runtime':

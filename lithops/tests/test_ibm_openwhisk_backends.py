@@ -110,6 +110,19 @@ def test_openwhisk_clean_deletes_each_action_once():
     backend.cf_client.delete_package.assert_called_once_with(backend.package)
 
 
+def test_openwhisk_build_runtime_uses_the_host_architecture(monkeypatch):
+    from lithops.serverless.backends.openwhisk import openwhisk
+    backend = _make_ow_backend()
+    backend.ow_config = {}
+    commands = []
+    monkeypatch.setattr(openwhisk.utils, 'get_docker_path', lambda: 'docker')
+    monkeypatch.setattr(openwhisk.utils, 'is_podman', lambda path: False)
+    monkeypatch.setattr(openwhisk.utils, 'run_command', commands.append)
+    backend.build_runtime('user/rt:1', None, ['--platform', 'linux/amd64'])
+    assert commands[0] == 'docker build -t user/rt:1 . --platform linux/amd64'
+    assert '--platform=linux/amd64' not in commands[0]
+
+
 def test_openwhisk_runtime_meta_waits_once():
     backend = _make_ow_backend()
     backend.cf_client.invoke_with_result.return_value = {'preinstalls': ['requests']}
@@ -140,6 +153,15 @@ def ce():
     backend.jobs = []
     backend.ce_client = create_autospec(CodeEngineV2, instance=True)
     return types.SimpleNamespace(backend=backend, module=code_engine, ApiException=ApiException)
+
+
+def test_code_engine_lists_jobs_past_the_first_page(ce):
+    ce.backend.ce_client.list_jobs.side_effect = [
+        MagicMock(**{'get_result.return_value': {'jobs': [{'name': 'a'}], 'next': {'start': 's'}}}),
+        MagicMock(**{'get_result.return_value': {'jobs': [{'name': 'b'}]}}),
+    ]
+    assert [job['name'] for job in ce.backend._list_jobs()] == ['a', 'b']
+    assert ce.backend.ce_client.list_jobs.call_args_list[1].kwargs['start'] == 's'
 
 
 def test_code_engine_clear_removes_all_jobs(ce, monkeypatch):

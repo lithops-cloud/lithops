@@ -748,6 +748,35 @@ class TestVMInitRollback:
         with pytest.raises(ValueError, match='No spot price history for worker instance type t2.micro'):
             backend._request_spot_price()
 
+    def test_delete_vms_reads_every_page_of_instances(self):
+        from lithops.standalone.backends.aws_ec2.aws_ec2 import AWSEC2Backend
+        backend = AWSEC2Backend.__new__(AWSEC2Backend)
+        backend.vpc_name = 'lithops-vpc'
+        backend.ec2_data = {
+            'vpc_id': 'vpc-1', 'vpc_data_type': 'provided', 'master_name': 'master',
+        }
+        backend.cache_dir = '/tmp'
+        backend.ec2_client = MagicMock()
+
+        def instance(instance_id, name):
+            return {
+                'InstanceId': instance_id,
+                'State': {'Name': 'running'},
+                'VpcId': 'vpc-1',
+                'Tags': [{'Key': 'Name', 'Value': name}],
+            }
+
+        backend.ec2_client.get_paginator.return_value.paginate.return_value = [
+            {'Reservations': [{'Instances': [instance('i-1', 'lithops-worker-a')]}]},
+            {'Reservations': [{'Instances': [
+                instance('i-2', 'lithops-worker-b'), instance('i-3', 'other'),
+            ]}]},
+        ]
+        backend._delete_vm_instances()
+        backend.ec2_client.terminate_instances.assert_called_once_with(
+            InstanceIds=['i-1', 'i-2']
+        )
+
     def test_ibm_deletes_a_local_ssh_key_that_could_not_be_registered(self, tmp_path):
         backend, load_data, _, _, _, deletes = _ibm_backend_for_init()
         from ibm_cloud_sdk_core import ApiException

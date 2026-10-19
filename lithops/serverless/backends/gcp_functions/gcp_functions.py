@@ -224,17 +224,13 @@ class GCPFunctionsBackend:
 
         logger.debug(f"Creating function {function_location}")
 
-        fn_list_response = self._api_resource.projects().locations().functions().list(
-            parent=self._default_location
-        ).execute(num_retries=self.num_retries)
-        if 'functions' in fn_list_response:
-            deployed_functions = [fn['name'] for fn in fn_list_response['functions']]
-            if function_location in deployed_functions:
-                logger.debug(f"Function {function_location} already exists - Deleting function")
-                self._api_resource.projects().locations().functions().delete(
-                    name=function_location,
-                ).execute(num_retries=self.num_retries)
-                self._wait_function_deleted(function_location)
+        deployed_functions = [fn['name'] for fn in self._list_functions()]
+        if function_location in deployed_functions:
+            logger.debug(f"Function {function_location} already exists - Deleting function")
+            self._api_resource.projects().locations().functions().delete(
+                name=function_location,
+            ).execute(num_retries=self.num_retries)
+            self._wait_function_deleted(function_location)
 
         bin_location = self._get_runtime_bin_location(runtime_name)
         cloud_function = {
@@ -420,14 +416,23 @@ class GCPFunctionsBackend:
             self.delete_runtime(
                 runtime_name, runtime_memory, version, function_name=wk_name)
 
+    def _list_functions(self):
+        """Every function in the region, following nextPageToken"""
+        functions = []
+        page_token = None
+        while True:
+            response = self._api_resource.projects().locations().functions().list(
+                parent=self._default_location, pageToken=page_token
+            ).execute(num_retries=self.num_retries)
+            functions.extend(response.get('functions', []))
+            page_token = response.get('nextPageToken')
+            if not page_token:
+                return functions
+
     def list_runtimes(self, runtime_name='all'):
         logger.debug('Listing deployed runtimes')
-        response = self._api_resource.projects().locations().functions().list(
-            parent=self._default_location
-        ).execute(num_retries=self.num_retries)
-
         runtimes = []
-        for func in response.get('functions', []):
+        for func in self._list_functions():
             if func['labels'] and 'type' in func['labels'] \
                and func['labels']['type'] == 'lithops-runtime':
                 fn_name = func['name'].rsplit('/', 1)[-1]
@@ -489,11 +494,13 @@ class GCPFunctionsBackend:
                 "Authorization": f"Bearer {api_token}",
                 "Content-Type": "application/json"
             }
+            # The function runs inside this request and only then returns
+            # the activation id, so the client has to outlast runtime_timeout
             res = requests.post(
                 function_url,
                 data=json.dumps(payload, default=str),
                 headers=headers,
-                timeout=120
+                timeout=self.gcf_config.get('runtime_timeout', 300) + 30
             )
 
             if res.status_code in (200, 202):

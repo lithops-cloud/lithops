@@ -46,6 +46,24 @@ docker run -d --name openwhisk -h openwhisk \
 
 The image carries Docker 18.06 to launch action containers. `DOCKER_API_VERSION=1.40` lets that client talk to a current Docker daemon, which otherwise rejects it. Its Python runtimes are `python:3.10` and `python:3.11`, and an action is limited to 128–512 MB and 300 seconds.
 
+On an Apple Silicon Mac that image is amd64 and its JVM crashes once invocations pile up. Run the same server jar on an arm64 Java container, with a Linux `docker` CLI. The Mac `docker` binary cannot run inside the container:
+
+```bash
+docker create --name ow-jar openwhisk/standalone:nightly
+docker cp ow-jar:/openwhisk-standalone.jar .
+docker rm ow-jar
+curl -sL https://download.docker.com/linux/static/stable/aarch64/docker-27.5.1.tgz | tar xz docker/docker
+
+docker run -d --name openwhisk -h openwhisk -p 3233:3233 \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v "$PWD/openwhisk-standalone.jar:/ow/openwhisk-standalone.jar:ro" \
+  -v "$PWD/docker/docker:/usr/local/bin/docker:ro" \
+  -w /ow eclipse-temurin:11-jre \
+  bash -c 'exec java -Dwhisk.standalone.host.name=$(hostname) -Dwhisk.standalone.host.internal=$(hostname -i) -Dwhisk.standalone.host.external=localhost -jar openwhisk-standalone.jar --no-browser'
+```
+
+The guest key below is the same. Lithops picks `docker.io/lithopscloud/openwhisk-python-v310` through `v314` from the client Python version. Those images are built for amd64 and arm64. `lithops runtime build` builds for the machine it runs on; pass `--platform linux/amd64` when the cluster is amd64.
+
 The playground is at <http://localhost:3232>. The guest namespace and its key are printed at startup (`docker logs openwhisk | grep 'wsk property'`) and are, by default:
 
 ```yaml

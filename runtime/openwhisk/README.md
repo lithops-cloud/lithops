@@ -53,6 +53,8 @@ fexec = lithops.FunctionExecutor(runtime_memory=512)
 
         $ lithops runtime build -b openwhisk docker_username/runtimename:tag --build-arg PYTHON_VERSION=3.13
 
+    The image is built for the architecture of the machine running the command. Pass `--platform linux/amd64` when the OpenWhisk cluster is amd64 and this machine is not.
+
     Note that Docker Hub image names look like *"docker_username/runtimename:tag"* and must be all lower case, for example:
 
         $ lithops runtime build -b openwhisk jsampe/lithops-custom-runtime-v312:0.1

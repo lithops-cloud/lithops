@@ -190,8 +190,7 @@ class CodeEngineBackend:
 
         self._create_code_engine_client()
 
-        response = self.ce_client.list_projects().get_result()
-        for project in response.get('projects', []):
+        for project in self._ce_list(self.ce_client.list_projects, 'projects'):
             if project['name'] == self.project_name:
                 logger.debug(f"Found Code Engine project: {self.project_name}")
                 self.project_id = project['id']
@@ -323,12 +322,25 @@ class CodeEngineBackend:
             )
         return env_variables
 
+    def _ce_list(self, method, item_key, *args):
+        """Every item of a Code Engine list, following the next.start token"""
+        items = []
+        start = None
+        while True:
+            kwargs = {'start': start} if start else {}
+            page = method(*args, **kwargs).get_result()
+            items.extend(page.get(item_key, []))
+            nxt = page.get('next') or {}
+            start = nxt.get('start') if isinstance(nxt, dict) else None
+            if not start:
+                return items
+
     def _list_jobs(self):
         """
         Lists all job definitions in the current project
         """
         try:
-            return self.ce_client.list_jobs(self.project_id).get_result().get('jobs', [])
+            return self._ce_list(self.ce_client.list_jobs, 'jobs', self.project_id)
         except ApiException as e:
             logger.debug(f"List all jobs failed with {e.status_code} {e.message}")
             return []
@@ -409,14 +421,14 @@ class CodeEngineBackend:
         Deletes leftover lithops config maps from the project
         """
         try:
-            configmaps = self.ce_client.list_config_maps(self.project_id).get_result()
+            configmaps = self._ce_list(self.ce_client.list_config_maps, 'config_maps', self.project_id)
         except ApiException as e:
             logger.debug(f"Listing config maps failed with {e.status_code} {e.message}")
             return
 
         lithops_configmaps = [
             configmap['name']
-            for configmap in configmaps.get('config_maps', [])
+            for configmap in configmaps
             if configmap.get('name', '').startswith('lithops')
         ]
         if not lithops_configmaps:

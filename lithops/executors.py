@@ -858,6 +858,9 @@ class FunctionExecutor:
                     create_futures_list(fs_done, self),
                     create_futures_list(fs_notdone, self),
                 )
+            # The same as any other failed wait: chunks still queued would
+            # otherwise be invoked after the futures were cancelled
+            self.invoker.discard_pending({f.job_key for f in futures})
             self._cancel_wait(futures, do_clean, e)
             raise
         except KeyboardInterrupt as e:

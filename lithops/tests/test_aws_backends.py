@@ -112,6 +112,45 @@ class TestBatchJobDefinition:
         kwargs = self._register_args(backend, 1536)
         assert kwargs['platformCapabilities'] == ['EC2']
 
+    def test_an_existing_job_definition_is_replaced(self):
+        backend = _make_batch_backend(runtime_cpu=1)
+        name = backend._format_jobdef_name('rt:latest', 2048)
+        backend.batch_client.describe_job_definitions.return_value = {**OK, 'jobDefinitions': [{
+            'jobDefinitionName': name, 'jobDefinitionArn': 'arn:old', 'revision': 1, 'status': 'ACTIVE',
+        }]}
+        backend.batch_client.register_job_definition.return_value = {**OK, 'jobDefinitionArn': 'arn:new'}
+        backend.batch_client.deregister_job_definition.return_value = OK
+        backend._create_job_def('rt:latest', 2048)
+        resources = {
+            item['type']: item['value']
+            for item in backend.batch_client.register_job_definition.call_args.kwargs[
+                'containerProperties'
+            ]['resourceRequirements']
+        }
+        assert resources['VCPU'] == '1'
+        backend.batch_client.deregister_job_definition.assert_called_once_with(jobDefinition='arn:old')
+
+    def test_job_queues_past_the_first_page(self):
+        backend = _make_batch_backend()
+        names = [f'{backend.package}_a', f'{backend.package}_b']
+        backend.batch_client.describe_job_queues.side_effect = [
+            {**OK, 'jobQueues': [{'jobQueueName': names[0]}], 'nextToken': 't'},
+            {**OK, 'jobQueues': [{'jobQueueName': names[1]}]},
+        ]
+        assert [queue['jobQueueName'] for queue in backend._get_job_queue()] == names
+        assert backend.batch_client.describe_job_queues.call_args_list[1].kwargs['nextToken'] == 't'
+
+    def test_compute_environments_past_the_first_page(self):
+        backend = _make_batch_backend()
+        names = [f'{backend.package}_a', f'{backend.package}_b']
+        backend.batch_client.describe_compute_environments.side_effect = [
+            {**OK, 'computeEnvironments': [{'computeEnvironmentName': names[0]}], 'nextToken': 't'},
+            {**OK, 'computeEnvironments': [{'computeEnvironmentName': names[1]}]},
+        ]
+        found = [env['computeEnvironmentName'] for env in backend._get_compute_env()]
+        assert found == names
+        assert backend.batch_client.describe_compute_environments.call_args_list[1].kwargs['nextToken'] == 't'
+
 
 class TestBatchJobDefinitionName:
 

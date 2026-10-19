@@ -178,7 +178,7 @@ class OracleCloudFunctionsBackend:
             logger.debug(f'Application {self.app_name} does not exist')
             return
 
-        functions = self.cf_client.list_functions(self.app_id).data
+        functions = self._list_all(self.cf_client.list_functions, self.app_id)
 
         for function in functions:
             memory = function.memory_in_mbs
@@ -404,8 +404,7 @@ class OracleCloudFunctionsBackend:
             logger.debug(f'Application {self.app_name} does not exist')
             return runtimes
 
-        # Get the list of functions within the application
-        functions = self.cf_client.list_functions(self.app_id).data
+        functions = self._list_all(self.cf_client.list_functions, self.app_id)
 
         for function in functions:
             if function.display_name.startswith('lithops-worker'):
@@ -416,6 +415,17 @@ class OracleCloudFunctionsBackend:
                     runtimes.append((image_name, memory, version, function.display_name))
 
         return runtimes
+
+    def _list_all(self, method, *args):
+        """Every item of an OCI list call, following opc-next-page"""
+        found = []
+        page = None
+        while True:
+            response = method(*args, page=page) if page else method(*args)
+            found.extend(response.data or [])
+            page = getattr(response, 'next_page', None)
+            if not page:
+                return found
 
     def get_runtime_info(self):
         """
@@ -444,7 +454,7 @@ class OracleCloudFunctionsBackend:
         """
         Returns the application id of a given application
         """
-        applications = self.cf_client.list_applications(self.compartment_id).data
+        applications = self._list_all(self.cf_client.list_applications, self.compartment_id)
         for app in applications:
             if app.display_name == application_name:
                 return app.id
@@ -452,8 +462,7 @@ class OracleCloudFunctionsBackend:
         return None
 
     def _get_function_id(self, function_name):
-        # Get the list of functions within the application
-        functions = self.cf_client.list_functions(self.app_id).data
+        functions = self._list_all(self.cf_client.list_functions, self.app_id)
 
         # Search for the function and return its OCID
         for function in functions:
