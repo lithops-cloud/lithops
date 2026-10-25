@@ -777,6 +777,113 @@ class TestVMInitRollback:
             InstanceIds=['i-1', 'i-2']
         )
 
+    def test_gcp_clean_reads_every_page_of_instances(self):
+        from lithops.standalone.backends.gcp_compute_engine.gcp_compute_engine import GCPComputeEngineBackend
+        backend = GCPComputeEngineBackend.__new__(GCPComputeEngineBackend)
+        backend.network_name = 'lithops-net'
+        backend.project_name = 'project'
+        backend.zone = 'us-east1-b'
+        backend.compute_client = MagicMock()
+        backend._wait_operation = MagicMock()
+
+        first = MagicMock()
+        first.execute.return_value = {
+            'items': [{'name': 'lithops-worker-a'}], 'nextPageToken': 'tok',
+        }
+        second = MagicMock()
+        second.execute.return_value = {'items': [
+            {'name': 'lithops-worker-b'}, {'name': 'other'},
+        ]}
+        empty = MagicMock()
+        empty.execute.return_value = {'items': []}
+        instances = backend.compute_client.instances.return_value
+        instances.list.side_effect = [first, empty]
+        instances.list_next.side_effect = [second, None, None]
+        instances.delete.return_value.execute.return_value = {'name': 'op'}
+
+        backend._delete_vm_instances()
+
+        deleted = [
+            call.kwargs['instance']
+            for call in instances.delete.call_args_list
+        ]
+        assert deleted == ['lithops-worker-a', 'lithops-worker-b']
+
+    @staticmethod
+    def _vpc_page(items, key, start=None):
+        result = {key: items}
+        if start:
+            result['next'] = {
+                'href': f'https://example/v1/{key}?limit=50&start={start}'
+            }
+        response = MagicMock()
+        response.get_result.return_value = result
+        return response
+
+    def test_ibm_clean_reads_every_page_of_instances(self):
+        from lithops.standalone.backends.ibm_vpc.ibm_vpc import IBMVPCBackend
+        backend = IBMVPCBackend.__new__(IBMVPCBackend)
+        backend.vpc_name = 'lithops-vpc'
+        backend.vpc_data = {
+            'vpc_id': 'vpc-1', 'vpc_data_type': 'provided', 'master_name': 'master',
+        }
+        backend.cache_dir = '/tmp'
+        backend.vpc_cli = MagicMock()
+        backend.vpc_cli.list_instances.side_effect = [
+            self._vpc_page(
+                [{'name': 'lithops-worker-a', 'id': 'i-1', 'vpc': {'id': 'vpc-1'}}],
+                'instances', start='tok',
+            ),
+            self._vpc_page([
+                {'name': 'lithops-worker-b', 'id': 'i-2', 'vpc': {'id': 'vpc-1'}},
+                {'name': 'other', 'id': 'i-3', 'vpc': {'id': 'vpc-1'}},
+            ], 'instances'),
+            self._vpc_page([], 'instances'),
+        ]
+
+        backend._delete_vm_instances()
+
+        assert backend.vpc_cli.list_instances.call_args_list[1].kwargs['start'] == 'tok'
+        deleted = {call.args[0] for call in backend.vpc_cli.delete_instance.call_args_list}
+        assert deleted == {'i-1', 'i-2'}
+
+    def test_ibm_image_lookup_reads_the_page_after_the_first(self):
+        from lithops.standalone.backends.ibm_vpc.ibm_vpc import IBMVPCBackend
+        backend = IBMVPCBackend.__new__(IBMVPCBackend)
+        backend.config = {'resource_group_id': 'rg'}
+        backend.vpc_data = {}
+        backend.vpc_cli = MagicMock()
+        backend.vpc_cli.list_images.side_effect = [
+            self._vpc_page([{'id': 'img-win', 'name': 'ibm-windows-1'}], 'images', start='tok'),
+            self._vpc_page(
+                [{'id': 'img-ubuntu', 'name': 'ibm-ubuntu-24-04-amd64-1'}], 'images'
+            ),
+            self._vpc_page([], 'images'),
+        ]
+
+        backend._request_image_id()
+
+        assert backend.config['image_id'] == 'img-ubuntu'
+        assert backend.vpc_cli.list_images.call_args_list[1].kwargs['start'] == 'tok'
+
+    def test_ibm_reuses_a_floating_ip_past_the_first_page(self):
+        from lithops.standalone.backends.ibm_vpc.ibm_vpc import IBMVPCBackend
+        backend = IBMVPCBackend.__new__(IBMVPCBackend)
+        backend.config = {'zone_name': 'eu-de-1', 'resource_group_id': 'rg'}
+        backend.vpc_cli = MagicMock()
+        free = {
+            'name': 'lithops-recyclable-abcd', 'id': 'fip-1', 'address': '1.2.3.4',
+            'zone': {'name': 'eu-de-1'},
+        }
+        backend.vpc_cli.list_floating_ips.side_effect = [
+            self._vpc_page([], 'floating_ips', start='tok'),
+            self._vpc_page([free], 'floating_ips'),
+        ]
+
+        assert backend._get_or_create_floating_ip() == ('1.2.3.4', 'fip-1')
+        backend.vpc_cli.create_floating_ip.assert_not_called()
+        assert backend.vpc_cli.list_floating_ips.call_args_list[1].kwargs['start'] == 'tok'
+
     def test_ibm_deletes_a_local_ssh_key_that_could_not_be_registered(self, tmp_path):
         backend, load_data, _, _, _, deletes = _ibm_backend_for_init()
         from ibm_cloud_sdk_core import ApiException

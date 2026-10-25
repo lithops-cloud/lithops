@@ -514,13 +514,17 @@ class AWSLambdaBackend:
 
         try:
             repo_name = self._format_repo_name(image)
-            response = self.ecr_client.describe_images(repositoryName=repo_name)
-            images = response['imageDetails']
+            # Ask for the tag. A plain describe stops at 100 images, so the
+            # tag can be missing from the first page of a busy repository
+            response = self.ecr_client.describe_images(
+                repositoryName=repo_name,
+                imageIds=[{'imageTag': tag}],
+            )
+            images = response.get('imageDetails') or []
             if not images:
                 raise Exception(f'Runtime {runtime_name} is not present in ECR.'
                                 'Consider running "lithops runtime build -b aws_lambda ..."')
-            image = list(filter(lambda image: 'imageTags' in image and tag in image['imageTags'], images)).pop()
-            image_digest = image['imageDigest']
+            image_digest = images[0]['imageDigest']
         except botocore.exceptions.ClientError:
             raise Exception(f'Runtime "{runtime_name}" is not deployed to ECR')
 

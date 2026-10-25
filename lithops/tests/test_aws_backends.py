@@ -337,6 +337,20 @@ class TestLambdaRuntimeUpdate:
         assert conf['Layers'] == ['arn:layer']
         assert conf['Environment'] == {'Variables': {'A': 'b'}}
 
+    def test_container_runtime_is_looked_up_by_its_tag(self):
+        """A plain describe_images stops at 100, so the tag can be on a later page"""
+        backend = _make_lambda_backend()
+        backend.ecr_client.describe_images.return_value = {
+            'imageDetails': [{'imageDigest': 'sha256:new'}]
+        }
+        backend._deploy_container_runtime('myrt:v2', 1024, 300)
+        backend.ecr_client.describe_images.assert_called_once_with(
+            repositoryName=backend._format_repo_name('myrt'),
+            imageIds=[{'imageTag': 'v2'}],
+        )
+        code = backend.lambda_client.create_function.call_args.kwargs
+        assert code['Code']['ImageUri'].endswith('@sha256:new')
+
     def test_container_runtime_updates_existing_function(self):
         backend = _make_lambda_backend()
         backend.ecr_client.describe_images.return_value = {

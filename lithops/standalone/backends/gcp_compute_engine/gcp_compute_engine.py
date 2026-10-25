@@ -772,6 +772,18 @@ class GCPComputeEngineBackend:
             return timestamp
         return created_at.strftime('%Y-%m-%d %H:%M:%S')
 
+    def _iter_zone_instances(self):
+        """Every instance in the zone. One page stops at 500"""
+        request = self.compute_client.instances().list(
+            project=self.project_name, zone=self.zone
+        )
+        while request is not None:
+            response = request.execute()
+            yield from response.get('items') or []
+            request = self.compute_client.instances().list_next(
+                previous_request=request, previous_response=response
+            )
+
     def _iter_project_images(self, project):
         request = self.compute_client.images().list(project=project)
         while request is not None:
@@ -877,11 +889,8 @@ class GCPComputeEngineBackend:
         )
 
         def get_instance_names():
-            instances = self.compute_client.instances().list(
-                project=self.project_name, zone=self.zone
-            ).execute().get('items', []) or []
             return [
-                ins['name'] for ins in instances
+                ins['name'] for ins in self._iter_zone_instances()
                 if ins.get('name', '').startswith(prefixes)
             ]
 
