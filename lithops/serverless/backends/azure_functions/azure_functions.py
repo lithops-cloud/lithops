@@ -424,11 +424,17 @@ class AzureFunctionAppBackend:
             endpoint = f"https://{function_name}.azurewebsites.net"
             parsed_url = urlparse(endpoint)
             ctx = ssl._create_unverified_context()
-            conn = http.client.HTTPSConnection(parsed_url.netloc, context=ctx)
+            # The handler runs the call inside this request, so the wait is
+            # the function's own timeout, plus a moment for the response
+            conn = http.client.HTTPSConnection(
+                parsed_url.netloc, context=ctx,
+                timeout=self.af_config.get('runtime_timeout', 300) + 30,
+            )
 
             route = "/api/lithops_handler"
+            body = json.dumps(payload, default=str)
             if return_result:
-                conn.request("GET", route, body=json.dumps(payload, default=str))
+                conn.request("POST", route, body=body)
                 resp = conn.getresponse()
                 resp_text = resp.read().decode("utf-8")
                 conn.close()
@@ -440,7 +446,7 @@ class AzureFunctionAppBackend:
                     raise Exception(f'Unable to load runtime metadata: {resp_text}')
             else:
                 # logger.debug('Invoking calls {}'.format(', '.join(payload['call_ids'])))
-                conn.request("POST", route, body=json.dumps(payload, default=str))
+                conn.request("POST", route, body=body)
                 resp = conn.getresponse()
                 resp_text = resp.read().decode("utf-8")
                 conn.close()

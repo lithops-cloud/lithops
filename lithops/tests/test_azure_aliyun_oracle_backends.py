@@ -59,11 +59,12 @@ class FakeHTTPSConnection:
     reason = 'OK'
     body = 'invocation-id'
 
-    def __init__(self, netloc, context=None):
-        pass
+    def __init__(self, netloc, context=None, timeout=None):
+        self.timeout = timeout
 
     def request(self, method, route, body=None):
-        pass
+        self.method = method
+        self.sent = body
 
     def getresponse(self):
         return types.SimpleNamespace(
@@ -82,6 +83,25 @@ def test_azure_functions_https_invoke_error_raises(monkeypatch, status, reason):
 
     with pytest.raises(Exception, match=f'{status}.*boom'):
         backend.invoke('rt', 2048, {'call_ids': ['00000']})
+
+
+def test_azure_functions_https_waits_for_the_runtime_and_posts_metadata(monkeypatch):
+    af, backend = _azure_functions_backend(trigger='https')
+    backend.af_config['runtime_timeout'] = 300
+    created = {}
+
+    class Recording(FakeHTTPSConnection):
+        body = '{"preinstalls": []}'
+
+        def __init__(self, netloc, context=None, timeout=None):
+            super().__init__(netloc, context=context, timeout=timeout)
+            created['conn'] = self
+
+    monkeypatch.setattr(af.http.client, 'HTTPSConnection', Recording)
+    assert backend.invoke('rt', 2048, {'get_metadata': True}, return_result=True) == {'preinstalls': []}
+    assert created['conn'].timeout == 330
+    assert created['conn'].method == 'POST'
+    assert json.loads(created['conn'].sent)['get_metadata'] is True
 
 
 def test_azure_functions_https_invoke_success_and_throttle(monkeypatch):
@@ -250,14 +270,19 @@ def test_aliyun_fc_metadata_retry_resends_payload(monkeypatch):
     bodies = []
     meta = {'preinstalls': [], 'python_version': '3.12'}
 
+    runtimes = []
+
     def invoke_function_with_options(function_name, request, headers, runtime):
+        runtimes.append(runtime)
         bodies.append(request.body.read())
         if len(bodies) == 1:
             raise aliyun_fc.FCClientException(status_code=412, code='PreconditionFailed', message='pending')
         return types.SimpleNamespace(body=json.dumps(meta).encode('utf-8'), headers={})
     backend.fc_client = types.SimpleNamespace(invoke_function_with_options=invoke_function_with_options)
+    backend.config = {'runtime_timeout': 300}
 
     assert backend._generate_runtime_meta('lithops-worker-fn', max_attempts=3, retry_sleep=1) == meta
+    assert runtimes[0].read_timeout == 330000
     assert len(bodies) == 2
     assert bodies[0] == bodies[1]
     assert json.loads(bodies[1])['get_metadata'] is True

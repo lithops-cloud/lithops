@@ -18,6 +18,16 @@ from lithops.serverless.backends.k8s import config as k8s_config
 from lithops.serverless.backends.k8s.k8s import KubernetesBackend
 
 
+def test_memory_is_compared_in_megabytes():
+    """Mi used to be multiplied by 1024 and then labelled M, so 512Mi was not 512"""
+    backend = _make_backend()
+    assert backend.convert_memory_units(512, 'Mi') == (512, 'M')
+    assert backend.convert_memory_units(512, 'M') == (512, 'M')
+    assert backend.convert_memory_units(16384, 'Ki') == (16, 'M')
+    assert backend.convert_memory_units(2, 'Gi') == (2048, 'M')
+    assert backend.convert_memory_units(2, 'G') == (2000, 'M')
+
+
 def _make_backend(overrides=None):
     """Build a KubernetesBackend without running __init__ (which needs a cluster)."""
     backend = KubernetesBackend.__new__(KubernetesBackend)
