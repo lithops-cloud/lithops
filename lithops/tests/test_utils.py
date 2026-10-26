@@ -575,6 +575,27 @@ class TestMiscUtils:
         with pytest.raises(Exception, match='docker_server is required'):
             docker_login('u', 'p', '')
 
+    @pytest.mark.parametrize('podman,server,expected_server', [
+        (True, 'docker.io', 'docker.io'),
+        (False, 'docker.io', None),
+        (True, 'eu-madrid-1.ocir.io', 'eu-madrid-1.ocir.io'),
+        (False, 'eu-madrid-1.ocir.io', 'eu-madrid-1.ocir.io'),
+        (False, 'docker.io.example.org', 'docker.io.example.org'),
+    ])
+    def test_docker_login_registry(self, monkeypatch, podman, server, expected_server):
+        executable = '/usr/bin/podman' if podman else '/usr/bin/docker'
+        monkeypatch.setattr(lithops_utils, 'get_docker_path', lambda: executable)
+        monkeypatch.setattr(lithops_utils, 'is_podman', lambda path: podman)
+        run = MagicMock()
+        monkeypatch.setattr(lithops_utils, 'run_command', run)
+
+        docker_login('alice', ' secret-token\n', server)
+
+        expected = f'{executable} login -u alice --password-stdin'
+        if expected_server:
+            expected += f' {expected_server}'
+        run.assert_called_once_with(expected, input='secret-token')
+
     def test_get_default_container_name_variants(self):
         cfg = {'docker_server': 'docker.io', 'docker_user': 'alice'}
         name = get_default_container_name('openwhisk', cfg, 'lithops')

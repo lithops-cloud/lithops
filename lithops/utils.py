@@ -1004,8 +1004,8 @@ def docker_login(docker_user, docker_password, docker_server):
     """
     Log in to a container registry using docker/podman.
 
-    Docker Hub must be logged in without an explicit server host, matching
-    `docker login -u USER --password-stdin`.
+    Docker Hub uses Docker's default login host. Podman needs an explicit
+    registry even for Docker Hub when no default registry is configured.
     """
     if not docker_user or not docker_password:
         raise Exception('docker_user and docker_password are required')
@@ -1015,7 +1015,7 @@ def docker_login(docker_user, docker_password, docker_server):
     docker_path = get_docker_path()
     docker_password = docker_password.strip()
 
-    if 'docker.io' in docker_server:
+    if docker_server == 'docker.io' and not is_podman(docker_path):
         cmd = f'{docker_path} login -u {docker_user} --password-stdin'
     else:
         cmd = (f'{docker_path} login -u {docker_user} --password-stdin '

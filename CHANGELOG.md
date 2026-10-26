@@ -12,6 +12,7 @@
 - [Knative] Updated to current Knative Serving (tested with 1.23): one container per call in flight with the current autoscaling annotations, `kubecfg_context`, `namespace` and `runtime_arch` keys, the Contour networking layer, cluster-local calls from inside the cluster, a deploy that updates an existing service and reports why its revision fails, and a default runtime that runs as a non-root user.
 
 ### Fixed
+- [Runtime] Podman logins include the Docker Hub registry explicitly, so runtime builds can authenticate without a default registry in `registries.conf`.
 - [Core] `get_result()` with no futures returns `[]`. `call_async()` chains a list or tuple of futures as one call. `RetryingFunctionExecutor.wait()` shares one timeout across retry rounds and, when it expires, leaves the calls running instead of cancelling them.
 - [Core] Chaining, cleanup, invocation errors, generator inputs, empty `fs`, `wait()` with `ANY_COMPLETED`, argument binding, and `RetryingFunctionExecutor` retries and percentage waits; a failed object, or chunk of one, is retried on its own.
 - [Worker] Partitioned object streams (lost, duplicated or cut rows, rows longer than 128 KB, multi-byte `obj_newline`, `readline()`, iteration), module discovery of nested functions, a parameter named `future`, and `extra_env` restoring the previous environment.
