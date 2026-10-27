@@ -128,7 +128,7 @@ class GCPComputeEngineBackend:
             'gcp.credentials_path.'
         )
 
-    def _wait_operation(self, operation_name, scope='zone'):
+    def _wait_operation(self, operation_name, scope='zone', ignore_not_found=False):
         while True:
             if scope == 'zone':
                 op = self.compute_client.zoneOperations().get(
@@ -145,6 +145,9 @@ class GCPComputeEngineBackend:
 
             if op['status'] == 'DONE':
                 if 'error' in op:
+                    errors = op['error'].get('errors', [])
+                    if ignore_not_found and errors and all(e.get('code') == 'RESOURCE_NOT_FOUND' for e in errors):
+                        return
                     raise Exception(op['error'])
                 return
             time.sleep(2)
@@ -900,10 +903,15 @@ class GCPComputeEngineBackend:
                 break
             for name in names:
                 logger.debug(f"Deleting VM instance {name}")
-                op = self.compute_client.instances().delete(
-                    project=self.project_name, zone=self.zone, instance=name
-                ).execute()
-                self._wait_operation(op['name'], scope='zone')
+                try:
+                    op = self.compute_client.instances().delete(
+                        project=self.project_name, zone=self.zone, instance=name
+                    ).execute()
+                except HttpError as exc:
+                    if exc.resp.status != 404:
+                        raise
+                    continue
+                self._wait_operation(op['name'], scope='zone', ignore_not_found=True)
 
     def _delete_network_resources(self):
         """

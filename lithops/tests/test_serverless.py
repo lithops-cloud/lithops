@@ -619,3 +619,33 @@ class TestCloudRunDeployAndDelete:
         ]
         assert [row[3] for row in backend.list_runtimes()] == ['a', 'b']
         assert services.list.call_args_list[1].kwargs['continue_'] == 'tok'
+
+
+@pytest.mark.parametrize('backend_name', ['gcp_functions', 'gcp_cloudrun'])
+@pytest.mark.parametrize('explicit_project', [None, 'explicit-project'])
+@pytest.mark.parametrize('use_file', [False, True])
+def test_gcp_project_override_and_credentials_fallback(monkeypatch, backend_name, explicit_project, use_file, tmp_path):
+    import importlib
+
+    filename, class_name, config_attr = {
+        'gcp_functions': ('gcp_functions', 'GCPFunctionsBackend', 'gcf_config'),
+        'gcp_cloudrun': ('cloudrun', 'GCPCloudRunBackend', 'cr_config'),
+    }[backend_name]
+    module = importlib.import_module(f'lithops.serverless.backends.{backend_name}.{filename}')
+    backend = getattr(module, class_name).__new__(getattr(module, class_name))
+    backend.region = 'us-east1'
+    credentials_file = tmp_path / 'credentials.json'
+    credentials_file.write_text('{}')
+    backend.credentials_path = str(credentials_file) if use_file else None
+    setattr(backend, config_attr, {'project_name': explicit_project})
+    credentials = MagicMock(project_id='credentials-project', service_account_email='service@example.com')
+    monkeypatch.setattr(module.google.auth, 'default', lambda **kwargs: (credentials, 'adc-project'))
+    monkeypatch.setattr(module.service_account.Credentials, 'from_service_account_file', lambda *a, **kw: credentials)
+    monkeypatch.setattr(module, 'AuthorizedHttp', MagicMock())
+    monkeypatch.setattr(module, 'build', MagicMock())
+    if backend_name == 'gcp_functions':
+        monkeypatch.setattr(module.pubsub_v1, 'PublisherClient', MagicMock())
+        monkeypatch.setattr(module.jwt.Credentials, 'from_service_account_file', MagicMock())
+    backend._build_api_resource()
+    assert backend.project_name == (explicit_project or ('credentials-project' if use_file else 'adc-project'))
+    assert getattr(backend, config_attr)['project_name'] == backend.project_name

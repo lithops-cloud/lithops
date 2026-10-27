@@ -13,6 +13,7 @@
 #
 
 import copy
+import json
 import os
 import uuid
 
@@ -50,10 +51,26 @@ def load_config(config_data):
     config_data['gcp_compute_engine'].update(config_data['gcp'])
     config_data['gcp_compute_engine'].update(temp)
 
-    if 'credentials_path' in config_data['gcp_compute_engine']:
-        config_data['gcp_compute_engine']['credentials_path'] = os.path.expanduser(
-            config_data['gcp_compute_engine']['credentials_path']
-        )
+    gce_config = config_data['gcp_compute_engine']
+    if not gce_config.get('credentials_path') and os.environ.get('GOOGLE_APPLICATION_CREDENTIALS'):
+        gce_config['credentials_path'] = os.environ['GOOGLE_APPLICATION_CREDENTIALS']
+    if gce_config.get('credentials_path'):
+        gce_config['credentials_path'] = os.path.expanduser(gce_config['credentials_path'])
+
+    if not gce_config.get('project_name'):
+        if gce_config.get('credentials_path') and os.path.isfile(gce_config['credentials_path']):
+            with open(gce_config['credentials_path']) as credentials_file:
+                project_name = json.load(credentials_file).get('project_id')
+        else:
+            import google.auth
+            from google.auth.exceptions import DefaultCredentialsError
+
+            try:
+                _, project_name = google.auth.default()
+            except DefaultCredentialsError:
+                project_name = None
+        if project_name:
+            gce_config['project_name'] = project_name
 
     for key in DEFAULT_CONFIG_KEYS:
         if key not in config_data['gcp_compute_engine']:
@@ -75,7 +92,7 @@ def load_config(config_data):
         params_to_check = MANDATORY_PARAMETERS_2
 
     for param in params_to_check:
-        if param not in config_data['gcp_compute_engine']:
+        if not config_data['gcp_compute_engine'].get(param):
             msg = f"'{param}' is mandatory in the 'gcp_compute_engine' or 'gcp' section of the configuration"
             raise Exception(msg)
 

@@ -116,6 +116,8 @@ class GCPCloudRunBackend:
             cred, self.project_name = google.auth.default(scopes=config.SCOPES)
             self.service_account = cred.service_account_email
 
+        self.project_name = self.cr_config.get('project_name') or self.project_name
+
         http = AuthorizedHttp(cred, http=httplib2.Http())
         self._api_resource = build(
             'run', config.CLOUDRUN_API_VERSION,

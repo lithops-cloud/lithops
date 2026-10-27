@@ -13,6 +13,8 @@
 - [Knative] Updated to current Knative Serving (tested with 1.23): one container per call in flight with the current autoscaling annotations, `kubecfg_context`, `namespace` and `runtime_arch` keys, the Contour networking layer, cluster-local calls from inside the cluster, a deploy that updates an existing service and reports why its revision fails, and a default runtime that runs as a non-root user.
 
 ### Fixed
+- [GCP Compute Engine] Cleanup tolerates VMs already deleted by another process.
+- [GCP] Compute Engine infers the project from credentials when omitted; Functions and Cloud Run honour explicit project IDs.
 - [GCP Functions] Cleaning runtimes works when service configuration is missing.
 - [Azure VMs] Fixed network request serialization with newer SDKs and enabled internet access for workers on newly created subnets.
 - [Runtime] Podman logins include the Docker Hub registry explicitly, so runtime builds can authenticate without a default registry in `registries.conf`.

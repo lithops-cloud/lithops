@@ -7,6 +7,7 @@ import os
 import sys
 import warnings
 from contextlib import ExitStack
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -1641,3 +1642,62 @@ class TestAzureNetworkSerialization:
             assert ip['publicIPAddress']['id'] == 'ip'
         else:
             assert 'publicIPAddress' not in ip
+
+
+class TestGceCleanupMissingInstances:
+    @staticmethod
+    def _backend():
+        pytest.importorskip('googleapiclient')
+        from lithops.standalone.backends.gcp_compute_engine.gcp_compute_engine import GCPComputeEngineBackend
+        backend = GCPComputeEngineBackend.__new__(GCPComputeEngineBackend)
+        backend.compute_client = MagicMock()
+        backend.project_name = 'project'
+        backend.zone = 'us-east1-b'
+        backend.network_name = 'network'
+        return backend
+
+    @pytest.mark.parametrize('async_error', [False, True])
+    def test_missing_vm_does_not_stop_cleanup(self, async_error):
+        backend = self._backend()
+        from googleapiclient.errors import HttpError
+        backend._iter_zone_instances = MagicMock(side_effect=[[
+            {'name': 'lithops-worker-gone'}, {'name': 'lithops-worker-next'},
+        ], []])
+        delete = backend.compute_client.instances.return_value.delete.return_value.execute
+        get_operation = backend.compute_client.zoneOperations.return_value.get.return_value.execute
+        if async_error:
+            delete.side_effect = [{'name': 'gone-op'}, {'name': 'next-op'}]
+            get_operation.side_effect = [
+                {'status': 'DONE', 'error': {'errors': [{'code': 'RESOURCE_NOT_FOUND'}]}},
+                {'status': 'DONE'},
+            ]
+        else:
+            delete.side_effect = [HttpError(SimpleNamespace(status=404, reason='gone'), b'{}'), {'name': 'next-op'}]
+            get_operation.return_value = {'status': 'DONE'}
+        backend._delete_vm_instances()
+        calls = backend.compute_client.instances.return_value.delete.call_args_list
+        assert [call.kwargs['instance'] for call in calls] == ['lithops-worker-gone', 'lithops-worker-next']
+
+    @pytest.mark.parametrize('ignore_not_found,codes', [
+        (False, ['RESOURCE_NOT_FOUND']),
+        (True, ['PERMISSIONS_ERROR']),
+        (True, ['RESOURCE_NOT_FOUND', 'PERMISSIONS_ERROR']),
+        (True, []),
+    ])
+    def test_other_operation_errors_still_raise(self, ignore_not_found, codes):
+        backend = self._backend()
+        backend.compute_client.zoneOperations.return_value.get.return_value.execute.return_value = {
+            'status': 'DONE', 'error': {'errors': [{'code': code} for code in codes]},
+        }
+        with pytest.raises(Exception):
+            backend._wait_operation('op', ignore_not_found=ignore_not_found)
+
+    def test_permission_failure_still_raises(self):
+        backend = self._backend()
+        from googleapiclient.errors import HttpError
+        backend._iter_zone_instances = MagicMock(return_value=[{'name': 'lithops-worker-denied'}])
+        backend.compute_client.instances.return_value.delete.return_value.execute.side_effect = HttpError(
+            SimpleNamespace(status=403, reason='denied'), b'{}',
+        )
+        with pytest.raises(HttpError):
+            backend._delete_vm_instances()

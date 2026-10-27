@@ -140,7 +140,7 @@
 # Google Cloud Platform – credentials shared by all gcp_* sections
 # =============================================================================
 #gcp:
-    #project_name: <GCP_PROJECT_ID>
+    #project_name: <GCP_PROJECT_ID>       # Optional; inferred from credentials when omitted
     #region: <REGION_NAME>                # e.g. us-east1
     #credentials_path: <ABSOLUTE_PATH_TO_SERVICE_ACCOUNT_JSON>
 
@@ -177,7 +177,7 @@
 
 # Google Compute Engine – standalone compute
 #gcp_compute_engine:
-    #project_name: <GCP_PROJECT_ID>       # Falls back to gcp.project_name
+    #project_name: <GCP_PROJECT_ID>       # Falls back to gcp.project_name, then credentials
     #zone: <ZONE_NAME>                    # e.g. us-east1-b. Mandatory
     #region: <REGION_NAME>                # Falls back to gcp.region; derived from zone if omitted
     #service_account: <SERVICE_ACCOUNT_EMAIL>

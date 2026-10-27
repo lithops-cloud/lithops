@@ -94,6 +94,8 @@ class GCPFunctionsBackend:
 
         self._pub_client = pubsub_v1.PublisherClient(credentials=pubsub_cred)
 
+        self.project_name = self.gcf_config.get('project_name') or self.project_name
+
         http = AuthorizedHttp(api_cred, http=httplib2.Http())
         self._api_resource = build(
             'cloudfunctions', config.FUNCTIONS_API_VERSION,
