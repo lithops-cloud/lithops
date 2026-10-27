@@ -73,12 +73,12 @@ def _serialize_func_and_data(
     upload time; callable identity alone cannot detect changed captured state
     """
     func_str = serializer.dumps([func])[0]
-    func_paths = serializer.module_paths([func], inc_modules, exc_modules)
+    func_paths = serializer.module_paths([func], inc_modules, exc_modules, source='Function')
     data_strs = serializer.dumps(iterdata)
     # The data is only inspected for modules when the module manager is on
     # and no explicit include list was given
     if inc_modules is not None and not inc_modules:
-        data_paths = serializer.module_paths(iterdata, inc_modules, exc_modules)
+        data_paths = serializer.module_paths(iterdata, inc_modules, exc_modules, source='Input data')
     else:
         data_paths = set()
     return func_str, data_strs, func_paths | data_paths

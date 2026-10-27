@@ -3,6 +3,8 @@
 ## [v3.8.1.dev0]
 
 ### Changed
+- [Worker] Start status is sent before launching the JobRunner process.
+- [Core] Dependency debug logs distinguish function modules from input-data modules.
 - [Azure Functions] Default runtime memory is now 512 MB.
 - [Core] A storage or monitoring service at a loopback address is refused for serverless workers, which cannot reach it; standalone and Singularity workers get a warning.
 - [Core] `wait()` timeouts no longer arm a SIGALRM: they are checked between polls, work from any thread and leave the caller's signal handler and alarm alone.
@@ -13,6 +15,7 @@
 - [Knative] Updated to current Knative Serving (tested with 1.23): one container per call in flight with the current autoscaling annotations, `kubecfg_context`, `namespace` and `runtime_arch` keys, the Contour networking layer, cluster-local calls from inside the cluster, a deploy that updates an existing service and reports why its revision fails, and a default runtime that runs as a non-root user.
 
 ### Fixed
+- [Code Engine] `clean --all` permanently deletes the project so its name can be reused.
 - [GCP Compute Engine] Cleanup tolerates VMs already deleted by another process.
 - [GCP] Compute Engine infers the project from credentials when omitted; Functions and Cloud Run honour explicit project IDs.
 - [GCP Functions] Cleaning runtimes works when service configuration is missing.

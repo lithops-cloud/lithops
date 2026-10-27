@@ -549,9 +549,15 @@ class TestRunTask:
         jrp.is_alive.return_value = False
         conn = MagicMock()
         conn.poll.return_value = True
-        status = self._patch_run(
-            task, jrp, conn, 'worker_func_exec_time 1.5\nexception True\n'
+        events = []
+        status = MagicMock()
+        status.send_init_event.side_effect = lambda: events.append('init')
+        jrp.start.side_effect = lambda: events.append('start')
+        status.send_finish_event.side_effect = lambda: events.append('finish')
+        self._patch_run(
+            task, jrp, conn, 'worker_func_exec_time 1.5\nexception True\n', status=status
         )
+        assert events == ['init', 'start', 'finish']
         status.send_init_event.assert_called_once()
         status.send_finish_event.assert_called_once()
         added = {c.args[0]: c.args[1] for c in status.add.call_args_list}
@@ -634,10 +640,8 @@ class TestRunTask:
         self, tmp_path
     ):
         """
-        The init event is sent once the JobRunner runs. When sending it
-        fails, say the status object cannot be written to storage, the call
-        used to be reported as failed while the JobRunner kept running,
-        never joined, next to the following task of the worker
+        An init reporting failure must not prevent function execution or
+        reporting its result.
         """
         task = _task()
         task.log_stream = MagicMock()
@@ -704,9 +708,6 @@ class TestRunTask:
         task.stats_file = str(tmp_path / 'missing.txt')
         status = MagicMock()
         status.send_init_event.side_effect = KeyboardInterrupt()
-        # The init event is sent after the JobRunner has been started, so
-        # the context is mocked out like the other tests here do: without
-        # it this unit test forks a real process to interrupt
         jrp = MagicMock()
         jrp.is_alive.return_value = False
         ctx = MagicMock()
@@ -726,6 +727,7 @@ class TestRunTask:
                                 run_task(task)
         status.send_init_event.assert_called_once()
         status.send_finish_event.assert_not_called()
+        jrp.start.assert_not_called()
 
     def test_runtime_memory_log_branch(self, tmp_path):
         task = _task(runtime_memory=256)

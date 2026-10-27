@@ -23,7 +23,7 @@ import time
 import logging
 import copy
 
-from ibm_cloud_sdk_core import ApiException
+from ibm_cloud_sdk_core import ApiException, BaseService
 from ibm_code_engine_sdk.code_engine_v2 import (
     CodeEngineV2,
     EnvVarPrototype,
@@ -773,12 +773,57 @@ class CodeEngineBackend:
         logger.info(f'Deleting runtime: {runtime_name} - {memory}MB')
         self._delete_job_definition(jobdef_name)
 
+    def _hard_delete_project(self, project_id):
+        """Permanently reclaim the project before removing its local cache."""
+        try:
+            self.ce_client.delete_project(id=project_id)
+        except ApiException as exc:
+            if exc.status_code != 404:
+                raise
+
+        controller = BaseService(
+            service_url='https://resource-controller.cloud.ibm.com',
+            authenticator=self.ce_client.get_authenticator(),
+        )
+        deadline = time.time() + config.PROJECT_READY_TIMEOUT
+        reclaimed = False
+        while time.time() < deadline:
+            request = controller.prepare_request('GET', f'/v2/resource_instances/{project_id}')
+            try:
+                instance = controller.send(request).get_result()
+            except ApiException as exc:
+                if exc.status_code == 404:
+                    return
+                raise
+            if instance.get('state') == 'removed':
+                return
+            if not reclaimed:
+                request = controller.prepare_request(
+                    'GET', '/v1/reclamations', params={'resource_instance_id': project_id}
+                )
+                reclamations = controller.send(request).get_result().get('resources', [])
+                for reclamation in reclamations:
+                    if reclamation.get('resource_instance_id') != project_id:
+                        continue
+                    request = controller.prepare_request(
+                        'POST', f'/v1/reclamations/{reclamation["id"]}/actions/reclaim',
+                        headers={'Content-Type': 'application/json'}, data={},
+                    )
+                    controller.send(request)
+                    reclaimed = True
+                    break
+            time.sleep(config.PROJECT_POLL_INTERVAL)
+        raise TimeoutError(f'Timed out permanently deleting Code Engine project {self.project_name}')
+
     def clean(self, all=False):
         """
         Deletes all runtimes from all packages
         """
         logger.info(f'Cleaning project {self.project_name}')
+        cached_project_id = self.project_id or load_yaml_config(self.cache_file).get('project_id')
         if not self._get_or_create_namespace(create=False, wait_for_active=False):
+            if all and cached_project_id:
+                self._hard_delete_project(cached_project_id)
             logger.info(f"Project {self.project_name} does not exist")
             if os.path.exists(self.cache_file):
                 os.remove(self.cache_file)
@@ -792,7 +837,7 @@ class CodeEngineBackend:
 
         if all and self.project_id:
             logger.info(f"Deleting Code Engine project: {self.project_name}")
-            self.ce_client.delete_project(id=self.project_id)
+            self._hard_delete_project(self.project_id)
             if os.path.exists(self.cache_file):
                 os.remove(self.cache_file)
 

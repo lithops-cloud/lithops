@@ -91,7 +91,7 @@ class _CapturingSerializer:
         self.objs.extend(objs)
         return strs
 
-    def module_paths(self, objs, inc_modules, exc_modules):
+    def module_paths(self, objs, inc_modules, exc_modules, source='Objects'):
         type(self).last = (inc_modules, exc_modules, self.objs)
         return set()
 
@@ -474,7 +474,7 @@ class TestLargePayloadAndCache:
                     return [b'f']
                 return [b'x' * (MAX_DATA_IN_PAYLOAD + 1)] * len(objs)
 
-            def module_paths(self, objs, inc, exc):
+            def module_paths(self, objs, inc, exc, source='Objects'):
                 return set()
 
         monkeypatch.setattr('lithops.job.job.SerializeIndependent', _Big)

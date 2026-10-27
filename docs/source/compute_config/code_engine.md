@@ -128,7 +128,7 @@ Delete Lithops runtimes, job runs, and cached metadata:
 lithops clean -b code_engine -s ibm_cos
 ```
 
-To also delete the Code Engine project and local cache:
+To permanently delete the Code Engine project and local cache:
 
 ```bash
 lithops clean -b code_engine -s ibm_cos --all

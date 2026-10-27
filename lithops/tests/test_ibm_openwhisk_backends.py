@@ -225,3 +225,80 @@ def test_singularity_runtime_meta_timeout_message(monkeypatch):
 
     with pytest.raises(Exception, match='Failed getting runtime metadata'):
         backend._generate_runtime_meta('singularity-runtime')
+
+
+@pytest.mark.parametrize('already_deleted', [False, True])
+def test_code_engine_project_is_permanently_reclaimed(ce, monkeypatch, already_deleted):
+    if already_deleted:
+        ce.backend.ce_client.delete_project.side_effect = ce.ApiException(404, message='gone')
+    controller = MagicMock()
+    monkeypatch.setattr(ce.module, 'BaseService', MagicMock(return_value=controller))
+    monkeypatch.setattr(ce.module.time, 'sleep', lambda seconds: None)
+    controller.prepare_request.side_effect = lambda method, url, **kwargs: {'method': method, 'url': url, **kwargs}
+    controller.send.side_effect = [
+        MagicMock(**{'get_result.return_value': {'state': 'pending_reclamation'}}),
+        MagicMock(**{'get_result.return_value': {'resources': []}}),
+        MagicMock(**{'get_result.return_value': {'state': 'pending_reclamation'}}),
+        MagicMock(**{'get_result.return_value': {'resources': [
+            {'id': 'unrelated', 'resource_instance_id': 'other-project'},
+            {'id': 'reclamation-id', 'resource_instance_id': 'project-id'},
+        ]}}),
+        MagicMock(),
+        MagicMock(**{'get_result.return_value': {'state': 'removed'}}),
+    ]
+    ce.backend._hard_delete_project('project-id')
+    ce.backend.ce_client.delete_project.assert_called_once_with(id='project-id')
+    requests = [call.args[0] for call in controller.send.call_args_list]
+    posts = [request for request in requests if request['method'] == 'POST']
+    assert posts == [{
+        'method': 'POST', 'url': '/v1/reclamations/reclamation-id/actions/reclaim',
+        'headers': {'Content-Type': 'application/json'}, 'data': {},
+    }]
+    assert requests[1]['params'] == {'resource_instance_id': 'project-id'}
+
+
+@pytest.mark.parametrize('all_clean', [False, True])
+@pytest.mark.parametrize('active', [False, True])
+def test_code_engine_clean_hard_deletes_only_with_all(ce, monkeypatch, tmp_path, all_clean, active):
+    backend = ce.backend
+    backend.cache_file = str(tmp_path / 'cache')
+    ce.module.dump_yaml_config(backend.cache_file, {'project_id': 'project-id'})
+
+    def namespace(**kwargs):
+        if not active:
+            backend.project_id = None
+        return 'namespace' if active else None
+
+    monkeypatch.setattr(backend, '_get_or_create_namespace', namespace)
+    monkeypatch.setattr(backend, 'clear', MagicMock())
+    monkeypatch.setattr(backend, 'list_runtimes', lambda: [])
+    monkeypatch.setattr(backend, '_delete_lithops_config_maps', MagicMock())
+    hard_delete = MagicMock()
+    monkeypatch.setattr(backend, '_hard_delete_project', hard_delete)
+    backend.clean(all=all_clean)
+    if all_clean:
+        hard_delete.assert_called_once_with('project-id')
+    else:
+        hard_delete.assert_not_called()
+
+
+@pytest.mark.parametrize('failure', ['permission', 'timeout'])
+def test_code_engine_failed_hard_delete_keeps_cache(ce, monkeypatch, tmp_path, failure):
+    backend = ce.backend
+    backend.cache_file = str(tmp_path / 'cache')
+    ce.module.dump_yaml_config(backend.cache_file, {'project_id': 'project-id'})
+    monkeypatch.setattr(backend, '_get_or_create_namespace', lambda **kwargs: 'namespace')
+    monkeypatch.setattr(backend, 'clear', MagicMock())
+    monkeypatch.setattr(backend, 'list_runtimes', lambda: [])
+    monkeypatch.setattr(backend, '_delete_lithops_config_maps', MagicMock())
+    controller = MagicMock()
+    monkeypatch.setattr(ce.module, 'BaseService', MagicMock(return_value=controller))
+    if failure == 'permission':
+        controller.send.side_effect = ce.ApiException(403, message='forbidden')
+        expected = ce.ApiException
+    else:
+        monkeypatch.setattr(ce.module.config, 'PROJECT_READY_TIMEOUT', 0)
+        expected = TimeoutError
+    with pytest.raises(expected):
+        backend.clean(all=True)
+    assert (tmp_path / 'cache').exists()
