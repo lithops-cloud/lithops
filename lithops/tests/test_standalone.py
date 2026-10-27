@@ -1576,3 +1576,68 @@ class TestStandaloneMasterWorkerHttp:
 
         assert polls['n'] == 2
         assert sa_worker.worker_threads[0]['status'] == WorkerStatus.IDLE.value
+
+
+class TestAzureNetworkSerialization:
+    """Check the actual SDK serialization, without contacting Azure."""
+
+    @staticmethod
+    def _wire(model):
+        if hasattr(model, 'as_dict'):
+            return model.as_dict()
+        return model.serialize()
+
+    def test_network_resources_use_arm_properties(self):
+        backend, *_ = _azure_backend_for_init()
+        from azure.core.exceptions import ResourceNotFoundError
+        backend._init_created = set()
+        client = backend.network_client
+        client.subnets.list.return_value = []
+        client.network_security_groups.get.side_effect = ResourceNotFoundError('missing')
+        client.public_ip_addresses.get.side_effect = ResourceNotFoundError('missing')
+
+        backend._create_vnet()
+        body = self._wire(client.virtual_networks.begin_create_or_update.call_args.args[2])
+        assert body['properties']['addressSpace']['addressPrefixes'] == ['10.0.0.0/16']
+        assert 'address_space' not in body
+
+        backend._create_subnet()
+        body = self._wire(client.subnets.begin_create_or_update.call_args.args[3])
+        assert body['properties']['addressPrefix'] == '10.0.0.0/24'
+        assert body['properties']['defaultOutboundAccess'] is True
+
+        backend._create_security_group()
+        body = self._wire(client.network_security_groups.begin_create_or_update.call_args.args[2])
+        rules = body['properties']['securityRules']
+        assert len(rules) == 4
+        assert rules[0]['properties']['destinationPortRange'] == '22'
+        assert rules[1]['properties']['sourceAddressPrefix'] == '10.0.0.0/24'
+
+        backend._create_master_floating_ip()
+        body = self._wire(client.public_ip_addresses.begin_create_or_update.call_args.args[2])
+        assert body['sku']['name'] == 'Standard'
+        assert body['properties']['publicIPAllocationMethod'] == 'Static'
+        assert body['properties']['publicIPAddressVersion'] == 'IPv4'
+
+    @pytest.mark.parametrize('public', [False, True])
+    def test_nic_references_are_serialized(self, tmp_path, monkeypatch, public):
+        pytest.importorskip('azure.mgmt.network')
+        from lithops.standalone.backends.azure_vms import azure_vms
+        captured = []
+        model = azure_vms.NetworkInterface
+
+        def capture(**kwargs):
+            nic = model(**kwargs)
+            captured.append(nic)
+            return nic
+
+        monkeypatch.setattr(azure_vms, 'NetworkInterface', capture)
+        TestAzureSpotWorkers._created_vm(tmp_path, public=public, spot=False)
+        body = self._wire(captured[0])['properties']
+        assert body['networkSecurityGroup']['id'] == 'sg'
+        ip = body['ipConfigurations'][0]['properties']
+        assert ip['subnet']['id'] == 's'
+        if public:
+            assert ip['publicIPAddress']['id'] == 'ip'
+        else:
+            assert 'publicIPAddress' not in ip

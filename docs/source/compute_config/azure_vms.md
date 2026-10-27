@@ -206,7 +206,7 @@ lithops clean -b azure_vms -s azure_storage --all
 
 ## Architecture diagram
 
-Lithops creates a **Virtual Network** and **subnet** in your resource group (unless you provide existing ones). The master VM gets a **static public IP**; worker VMs use **private IPs only** and reach the internet through Azure's default subnet outbound routing.
+Lithops creates a **Virtual Network** and **subnet** in your resource group (unless you provide existing ones). The master VM gets a **static public IP**; worker VMs use **private IPs only**. Lithops explicitly enables default outbound access on subnets it creates so workers can download dependencies. User-provided subnets must supply outbound connectivity, such as a NAT gateway.
 
 ```mermaid
 flowchart TB

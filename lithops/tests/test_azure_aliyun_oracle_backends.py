@@ -54,6 +54,79 @@ def _azure_functions_backend(trigger='pub/sub'):
     return af, backend
 
 
+@pytest.mark.parametrize('detail, missing', [
+    ('ERROR: (ResourceNotFound) The resource was not found.', True),
+    ('ERROR: Not Found({"error":{"code":"ResourceNotFound","message":"App missing"}})', True),
+    ('ERROR: Not Found({"error":{"code":"ResourceGroupNotFound"}})', False),
+    ('ERROR: Not Found({"error":{"code":"AuthorizationFailed","message":"ResourceNotFound"}})', False),
+    ('ERROR: Not Found(invalid JSON)', False),
+    ('ERROR: Not Found({"error":null})', False),
+    ('ERROR: Not Found([])', False),
+    ('AADSTS9002313: Invalid request. Run az login --tenant tenant-id', False),
+    ('ERROR: (AuthorizationFailed) Access denied', False),
+    ('ERROR: (ResourceGroupNotFound) Resource group missing', False),
+    ('Connection failed', False),
+])
+@pytest.mark.parametrize('debug', [False, True])
+def test_azure_functions_probe_preserves_cli_errors(monkeypatch, detail, missing, debug):
+    af, backend = _azure_functions_backend()
+    monkeypatch.setattr(backend, '_check_az_cli', lambda: None)
+    monkeypatch.setattr(af.logger, 'getEffectiveLevel', lambda: af.logging.DEBUG if debug else af.logging.INFO)
+
+    def run(cmd, **kwargs):
+        assert kwargs['stdout'] == af.sp.PIPE
+        assert kwargs['stderr'] == af.sp.PIPE
+        raise af.sp.CalledProcessError(1, cmd, stderr=detail)
+
+    monkeypatch.setattr(af.sp, 'run', run)
+    if missing:
+        assert backend._function_app_exists('worker') is False
+    else:
+        with pytest.raises(Exception, match=detail.split(':')[0].replace('(', r'\(').replace(')', r'\)')):
+            backend._function_app_exists('worker')
+
+
+def test_azure_functions_probe_existing_app(monkeypatch):
+    af, backend = _azure_functions_backend()
+    monkeypatch.setattr(backend, '_check_az_cli', lambda: None)
+    monkeypatch.setattr(af.sp, 'run', lambda *a, **kw: types.SimpleNamespace(stdout='{}', stderr=''))
+    assert backend._function_app_exists('worker') is True
+
+
+def test_azure_functions_default_runtime_dateutil_compatibility(monkeypatch, tmp_path):
+    from packaging.requirements import Requirement
+
+    af, backend = _azure_functions_backend()
+    monkeypatch.setattr(af, 'TEMP_DIR', str(tmp_path))
+    builds = []
+
+    def build(runtime_name, requirements_file):
+        with open(requirements_file) as req_file:
+            requirements = [Requirement(line.strip()) for line in req_file
+                            if line.strip() and not line.startswith('#')]
+        dateutil = next(req for req in requirements if req.name == 'python-dateutil')
+        assert '2.9.0' in dateutil.specifier
+        assert '2.9.0.post0' in dateutil.specifier
+        assert '3.0.0' not in dateutil.specifier
+        builds.append(runtime_name)
+
+    monkeypatch.setattr(backend, 'build_runtime', build)
+    backend._build_default_runtime('default-runtime-v312')
+    assert builds == ['default-runtime-v312']
+    assert not (tmp_path / 'az_default_requirements.txt').exists()
+
+
+def test_azure_functions_default_memory():
+    af = _azure_functions_module()
+    config = {
+        'azure_functions': {'resource_group': 'rg', 'region': 'westeurope'},
+        'azure_storage': {'storage_account_name': 'test', 'storage_account_key': 'test'},
+    }
+    af.config.load_config(config)
+    assert config['azure_functions']['runtime_memory'] == 512
+    assert af.config.get_flex_instance_memory(config['azure_functions']['runtime_memory']) == 512
+
+
 class FakeHTTPSConnection:
     status = 200
     reason = 'OK'
@@ -231,6 +304,110 @@ def test_azure_functions_delete_legacy_app_by_tags(monkeypatch):
 # /---------------------------------------------------------------------------/
 # Azure Container Apps
 # /---------------------------------------------------------------------------/
+
+@pytest.mark.parametrize('fails', [False, True])
+def test_azure_containers_deployment_progress(monkeypatch, caplog, fails):
+    pytest.importorskip('azure.storage.queue')
+    from lithops.serverless.backends.azure_containers import azure_containers as ac
+
+    backend = ac.AzureContainerAppBackend.__new__(ac.AzureContainerAppBackend)
+    waits = []
+    finished = []
+    joined = []
+
+    class Event:
+        def wait(self, timeout):
+            waits.append(timeout)
+            return len(waits) > 2
+
+        def set(self):
+            finished.append(True)
+
+    class Thread:
+        def __init__(self, target, daemon):
+            self.target = target
+
+        def start(self):
+            self.target()
+
+        def join(self):
+            joined.append(True)
+
+    monkeypatch.setattr(ac.threading, 'Event', Event)
+    monkeypatch.setattr(ac.threading, 'Thread', Thread)
+
+    def run(cmd):
+        assert cmd == 'az containerapp create'
+        if fails:
+            raise RuntimeError('deployment failed')
+        return 'done'
+
+    monkeypatch.setattr(backend, '_run_az_command', run)
+    with caplog.at_level(ac.logging.DEBUG, logger=ac.__name__):
+        if fails:
+            with pytest.raises(RuntimeError, match='deployment failed'):
+                backend._run_deployment_command('az containerapp create')
+        else:
+            assert backend._run_deployment_command('az containerapp create') == 'done'
+    assert waits == [60, 60, 60]
+    assert 'Still deploying Azure Container App (60s elapsed)' in caplog.text
+    assert 'Still deploying Azure Container App (120s elapsed)' in caplog.text
+    assert finished == joined == [True]
+
+
+@pytest.mark.parametrize('state', [None, 'Succeeded'])
+@pytest.mark.parametrize('delete_fails', [False, True])
+def test_azure_containers_interrupt_cleans_new_app(monkeypatch, tmp_path, state, delete_fails):
+    pytest.importorskip('azure.storage.queue')
+    from lithops.serverless.backends.azure_containers import azure_containers as ac
+
+    backend = ac.AzureContainerAppBackend.__new__(ac.AzureContainerAppBackend)
+    backend.trigger = 'https'
+    backend.storage_account_name = 'storage'
+    backend.resource_group = 'rg'
+    backend.location = 'eastus'
+    backend.ac_config = {'max_workers': 1}
+    manifest = tmp_path / 'app.json'
+    monkeypatch.setattr(ac.config, 'CA_JSON_LOCATION', str(manifest))
+    monkeypatch.setattr(backend, '_get_managed_environment_id', lambda: 'environment-id')
+    monkeypatch.setattr(backend, '_wait_until_containerapp_idle', lambda name: state)
+    commands = []
+
+    def run(cmd, **kwargs):
+        commands.append(cmd)
+        if ' delete ' in cmd and delete_fails:
+            raise RuntimeError('delete failed')
+        return 'connection-string'
+
+    def deploy(cmd):
+        assert (' update ' if state else ' create ') in cmd
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(backend, '_run_az_command', run)
+    monkeypatch.setattr(backend, '_run_deployment_command', deploy)
+    with pytest.raises(KeyboardInterrupt):
+        backend._create_app('image:latest', 512, 600)
+    deletes = [cmd for cmd in commands if ' delete ' in cmd]
+    assert len(deletes) == (0 if state else 1)
+    if deletes:
+        assert '--no-wait' in deletes[0]
+    assert not manifest.exists()
+
+
+def test_azure_containers_probe_preserves_authentication_error(monkeypatch):
+    pytest.importorskip('azure.storage.queue')
+    from lithops.serverless.backends.azure_containers import azure_containers as ac
+
+    backend = ac.AzureContainerAppBackend.__new__(ac.AzureContainerAppBackend)
+    backend.resource_group = 'rg'
+
+    def run(*args, **kwargs):
+        raise RuntimeError('AuthorizationFailed')
+
+    monkeypatch.setattr(backend, '_run_az_command', run)
+    with pytest.raises(RuntimeError, match='AuthorizationFailed'):
+        backend._get_containerapp_provisioning_state('app')
+
 
 def test_azure_containers_list_runtimes_by_runtime_name(monkeypatch):
     pytest.importorskip('azure.storage.queue')

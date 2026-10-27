@@ -3,6 +3,7 @@
 ## [v3.8.1.dev0]
 
 ### Changed
+- [Azure Functions] Default runtime memory is now 512 MB.
 - [Core] A storage or monitoring service at a loopback address is refused for serverless workers, which cannot reach it; standalone and Singularity workers get a warning.
 - [Core] `wait()` timeouts no longer arm a SIGALRM: they are checked between polls, work from any thread and leave the caller's signal handler and alarm alone.
 - [Core] An `obj_chunk_size` no longer than `obj_newline` is raised to one byte more.
@@ -12,6 +13,7 @@
 - [Knative] Updated to current Knative Serving (tested with 1.23): one container per call in flight with the current autoscaling annotations, `kubecfg_context`, `namespace` and `runtime_arch` keys, the Contour networking layer, cluster-local calls from inside the cluster, a deploy that updates an existing service and reports why its revision fails, and a default runtime that runs as a non-root user.
 
 ### Fixed
+- [Azure VMs] Fixed network request serialization with newer SDKs and enabled internet access for workers on newly created subnets.
 - [Runtime] Podman logins include the Docker Hub registry explicitly, so runtime builds can authenticate without a default registry in `registries.conf`.
 - [Core] `get_result()` with no futures returns `[]`. `call_async()` chains a list or tuple of futures as one call. `RetryingFunctionExecutor.wait()` shares one timeout across retry rounds and, when it expires, leaves the calls running instead of cancelling them.
 - [Core] Chaining, cleanup, invocation errors, generator inputs, empty `fs`, `wait()` with `ANY_COMPLETED`, argument binding, and `RetryingFunctionExecutor` retries and percentage waits; a failed object, or chunk of one, is retried on its own.
@@ -32,12 +34,13 @@
 - [Code Engine] Projects, job definitions and config maps past the first page are listed. `clear()` deletes every job run and config map of the executor, a leftover config map is replaced instead of failing every deploy, and waiting for a job run or a job definition deletion times out.
 - [Singularity] Runtime metadata that never arrives raises the intended timeout error.
 - [Kubernetes] Worker memory is compared in megabytes, so a `Mi` request is the same size as the memory it is checked against.
-- [Azure Functions] An HTTPS invocation waits for `runtime_timeout`, and its metadata request is a POST so the body is delivered. An invoke that returns an HTTP error other than 429 raises. Waiting for runtime metadata with the pub/sub trigger times out after `runtime_timeout`. `runtime_memory` is honoured after the first deploy: each Flex instance memory size gets its own function app, so existing runtimes are deployed again once per size. `lithops runtime update` and `delete` find a runtime by its name.
-- [Azure Container Apps] `lithops runtime update` and `delete` find a runtime by its image, and `list_runtimes` reports memory as a number.
+- [Azure Functions] Fixed app lookup and CLI error reporting, invocation and metadata timeouts, metadata POST requests, per-memory deployments, and runtime lookup by name.
+- [Azure Container Apps] Added deployment progress logs and cleanup on interrupted creation. Fixed authentication error handling, runtime lookup by image, and numeric memory values.
 - [Aliyun FC] The synchronous metadata call waits for `runtime_timeout`. An asynchronous invoke only waits to be accepted. Retries while reading runtime metadata resend the payload instead of an empty body.
 - [Oracle Functions] Calls run on the function of their own runtime and memory, not on the function of the job started last. Functions and applications past the first page are found by `lithops runtime list`, `delete` and `clean`.
 - [GCP Functions] [GCP Cloud Run] An HTTPS invocation waits for `runtime_timeout` instead of giving up after 120 seconds, which is while the call is still running. Functions and services past the first page are found by `lithops runtime list` and `clean`.
 - [Knative] Calls longer than 5 minutes are no longer cut off by Knative, a load balancer ingress is reached at its own port and may be a hostname, `https` service URLs work, a failed call is reported instead of being invoked again for ever, and a service that never gets ready raises an error.
+
 
 ## [v3.8.0]
 

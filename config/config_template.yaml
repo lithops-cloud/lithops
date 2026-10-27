@@ -211,7 +211,7 @@
     #resource_group: <RESOURCE_GROUP_NAME># Falls back to azure.resource_group
     #region: <LOCATION>                   # Falls back to azure.region
     #runtime: <RUNTIME_NAME>
-    #runtime_memory: 1536                 # MB
+    #runtime_memory: 512                  # MB. Allowed: 512, 2048, 4096; CPU scales with memory
     #runtime_timeout: 300                 # Seconds
     #functions_version: 4
     #trigger: pub/sub                     # One of: pub/sub, https

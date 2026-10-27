@@ -77,8 +77,6 @@ class AzureFunctionAppBackend:
         stderr cannot fill a pipe and deadlock (unlike check_call + PIPE).
         """
         self._check_az_cli()
-        debug = logger.getEffectiveLevel() == logging.DEBUG
-        capture = return_json or return_result or not debug
 
         logger.debug(f'Running Azure CLI: {cmd}')
         try:
@@ -86,8 +84,8 @@ class AzureFunctionAppBackend:
                 cmd,
                 shell=True,
                 encoding='UTF-8',
-                stdout=sp.PIPE if capture else None,
-                stderr=sp.PIPE if capture else None,
+                stdout=sp.PIPE,
+                stderr=sp.PIPE,
                 stdin=sp.DEVNULL,
                 check=True,
             )
@@ -115,17 +113,29 @@ class AzureFunctionAppBackend:
         cmd = (f'az functionapp show --name {function_name} '
                f'--resource-group {self.resource_group}')
         try:
-            # Probe only; hide az CLI's ResourceNotFound when the app is missing.
-            sp.check_call(
-                cmd,
-                shell=True,
-                stdout=sp.DEVNULL,
-                stderr=sp.DEVNULL,
-            )
+            self._run_az_command(cmd)
             return True
-        except sp.CalledProcessError:
-            logger.debug(f'Function app {function_name} not found, will create it')
-            return False
+        except Exception as exc:
+            # Only a missing app permits creation. Authentication, authorization
+            # and transport failures must retain the CLI's original diagnostic.
+            cause = exc.__cause__
+            if isinstance(cause, sp.CalledProcessError):
+                detail = (cause.stderr or cause.stdout or '').strip()
+                missing = detail.startswith(('ERROR: (ResourceNotFound)', '(ResourceNotFound)'))
+                # Some CLI versions wrap the ARM JSON error in Not Found(...).
+                prefix = 'ERROR: Not Found('
+                if detail.startswith(prefix):
+                    try:
+                        error, _ = json.JSONDecoder().raw_decode(detail[len(prefix):])
+                    except ValueError:
+                        pass
+                    else:
+                        if isinstance(error, dict) and isinstance(error.get('error'), dict):
+                            missing = error['error'].get('code') == 'ResourceNotFound'
+                if missing:
+                    logger.debug(f'Function app {function_name} not found, will create it')
+                    return False
+            raise
 
     def _create_deploy_zip(self, build_dir):
         """
@@ -543,7 +553,7 @@ class AzureFunctionAppBackend:
                and functionapp['Tags']['type'] == 'lithops-runtime':
                 version = functionapp['Tags']['lithops_version']
                 name = functionapp['Tags']['runtime_name']
-                memory = int(functionapp['Tags'].get('runtime_memory', config.DEFAULT_CONFIG_KEYS['runtime_memory']))
+                memory = int(functionapp['Tags'].get('runtime_memory', 512))
                 if runtime_name == name or runtime_name == 'all':
                     runtimes.append((name, memory, version, functionapp['Name']))
 

@@ -38,6 +38,10 @@ from azure.mgmt.compute.models import (
     VirtualMachine,
 )
 from azure.mgmt.network import NetworkManagementClient
+from azure.mgmt.network.models import (
+    AddressSpace, NetworkInterface, NetworkInterfaceIPConfiguration, NetworkSecurityGroup,
+    PublicIPAddress, PublicIPAddressSku, SecurityRule, Subnet, VirtualNetwork,
+)
 from azure.core.exceptions import HttpResponseError, ResourceNotFoundError
 
 from lithops.version import __version__
@@ -225,10 +229,10 @@ class AzureVMSBackend:
             poller = self.network_client.virtual_networks.begin_create_or_update(
                 self.config['resource_group'],
                 self.vnet_name,
-                {
-                    "location": self.location,
-                    "address_space": {"address_prefixes": ["10.0.0.0/16"]},
-                },
+                VirtualNetwork(
+                    location=self.location,
+                    address_space=AddressSpace(address_prefixes=["10.0.0.0/16"]),
+                ),
             )
             vnet_result = poller.result()
             self.config['vnet_id'] = vnet_result.id
@@ -268,7 +272,7 @@ class AzureVMSBackend:
                 self.config['resource_group'],
                 self.vnet_name,
                 self.subnet_name,
-                {"address_prefix": "10.0.0.0/24"},
+                Subnet(address_prefix="10.0.0.0/24", default_outbound_access=True),
             )
             subnet_result = poller.result()
             self.config['subnet_id'] = subnet_result.id
@@ -330,10 +334,10 @@ class AzureVMSBackend:
                 {
                     "name": "allow-ssh",
                     "protocol": "Tcp",
-                    "sourcePortRange": "*",
-                    "destinationPortRange": "22",
-                    "sourceAddressPrefix": "*",
-                    "destinationAddressPrefix": "*",
+                    "source_port_range": "*",
+                    "destination_port_range": "22",
+                    "source_address_prefix": "*",
+                    "destination_address_prefix": "*",
                     "access": "Allow",
                     "direction": "Inbound",
                     "priority": 100
@@ -341,10 +345,10 @@ class AzureVMSBackend:
                 {
                     "name": "allow-master-port-8080",
                     "protocol": "Tcp",
-                    "sourcePortRange": "*",
-                    "destinationPortRange": "8080",
-                    "sourceAddressPrefix": "10.0.0.0/24",
-                    "destinationAddressPrefix": "*",
+                    "source_port_range": "*",
+                    "destination_port_range": "8080",
+                    "source_address_prefix": "10.0.0.0/24",
+                    "destination_address_prefix": "*",
                     "access": "Allow",
                     "direction": "Inbound",
                     "priority": 101
@@ -352,10 +356,10 @@ class AzureVMSBackend:
                 {
                     "name": "allow-worker-port-8081",
                     "protocol": "Tcp",
-                    "sourcePortRange": "*",
-                    "destinationPortRange": "8081",
-                    "sourceAddressPrefix": "10.0.0.0/24",
-                    "destinationAddressPrefix": "*",
+                    "source_port_range": "*",
+                    "destination_port_range": "8081",
+                    "source_address_prefix": "10.0.0.0/24",
+                    "destination_address_prefix": "*",
                     "access": "Allow",
                     "direction": "Inbound",
                     "priority": 102
@@ -363,10 +367,10 @@ class AzureVMSBackend:
                 {
                     "name": "allow-redis-port-6379",
                     "protocol": "Tcp",
-                    "sourcePortRange": "*",
-                    "destinationPortRange": "6379",
-                    "sourceAddressPrefix": "10.0.0.0/24",
-                    "destinationAddressPrefix": "*",
+                    "source_port_range": "*",
+                    "destination_port_range": "6379",
+                    "source_address_prefix": "10.0.0.0/24",
+                    "destination_address_prefix": "*",
                     "access": "Allow",
                     "direction": "Inbound",
                     "priority": 103
@@ -374,10 +378,10 @@ class AzureVMSBackend:
             ]
 
             # Define the network security group to contain the rule
-            network_security_group = {
-                "location": self.location,
-                "securityRules": nsg_rules
-            }
+            network_security_group = NetworkSecurityGroup(
+                location=self.location,
+                security_rules=[SecurityRule(**rule) for rule in nsg_rules],
+            )
 
             # Create or update the network security group
             poller = self.network_client.network_security_groups.begin_create_or_update(
@@ -423,12 +427,12 @@ class AzureVMSBackend:
             poller = self.network_client.public_ip_addresses.begin_create_or_update(
                 self.config['resource_group'],
                 floating_ip_name,
-                {
-                    "location": self.location,
-                    "sku": {"name": "Standard"},
-                    "public_ip_allocation_method": "Static",
-                    "public_ip_address_version": "IPV4",
-                },
+                PublicIPAddress(
+                    location=self.location,
+                    sku=PublicIPAddressSku(name="Standard"),
+                    public_ip_allocation_method="Static",
+                    public_ip_address_version="IPv4",
+                ),
             )
             ip_address_result = poller.result()
             self.config['floating_ip'] = ip_address_result.ip_address
@@ -973,34 +977,34 @@ class VMInstance:
         vm_created = False
 
         # Create NIC
-        nic_params = {
-            'location': self.location,
-            'ip_configurations': [{
-                'name': 'ipconfig1',
-                'subnet': {'id': self.config['subnet_id']},
-            }],
-            "network_security_group": {"id": self.config['security_group_id']}
-        }
+        nic_params = NetworkInterface(
+            location=self.location,
+            ip_configurations=[NetworkInterfaceIPConfiguration(
+                name='ipconfig1',
+                subnet=Subnet(id=self.config['subnet_id']),
+            )],
+            network_security_group=NetworkSecurityGroup(id=self.config['security_group_id']),
+        )
 
         try:
             if self.public and not self.public_ip:
                 poller = self.network_client.public_ip_addresses.begin_create_or_update(
                     self.config['resource_group'],
                     self.name + '-ip',
-                    {
-                        "location": self.location,
-                        "sku": {"name": "Standard"},
-                        "public_ip_allocation_method": "Static",
-                        "public_ip_address_version": "IPV4",
-                    },
+                    PublicIPAddress(
+                        location=self.location,
+                        sku=PublicIPAddressSku(name="Standard"),
+                        public_ip_allocation_method="Static",
+                        public_ip_address_version="IPv4",
+                    ),
                 )
                 ip_address_result = poller.result()
                 public_ip_created = True
                 self.public_ip = ip_address_result.ip_address
-                nic_params['ip_configurations'][0]['public_ip_address'] = {"id": ip_address_result.id}
+                nic_params.ip_configurations[0].public_ip_address = PublicIPAddress(id=ip_address_result.id)
 
             elif self.public:
-                nic_params['ip_configurations'][0]['public_ip_address'] = {"id": self.config['floating_ip_id']}
+                nic_params.ip_configurations[0].public_ip_address = PublicIPAddress(id=self.config['floating_ip_id'])
 
             poller = self.network_client.network_interfaces.begin_create_or_update(
                 self.config['resource_group'],

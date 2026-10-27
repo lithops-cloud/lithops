@@ -26,8 +26,8 @@ ACTION_MODULES_DIR = os.path.join('.python_packages', 'lib', 'site-packages')
 FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_azure_fa.zip')
 
 DEFAULT_CONFIG_KEYS = {
-    'runtime_timeout': 300,  # Default: 300 seconds => 5 minutes
-    'runtime_memory': 2048,  # Default Flex Consumption instance memory: 2048 MB
+    'runtime_timeout': 300,
+    'runtime_memory': 512,  # Flex Consumption assigns approximately 0.25 CPU at 512 MB
     'max_workers': 1000,
     'worker_processes': 1,
     'invoke_pool_threads': 10,
@@ -151,6 +151,7 @@ redis
 requests
 PyYAML
 kubernetes
+python-dateutil>=2.9.0,<3
 cloudpickle
 ps-mem
 tblib
