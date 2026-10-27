@@ -17,6 +17,7 @@
 
 import os
 import re
+import errno
 import posixpath
 import logging
 import requests
@@ -109,42 +110,40 @@ def _log_chunk_settings(chunk_size: Optional[int], chunk_number: Optional[int]) 
         logger.debug('Chunk size and chunk number not set')
 
 
-def _chunk_from_number(obj_size: int, chunk_number: int) -> int:
-    chunk_rest = obj_size % chunk_number
-    return (obj_size // chunk_number) + round((chunk_rest / chunk_number) + 0.5)
-
-
-def _sized_object_chunk(
-    obj_size: Optional[int],
+def _chunk_sizes(
+    obj_size: int,
+    chunk_size: Optional[int],
     chunk_number: Optional[int],
-    chunk_size: Optional[int]
-) -> Optional[int]:
+    min_chunk: int
+) -> List[int]:
     """
-    Resolves the chunk size to use for one object. A requested chunk number
-    wins over a requested chunk size, and an unset one means a single chunk
+    The size of every chunk of one object. A requested chunk number wins over
+    a requested chunk size, and an unset one means a single chunk. An object
+    of fewer than chunk_number * min_chunk bytes gets fewer chunks, none of
+    them under min_chunk bytes
     """
-    if chunk_number and obj_size:
-        return _chunk_from_number(obj_size, chunk_number)
-    if chunk_size and obj_size:
-        return chunk_size
-    if obj_size:
-        return obj_size
-    return None
+    if chunk_number:
+        chunk_number = max(1, min(chunk_number, obj_size // min_chunk))
+        bounds = [i * obj_size // chunk_number for i in range(chunk_number + 1)]
+        return [end - start for start, end in zip(bounds, bounds[1:])]
+    chunk_size = max(chunk_size or obj_size, min_chunk)
+    return [chunk_size] * (obj_size // chunk_size + (obj_size % chunk_size > 0))
 
 
 def _build_partitions(
     entry: Entry,
     make_obj: Callable[[], Any],
     obj_size: Optional[int],
-    obj_chunk_size: Optional[int],
+    chunk_size: Optional[int],
+    chunk_number: Optional[int],
     obj_newline: Optional[str],
     label: str
 ) -> Partitions:
     """
-    Splits one object into as many partitions as its chunk size calls for,
-    each one a copy of the entry carrying its own byte range
+    Splits one object into as many partitions as its chunk size or number
+    calls for, each one a copy of the entry carrying its own byte range
     """
-    if not obj_size or not obj_chunk_size:
+    if not obj_size:
         return [], 0
 
     obj_partitions = []
@@ -152,14 +151,13 @@ def _build_partitions(
     # Every chunk but the first one starts as many bytes early as the newline
     # has. Longer than the newline, only the first chunk starts at byte 0
     newline_len = len(obj_newline.encode()) if obj_newline is not None else 0
-    obj_chunk_size = max(obj_chunk_size, newline_len + 1)
+    chunk_sizes = _chunk_sizes(obj_size, chunk_size, chunk_number, newline_len + 1)
 
-    parts = obj_size // obj_chunk_size + (obj_size % obj_chunk_size > 0)
     logger.debug(
-        f'Creating {parts} partitions from {label} ({sizeof_fmt(obj_size)})'
+        f'Creating {len(chunk_sizes)} partitions from {label} ({sizeof_fmt(obj_size)})'
     )
 
-    while size < obj_size:
+    for obj_chunk_size in chunk_sizes:
         if obj_size <= obj_chunk_size:
             # A single partition reads the whole object, no range needed
             brange = None
@@ -228,24 +226,32 @@ def _split_objects_from_urls(
     def _split(entry):
         obj_size = None
         object_url = entry['obj']
-        metadata = requests.head(object_url)
+        # The worker reads the object with a GET, which follows redirects
+        metadata = requests.head(object_url, allow_redirects=True)
+        if not 200 <= metadata.status_code < 300:
+            raise requests.HTTPError(
+                f'HEAD {object_url} returned HTTP {metadata.status_code}, '
+                'so its size is unknown', response=metadata
+            )
 
         if 'content-length' in metadata.headers:
             obj_size = int(metadata.headers['content-length'])
 
-        obj_chunk_size = _sized_object_chunk(obj_size, chunk_number, chunk_size)
+        obj_chunk_size, obj_chunk_number = chunk_size, chunk_number
         if obj_size is None:
             # Size unknown, so the object is a single partition of unset size
-            obj_chunk_size = obj_size = 1
+            obj_size = 1
 
-        if 'accept-ranges' not in metadata.headers:
-            obj_chunk_size = obj_size
+        if 'bytes' not in metadata.headers.get('accept-ranges', '').lower():
+            # Without range requests, every partition would read the whole object
+            obj_chunk_size = obj_chunk_number = None
 
         return _build_partitions(
             entry,
             lambda: CloudObjectUrl(object_url),
             obj_size,
             obj_chunk_size,
+            obj_chunk_number,
             obj_newline,
             f'url {object_url}'
         )
@@ -256,12 +262,15 @@ def _split_objects_from_urls(
 def _expand_paths(map_func_args_list: List[Entry]) -> List[Entry]:
     """
     Replaces every directory entry with one entry per file it contains,
-    dropping duplicates and anything that is not a file
+    dropping duplicates and anything that is not a file. A path that does
+    not exist raises FileNotFoundError
     """
     files = set()
     expanded = []
 
     for elem in map_func_args_list:
+        if not os.path.exists(elem['obj']):
+            raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), elem['obj'])
         if os.path.isdir(elem['obj']):
             path = elem['obj']
             for filename in os.listdir(path):
@@ -295,17 +304,21 @@ def _split_objects_from_paths(
     def _split(entry):
         path = entry['obj']
         obj_size = int(os.stat(path).st_size)
-        obj_chunk_size = _sized_object_chunk(obj_size, chunk_number, chunk_size)
         return _build_partitions(
             entry,
             lambda: CloudObjectLocal(path),
             obj_size,
-            obj_chunk_size,
+            chunk_size,
+            chunk_number,
             obj_newline,
             f'path {path}'
         )
 
-    return _collect_partitions(_split, _expand_paths(map_func_args_list))
+    files = _expand_paths(map_func_args_list)
+    if not files:
+        raise Exception('No objects found')
+
+    return _collect_partitions(_split, files)
 
 
 def _glob_list_prefix(pattern: str) -> str:
@@ -445,15 +458,12 @@ def _split_objects_from_object_storage(
                 continue
 
             total_objects += 1
-            obj_size = dobj['Size']
-            obj_chunk_size = _sized_object_chunk(
-                obj_size, chunk_number, chunk_size
-            )
             obj_partitions, nparts = _build_partitions(
                 {'obj': f'{sb}://{bucket}/{key}', **params},
                 lambda: CloudObject(sb, bucket, key),
-                obj_size,
-                obj_chunk_size,
+                dobj['Size'],
+                chunk_size,
+                chunk_number,
                 obj_newline,
                 f'object {key}'
             )

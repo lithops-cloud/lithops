@@ -444,6 +444,51 @@ class TestWorkerSetup:
         ]
         assert any(e and 'no route' in e for e in errors)
 
+    def test_setup_does_not_stop_a_worker_it_set_up(self):
+        handler = self._handler()
+        worker = _worker_instance()
+        handler.backend.get_instance.return_value = worker
+        sa_master.redis_client.hget.return_value = WorkerStatus.STARTING.value
+        with patch.object(sa_master, '_worker_setup_script', return_value='SCRIPT'):
+            sa_master.setup_worker_create_reuse(handler, {'name': 'w'}, 'wq')
+        worker.stop.assert_not_called()
+
+    def _failing_worker(self, failure):
+        worker = _worker_instance(config={'worker_processes': 2, 'worker_create_retries': 1})
+        if failure == 'boot':
+            worker.wait_ready.side_effect = TimeoutError('slow')
+        elif failure == 'validation':
+            worker.validate_capabilities.side_effect = sa_master.LithopsValidationError('2 sockets')
+        else:
+            worker.get_ssh_client.return_value.upload_local_file.side_effect = OSError('no route')
+        return worker
+
+    @pytest.mark.parametrize('failure, error', [
+        ('boot', TimeoutError), ('validation', sa_master.LithopsValidationError), ('install', OSError),
+    ])
+    def test_setup_stops_a_worker_it_could_not_set_up(self, failure, error):
+        # Nothing was installed on it, not even the budget keeper that would stop it
+        handler = self._handler()
+        worker = self._failing_worker(failure)
+        handler.backend.get_instance.return_value = worker
+        sa_master.redis_client.hget.return_value = WorkerStatus.STARTING.value
+        with patch.object(sa_master, '_worker_setup_script', return_value='SCRIPT'):
+            with pytest.raises(error):
+                sa_master.setup_worker_create_reuse(handler, {'name': 'w'}, 'wq')
+        # stop() deletes it instead when the worker is to be deleted on dismantle
+        worker.stop.assert_called_once()
+
+    def test_setup_keeps_the_setup_error_when_the_worker_cannot_be_stopped(self):
+        handler = self._handler()
+        worker = self._failing_worker('boot')
+        worker.stop.side_effect = OSError('api down')
+        handler.backend.get_instance.return_value = worker
+        sa_master.redis_client.hget.return_value = WorkerStatus.STARTING.value
+        with patch.object(sa_master, 'logger') as log:
+            with pytest.raises(TimeoutError, match='slow'):
+                sa_master.setup_worker_create_reuse(handler, {'name': 'w'}, 'wq')
+        assert any('api down' in str(c) for c in log.error.call_args_list)
+
     def test_consume_setup_runs_the_script_on_this_instance(self, tmp_path):
         handler = self._handler(exec_mode=StandaloneMode.CONSUME.value)
         instance = _worker_instance()

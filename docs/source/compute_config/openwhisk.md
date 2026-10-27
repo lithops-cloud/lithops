@@ -32,6 +32,49 @@ Lithops with *OpenWhisk* as serverless compute backend. Lithops can also run fun
     wsk action invoke --result helloPython --param name World
     ```
 
+## Local OpenWhisk
+
+The current standalone build is published on Docker Hub as `openwhisk/standalone:nightly` (the same image as the `7ef091c` tag). It serves the API over plain HTTP, so the endpoint keeps the `http://` scheme:
+
+```bash
+docker run -d --name openwhisk -h openwhisk \
+  -e DOCKER_API_VERSION=1.40 \
+  -p 3233:3233 -p 3232:3232 \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  openwhisk/standalone:nightly
+```
+
+The image carries Docker 18.06 to launch action containers. `DOCKER_API_VERSION=1.40` lets that client talk to a current Docker daemon, which otherwise rejects it. Its Python runtimes are `python:3.10` and `python:3.11`, and an action is limited to 128–512 MB and 300 seconds.
+
+On an Apple Silicon Mac that image is amd64 and its JVM crashes once invocations pile up. Run the same server jar on an arm64 Java container, with a Linux `docker` CLI. The Mac `docker` binary cannot run inside the container:
+
+```bash
+docker create --name ow-jar openwhisk/standalone:nightly
+docker cp ow-jar:/openwhisk-standalone.jar .
+docker rm ow-jar
+curl -sL https://download.docker.com/linux/static/stable/aarch64/docker-27.5.1.tgz | tar xz docker/docker
+
+docker run -d --name openwhisk -h openwhisk -p 3233:3233 \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v "$PWD/openwhisk-standalone.jar:/ow/openwhisk-standalone.jar:ro" \
+  -v "$PWD/docker/docker:/usr/local/bin/docker:ro" \
+  -w /ow eclipse-temurin:11-jre \
+  bash -c 'exec java -Dwhisk.standalone.host.name=$(hostname) -Dwhisk.standalone.host.internal=$(hostname -i) -Dwhisk.standalone.host.external=localhost -jar openwhisk-standalone.jar --no-browser'
+```
+
+The guest key below is the same. Lithops picks `docker.io/lithopscloud/openwhisk-python-v310` through `v314` from the client Python version. Those images are built for amd64 and arm64. `lithops runtime build` builds for the machine it runs on; pass `--platform linux/amd64` when the cluster is amd64.
+
+The playground is at <http://localhost:3232>. The guest namespace and its key are printed at startup (`docker logs openwhisk | grep 'wsk property'`) and are, by default:
+
+```yaml
+openwhisk:
+    endpoint    : http://localhost:3233
+    namespace   : guest
+    api_key     : 23bc46b1-71f6-4ed5-8c54-816aa4f8c502:123zO3xZCLrMN6v2BKK1dXYFpXlPkccOFqm12CdAsMgRU4VrNZ9lyGVCGuMDGIwP
+```
+
+Shut it down with `docker exec openwhisk stop`, which also removes the action containers it started.
+
 ## Configuration
 
 3. Edit your Lithops config and add the following keys:
@@ -73,13 +116,13 @@ Lithops with *OpenWhisk* as serverless compute backend. Lithops can also run fun
 |openwhisk | endpoint | |yes | API Host endpoint |
 |openwhisk | namespace | |yes | Namespace |
 |openwhisk | api_key | |yes | API Auth|
-|openwhisk | insecure | |yes | Insecure access |
-|openwhisk | max_workers | 100 | no | Max number of workers per `FunctionExecutor()`|
+|openwhisk | insecure | False |no | Skip TLS verification. Leave false for an `http://` endpoint |
+|openwhisk | max_workers | 100 | no | Max number of workers per `FunctionExecutor()`. Keep it within the concurrent invocations the namespace allows: the invocations over that limit are rejected and retried |
 |openwhisk | worker_processes | 1 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker |
 |openwhisk | runtime |  |no | Docker image name |
 |openwhisk | runtime_memory | 256 |no | Memory limit in MB. Default 256MB |
-|openwhisk | runtime_timeout | 600 |no | Runtime timeout in seconds. Default 10 minutes |
-|openwhisk | invoke_pool_threads | 500 |no | Number of concurrent threads used for invocation |
+|openwhisk | runtime_timeout | 300 |no | Runtime timeout in seconds. Default 5 minutes |
+|openwhisk | invoke_pool_threads | 100 |no | Number of concurrent threads used for invocation |
 |openwhisk | runtime_include_function | False | no | If set to true, Lithops will automatically build a new runtime, including the function's code, instead of transferring it through the storage backend at invocation time. This is useful when the function's code size is large (on the order of tens of MB) and the code does not change frequently |
 
 ## Test Lithops

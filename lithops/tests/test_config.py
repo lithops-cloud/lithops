@@ -291,6 +291,13 @@ class TestResolveModeAndBackend:
         assert backend is None
         assert mode == c.SERVERLESS
 
+    def test_an_empty_mode_section_uses_the_default_backend(self):
+        # 'standalone:' with no body in the YAML file loads as None
+        cfg = {'lithops': {'mode': c.STANDALONE}, c.STANDALONE: None}
+        backend, mode = _resolve_mode_and_backend(cfg)
+        assert backend == c.STANDALONE_BACKEND_DEFAULT
+        assert mode == c.STANDALONE
+
     def test_empty_string_backend_is_treated_as_missing(self):
         cfg = {'lithops': {'mode': c.LOCALHOST, 'backend': ''}}
         backend, mode = _resolve_mode_and_backend(cfg)
@@ -708,3 +715,69 @@ class TestStorageAndExtract:
         extracted = extract_standalone_config(cfg)
         extracted['exec_mode'] = 'consume'
         assert cfg[c.STANDALONE]['exec_mode'] == 'reuse'
+
+
+class TestGceProjectFallback:
+    @pytest.fixture(autouse=True)
+    def _need_gcp(self):
+        pytest.importorskip('googleapiclient')
+        pytest.importorskip('google_auth_httplib2')
+
+    @pytest.mark.parametrize('mode', ['create', 'reuse', 'consume'])
+    def test_project_from_credentials(self, tmp_path, mode):
+        from lithops.standalone.backends.gcp_compute_engine.config import load_config
+        path = tmp_path / 'credentials.json'
+        path.write_text(json.dumps({'project_id': 'credentials-project'}))
+        cfg = {
+            'gcp': {'credentials_path': str(path)},
+            'gcp_compute_engine': {'zone': 'us-east1-b', 'instance_name': 'vm'},
+            'standalone': {'exec_mode': mode},
+        }
+        load_config(cfg)
+        assert cfg['gcp_compute_engine']['project_name'] == 'credentials-project'
+
+    @pytest.mark.parametrize('section', ['gcp', 'gcp_compute_engine'])
+    def test_explicit_project_wins(self, section):
+        from lithops.standalone.backends.gcp_compute_engine.config import load_config
+        cfg = {'gcp': {}, 'gcp_compute_engine': {'zone': 'us-east1-b'}}
+        cfg[section]['project_name'] = 'explicit-project'
+        with patch('google.auth.default') as adc:
+            load_config(cfg)
+        assert cfg['gcp_compute_engine']['project_name'] == 'explicit-project'
+        adc.assert_not_called()
+
+    def test_backend_project_overrides_shared_project(self):
+        from lithops.standalone.backends.gcp_compute_engine.config import load_config
+        cfg = {
+            'gcp': {'project_name': 'shared'},
+            'gcp_compute_engine': {'zone': 'us-east1-b', 'project_name': 'backend'},
+        }
+        load_config(cfg)
+        assert cfg['gcp_compute_engine']['project_name'] == 'backend'
+
+    def test_project_from_adc(self, monkeypatch):
+        from lithops.standalone.backends.gcp_compute_engine.config import load_config
+        monkeypatch.delenv('GOOGLE_APPLICATION_CREDENTIALS', raising=False)
+        cfg = {'gcp_compute_engine': {'zone': 'us-east1-b'}}
+        with patch('google.auth.default', return_value=(MagicMock(), 'adc-project')):
+            load_config(cfg)
+        assert cfg['gcp_compute_engine']['project_name'] == 'adc-project'
+
+    def test_credentials_from_environment_and_home_expansion(self, tmp_path, monkeypatch):
+        from lithops.standalone.backends.gcp_compute_engine.config import load_config
+        monkeypatch.setenv('HOME', str(tmp_path))
+        monkeypatch.setenv('GOOGLE_APPLICATION_CREDENTIALS', '~/credentials.json')
+        path = tmp_path / 'credentials.json'
+        path.write_text(json.dumps({'project_id': 'env-project'}))
+        cfg = {'gcp_compute_engine': {'zone': 'us-east1-b'}}
+        load_config(cfg)
+        assert cfg['gcp_compute_engine']['project_name'] == 'env-project'
+        assert cfg['gcp_compute_engine']['credentials_path'] == str(path)
+
+    def test_no_resolvable_project_still_raises(self, monkeypatch):
+        from lithops.standalone.backends.gcp_compute_engine.config import load_config
+        monkeypatch.delenv('GOOGLE_APPLICATION_CREDENTIALS', raising=False)
+        cfg = {'gcp_compute_engine': {'zone': 'us-east1-b'}}
+        with patch('google.auth.default', return_value=(MagicMock(), None)):
+            with pytest.raises(Exception, match='project_name'):
+                load_config(cfg)

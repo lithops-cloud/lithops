@@ -575,12 +575,33 @@ class TestMiscUtils:
         with pytest.raises(Exception, match='docker_server is required'):
             docker_login('u', 'p', '')
 
+    @pytest.mark.parametrize('podman,server,expected_server', [
+        (True, 'docker.io', 'docker.io'),
+        (False, 'docker.io', None),
+        (True, 'eu-madrid-1.ocir.io', 'eu-madrid-1.ocir.io'),
+        (False, 'eu-madrid-1.ocir.io', 'eu-madrid-1.ocir.io'),
+        (False, 'docker.io.example.org', 'docker.io.example.org'),
+    ])
+    def test_docker_login_registry(self, monkeypatch, podman, server, expected_server):
+        executable = '/usr/bin/podman' if podman else '/usr/bin/docker'
+        monkeypatch.setattr(lithops_utils, 'get_docker_path', lambda: executable)
+        monkeypatch.setattr(lithops_utils, 'is_podman', lambda path: podman)
+        run = MagicMock()
+        monkeypatch.setattr(lithops_utils, 'run_command', run)
+
+        docker_login('alice', ' secret-token\n', server)
+
+        expected = f'{executable} login -u alice --password-stdin'
+        if expected_server:
+            expected += f' {expected_server}'
+        run.assert_called_once_with(expected, input='secret-token')
+
     def test_get_default_container_name_variants(self):
         cfg = {'docker_server': 'docker.io', 'docker_user': 'alice'}
-        name = get_default_container_name('ibm_cf', cfg, 'lithops')
+        name = get_default_container_name('openwhisk', cfg, 'lithops')
         assert name.startswith('docker.io/alice/lithops-v')
         cfg = {'docker_server': 'icr.io', 'docker_namespace': 'ns'}
-        name = get_default_container_name('ibm_cf', cfg, 'lithops')
+        name = get_default_container_name('openwhisk', cfg, 'lithops')
         assert name.startswith('icr.io/ns/lithops-v')
         cfg = {
             'docker_server': 'us-docker.pkg.dev',
@@ -595,7 +616,7 @@ class TestMiscUtils:
 
     def test_get_default_container_name_missing_docker_user(self):
         with pytest.raises(Exception, match='docker_user'):
-            get_default_container_name('ibm_cf', {'docker_server': 'docker.io'}, 'r')
+            get_default_container_name('openwhisk', {'docker_server': 'docker.io'}, 'r')
 
     def test_is_podman(self, monkeypatch):
         monkeypatch.setattr(

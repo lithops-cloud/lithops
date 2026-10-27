@@ -210,7 +210,7 @@ class _path:
             return False
         key = _to_key(path)
         dirpath = _to_key(path, as_dir=True)
-        for k in self._storage.list_bucket_keys(prefix=key):
+        for k in remove_lithops_keys(self._storage.list_bucket_keys(prefix=key)):
             if k.startswith(dirpath) or k == key:
                 return True
         return False

@@ -23,6 +23,7 @@ import uuid
 import functools
 import inspect
 from datetime import datetime
+from urllib.parse import parse_qs, urlparse
 from ibm_vpc import VpcV1
 from ibm_cloud_sdk_core.authenticators import IAMAuthenticator
 from ibm_cloud_sdk_core import ApiException
@@ -186,6 +187,12 @@ class IBMVPCBackend:
                 f'VPC {vpc_name}',
             )
 
+        for fip_id in list(getattr(self, '_init_created_fips', ())):
+            self._safe_rollback_delete(
+                lambda fid=fip_id: self.vpc_cli.delete_floating_ip(id=fid),
+                f'floating IP {fip_id}',
+            )
+
         if 'ssh_key' in created:
             key_filename = self.config.get('ssh_key_filename')
             if key_filename and 'lithops-key-' in key_filename:
@@ -231,8 +238,7 @@ class IBMVPCBackend:
         assert re.match("^[a-z0-9-:-]*$", self.vpc_name), \
             f'VPC name "{self.vpc_name}" not valid'
 
-        vpcs_info = self.vpc_cli.list_vpcs().get_result()
-        for vpc in vpcs_info['vpcs']:
+        for vpc in _list_all(self.vpc_cli.list_vpcs, 'vpcs'):
             if vpc['name'] == self.vpc_name:
                 vpc_info = vpc
 
@@ -305,7 +311,7 @@ class IBMVPCBackend:
         key_info = None
 
         def _get_ssh_key():
-            for key in self.vpc_cli.list_keys().result["keys"]:
+            for key in _list_all(self.vpc_cli.list_keys, 'keys'):
                 if key["name"] == keyname:
                     return key
 
@@ -369,8 +375,10 @@ class IBMVPCBackend:
         subnet_name = f'lithops-subnet-{self.vpc_key}'
         subnet_data = None
 
-        subnets_info = self.vpc_cli.list_subnets(resource_group_id=self.config['resource_group_id']).get_result()
-        for sn in subnets_info['subnets']:
+        for sn in _list_all(
+            self.vpc_cli.list_subnets, 'subnets',
+            resource_group_id=self.config['resource_group_id'],
+        ):
             if sn['name'] == subnet_name:
                 subnet_data = sn
 
@@ -409,8 +417,7 @@ class IBMVPCBackend:
         gateway_name = f'lithops-gateway-{self.vpc_key}'
         gateway_data = None
 
-        gateways_info = self.vpc_cli.list_public_gateways().get_result()
-        for gw in gateways_info['public_gateways']:
+        for gw in _list_all(self.vpc_cli.list_public_gateways, 'public_gateways'):
             if gw['vpc']['id'] == self.config['vpc_id']:
                 gateway_data = gw
 
@@ -439,8 +446,7 @@ class IBMVPCBackend:
         """
         fip_data = None
 
-        floating_ips_info = self.vpc_cli.list_floating_ips().get_result()
-        for fip in floating_ips_info['floating_ips']:
+        for fip in _list_all(self.vpc_cli.list_floating_ips, 'floating_ips'):
             if fip['name'].startswith("lithops-recyclable") and 'target' not in fip \
                and fip['zone']['name'] == self.config['zone_name']:
                 fip_data = fip
@@ -454,6 +460,11 @@ class IBMVPCBackend:
             floating_ip_prototype['resource_group'] = {'id': self.config['resource_group_id']}
             response = self.vpc_cli.create_floating_ip(floating_ip_prototype)
             fip_data = response.result
+            # Only an address this init() allocated is deleted if init fails.
+            # A recyclable one that was already free is left for the next use
+            created = getattr(self, '_init_created_fips', None)
+            if created is not None:
+                created.add(fip_data['id'])
 
         return fip_data['address'], fip_data['id']
 
@@ -489,9 +500,11 @@ class IBMVPCBackend:
             self.config['image_id'] = self.vpc_data['image_id']
             return
 
-        images_def = self.vpc_cli.list_images().result['images']
-        images_user = self.vpc_cli.list_images(resource_group_id=self.config['resource_group_id']).result['images']
-        images_def.extend(images_user)
+        images_def = _list_all(self.vpc_cli.list_images, 'images')
+        images_def.extend(_list_all(
+            self.vpc_cli.list_images, 'images',
+            resource_group_id=self.config['resource_group_id'],
+        ))
 
         if 'image_id' in self.vpc_data:
             for image in images_def:
@@ -561,6 +574,7 @@ class IBMVPCBackend:
 
             # The resources this init() creates, deleted again if it fails
             self._init_created = set()
+            self._init_created_fips = set()
             try:
                 # Create the VPC if not exists
                 self._create_vpc()
@@ -606,6 +620,7 @@ class IBMVPCBackend:
                 raise
             finally:
                 self._init_created = None
+                self._init_created_fips = None
 
     def build_image(self, image_name, script_file, overwrite, include, extra_args=[]):
         """
@@ -613,10 +628,10 @@ class IBMVPCBackend:
         """
         image_name = image_name or DEFAULT_LITHOPS_IMAGE_NAME
 
-        images = self.vpc_cli.list_images(
-            name=image_name,
-            resource_group_id=self.config['resource_group_id']
-        ).result['images']
+        images = _list_all(
+            self.vpc_cli.list_images, 'images',
+            name=image_name, resource_group_id=self.config['resource_group_id'],
+        )
 
         if len(images) > 0:
             image_id = images[0]['id']
@@ -694,9 +709,10 @@ class IBMVPCBackend:
         logger.debug("Be patient, VM imaging can take up to 6 minutes")
 
         while True:
-            images = self.vpc_cli.list_images(
-                name=image_name, resource_group_id=self.config['resource_group_id']
-            ).result['images']
+            images = _list_all(
+                self.vpc_cli.list_images, 'images',
+                name=image_name, resource_group_id=self.config['resource_group_id'],
+            )
             if len(images) > 0:
                 logger.debug(f"VM Image is being created. Current status: {images[0]['status']}")
                 if images[0]['status'] == 'available':
@@ -715,10 +731,10 @@ class IBMVPCBackend:
         Deletes a VM Image
         """
         def list_images():
-            return self.vpc_cli.list_images(
-                name=image_name,
-                resource_group_id=self.config['resource_group_id']
-            ).result['images']
+            return _list_all(
+                self.vpc_cli.list_images, 'images',
+                name=image_name, resource_group_id=self.config['resource_group_id'],
+            )
 
         images = list_images()
 
@@ -781,9 +797,11 @@ class IBMVPCBackend:
         List Ubuntu LTS images (22.04–24.04) and Lithops custom images.
         Returns tuples of (name, image_id, creation_date).
         """
-        images_def = self.vpc_cli.list_images().result['images']
-        images_user = self.vpc_cli.list_images(resource_group_id=self.config['resource_group_id']).result['images']
-        images_def.extend(images_user)
+        images_def = _list_all(self.vpc_cli.list_images, 'images')
+        images_def.extend(_list_all(
+            self.vpc_cli.list_images, 'images',
+            resource_group_id=self.config['resource_group_id'],
+        ))
 
         result = set()
 
@@ -822,8 +840,7 @@ class IBMVPCBackend:
 
         def get_instances():
             instances = set()
-            instances_info = self.vpc_cli.list_instances().get_result()
-            for ins in instances_info['instances']:
+            for ins in _list_all(self.vpc_cli.list_instances, 'instances'):
                 if ins['name'].startswith(vms_prefixes) \
                    and ins['vpc']['id'] == self.vpc_data['vpc_id']:
                     instances.add((ins['name'], ins['id']))
@@ -1229,9 +1246,9 @@ class IBMVPCInstance:
         """
         Returns the instance information
         """
-        instances_data = self.vpc_cli.list_instances(name=self.name).get_result()
-        if len(instances_data['instances']) > 0:
-            self.instance_data = instances_data['instances'][0]
+        instances_data = _list_all(self.vpc_cli.list_instances, 'instances', name=self.name)
+        if instances_data:
+            self.instance_data = instances_data[0]
             self.instance_id = self.instance_data['id']
 
         return self.instance_data
@@ -1409,6 +1426,29 @@ class IBMVPCInstance:
                 raise LithopsValidationError(
                     f'Not using single CPU socket as specified, using {len(sockets)} sockets instead'
                 )
+
+
+def _page_start(next_page):
+    """
+    The start token of the next VPC page. next.href carries it as a query
+    parameter, and a page stops at 50 items
+    """
+    href = (next_page or {}).get('href')
+    if not href:
+        return None
+    return (parse_qs(urlparse(href).query).get('start') or [None])[0]
+
+
+def _list_all(method, item_key, **kwargs):
+    """Every item of a VPC list, following next.href"""
+    found = []
+    while True:
+        result = method(**kwargs).get_result()
+        found.extend(result.get(item_key) or [])
+        start = _page_start(result.get('next'))
+        if not start:
+            return found
+        kwargs['start'] = start
 
 
 def _status_code(err):

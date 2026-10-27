@@ -68,7 +68,6 @@ gcp:
   credentials_path: <FULL_PATH_TO_SERVICE_ACCOUNT_JSON>
 
 gcp_compute_engine:
-  project_name: <GCP_PROJECT_ID>
   zone: <ZONE>
   exec_mode: reuse
 ```
@@ -86,7 +85,7 @@ Lithops attaches the service account from `credentials_path` to master and worke
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|gcp_compute_engine | project_name | |yes | GCP project ID |
+|gcp_compute_engine | project_name | from credentials |no | GCP project ID; overrides `gcp.project_name` |
 |gcp_compute_engine | zone | |yes | Compute Engine zone, for example `us-east1-b` |
 |gcp_compute_engine | region | derived from zone |no | Region used for subnet and NAT |
 |gcp_compute_engine | service_account | |no | Service account email attached to VMs. Default: `client_email` from `credentials_path` |
@@ -127,7 +126,6 @@ gcp:
 
 gcp_compute_engine:
   exec_mode: consume
-  project_name: <GCP_PROJECT_ID>
   zone: <ZONE>
   instance_name: <EXISTING_VM_NAME>
 ```
@@ -137,7 +135,7 @@ gcp_compute_engine:
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |gcp_compute_engine | instance_name | |yes | Existing VM instance name |
-|gcp_compute_engine | project_name | |yes | GCP project ID |
+|gcp_compute_engine | project_name | from credentials |no | GCP project ID; overrides `gcp.project_name` |
 |gcp_compute_engine | zone | |yes | Compute Engine zone |
 |gcp_compute_engine | ssh_username | ubuntu |no | Username to access the VM |
 |gcp_compute_engine | ssh_key_filename | |no | Path to the SSH private key. If not provided, Lithops creates `~/.ssh/lithops-key-<id>.gcp_ce.id_rsa` |

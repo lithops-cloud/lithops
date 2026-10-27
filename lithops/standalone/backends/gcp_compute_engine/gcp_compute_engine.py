@@ -128,7 +128,7 @@ class GCPComputeEngineBackend:
             'gcp.credentials_path.'
         )
 
-    def _wait_operation(self, operation_name, scope='zone'):
+    def _wait_operation(self, operation_name, scope='zone', ignore_not_found=False):
         while True:
             if scope == 'zone':
                 op = self.compute_client.zoneOperations().get(
@@ -145,6 +145,9 @@ class GCPComputeEngineBackend:
 
             if op['status'] == 'DONE':
                 if 'error' in op:
+                    errors = op['error'].get('errors', [])
+                    if ignore_not_found and errors and all(e.get('code') == 'RESOURCE_NOT_FOUND' for e in errors):
+                        return
                     raise Exception(op['error'])
                 return
             time.sleep(2)
@@ -772,6 +775,18 @@ class GCPComputeEngineBackend:
             return timestamp
         return created_at.strftime('%Y-%m-%d %H:%M:%S')
 
+    def _iter_zone_instances(self):
+        """Every instance in the zone. One page stops at 500"""
+        request = self.compute_client.instances().list(
+            project=self.project_name, zone=self.zone
+        )
+        while request is not None:
+            response = request.execute()
+            yield from response.get('items') or []
+            request = self.compute_client.instances().list_next(
+                previous_request=request, previous_response=response
+            )
+
     def _iter_project_images(self, project):
         request = self.compute_client.images().list(project=project)
         while request is not None:
@@ -877,11 +892,8 @@ class GCPComputeEngineBackend:
         )
 
         def get_instance_names():
-            instances = self.compute_client.instances().list(
-                project=self.project_name, zone=self.zone
-            ).execute().get('items', []) or []
             return [
-                ins['name'] for ins in instances
+                ins['name'] for ins in self._iter_zone_instances()
                 if ins.get('name', '').startswith(prefixes)
             ]
 
@@ -891,10 +903,15 @@ class GCPComputeEngineBackend:
                 break
             for name in names:
                 logger.debug(f"Deleting VM instance {name}")
-                op = self.compute_client.instances().delete(
-                    project=self.project_name, zone=self.zone, instance=name
-                ).execute()
-                self._wait_operation(op['name'], scope='zone')
+                try:
+                    op = self.compute_client.instances().delete(
+                        project=self.project_name, zone=self.zone, instance=name
+                    ).execute()
+                except HttpError as exc:
+                    if exc.resp.status != 404:
+                        raise
+                    continue
+                self._wait_operation(op['name'], scope='zone', ignore_not_found=True)
 
     def _delete_network_resources(self):
         """

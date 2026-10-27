@@ -13,15 +13,18 @@
 #
 
 import errno
+import http.server
 import json
 import logging
 import os
 import pickle
+import threading
 from functools import partial
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
+import requests
 
 from lithops.constants import (
     LOCALHOST,
@@ -88,7 +91,7 @@ class _CapturingSerializer:
         self.objs.extend(objs)
         return strs
 
-    def module_paths(self, objs, inc_modules, exc_modules):
+    def module_paths(self, objs, inc_modules, exc_modules, source='Objects'):
         type(self).last = (inc_modules, exc_modules, self.objs)
         return set()
 
@@ -239,14 +242,14 @@ class TestCreateMapJob:
         assert job.chunksize == 7
 
     def test_serverless_clamps_timeout(self):
-        cfg = _job_config(mode=SERVERLESS, backend='ibm_cf')
+        cfg = _job_config(mode=SERVERLESS, backend='openwhisk')
         job = _make_map_job(config=cfg, execution_timeout=100)
         assert job.runtime_memory == 256
         assert job.runtime_timeout == 30
         assert job.execution_timeout == 25
 
     def test_serverless_keeps_timeout_below_runtime(self):
-        cfg = _job_config(mode=SERVERLESS, backend='ibm_cf')
+        cfg = _job_config(mode=SERVERLESS, backend='openwhisk')
         job = _make_map_job(config=cfg, execution_timeout=10, runtime_memory=512)
         assert job.runtime_memory == 512
         assert job.execution_timeout == 10
@@ -471,7 +474,7 @@ class TestLargePayloadAndCache:
                     return [b'f']
                 return [b'x' * (MAX_DATA_IN_PAYLOAD + 1)] * len(objs)
 
-            def module_paths(self, objs, inc, exc):
+            def module_paths(self, objs, inc, exc, source='Objects'):
                 return set()
 
         monkeypatch.setattr('lithops.job.job.SerializeIndependent', _Big)
@@ -833,8 +836,42 @@ class TestCreateModuleData:
         assert all('\\' not in k for k in posix_keys)
 
 
-def _head(headers):
-    return MagicMock(headers=headers)
+def _head(headers, status_code=200):
+    return MagicMock(headers=headers, status_code=status_code)
+
+
+class _UrlHandler(http.server.BaseHTTPRequestHandler):
+    """Serves DATA at /data, a redirect to it at /redirect and a 404 elsewhere"""
+    DATA = b'0123456789' * 10
+
+    def do_HEAD(self):
+        if self.path == '/redirect':
+            self.send_response(302)
+            self.send_header('Location', '/data')
+            self.send_header('Content-Length', '0')
+        elif self.path == '/data':
+            self.send_response(200)
+            self.send_header('Content-Length', str(len(self.DATA)))
+            self.send_header('Accept-Ranges', 'bytes')
+        else:
+            self.send_response(404)
+            self.send_header('Content-Length', '9')
+        self.end_headers()
+
+    def log_message(self, *args):
+        pass
+
+
+@pytest.fixture
+def url_server():
+    server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), _UrlHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield f'http://127.0.0.1:{server.server_address[1]}'
+    finally:
+        server.shutdown()
+        server.server_close()
 
 
 class _LogCatcher(logging.Handler):
@@ -1338,6 +1375,125 @@ class TestCreatePartitions:
         )
         assert parts == []
         assert ppo == [0]
+
+    def test_url_head_follows_redirects(self, url_server):
+        """The redirect itself has no content: sized as it was, the map had no calls"""
+        parts, ppo = create_partitions(
+            {}, _storage(), [{'obj': f'{url_server}/redirect'}], None, 4, None
+        )
+        assert ppo == [4]
+        assert parts[0]['obj'].total_size == len(_UrlHandler.DATA)
+        assert parts[0]['obj'].url == f'{url_server}/redirect'
+
+    def test_url_error_status_raises(self, url_server):
+        """The error page was sized and processed as if it were the object"""
+        url = f'{url_server}/missing'
+        with pytest.raises(requests.HTTPError, match=f'{url} returned HTTP 404'):
+            create_partitions({}, _storage(), [{'obj': url}], None, 4, None)
+
+    @pytest.mark.parametrize('accept_ranges', ['none', 'None', ''])
+    def test_url_without_byte_ranges_uses_full_object(self, accept_ranges):
+        """Every partition of a server that ignores ranges read the whole object"""
+        headers = {'content-length': '100', 'accept-ranges': accept_ranges}
+        with patch(
+            'lithops.job.partitioner.requests.head', return_value=_head(headers)
+        ) as head:
+            parts, ppo = create_partitions(
+                {}, _storage(), [{'obj': 'http://example.com/a'}], 10, 4, None
+            )
+        head.assert_called_once_with('http://example.com/a', allow_redirects=True)
+        assert ppo == [1]
+        assert parts[0]['obj'].data_byte_range is None
+        assert parts[0]['obj'].chunk_size == 100
+
+    def test_url_byte_ranges_header_is_case_insensitive(self):
+        headers = {'content-length': '100', 'accept-ranges': 'Bytes'}
+        with patch(
+            'lithops.job.partitioner.requests.head', return_value=_head(headers)
+        ):
+            _, ppo = create_partitions(
+                {}, _storage(), [{'obj': 'http://example.com/a'}], 10, None, None
+            )
+        assert ppo == [10]
+
+    @pytest.mark.parametrize('size, number', [(9, 6), (100, 30), (1000, 64), (64, 64)])
+    @pytest.mark.parametrize('newline', [None, '\n'])
+    def test_chunk_number_is_the_number_of_chunks(self, tmp_path, size, number, newline):
+        """It took ceil(size / number) as chunk size, which leaves fewer chunks"""
+        path = tmp_path / 'data.txt'
+        path.write_bytes(b'x' * size)
+        minimum = 2 if newline else 1
+        expected = min(number, size // minimum)
+
+        headers = {'content-length': str(size), 'accept-ranges': 'bytes'}
+        with patch(
+            'lithops.job.partitioner.requests.head', return_value=_head(headers)
+        ):
+            url_parts, url_ppo = create_partitions(
+                {}, _storage(), [{'obj': 'http://example.com/a'}], None, number, newline
+            )
+        internal = _storage()
+        internal.storage.head_object.return_value = {'content-length': str(size)}
+        storage_parts, storage_ppo = create_partitions(
+            {}, internal, [{'obj': 'localhost://bucket/a'}], None, number, newline
+        )
+        path_parts, path_ppo = create_partitions(
+            {}, _storage(), [{'obj': str(path)}], None, number, newline
+        )
+
+        assert url_ppo == storage_ppo == path_ppo == [expected]
+        for parts in (url_parts, storage_parts):
+            assert [(p['obj'].data_byte_range, p['obj'].chunk_size) for p in parts] == [
+                (p['obj'].data_byte_range, p['obj'].chunk_size) for p in path_parts
+            ]
+        chunk_sizes = [p['obj'].chunk_size for p in path_parts]
+        assert sum(chunk_sizes) == size
+        assert max(chunk_sizes) - min(chunk_sizes) <= 1
+        assert min(chunk_sizes) >= minimum
+        assert [p['obj'].total_parts for p in path_parts] == [expected] * expected
+
+    @pytest.mark.parametrize('newline', [None, '\n'])
+    def test_chunk_number_partitions_reassemble_the_object(self, tmp_path, newline):
+        from lithops.worker.jobrunner import JobRunner
+
+        data = b''.join(b'%d\n' % i for i in range(200))
+        path = tmp_path / 'data.txt'
+        path.write_bytes(data)
+        parts, ppo = create_partitions({}, _storage(), [{'obj': str(path)}], None, 7, newline)
+        assert ppo == [7]
+
+        runner = JobRunner.__new__(JobRunner)
+        pieces = []
+        for part in parts:
+            loaded = {'obj': part['obj']}
+            runner._load_object(loaded)
+            pieces.append(loaded['obj'].data_stream.read())
+        assert b''.join(pieces) == data
+
+    def test_chunk_number_above_the_size_makes_one_byte_chunks(self, tmp_path):
+        path = tmp_path / 'data.txt'
+        path.write_bytes(b'abc')
+        parts, ppo = create_partitions({}, _storage(), [{'obj': str(path)}], None, 6, None)
+        assert ppo == [3]
+        assert [p['obj'].data_byte_range for p in parts] == [(0, 0), (1, 1), (2, 2)]
+
+    def test_missing_path_raises(self, tmp_path):
+        """A mistyped path was dropped, and the map ran without it"""
+        present = tmp_path / 'a.txt'
+        present.write_bytes(b'data')
+        missing = tmp_path / 'typo.txt'
+        with pytest.raises(FileNotFoundError, match='typo.txt') as excinfo:
+            create_partitions(
+                {}, _storage(), [{'obj': str(present)}, {'obj': str(missing)}], None, None, None
+            )
+        assert excinfo.value.filename == str(missing)
+
+    def test_paths_without_files_raise(self, tmp_path):
+        """As an empty bucket does, rather than a map of no calls"""
+        empty = tmp_path / 'empty'
+        (empty / 'sub').mkdir(parents=True)
+        with pytest.raises(Exception, match='No objects found'):
+            create_partitions({}, _storage(), [{'obj': str(empty)}], None, None, None)
 
 
 

@@ -47,7 +47,10 @@ ZIP_METADATA_RETRY_SLEEP = 5
 CONTAINER_MAX_WAIT = 900
 CONTAINER_METADATA_MAX_ATTEMPTS = 60
 CONTAINER_METADATA_RETRY_SLEEP = 10
-FC_INVOKE_RUNTIME = RuntimeOptions(read_timeout=120000, connect_timeout=30000)
+# An async invoke only waits for the platform to accept the call. The
+# synchronous metadata call waits for the function itself.
+FC_CONNECT_TIMEOUT = 30000
+FC_SUBMIT_TIMEOUT = 120000
 
 
 def _init_fc3_client(access_key_id, access_key_secret, region, endpoint):
@@ -511,6 +514,18 @@ class AliyunFunctionComputeBackend:
                     runtimes.append((img_name, memory, version, function.function_name))
         return runtimes
 
+    def _submit_runtime(self):
+        """How long to wait for an asynchronous invoke to be accepted"""
+        return RuntimeOptions(read_timeout=FC_SUBMIT_TIMEOUT, connect_timeout=FC_CONNECT_TIMEOUT)
+
+    def _metadata_runtime(self):
+        """The metadata call runs the function, so it waits out runtime_timeout"""
+        runtime_timeout = (getattr(self, 'config', None) or {}).get('runtime_timeout', 300)
+        return RuntimeOptions(
+            read_timeout=(runtime_timeout + 30) * 1000,
+            connect_timeout=FC_CONNECT_TIMEOUT,
+        )
+
     def invoke(self, runtime_name, memory, payload=None):
         if payload is None:
             payload = {}
@@ -523,7 +538,7 @@ class AliyunFunctionComputeBackend:
         request = fc_models.InvokeFunctionRequest(body=io.BytesIO(payload_bytes))
 
         res = self.fc_client.invoke_function_with_options(
-            function_name, request, headers, FC_INVOKE_RUNTIME
+            function_name, request, headers, self._submit_runtime()
         )
 
         request_id = _get_response_header(res, 'x-fc-request-id')
@@ -539,7 +554,6 @@ class AliyunFunctionComputeBackend:
         headers = fc_models.InvokeFunctionHeaders(
             x_fc_invocation_type='Sync',
         )
-        request = fc_models.InvokeFunctionRequest(body=io.BytesIO(payload_bytes))
 
         last_error = None
         runtime_meta = None
@@ -552,8 +566,10 @@ class AliyunFunctionComputeBackend:
                     pass
 
             try:
+                # The body stream is consumed by each attempt
+                request = fc_models.InvokeFunctionRequest(body=io.BytesIO(payload_bytes))
                 res = self.fc_client.invoke_function_with_options(
-                    function_name, request, headers, FC_INVOKE_RUNTIME
+                    function_name, request, headers, self._metadata_runtime()
                 )
                 runtime_meta = json.loads(_read_invoke_body(res))
                 if isinstance(runtime_meta, dict) and runtime_meta.get('errorMessage'):

@@ -292,8 +292,11 @@ class KubernetesBackend:
         cred_payload = {
             "auths": {
                 docker_server: {
-                    "Username": docker_user,
-                    "Password": docker_password
+                    "username": docker_user,
+                    "password": docker_password,
+                    "auth": base64.b64encode(
+                        f'{docker_user}:{docker_password}'.encode()
+                    ).decode()
                 }
             }
         }
@@ -582,16 +585,17 @@ class KubernetesBackend:
         )
 
     def convert_memory_units(self, mem_num, mem_uni):
+        """
+        The value in megabytes. Ki/Mi/Gi use 1024 and K/M/G use 1000, so a
+        pod request and the memory it is compared with are the same size
+        """
         mem_num = int(mem_num)
-
-        if 'i' in mem_uni:
-            mem_num *= 1024
-            mem_uni = mem_uni[:-1]
-        if 'K' in mem_uni:
-            mem_num = mem_num / (1024 if 'i' in mem_uni else 1000)
-        elif 'G' in mem_uni:
-            mem_num = mem_num * (1024 if 'i' in mem_uni else 1000)
-
+        factor = 1024 if 'i' in mem_uni.lower() else 1000
+        unit = mem_uni.lower()
+        if 'k' in unit:
+            mem_num = mem_num / factor
+        elif 'g' in unit:
+            mem_num = mem_num * factor
         return mem_num, 'M'
 
     # Detect if granularity, memory or runtime image changed or not

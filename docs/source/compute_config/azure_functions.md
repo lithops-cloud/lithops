@@ -87,7 +87,7 @@ az login
 |---|---|---|---|---|
 |azure_functions| resource_group | |no | Name of a resource group, for example: `LithopsResourceGroup`. Lithops will use the `resource_group` set under the `azure` section if it is not set here |
 |azure_functions| region |  |no | The Flex Consumption plan location for the runtime. Use `az functionapp list-flexconsumption-locations` to view the available locations. For example: `westeurope`, `westus2`, etc. Lithops will use the `region` set under the `azure` section if it is not set here|
-|azure_functions | runtime_memory | 2048 | no | Flex Consumption instance memory in MB. Supported values: `512`, `2048`, `4096`. Other values are mapped to the nearest supported size |
+|azure_functions | runtime_memory | 512 | no | Flex Consumption instance memory in MB. The default 512 MB receives approximately 0.25 CPU automatically. Supported values: `512`, `2048`, `4096`. Other values are mapped to the nearest supported size. Each instance memory size is deployed as a separate function app |
 |azure_functions | max_workers | 1000 | no | Max number of parallel workers. Although Azure limits the number of workers to 200, it is convenient to keep this value high|
 |azure_functions | worker_processes | 1 | no | Lithops-side parallelism setting. Not applied as an Azure Functions app setting on Flex Consumption |
 |azure_functions| runtime |  |no | Runtime name already deployed in the service|

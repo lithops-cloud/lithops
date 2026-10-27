@@ -325,6 +325,46 @@ class TestListRuntimes:
         assert backend.list_runtimes('other') == [('docker.io/user/other:1', 2048, '3.8.1', 'b')]
 
 
+class TestDeployRuntime:
+
+    def test_a_metadata_failure_deletes_the_service(self):
+        backend = _make_backend()
+        backend._get_default_runtime_image_name = MagicMock(return_value='other')
+        backend._create_container_registry_secret = MagicMock()
+        backend._create_service = MagicMock()
+        backend._generate_runtime_meta = MagicMock(side_effect=Exception('metadata down'))
+        backend.delete_runtime = MagicMock()
+        with pytest.raises(Exception, match='metadata down'):
+            backend.deploy_runtime('img', 256, 60)
+        backend.delete_runtime.assert_called_once_with('img', 256)
+
+    def test_the_metadata_error_survives_a_failed_cleanup(self):
+        backend = _make_backend()
+        backend._get_default_runtime_image_name = MagicMock(return_value='other')
+        backend._create_container_registry_secret = MagicMock()
+        backend._create_service = MagicMock()
+        backend._generate_runtime_meta = MagicMock(side_effect=Exception('metadata down'))
+        backend.delete_runtime = MagicMock(side_effect=Exception('cleanup'))
+        with pytest.raises(Exception, match='metadata down'):
+            backend.deploy_runtime('img', 256, 60)
+
+    def test_unknown_kube_context_names_the_known_ones(self, tmp_path):
+        kubeconfig = tmp_path / 'kubeconfig'
+        kubeconfig.write_text('apiVersion: v1\n')
+        contexts = (
+            [{'name': 'kind', 'context': {'namespace': 'ns', 'cluster': 'c'}}],
+            {'name': 'kind', 'context': {'namespace': 'ns', 'cluster': 'c'}},
+        )
+        with patch.object(knative, 'load_kube_config'), \
+                patch.object(knative, 'list_kube_config_contexts', return_value=contexts), \
+                patch.object(knative, 'client'):
+            with pytest.raises(Exception, match="context 'typo' was not found"):
+                KnativeServingBackend(
+                    {'kubecfg_path': str(kubeconfig), 'kubecfg_context': 'typo'},
+                    MagicMock(),
+                )
+
+
 class TestDeleteRuntime:
 
     def test_waits_until_gone(self):

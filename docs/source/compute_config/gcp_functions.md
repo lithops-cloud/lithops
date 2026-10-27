@@ -64,19 +64,21 @@ gcloud services enable \
         region : <REGION_NAME>
         credentials_path : <FULL_PATH_TO_CREDENTIALS_JSON>
 ```
- 
+
 ## Summary of configuration keys for Google:
 
 ### Google Cloud Platform:
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
+|gcp | project_name | from credentials |no | GCP project ID |
 |gcp | region | |yes | Region name of the GCP services (e.g. `us-east1`) |
-|gcp | credentials_path | |yes | **Absolute** path of your JSON key file downloaded in step 7 (e.g. `/home/myuser/lithops-invoker1234567890.json`). Alternatively you can set `GOOGLE_APPLICATION_CREDENTIALS` environment variable. If not provided it will try to load the default credentials from the environment|
+|gcp | credentials_path | |no | **Absolute** path of your JSON key file downloaded in step 7 (e.g. `/home/myuser/lithops-invoker1234567890.json`). Alternatively you can set `GOOGLE_APPLICATION_CREDENTIALS` environment variable. If not provided it will try to load the default credentials from the environment|
 
 ### Google Cloud Run functions (v2)
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
+|gcp_functions | project_name | from gcp or credentials |no | GCP project ID; overrides `gcp.project_name` |
 |gcp_functions | region | |no | Region name (e.g. `us-east1`). Functions and pub/sub queues will be created in the same region. Lithops will use the region set under the `gcp` section if it is not set here  |
 |gcp_functions | max_workers | 1000 | no | Max number of workers per `FunctionExecutor()`|
 |gcp_functions | worker_processes | 1 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker |

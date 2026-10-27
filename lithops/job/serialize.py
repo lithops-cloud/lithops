@@ -94,7 +94,8 @@ class SerializeIndependent:
     def _referenced_module_paths(
         self,
         list_of_objs: List,
-        exclude_modules: Iterable[str]
+        exclude_modules: Iterable[str],
+        source: str = 'Objects'
     ) -> Set[str]:
         """
         Finds the paths of the modules the objects reference, leaving out the
@@ -108,7 +109,7 @@ class SerializeIndependent:
         for obj in list_of_objs:
             ref_modules.update(self._module_inspect(obj))
 
-        logger.debug(f"Referenced Modules: {_joined_or_none(ref_modules)}")
+        logger.debug(f"{source} - Referenced Modules: {_joined_or_none(ref_modules)}")
 
         mod_paths = set()
         for module_name in ref_modules:
@@ -179,24 +180,25 @@ class SerializeIndependent:
         self,
         list_of_objs: List,
         include_modules: Optional[Iterable[str]],
-        exclude_modules: Iterable[str]
+        exclude_modules: Iterable[str],
+        source: str = 'Objects'
     ) -> Set[str]:
         """
         Collects the paths of the modules that have to travel with the job:
         either the ones explicitly included, or the ones its code references
         """
         if include_modules is None:
-            logger.debug('Module manager disabled. Modules to transmit: None')
+            logger.debug(f'{source} - Module manager disabled. Modules to transmit: None')
             return set()
 
         if include_modules:
             mod_paths = self._explicit_module_paths(include_modules)
         else:
             mod_paths = self._referenced_module_paths(
-                list_of_objs, exclude_modules
+                list_of_objs, exclude_modules, source
             )
 
-        logger.debug(f"Modules to transmit: {_joined_or_none(mod_paths)}")
+        logger.debug(f"{source} - Modules to transmit: {_joined_or_none(mod_paths)}")
 
         return mod_paths
 

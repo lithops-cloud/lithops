@@ -140,7 +140,7 @@
 # Google Cloud Platform – credentials shared by all gcp_* sections
 # =============================================================================
 #gcp:
-    #project_name: <GCP_PROJECT_ID>
+    #project_name: <GCP_PROJECT_ID>       # Optional; inferred from credentials when omitted
     #region: <REGION_NAME>                # e.g. us-east1
     #credentials_path: <ABSOLUTE_PATH_TO_SERVICE_ACCOUNT_JSON>
 
@@ -177,7 +177,7 @@
 
 # Google Compute Engine – standalone compute
 #gcp_compute_engine:
-    #project_name: <GCP_PROJECT_ID>       # Falls back to gcp.project_name
+    #project_name: <GCP_PROJECT_ID>       # Falls back to gcp.project_name, then credentials
     #zone: <ZONE_NAME>                    # e.g. us-east1-b. Mandatory
     #region: <REGION_NAME>                # Falls back to gcp.region; derived from zone if omitted
     #service_account: <SERVICE_ACCOUNT_EMAIL>
@@ -211,7 +211,7 @@
     #resource_group: <RESOURCE_GROUP_NAME># Falls back to azure.resource_group
     #region: <LOCATION>                   # Falls back to azure.region
     #runtime: <RUNTIME_NAME>
-    #runtime_memory: 1536                 # MB
+    #runtime_memory: 512                  # MB. Allowed: 512, 2048, 4096; CPU scales with memory
     #runtime_timeout: 300                 # Seconds
     #functions_version: 4
     #trigger: pub/sub                     # One of: pub/sub, https
@@ -532,13 +532,16 @@
     # Any additional key in this section is forwarded to redis.Redis(...)
 
 #swift:
-    #auth_url: <SWIFT_AUTH_URL>
+    #auth_url: <SWIFT_AUTH_URL>           # Keystone, with or without a trailing /v3
     #region: <SWIFT_REGION>
-    #user_id: <SWIFT_USER_ID>
-    #project_id: <SWIFT_PROJECT_ID>
+    #user_name: <USER_NAME>               # Name in user_domain_name. Or set user_id to the user id
+    #user_id: <USER_ID>
+    #project_name: <PROJECT_NAME>         # Name in project_domain_name. Or set project_id
+    #project_id: <PROJECT_ID>
     #password: <SWIFT_PASSWORD>
-    #user_domain_name: default
-    #project_domain_name: default
+    #user_domain_name: Default
+    #project_domain_name: Default
+    #endpoint: <STORAGE_URL>              # Optional. Replaces the URL from the Keystone catalog
     #storage_bucket: <CONTAINER_NAME>
 
 #infinispan:

@@ -46,7 +46,7 @@ from lithops.wait import wait
 from lithops.future import ResponseFuture
 from lithops.utils import (
     WrappedStreamingBody, sizeof_fmt, is_object_processing_function,
-    FuturesList, verify_args, WrappedStreamingBodyPartition
+    FuturesList, verify_args, _chained_futures, WrappedStreamingBodyPartition
 )
 from lithops.storage.utils import create_output_key
 
@@ -166,15 +166,13 @@ class JobRunner:
         """
         func_sig = inspect.signature(function)
 
-        if len(data) == 1 and isinstance(data.get('future'), ResponseFuture):
-            # Function chaining feature. A param of the user function can be
-            # named future too, so the value tells a chained call apart
-            out = [
-                data.pop('future').result(
-                    internal_storage=self.internal_storage
-                )
-            ]
-            data.update(verify_args(function, out, None)[0])
+        if len(data) == 1:
+            # Function chaining. A param of the user function can be named
+            # future too, so only a future (or a list or tuple of them)
+            # is a chain. A list arrives as one argument of results; a
+            # tuple is unpacked into the signature, as call_async() does
+            # with plain data
+            self._resolve_chained_input(function, data)
 
         if 'ibm_cos' in func_sig.parameters:
             data['ibm_cos'] = self._create_ibm_cos_client()
@@ -187,6 +185,28 @@ class JobRunner:
 
         if 'id' in func_sig.parameters:
             data['id'] = int(self.job.call_id)
+
+    def _resolve_chained_input(self, function: Callable, data: Dict[str, Any]) -> None:
+        """Replaces a chained future input with the results it produced"""
+        chained = data.get('future')
+        storage = self.internal_storage
+
+        def results_of(futures):
+            return [
+                fut.result(internal_storage=storage) for fut in futures
+            ]
+
+        if isinstance(chained, ResponseFuture):
+            resolved = [chained.result(internal_storage=storage)]
+        elif isinstance(chained, tuple) and _chained_futures(chained) is not None:
+            resolved = [tuple(results_of(chained))]
+        elif isinstance(chained, list) and _chained_futures(chained) is not None:
+            resolved = [results_of(chained)]
+        else:
+            return
+
+        data.clear()
+        data.update(verify_args(function, resolved, None)[0])
 
     def _wait_futures(self, data: Dict[str, Any]) -> None:
         """

@@ -23,7 +23,7 @@ import time
 import logging
 import copy
 
-from ibm_cloud_sdk_core import ApiException
+from ibm_cloud_sdk_core import ApiException, BaseService
 from ibm_code_engine_sdk.code_engine_v2 import (
     CodeEngineV2,
     EnvVarPrototype,
@@ -190,8 +190,7 @@ class CodeEngineBackend:
 
         self._create_code_engine_client()
 
-        response = self.ce_client.list_projects().get_result()
-        for project in response.get('projects', []):
+        for project in self._ce_list(self.ce_client.list_projects, 'projects'):
             if project['name'] == self.project_name:
                 logger.debug(f"Found Code Engine project: {self.project_name}")
                 self.project_id = project['id']
@@ -323,12 +322,25 @@ class CodeEngineBackend:
             )
         return env_variables
 
+    def _ce_list(self, method, item_key, *args):
+        """Every item of a Code Engine list, following the next.start token"""
+        items = []
+        start = None
+        while True:
+            kwargs = {'start': start} if start else {}
+            page = method(*args, **kwargs).get_result()
+            items.extend(page.get(item_key, []))
+            nxt = page.get('next') or {}
+            start = nxt.get('start') if isinstance(nxt, dict) else None
+            if not start:
+                return items
+
     def _list_jobs(self):
         """
         Lists all job definitions in the current project
         """
         try:
-            return self.ce_client.list_jobs(self.project_id).get_result().get('jobs', [])
+            return self._ce_list(self.ce_client.list_jobs, 'jobs', self.project_id)
         except ApiException as e:
             logger.debug(f"List all jobs failed with {e.status_code} {e.message}")
             return []
@@ -409,14 +421,14 @@ class CodeEngineBackend:
         Deletes leftover lithops config maps from the project
         """
         try:
-            configmaps = self.ce_client.list_config_maps(self.project_id).get_result()
+            configmaps = self._ce_list(self.ce_client.list_config_maps, 'config_maps', self.project_id)
         except ApiException as e:
             logger.debug(f"Listing config maps failed with {e.status_code} {e.message}")
             return
 
         lithops_configmaps = [
             configmap['name']
-            for configmap in configmaps.get('config_maps', [])
+            for configmap in configmaps
             if configmap.get('name', '').startswith('lithops')
         ]
         if not lithops_configmaps:
@@ -465,7 +477,8 @@ class CodeEngineBackend:
         Waits until a job run completes or raises if it fails
         """
         logger.debug(f"Waiting for job run {jobrun_name}")
-        while True:
+        deadline = time.time() + config.JOB_RUN_TIMEOUT
+        while time.time() < deadline:
             try:
                 job_run = self.ce_client.get_job_run(self.project_id, jobrun_name).get_result()
             except ApiException as e:
@@ -484,6 +497,10 @@ class CodeEngineBackend:
                     + (f": {reason}" if reason else '')
                 )
             time.sleep(config.JOB_RUN_POLL_INTERVAL)
+
+        raise Exception(
+            f"Timed out after {config.JOB_RUN_TIMEOUT}s waiting for job run {jobrun_name} to complete"
+        )
 
     @retry_on_except
     def _create_config_map(self, config_map_name, payload):
@@ -504,6 +521,7 @@ class CodeEngineBackend:
                 self.ce_client.replace_config_map(
                     self.project_id,
                     config_map_name,
+                    if_match='*',
                     data=data,
                 )
             else:
@@ -687,7 +705,13 @@ class CodeEngineBackend:
             if e.status_code != 404:
                 raise e
 
+        deadline = time.time() + config.JOB_DEF_DELETE_TIMEOUT
         while self._job_def_exists(jobdef_name):
+            if time.time() >= deadline:
+                raise Exception(
+                    f"Timed out after {config.JOB_DEF_DELETE_TIMEOUT}s waiting for job definition "
+                    f"{jobdef_name} to be deleted"
+                )
             time.sleep(1)
 
         kwargs = {
@@ -749,12 +773,57 @@ class CodeEngineBackend:
         logger.info(f'Deleting runtime: {runtime_name} - {memory}MB')
         self._delete_job_definition(jobdef_name)
 
+    def _hard_delete_project(self, project_id):
+        """Permanently reclaim the project before removing its local cache."""
+        try:
+            self.ce_client.delete_project(id=project_id)
+        except ApiException as exc:
+            if exc.status_code != 404:
+                raise
+
+        controller = BaseService(
+            service_url='https://resource-controller.cloud.ibm.com',
+            authenticator=self.ce_client.get_authenticator(),
+        )
+        deadline = time.time() + config.PROJECT_READY_TIMEOUT
+        reclaimed = False
+        while time.time() < deadline:
+            request = controller.prepare_request('GET', f'/v2/resource_instances/{project_id}')
+            try:
+                instance = controller.send(request).get_result()
+            except ApiException as exc:
+                if exc.status_code == 404:
+                    return
+                raise
+            if instance.get('state') == 'removed':
+                return
+            if not reclaimed:
+                request = controller.prepare_request(
+                    'GET', '/v1/reclamations', params={'resource_instance_id': project_id}
+                )
+                reclamations = controller.send(request).get_result().get('resources', [])
+                for reclamation in reclamations:
+                    if reclamation.get('resource_instance_id') != project_id:
+                        continue
+                    request = controller.prepare_request(
+                        'POST', f'/v1/reclamations/{reclamation["id"]}/actions/reclaim',
+                        headers={'Content-Type': 'application/json'}, data={},
+                    )
+                    controller.send(request)
+                    reclaimed = True
+                    break
+            time.sleep(config.PROJECT_POLL_INTERVAL)
+        raise TimeoutError(f'Timed out permanently deleting Code Engine project {self.project_name}')
+
     def clean(self, all=False):
         """
         Deletes all runtimes from all packages
         """
         logger.info(f'Cleaning project {self.project_name}')
+        cached_project_id = self.project_id or load_yaml_config(self.cache_file).get('project_id')
         if not self._get_or_create_namespace(create=False, wait_for_active=False):
+            if all and cached_project_id:
+                self._hard_delete_project(cached_project_id)
             logger.info(f"Project {self.project_name} does not exist")
             if os.path.exists(self.cache_file):
                 os.remove(self.cache_file)
@@ -768,7 +837,7 @@ class CodeEngineBackend:
 
         if all and self.project_id:
             logger.info(f"Deleting Code Engine project: {self.project_name}")
-            self.ce_client.delete_project(id=self.project_id)
+            self._hard_delete_project(self.project_id)
             if os.path.exists(self.cache_file):
                 os.remove(self.cache_file)
 
@@ -791,7 +860,7 @@ class CodeEngineBackend:
             logger.info(f"Project {self.project_name} does not exist")
             return
 
-        for job_key in job_keys or self.jobs:
+        for job_key in list(job_keys or self.jobs):
             jobrun_name = f'lithops-{job_key.lower()}'
             self._delete_job_run(jobrun_name)
             self._delete_config_map(jobrun_name)

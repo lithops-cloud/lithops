@@ -94,6 +94,8 @@ class GCPFunctionsBackend:
 
         self._pub_client = pubsub_v1.PublisherClient(credentials=pubsub_cred)
 
+        self.project_name = self.gcf_config.get('project_name') or self.project_name
+
         http = AuthorizedHttp(api_cred, http=httplib2.Http())
         self._api_resource = build(
             'cloudfunctions', config.FUNCTIONS_API_VERSION,
@@ -187,16 +189,20 @@ class GCPFunctionsBackend:
         return runtimes
 
     def _wait_function_deleted(self, function_location):
-        # Wait until function is completely deleted
+        # Wait until function is completely deleted. Anything other than
+        # 404 (a blip, a permission error) is not evidence that it is gone
         while True:
             try:
                 self._api_resource.projects().locations().functions().get(
                     name=function_location
                 ).execute(num_retries=self.num_retries)
                 time.sleep(self.retry_sleep)
-            except Exception:
-                logger.debug('Function status is DELETED')
-                break
+            except HttpError as e:
+                status = getattr(getattr(e, 'resp', None), 'status', None)
+                if status == 404:
+                    logger.debug('Function status is DELETED')
+                    return
+                raise
 
     def _create_function(self, runtime_name, memory, timeout=60):
         """
@@ -220,17 +226,13 @@ class GCPFunctionsBackend:
 
         logger.debug(f"Creating function {function_location}")
 
-        fn_list_response = self._api_resource.projects().locations().functions().list(
-            parent=self._default_location
-        ).execute(num_retries=self.num_retries)
-        if 'functions' in fn_list_response:
-            deployed_functions = [fn['name'] for fn in fn_list_response['functions']]
-            if function_location in deployed_functions:
-                logger.debug(f"Function {function_location} already exists - Deleting function")
-                self._api_resource.projects().locations().functions().delete(
-                    name=function_location,
-                ).execute(num_retries=self.num_retries)
-                self._wait_function_deleted(function_location)
+        deployed_functions = [fn['name'] for fn in self._list_functions()]
+        if function_location in deployed_functions:
+            logger.debug(f"Function {function_location} already exists - Deleting function")
+            self._api_resource.projects().locations().functions().delete(
+                name=function_location,
+            ).execute(num_retries=self.num_retries)
+            self._wait_function_deleted(function_location)
 
         bin_location = self._get_runtime_bin_location(runtime_name)
         cloud_function = {
@@ -351,9 +353,19 @@ class GCPFunctionsBackend:
             os.remove(runtime_path)
 
         self._create_function(runtime_name, memory, timeout)
-
-        # Get runtime metadata
-        runtime_meta = self._generate_runtime_meta(runtime_name, memory)
+        try:
+            runtime_meta = self._generate_runtime_meta(runtime_name, memory)
+        except Exception:
+            # The function is already live. Leaving it behind makes the next
+            # deploy look like an update of a runtime that has no metadata
+            logger.warning(f'Deleting {runtime_name}: its metadata could not be read')
+            try:
+                self.delete_runtime(runtime_name, memory)
+            except Exception as cleanup_error:
+                logger.warning(
+                    f'Could not delete the function for {runtime_name}: {cleanup_error}'
+                )
+            raise
 
         return runtime_meta
 
@@ -363,7 +375,8 @@ class GCPFunctionsBackend:
             function_name = self._format_function_name(
                 runtime_name, runtime_memory, version)
         function_location = self._get_function_location(function_name)
-        logger.info(f'Deleting runtime: {runtime_name} - {runtime_memory}MB')
+        memory_info = f' - {runtime_memory}MB' if runtime_memory is not None else ''
+        logger.info(f'Deleting runtime: {runtime_name}{memory_info}')
 
         # Delete function
         try:
@@ -406,20 +419,30 @@ class GCPFunctionsBackend:
             self.delete_runtime(
                 runtime_name, runtime_memory, version, function_name=wk_name)
 
+    def _list_functions(self):
+        """Every function in the region, following nextPageToken"""
+        functions = []
+        page_token = None
+        while True:
+            response = self._api_resource.projects().locations().functions().list(
+                parent=self._default_location, pageToken=page_token
+            ).execute(num_retries=self.num_retries)
+            functions.extend(response.get('functions', []))
+            page_token = response.get('nextPageToken')
+            if not page_token:
+                return functions
+
     def list_runtimes(self, runtime_name='all'):
         logger.debug('Listing deployed runtimes')
-        response = self._api_resource.projects().locations().functions().list(
-            parent=self._default_location
-        ).execute(num_retries=self.num_retries)
-
         runtimes = []
-        for func in response.get('functions', []):
-            if func['labels'] and 'type' in func['labels'] \
-               and func['labels']['type'] == 'lithops-runtime':
+        for func in self._list_functions():
+            labels = func.get('labels') or {}
+            if labels.get('type') == 'lithops-runtime':
                 fn_name = func['name'].rsplit('/', 1)[-1]
                 version = func['labels']['lithops_version'].replace('-', '.')
                 rt_name = func['labels']['runtime_name']
-                memory = self._memory_from_gcfv2(func['serviceConfig']['availableMemory'])
+                memory_value = (func.get('serviceConfig') or {}).get('availableMemory')
+                memory = self._memory_from_gcfv2(memory_value) if memory_value is not None else None
                 if runtime_name == rt_name or runtime_name == 'all':
                     runtimes.append((rt_name, memory, version, fn_name))
 
@@ -475,11 +498,13 @@ class GCPFunctionsBackend:
                 "Authorization": f"Bearer {api_token}",
                 "Content-Type": "application/json"
             }
+            # The function runs inside this request and only then returns
+            # the activation id, so the client has to outlast runtime_timeout
             res = requests.post(
                 function_url,
                 data=json.dumps(payload, default=str),
                 headers=headers,
-                timeout=120
+                timeout=self.gcf_config.get('runtime_timeout', 300) + 30
             )
 
             if res.status_code in (200, 202):
@@ -515,9 +540,6 @@ class GCPFunctionsBackend:
             raise Exception(f'Failed getting runtime metadata: {runtime_meta}')
 
         logger.debug(f'Ok -- Extraced modules from {runtime_name}')
-
-        runtime_meta = self.invoke(runtime_name, runtime_memory, payload, True)
-
         return runtime_meta
 
     def get_runtime_key(self, runtime_name, runtime_memory, version=__version__):

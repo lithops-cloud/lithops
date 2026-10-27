@@ -145,8 +145,8 @@ def _bare_invoker(**attrs):
         },
         compute_handler=MagicMock(),
         internal_storage=MagicMock(),
-        config={'lithops': {'mode': SERVERLESS, 'backend': 'ibm_cf'}, 'ibm_cf': {}},
-        backend='ibm_cf',
+        config={'lithops': {'mode': SERVERLESS, 'backend': 'openwhisk'}, 'openwhisk': {}},
+        backend='openwhisk',
         include_function=False,
         telemetry=MagicMock(),
         job_monitor=MagicMock(),
@@ -399,7 +399,7 @@ class TestFaaSInvokerHelpers:
                 patch.object(inv, '_invoke_direct'):
             inv.compute_handler = MagicMock()
             inv._invoke_job(_job(chunksize=1, total_calls=2))
-        assert inv.job_monitor.token_bucket_q.qsize() == 1
+        assert inv.job_monitor.token_bucket_q.empty()
 
     def test_queue_call_ranges_chunks_ids(self):
         inv = self._faas()
@@ -584,7 +584,8 @@ class TestFaaSInvokerHelpers:
         thread = Thread.return_value
         assert thread.daemon is True
         assert thread.start.call_count == FaaSInvoker.ASYNC_INVOKERS
-        assert inv.job_monitor.token_bucket_q.qsize() == FaaSInvoker.ASYNC_INVOKERS
+        # A token of their own would be a worker beyond max_workers
+        assert inv.job_monitor.token_bucket_q.empty()
         assert len(inv.invokers) == FaaSInvoker.ASYNC_INVOKERS
 
     def test_invoke_task_uses_data_byte_strs_when_no_data_key(self):
@@ -743,19 +744,19 @@ class TestFaaSInvokerInit:
         return handler
 
     def _config(self, **backend):
-        ibm_cf = {
+        openwhisk = {
             'invoke_pool_threads': 4,
             'remote_invoker': False,
         }
-        ibm_cf.update(backend)
+        openwhisk.update(backend)
         return {
             'lithops': {
                 'mode': SERVERLESS,
-                'backend': 'ibm_cf',
+                'backend': 'openwhisk',
                 'storage': 'localhost',
                 'telemetry': False,
             },
-            'ibm_cf': ibm_cf,
+            'openwhisk': openwhisk,
             'localhost': {'storage_bucket': 'test-bucket'},
         }
 
@@ -839,6 +840,11 @@ class TestFaaSTokenBucketLoop:
         try:
             inv._start_async_invokers()
             inv._queue_call_ranges(job, range(2))
+            time.sleep(0.1)
+            assert invoked == []
+            assert inv.pending_calls_q.qsize() == 2
+
+            inv.job_monitor.token_bucket_q.put('#')
             _wait_until(lambda: len(invoked) == 1)
             with lock:
                 assert invoked == [['00000']]
@@ -852,8 +858,9 @@ class TestFaaSTokenBucketLoop:
             inv.stop()
             inv.executor.shutdown(wait=True)
 
-    def test_overflow_beyond_max_workers_waits_for_tokens(self):
-        """10 workers, 20 calls: first wave runs now, the rest wait for tokens."""
+    @pytest.mark.parametrize('max_workers', [10, 1])
+    def test_overflow_beyond_max_workers_waits_for_tokens(self, max_workers):
+        """max_workers run now, the rest of the 20 calls wait for tokens."""
         invoked = []
         lock = threading.Lock()
 
@@ -862,10 +869,9 @@ class TestFaaSTokenBucketLoop:
                 invoked.append(list(payload['call_ids']))
             return 'act-1'
 
-        max_workers = 10
         total_calls = 20
         async_invokers = FaaSInvoker.ASYNC_INVOKERS
-        first_wave = max_workers + async_invokers
+        first_wave = max_workers
         leftover = total_calls - first_wave
 
         inv = self._live_faas(
@@ -880,10 +886,11 @@ class TestFaaSTokenBucketLoop:
         try:
             inv._invoke_job(job)
             _wait_until(lambda: len(invoked) == first_wave)
+            time.sleep(0.1)
             assert inv.pending_calls_q.qsize() == leftover
             with lock:
                 ids = [call_id for chunk in invoked for call_id in chunk]
-            assert len(set(ids)) == first_wave
+            assert len(set(ids)) == len(ids) == first_wave
 
             for _ in range(leftover):
                 inv.job_monitor.token_bucket_q.put('#')
@@ -943,7 +950,11 @@ class TestFaaSTokenBucketLoop:
         )
         try:
             inv._invoke_job(job)
-            # 2 direct workers + 1 primed async worker = 3 invokes, 6 calls
+            _wait_until(lambda: len(invoked) == 2)
+            time.sleep(0.1)
+            assert len(invoked) == 2
+            assert inv.pending_calls_q.qsize() == 2
+            inv.job_monitor.token_bucket_q.put('#')
             _wait_until(lambda: len(invoked) == 3)
             assert inv.pending_calls_q.qsize() == 1
             inv.job_monitor.token_bucket_q.put('#')
@@ -1065,7 +1076,6 @@ class TestFaaSTokenBucketLoop:
             return 'act-1'
 
         inv = self._live_faas()
-        inv.max_workers = 0
         inv.compute_handler.invoke.side_effect = invoke
         job = _job(total_calls=1, chunksize=1)
         try:

@@ -335,12 +335,24 @@ def _worker_setup_script(standalone_handler, vm_data):
     return script
 
 
+def _stop_failed_worker(worker):
+    """
+    Stops, or deletes, a worker that could not be set up: nothing was
+    installed on it, not even the budget keeper that would stop it
+    """
+    try:
+        logger.debug(f'Stopping {worker}, as it could not be set up')
+        worker.stop()
+    except Exception as e:
+        logger.error(f'Could not stop {worker}: {e}')
+
+
 def setup_worker_create_reuse(standalone_handler, worker_info, work_queue_name):
     """
     Installs Lithops on a worker VM, recreating the instance when it does not
     come up or does not have what the runtime needs. The installation itself
     is left running in the background, and the worker reports back when its
-    service comes up
+    service comes up. A worker that cannot be set up is stopped
     """
     worker = standalone_handler.backend.get_instance(**worker_info, public=False)
 
@@ -349,6 +361,15 @@ def setup_worker_create_reuse(standalone_handler, worker_info, work_queue_name):
 
     save_worker(worker, standalone_handler.config)
 
+    try:
+        _install_worker(standalone_handler, worker, work_queue_name)
+    except Exception:
+        _stop_failed_worker(worker)
+        raise
+
+
+def _install_worker(standalone_handler, worker, work_queue_name):
+    """Gets a registered worker VM up, validated and installing Lithops"""
     max_retries = worker.config.get(
         'worker_create_retries', MAX_INSTANCE_CREATE_RETRIES
     )

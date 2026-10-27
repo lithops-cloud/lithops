@@ -63,6 +63,33 @@ class TestCallAsync:
         result = fexec.get_result()
         assert result == 10
 
+    def test_single_future_is_a_chain(self):
+        fexec = lithops.FunctionExecutor(config=pytest.lithops_config)
+        future = fexec.call_async(lambda x: x + 1, 1)
+        fexec.call_async(lambda x: x * 3, future)
+        assert fexec.get_result() == 6
+
+    def test_list_of_futures_is_one_chained_call(self):
+        """A list used to be passed through as future objects"""
+        def double(x):
+            return x * 2
+
+        def total(values):
+            return sum(values)
+
+        fexec = lithops.FunctionExecutor(config=pytest.lithops_config)
+        futures = fexec.map(double, [1, 2, 3])
+        chained = fexec.call_async(total, list(futures))
+        assert chained.job_id.startswith('A')
+        assert fexec.get_result(chained) == 12
+
+    def test_tuple_of_futures_is_one_chained_call(self):
+        fexec = lithops.FunctionExecutor(config=pytest.lithops_config)
+        first = fexec.call_async(lambda x: x + 1, 1)
+        second = fexec.call_async(lambda x: x + 2, 1)
+        chained = fexec.call_async(lambda x, y: x * y, (first, second))
+        assert fexec.get_result(chained) == 6
+
     def test_object_with_side_effects(self):
         se = SideEffect()
         fexec = lithops.FunctionExecutor(config=pytest.lithops_config)

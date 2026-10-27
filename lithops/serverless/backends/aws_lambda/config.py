@@ -65,6 +65,21 @@ RUNTIME_TMP_SZ_MIN = 512
 RUNTIME_TMP_SZ_MAX = 10240
 
 
+def _load_name_value_pairs(value, key):
+    """
+    Returns a {NAME: VALUE} dict from either a {NAME: VALUE} dict or a list of {name: ..., value: ...} pairs
+    """
+    if not value:
+        return {}
+    if isinstance(value, dict):
+        return {str(k): str(v) for k, v in value.items()}
+    if isinstance(value, list) and all(isinstance(p, dict) and {'name', 'value'} <= set(p) for p in value):
+        return {str(p['name']): str(p['value']) for p in value}
+    raise Exception(
+        f"'aws_lambda/{key}' must be a {{NAME: VALUE}} mapping or a list of {{name: ..., value: ...}} pairs"
+    )
+
+
 def load_config(config_data):
 
     if not config_data['aws_lambda']:
@@ -128,6 +143,9 @@ def load_config(config_data):
     if config_data['aws_lambda']['ephemeral_storage'] < RUNTIME_TMP_SZ_MIN \
             or config_data['aws_lambda']['ephemeral_storage'] > RUNTIME_TMP_SZ_MAX:
         raise Exception(f'Ephemeral storage value must be between {RUNTIME_TMP_SZ_MIN} and {RUNTIME_TMP_SZ_MAX}')
+
+    for key in ('env_vars', 'user_tags'):
+        config_data['aws_lambda'][key] = _load_name_value_pairs(config_data['aws_lambda'][key], key)
 
     if 'region_name' in config_data['aws_lambda']:
         config_data['aws_lambda']['region'] = config_data['aws_lambda'].pop('region_name')

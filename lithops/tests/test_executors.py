@@ -583,6 +583,18 @@ class TestWaitAndGetResult:
         assert isinstance(cleanup.call_args.kwargs['exception'], RuntimeError)
 
     @patch('lithops.executors.wait', side_effect=TimeoutError('late'))
+    def test_a_timed_out_wait_drops_queued_invocations(self, mock_wait):
+        """
+        Cancelling on timeout used to leave the queued chunks in the
+        invoker, which kept invoking them after the futures were dropped
+        """
+        future = FakeFuture()
+        executor = _bare_executor()
+        with pytest.raises(TimeoutError):
+            executor.wait([future], show_progressbar=False)
+        executor.invoker.discard_pending.assert_called_once_with({future.job_key})
+
+    @patch('lithops.executors.wait', side_effect=TimeoutError('late'))
     def test_a_failed_wait_only_cleans_the_jobs_it_waited_on(self, mock_wait):
         """
         A timeout waiting on one job used to delete the data of every job
@@ -616,6 +628,25 @@ class TestWaitAndGetResult:
                 executor.wait([future], show_progressbar=False,
                               clean_jobs=False)
         cleanup.assert_not_called()
+
+    @patch('lithops.executors.wait', side_effect=TimeoutError('late'))
+    def test_wait_can_return_on_timeout_without_cancelling(self, mock_wait):
+        """A retrying wait has to see what finished, not have it deleted"""
+        future = FakeFuture(done=True, success=True)
+        running = FakeFuture()
+        executor = _bare_executor(data_cleaner=True)
+        with patch.object(executor, '_cleanup_jobs') as cleanup:
+            done, pending = executor.wait(
+                [future, running], show_progressbar=False,
+                cancel_on_timeout=False,
+            )
+        cleanup.assert_not_called()
+        executor.invoker.discard_pending.assert_not_called()
+        executor.job_monitor.remove.assert_called_once_with([future])
+        assert future._exception_set is False
+        assert running._exception_set is False
+        assert done == [future]
+        assert pending == [running]
 
     def test_get_result_takes_a_single_future(self):
         """The signature takes a ResponseFuture, which has no len()"""

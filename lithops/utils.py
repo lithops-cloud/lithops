@@ -713,6 +713,11 @@ def _user_signature(func) -> inspect.Signature:
     return func_sig.replace(parameters=user_parameters)
 
 
+# call_async() is one activation. A list or tuple of futures is that
+# activation's input, resolved on the worker, not one activation per future
+_CALL_ASYNC_CHAIN = '_lithops_call_async_chain'
+
+
 def _chained_futures(iterdata):
     """
     The futures of a previous job used as the input of this one, or None
@@ -797,6 +802,9 @@ def verify_args(func, iterdata, extra_args):
     new_data = []
 
     for elem in data:
+        if isinstance(elem, dict) and set(elem) == {_CALL_ASYNC_CHAIN}:
+            new_data.append({'future': elem[_CALL_ASYNC_CHAIN]})
+            continue
         if isinstance(elem, dict):
             if has_var_keyword or required <= set(elem):
                 new_data.append(elem)
@@ -996,8 +1004,8 @@ def docker_login(docker_user, docker_password, docker_server):
     """
     Log in to a container registry using docker/podman.
 
-    Docker Hub must be logged in without an explicit server host, matching
-    `docker login -u USER --password-stdin`.
+    Docker Hub uses Docker's default login host. Podman needs an explicit
+    registry even for Docker Hub when no default registry is configured.
     """
     if not docker_user or not docker_password:
         raise Exception('docker_user and docker_password are required')
@@ -1007,7 +1015,7 @@ def docker_login(docker_user, docker_password, docker_server):
     docker_path = get_docker_path()
     docker_password = docker_password.strip()
 
-    if 'docker.io' in docker_server:
+    if docker_server == 'docker.io' and not is_podman(docker_path):
         cmd = f'{docker_path} login -u {docker_user} --password-stdin'
     else:
         cmd = (f'{docker_path} login -u {docker_user} --password-stdin '

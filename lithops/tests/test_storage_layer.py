@@ -258,6 +258,106 @@ class TestSwiftBackend:
         assert backend.generate_bucket_name() == 'lithops-reg-abcdef'
         assert config['storage_bucket'] == 'lithops-reg-abcdef'
 
+    def _token_response(self, url='https://swift.example/v1/AUTH_abc', region='RegionOne'):
+        catalog = {
+            'token': {
+                'project': {'id': 'a' * 32},
+                'catalog': [{
+                    'type': 'object-store',
+                    'name': 'swift',
+                    'endpoints': [
+                        {'interface': 'internal', 'region': region, 'url': 'http://internal'},
+                        {'interface': 'public', 'region': region, 'region_id': region, 'url': url},
+                    ],
+                }],
+            }
+        }
+        response = MagicMock(status_code=201, headers={'X-Subject-Token': 'tok'})
+        response.json.return_value = catalog
+        return response
+
+    def test_keystone_scopes_a_project_by_name_and_keeps_https(self):
+        from lithops.storage.backends.swift.swift import StorageBackend
+        response = self._token_response()
+        with patch('lithops.storage.backends.swift.swift.requests.post', return_value=response) as posted:
+            backend = StorageBackend({
+                'auth_url': 'http://keystone:5000/v3/',
+                'user_name': 'admin',
+                'project_name': 'admin',
+                'password': 'secret',
+                'region': 'RegionOne',
+            })
+        assert backend.endpoint == 'https://swift.example/v1/AUTH_abc'
+        sent = json.loads(posted.call_args.kwargs['data'])
+        assert posted.call_args.args[0] == 'http://keystone:5000/v3/auth/tokens'
+        assert sent['auth']['scope']['project'] == {
+            'name': 'admin', 'domain': {'name': 'Default'},
+        }
+        assert sent['auth']['identity']['password']['user']['name'] == 'admin'
+        assert 'id' not in sent['auth']['scope']['project']
+
+    def test_keystone_scopes_an_id_without_a_domain(self):
+        from lithops.storage.backends.swift.swift import StorageBackend
+        user_id = 'f' * 32
+        project_id = 'a' * 32
+        with patch(
+            'lithops.storage.backends.swift.swift.requests.post',
+            return_value=self._token_response('http://0.0.0.0:8080/v1/AUTH_%(project_id)s'),
+        ) as posted:
+            backend = StorageBackend({
+                'auth_url': 'http://127.0.0.1:5000',
+                'user_id': user_id,
+                'project_id': project_id,
+                'password': 'secret',
+                'region': 'RegionOne',
+            })
+        sent = json.loads(posted.call_args.kwargs['data'])
+        assert sent['auth']['identity']['password']['user'] == {
+            'id': user_id, 'password': 'secret',
+        }
+        assert sent['auth']['scope']['project'] == {'id': project_id}
+        assert backend.endpoint == f'http://127.0.0.1:8080/v1/AUTH_{project_id}'
+
+    def test_an_unknown_region_names_the_known_ones(self):
+        from lithops.storage.backends.swift.swift import StorageBackend
+        with patch(
+            'lithops.storage.backends.swift.swift.requests.post',
+            return_value=self._token_response(),
+        ):
+            with pytest.raises(Exception, match='region \'nope\''):
+                StorageBackend({
+                    'auth_url': 'http://keystone:5000',
+                    'user_name': 'admin',
+                    'project_name': 'admin',
+                    'password': 'secret',
+                    'region': 'nope',
+                })
+
+    def test_keystone_error_message_is_raised(self):
+        from lithops.storage.backends.swift.swift import StorageBackend
+        response = MagicMock(status_code=401, text='no')
+        response.json.return_value = {'error': {'message': 'The request you have made requires authentication.'}}
+        with patch('lithops.storage.backends.swift.swift.requests.post', return_value=response):
+            with pytest.raises(Exception, match='401 - The request you have made requires authentication'):
+                StorageBackend({
+                    'auth_url': 'http://keystone:5000',
+                    'user_name': 'admin',
+                    'project_name': 'admin',
+                    'password': 'secret',
+                    'region': 'RegionOne',
+                })
+
+    def test_create_bucket_accepts_an_existing_container(self):
+        from lithops.storage.backends.swift.swift import StorageBackend
+        backend = StorageBackend.__new__(StorageBackend)
+        backend.endpoint = 'http://swift/v1/AUTH_x'
+        backend.session = MagicMock()
+        backend.session.put.return_value.status_code = 202
+        backend.create_bucket('lithops')
+        assert backend.session.put.call_args.args[0] == 'http://swift/v1/AUTH_x/lithops'
+        backend.session.put.return_value.status_code = 500
+        with pytest.raises(Exception, match='PUT container lithops failed'):
+            backend.create_bucket('lithops')
 
     def test_get_object_missing_key(self):
         from lithops.storage.backends.swift.swift import StorageBackend
@@ -275,6 +375,8 @@ class TestSwiftBackend:
         backend.endpoint = 'http://swift'
         backend.session = MagicMock()
         page = [{'name': 'p/a', 'bytes': 1}, {'name': 'p/b', 'bytes': 2}]
+        backend.session.get.return_value.status_code = 200
+        backend.session.get.return_value.content = b'page'
         backend.session.get.return_value.json.side_effect = [page, []]
         assert backend.list_keys('b', 'p/') == ['p/a', 'p/b']
         backend.session.get.side_effect = ValueError('boom')
@@ -287,6 +389,7 @@ class TestSwiftBackend:
         backend = StorageBackend.__new__(StorageBackend)
         backend.endpoint = 'http://swift'
         backend.session = MagicMock()
+        backend.session.get.return_value.status_code = 200
         backend.session.get.return_value.json.side_effect = [[
             {'name': f'p/{n}', 'bytes': size, 'hash': 'h', 'content_type': 'text/csv',
              'last_modified': '2024-01-01T00:00:00.000000'}
@@ -310,6 +413,65 @@ class TestSwiftBackend:
         # One request per page, the last one past the final name
         assert backend.session.get.call_count == 4
         assert backend.session.get.call_args.kwargs['params']['marker'] == 'k2'
+
+    def test_list_objects_ends_at_an_empty_listing_with_no_body(self):
+        """Some Swift versions answer the request past the last page with a 204 and no body"""
+        backend = self._listing_backend()
+        first, empty = MagicMock(status_code=200), MagicMock(status_code=204, content=b'')
+        first.json.return_value = [{'name': 'k0', 'bytes': 1}]
+        empty.json.side_effect = ValueError('no JSON body')
+        backend.session.get.side_effect = [first, empty]
+        assert backend.list_objects('b') == [{'Key': 'k0', 'Size': 1}]
+
+    def test_list_objects_of_a_missing_bucket(self):
+        backend = self._listing_backend()
+        backend.session.get.return_value.status_code = 404
+        with pytest.raises(StorageNoSuchKeyError):
+            backend.list_objects('b', 'p/')
+
+    def test_list_objects_does_not_treat_an_empty_error_as_the_end(self):
+        backend = self._listing_backend()
+        backend.session.get.return_value.status_code = 500
+        backend.session.get.return_value.content = b''
+        with pytest.raises(Exception, match='500 listing'):
+            backend.list_objects('b')
+
+    def test_put_object_raises_on_failure(self):
+        from lithops.storage.backends.swift.swift import StorageBackend
+        backend = StorageBackend.__new__(StorageBackend)
+        backend.endpoint = 'http://swift'
+        backend.session = MagicMock()
+        backend.session.put.return_value.status_code = 500
+        with pytest.raises(Exception, match='PUT k failed'):
+            backend.put_object('b', 'k', b'data')
+        backend.session.put.side_effect = ConnectionError('down')
+        with pytest.raises(ConnectionError):
+            backend.put_object('b', 'k', b'data')
+
+    def test_get_and_head_keep_non_404_errors(self):
+        from lithops.storage.backends.swift.swift import StorageBackend
+        backend = StorageBackend.__new__(StorageBackend)
+        backend.endpoint = 'http://swift'
+        backend.token = 't'
+        backend.session = MagicMock()
+        backend.session.get.return_value.status_code = 503
+        with pytest.raises(Exception, match='503'):
+            backend.get_object('b', 'k')
+        backend.session.head.return_value.status_code = 503
+        with pytest.raises(Exception, match='503'):
+            backend.head_object('b', 'k')
+
+    def test_head_bucket(self):
+        from lithops.storage.backends.swift.swift import StorageBackend
+        backend = StorageBackend.__new__(StorageBackend)
+        backend.endpoint = 'http://swift'
+        backend.session = MagicMock()
+        backend.session.head.return_value.status_code = 204
+        backend.session.head.return_value.headers = {'X-Container-Object-Count': '1'}
+        assert backend.head_bucket('b')['X-Container-Object-Count'] == '1'
+        backend.session.head.return_value.status_code = 404
+        with pytest.raises(StorageNoSuchKeyError):
+            backend.head_bucket('missing')
 
     def test_list_objects_match_pattern(self):
         """The glob pattern failed on the raw entries, which have no 'Key'"""
@@ -353,6 +515,75 @@ class TestInfinispanBackendListing:
     def test_list_objects_skips_keys_gone_since_listed(self, backend):
         backend.infinispan_client.get.return_value.content = b'["p/a", "p/gone"]'
         assert backend.list_objects('b') == [{'Key': 'p/a', 'Size': 1}]
+
+    def test_get_object_range_and_head_bucket(self):
+        from lithops.storage.backends.infinispan import StorageBackend
+        backend = StorageBackend.__new__(StorageBackend)
+        backend.endpoint = 'http://ispn'
+        backend.auth = None
+        backend.headers = {}
+        backend.infinispan_client = MagicMock()
+        backend.infinispan_client.get.return_value = MagicMock(
+            status_code=200, content=b'abcdefghij'
+        )
+        assert backend.get_object('b', 'k', extra_get_args={'Range': 'bytes=2-5'}) == b'cdef'
+        assert backend.get_object('b', 'k', extra_get_args={'Range': 'bytes=-3'}) == b'hij'
+        backend.infinispan_client.head.return_value = MagicMock(status_code=404)
+        with pytest.raises(StorageNoSuchKeyError):
+            backend.head_bucket('b')
+        backend.infinispan_client.head.return_value = MagicMock(status_code=200)
+        assert backend.head_bucket('b')['ResponseMetadata']['HTTPStatusCode'] == 200
+
+    def test_put_object_raises_on_http_error(self):
+        import requests
+        from lithops.storage.backends.infinispan import StorageBackend
+        backend = StorageBackend.__new__(StorageBackend)
+        backend.endpoint = 'http://ispn'
+        backend.auth = None
+        backend.headers = {}
+        backend.infinispan_client = MagicMock()
+        backend.infinispan_client.put.return_value.raise_for_status.side_effect = (
+            requests.HTTPError('500')
+        )
+        with pytest.raises(requests.HTTPError):
+            backend.put_object('b', 'k', b'data')
+
+
+class TestRedisBackend:
+
+    def _backend(self):
+        pytest.importorskip('redis')
+        from lithops.storage.backends.redis import StorageBackend
+        backend = StorageBackend.__new__(StorageBackend)
+        backend._client = MagicMock()
+        return backend
+
+    def test_range_read_distinguishes_a_missing_key(self):
+        backend = self._backend()
+        pipe = backend._client.pipeline.return_value
+        pipe.execute.return_value = (True, b'cdef')
+        assert backend.get_object('b', 'k', extra_get_args={'Range': 'bytes=2-5'}) == b'cdef'
+        pipe.getrange.assert_called_with('b/k', 2, 5)
+        pipe.execute.return_value = (False, b'')
+        with pytest.raises(StorageNoSuchKeyError):
+            backend.get_object('b', 'k', extra_get_args={'Range': 'bytes=0-1'})
+
+    def test_open_ended_and_suffix_ranges(self):
+        backend = self._backend()
+        pipe = backend._client.pipeline.return_value
+        pipe.execute.return_value = (True, b'cdef')
+        backend.get_object('b', 'k', extra_get_args={'Range': 'bytes=2-'})
+        pipe.getrange.assert_called_with('b/k', 2, -1)
+        backend.get_object('b', 'k', extra_get_args={'Range': 'bytes=-3'})
+        pipe.getrange.assert_called_with('b/k', -3, -1)
+
+    def test_head_bucket(self):
+        backend = self._backend()
+        backend._client.exists.return_value = 0
+        with pytest.raises(StorageNoSuchKeyError):
+            backend.head_bucket('b')
+        backend._client.exists.return_value = 1
+        assert backend.head_bucket('b')['ResponseMetadata']['HTTPStatusCode'] == 200
 
 
 class TestCloudBackendRanges:
@@ -429,6 +660,109 @@ class TestCloudBackendListing:
         backend.os_client.list_objects.side_effect = [page(['a', 'b'], 'c'), page(['c'], None)]
         assert [o['Key'] for o in backend.list_objects('bkt', 'p')] == ['a', 'b', 'c']
         assert backend.os_client.list_objects.call_args.kwargs['start'] == 'c'
+
+    def test_oracle_list_keeps_non_404_errors(self):
+        oci = pytest.importorskip('oci')
+        from lithops.storage.backends.oracle_oss import StorageBackend
+        backend = StorageBackend.__new__(StorageBackend)
+        backend.namespace = 'ns'
+        backend.os_client = MagicMock()
+        backend.os_client.list_objects.side_effect = oci.exceptions.ServiceError(
+            500, 'InternalError', {}, 'down'
+        )
+        with pytest.raises(oci.exceptions.ServiceError):
+            backend.list_objects('bkt', 'p')
+        backend.os_client.list_objects.side_effect = oci.exceptions.ServiceError(
+            404, 'BucketNotFound', {}, 'missing'
+        )
+        with pytest.raises(StorageNoSuchKeyError):
+            backend.list_objects('bkt', 'p')
+
+
+class TestS3MissingBucket:
+
+    @staticmethod
+    def _cases():
+        found = []
+        try:
+            import botocore
+            from lithops.storage.backends.aws_s3 import StorageBackend as AWS
+            found.append((AWS, botocore.exceptions.ClientError))
+        except ImportError:
+            pass
+        try:
+            import ibm_botocore
+            from lithops.storage.backends.ibm_cos import StorageBackend as IBM
+            found.append((IBM, ibm_botocore.exceptions.ClientError))
+        except ImportError:
+            pass
+        try:
+            import botocore
+            from lithops.storage.backends.ceph import StorageBackend as Ceph
+            found.append((Ceph, botocore.exceptions.ClientError))
+        except ImportError:
+            pass
+        try:
+            import botocore
+            from lithops.storage.backends.minio import StorageBackend as Minio
+            found.append((Minio, botocore.exceptions.ClientError))
+        except ImportError:
+            pass
+        if not found:
+            pytest.skip('no S3-compatible storage backend is installed')
+        return found
+
+    def test_list_maps_no_such_bucket_and_keeps_other_errors(self):
+        for cls, error in self._cases():
+            backend = cls.__new__(cls)
+            client = MagicMock()
+            backend.s3_client = client
+            backend.cos_client = client
+
+            def boom(code, error=error):
+                client.get_paginator.return_value.paginate.side_effect = error(
+                    {'Error': {'Code': code, 'Message': code}}, 'ListObjectsV2'
+                )
+
+            boom('NoSuchBucket')
+            with pytest.raises(StorageNoSuchKeyError):
+                backend.list_objects('missing')
+            boom('NoSuchBucket')
+            with pytest.raises(StorageNoSuchKeyError):
+                backend.list_keys('missing')
+            boom('AccessDenied')
+            with pytest.raises(error):
+                backend.list_objects('missing')
+
+
+class TestAzureAndGcpMissingObjects:
+
+    def test_azure_head_object_maps_a_missing_blob(self):
+        pytest.importorskip('azure.storage.blob')
+        from azure.core.exceptions import ResourceNotFoundError
+        from lithops.storage.backends.azure_storage import StorageBackend
+        backend = StorageBackend.__new__(StorageBackend)
+        backend.blob_client = MagicMock()
+        blob = backend.blob_client.get_container_client.return_value.get_blob_client.return_value
+        blob.get_blob_properties.side_effect = ResourceNotFoundError('gone')
+        with pytest.raises(StorageNoSuchKeyError):
+            backend.head_object('b', 'k')
+        blob.get_blob_properties.side_effect = ConnectionError('down')
+        with pytest.raises(ConnectionError):
+            backend.head_object('b', 'k')
+
+    def test_gcp_head_bucket_maps_not_found(self):
+        pytest.importorskip('google.cloud.storage')
+        from google.api_core import exceptions as google_exceptions
+        from lithops.storage.backends.gcp_storage import StorageBackend
+        backend = StorageBackend.__new__(StorageBackend)
+        backend.client = MagicMock()
+        backend.client.get_bucket.side_effect = google_exceptions.NotFound('gone')
+        with pytest.raises(StorageNoSuchKeyError):
+            backend.head_bucket('missing')
+        backend.client.get_bucket.side_effect = google_exceptions.Forbidden('no')
+        with pytest.raises(google_exceptions.Forbidden):
+            backend.head_bucket('missing')
 
 
 class TestStorageListObjectsGlob:
@@ -712,6 +1046,13 @@ class TestCloudProxy:
         assert proxy.path.exists('dir/a.txt') is True
         assert proxy.path.exists('missing') is False
 
+    def test_exists_ignores_lithops_keys(self):
+        fake = FakeCloudStorage(keys=[f'{JOBS_PREFIX}/hidden'])
+        path = _path(fake)
+        assert path.isdir(JOBS_PREFIX) is False
+        assert path.exists(JOBS_PREFIX) is False
+        assert path.exists(f'{JOBS_PREFIX}/hidden') is False
+
     def test_exists_strips_the_leading_slash_like_isfile(self):
         # isfile and isdir dropped the leading slash and exists did not, so
         # '/k' was a file that did not exist
@@ -893,7 +1234,6 @@ class TestIbmCosConfig:
         return config['ibm_cos']
 
     @pytest.mark.parametrize('backend, private_endpoint', [
-        ('ibm_cf', 'https://s3.private.eu-de.cloud-object-storage.appdomain.cloud'),
         ('code_engine', 'https://s3.direct.eu-de.cloud-object-storage.appdomain.cloud'),
         ('ibm_vpc', 'https://s3.direct.eu-de.cloud-object-storage.appdomain.cloud'),
         ('localhost', None),
@@ -904,8 +1244,7 @@ class TestIbmCosConfig:
         assert cos.get('private_endpoint') == private_endpoint
 
     @pytest.mark.parametrize('backend, private_endpoint, error', [
-        ('ibm_cf', None, 'You must provide the private_endpoint'),
-        ('ibm_cf', 'https://s3.direct.x', 'is not valid$'),
+        ('code_engine', None, 'You must provide the private_endpoint'),
         ('code_engine', 'https://s3.private.x', 'is not valid$'),
         ('ibm_vpc', 'https://s3.private.x', 'is not valid. You must use the "direct" endpoint$'),
         ('ibm_vpc', 's3.direct.x', 'Private Endpoint must start with http'),

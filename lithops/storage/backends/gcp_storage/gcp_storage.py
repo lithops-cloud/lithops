@@ -209,7 +209,10 @@ class GCPStorageBackend:
             pass
 
     def head_bucket(self, bucket_name):
-        bucket = self.client.get_bucket(bucket_name, timeout=TIMEOUT)
+        try:
+            bucket = self.client.get_bucket(bucket_name, timeout=TIMEOUT)
+        except google_exceptions.NotFound:
+            raise StorageNoSuchKeyError(bucket_name, '')
         response = {
             'ResponseMetadata':
                 {'HTTPStatusCode': 200,
@@ -223,7 +226,7 @@ class GCPStorageBackend:
         try:
             bucket = self.client.get_bucket(bucket_name, timeout=TIMEOUT)
             page = bucket.list_blobs(prefix=prefix)
-        except google_exceptions.ClientError:
+        except google_exceptions.NotFound:
             raise StorageNoSuchKeyError(bucket_name, '')
         return [{'Key': blob.name, 'Size': blob.size, 'LastModified': blob.updated} for blob in page]
 
@@ -231,6 +234,6 @@ class GCPStorageBackend:
         try:
             bucket = self.client.get_bucket(bucket_name, timeout=TIMEOUT)
             page = bucket.list_blobs(prefix=prefix)
-        except google_exceptions.ClientError:
+        except google_exceptions.NotFound:
             raise StorageNoSuchKeyError(bucket_name, '')
         return [blob.name for blob in page]

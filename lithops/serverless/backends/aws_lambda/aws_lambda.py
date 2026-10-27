@@ -38,6 +38,8 @@ logger = logging.getLogger(__name__)
 
 LITHOPS_FUNCTION_ZIP = 'lithops_lambda.zip'
 BUILD_LAYER_FUNCTION_ZIP = 'build_layer.zip'
+INVOKE_RETRIES = 5
+INVOKE_RETRY_SLEEP = 1  # seconds, multiplied by the attempt number
 
 
 class AWSLambdaBackend:
@@ -147,8 +149,9 @@ class AWSLambdaBackend:
 
     def _wait_for_function_deployed(self, func_name):
         """
-        Helper function which waits for the lambda to be deployed (state is 'Active').
-        Raises exception if waiting times out or if state is 'Failed' or 'Inactive'
+        Helper function which waits for the lambda to be deployed (state is 'Active')
+        and for its last update to finish.
+        Raises exception if waiting times out, if state is 'Failed' or 'Inactive' or if the last update failed
         """
         retries, sleep_seconds = (15, 25) if 'vpc' in self.lambda_config else (30, 5)
         logger.debug(
@@ -158,7 +161,8 @@ class AWSLambdaBackend:
         while retries > 0:
             res = self.lambda_client.get_function(FunctionName=func_name)
             state = res['Configuration']['State']
-            if state == 'Pending':
+            update_status = res['Configuration'].get('LastUpdateStatus')
+            if state == 'Pending' or (state == 'Active' and update_status == 'InProgress'):
                 logger.debug(
                     f'"{func_name}" function is being deployed... (status: {state})'
                 )
@@ -171,6 +175,10 @@ class AWSLambdaBackend:
             elif state in ('Failed', 'Inactive'):
                 raise Exception(
                     f'"{func_name}" function not deployed (state is "{state}"): {res}'
+                )
+            elif state == 'Active' and update_status == 'Failed':
+                raise Exception(
+                    f'"{func_name}" function not updated (last update status is "{update_status}"): {res}'
                 )
             elif state == 'Active':
                 break
@@ -291,7 +299,7 @@ class AWSLambdaBackend:
         versions.extend([layer['Version'] for layer in response['LayerVersions']])
 
         while 'NextMarker' in response:
-            response = self.lambda_client.list_layer_versions(Marker=response['NextMarker'])
+            response = self.lambda_client.list_layer_versions(LayerName=layer_name, Marker=response['NextMarker'])
             versions.extend([layer['Version'] for layer in response['LayerVersions']])
 
         for version in versions:
@@ -308,9 +316,9 @@ class AWSLambdaBackend:
         @return: list of Lithops layer ARNs
         """
         logger.debug('Listing lambda layers')
-        response = self.lambda_client.list_layers()
-
-        layers = response['Layers'] if 'Layers' in response else []
+        layers = []
+        for page in self.lambda_client.get_paginator('list_layers').paginate():
+            layers.extend(page.get('Layers', []))
         logger.debug('Listed {} layers'.format(len(layers)))
         lithops_layers = []
         for layer in layers:
@@ -324,9 +332,15 @@ class AWSLambdaBackend:
         @param function_name: function name to delete
         """
         logger.info(f'Deleting function: {function_name}')
-        response = self.lambda_client.delete_function(
-            FunctionName=function_name
-        )
+        try:
+            response = self.lambda_client.delete_function(
+                FunctionName=function_name
+            )
+        except botocore.exceptions.ClientError as err:
+            if err.response['Error']['Code'] != 'ResourceNotFoundException':
+                raise
+            logger.debug(f'OK --> Function {function_name} does not exist')
+            return
 
         if response['ResponseMetadata']['HTTPStatusCode'] == 204:
             logger.debug('OK --> Deleted function {}'.format(function_name))
@@ -402,7 +416,33 @@ class AWSLambdaBackend:
             layer_arn = self._create_layer(runtime_name)
 
         code = self._create_handler_bin()
-        env_vars = {t['name']: t['value'] for t in self.lambda_config['env_vars']}
+
+        function_config = dict(
+            Runtime=config.AVAILABLE_PY_RUNTIMES[utils.CURRENT_PY_VERSION],
+            Role=self.role_arn,
+            Handler='entry_point.lambda_handler',
+            Description=f'Lithops worker for v{__version__} and Python v{utils.CURRENT_PY_VERSION}',
+            Timeout=timeout,
+            MemorySize=memory,
+            Layers=[layer_arn],
+            VpcConfig={
+                'SubnetIds': self.lambda_config['vpc']['subnets'],
+                'SecurityGroupIds': self.lambda_config['vpc']['security_groups']
+            },
+            FileSystemConfigs=[
+                {'Arn': efs_conf['access_point'],
+                    'LocalMountPath': efs_conf['mount_path']}
+                for efs_conf in self.lambda_config['efs']
+            ],
+            EphemeralStorage={
+                'Size': self.lambda_config['ephemeral_storage']
+            },
+            Environment={
+                'Variables': self.lambda_config['env_vars']
+            }
+        )
+
+        tags = self._function_tags(runtime_name)
 
         logger.debug(
             f'Creating Lambda function {function_name} '
@@ -411,35 +451,11 @@ class AWSLambdaBackend:
         try:
             response = self.lambda_client.create_function(
                 FunctionName=function_name,
-                Runtime=config.AVAILABLE_PY_RUNTIMES[utils.CURRENT_PY_VERSION],
-                Role=self.role_arn,
-                Handler='entry_point.lambda_handler',
                 Code={
                     'ZipFile': code
                 },
-                Description=f'Lithops worker for v{__version__} and Python v{utils.CURRENT_PY_VERSION}',
-                Timeout=timeout,
-                MemorySize=memory,
-                Layers=[layer_arn],
-                VpcConfig={
-                    'SubnetIds': self.lambda_config['vpc']['subnets'],
-                    'SecurityGroupIds': self.lambda_config['vpc']['security_groups']
-                },
-                FileSystemConfigs=[
-                    {'Arn': efs_conf['access_point'],
-                        'LocalMountPath': efs_conf['mount_path']}
-                    for efs_conf in self.lambda_config['efs']
-                ],
-                Tags={
-                    'runtime_name': runtime_name,
-                    'lithops_version': __version__
-                },
-                EphemeralStorage={
-                    'Size': self.lambda_config['ephemeral_storage']
-                },
-                Environment={
-                    'Variables': env_vars
-                }
+                Tags=tags,
+                **function_config
             )
 
             if response['ResponseMetadata']['HTTPStatusCode'] not in (200, 201):
@@ -453,15 +469,36 @@ class AWSLambdaBackend:
 
         except Exception as e:
             if 'ResourceConflictException' in str(e):
-                logger.debug(
-                    f'Lambda function {function_name} already exists, '
-                    'waiting until it is active'
-                )
+                self._update_function(function_name, {'ZipFile': code}, function_config, tags)
             else:
                 raise e
 
         self._wait_for_function_deployed(function_name)
         logger.debug(f'OK --> Created lambda function {function_name}')
+
+    def _function_tags(self, runtime_name):
+        return {
+            'runtime_name': runtime_name,
+            'lithops_version': __version__,
+            **self.lambda_config['user_tags'],
+        }
+
+    def _update_function(self, function_name, code, function_config, tags):
+        """
+        Updates the code, the configuration and the tags of an already deployed function.
+        Tags are added or overwritten, never removed, as other tools may have set them
+        @param function_name: function name to update
+        @param code: update_function_code() arguments
+        @param function_config: update_function_configuration() arguments
+        @param tags: tags the function must have
+        """
+        logger.debug(f'Lambda function {function_name} already exists, updating its code and configuration')
+        # Lambda rejects an update while the function is still being created or updated
+        self._wait_for_function_deployed(function_name)
+        self.lambda_client.update_function_code(FunctionName=function_name, **code)
+        self._wait_for_function_deployed(function_name)
+        response = self.lambda_client.update_function_configuration(FunctionName=function_name, **function_config)
+        self.lambda_client.tag_resource(Resource=response['FunctionArn'], Tags=tags)
 
     def _deploy_container_runtime(self, runtime_name, memory, timeout):
         """
@@ -477,53 +514,56 @@ class AWSLambdaBackend:
 
         try:
             repo_name = self._format_repo_name(image)
-            response = self.ecr_client.describe_images(repositoryName=repo_name)
-            images = response['imageDetails']
+            # Ask for the tag. A plain describe stops at 100 images, so the
+            # tag can be missing from the first page of a busy repository
+            response = self.ecr_client.describe_images(
+                repositoryName=repo_name,
+                imageIds=[{'imageTag': tag}],
+            )
+            images = response.get('imageDetails') or []
             if not images:
                 raise Exception(f'Runtime {runtime_name} is not present in ECR.'
                                 'Consider running "lithops runtime build -b aws_lambda ..."')
-            image = list(filter(lambda image: 'imageTags' in image and tag in image['imageTags'], images)).pop()
-            image_digest = image['imageDigest']
+            image_digest = images[0]['imageDigest']
         except botocore.exceptions.ClientError:
             raise Exception(f'Runtime "{runtime_name}" is not deployed to ECR')
 
         registry = f'{self.account_id}.dkr.ecr.{self.region}.amazonaws.com'
         image_uri = f'{registry}/{repo_name}@{image_digest}'
 
-        env_vars = {t['name']: t['value'] for t in self.lambda_config['env_vars']}
+        function_config = dict(
+            Role=self.role_arn,
+            Description=f'Lithops worker for v{__version__} and Python v{utils.CURRENT_PY_VERSION}',
+            Timeout=timeout,
+            MemorySize=memory,
+            VpcConfig={
+                'SubnetIds': self.lambda_config['vpc']['subnets'],
+                'SecurityGroupIds': self.lambda_config['vpc']['security_groups']
+            },
+            FileSystemConfigs=[
+                {'Arn': efs_conf['access_point'],
+                    'LocalMountPath': efs_conf['mount_path']}
+                for efs_conf in self.lambda_config['efs']
+            ],
+            EphemeralStorage={
+                'Size': self.lambda_config['ephemeral_storage']
+            },
+            Environment={
+                'Variables': self.lambda_config['env_vars']
+            }
+        )
+        tags = self._function_tags(runtime_name)
 
         try:
             response = self.lambda_client.create_function(
                 FunctionName=function_name,
-                Role=self.role_arn,
                 Code={
                     'ImageUri': image_uri
                 },
                 PackageType='Image',
-                Description=f'Lithops worker for v{__version__} and Python v{utils.CURRENT_PY_VERSION}',
-                Timeout=timeout,
-                MemorySize=memory,
-                VpcConfig={
-                    'SubnetIds': self.lambda_config['vpc']['subnets'],
-                    'SecurityGroupIds': self.lambda_config['vpc']['security_groups']
-                },
-                FileSystemConfigs=[
-                    {'Arn': efs_conf['access_point'],
-                        'LocalMountPath': efs_conf['mount_path']}
-                    for efs_conf in self.lambda_config['efs']
-                ],
-                Tags={
-                    'runtime_name': runtime_name,
-                    'lithops_version': __version__,
-                    **self.lambda_config.get('user_tags'),
-                },
+                Tags=tags,
                 Architectures=[self.lambda_config['architecture']],
-                EphemeralStorage={
-                    'Size': self.lambda_config['ephemeral_storage']
-                },
-                Environment={
-                    'Variables': env_vars
-                }
+                **function_config
             )
 
             if response['ResponseMetadata']['HTTPStatusCode'] not in (200, 201):
@@ -531,7 +571,8 @@ class AWSLambdaBackend:
 
         except Exception as e:
             if 'ResourceConflictException' in str(e):
-                pass
+                code = {'ImageUri': image_uri, 'Architectures': [self.lambda_config['architecture']]}
+                self._update_function(function_name, code, function_config, tags)
             else:
                 raise e
 
@@ -584,11 +625,8 @@ class AWSLambdaBackend:
                 if function['FunctionName'].startswith(prefix):
                     self._delete_function(function['FunctionName'])
 
-        response = self.lambda_client.list_functions(FunctionVersion='ALL')
-        delete_runtimes(response)
-        while 'NextMarker' in response:
-            response = self.lambda_client.list_functions(Marker=response['NextMarker'])
-            delete_runtimes(response)
+        for page in self.lambda_client.get_paginator('list_functions').paginate():
+            delete_runtimes(page)
 
         layers = self._list_layers()
         for layer_name, _ in layers:
@@ -617,11 +655,8 @@ class AWSLambdaBackend:
                 version = tags_response['lithops_version']
                 runtimes.append((rt_name, rt_memory, version, fn_name))
 
-        response = self.lambda_client.list_functions(FunctionVersion='ALL')
-        get_runtimes(response)
-        while 'NextMarker' in response:
-            response = self.lambda_client.list_functions(Marker=response['NextMarker'])
-            get_runtimes(response)
+        for page in self.lambda_client.get_paginator('list_functions').paginate():
+            get_runtimes(page)
 
         if runtime_name != 'all':
             runtimes = [tup for tup in runtimes if runtime_name == tup[0]]
@@ -641,16 +676,21 @@ class AWSLambdaBackend:
 
         headers = {'Host': self.host, 'X-Amz-Invocation-Type': 'Event', 'User-Agent': self.user_agent}
         url = f'https://{self.host}/2015-03-31/functions/{function_name}/invocations'
-        request = AWSRequest(method="POST", url=url, data=json.dumps(payload, default=str), headers=headers)
-        SigV4Auth(self.credentials, "lambda", self.region).add_auth(request)
+        data = json.dumps(payload, default=str)
 
-        invoked = False
-        while not invoked:
+        for attempt in range(1, INVOKE_RETRIES + 1):
+            request = AWSRequest(method="POST", url=url, data=data, headers=headers)
+            SigV4Auth(self.credentials, "lambda", self.region).add_auth(request)
             try:
                 r = self.session.send(request.prepare())
-                invoked = True
-            except Exception:
-                pass
+                break
+            # Only errors raised before the request reached Lambda: resending after it was
+            # accepted would run the calls twice
+            except (botocore.exceptions.EndpointConnectionError, botocore.exceptions.ConnectTimeoutError) as e:
+                if attempt == INVOKE_RETRIES:
+                    raise
+                logger.debug(f'Invocation of {function_name} failed ({e}), retrying ({attempt}/{INVOKE_RETRIES})')
+                time.sleep(INVOKE_RETRY_SLEEP * attempt)
 
         if r.status_code == 202:
             return r.headers['x-amzn-RequestId']

@@ -570,3 +570,6 @@ class TestWaitOnExecutorFutures:
 
 def test_get_result_of_no_futures_is_empty():
     assert get_result([], show_progressbar=False) == []
+    # None is the default. Wrapping it first made a one-element list
+    assert get_result(None, show_progressbar=False) == []
+    assert get_result(show_progressbar=False) == []

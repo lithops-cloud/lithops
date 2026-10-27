@@ -173,9 +173,10 @@ class AzureBlobStorageBackend:
         container_client = self.blob_client.get_container_client(bucket_name)
         blob = container_client.get_blob_client(key)
 
-        # adapted to match ibm_cos method
-        metadata = {}
-        metadata['content-length'] = blob.get_blob_properties().size
+        try:
+            metadata = {'content-length': blob.get_blob_properties().size}
+        except ResourceNotFoundError:
+            raise StorageNoSuchKeyError(bucket_name, key)
         return metadata
 
     def delete_object(self, bucket_name, key):
@@ -213,7 +214,7 @@ class AzureBlobStorageBackend:
         try:
             container_client = self.blob_client.get_container_client(bucket_name)
             return container_client.get_container_properties()
-        except Exception:
+        except ResourceNotFoundError:
             raise StorageNoSuchKeyError(bucket_name, '')
 
     def list_objects(self, bucket_name, prefix=None, match_pattern=None):
@@ -235,7 +236,7 @@ class AzureBlobStorageBackend:
                     'Size': blob.size
                 })
             return mod_list
-        except Exception:
+        except ResourceNotFoundError:
             raise StorageNoSuchKeyError(bucket_name, '' if prefix is None else prefix)
 
     def list_keys(self, bucket_name, prefix=None):
@@ -249,5 +250,5 @@ class AzureBlobStorageBackend:
             container_client = self.blob_client.get_container_client(bucket_name)
             keys = [blob.name for blob in container_client.list_blobs(prefix)]
             return keys
-        except Exception:
+        except ResourceNotFoundError:
             raise StorageNoSuchKeyError(bucket_name, '' if prefix is None else prefix)

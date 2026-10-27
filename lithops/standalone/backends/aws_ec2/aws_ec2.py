@@ -504,9 +504,15 @@ class AWSEC2Backend:
                 ProductDescriptions=['Linux/UNIX (Amazon VPC)'],
                 StartTime=datetime.today()
             )
-            spot_prices = []
-            for az in response['SpotPriceHistory']:
-                spot_prices.append(float(az['SpotPrice']))
+            spot_prices = [
+                float(az['SpotPrice']) for az in response['SpotPriceHistory']
+            ]
+            if not spot_prices:
+                raise ValueError(
+                    f'No spot price history for worker instance type {wit}. '
+                    'Check the instance type and region, or set '
+                    'request_spot_instances to false'
+                )
             self.config["spot_price"] = max(spot_prices)
             logger.debug(f'Current spot instance price for {wit} is ${self.config["spot_price"]}')
 
@@ -806,6 +812,13 @@ class AWSEC2Backend:
 
         return sorted(result, key=lambda x: x[2], reverse=True)
 
+    def _iter_instances(self):
+        """Every instance, following NextToken. One page stops at 1,000"""
+        paginator = self.ec2_client.get_paginator('describe_instances')
+        for page in paginator.paginate():
+            for reservation in page['Reservations']:
+                yield from reservation['Instances']
+
     def _delete_vm_instances(self, all=False):
         """
         Deletes all worker VM instances
@@ -817,15 +830,13 @@ class AWSEC2Backend:
         vms_prefixes = ('lithops-worker', 'lithops-master', 'building-image') if all else ('lithops-worker',)
 
         ins_to_delete = []
-        response = self.ec2_client.describe_instances()
-        for res in response['Reservations']:
-            for ins in res['Instances']:
-                if ins['State']['Name'] != 'terminated' and 'Tags' in ins \
-                   and 'VpcId' in ins and self.ec2_data['vpc_id'] == ins['VpcId']:
-                    for tag in ins['Tags']:
-                        if tag['Key'] == 'Name' and tag['Value'].startswith(vms_prefixes):
-                            ins_to_delete.append(ins['InstanceId'])
-                            logger.debug(f"Going to delete VM instance {tag['Value']} ({ins['InstanceId']})")
+        for ins in self._iter_instances():
+            if ins['State']['Name'] != 'terminated' and 'Tags' in ins \
+               and 'VpcId' in ins and self.ec2_data['vpc_id'] == ins['VpcId']:
+                for tag in ins['Tags']:
+                    if tag['Key'] == 'Name' and tag['Value'].startswith(vms_prefixes):
+                        ins_to_delete.append(ins['InstanceId'])
+                        logger.debug(f"Going to delete VM instance {tag['Value']} ({ins['InstanceId']})")
 
         if ins_to_delete:
             self.ec2_client.terminate_instances(InstanceIds=ins_to_delete)
@@ -840,11 +851,9 @@ class AWSEC2Backend:
         while all and ins_to_delete:
             logger.debug('Waiting for VM instances to be terminated')
             status = set()
-            response = self.ec2_client.describe_instances()
-            for res in response['Reservations']:
-                for ins in res['Instances']:
-                    if ins['InstanceId'] in ins_to_delete:
-                        status.add(ins['State']['Name'])
+            for ins in self._iter_instances():
+                if ins['InstanceId'] in ins_to_delete:
+                    status.add(ins['State']['Name'])
             if len(status) == 1 and status.pop() == 'terminated':
                 break
             else:

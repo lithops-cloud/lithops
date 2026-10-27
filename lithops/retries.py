@@ -12,6 +12,7 @@
 # limitations under the License.
 #
 
+import time
 from collections.abc import Iterator
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
@@ -341,6 +342,17 @@ class RetryingFunctionExecutor:
         return retrying_done, retrying_pending
 
     @staticmethod
+    def _split_without_retry(done, pending, lookup):
+        """
+        The same split as a finished round, without resubmitting failures.
+        Used once the deadline has passed: a retry would run past the timeout
+        """
+        return (
+            [lookup[response_future] for response_future in done],
+            [lookup[response_future] for response_future in pending],
+        )
+
+    @staticmethod
     def _wait_is_over(return_when, retrying_done, retrying_pending):
         """
         Tells whether the completion policy is satisfied, which for anything
@@ -387,26 +399,39 @@ class RetryingFunctionExecutor:
         if not fs:
             return [], []
         lookup = {f.response_future: f for f in fs}
+        # One deadline for every retry round. Passing the original timeout
+        # again gave each round a fresh budget
+        deadline = None if timeout is None else time.monotonic() + timeout
 
         while True:
+            remaining = None if deadline is None else max(0, deadline - time.monotonic())
             # A retry replaces the response future of a RetryingFuture, so
-            # the list has to be rebuilt on every round. The inner wait never
-            # raises: a call that failed would end the whole wait there, and
-            # the executor would discard every future instead of retrying it
+            # the list has to be rebuilt on every round. A call that failed
+            # must come back here instead of ending the wait: the executor
+            # would otherwise discard every future instead of retrying it.
+            # A timeout returns what finished and leaves the rest running,
+            # so this loop can still retry inside the time that is left
             done, pending = self.executor.wait(
                 [f.response_future for f in fs],
                 throw_except=False,
                 return_when=return_when,
                 download_results=download_results,
-                timeout=timeout,
+                timeout=remaining,
                 threadpool_size=threadpool_size,
                 wait_dur_sec=wait_dur_sec,
                 show_progressbar=show_progressbar,
+                cancel_on_timeout=False,
             )
 
-            retrying_done, retrying_pending = self._split_done_and_retried(
-                done, pending, lookup
-            )
+            out_of_time = deadline is not None and time.monotonic() >= deadline
+            if out_of_time:
+                retrying_done, retrying_pending = self._split_without_retry(
+                    done, pending, lookup
+                )
+            else:
+                retrying_done, retrying_pending = self._split_done_and_retried(
+                    done, pending, lookup
+                )
 
             if self._wait_is_over(
                 return_when, retrying_done, retrying_pending
@@ -416,6 +441,12 @@ class RetryingFunctionExecutor:
                     for retrying_future in retrying_done:
                         retrying_future._reraise_if_error()
                 return retrying_done, retrying_pending
+
+            if out_of_time:
+                raise TimeoutError(
+                    f'Timeout of {timeout} seconds exceeded waiting for '
+                    'function activations to finish'
+                )
 
     def clean(
         self,

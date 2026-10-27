@@ -270,7 +270,7 @@ class CephStorageBackend:
                         object_list.append(item)
             return object_list
         except botocore.exceptions.ClientError as e:
-            if e.response['Error']['Code'] == '404':
+            if e.response['Error']['Code'] in ('404', 'NoSuchBucket'):
                 raise StorageNoSuchKeyError(bucket_name, '' if prefix is None else prefix)
             else:
                 raise e
@@ -295,7 +295,7 @@ class CephStorageBackend:
                         key_list.append(item['Key'])
             return key_list
         except botocore.exceptions.ClientError as e:
-            if e.response['Error']['Code'] == '404':
+            if e.response['Error']['Code'] in ('404', 'NoSuchBucket'):
                 raise StorageNoSuchKeyError(bucket_name, prefix)
             else:
                 raise e

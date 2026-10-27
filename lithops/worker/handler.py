@@ -516,6 +516,11 @@ def run_task(task: SimpleNamespace) -> None:
     try:
         handler_conn, jobrunner_conn = _MP_CTX.Pipe()
         jobrunner = JobRunner(task, jobrunner_conn, internal_storage)
+        try:
+            call_status.send_init_event()
+        except Exception as e:
+            logger.warning(f'Could not report the start of the call: {e}')
+
         logger.debug('Starting JobRunner process')
         jrp = (
             _MP_CTX.Process(target=jobrunner.run)
@@ -527,20 +532,6 @@ def run_task(task: SimpleNamespace) -> None:
         sys_monitor.start()
 
         jrp.start()
-
-        # Reported once the process is running, which is also when the call
-        # has really started. Sending it here rather than before the fork
-        # keeps the one-off cost of opening the monitoring client off the
-        # critical path: the first call of a worker pays for a connection
-        # (some 13 ms for AMQP, then kept for the whole process) while the
-        # function is already running, instead of delaying its start.
-        # The event is informational and the finish event reports the call
-        # all the same, so failing to send it must not abandon a JobRunner
-        # that is already running
-        try:
-            call_status.send_init_event()
-        except Exception as e:
-            logger.warning(f'Could not report the start of the call: {e}')
         jrp.join(task.execution_timeout)
 
         sys_monitor.stop()

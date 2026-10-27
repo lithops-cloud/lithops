@@ -51,6 +51,11 @@ logger = logging.getLogger(__name__)
 
 _CURL_BODY_INLINE_LIMIT = 130000
 
+_WORKER_CONNECT_TIMEOUT = 10
+_WORKER_READ_TIMEOUT = 60
+# The master pulls and runs the runtime image before it answers
+_WORKER_SLOW_ENDPOINTS = {'metadata'}
+
 
 class StandaloneHandler:
     """
@@ -114,22 +119,35 @@ class StandaloneHandler:
         while the client has to go through the SSH connection it already has
         """
         if self.is_lithops_worker:
-            return self._request_from_worker(method, endpoint, data)
-        return self._request_via_ssh(method, endpoint, data)
+            resp = self._request_from_worker(method, endpoint, data)
+        else:
+            resp = self._request_via_ssh(method, endpoint, data)
+        if isinstance(resp, dict) and 'error' in resp:
+            raise ValueError(
+                f'The master service could not handle {endpoint}: '
+                f'{resp["error"]}'
+            )
+        return resp
 
     def _request_from_worker(self, method: str, endpoint: str, data=None):
         """Calls the master service over HTTP, from inside the network"""
         url = self._master_url(endpoint)
+        read_timeout = None if endpoint in _WORKER_SLOW_ENDPOINTS else _WORKER_READ_TIMEOUT
+        timeout = (_WORKER_CONNECT_TIMEOUT, read_timeout)
         if method == 'GET':
-            resp = requests.get(url, timeout=1)
-            return resp.json()
-        if method == 'POST':
-            resp = requests.post(url, data=json.dumps(data))
+            resp = requests.get(url, data=json.dumps(data), timeout=timeout)
+        elif method == 'POST':
+            resp = requests.post(url, data=json.dumps(data), timeout=timeout)
+        else:
+            raise ValueError(f'Unsupported HTTP method: {method}')
+        if not resp.content:
             resp.raise_for_status()
-            if not resp.content:
-                return None
+            return None
+        try:
             return resp.json()
-        raise ValueError(f'Unsupported HTTP method: {method}')
+        except ValueError:
+            resp.raise_for_status()
+            raise
 
     def _request_via_ssh(self, method: str, endpoint: str, data=None):
         """
@@ -364,6 +382,24 @@ class StandaloneHandler:
 
         return new_workers, total_workers
 
+    def _stop_workers(self, workers):
+        """
+        Stops the given workers, best effort, as a worker the master never
+        set up has no budget keeper to stop it. The ones a dismantle already
+        took out of the backend are not stopped again
+        """
+        workers = [w for w in workers if w in self.backend.workers]
+        if not workers:
+            return
+        with cf.ThreadPoolExecutor(min(len(workers), 48)) as ex:
+            futures = {ex.submit(worker.stop): worker for worker in workers}
+        for future, worker in futures.items():
+            try:
+                future.result()
+            except Exception as e:
+                logger.error(f'Could not stop {worker}: {e}')
+            self.backend.workers.remove(worker)
+
     def _ensure_master_ready(self) -> None:
         """Sets the master service up unless it is already answering"""
         logger.debug(f"Checking if {self.backend.master} is ready")
@@ -405,7 +441,12 @@ class StandaloneHandler:
             f'{total_calls} activations in {total_workers} workers'
         )
 
-        self._ensure_master_ready()
+        try:
+            self._ensure_master_ready()
+        except Exception:
+            if self.exec_mode != StandaloneMode.CONSUME:
+                self._stop_workers(new_workers)
+            raise
 
         # The key never leaves the client: the master has its own to reach the
         # workers it creates
@@ -467,16 +508,24 @@ class StandaloneHandler:
 
     def clear(self, job_keys=None, exception=None):
         """
-        Stops the jobs this handler invoked. Workers meant to be reused stay
-        up, as the next job is going to run on them
+        Stops the given jobs this handler invoked, or all of them. Workers
+        meant to be reused stay up, as the next job is going to run on them,
+        and so do the workers of create mode while a job is left running,
+        since the backend can only stop all of them at once
         """
+        if job_keys is None:
+            jobs_to_stop = list(self.jobs)
+        else:
+            jobs_to_stop = [job_key for job_key in self.jobs if job_key in job_keys]
+
         try:
-            self._make_request('POST', 'job/stop', self.jobs)
+            self._make_request('POST', 'job/stop', jobs_to_stop)
             logger.debug('Jobs stopped on the master')
         except Exception as e:
             logger.debug(f'Could not stop the jobs on the master: {e}')
+        self.jobs = [job_key for job_key in self.jobs if job_key not in jobs_to_stop]
 
-        if self.exec_mode != StandaloneMode.REUSE:
+        if self.exec_mode != StandaloneMode.REUSE and not self.jobs:
             self.backend.clear(job_keys)
 
     def list_jobs(self):

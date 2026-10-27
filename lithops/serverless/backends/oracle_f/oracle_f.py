@@ -52,6 +52,7 @@ class OracleCloudFunctionsBackend:
             'application_name', f'{config.APP_NAME}_{self.user[-8:-1].lower()}')
 
         self.signer = None
+        self.invoke_functions = {}
         self.cf_client = self._init_functions_mgmt_client()
 
         self.app_id = self._get_application_id(self.app_name)
@@ -177,7 +178,7 @@ class OracleCloudFunctionsBackend:
             logger.debug(f'Application {self.app_name} does not exist')
             return
 
-        functions = self.cf_client.list_functions(self.app_id).data
+        functions = self._list_all(self.cf_client.list_functions, self.app_id)
 
         for function in functions:
             memory = function.memory_in_mbs
@@ -192,6 +193,12 @@ class OracleCloudFunctionsBackend:
         """
         Pre-invocation task. This is executed only once before the invocation
         """
+        self._resolve_invoke_function(runtime_name, memory)
+
+    def _resolve_invoke_function(self, runtime_name, memory):
+        """
+        Looks up the function ID and invoke endpoint of a runtime and caches them
+        """
         if not self.app_id:
             raise Exception(f'Application {self.app_name} does not exist')
 
@@ -199,30 +206,33 @@ class OracleCloudFunctionsBackend:
         function_name = self._format_function_name(image_name, memory)
 
         # Get the function ID
-        self.invoke_function_id = self._get_function_id(function_name)
-        if not self.invoke_function_id:
-            raise Exception("Function %s not found", function_name)
+        function_id = self._get_function_id(function_name)
+        if not function_id:
+            raise Exception(f'Function {function_name} not found')
 
         # Retrieve the function's information, including the invoke endpoint
-        fn_info = self.cf_client.get_function(self.invoke_function_id).data
+        fn_info = self.cf_client.get_function(function_id).data
 
         if not fn_info.lifecycle_state == 'ACTIVE':
-            raise Exception("Function %s is not yet active", function_name)
+            raise Exception(f'Function {function_name} is not yet active')
 
-        # Set the invoke endpoint
-        self.invoke_endpoint = fn_info.invoke_endpoint
+        self.invoke_functions[(runtime_name, memory)] = (function_id, fn_info.invoke_endpoint)
+        return function_id, fn_info.invoke_endpoint
 
     def invoke(self, runtime_name, memory, payload={}):
         """
         Invoke function
         """
-        # The pre_invoke() method is already called at this point
+        # Calls of a previous job can still be queued when pre_invoke() runs for the next one
+        if (runtime_name, memory) not in self.invoke_functions:
+            self._resolve_invoke_function(runtime_name, memory)
+        function_id, invoke_endpoint = self.invoke_functions[(runtime_name, memory)]
 
         # Prepare the Oracle Functions client with the invoke endpoint
-        fn_invoke_client = self._init_functions_invk_client(self.invoke_endpoint)
+        fn_invoke_client = self._init_functions_invk_client(invoke_endpoint)
 
         response = fn_invoke_client.invoke_function(
-            function_id=self.invoke_function_id,
+            function_id=function_id,
             invoke_function_body=json.dumps(payload, default=str),
             fn_invoke_type='detached'
         )
@@ -343,14 +353,14 @@ class OracleCloudFunctionsBackend:
         image_name = self._format_image_name(runtime_name)
         logger.debug("Extracting runtime metadata from %s", image_name)
 
-        self.pre_invoke(runtime_name, memory)
+        function_id, invoke_endpoint = self._resolve_invoke_function(runtime_name, memory)
 
         payload = {'log_level': logger.getEffectiveLevel(), 'get_metadata': True}
 
-        fn_invoke_client = self._init_functions_invk_client(self.invoke_endpoint)
+        fn_invoke_client = self._init_functions_invk_client(invoke_endpoint)
 
         response = fn_invoke_client.invoke_function(
-            function_id=self.invoke_function_id,
+            function_id=function_id,
             invoke_function_body=json.dumps(payload, default=str),
             fn_invoke_type='sync'
         )
@@ -394,8 +404,7 @@ class OracleCloudFunctionsBackend:
             logger.debug(f'Application {self.app_name} does not exist')
             return runtimes
 
-        # Get the list of functions within the application
-        functions = self.cf_client.list_functions(self.app_id).data
+        functions = self._list_all(self.cf_client.list_functions, self.app_id)
 
         for function in functions:
             if function.display_name.startswith('lithops-worker'):
@@ -406,6 +415,17 @@ class OracleCloudFunctionsBackend:
                     runtimes.append((image_name, memory, version, function.display_name))
 
         return runtimes
+
+    def _list_all(self, method, *args):
+        """Every item of an OCI list call, following opc-next-page"""
+        found = []
+        page = None
+        while True:
+            response = method(*args, page=page) if page else method(*args)
+            found.extend(response.data or [])
+            page = getattr(response, 'next_page', None)
+            if not page:
+                return found
 
     def get_runtime_info(self):
         """
@@ -434,7 +454,7 @@ class OracleCloudFunctionsBackend:
         """
         Returns the application id of a given application
         """
-        applications = self.cf_client.list_applications(self.compartment_id).data
+        applications = self._list_all(self.cf_client.list_applications, self.compartment_id)
         for app in applications:
             if app.display_name == application_name:
                 return app.id
@@ -442,8 +462,7 @@ class OracleCloudFunctionsBackend:
         return None
 
     def _get_function_id(self, function_name):
-        # Get the list of functions within the application
-        functions = self.cf_client.list_functions(self.app_id).data
+        functions = self._list_all(self.cf_client.list_functions, self.app_id)
 
         # Search for the function and return its OCID
         for function in functions:

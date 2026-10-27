@@ -58,7 +58,8 @@ class OpenWhiskBackend:
             namespace=self.namespace,
             api_key=self.api_key,
             insecure=self.insecure,
-            user_agent=self.user_agent
+            user_agent=self.user_agent,
+            pool_maxsize=ow_config['invoke_pool_threads'],
         )
 
         msg = COMPUTE_CLI_MSG.format('OpenWhisk')
@@ -69,36 +70,46 @@ class OpenWhiskBackend:
         return f'{runtime_name}_{runtime_memory}MB_{version}'
 
     def _unformat_function_name(self, action_name):
-        runtime_name, memory, version = action_name.rsplit('_', 2)
-        image_name_parts = runtime_name.split('_')
-
-        domain = image_name_parts[0]
-
+        """
+        Reverses _format_function_name. The image is recovered on a best effort
+        basis: a registry port is the only numeric path piece, and a tag is the
+        piece after the image name. Raises ValueError for any other name, so
+        listing runtimes can skip actions that Lithops did not create
+        """
         try:
-            port = int(image_name_parts[1])
-            namespace = image_name_parts[2]
-            name = image_name_parts[3]
-            last_id = 4
-        except Exception:
+            runtime_name, memory, version = action_name.rsplit('_', 2)
+            memory_mb = int(memory[:-2])
+        except ValueError:
+            raise ValueError(f'Not a Lithops action name: {action_name}') from None
+        if not memory.endswith('MB'):
+            raise ValueError(f'Not a Lithops action name: {action_name}')
+
+        parts = runtime_name.split('_')
+        if len(parts) < 2:
+            raise ValueError(f'Not a Lithops action name: {action_name}')
+        if len(parts) == 2:
+            return version, f'{parts[0]}/{parts[1]}', memory_mb
+
+        domain = parts[0]
+        try:
+            port = int(parts[1])
+        except ValueError:
             port = None
-            namespace = image_name_parts[1]
-            name = image_name_parts[2]
-            last_id = 3
 
-        try:
-            tag = image_name_parts[last_id]
-        except Exception:
-            tag = None
-
-        if port:
+        if port is not None:
+            if len(parts) < 4:
+                raise ValueError(f'Not a Lithops action name: {action_name}')
+            namespace, name = parts[2], parts[3]
+            tag = parts[4] if len(parts) > 4 else None
             image_name = f'{domain}:{port}/{namespace}/{name}'
         else:
+            namespace, name = parts[1], parts[2]
+            tag = parts[3] if len(parts) > 3 else None
             image_name = f'{domain}/{namespace}/{name}'
 
         if tag:
             image_name = f'{image_name}:{tag}'
-
-        return version, image_name, int(memory.replace('MB', ''))
+        return version, image_name, memory_mb
 
     def _get_default_runtime_image_name(self):
         try:
@@ -116,9 +127,9 @@ class OpenWhiskBackend:
 
         if dockerfile:
             assert os.path.isfile(dockerfile), f'Cannot locate "{dockerfile}"'
-            cmd = f'{docker_path} build --platform=linux/amd64 -t {docker_image_name} -f {dockerfile} . '
+            cmd = f'{docker_path} build -t {docker_image_name} -f {dockerfile} . '
         else:
-            cmd = f'{docker_path} build --platform=linux/amd64 -t {docker_image_name} . '
+            cmd = f'{docker_path} build -t {docker_image_name} . '
         cmd = cmd + ' '.join(extra_args)
         utils.run_command(cmd)
 
@@ -179,12 +190,9 @@ class OpenWhiskBackend:
         packages = self.cf_client.list_packages()
         for pkg in packages:
             if pkg['name'].startswith('lithops') and pkg['name'].endswith(self.user_key):
-                actions = self.cf_client.list_actions(pkg['name'])
-                while actions:
-                    for action in actions:
-                        logger.info(f'Deleting function: {action["name"]}')
-                        self.cf_client.delete_action(pkg['name'], action['name'])
-                    actions = self.cf_client.list_actions(pkg['name'])
+                for action in self.cf_client.list_actions(pkg['name']):
+                    logger.info(f'Deleting function: {action["name"]}')
+                    self.cf_client.delete_action(pkg['name'], action['name'])
                 self.cf_client.delete_package(pkg['name'])
 
     def list_runtimes(self, docker_image_name='all'):
@@ -199,7 +207,11 @@ class OpenWhiskBackend:
             if pkg['name'] == self.package:
                 actions = self.cf_client.list_actions(pkg['name'])
                 for action in actions:
-                    version, image_name, memory = self._unformat_function_name(action['name'])
+                    try:
+                        version, image_name, memory = self._unformat_function_name(action['name'])
+                    except ValueError:
+                        logger.debug(f'Skipping action {action["name"]}: not a Lithops runtime')
+                        continue
                     if docker_image_name == image_name or docker_image_name == 'all':
                         runtimes.append((image_name, memory, version, action['name']))
         return runtimes
@@ -212,6 +224,17 @@ class OpenWhiskBackend:
 
         activation_id = self.cf_client.invoke(self.package, action_name,
                                               payload, self.is_lithops_worker)
+
+        if activation_id == 401:
+            raise Exception(
+                f"Unauthorized invocation of {self.package}/{action_name} in namespace "
+                f"{self.namespace}: check the openwhisk api_key"
+            )
+        elif activation_id == 404:
+            raise Exception(
+                f"Action {self.package}/{action_name} is not deployed in namespace {self.namespace}. "
+                "Run 'lithops clean -b openwhisk' and try again to redeploy the runtime"
+            )
 
         return activation_id
 
@@ -250,15 +273,15 @@ class OpenWhiskBackend:
         logger.debug(f"Extracting runtime metadata from: {docker_image_name}")
         action_name = self._format_function_name(docker_image_name, memory)
         payload = {'log_level': logger.getEffectiveLevel(), 'get_metadata': True}
+        # The first run also pulls the runtime image, which the action timeout
+        # does not cover
+        wait = self.ow_config.get('runtime_timeout', 300) + 180
         try:
-            retry_invoke = True
-            while retry_invoke:
-                retry_invoke = False
-                runtime_meta = self.cf_client.invoke_with_result(self.package, action_name, payload)
-                if 'activationId' in runtime_meta:
-                    retry_invoke = True
+            runtime_meta = self.cf_client.invoke_with_result(
+                self.package, action_name, payload, timeout=wait
+            )
         except Exception as e:
-            raise (f"Unable to extract metadata: {e}")
+            raise Exception(f"Unable to extract metadata: {e}") from e
 
         if not runtime_meta or 'preinstalls' not in runtime_meta:
             raise Exception(runtime_meta)

@@ -15,267 +15,411 @@
 #
 
 import ssl
+import time
 import json
 import base64
-import urllib3
 import logging
 import requests
+import urllib3
 import http.client
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 from urllib3.exceptions import InsecureRequestWarning
 
 
-urllib3.disable_warnings(InsecureRequestWarning)
 logger = logging.getLogger(__name__)
+
+# OpenWhisk returns at most this many entities per list request. Asking for
+# less silently stops at the server default, which is 30
+_LIST_LIMIT = 200
+
+
+def _normalize_endpoint(endpoint):
+    """
+    Keeps the scheme the caller configured. OpenWhisk standalone serves plain
+    http; a host without a scheme is taken as https
+    """
+    endpoint = endpoint.strip().rstrip('/')
+    if '://' not in endpoint:
+        endpoint = 'https://' + endpoint
+    return endpoint
 
 
 class OpenWhiskClient:
+    """
+    Client for the OpenWhisk REST API, api/v1, as served by OpenWhisk 2.x
+    (tested against the standalone build openwhisk/standalone:nightly)
+    """
 
-    def __init__(self, endpoint, namespace, api_key=None, auth=None, insecure=False, user_agent=None):
+    def __init__(self, endpoint, namespace, api_key=None, auth=None, insecure=False,
+                 user_agent=None, pool_maxsize=64):
         """
-        OpenWhiskClient Constructor
-
-        :param endpoint: OpenWhisk endpoint.
+        :param endpoint: OpenWhisk endpoint, including its scheme.
         :param namespace: User namespace.
-        :param api_key: User AUTH Key.  HTTP Basic authentication.
-        :param auth: Authorization token string "Basic eyJraWQiOiIyMDE5MDcyNCIsImFsZ...".
-        :param insecure: Insecure backend. Disable cert verification.
-        :param user_agent: User agent on requests.
+        :param api_key: HTTP Basic credentials, "uuid:secret".
+        :param auth: Authorization header value, "Basic ..." or "Bearer ...".
+        :param insecure: Disable TLS certificate verification.
+        :param user_agent: Value appended to the User-Agent header.
+        :param pool_maxsize: Connections kept per host. The invoker calls
+            invoke() from a pool of this many threads.
         """
-        self.endpoint = endpoint.replace('http:', 'https:')
-        self.url = f'{self.endpoint}/api/v1/namespaces'
+        self.endpoint = _normalize_endpoint(endpoint)
         self.namespace = namespace
         self.api_key = api_key
         self.auth = auth
 
         if self.api_key:
-            api_key = str.encode(self.api_key)
-            auth_token = base64.encodebytes(api_key).replace(b'\n', b'')
-            self.auth = 'Basic %s' % auth_token.decode('UTF-8')
+            token = base64.b64encode(self.api_key.encode()).decode('ascii')
+            self.auth = f'Basic {token}'
 
-        self.session = requests.session()
-
+        self.session = requests.Session()
+        self.session.verify = not insecure
         if insecure:
-            self.session.verify = False
+            urllib3.disable_warnings(InsecureRequestWarning)
 
-        self.headers = {
-            'content-type': 'application/json',
-            'Authorization': self.auth,
-        }
-
+        self.session.headers['content-type'] = 'application/json'
+        if self.auth:
+            self.session.headers['Authorization'] = self.auth
         if user_agent:
-            default_user_agent = self.session.headers['User-Agent']
-            self.headers['User-Agent'] = default_user_agent + f' {user_agent}'
+            current = self.session.headers.get('User-Agent', 'python-requests')
+            self.session.headers['User-Agent'] = f'{current} {user_agent}'
 
-        self.session.headers.update(self.headers)
-        adapter = requests.adapters.HTTPAdapter()
+        adapter = requests.adapters.HTTPAdapter(
+            pool_connections=pool_maxsize, pool_maxsize=pool_maxsize
+        )
         self.session.mount('https://', adapter)
+        self.session.mount('http://', adapter)
+
+    def _url(self, *parts):
+        path = '/'.join(quote(str(part), safe='') for part in parts)
+        return f'{self.endpoint}/api/v1/{path}'
+
+    def _request(self, method, url, params=None, body=None, timeout=60):
+        return self.session.request(method, url, params=params, json=body, timeout=timeout)
+
+    @staticmethod
+    def _body(response):
+        if not response.content:
+            return None
+        try:
+            return response.json()
+        except ValueError:
+            return None
+
+    def _raise(self, response, what):
+        body = self._body(response)
+        if isinstance(body, dict):
+            detail = body.get('error') or body.get('message') or body
+        else:
+            detail = response.text
+        raise Exception(f'An error occurred {what}: {detail}')
+
+    def _list(self, url):
+        """Reads a whole collection. A missing one is an empty list"""
+        items = []
+        skip = 0
+        while True:
+            response = self._request(method='GET', url=url, params={'limit': _LIST_LIMIT, 'skip': skip})
+            if response.status_code == 404:
+                return []
+            if response.status_code != 200:
+                self._raise(response, f'listing {url}')
+            page = self._body(response) or []
+            items.extend(page)
+            if len(page) < _LIST_LIMIT:
+                return items
+            skip += _LIST_LIMIT
 
     def create_namespace(self, namespace, resource_group_id):
-        """
-        Create a WSK namespace
-        """
+        """Creates a namespace and returns its id"""
         data = {}
-
         if resource_group_id:
-            data = {"name": namespace, "description": "Auto-created Lithops namespace",
-                    "resource_group_id": resource_group_id, "resource_plan_id": "functions-base-plan"}
-
-        res = self.session.post(self.url, json=data)
-        resp_text = res.json()
-
+            data = {
+                "name": namespace,
+                "description": "Auto-created Lithops namespace",
+                "resource_group_id": resource_group_id,
+                "resource_plan_id": "functions-base-plan",
+            }
+        res = self._request('POST', self._url('namespaces'), body=data)
+        resp_text = self._body(res) or {}
         if res.status_code == 201:
             logger.debug(f"OK --> Namespace created {namespace}")
             self.namespace = resp_text['id']
             return resp_text['id']
-        else:
-            msg = f"An error occurred creating the namsepace {namespace}: {resp_text['message']}"
-            raise Exception(msg)
+        msg = f"An error occurred creating the namsepace {namespace}: {resp_text.get('message')}"
+        raise Exception(msg)
 
     def delete_namespace(self, namespace):
-        """
-        Delete a WSK namespace
-        """
-        res = self.session.delete(f'{self.url}/{namespace}')
-
+        """Deletes a namespace. A missing one is not an error"""
+        res = self._request('DELETE', self._url('namespaces', namespace))
         if res.status_code == 200:
             logger.debug("OK --> Namespace deleted")
         elif res.status_code == 404:
             pass
         else:
-            resp_text = res.json()
-            msg = f"An error occurred deleting the namsepace: {resp_text['message']}"
+            resp_text = self._body(res) or {}
+            msg = f"An error occurred deleting the namsepace: {resp_text.get('message')}"
             raise Exception(msg)
 
     def list_namespaces(self, resource_group_id):
-        """
-        List WSK namespaces
-        """
+        """Lists namespaces. The filter is sent in the request body"""
         data = {}
-
         if resource_group_id:
             data = {"resource_group_id": resource_group_id, "resource_plan_id": "functions-base-plan"}
-
-        res = self.session.get(self.url, json=data)
-        resp_text = res.json()
-
+        res = self._request('GET', self._url('namespaces'), body=data or None)
+        resp_text = self._body(res) or {}
         if res.status_code == 200:
             return resp_text
-        else:
-            msg = f"An error occurred listing the namespaces: {resp_text['message']}"
-            raise Exception(msg)
+        msg = f"An error occurred listing the namespaces: {resp_text.get('message')}"
+        raise Exception(msg)
 
     def create_action(self, package, action_name, image_name=None, code=None, memory=None,
                       timeout=30000, kind='blackbox', is_binary=True, overwrite=True):
         """
-        Create an WSK action
+        Creates or replaces an action. `timeout` is milliseconds, `memory` megabytes,
+        as the API requires. A blackbox action is a Docker image; the image may carry
+        its own code, or `code` is injected into it at init
         """
-        data = {}
         limits = {}
-        cfexec = {}
-        limits['memory'] = memory
-        limits['timeout'] = timeout
-        data['limits'] = limits
+        if memory is not None:
+            limits['memory'] = memory
+        if timeout is not None:
+            limits['timeout'] = timeout
 
-        cfexec['kind'] = kind
+        action_exec = {'kind': kind}
         if kind == 'blackbox':
-            cfexec['image'] = image_name
-        cfexec['binary'] = is_binary
-        cfexec['code'] = base64.b64encode(code).decode("utf-8") if is_binary else code
-        data['exec'] = cfexec
+            if not image_name:
+                raise ValueError(f'Action {action_name} is a Docker action and needs an image')
+            action_exec['image'] = image_name
+        if code is not None:
+            action_exec['binary'] = is_binary
+            if is_binary:
+                raw = code.encode() if isinstance(code, str) else code
+                action_exec['code'] = base64.b64encode(raw).decode('ascii')
+            else:
+                action_exec['code'] = code
 
-        logger.debug(f'Creating function action: {action_name}')
-        url = '/'.join([self.url, self.namespace, 'actions', package,
-                        action_name + "?overwrite=" + str(overwrite)])
+        data = {'exec': action_exec}
+        if limits:
+            data['limits'] = limits
 
-        res = self.session.put(url, json=data)
-        resp_text = res.json()
+        logger.debug(f'Creating action: {action_name}')
+        url = self._url('namespaces', self.namespace, 'actions', package, action_name)
+        res = self._request(
+            'PUT', url, params={'overwrite': 'true' if overwrite else 'false'}, body=data
+        )
 
-        if res.status_code == 200:
+        if res.status_code in (200, 201):
             logger.debug(f"OK --> Created action {action_name}")
-        else:
-            msg = f'An error occurred creating/updating action {action_name}: {resp_text["error"]}'
-            raise Exception(msg)
+            return
+        self._raise(res, f'creating/updating action {action_name}')
+
+    def get_action(self, package, action_name):
+        """Returns one action, or None when it does not exist"""
+        url = self._url('namespaces', self.namespace, 'actions', package, action_name)
+        res = self._request('GET', url)
+        if res.status_code == 200:
+            return self._body(res)
+        if res.status_code == 404:
+            return None
+        self._raise(res, f'getting action {action_name}')
 
     def list_actions(self, package):
-        """
-        List all WSK actions in a package
-        """
+        """Lists every action in a package, following the server's pages"""
         logger.debug(f"Listing all actions from: {package}")
-        url = '/'.join([self.url, self.namespace, 'actions', package, ''])
-        res = self.session.get(url)
-        if res.status_code == 200:
-            return res.json()
-        else:
-            return []
+        # The trailing slash asks for the actions inside the package
+        return self._list(self._url('namespaces', self.namespace, 'actions', package, ''))
 
     def delete_action(self, package, action_name):
-        """
-        Delete an WSK function
-        """
-        logger.debug(f"Deleting cloud function action: {action_name}")
-        url = '/'.join([self.url, self.namespace, 'actions', package, action_name])
-        res = self.session.delete(url)
-        resp_text = res.json()
-
-        if res.status_code != 200:
-            logger.debug(f'An error occurred deleting action {action_name}: {resp_text["error"]}')
+        """Deletes an action. One that is already gone is not an error"""
+        logger.debug(f"Deleting action: {action_name}")
+        url = self._url('namespaces', self.namespace, 'actions', package, action_name)
+        res = self._request('DELETE', url)
+        if res.status_code in (200, 404):
+            return
+        self._raise(res, f'deleting action {action_name}')
 
     def list_packages(self):
-        """
-        List all WSK packages
-        """
-        logger.debug('Listing function packages')
-        url = '/'.join([self.url, self.namespace, 'packages'])
-
-        res = self.session.get(url)
-
-        if res.status_code == 200:
-            return res.json()
-        else:
-            return []
+        """Lists every package in the namespace, following the server's pages"""
+        logger.debug('Listing packages')
+        return self._list(self._url('namespaces', self.namespace, 'packages'))
 
     def delete_package(self, package):
-        """
-        Delete an WSK package
-        """
-        logger.debug(f"Deleting functions package: {package}")
-        url = '/'.join([self.url, self.namespace, 'packages', package])
-        res = self.session.delete(url)
-        resp_text = res.json()
-
-        if res.status_code == 200:
-            return resp_text
-        else:
-            logger.debug(f'An error occurred deleting the package {package}: {resp_text["error"]}')
+        """Deletes a package. One that is already gone is not an error"""
+        logger.debug(f"Deleting package: {package}")
+        url = self._url('namespaces', self.namespace, 'packages', package)
+        res = self._request('DELETE', url)
+        if res.status_code in (200, 404):
+            return self._body(res)
+        self._raise(res, f'deleting the package {package}')
 
     def create_package(self, package):
         """
-        Create a WSK package
+        Creates a package. A package that already exists is left as it is,
+        so a redeploy does not drop the parameters stored on it
         """
-        logger.debug(f'Creating functions package {package}')
-        url = '/'.join([self.url, self.namespace, 'packages', package + "?overwrite=False"])
+        logger.debug(f'Creating package {package}')
+        url = self._url('namespaces', self.namespace, 'packages', package)
+        res = self._request(
+            'PUT', url, params={'overwrite': 'false'}, body={"name": package}
+        )
+        if res.status_code in (200, 201, 409):
+            logger.debug(f"OK --> Package {package} is present")
+            return
+        self._raise(res, f'creating package {package}')
 
-        data = {"name": package}
-        res = self.session.put(url, json=data)
-        resp_text = res.json()
-
-        if res.status_code != 200:
-            logger.debug(f'Package {package}: {resp_text["error"]}')
-        else:
-            logger.debug(f"OK --> Created package {package}")
-
-    def invoke(self, package, action_name, payload={}, is_ow_action=False, self_invoked=False):
+    def invoke(self, package, action_name, payload=None, is_ow_action=False, self_invoked=False):
         """
-        Invoke an WSK function by using new request.
-        """
-        url = '/'.join([self.url, self.namespace, 'actions', package, action_name])
-        parsed_url = urlparse(url)
+        Invokes an action without waiting for it.
 
+        Returns the activation id, None when the namespace is throttled (429,
+        the caller invokes it again later), or the int 401 or 404 so the
+        caller can report a bad key or a missing action. Any other failure
+        raises. A dropped connection is tried once.
+
+        Each call opens its own connection and closes it. A requests session
+        keeps a pool of 10 connections per host unless told otherwise, so the
+        invoker threads queue for a socket, and it sends the next call down a
+        socket the controller may already have closed. `is_ow_action` is
+        accepted for callers; a worker uses the same connection
+        """
+        logger.debug(f'Invoking {package}/{action_name} (worker={is_ow_action})')
+        url = self._url('namespaces', self.namespace, 'actions', package, action_name)
         try:
-            if is_ow_action:
-                resp = self.session.post(url, data=json.dumps(payload, default=str), verify=False)
-                resp_status = resp.status_code
-                data = resp.json()
-            else:
-                ctx = ssl._create_unverified_context()
-                conn = http.client.HTTPSConnection(parsed_url.netloc, context=ctx)
-                conn.request("POST", parsed_url.geturl(),
-                             body=json.dumps(payload, default=str),
-                             headers=self.headers)
-                resp = conn.getresponse()
-                resp_status = resp.status
-                data = json.loads(resp.read().decode("utf-8"))
-                conn.close()
-        except Exception as e:
-            logger.debug(f'Invocation Failed: {str(e)}. Doing reinvocation')
-            if not is_ow_action:
-                conn.close()
+            status, raw = self._post_invoke(url, payload or {})
+        except (http.client.HTTPException, OSError) as e:
             if self_invoked:
-                return None
-            return self.invoke(package, action_name, payload, is_ow_action=is_ow_action, self_invoked=True)
+                raise
+            logger.debug(f'Invocation failed: {e}. Retrying once')
+            return self.invoke(
+                package, action_name, payload, is_ow_action=is_ow_action, self_invoked=True
+            )
 
-        if resp_status == 202 and 'activationId' in data:
-            return data["activationId"]
-        elif resp_status == 429:
-            return None  # "Too many concurrent requests in flight"
+        if status in (401, 404):
+            return status
+        data = _decode_body(raw)
+        if status == 202 and isinstance(data, dict) and 'activationId' in data:
+            return data['activationId']
+        if status == 429:
+            return None
+        if isinstance(data, dict) and 'error' in data:
+            raise Exception(data['error'])
+        raise Exception(f'An error occurred invoking action {action_name}: {data or raw.decode(errors="replace")}')
+
+    def _post_invoke(self, url, payload):
+        """POSTs once on a new connection and always closes it"""
+        parsed = urlparse(url)
+        body = json.dumps(payload, default=str).encode()
+        headers = {'Content-Type': 'application/json', 'Connection': 'close'}
+        authorization = self.session.headers.get('Authorization')
+        if authorization:
+            headers['Authorization'] = authorization
+        user_agent = self.session.headers.get('User-Agent')
+        if user_agent:
+            headers['User-Agent'] = user_agent
+
+        if parsed.scheme == 'https':
+            context = ssl.create_default_context() if self.session.verify else ssl._create_unverified_context()
+            conn = http.client.HTTPSConnection(
+                parsed.hostname, parsed.port, timeout=60, context=context
+            )
+        elif parsed.scheme == 'http':
+            conn = http.client.HTTPConnection(parsed.hostname, parsed.port, timeout=60)
         else:
-            if resp_status == 401:
-                # unauthorized. Probably token expired if using IAM auth
-                return resp_status
-            elif resp_status == 404:
-                # Runtime is not deployed
-                return resp_status
-            else:
-                logger.debug(data)
-                raise Exception(data['error'])
+            raise ValueError(f'Unsupported endpoint scheme in {url}')
 
-    def invoke_with_result(self, package, action_name, payload={}):
-        """
-        Invoke a WSK function waiting for the result.
-        """
-        url = '/'.join([self.url, self.namespace, 'actions', package, action_name + "?blocking=true&result=true"])
-        resp = self.session.post(url, json=payload)
-        result = resp.json()
+        path = parsed.path or '/'
+        if parsed.query:
+            path = f'{path}?{parsed.query}'
+        try:
+            conn.request('POST', path, body=body, headers=headers)
+            response = conn.getresponse()
+            return response.status, response.read()
+        finally:
+            conn.close()
 
-        return result
+    def get_activation(self, activation_id):
+        """Returns an activation, or None while it is not stored yet"""
+        url = self._url('namespaces', self.namespace, 'activations', activation_id)
+        res = self._request('GET', url)
+        if res.status_code == 200:
+            return self._body(res)
+        if res.status_code == 404:
+            return None
+        self._raise(res, f'getting activation {activation_id}')
+
+    def invoke_with_result(self, package, action_name, payload=None, timeout=180):
+        """
+        Invokes an action and returns its result. The controller holds the
+        request for a short while; if the action is still running, the
+        activation is polled until `timeout` seconds have passed
+        """
+        url = self._url('namespaces', self.namespace, 'actions', package, action_name)
+        deadline = time.monotonic() + timeout
+        response = None
+        while time.monotonic() < deadline:
+            remaining = max(1, deadline - time.monotonic())
+            try:
+                # Wait out the whole budget. The controller answers earlier, with
+                # the result or with the activation id, and a second POST would
+                # start a second activation
+                response = self._request(
+                    'POST', url,
+                    params={'blocking': 'true', 'result': 'true'},
+                    body=payload or {},
+                    timeout=(10, remaining),
+                )
+            except requests.Timeout:
+                raise Exception(f'Timed out invoking {package}/{action_name}') from None
+            if response.status_code != 429:
+                break
+            time.sleep(1)
+        else:
+            raise Exception(f'Timed out invoking {package}/{action_name}')
+
+        data = self._body(response)
+        if response.status_code == 200 and not _is_pending(data):
+            return data
+        if response.status_code in (200, 202) and _is_pending(data):
+            return self._wait_for_activation(data['activationId'], deadline)
+        self._raise(response, f'invoking action {action_name}')
+
+    def _wait_for_activation(self, activation_id, deadline):
+        """Polls an activation until it has a result or the deadline passes"""
+        while time.monotonic() < deadline:
+            activation = self.get_activation(activation_id)
+            result = _activation_result(activation)
+            if result is not None:
+                status, value = result
+                if status == 'success':
+                    return value
+                raise Exception(f'Activation {activation_id} failed ({status}): {value}')
+            time.sleep(1)
+        raise Exception(f'Timed out waiting for activation {activation_id}')
+
+
+def _decode_body(raw):
+    if not raw:
+        return None
+    try:
+        return json.loads(raw)
+    except ValueError:
+        return None
+
+
+def _is_pending(data):
+    """A not-yet-finished blocking call comes back as only an activation id"""
+    return isinstance(data, dict) and 'activationId' in data and 'preinstalls' not in data and len(data) == 1
+
+
+def _activation_result(activation):
+    """
+    (status, result) once the activation has finished, None while it is running.
+    OpenWhisk stores an activation only after it completes, so a missing one is
+    still running
+    """
+    if not isinstance(activation, dict):
+        return None
+    response = activation.get('response')
+    if not isinstance(response, dict) or 'status' not in response:
+        return None
+    return response['status'], response.get('result')
