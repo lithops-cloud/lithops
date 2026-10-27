@@ -373,7 +373,8 @@ class GCPFunctionsBackend:
             function_name = self._format_function_name(
                 runtime_name, runtime_memory, version)
         function_location = self._get_function_location(function_name)
-        logger.info(f'Deleting runtime: {runtime_name} - {runtime_memory}MB')
+        memory_info = f' - {runtime_memory}MB' if runtime_memory is not None else ''
+        logger.info(f'Deleting runtime: {runtime_name}{memory_info}')
 
         # Delete function
         try:
@@ -433,12 +434,13 @@ class GCPFunctionsBackend:
         logger.debug('Listing deployed runtimes')
         runtimes = []
         for func in self._list_functions():
-            if func['labels'] and 'type' in func['labels'] \
-               and func['labels']['type'] == 'lithops-runtime':
+            labels = func.get('labels') or {}
+            if labels.get('type') == 'lithops-runtime':
                 fn_name = func['name'].rsplit('/', 1)[-1]
                 version = func['labels']['lithops_version'].replace('-', '.')
                 rt_name = func['labels']['runtime_name']
-                memory = self._memory_from_gcfv2(func['serviceConfig']['availableMemory'])
+                memory_value = (func.get('serviceConfig') or {}).get('availableMemory')
+                memory = self._memory_from_gcfv2(memory_value) if memory_value is not None else None
                 if runtime_name == rt_name or runtime_name == 'all':
                     runtimes.append((rt_name, memory, version, fn_name))
 

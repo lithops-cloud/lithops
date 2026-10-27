@@ -487,6 +487,32 @@ class TestGcpFunctionsDeploy:
         assert [row[3] for row in backend.list_runtimes()] == ['a', 'b']
         assert list_call.call_args_list[1].kwargs['pageToken'] == 'tok'
 
+    @pytest.mark.parametrize('service_config', [None, {}, {'availableMemory': '512Mi'}])
+    def test_clean_deletes_incomplete_functions(self, service_config):
+        backend = self._backend()
+        function = {
+            'name': 'projects/p/locations/l/functions/failed-runtime',
+            'state': 'UNKNOWN',
+            'labels': {
+                'type': 'lithops-runtime',
+                'lithops_version': '3-8-1-dev0',
+                'runtime_name': 'rt',
+            },
+        }
+        if service_config is not None:
+            function['serviceConfig'] = service_config
+        backend._list_functions = MagicMock(return_value=[
+            {'name': 'unrelated-function'}, {'labels': None}, function,
+        ])
+        memory = 512 if service_config else None
+        assert backend.list_runtimes() == [('rt', memory, '3.8.1.dev0', 'failed-runtime')]
+        assert backend.list_runtimes('other') == []
+        backend.delete_runtime = MagicMock()
+        backend.clean()
+        backend.delete_runtime.assert_called_once_with(
+            'rt', memory, '3.8.1.dev0', function_name='failed-runtime'
+        )
+
 
 class TestCloudRunDeployAndDelete:
 

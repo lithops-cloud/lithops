@@ -13,6 +13,7 @@
 - [Knative] Updated to current Knative Serving (tested with 1.23): one container per call in flight with the current autoscaling annotations, `kubecfg_context`, `namespace` and `runtime_arch` keys, the Contour networking layer, cluster-local calls from inside the cluster, a deploy that updates an existing service and reports why its revision fails, and a default runtime that runs as a non-root user.
 
 ### Fixed
+- [GCP Functions] Cleaning runtimes works when service configuration is missing.
 - [Azure VMs] Fixed network request serialization with newer SDKs and enabled internet access for workers on newly created subnets.
 - [Runtime] Podman logins include the Docker Hub registry explicitly, so runtime builds can authenticate without a default registry in `registries.conf`.
 - [Core] `get_result()` with no futures returns `[]`. `call_async()` chains a list or tuple of futures as one call. `RetryingFunctionExecutor.wait()` shares one timeout across retry rounds and, when it expires, leaves the calls running instead of cancelling them.
