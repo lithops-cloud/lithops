@@ -296,8 +296,8 @@ def test_azure_functions_delete_legacy_app_by_tags(monkeypatch):
     monkeypatch.setattr(backend, '_run_az_command', run_az)
     backend.queue_service = types.SimpleNamespace(delete_queue=lambda name: None)
 
-    assert backend.list_runtimes('rt') == [('rt', 2048, __version__, legacy_name)]
-    backend.delete_runtime('rt', 2048, __version__)
+    assert backend.list_runtimes('rt') == [('rt', 512, __version__, legacy_name)]
+    backend.delete_runtime('rt', 512, __version__)
     assert commands == [f'az functionapp delete --name {legacy_name} --resource-group rg']
 
 

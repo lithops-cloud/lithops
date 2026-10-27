@@ -662,8 +662,7 @@ class TestCloudBackendListing:
         assert backend.os_client.list_objects.call_args.kwargs['start'] == 'c'
 
     def test_oracle_list_keeps_non_404_errors(self):
-        import oci
-        pytest.importorskip('oci')
+        oci = pytest.importorskip('oci')
         from lithops.storage.backends.oracle_oss import StorageBackend
         backend = StorageBackend.__new__(StorageBackend)
         backend.namespace = 'ns'

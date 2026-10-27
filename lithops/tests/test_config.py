@@ -718,6 +718,11 @@ class TestStorageAndExtract:
 
 
 class TestGceProjectFallback:
+    @pytest.fixture(autouse=True)
+    def _need_gcp(self):
+        pytest.importorskip('googleapiclient')
+        pytest.importorskip('google_auth_httplib2')
+
     @pytest.mark.parametrize('mode', ['create', 'reuse', 'consume'])
     def test_project_from_credentials(self, tmp_path, mode):
         from lithops.standalone.backends.gcp_compute_engine.config import load_config

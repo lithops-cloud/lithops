@@ -736,6 +736,7 @@ class TestVMInitRollback:
         backend.vpc_cli.delete_floating_ip.assert_called_once_with(id='fip-new')
 
     def test_aws_spot_price_without_history_raises(self):
+        pytest.importorskip('boto3')
         from lithops.standalone.backends.aws_ec2.aws_ec2 import AWSEC2Backend
         backend = AWSEC2Backend.__new__(AWSEC2Backend)
         backend.config = {
@@ -750,6 +751,7 @@ class TestVMInitRollback:
             backend._request_spot_price()
 
     def test_delete_vms_reads_every_page_of_instances(self):
+        pytest.importorskip('boto3')
         from lithops.standalone.backends.aws_ec2.aws_ec2 import AWSEC2Backend
         backend = AWSEC2Backend.__new__(AWSEC2Backend)
         backend.vpc_name = 'lithops-vpc'
@@ -779,6 +781,8 @@ class TestVMInitRollback:
         )
 
     def test_gcp_clean_reads_every_page_of_instances(self):
+        pytest.importorskip('googleapiclient')
+        pytest.importorskip('google_auth_httplib2')
         from lithops.standalone.backends.gcp_compute_engine.gcp_compute_engine import GCPComputeEngineBackend
         backend = GCPComputeEngineBackend.__new__(GCPComputeEngineBackend)
         backend.network_name = 'lithops-net'
@@ -822,6 +826,7 @@ class TestVMInitRollback:
         return response
 
     def test_ibm_clean_reads_every_page_of_instances(self):
+        pytest.importorskip('ibm_vpc')
         from lithops.standalone.backends.ibm_vpc.ibm_vpc import IBMVPCBackend
         backend = IBMVPCBackend.__new__(IBMVPCBackend)
         backend.vpc_name = 'lithops-vpc'
@@ -849,6 +854,7 @@ class TestVMInitRollback:
         assert deleted == {'i-1', 'i-2'}
 
     def test_ibm_image_lookup_reads_the_page_after_the_first(self):
+        pytest.importorskip('ibm_vpc')
         from lithops.standalone.backends.ibm_vpc.ibm_vpc import IBMVPCBackend
         backend = IBMVPCBackend.__new__(IBMVPCBackend)
         backend.config = {'resource_group_id': 'rg'}
@@ -868,6 +874,7 @@ class TestVMInitRollback:
         assert backend.vpc_cli.list_images.call_args_list[1].kwargs['start'] == 'tok'
 
     def test_ibm_reuses_a_floating_ip_past_the_first_page(self):
+        pytest.importorskip('ibm_vpc')
         from lithops.standalone.backends.ibm_vpc.ibm_vpc import IBMVPCBackend
         backend = IBMVPCBackend.__new__(IBMVPCBackend)
         backend.config = {'zone_name': 'eu-de-1', 'resource_group_id': 'rg'}

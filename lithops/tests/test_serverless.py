@@ -389,6 +389,12 @@ class TestGcpFunctionDeletion:
 
 class TestGcpFunctionsDeploy:
 
+    @pytest.fixture(autouse=True)
+    def _need_gcp(self):
+        pytest.importorskip('googleapiclient')
+        pytest.importorskip('google_auth_httplib2')
+        pytest.importorskip('google.cloud.pubsub_v1')
+
     def _backend(self):
         from lithops.serverless.backends.gcp_functions.gcp_functions import GCPFunctionsBackend
         backend = GCPFunctionsBackend.__new__(GCPFunctionsBackend)
@@ -631,6 +637,10 @@ def test_gcp_project_override_and_credentials_fallback(monkeypatch, backend_name
         'gcp_functions': ('gcp_functions', 'GCPFunctionsBackend', 'gcf_config'),
         'gcp_cloudrun': ('cloudrun', 'GCPCloudRunBackend', 'cr_config'),
     }[backend_name]
+    pytest.importorskip('googleapiclient')
+    pytest.importorskip('google_auth_httplib2')
+    if backend_name == 'gcp_functions':
+        pytest.importorskip('google.cloud.pubsub_v1')
     module = importlib.import_module(f'lithops.serverless.backends.{backend_name}.{filename}')
     backend = getattr(module, class_name).__new__(getattr(module, class_name))
     backend.region = 'us-east1'
