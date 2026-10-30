@@ -1,6 +1,6 @@
 # Changelog
 
-## [v3.8.1.dev0]
+## [v3.9.0]
 
 ### Changed
 - [Worker] Start status is sent before launching the JobRunner process.
