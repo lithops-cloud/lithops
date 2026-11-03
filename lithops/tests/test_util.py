@@ -264,7 +264,7 @@ class TestJoblibBackend:
         # multiprocessing backend Lithops extends carries its own submit. If
         # the override goes away joblib silently stops using this backend
         pytest.importorskip('joblib')
-        pytest.importorskip('diskcache')
+        pytest.importorskip('diskcache_community')
         from joblib._parallel_backends import PoolManagerMixin
         from lithops.util.joblib.lithops_backend import LithopsBackend
 
@@ -275,7 +275,7 @@ class TestJoblibBackend:
 
     def test_submit_optimizes_the_batch_before_queueing_it(self):
         pytest.importorskip('joblib')
-        pytest.importorskip('diskcache')
+        pytest.importorskip('diskcache_community')
         from lithops.util.joblib.lithops_backend import LithopsBackend
 
         backend = LithopsBackend.__new__(LithopsBackend)
@@ -296,7 +296,7 @@ class TestJoblibBackend:
 
     def test_submit_runs_the_batch_in_one_call_when_threads_preferred(self):
         pytest.importorskip('joblib')
-        pytest.importorskip('diskcache')
+        pytest.importorskip('diskcache_community')
         from lithops.util.joblib.lithops_backend import LithopsBackend
 
         backend = LithopsBackend.__new__(LithopsBackend)
@@ -319,7 +319,7 @@ class TestJoblibBackend:
         # while its file is not readable yet. Asking and then reading raised
         # KeyError out of the worker
         pytest.importorskip('joblib')
-        pytest.importorskip('diskcache')
+        pytest.importorskip('diskcache_community')
         from lithops.util.joblib.lithops_backend import replace_with_values
 
         class RowWithoutItsFileYet:
@@ -357,7 +357,7 @@ class TestJoblibBackend:
 
     def test_proxied_args_come_from_the_cache_when_it_has_them(self):
         pytest.importorskip('joblib')
-        pytest.importorskip('diskcache')
+        pytest.importorskip('diskcache_community')
         from lithops.util.joblib.lithops_backend import replace_with_values
 
         cache = MagicMock()
@@ -374,6 +374,74 @@ class TestJoblibBackend:
 
         assert kwargs == {'k': [4, 5]}
         storage_cls.assert_not_called()
+
+    def test_a_planted_cache_entry_is_downloaded_again_not_unpickled(self, tmp_path):
+        # Every task of a runtime reads the same cache directory. An entry
+        # written there as a pickle of something else must not run when the
+        # worker reads it: the argument comes from storage instead
+        pytest.importorskip('joblib')
+        diskcache = pytest.importorskip('diskcache_community')
+        from lithops.storage.utils import CloudObject
+        from lithops.util.joblib.lithops_backend import replace_with_values
+
+        marker = tmp_path / 'planted-code-ran'
+
+        class OpensAFileWhenRead:
+            def __reduce__(self):
+                return (open, (str(marker), 'w'))
+
+        cloud_obj = CloudObject('localhost', 'bucket', 'cloudobject_0')
+        with diskcache.Cache(str(tmp_path / 'cache'), disk=diskcache.Disk) as cache:
+            cache[cloud_obj] = OpensAFileWhenRead()
+
+        storage = MagicMock()
+        storage.get_cloudobject.return_value = pickle.dumps([1, 2, 3])
+        with patch(
+            'lithops.util.joblib.lithops_backend.LITHOPS_TEMP_DIR', str(tmp_path)
+        ), patch(
+            'lithops.util.joblib.lithops_backend.Storage',
+            return_value=storage,
+        ):
+            args, kwargs = replace_with_values((cloud_obj,), {}, [0])
+
+        assert args == [[1, 2, 3]]
+        assert not marker.exists()
+        storage.get_cloudobject.assert_called_once_with(cloud_obj)
+
+    def test_only_what_the_cache_can_store_is_served_from_it(self, tmp_path):
+        # Arrays and plain data are downloaded once per runtime. A list of
+        # other objects still reaches the call, downloaded every time
+        pytest.importorskip('joblib')
+        pytest.importorskip('diskcache_community')
+        numpy = pytest.importorskip('numpy')
+        from lithops.storage.utils import CloudObject
+        from lithops.util.joblib.lithops_backend import replace_with_values
+
+        array = numpy.arange(6.0).reshape(2, 3)
+        objects = [SimpleNamespace(depth=2)]
+        array_obj = CloudObject('localhost', 'bucket', 'cloudobject_0')
+        objects_obj = CloudObject('localhost', 'bucket', 'cloudobject_1')
+        stored = {'cloudobject_0': array, 'cloudobject_1': objects}
+
+        storage = MagicMock()
+        storage.get_cloudobject.side_effect = (
+            lambda cloud_obj: pickle.dumps(stored[cloud_obj.key])
+        )
+        with patch(
+            'lithops.util.joblib.lithops_backend.LITHOPS_TEMP_DIR', str(tmp_path)
+        ), patch(
+            'lithops.util.joblib.lithops_backend.Storage',
+            return_value=storage,
+        ):
+            for _ in range(2):
+                args, kwargs = replace_with_values(
+                    (array_obj,), {'k': objects_obj}, [0, 'k']
+                )
+                assert numpy.array_equal(args[0], array)
+                assert kwargs == {'k': objects}
+
+        downloaded = [call.args[0].key for call in storage.get_cloudobject.call_args_list]
+        assert sorted(downloaded) == ['cloudobject_0', 'cloudobject_1', 'cloudobject_1']
 
     def test_find_shared_objects_skips_unique_args(self):
         pytest.importorskip('joblib')

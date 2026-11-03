@@ -2,6 +2,9 @@
 
 ## [v3.9.1.dev0]
 
+### Changed
+- [Joblib] The workers cache shared arguments with diskcache-community instead of diskcache, read through its `SafeDisk`: numpy arrays and plain data are cached as before, a list of other objects is downloaded by every task that needs it, and an entry holding anything else is downloaded again instead of unpickled. Custom runtimes for the joblib backend should install `diskcache-community` instead of `diskcache`; until then it is shipped with each job like any other missing module.
+
 ## [v3.9.0]
 
 ### Changed

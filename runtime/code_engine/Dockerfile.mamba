@@ -36,7 +36,7 @@ RUN /opt/conda-env/bin/pip install --upgrade --no-cache-dir --ignore-installed \
     ibm-cos-sdk \
     ibm-code-engine-sdk \
     scikit-learn \
-    diskcache \
+    diskcache-community \
     redis \
     requests \
     PyYAML \

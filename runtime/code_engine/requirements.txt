@@ -18,5 +18,5 @@ psutil
 
 # Optional packages (add your packages below)
 #scikit-learn
-#diskcache
+#diskcache-community
 #pandas

@@ -22,7 +22,7 @@ from functools import partial
 from multiprocessing.pool import ThreadPool
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
-import diskcache
+import diskcache_community as diskcache
 from numpy import ndarray
 
 from joblib import Parallel
@@ -33,6 +33,7 @@ from lithops.multiprocessing import Pool, cpu_count
 from lithops.multiprocessing import config as mp_config
 from lithops.constants import LITHOPS_TEMP_DIR
 from lithops.storage import Storage
+from lithops.storage.utils import CloudObject
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +47,11 @@ MAX_UPLOAD_THREADS = 32
 
 # Tells a cached None apart from a key that is not cached
 _CACHE_MISS = object()
+
+# Disk of the worker cache of the shared arguments, keyed by their CloudObject.
+# It reads back plain data and numpy arrays without unpickling anything else,
+# and drops an entry it refuses, so that argument is downloaded again
+_CACHE_DISK = diskcache.SafeDisk.with_numpy().with_types(CloudObject).with_options(on_error='miss')
 
 
 class LithopsBackend(MultiprocessingBackend):
@@ -278,7 +284,13 @@ def replace_with_values(
             storage = Storage()
             obj_bin = storage.get_cloudobject(obj_id)
             obj = pickle.loads(obj_bin)
-            cache[obj_id] = obj
+            try:
+                cache[obj_id] = obj
+            except TypeError:
+                # SafeDisk refuses to store what it would not read back, such
+                # as a list of other objects: that argument is not cached, and
+                # each task downloads it
+                logger.debug(f'Not caching {obj_id} (arg {idx_or_key}): {type(obj)}')
         else:
             logger.debug(f'Get {obj_id} (arg {idx_or_key}) from cache')
 
@@ -287,7 +299,7 @@ def replace_with_values(
         else:
             args_as_list[idx_or_key] = obj
 
-    with diskcache.Cache(cache_dir) as cache:
+    with diskcache.Cache(cache_dir, disk=_CACHE_DISK) as cache:
         workers = min(max(1, len(proxy_positions)), MAX_UPLOAD_THREADS)
         with ThreadPoolExecutor(max_workers=workers) as thread_pool:
             list(thread_pool.map(partial(get_arg_obj, cache=cache), proxy_positions))
