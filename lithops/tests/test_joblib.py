@@ -10,7 +10,7 @@
 import pytest
 
 joblib = pytest.importorskip('joblib')
-pytest.importorskip('diskcache')
+pytest.importorskip('diskcache_community')
 pytest.importorskip('numpy')
 
 from lithops.multiprocessing import config as mp_config  # noqa: E402

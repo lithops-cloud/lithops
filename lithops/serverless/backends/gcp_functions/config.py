@@ -61,7 +61,7 @@ requests
 redis
 pika
 scikit-learn
-diskcache
+diskcache-community
 cloudpickle
 ps-mem
 tblib

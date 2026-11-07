@@ -7,7 +7,7 @@ boto3
 ibm-cloud-sdk-core
 ibm-cos-sdk
 scikit-learn
-diskcache
+diskcache-community
 redis
 gevent
 requests

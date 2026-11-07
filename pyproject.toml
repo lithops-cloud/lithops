@@ -106,7 +106,7 @@ multiprocessing = [
 ]
 joblib = [
     "joblib",
-    "diskcache",
+    "diskcache-community>=5.8.3",
     "numpy",
     "redis",
 ]
@@ -127,7 +127,7 @@ tests = [
     "ibm-cos-sdk",
     "ibm-cloud-sdk-core",
     "joblib",
-    "diskcache",
+    "diskcache-community>=5.8.3",
     "numpy",
     "redis",
     "pandas",
@@ -166,7 +166,7 @@ all = [
     "azure-storage-blob",
     "azure-storage-queue",
     "boto3",
-    "diskcache",
+    "diskcache-community>=5.8.3",
     "flask",
     "gevent",
     "google-api-python-client",
